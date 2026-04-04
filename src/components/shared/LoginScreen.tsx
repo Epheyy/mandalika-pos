@@ -29,8 +29,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         <div className="bg-white rounded-[32px] shadow-2xl shadow-indigo-100 border border-gray-100 p-10 text-center">
 
           {/* Logo */}
-          <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200">
-            <span className="text-4xl font-black text-white">{BRAND.logo}</span>
+          <div className="w-32 h-24 flex items-center justify-center mx-auto mb-6">
+            <img
+              src={BRAND.logoUrl}
+              alt="Mandalika Perfume"
+              className="w-full h-full object-contain"
+            />
           </div>
 
           {/* Brand name */}

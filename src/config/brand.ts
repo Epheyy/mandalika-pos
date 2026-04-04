@@ -1,20 +1,16 @@
-// ============================================
-// 🎨 BRAND CONFIG — Change this per brand
-// When building for Performance or Flamboyan,
-// only this file needs to change.
-// ============================================
-
 export const BRAND = {
   name: 'Mandalika',
-  tagline: 'Luxury Perfume',
+  tagline: 'Your Scent, Your Statement',
   logo: 'M',
-  
+
+  // Logo image URL — uses actual Mandalika gold logo
+  logoUrl: 'https://mandalikaperfume.co.id/wp-content/uploads/2025/02/GOLD-Tanpa-Text-Bawah.png',
+
   // Currency settings (Indonesia)
   currency: {
     code: 'IDR',
     symbol: 'Rp',
     locale: 'id-ID',
-    // Format: Rp 150.000
     format: (amount: number) =>
       new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -27,21 +23,22 @@ export const BRAND = {
   // Tax settings
   tax: {
     enabled: true,
-    rate: 0.11, // 11% PPN Indonesia
+    rate: 0.11,
     label: 'PPN 11%',
   },
 
   // Loyalty points
   loyalty: {
     enabled: true,
-    pointsPerRupiah: 1,      // 1 point per Rp 1.000 spent
-    pointsThreshold: 1000,   // minimum spend to earn points
-    redemptionRate: 100,     // 100 points = Rp 1.000 discount
+    pointsPerRupiah: 1,
+    pointsThreshold: 1000,
+    redemptionRate: 100,
   },
 
-  // Theme color (Tailwind class names)
+  // Theme
   colors: {
-    primary: 'indigo',
-    primaryHex: '#6366f1',
+    primary: 'indigo',      // Tailwind class prefix (now gold via CSS override)
+    primaryHex: '#b07d18',  // Actual hex value
+    dark: '#1a1008',        // Dark background accent
   }
 }

@@ -83,12 +83,12 @@ export default function BackOfficeScreen({ appUser, onLogout }: Props) {
         <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-black text-white">{BRAND.logo}</span>
+              <div className="w-10 h-8 flex items-center justify-center flex-shrink-0">
+                <img src={BRAND.logoUrl} alt="Mandalika" className="w-full h-full object-contain" />
               </div>
-              <div>
-                <p className="text-sm font-black text-gray-900">{BRAND.name}</p>
-                <p className="text-xs text-indigo-600 font-bold">Back Office</p>
+            <div>
+              <p className="text-sm font-black text-gray-900">{BRAND.name}</p>
+              <p className="text-xs font-bold" style={{ color: BRAND.colors.primaryHex }}>Back Office</p>
               </div>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4 text-gray-400" /></button>
