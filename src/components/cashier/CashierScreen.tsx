@@ -231,7 +231,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       setCart([]); setSelectedCustomer(null); setCustomerSearch('')
       setOrderNotes(''); setDiscountValue(''); setDiscountOpen(false); setNotesOpen(false)
       setIsCheckoutOpen(false); setIsSuccessOpen(true)
-    } catch (err) { alert('Gagal menyimpan transaksi.'); console.error(err) }
+    } catch (err) {
+  const errorMessage = err instanceof Error ? err.message : String(err)
+  alert(`Gagal menyimpan transaksi.\n\nDetail: ${errorMessage}`)
+  console.error('Transaction error:', err) }
     finally { setIsProcessing(false) }
   }
 
