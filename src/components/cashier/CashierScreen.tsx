@@ -183,29 +183,30 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     if (paymentMethod === PaymentMethod.CASH && paid < total) { alert('Jumlah bayar kurang!'); return }
     setIsProcessing(true)
     try {
-      const order: Omit<Order, 'id'> = {
+      const orderData = {
         orderNumber: generateOrderNumber(),
         outletId: 'default',
         cashierId: appUser.uid,
         cashierName: appUser.displayName,
-        salesmanId: selectedSalesman?.uid,
-        salesmanName: selectedSalesman?.displayName,
-        customerId: selectedCustomer?.id,
-        customerName: selectedCustomer?.name,
         items: cart,
         subtotal,
         discountAmount,
-        discountType: discountOpen ? discountType : undefined,
-        discountValue: discountOpen ? parseFloat(discountValue) || 0 : undefined,
         taxAmount,
         total,
         paymentMethod,
         amountPaid: paymentMethod === PaymentMethod.CASH ? paid : total,
         change: paymentMethod === PaymentMethod.CASH ? change : 0,
         status: OrderStatus.COMPLETED,
-        notes: orderNotes.trim() || undefined,
         createdAt: new Date().toISOString(),
+        ...(selectedSalesman?.uid && { salesmanId: selectedSalesman.uid }),
+        ...(selectedSalesman?.displayName && { salesmanName: selectedSalesman.displayName }),
+        ...(selectedCustomer?.id && { customerId: selectedCustomer.id}),
+        ...(selectedCustomer?.name && { customerName: selectedCustomer.name }),
+        ...(discountOpen && discountType && { discountType }),
+        ...(discountOpen && discountValue && { discountValue: parseFloat(discountValue) || 0 }),
+        ...(orderNotes.trim() && { notes: orderNotes.trim() }),
       }
+      const order = orderData as Omit<Order, 'id'>
       const ref = await addDoc(collection(db, 'orders'), order)
 
       for (const item of cart) {
