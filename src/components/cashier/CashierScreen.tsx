@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { AppUser, Product, Category, CartItem, Order, Customer, LoyaltySettings, AppSettings } from '../../types'
+import type { AppUser, Product, Category, CartItem, Order, Customer, LoyaltySettings, AppSettings, Promotion } from '../../types'
 import { PaymentMethod, OrderStatus } from '../../types'
 import { db } from '../../firebase'
 import {
@@ -71,17 +71,24 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [isSavingCustomer,      setIsSavingCustomer]      = useState(false)
   const customerRef = useRef<HTMLDivElement>(null)
 
-  // ── Adjustments panel (notes / discount / promo) ──────────
+  // ── Adjustments panel (notes / discount / surcharge / promo) ─
   const [activeAdjustment, setActiveAdjustment] = useState<'notes' | 'discount' | 'promo' | null>(null)
   const [orderNotes,        setOrderNotes]        = useState('')
   const [discountType,      setDiscountType]      = useState<'percentage' | 'fixed'>('fixed')
-  const [discountRunning,   setDiscountRunning]   = useState(0)   // accumulated value
-  const [discountInputStr,  setDiscountInputStr]  = useState('')  // what user is typing
-  const [promoCode,         setPromoCode]         = useState('')
+  const [discountRunning,   setDiscountRunning]   = useState(0)   // reduces total
+  const [surchargeRunning,  setSurchargeRunning]  = useState(0)   // increases total
+  const [adjustInputStr,    setAdjustInputStr]    = useState('')  // shared input
+
+  // ── Variant modal per-item discount ───────────────────────
+  const [variantDiscOpen,   setVariantDiscOpen]   = useState(false)
+  const [variantDiscType,   setVariantDiscType]   = useState<'percentage' | 'fixed'>('percentage')
+  const [variantDiscVal,    setVariantDiscVal]    = useState('')
   const [appliedPromoCode,  setAppliedPromoCode]  = useState<{
     code: string; value: number; type: 'percentage' | 'fixed'
   } | null>(null)
-  const [isApplyingPromo, setIsApplyingPromo] = useState(false)
+  // promotions from backoffice
+  const [promotions,        setPromotions]        = useState<Promotion[]>([])
+  const [appliedPromotion,  setAppliedPromotion]  = useState<Promotion | null>(null)
 
   // ── Checkout ──────────────────────────────────────────────
   const [isCheckoutOpen,  setIsCheckoutOpen]  = useState(false)
@@ -102,6 +109,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [historyRefundId,    setHistoryRefundId]    = useState<string | null>(null)
   const [historyRefundNote,  setHistoryRefundNote]  = useState('')
   const [isRefundingHistory, setIsRefundingHistory] = useState(false)
+  const [historySearch,      setHistorySearch]      = useState('')
 
   // ── Firestore subscriptions ───────────────────────────────
   useEffect(() => {
@@ -121,7 +129,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     const u6 = onSnapshot(doc(db, 'settings', 'app'), s => {
       if (s.exists()) setSettings({ ...DEFAULT_SETTINGS, ...s.data() as AppSettings })
     })
-    return () => { u1(); u2(); u3(); u4(); u5(); u6() }
+    const u7 = onSnapshot(collection(db, 'promotions'), s =>
+      setPromotions(s.docs.map(d => ({ id: d.id, ...d.data() } as Promotion))))
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7() }
   }, [])
 
   // ── History subscription (when modal open / dates change) ─
@@ -169,16 +179,41 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       : Math.min(discountRunning, subtotal)
     : 0
 
-  const promoDiscountAmount = appliedPromoCode
-    ? appliedPromoCode.type === 'percentage'
-      ? Math.round(subtotal * (appliedPromoCode.value / 100))
-      : Math.min(appliedPromoCode.value, subtotal)
+  const surchargeAmount = surchargeRunning > 0
+    ? discountType === 'percentage'
+      ? Math.round(subtotal * (surchargeRunning / 100))
+      : surchargeRunning
     : 0
+
+  // Promotion discount — supports percentage, fixed, bogo
+  const calcPromotionDiscount = (promo: Promotion, items: CartItem[], sub: number): number => {
+    const matchingItems = promo.applicableProductIds && promo.applicableProductIds.length > 0
+      ? items.filter(i => promo.applicableProductIds!.includes(i.productId))
+      : items
+    const matchingSubtotal = matchingItems.reduce((s, i) => s + i.subtotal, 0)
+    if (matchingItems.length === 0 && promo.applicableProductIds && promo.applicableProductIds.length > 0) return 0
+    if (promo.type === 'percentage') return Math.round((matchingItems.length > 0 ? matchingSubtotal : sub) * (promo.value / 100))
+    if (promo.type === 'fixed')      return Math.min(promo.value, sub)
+    if (promo.type === 'bogo') {
+      const prices = matchingItems.flatMap(i => Array.from({ length: i.quantity }, () => i.price))
+      prices.sort((a, b) => a - b)
+      return prices.length >= 2 ? prices[0] : 0
+    }
+    return 0
+  }
+
+  const promoDiscountAmount = appliedPromotion
+    ? calcPromotionDiscount(appliedPromotion, cart, subtotal)
+    : appliedPromoCode
+      ? appliedPromoCode.type === 'percentage'
+        ? Math.round(subtotal * (appliedPromoCode.value / 100))
+        : Math.min(appliedPromoCode.value, subtotal)
+      : 0
 
   const discountAmount  = Math.min(manualDiscountAmount + promoDiscountAmount, subtotal)
   const taxableAmount   = subtotal - discountAmount
   const taxAmount       = settings.taxEnabled ? Math.round(taxableAmount * (settings.taxRate / 100)) : 0
-  let total             = taxableAmount + taxAmount
+  let total             = taxableAmount + taxAmount + surchargeAmount
   if (settings.roundingEnabled) {
     const roundTo = settings.roundingType === 'nearest_1000' ? 1000
       : settings.roundingType === 'nearest_500' ? 500 : 1
@@ -234,6 +269,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     const qtys: Record<string, number> = {}
     product.variants.forEach(v => { qtys[v.size] = 0 })
     setVariantQtys(qtys)
+    setVariantDiscOpen(false)
+    setVariantDiscType('percentage')
+    setVariantDiscVal('')
     setSelectedProductForCart(product)
   }
 
@@ -249,24 +287,34 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
 
   const handleConfirmVariants = () => {
     if (!selectedProductForCart) return
+    // Apply per-item discount if set
+    const discVal = parseFloat(variantDiscVal) || 0
+    const getEffectivePrice = (basePrice: number): number => {
+      if (discVal <= 0) return basePrice
+      if (variantDiscType === 'percentage')
+        return Math.max(0, Math.round(basePrice * (1 - discVal / 100)))
+      return Math.max(0, basePrice - discVal)
+    }
     const newCart = [...cart]
     selectedProductForCart.variants.forEach(variant => {
       const qty = variantQtys[variant.size] || 0
       if (qty === 0) return
+      const effectivePrice = getEffectivePrice(variant.price)
       const existingIndex = newCart.findIndex(
         i => i.productId === selectedProductForCart.id && i.variantSize === variant.size
       )
       if (existingIndex >= 0) {
         newCart[existingIndex].quantity += qty
-        newCart[existingIndex].subtotal = newCart[existingIndex].quantity * newCart[existingIndex].price
+        newCart[existingIndex].price    = effectivePrice
+        newCart[existingIndex].subtotal = newCart[existingIndex].quantity * effectivePrice
       } else {
         newCart.push({
           productId:   selectedProductForCart.id!,
           productName: selectedProductForCart.name,
           variantSize: variant.size,
-          price:       variant.price,
+          price:       effectivePrice,
           quantity:    qty,
-          subtotal:    variant.price * qty,
+          subtotal:    effectivePrice * qty,
         })
       }
     })
@@ -308,35 +356,19 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     await updateDoc(doc(db, 'products', product.id), { isFavourite: !product.isFavourite })
   }
 
-  // ── Discount helpers ──────────────────────────────────────
-  const applyDiscountAdjustment = (sign: 1 | -1) => {
-    const val = parseFloat(discountInputStr) || 0
+  // ── Discount / Surcharge helpers ─────────────────────────
+  // "-" applies discount (reduces total), "+" applies surcharge (increases total)
+  const applyDiscount = () => {
+    const val = parseFloat(adjustInputStr) || 0
     if (val <= 0) return
-    setDiscountRunning(prev => Math.max(0, prev + sign * val))
-    setDiscountInputStr('')
+    setDiscountRunning(prev => prev + val)
+    setAdjustInputStr('')
   }
-
-  // ── Promo code ────────────────────────────────────────────
-  const applyPromoCode = async () => {
-    const code = promoCode.toUpperCase().trim()
-    if (!code) return
-    setIsApplyingPromo(true)
-    try {
-      const q   = query(collection(db, 'discountCodes'), where('code', '==', code), where('isActive', '==', true))
-      const snap = await getDocs(q)
-      if (snap.empty) { alert('Kode tidak valid atau tidak aktif'); return }
-      const cd  = snap.docs[0].data()
-      const now = new Date().toISOString().slice(0, 10)
-      if (cd.startDate && cd.startDate > now)         { alert('Kode belum berlaku'); return }
-      if (cd.endDate   && cd.endDate   < now)         { alert('Kode sudah kadaluarsa'); return }
-      if (cd.usageLimit && cd.usageCount >= cd.usageLimit) { alert('Kode sudah habis'); return }
-      if (cd.minPurchase && subtotal < cd.minPurchase)
-        { alert(`Min. pembelian ${BRAND.currency.format(cd.minPurchase)}`); return }
-      setAppliedPromoCode({ code: cd.code, value: cd.value, type: cd.type })
-      setPromoCode('')
-      setActiveAdjustment(null)
-    } catch { alert('Gagal mengecek kode.') }
-    finally { setIsApplyingPromo(false) }
+  const applySurcharge = () => {
+    const val = parseFloat(adjustInputStr) || 0
+    if (val <= 0) return
+    setSurchargeRunning(prev => prev + val)
+    setAdjustInputStr('')
   }
 
   // ── History refund ────────────────────────────────────────
@@ -413,6 +445,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         ...(selectedCustomer?.id          && { customerId:   selectedCustomer.id }),
         ...(selectedCustomer?.name        && { customerName: selectedCustomer.name }),
         ...(discountRunning > 0           && { discountType, discountValue: discountRunning }),
+        ...(surchargeRunning > 0          && { surchargeType: discountType, surchargeValue: surchargeRunning, surchargeAmount }),
         ...(appliedPromoCode              && { discountCode: appliedPromoCode.code }),
         ...(orderNotes.trim()             && { notes: orderNotes.trim() }),
       }
@@ -462,9 +495,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       setCustomerSearch('')
       setOrderNotes('')
       setDiscountRunning(0)
-      setDiscountInputStr('')
+      setSurchargeRunning(0)
+      setAdjustInputStr('')
       setAppliedPromoCode(null)
-      setPromoCode('')
+      setAppliedPromotion(null)
       setActiveAdjustment(null)
       setIsCheckoutOpen(false)
       setIsSuccessOpen(true)
@@ -482,9 +516,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     setCustomerSearch('')
     setOrderNotes('')
     setDiscountRunning(0)
-    setDiscountInputStr('')
+    setSurchargeRunning(0)
+    setAdjustInputStr('')
     setAppliedPromoCode(null)
-    setPromoCode('')
+    setAppliedPromotion(null)
     setActiveAdjustment(null)
   }
 
@@ -527,7 +562,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
             <p className="text-sm font-bold text-gray-900">{appUser.displayName}</p>
             <p className="text-xs text-gray-400 capitalize">{appUser.role}</p>
           </div>
-          <button onClick={() => setIsHistoryOpen(true)}
+          <button onClick={() => { setIsHistoryOpen(true); setHistorySearch('') }}
             className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
             title="Riwayat Transaksi">
             <History className="w-5 h-5" />
@@ -805,14 +840,20 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                   {
                     id:    'discount' as const,
                     icon:  <Tag className="w-3.5 h-3.5" />,
-                    label: 'Diskon',
-                    badge: discountAmount > 0 ? `-${Math.round(discountAmount / 1000)}k` : undefined,
+                    label: 'Diskon/SC',
+                    badge: (discountRunning > 0 || surchargeRunning > 0)
+                      ? discountRunning > 0 && surchargeRunning === 0
+                        ? `-${Math.round(manualDiscountAmount / 1000)}k`
+                        : surchargeRunning > 0 && discountRunning === 0
+                          ? `+${Math.round(surchargeAmount / 1000)}k`
+                          : '±'
+                      : undefined,
                   },
                   {
                     id:    'promo' as const,
                     icon:  <Gift className="w-3.5 h-3.5" />,
                     label: 'Promo',
-                    badge: appliedPromoCode ? '✓' : undefined,
+                    badge: (appliedPromotion || appliedPromoCode) ? '✓' : undefined,
                   },
                 ].map(btn => (
                   <button
@@ -849,15 +890,20 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 </div>
               )}
 
-              {/* Discount panel */}
+              {/* Diskon / Surcharge panel */}
               {activeAdjustment === 'discount' && (
                 <div className="px-4 pb-3 space-y-2">
                   {/* Type toggle */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     {(['fixed', 'percentage'] as const).map(t => (
                       <button
                         key={t}
-                        onClick={() => { setDiscountType(t); setDiscountRunning(0); setDiscountInputStr('') }}
+                        onClick={() => {
+                          setDiscountType(t)
+                          setDiscountRunning(0)
+                          setSurchargeRunning(0)
+                          setAdjustInputStr('')
+                        }}
                         className={`flex-1 py-1.5 text-xs font-bold rounded-xl border-2 transition-all ${
                           discountType === t
                             ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
@@ -867,82 +913,128 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                     ))}
                   </div>
 
-                  {/* Input + +/- buttons */}
+                  {/* Shared input + action buttons */}
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
-                      value={discountInputStr}
-                      onChange={e => setDiscountInputStr(e.target.value)}
+                      value={adjustInputStr}
+                      onChange={e => setAdjustInputStr(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') applyDiscount() }}
                       placeholder={discountType === 'fixed' ? '50000' : '10'}
                       className="flex-1 px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
                     />
+                    {/* − reduces total (discount) */}
                     <button
-                      onClick={() => applyDiscountAdjustment(-1)}
-                      className="w-8 h-8 flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black text-lg transition-all">
-                      <Minus className="w-4 h-4" />
+                      onClick={applyDiscount}
+                      title="Kurangi total (diskon)"
+                      className="flex items-center gap-0.5 px-2.5 h-8 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-black text-xs transition-all border border-green-200">
+                      <Minus className="w-3 h-3" /> Total
                     </button>
+                    {/* + increases total (surcharge) */}
                     <button
-                      onClick={() => applyDiscountAdjustment(1)}
-                      className="w-8 h-8 flex items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-black text-lg transition-all">
-                      <Plus className="w-4 h-4" />
+                      onClick={applySurcharge}
+                      title="Tambah total (surcharge)"
+                      className="flex items-center gap-0.5 px-2.5 h-8 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl font-black text-xs transition-all border border-orange-200">
+                      <Plus className="w-3 h-3" /> Total
                     </button>
                   </div>
 
-                  {/* Running total display */}
+                  {/* Discount running display */}
                   {discountRunning > 0 && (
-                    <div className="flex items-center justify-between bg-green-50 rounded-xl px-3 py-2">
+                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
                       <span className="text-xs font-bold text-green-700">
                         Diskon: {discountType === 'percentage'
-                          ? `${discountRunning}% (${BRAND.currency.format(manualDiscountAmount)})`
-                          : BRAND.currency.format(discountRunning)}
+                          ? `-${discountRunning}% (${BRAND.currency.format(manualDiscountAmount)})`
+                          : `-${BRAND.currency.format(discountRunning)}`}
                       </span>
                       <button
-                        onClick={() => { setDiscountRunning(0); setDiscountInputStr('') }}
-                        className="text-xs text-red-400 hover:text-red-600 font-bold">
-                        Hapus
+                        onClick={() => setDiscountRunning(0)}
+                        className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Surcharge running display */}
+                  {surchargeRunning > 0 && (
+                    <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-3 py-1.5">
+                      <span className="text-xs font-bold text-orange-700">
+                        Surcharge: {discountType === 'percentage'
+                          ? `+${surchargeRunning}% (+${BRAND.currency.format(surchargeAmount)})`
+                          : `+${BRAND.currency.format(surchargeRunning)}`}
+                      </span>
+                      <button
+                        onClick={() => setSurchargeRunning(0)}
+                        className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">
+                        ×
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Promo code panel */}
+              {/* Promotions panel — from backoffice */}
               {activeAdjustment === 'promo' && (
                 <div className="px-4 pb-3 space-y-2">
-                  {appliedPromoCode ? (
-                    <div className="flex items-center justify-between bg-green-50 rounded-xl px-3 py-2">
-                      <div>
-                        <p className="text-xs font-black text-green-800 tracking-wider">{appliedPromoCode.code}</p>
-                        <p className="text-xs text-green-600">
-                          {appliedPromoCode.type === 'percentage'
-                            ? `${appliedPromoCode.value}% (${BRAND.currency.format(promoDiscountAmount)})`
-                            : BRAND.currency.format(promoDiscountAmount)} diskon
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setAppliedPromoCode(null)}
-                        className="text-green-400 hover:text-red-500 transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={promoCode}
-                        onChange={e => setPromoCode(e.target.value.toUpperCase())}
-                        onKeyDown={e => e.key === 'Enter' && applyPromoCode()}
-                        placeholder="Kode promo..."
-                        className="flex-1 px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
-                      />
-                      <button
-                        onClick={applyPromoCode}
-                        disabled={isApplyingPromo || !promoCode.trim()}
-                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1">
-                        {isApplyingPromo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Pakai'}
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const now = new Date().toISOString().slice(0, 10)
+                    const activePromos = promotions.filter(p => {
+                      if (!p.isActive) return false
+                      if (p.startDate && p.startDate > now) return false
+                      if (p.endDate   && p.endDate   < now) return false
+                      if (p.minPurchase && subtotal < p.minPurchase) return false
+                      return true
+                    })
+                    if (activePromos.length === 0) return (
+                      <p className="text-xs text-gray-400 text-center py-2">
+                        Tidak ada promosi aktif saat ini
+                      </p>
+                    )
+                    return activePromos.map(promo => {
+                      const isApplied = appliedPromotion?.id === promo.id
+                      const discount  = calcPromotionDiscount(promo, cart, subtotal)
+                      const hasMatchingProducts = !promo.applicableProductIds?.length ||
+                        cart.some(i => promo.applicableProductIds!.includes(i.productId))
+                      return (
+                        <button
+                          key={promo.id}
+                          disabled={!hasMatchingProducts}
+                          onClick={() => setAppliedPromotion(isApplied ? null : promo)}
+                          className={`w-full flex items-start justify-between p-3 rounded-xl border-2 text-left transition-all ${
+                            isApplied
+                              ? 'border-green-400 bg-green-50'
+                              : !hasMatchingProducts
+                                ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                                : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                          }`}>
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className={`text-xs font-black truncate ${isApplied ? 'text-green-800' : 'text-gray-900'}`}>
+                              {promo.name}
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {promo.type === 'percentage' ? `${promo.value}% diskon`
+                                : promo.type === 'fixed' ? `Hemat ${BRAND.currency.format(promo.value)}`
+                                : 'Buy 1 Get 1'}
+                              {promo.applicableProductIds?.length
+                                ? ` · ${promo.applicableProductIds.length} produk`
+                                : ' · Semua produk'}
+                              {!hasMatchingProducts && ' · Produk tidak ada di keranjang'}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            {discount > 0 && (
+                              <p className={`text-xs font-black ${isApplied ? 'text-green-700' : 'text-indigo-600'}`}>
+                                -{BRAND.currency.format(discount)}
+                              </p>
+                            )}
+                            {isApplied && (
+                              <p className="text-[10px] text-green-600 font-bold">✓ Diterapkan</p>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })
+                  })()}
                 </div>
               )}
             </div>
@@ -958,6 +1050,12 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               <div className="flex justify-between text-xs text-green-600 font-bold">
                 <span>Diskon</span>
                 <span>-{BRAND.currency.format(discountAmount)}</span>
+              </div>
+            )}
+            {surchargeAmount > 0 && (
+              <div className="flex justify-between text-xs text-orange-600 font-bold">
+                <span>Surcharge</span>
+                <span>+{BRAND.currency.format(surchargeAmount)}</span>
               </div>
             )}
             {settings.taxEnabled && taxAmount > 0 && (
@@ -988,25 +1086,26 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       </div>
 
       {/* ══════════════════════════════════════════════════ */}
-      {/* VARIANT POP-UP MODAL                              */}
+      {/* VARIANT POP-UP MODAL (landscape, 2-wide grid)        */}
       {/* ══════════════════════════════════════════════════ */}
       {selectedProductForCart && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
 
-            {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-              <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+            {/* ── Header ── */}
+            <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 overflow-hidden flex-shrink-0">
                 {selectedProductForCart.imageUrl
                   ? <img src={selectedProductForCart.imageUrl} alt={selectedProductForCart.name}
                       className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center">
-                      <Package className="w-5 h-5 text-gray-300" />
+                      <Package className="w-6 h-6 text-gray-300" />
                     </div>}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-black text-gray-900 text-sm leading-tight">{selectedProductForCart.name}</p>
-                <p className="text-xs text-gray-400">{selectedProductForCart.brand}</p>
+                <p className="font-black text-gray-900 text-base leading-tight">{selectedProductForCart.name}</p>
+                <p className="text-sm text-gray-400 mt-0.5">{selectedProductForCart.brand}</p>
+                <p className="text-xs text-gray-300 mt-0.5">{selectedProductForCart.variants.length} varian tersedia</p>
               </div>
               <button
                 onClick={() => setSelectedProductForCart(null)}
@@ -1015,60 +1114,139 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               </button>
             </div>
 
-            {/* Variants */}
-            <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
-              {selectedProductForCart.variants.map(variant => {
-                const qty = variantQtys[variant.size] || 0
-                const isOut = variant.stock === 0
-                return (
-                  <div key={variant.size}
-                    className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${
-                      qty > 0
-                        ? 'border-indigo-400 bg-indigo-50'
-                        : isOut
-                          ? 'border-gray-100 bg-gray-50 opacity-60'
-                          : 'border-gray-100 bg-white'}`}>
-                    <div>
-                      <p className={`font-black text-sm ${qty > 0 ? 'text-indigo-800' : 'text-gray-800'}`}>
-                        {variant.size}
-                      </p>
-                      <p className={`text-xs font-bold ${qty > 0 ? 'text-indigo-600' : 'text-indigo-500'}`}>
-                        {BRAND.currency.format(variant.price)}
-                      </p>
-                      <p className={`text-xs ${variant.stock <= 5 ? 'text-red-500' : 'text-gray-400'}`}>
-                        Stok: {variant.stock}
-                      </p>
+            {/* ── Variant grid (2-wide, scrollable) ── */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Varian & Jumlah</p>
+              <div className="grid grid-cols-2 gap-3">
+                {selectedProductForCart.variants.map(variant => {
+                  const qty   = variantQtys[variant.size] || 0
+                  const isOut = variant.stock === 0
+                  const discVal = parseFloat(variantDiscVal) || 0
+                  const discountedPrice = discVal > 0
+                    ? variantDiscType === 'percentage'
+                      ? Math.max(0, Math.round(variant.price * (1 - discVal / 100)))
+                      : Math.max(0, variant.price - discVal)
+                    : variant.price
+                  const hasDiscount = discountedPrice < variant.price
+                  return (
+                    <div key={variant.size}
+                      className={`p-4 rounded-2xl border-2 transition-all ${
+                        isOut
+                          ? 'border-gray-100 bg-gray-50 opacity-50'
+                          : qty > 0
+                            ? 'border-indigo-400 bg-indigo-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+
+                      {/* Variant info */}
+                      <div className="mb-3">
+                        <p className={`font-black text-sm ${qty > 0 ? 'text-indigo-800' : 'text-gray-800'}`}>
+                          {variant.size}
+                        </p>
+                        {variant.sku && (
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">{variant.sku}</p>
+                        )}
+                        <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+                          {hasDiscount && (
+                            <p className="text-xs text-gray-400 line-through">{BRAND.currency.format(variant.price)}</p>
+                          )}
+                          <p className={`text-base font-black ${hasDiscount ? 'text-green-600' : qty > 0 ? 'text-indigo-600' : 'text-gray-700'}`}>
+                            {BRAND.currency.format(discountedPrice)}
+                          </p>
+                        </div>
+                        <p className={`text-xs mt-0.5 font-medium ${
+                          isOut ? 'text-red-500' : variant.stock <= 5 ? 'text-orange-500' : 'text-gray-400'}`}>
+                          {isOut ? 'Habis' : `Stok: ${variant.stock}`}
+                        </p>
+                      </div>
+
+                      {/* Qty controls */}
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={() => handleVariantQtyChange(variant.size, -1)}
+                          disabled={qty === 0}
+                          className={`w-10 h-10 rounded-xl border-2 font-black flex items-center justify-center transition-all ${
+                            qty > 0
+                              ? 'border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700'
+                              : 'border-gray-200 bg-white text-gray-300 disabled:opacity-30'}`}>
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className={`text-xl font-black w-10 text-center ${qty > 0 ? 'text-indigo-700' : 'text-gray-300'}`}>
+                          {qty}
+                        </span>
+                        <button
+                          onClick={() => handleVariantQtyChange(variant.size, 1)}
+                          disabled={isOut || qty >= variant.stock}
+                          className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black flex items-center justify-center transition-all">
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleVariantQtyChange(variant.size, -1)}
-                        disabled={qty === 0}
-                        className="w-8 h-8 rounded-xl bg-white border-2 border-gray-200 hover:border-indigo-400 disabled:opacity-30 text-gray-700 font-black flex items-center justify-center transition-all">
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className={`w-7 text-center font-black text-base ${qty > 0 ? 'text-indigo-700' : 'text-gray-400'}`}>
-                        {qty}
+                  )
+                })}
+              </div>
+
+              {/* ── Per-item discount section ── */}
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => setVariantDiscOpen(v => !v)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold ${
+                    variantDiscOpen || parseFloat(variantDiscVal) > 0
+                      ? 'border-green-400 bg-green-50 text-green-800'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                  <span className="flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Diskon per Item
+                    {parseFloat(variantDiscVal) > 0 && (
+                      <span className="text-xs font-black text-green-600">
+                        ({variantDiscType === 'percentage' ? `${variantDiscVal}%` : BRAND.currency.format(parseFloat(variantDiscVal) || 0)})
                       </span>
-                      <button
-                        onClick={() => handleVariantQtyChange(variant.size, 1)}
-                        disabled={isOut || qty >= variant.stock}
-                        className="w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 text-white font-black flex items-center justify-center transition-all">
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                    )}
+                  </span>
+                  {variantDiscOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {variantDiscOpen && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-xl space-y-2">
+                    <p className="text-xs text-gray-500">Diskon ini berlaku untuk semua varian yang dipilih dari produk ini</p>
+                    <div className="flex gap-2">
+                      {(['percentage', 'fixed'] as const).map(t => (
+                        <button key={t} onClick={() => { setVariantDiscType(t); setVariantDiscVal('') }}
+                          className={`flex-1 py-1.5 text-xs font-bold rounded-xl border-2 transition-all ${
+                            variantDiscType === t
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                              : 'border-gray-200 text-gray-500'}`}>
+                          {t === 'percentage' ? '% Persen' : 'Rp Nominal'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="number"
+                        value={variantDiscVal}
+                        onChange={e => setVariantDiscVal(e.target.value)}
+                        placeholder={variantDiscType === 'percentage' ? 'Contoh: 20 (untuk 20%)' : 'Contoh: 50000'}
+                        className="flex-1 px-3 py-2 bg-white border-2 border-gray-200 focus:border-green-400 rounded-xl text-sm font-bold focus:outline-none"
+                      />
+                      {parseFloat(variantDiscVal) > 0 && (
+                        <button onClick={() => setVariantDiscVal('')}
+                          className="px-3 py-2 text-xs font-bold text-red-400 hover:text-red-600 bg-red-50 rounded-xl">
+                          Hapus
+                        </button>
+                      )}
                     </div>
                   </div>
-                )
-              })}
+                )}
+              </div>
             </div>
 
-            {/* Confirm */}
-            <div className="px-4 pb-4">
+            {/* ── Confirm button ── */}
+            <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0">
               <button
                 onClick={handleConfirmVariants}
                 disabled={totalVariantsSelected === 0}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 text-sm">
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 text-base">
                 {totalVariantsSelected === 0
-                  ? 'Pilih varian'
+                  ? 'Pilih minimal 1 varian'
                   : `+ Tambah ${totalVariantsSelected} item ke Keranjang`}
               </button>
             </div>
@@ -1105,8 +1283,14 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-sm text-green-600 font-bold">
-                      <span>Diskon{appliedPromoCode ? ` (${appliedPromoCode.code})` : ''}</span>
+                      <span>Diskon{appliedPromotion ? ` (${appliedPromotion.name})` : appliedPromoCode ? ` (${appliedPromoCode.code})` : ''}</span>
                       <span>-{BRAND.currency.format(discountAmount)}</span>
+                    </div>
+                  )}
+                  {surchargeAmount > 0 && (
+                    <div className="flex justify-between text-sm text-orange-600 font-bold">
+                      <span>Surcharge</span>
+                      <span>+{BRAND.currency.format(surchargeAmount)}</span>
                     </div>
                   )}
                   {settings.taxEnabled && (
@@ -1307,10 +1491,22 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               <div>
                 <h2 className="text-xl font-black text-gray-900">Riwayat Transaksi</h2>
                 <p className="text-xs text-gray-400">
-                  {historyOrders.length} transaksi ·{' '}
+                  {historyOrders.filter(o => {
+                    const q = historySearch.toLowerCase()
+                    return !q || (o.customerName||'').toLowerCase().includes(q) ||
+                      o.orderNumber.toLowerCase().includes(q) ||
+                      (customers.find(c => c.id === o.customerId)?.phone || '').includes(q)
+                  }).length} transaksi ·{' '}
                   Total:{' '}
                   {BRAND.currency.format(
-                    historyOrders.filter(o => o.status === 'completed').reduce((s, o) => s + o.total, 0)
+                    historyOrders
+                      .filter(o => {
+                        const q = historySearch.toLowerCase()
+                        return !q || (o.customerName||'').toLowerCase().includes(q) ||
+                          o.orderNumber.toLowerCase().includes(q) ||
+                          (customers.find(c => c.id === o.customerId)?.phone || '').includes(q)
+                      })
+                      .filter(o => o.status === 'completed').reduce((s, o) => s + o.total, 0)
                   )}
                 </p>
               </div>
@@ -1342,6 +1538,27 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               </div>
             </div>
 
+            {/* Search bar */}
+            <div className="px-6 py-2 border-b border-gray-100 flex-shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cari no. struk, nama, atau no. telepon pelanggan..."
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                {historySearch && (
+                  <button
+                    onClick={() => setHistorySearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Order list */}
             <div className="flex-1 overflow-y-auto">
               {isLoadingHistory ? (
@@ -1354,9 +1571,23 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                   <History className="w-12 h-12 mx-auto mb-3" />
                   <p className="font-bold">Tidak ada transaksi pada rentang ini</p>
                 </div>
-              ) : (
+              ) : (() => {
+                const searchQ = historySearch.toLowerCase()
+                const visibleOrders = historySearch
+                  ? historyOrders.filter(o =>
+                      (o.customerName || '').toLowerCase().includes(searchQ) ||
+                      o.orderNumber.toLowerCase().includes(searchQ) ||
+                      (customers.find(c => c.id === o.customerId)?.phone || '').includes(searchQ))
+                  : historyOrders
+                if (visibleOrders.length === 0) return (
+                  <div className="p-12 text-center text-gray-300">
+                    <Search className="w-12 h-12 mx-auto mb-3" />
+                    <p className="font-bold">Tidak ada hasil untuk "{historySearch}"</p>
+                  </div>
+                )
+                return (
                 <div className="divide-y divide-gray-50">
-                  {historyOrders.map(order => (
+                  {visibleOrders.map(order => (
                     <div key={order.id}>
 
                       {/* Order row */}
@@ -1490,7 +1721,8 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                     </div>
                   ))}
                 </div>
-              )}
+                )
+              })()}
             </div>
 
             {/* Footer summary */}
