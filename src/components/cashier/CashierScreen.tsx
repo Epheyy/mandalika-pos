@@ -8,12 +8,11 @@ import {
 } from 'firebase/firestore'
 import { BRAND } from '../../config/brand'
 import {
-  Search, ShoppingCart, LogOut, Package, Database, X, CheckCircle,
+  Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
-  ChevronDown, ChevronUp, User, Tag, FileText, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Gift, Calendar
+  ChevronDown, ChevronUp, User, Tag, Heart,
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal
 } from 'lucide-react'
-import { seedDatabase } from '../../lib/seedData'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
@@ -79,10 +78,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [surchargeRunning,  setSurchargeRunning]  = useState(0)   // increases total
   const [adjustInputStr,    setAdjustInputStr]    = useState('')  // shared input
 
-  // ── Variant modal per-item discount ───────────────────────
-  const [variantDiscOpen,   setVariantDiscOpen]   = useState(false)
-  const [variantDiscType,   setVariantDiscType]   = useState<'percentage' | 'fixed'>('percentage')
-  const [variantDiscVal,    setVariantDiscVal]    = useState('')
+  // ── Settings modal + Adjustments menu ───────────────────
+  const [isSettingsOpen,    setIsSettingsOpen]    = useState(false)
+  const [showAdjustMenu,    setShowAdjustMenu]    = useState(false)
+  // ── Variant modal promo dropdown ────────────────────────
+  const [variantPromoOpen,  setVariantPromoOpen]  = useState(false)
   const [appliedPromoCode,  setAppliedPromoCode]  = useState<{
     code: string; value: number; type: 'percentage' | 'fixed'
   } | null>(null)
@@ -117,8 +117,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       setProducts(s.docs.map(d => ({ id: d.id, ...d.data() } as Product)).filter(p => p.isActive))
       setIsLoadingProducts(false)
     })
-    const u2 = onSnapshot(collection(db, 'categories'), s =>
-      setCategories(s.docs.map(d => ({ id: d.id, ...d.data() } as Category))))
+    const u2 = onSnapshot(collection(db, 'categories'), s => {
+      const cats = s.docs.map(d => ({ id : d.id, ...d.data() } as Category))
+      setCategories(cats)
+      setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
+    })
     const u3 = onSnapshot(collection(db, 'customers'), s =>
       setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() } as Customer))))
     const u4 = onSnapshot(collection(db, 'users'), s =>
@@ -162,6 +165,19 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  // ── Close adjust menu on outside click ──────────────────
+  const adjustMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showAdjustMenu) return
+    const handler = (e: MouseEvent) => {
+      if (adjustMenuRef.current && adjustMenuRef.current.contains(e.target as Node)) return
+      setShowAdjustMenu(false)
+    }
+    // Use 'mousedown' but only close if target is OUTSIDE the menu
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showAdjustMenu])
 
   // ── Computed ──────────────────────────────────────────────
   const filteredProducts = products.filter(p => {
@@ -269,9 +285,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     const qtys: Record<string, number> = {}
     product.variants.forEach(v => { qtys[v.size] = 0 })
     setVariantQtys(qtys)
-    setVariantDiscOpen(false)
-    setVariantDiscType('percentage')
-    setVariantDiscVal('')
+    setVariantPromoOpen(false)
     setSelectedProductForCart(product)
   }
 
@@ -287,19 +301,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
 
   const handleConfirmVariants = () => {
     if (!selectedProductForCart) return
-    // Apply per-item discount if set
-    const discVal = parseFloat(variantDiscVal) || 0
-    const getEffectivePrice = (basePrice: number): number => {
-      if (discVal <= 0) return basePrice
-      if (variantDiscType === 'percentage')
-        return Math.max(0, Math.round(basePrice * (1 - discVal / 100)))
-      return Math.max(0, basePrice - discVal)
-    }
     const newCart = [...cart]
     selectedProductForCart.variants.forEach(variant => {
       const qty = variantQtys[variant.size] || 0
       if (qty === 0) return
-      const effectivePrice = getEffectivePrice(variant.price)
+      const effectivePrice = variant.price
       const existingIndex = newCart.findIndex(
         i => i.productId === selectedProductForCart.id && i.variantSize === variant.size
       )
@@ -521,9 +527,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     setAppliedPromoCode(null)
     setAppliedPromotion(null)
     setActiveAdjustment(null)
+    setShowAdjustMenu(false)
   }
 
-  const handleSeed = async () => { alert(await seedDatabase()) }
 
   const paymentIcons: Record<string, React.ReactNode> = {
     cash:     <Banknote      className="w-4 h-4" />,
@@ -567,13 +573,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
             title="Riwayat Transaksi">
             <History className="w-5 h-5" />
           </button>
-          {appUser.role === 'admin' && (
-            <button onClick={handleSeed}
-              className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-              title="Isi Data">
-              <Database className="w-5 h-5" />
-            </button>
-          )}
+          <button onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+            title="Pengaturan Kasir">
+            <Settings className="w-5 h-5" />
+          </button>
           <button onClick={onLogout}
             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
             <LogOut className="w-5 h-5" />
@@ -610,18 +614,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               </button>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
-              <button
-                onClick={() => setSelectedCategoryId(null)}
-                className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
-                  !selectedCategoryId
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                Semua
-              </button>
               {categories.map(cat => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategoryId(cat.id!)}
+                  onClick={() => setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id!)}
                   className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                     selectedCategoryId === cat.id
                       ? 'bg-indigo-600 text-white'
@@ -828,215 +824,70 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           {cart.length > 0 && (
             <div className="flex-shrink-0 border-t border-gray-100">
 
-              {/* Toolbar buttons */}
-              <div className="flex items-center px-4 py-2 gap-1">
-                {[
-                  {
-                    id:    'notes' as const,
-                    icon:  <FileText className="w-3.5 h-3.5" />,
-                    label: 'Catatan',
-                    badge: orderNotes.trim() ? '✓' : undefined,
-                  },
-                  {
-                    id:    'discount' as const,
-                    icon:  <Tag className="w-3.5 h-3.5" />,
-                    label: 'Diskon/SC',
-                    badge: (discountRunning > 0 || surchargeRunning > 0)
-                      ? discountRunning > 0 && surchargeRunning === 0
-                        ? `-${Math.round(manualDiscountAmount / 1000)}k`
-                        : surchargeRunning > 0 && discountRunning === 0
-                          ? `+${Math.round(surchargeAmount / 1000)}k`
-                          : '±'
-                      : undefined,
-                  },
-                  {
-                    id:    'promo' as const,
-                    icon:  <Gift className="w-3.5 h-3.5" />,
-                    label: 'Promo',
-                    badge: (appliedPromotion || appliedPromoCode) ? '✓' : undefined,
-                  },
-                ].map(btn => (
+              {/* ··· Adjustments menu */}
+              <div className="relative px-3 py-2 flex items-center gap-2">
+                {/* Active state badges */}
+                <div className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
+                  {orderNotes.trim() && (
+                    <button onClick={() => setActiveAdjustment(prev => prev === 'notes' ? null : 'notes')}
+                      className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all ${activeAdjustment === 'notes' ? 'bg-yellow-200 text-yellow-900' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}>
+                      📝 Catatan
+                    </button>
+                  )}
+                  {(discountRunning > 0 || surchargeRunning > 0) && (
+                    <button onClick={() => setActiveAdjustment(prev => prev === 'discount' ? null : 'discount')}
+                      className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all ${activeAdjustment === 'discount' ? 'bg-green-200 text-green-900' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                      {discountRunning > 0 ? `-${BRAND.currency.format(manualDiscountAmount)}` : ''}
+                      {discountRunning > 0 && surchargeRunning > 0 ? ' ' : ''}
+                      {surchargeRunning > 0 ? `+${BRAND.currency.format(surchargeAmount)}` : ''}
+                    </button>
+                  )}
+                  {appliedPromotion && (
+                    <button onClick={() => setActiveAdjustment(prev => prev === 'promo' ? null : 'promo')}
+                      className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg truncate max-w-[110px] transition-all ${activeAdjustment === 'promo' ? 'bg-indigo-200 text-indigo-900' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}>
+                      🎁 {appliedPromotion.name}
+                    </button>
+                  )}
+                </div>
+
+                {/* ··· trigger */}
+                <div ref={adjustMenuRef} className="relative flex-shrink-0">
                   <button
-                    key={btn.id}
-                    onClick={() => setActiveAdjustment(prev => prev === btn.id ? null : btn.id)}
-                    className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${
-                      activeAdjustment === btn.id
-                        ? 'bg-indigo-100 text-indigo-700'
-                        : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-                    }`}>
-                    <span className="relative">
-                      {btn.icon}
-                      {btn.badge && (
-                        <span className="absolute -top-1 -right-2 text-[9px] font-black text-green-600">
-                          {btn.badge}
-                        </span>
-                      )}
-                    </span>
-                    <span>{btn.label}</span>
+                    onClick={() => setShowAdjustMenu(v => !v)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all ${
+                      showAdjustMenu ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}>
+                    <MoreHorizontal className="w-4 h-4" />
                   </button>
-                ))}
+
+                  {showAdjustMenu && (
+                    <div className="absolute bottom-full right-0 mb-1 bg-white border border-gray-200 rounded-2xl shadow-xl z-30 overflow-hidden w-48">
+                      {([
+                        { id: 'notes'    as const, emoji: '📝', label: 'Catatan',            active: !!orderNotes.trim() },
+                        { id: 'discount' as const, emoji: '🏷️', label: 'Diskon / Surcharge', active: discountRunning > 0 || surchargeRunning > 0 },
+                        { id: 'promo'    as const, emoji: '🎁', label: 'Promosi',             active: !!appliedPromotion },
+                      ] as const).map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveAdjustment(prev => prev === item.id ? null : item.id)
+                            setShowAdjustMenu(false)
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-left border-b border-gray-50 last:border-0 transition-all ${
+                            activeAdjustment === item.id
+                              ? 'bg-indigo-50 text-indigo-700'
+                              : 'text-gray-700 hover:bg-gray-50'}`}>
+                          <span className="text-base">{item.emoji}</span>
+                          <span className="flex-1">{item.label}</span>
+                          {item.active && <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Notes panel */}
-              {activeAdjustment === 'notes' && (
-                <div className="px-4 pb-3">
-                  <textarea
-                    value={orderNotes}
-                    onChange={e => setOrderNotes(e.target.value)}
-                    placeholder="Catatan transaksi..."
-                    rows={2}
-                    className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs resize-none focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                  />
-                </div>
-              )}
 
-              {/* Diskon / Surcharge panel */}
-              {activeAdjustment === 'discount' && (
-                <div className="px-4 pb-3 space-y-2">
-                  {/* Type toggle */}
-                  <div className="flex gap-1.5">
-                    {(['fixed', 'percentage'] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          setDiscountType(t)
-                          setDiscountRunning(0)
-                          setSurchargeRunning(0)
-                          setAdjustInputStr('')
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-xl border-2 transition-all ${
-                          discountType === t
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                            : 'border-gray-200 text-gray-500'}`}>
-                        {t === 'fixed' ? 'Rp Nominal' : '% Persen'}
-                      </button>
-                    ))}
-                  </div>
 
-                  {/* Shared input + action buttons */}
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      value={adjustInputStr}
-                      onChange={e => setAdjustInputStr(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') applyDiscount() }}
-                      placeholder={discountType === 'fixed' ? '50000' : '10'}
-                      className="flex-1 px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
-                    />
-                    {/* − reduces total (discount) */}
-                    <button
-                      onClick={applyDiscount}
-                      title="Kurangi total (diskon)"
-                      className="flex items-center gap-0.5 px-2.5 h-8 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-black text-xs transition-all border border-green-200">
-                      <Minus className="w-3 h-3" /> Total
-                    </button>
-                    {/* + increases total (surcharge) */}
-                    <button
-                      onClick={applySurcharge}
-                      title="Tambah total (surcharge)"
-                      className="flex items-center gap-0.5 px-2.5 h-8 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl font-black text-xs transition-all border border-orange-200">
-                      <Plus className="w-3 h-3" /> Total
-                    </button>
-                  </div>
-
-                  {/* Discount running display */}
-                  {discountRunning > 0 && (
-                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
-                      <span className="text-xs font-bold text-green-700">
-                        Diskon: {discountType === 'percentage'
-                          ? `-${discountRunning}% (${BRAND.currency.format(manualDiscountAmount)})`
-                          : `-${BRAND.currency.format(discountRunning)}`}
-                      </span>
-                      <button
-                        onClick={() => setDiscountRunning(0)}
-                        className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">
-                        ×
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Surcharge running display */}
-                  {surchargeRunning > 0 && (
-                    <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-3 py-1.5">
-                      <span className="text-xs font-bold text-orange-700">
-                        Surcharge: {discountType === 'percentage'
-                          ? `+${surchargeRunning}% (+${BRAND.currency.format(surchargeAmount)})`
-                          : `+${BRAND.currency.format(surchargeRunning)}`}
-                      </span>
-                      <button
-                        onClick={() => setSurchargeRunning(0)}
-                        className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Promotions panel — from backoffice */}
-              {activeAdjustment === 'promo' && (
-                <div className="px-4 pb-3 space-y-2">
-                  {(() => {
-                    const now = new Date().toISOString().slice(0, 10)
-                    const activePromos = promotions.filter(p => {
-                      if (!p.isActive) return false
-                      if (p.startDate && p.startDate > now) return false
-                      if (p.endDate   && p.endDate   < now) return false
-                      if (p.minPurchase && subtotal < p.minPurchase) return false
-                      return true
-                    })
-                    if (activePromos.length === 0) return (
-                      <p className="text-xs text-gray-400 text-center py-2">
-                        Tidak ada promosi aktif saat ini
-                      </p>
-                    )
-                    return activePromos.map(promo => {
-                      const isApplied = appliedPromotion?.id === promo.id
-                      const discount  = calcPromotionDiscount(promo, cart, subtotal)
-                      const hasMatchingProducts = !promo.applicableProductIds?.length ||
-                        cart.some(i => promo.applicableProductIds!.includes(i.productId))
-                      return (
-                        <button
-                          key={promo.id}
-                          disabled={!hasMatchingProducts}
-                          onClick={() => setAppliedPromotion(isApplied ? null : promo)}
-                          className={`w-full flex items-start justify-between p-3 rounded-xl border-2 text-left transition-all ${
-                            isApplied
-                              ? 'border-green-400 bg-green-50'
-                              : !hasMatchingProducts
-                                ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-                                : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
-                          }`}>
-                          <div className="flex-1 min-w-0 pr-2">
-                            <p className={`text-xs font-black truncate ${isApplied ? 'text-green-800' : 'text-gray-900'}`}>
-                              {promo.name}
-                            </p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              {promo.type === 'percentage' ? `${promo.value}% diskon`
-                                : promo.type === 'fixed' ? `Hemat ${BRAND.currency.format(promo.value)}`
-                                : 'Buy 1 Get 1'}
-                              {promo.applicableProductIds?.length
-                                ? ` · ${promo.applicableProductIds.length} produk`
-                                : ' · Semua produk'}
-                              {!hasMatchingProducts && ' · Produk tidak ada di keranjang'}
-                            </p>
-                          </div>
-                          <div className="flex-shrink-0 text-right">
-                            {discount > 0 && (
-                              <p className={`text-xs font-black ${isApplied ? 'text-green-700' : 'text-indigo-600'}`}>
-                                -{BRAND.currency.format(discount)}
-                              </p>
-                            )}
-                            {isApplied && (
-                              <p className="text-[10px] text-green-600 font-bold">✓ Diterapkan</p>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })
-                  })()}
-                </div>
-              )}
             </div>
           )}
 
@@ -1114,70 +965,58 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
               </button>
             </div>
 
-            {/* ── Variant grid (2-wide, scrollable) ── */}
-            <div className="flex-1 overflow-y-auto p-5">
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Varian & Jumlah</p>
-              <div className="grid grid-cols-2 gap-3">
+            {/* ── Variant grid (2-wide, compact, qty on left) ── */}
+            <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Pilih Varian & Jumlah</p>
+              <div className="grid grid-cols-2 gap-2">
                 {selectedProductForCart.variants.map(variant => {
                   const qty   = variantQtys[variant.size] || 0
                   const isOut = variant.stock === 0
-                  const discVal = parseFloat(variantDiscVal) || 0
-                  const discountedPrice = discVal > 0
-                    ? variantDiscType === 'percentage'
-                      ? Math.max(0, Math.round(variant.price * (1 - discVal / 100)))
-                      : Math.max(0, variant.price - discVal)
-                    : variant.price
-                  const hasDiscount = discountedPrice < variant.price
                   return (
                     <div key={variant.size}
-                      className={`p-4 rounded-2xl border-2 transition-all ${
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all ${
                         isOut
                           ? 'border-gray-100 bg-gray-50 opacity-50'
                           : qty > 0
                             ? 'border-indigo-400 bg-indigo-50'
                             : 'border-gray-200 bg-white hover:border-gray-300'}`}>
 
-                      {/* Variant info */}
-                      <div className="mb-3">
-                        <p className={`font-black text-sm ${qty > 0 ? 'text-indigo-800' : 'text-gray-800'}`}>
+                      {/* LEFT: info */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-black text-xs leading-tight truncate ${qty > 0 ? 'text-indigo-800' : 'text-gray-800'}`}>
                           {variant.size}
                         </p>
                         {variant.sku && (
-                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">{variant.sku}</p>
+                          <p className="text-[9px] text-gray-400 font-mono truncate">{variant.sku}</p>
                         )}
-                        <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
-                          {hasDiscount && (
-                            <p className="text-xs text-gray-400 line-through">{BRAND.currency.format(variant.price)}</p>
-                          )}
-                          <p className={`text-base font-black ${hasDiscount ? 'text-green-600' : qty > 0 ? 'text-indigo-600' : 'text-gray-700'}`}>
-                            {BRAND.currency.format(discountedPrice)}
-                          </p>
-                        </div>
-                        <p className={`text-xs mt-0.5 font-medium ${
+                        <p className={`text-xs font-black mt-0.5 ${qty > 0 ? 'text-indigo-600' : 'text-gray-600'}`}>
+                          {BRAND.currency.format(variant.price)}
+                        </p>
+                        <p className={`text-[10px] font-medium ${
                           isOut ? 'text-red-500' : variant.stock <= 5 ? 'text-orange-500' : 'text-gray-400'}`}>
                           {isOut ? 'Habis' : `Stok: ${variant.stock}`}
                         </p>
                       </div>
 
-                      {/* Qty controls */}
-                      <div className="flex items-center justify-between">
+                      {/* RIGHT: qty controls */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           onClick={() => handleVariantQtyChange(variant.size, -1)}
                           disabled={qty === 0}
-                          className={`w-10 h-10 rounded-xl border-2 font-black flex items-center justify-center transition-all ${
+                          className={`w-7 h-7 rounded-lg border-2 font-black flex items-center justify-center transition-all ${
                             qty > 0
                               ? 'border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700'
-                              : 'border-gray-200 bg-white text-gray-300 disabled:opacity-30'}`}>
-                          <Minus className="w-4 h-4" />
+                              : 'border-gray-200 bg-white text-gray-300 opacity-30'}`}>
+                          <Minus className="w-3 h-3" />
                         </button>
-                        <span className={`text-xl font-black w-10 text-center ${qty > 0 ? 'text-indigo-700' : 'text-gray-300'}`}>
+                        <span className={`text-sm font-black w-5 text-center ${qty > 0 ? 'text-indigo-700' : 'text-gray-300'}`}>
                           {qty}
                         </span>
                         <button
                           onClick={() => handleVariantQtyChange(variant.size, 1)}
                           disabled={isOut || qty >= variant.stock}
-                          className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black flex items-center justify-center transition-all">
-                          <Plus className="w-4 h-4" />
+                          className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black flex items-center justify-center transition-all">
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1185,58 +1024,65 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 })}
               </div>
 
-              {/* ── Per-item discount section ── */}
-              <div className="mt-4 border-t border-gray-100 pt-4">
-                <button
-                  onClick={() => setVariantDiscOpen(v => !v)}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold ${
-                    variantDiscOpen || parseFloat(variantDiscVal) > 0
-                      ? 'border-green-400 bg-green-50 text-green-800'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                  <span className="flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
-                    Diskon per Item
-                    {parseFloat(variantDiscVal) > 0 && (
-                      <span className="text-xs font-black text-green-600">
-                        ({variantDiscType === 'percentage' ? `${variantDiscVal}%` : BRAND.currency.format(parseFloat(variantDiscVal) || 0)})
+              {/* ── Promotions dropdown ── */}
+              {(() => {
+                const now = new Date().toISOString().slice(0, 10)
+                const activePromos = promotions.filter(p =>
+                  p.isActive &&
+                  !(p.startDate && p.startDate > now) &&
+                  !(p.endDate   && p.endDate   < now)
+                )
+                if (activePromos.length === 0) return null
+                return (
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <button
+                      onClick={() => setVariantPromoOpen(v => !v)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border-2 transition-all text-sm font-bold ${
+                        variantPromoOpen || appliedPromotion
+                          ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      <span className="flex items-center gap-2">
+                        🎁
+                        <span>Promosi</span>
+                        {appliedPromotion && (
+                          <span className="text-xs font-black text-indigo-600">✓ {appliedPromotion.name}</span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  {variantDiscOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
+                      {variantPromoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
 
-                {variantDiscOpen && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded-xl space-y-2">
-                    <p className="text-xs text-gray-500">Diskon ini berlaku untuk semua varian yang dipilih dari produk ini</p>
-                    <div className="flex gap-2">
-                      {(['percentage', 'fixed'] as const).map(t => (
-                        <button key={t} onClick={() => { setVariantDiscType(t); setVariantDiscVal('') }}
-                          className={`flex-1 py-1.5 text-xs font-bold rounded-xl border-2 transition-all ${
-                            variantDiscType === t
-                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                              : 'border-gray-200 text-gray-500'}`}>
-                          {t === 'percentage' ? '% Persen' : 'Rp Nominal'}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="number"
-                        value={variantDiscVal}
-                        onChange={e => setVariantDiscVal(e.target.value)}
-                        placeholder={variantDiscType === 'percentage' ? 'Contoh: 20 (untuk 20%)' : 'Contoh: 50000'}
-                        className="flex-1 px-3 py-2 bg-white border-2 border-gray-200 focus:border-green-400 rounded-xl text-sm font-bold focus:outline-none"
-                      />
-                      {parseFloat(variantDiscVal) > 0 && (
-                        <button onClick={() => setVariantDiscVal('')}
-                          className="px-3 py-2 text-xs font-bold text-red-400 hover:text-red-600 bg-red-50 rounded-xl">
-                          Hapus
-                        </button>
-                      )}
-                    </div>
+                    {variantPromoOpen && (
+                      <div className="mt-2 space-y-1.5">
+                        {activePromos.map(promo => {
+                          const isApplied = appliedPromotion?.id === promo.id
+                          const disc = calcPromotionDiscount(promo, cart, subtotal)
+                          return (
+                            <button
+                              key={promo.id}
+                              onClick={() => setAppliedPromotion(isApplied ? null : promo)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border-2 text-left transition-all ${
+                                isApplied
+                                  ? 'border-green-400 bg-green-50'
+                                  : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                              <div className="min-w-0">
+                                <p className={`text-xs font-black truncate ${isApplied ? 'text-green-800' : 'text-gray-800'}`}>{promo.name}</p>
+                                <p className="text-[10px] text-gray-400">
+                                  {promo.type === 'percentage' ? `${promo.value}% diskon`
+                                    : promo.type === 'fixed' ? `Hemat ${BRAND.currency.format(promo.value)}`
+                                    : 'Buy 1 Get 1'}
+                                </p>
+                              </div>
+                              <span className={`text-xs font-black flex-shrink-0 ml-2 ${isApplied ? 'text-green-600' : 'text-indigo-600'}`}>
+                                {isApplied ? '✓ Aktif' : disc > 0 ? `-${BRAND.currency.format(disc)}` : ''}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                )
+              })()}
             </div>
 
             {/* ── Confirm button ── */}
@@ -1752,6 +1598,291 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* NOTES MODAL                                       */}
+      {/* ══════════════════════════════════════════════════ */}
+      {activeAdjustment === 'notes' && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setActiveAdjustment(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-black text-gray-900">📝 Catatan Transaksi</h3>
+              <button onClick={() => setActiveAdjustment(null)} className="p-1.5 hover:bg-gray-100 rounded-xl">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5">
+              <textarea
+                value={orderNotes}
+                onChange={e => setOrderNotes(e.target.value)}
+                placeholder="Tulis catatan untuk transaksi ini..."
+                rows={4}
+                autoFocus
+                className="w-full px-4 py-3 bg-yellow-50 border-2 border-yellow-200 rounded-2xl text-sm resize-none focus:outline-none focus:border-yellow-400"
+              />
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              {orderNotes && (
+                <button onClick={() => setOrderNotes('')}
+                  className="px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                  Hapus
+                </button>
+              )}
+              <button onClick={() => setActiveAdjustment(null)}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-sm transition-all">
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* DISKON / SURCHARGE MODAL                          */}
+      {/* ══════════════════════════════════════════════════ */}
+      {activeAdjustment === 'discount' && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setActiveAdjustment(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-black text-gray-900">🏷️ Diskon / Surcharge</h3>
+              <button onClick={() => setActiveAdjustment(null)} className="p-1.5 hover:bg-gray-100 rounded-xl">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Type toggle */}
+              <div className="flex gap-2">
+                {(['fixed', 'percentage'] as const).map(t => (
+                  <button key={t}
+                    onClick={() => { setDiscountType(t); setDiscountRunning(0); setSurchargeRunning(0); setAdjustInputStr('') }}
+                    className={`flex-1 py-2 text-sm font-bold rounded-xl border-2 transition-all ${
+                      discountType === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    {t === 'fixed' ? 'Rp Nominal' : '% Persen'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input row */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={adjustInputStr}
+                  onChange={e => setAdjustInputStr(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') applyDiscount() }}
+                  placeholder={discountType === 'fixed' ? '50000' : '10'}
+                  autoFocus
+                  className="flex-1 px-0.5 py-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black focus:outline-none focus:border-indigo-500 text-center"
+                />
+                {/* − discount (reduce total) */}
+                <button onClick={applyDiscount}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-green-100 hover:bg-green-200 text-green-700 rounded-2xl font-black text-xl transition-all border-2 border-green-300">
+                  <Minus className="w-5 h-5" />
+                </button>
+                {/* + surcharge (add to total) */}
+                <button onClick={applySurcharge}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-2xl font-black text-xl transition-all border-2 border-orange-300">
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex gap-2 text-xs text-gray-400 justify-center">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-200 inline-block"/>  − kurangi total</span>
+                <span className="flex items-center gap-1 ml-3"><span className="w-3 h-3 rounded bg-orange-200 inline-block"/>  + tambah total</span>
+              </div>
+
+              {/* Active rows */}
+              {discountRunning > 0 && (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+                  <span className="text-sm font-bold text-green-700">
+                    Diskon: {discountType === 'percentage'
+                      ? `-${discountRunning}% (${BRAND.currency.format(manualDiscountAmount)})`
+                      : `-${BRAND.currency.format(discountRunning)}`}
+                  </span>
+                  <button onClick={() => setDiscountRunning(0)} className="text-red-400 hover:text-red-600 font-black ml-3 text-lg">×</button>
+                </div>
+              )}
+              {surchargeRunning > 0 && (
+                <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5">
+                  <span className="text-sm font-bold text-orange-700">
+                    Surcharge: {discountType === 'percentage'
+                      ? `+${surchargeRunning}% (+${BRAND.currency.format(surchargeAmount)})`
+                      : `+${BRAND.currency.format(surchargeRunning)}`}
+                  </span>
+                  <button onClick={() => setSurchargeRunning(0)} className="text-red-400 hover:text-red-600 font-black ml-3 text-lg">×</button>
+                </div>
+              )}
+            </div>
+            <div className="px-5 pb-5">
+              <button onClick={() => setActiveAdjustment(null)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-sm transition-all">
+                Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* PROMOSI MODAL                                     */}
+      {/* ══════════════════════════════════════════════════ */}
+      {activeAdjustment === 'promo' && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setActiveAdjustment(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[75vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <h3 className="font-black text-gray-900">🎁 Pilih Promosi</h3>
+              <button onClick={() => setActiveAdjustment(null)} className="p-1.5 hover:bg-gray-100 rounded-xl">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {(() => {
+                const now = new Date().toISOString().slice(0, 10)
+                const activePromos = promotions.filter(p => {
+                  if (!p.isActive) return false
+                  if (p.startDate && p.startDate > now) return false
+                  if (p.endDate   && p.endDate   < now) return false
+                  return true
+                })
+                if (activePromos.length === 0) return (
+                  <div className="text-center py-8 text-gray-400">
+                    <p className="text-3xl mb-2">🎁</p>
+                    <p className="font-bold text-sm">Tidak ada promosi aktif</p>
+                    <p className="text-xs mt-1">Tambahkan promosi di Back Office</p>
+                  </div>
+                )
+                return activePromos.map(promo => {
+                  const isApplied = appliedPromotion?.id === promo.id
+                  const discount  = calcPromotionDiscount(promo, cart, subtotal)
+                  const hasMatchingProducts = !promo.applicableProductIds?.length ||
+                    cart.some(i => promo.applicableProductIds!.includes(i.productId))
+                  return (
+                    <button key={promo.id}
+                      disabled={!hasMatchingProducts}
+                      onClick={() => { setAppliedPromotion(isApplied ? null : promo); setActiveAdjustment(null) }}
+                      className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 text-left transition-all ${
+                        isApplied
+                          ? 'border-green-400 bg-green-50'
+                          : !hasMatchingProducts
+                            ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                            : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-black ${isApplied ? 'text-green-800' : 'text-gray-900'}`}>{promo.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {promo.type === 'percentage' ? `${promo.value}% diskon`
+                            : promo.type === 'fixed' ? `Hemat ${BRAND.currency.format(promo.value)}`
+                            : 'Buy 1 Get 1'}
+                          {promo.applicableProductIds?.length ? ` · ${promo.applicableProductIds.length} produk` : ' · Semua produk'}
+                          {!hasMatchingProducts && ' · Produk tidak ada di keranjang'}
+                        </p>
+                        {promo.endDate && (
+                          <p className="text-[10px] text-gray-300 mt-0.5">Berlaku s/d {promo.endDate}</p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 ml-3 text-right">
+                        {isApplied
+                          ? <span className="text-sm font-black text-green-600">✓ Aktif</span>
+                          : discount > 0
+                            ? <span className="text-sm font-black text-indigo-600">-{BRAND.currency.format(discount)}</span>
+                            : null}
+                      </div>
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+            {appliedPromotion && (
+              <div className="px-5 pb-5 pt-2 border-t border-gray-100 flex-shrink-0">
+                <button onClick={() => { setAppliedPromotion(null); setActiveAdjustment(null) }}
+                  className="w-full py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                  Hapus Promosi Aktif
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* SETTINGS MODAL                                    */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">⚙️ Pengaturan Kasir</h2>
+              <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* Quick info */}
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Kasir</span>
+                  <span className="font-bold text-gray-900">{appUser.displayName}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Role</span>
+                  <span className="font-bold text-gray-900 capitalize">{appUser.role}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Pajak</span>
+                  <span className="font-bold text-gray-900">
+                    {settings.taxEnabled ? `PPN ${settings.taxRate}%` : 'Nonaktif'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Pembulatan</span>
+                  <span className="font-bold text-gray-900">
+                    {settings.roundingEnabled
+                      ? settings.roundingType === 'nearest_1000' ? 'Rp 1.000' : 'Rp 500'
+                      : 'Nonaktif'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">Aksi Cepat</p>
+
+              <button
+                onClick={() => { setIsSettingsOpen(false); setIsHistoryOpen(true); setHistorySearch('') }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
+                <History className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Riwayat Transaksi</p>
+                  <p className="text-xs text-gray-400">Lihat & cari transaksi, proses refund</p>
+                </div>
+              </button>
+
+              <a href="/backoffice"
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
+                <Settings className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Back Office</p>
+                  <p className="text-xs text-gray-400">Produk, laporan, pengaturan sistem</p>
+                </div>
+              </a>
+
+              <button
+                onClick={() => { setIsSettingsOpen(false); onLogout() }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-red-100 hover:border-red-300 hover:bg-red-50 rounded-2xl transition-all text-left">
+                <LogOut className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-red-600">Keluar</p>
+                  <p className="text-xs text-gray-400">Logout dari sesi ini</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
