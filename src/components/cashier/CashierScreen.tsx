@@ -11,7 +11,7 @@ import {
   Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -80,6 +80,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
 
   // ── Settings modal + Adjustments menu ───────────────────
   const [isSettingsOpen,    setIsSettingsOpen]    = useState(false)
+  const [isShiftRecapOpen,  setIsShiftRecapOpen]  = useState(false)
+  const [shiftOrders,       setShiftOrders]       = useState<Order[]>([])
+  const [isLoadingShift,    setIsLoadingShift]    = useState(false)
   const [showAdjustMenu,    setShowAdjustMenu]    = useState(false)
   // ── Variant modal promo dropdown ────────────────────────
   const [variantPromoOpen,  setVariantPromoOpen]  = useState(false)
@@ -118,10 +121,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       setIsLoadingProducts(false)
     })
     const u2 = onSnapshot(collection(db, 'categories'), s => {
-      const cats = s.docs.map(d => ({ id : d.id, ...d.data() } as Category))
-      setCategories(cats)
-      setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
-    })
+      const cats = s.docs.map(d => ({ id: d.id, ...d.data() } as Category))
+        setCategories(cats)
+        setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
+      })
     const u3 = onSnapshot(collection(db, 'customers'), s =>
       setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() } as Customer))))
     const u4 = onSnapshot(collection(db, 'users'), s =>
@@ -513,6 +516,20 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       alert(`Gagal menyimpan transaksi.\n\nDetail: ${msg}`)
       console.error('Transaction error:', err)
     } finally { setIsProcessing(false) }
+  }
+
+  // ── Shift recap loader ───────────────────────────────────
+  const openShiftRecap = async () => {
+    setIsShiftRecapOpen(true)
+    setIsLoadingShift(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+    const snap = await getDocs(q)
+    const todayOrders = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Order))
+      .filter(o => o.createdAt.slice(0, 10) === today)
+    setShiftOrders(todayOrders)
+    setIsLoadingShift(false)
   }
 
   // ── Clear cart ────────────────────────────────────────────
@@ -1809,6 +1826,134 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       )}
 
       {/* ══════════════════════════════════════════════════ */}
+      {/* SHIFT RECAP MODAL                                 */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isShiftRecapOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <h2 className="text-xl font-black text-gray-900">📋 Rekap Shift</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <button onClick={() => setIsShiftRecapOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {isLoadingShift ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+              </div>
+            ) : (() => {
+              const completed   = shiftOrders.filter(o => o.status === 'completed')
+              const refunded    = shiftOrders.filter(o => o.status === 'refunded')
+              const totalRev    = completed.reduce((s, o) => s + o.total, 0)
+              const totalRefund = refunded.reduce((s, o) => s + o.total, 0)
+              const byMethod    = completed.reduce((acc, o) => {
+                acc[o.paymentMethod] = (acc[o.paymentMethod] || 0) + o.total
+                return acc
+              }, {} as Record<string, number>)
+              const methodLabels: Record<string, string> = { cash: 'Tunai', card: 'Kartu', qris: 'QRIS', transfer: 'Transfer' }
+              return (
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-indigo-50 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-indigo-500 mb-1">Total Penjualan</p>
+                      <p className="text-xl font-black text-indigo-700">{BRAND.currency.format(totalRev)}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-gray-400 mb-1">Transaksi</p>
+                      <p className="text-xl font-black text-gray-700">{completed.length}</p>
+                    </div>
+                    {totalRefund > 0 && (
+                      <div className="bg-red-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-red-400 mb-1">Total Refund</p>
+                        <p className="text-xl font-black text-red-600">{BRAND.currency.format(totalRefund)}</p>
+                      </div>
+                    )}
+                    {refunded.length > 0 && (
+                      <div className="bg-orange-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-orange-400 mb-1">Direfund</p>
+                        <p className="text-xl font-black text-orange-600">{refunded.length} transaksi</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* By payment method */}
+                  {Object.keys(byMethod).length > 0 && (
+                    <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 space-y-2.5">
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Per Metode Pembayaran</p>
+                      {Object.entries(byMethod).sort(([,a],[,b]) => b - a).map(([method, amount]) => (
+                        <div key={method} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                            <span className="text-sm font-bold text-gray-700">{methodLabels[method] || method}</span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-gray-900">{BRAND.currency.format(amount)}</p>
+                            <p className="text-[10px] text-gray-400">
+                              {totalRev > 0 ? Math.round((amount / totalRev) * 100) : 0}%
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recent transactions */}
+                  {shiftOrders.length > 0 && (
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Transaksi Hari Ini</p>
+                      <div className="space-y-1.5">
+                        {shiftOrders.slice(0, 10).map(order => (
+                          <div key={order.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-xl">
+                            <div>
+                              <p className="text-xs font-bold text-gray-900">{order.orderNumber}</p>
+                              <p className="text-[10px] text-gray-400">
+                                {new Date(order.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                {' · '}{order.cashierName}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-xs font-black ${order.status === 'refunded' ? 'text-red-500' : 'text-indigo-600'}`}>
+                                {order.status === 'refunded' ? 'Refund' : BRAND.currency.format(order.total)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {shiftOrders.length > 10 && (
+                          <p className="text-xs text-gray-400 text-center pt-1">+{shiftOrders.length - 10} transaksi lainnya</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {shiftOrders.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p className="font-bold text-sm">Belum ada transaksi hari ini</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            <div className="px-5 pb-5 pt-2 border-t border-gray-100 flex-shrink-0">
+              <button onClick={() => setIsShiftRecapOpen(false)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-sm transition-all">
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
       {/* SETTINGS MODAL                                    */}
       {/* ══════════════════════════════════════════════════ */}
       {isSettingsOpen && (
@@ -1860,14 +2005,25 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 </div>
               </button>
 
-              <a href="/backoffice"
+              <button
+                onClick={() => { setIsSettingsOpen(false); openShiftRecap() }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
+                <ClipboardList className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Rekap Shift Hari Ini</p>
+                  <p className="text-xs text-gray-400">Ringkasan transaksi & pendapatan hari ini</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => window.location.href = '/backoffice'}
                 className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
                 <Settings className="w-5 h-5 text-indigo-500 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-bold text-gray-900">Back Office</p>
                   <p className="text-xs text-gray-400">Produk, laporan, pengaturan sistem</p>
                 </div>
-              </a>
+              </button>
 
               <button
                 onClick={() => { setIsSettingsOpen(false); onLogout() }}

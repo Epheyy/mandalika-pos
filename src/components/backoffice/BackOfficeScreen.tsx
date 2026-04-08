@@ -125,7 +125,10 @@ export default function BackOfficeScreen({ appUser, onLogout }: Props) {
           <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-xl"><Menu className="w-5 h-5 text-gray-500" /></button>
           <h1 className="text-lg font-black text-gray-900">{activeLabel}</h1>
           <div className="flex-1" />
-          <p className="text-xs text-gray-300 hidden sm:block">Kasir: <span className="font-bold">localhost:5173/</span></p>
+          <a href="/"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-all">
+            ← Kembali ke Kasir
+          </a>
         </header>
         <main className="flex-1 overflow-y-auto">{renderScreen()}</main>
       </div>
