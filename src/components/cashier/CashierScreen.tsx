@@ -677,30 +677,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       </>
 
       {/* ══════════════════════════════════════════════════ */}
-      {/* RIGHT: main content (slim top bar + product+cart) */}
+      {/* RIGHT: main content (product + cart)               */}
       {/* ══════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
-        {/* Slim top bar — only visible content, no nav buttons */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-          <button onClick={() => setIsNavOpen(true)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-xl flex-shrink-0">
-            <Menu className="w-5 h-5 text-gray-500" />
-          </button>
-          <p className="text-sm font-black text-gray-900 flex-1">Kasir</p>
-          <div className="relative flex-shrink-0">
-            <ShoppingCart className="w-5 h-5 text-gray-400" />
-            {totalCartItems > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {totalCartItems}
-              </span>
-            )}
-          </div>
-          <div className="text-right hidden sm:block flex-shrink-0">
-            <p className="text-xs font-bold text-gray-900">{appUser.displayName}</p>
-            <p className="text-[10px] text-gray-400 capitalize">{appUser.role}</p>
-          </div>
-        </header>
 
       {/* ── MAIN AREA ──────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
@@ -711,6 +690,12 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           {/* Search + Filter bar */}
           <div className="bg-white border-b border-gray-200 px-4 py-3 space-y-3 flex-shrink-0">
             <div className="flex gap-2">
+              {/* Mobile menu toggle relocated here */}
+              <button onClick={() => setIsNavOpen(true)}
+                className="lg:hidden p-2.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-xl flex-shrink-0">
+                <Menu className="w-5 h-5 text-gray-500" />
+              </button>
+              
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
