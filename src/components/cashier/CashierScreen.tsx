@@ -11,7 +11,7 @@ import {
   Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -78,6 +78,8 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [surchargeRunning,  setSurchargeRunning]  = useState(0)   // increases total
   const [adjustInputStr,    setAdjustInputStr]    = useState('')  // shared input
 
+  // ── Left nav sidebar ─────────────────────────────────────
+  const [isNavOpen,         setIsNavOpen]         = useState(false)
   // ── Settings modal + Adjustments menu ───────────────────
   const [isSettingsOpen,    setIsSettingsOpen]    = useState(false)
   const [isShiftRecapOpen,  setIsShiftRecapOpen]  = useState(false)
@@ -122,9 +124,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     })
     const u2 = onSnapshot(collection(db, 'categories'), s => {
       const cats = s.docs.map(d => ({ id: d.id, ...d.data() } as Category))
-        setCategories(cats)
-        setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
-      })
+      setCategories(cats)
+      setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
+    })
     const u3 = onSnapshot(collection(db, 'customers'), s =>
       setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() } as Customer))))
     const u4 = onSnapshot(collection(db, 'users'), s =>
@@ -313,9 +315,10 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         i => i.productId === selectedProductForCart.id && i.variantSize === variant.size
       )
       if (existingIndex >= 0) {
+        newCart[existingIndex] = { ...newCart[existingIndex] }
         newCart[existingIndex].quantity += qty
         newCart[existingIndex].price    = effectivePrice
-        newCart[existingIndex].subtotal = newCart[existingIndex].quantity * effectivePrice
+        newCart[existingIndex].subtotal = Math.round(newCart[existingIndex].quantity * effectivePrice)
       } else {
         newCart.push({
           productId:   selectedProductForCart.id!,
@@ -323,7 +326,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           variantSize: variant.size,
           price:       effectivePrice,
           quantity:    qty,
-          subtotal:    effectivePrice * qty,
+          subtotal:    Math.round(effectivePrice * qty),
         })
       }
     })
@@ -559,48 +562,145 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
-    <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
 
-      {/* ── HEADER ─────────────────────────────────────── */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-8 flex items-center justify-center">
-            <img src={BRAND.logoUrl} alt="Mandalika" className="w-full h-full object-contain" />
+      {/* ══════════════════════════════════════════════════ */}
+      {/* LEFT SIDEBAR — mirrors BackOffice aside            */}
+      {/* ══════════════════════════════════════════════════ */}
+      <>
+        {/* Mobile overlay backdrop */}
+        {isNavOpen && (
+          <div className="fixed inset-0 bg-black/40 z-20 lg:hidden"
+            onClick={() => setIsNavOpen(false)} />
+        )}
+
+        <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ${isNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+
+          {/* Sidebar header */}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-8 flex items-center justify-center flex-shrink-0">
+                <img src={BRAND.logoUrl} alt="Mandalika" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-gray-900">{BRAND.name} POS</p>
+                <p className="text-xs font-bold" style={{ color: BRAND.colors.primaryHex }}>Kasir</p>
+              </div>
+            </div>
+            <button onClick={() => setIsNavOpen(false)} className="lg:hidden p-1 hover:bg-gray-100 rounded-lg">
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
           </div>
-          <div>
-            <p className="text-sm font-black text-gray-900">{BRAND.name} POS</p>
-            <p className="text-xs text-gray-400">Kasir</p>
+
+          {/* Nav items */}
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            {[
+              {
+                icon: <History className="w-4 h-4 flex-shrink-0" />,
+                label: 'Riwayat Transaksi',
+                sub: 'Cari & refund transaksi',
+                onClick: () => { setIsNavOpen(false); setIsHistoryOpen(true); setHistorySearch('') },
+                active: isHistoryOpen,
+              },
+              {
+                icon: <ClipboardList className="w-4 h-4 flex-shrink-0" />,
+                label: 'Rekap Shift',
+                sub: 'Ringkasan hari ini',
+                onClick: () => { setIsNavOpen(false); openShiftRecap() },
+                active: isShiftRecapOpen,
+              },
+              {
+                icon: <Settings className="w-4 h-4 flex-shrink-0" />,
+                label: 'Pengaturan',
+                sub: `Pajak · Pembulatan`,
+                onClick: () => { setIsNavOpen(false); setIsSettingsOpen(true) },
+                active: isSettingsOpen,
+              },
+            ].map(item => (
+              <button key={item.label} onClick={item.onClick}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+                  item.active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                {item.icon}
+                <div className="flex-1 min-w-0">
+                  <p className="leading-tight">{item.label}</p>
+                  <p className={`text-[10px] font-normal truncate ${item.active ? 'text-indigo-200' : 'text-gray-400'}`}>{item.sub}</p>
+                </div>
+                {item.active && <ChevronRight className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />}
+              </button>
+            ))}
+
+            <div className="pt-3 border-t border-gray-100 mt-3">
+              <button onClick={() => window.location.href = '/backoffice'}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all text-left">
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="leading-tight">Back Office</p>
+                  <p className="text-[10px] font-normal text-gray-400 truncate">Produk, laporan, outlet</p>
+                </div>
+              </button>
+            </div>
+          </nav>
+
+          {/* User + Logout */}
+          <div className="p-3 border-t border-gray-100 space-y-2 flex-shrink-0">
+            {/* Quick info strip */}
+            <div className="px-3 py-2 bg-gray-50 rounded-xl space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Pajak</span>
+                <span className="font-bold text-gray-700">{settings.taxEnabled ? `PPN ${settings.taxRate}%` : 'Nonaktif'}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Pembulatan</span>
+                <span className="font-bold text-gray-700">
+                  {settings.roundingEnabled ? (settings.roundingType === 'nearest_1000' ? 'Rp 1.000' : 'Rp 500') : 'Nonaktif'}
+                </span>
+              </div>
+            </div>
+            {/* User row */}
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {appUser.photoURL
+                  ? <img src={appUser.photoURL} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-xs font-black text-indigo-600">{appUser.displayName.charAt(0)}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">{appUser.displayName}</p>
+                <p className="text-xs text-gray-400 capitalize">{appUser.role}</p>
+              </div>
+            </div>
+            <button onClick={onLogout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all">
+              <LogOut className="w-4 h-4" /> Keluar
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="relative p-2">
+        </aside>
+      </>
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* RIGHT: main content (slim top bar + product+cart) */}
+      {/* ══════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
+        {/* Slim top bar — only visible content, no nav buttons */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+          <button onClick={() => setIsNavOpen(true)}
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-xl flex-shrink-0">
+            <Menu className="w-5 h-5 text-gray-500" />
+          </button>
+          <p className="text-sm font-black text-gray-900 flex-1">Kasir</p>
+          <div className="relative flex-shrink-0">
             <ShoppingCart className="w-5 h-5 text-gray-400" />
             {totalCartItems > 0 && (
-              <span className="absolute top-0 right-0 w-4 h-4 bg-indigo-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {totalCartItems}
               </span>
             )}
           </div>
-          <div className="text-right hidden sm:block px-2">
-            <p className="text-sm font-bold text-gray-900">{appUser.displayName}</p>
-            <p className="text-xs text-gray-400 capitalize">{appUser.role}</p>
+          <div className="text-right hidden sm:block flex-shrink-0">
+            <p className="text-xs font-bold text-gray-900">{appUser.displayName}</p>
+            <p className="text-[10px] text-gray-400 capitalize">{appUser.role}</p>
           </div>
-          <button onClick={() => { setIsHistoryOpen(true); setHistorySearch('') }}
-            className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-            title="Riwayat Transaksi">
-            <History className="w-5 h-5" />
-          </button>
-          <button onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-            title="Pengaturan Kasir">
-            <Settings className="w-5 h-5" />
-          </button>
-          <button onClick={onLogout}
-            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
+        </header>
 
       {/* ── MAIN AREA ──────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
@@ -618,7 +718,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                   placeholder="Cari produk..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[16px] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
               <button
@@ -648,7 +748,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto p-4">
             {isLoadingProducts ? (
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
                     <div className="w-full aspect-square bg-gray-200" />
@@ -670,7 +770,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {filteredProducts.map(product => (
                   <ProductCard
                     key={product.id}
@@ -685,7 +785,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         </div>
 
         {/* ── RIGHT: Cart ──────────────────────────────── */}
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+        <div className="w-[280px] md:w-[300px] xl:w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
 
           {/* Customer section */}
           <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex-shrink-0" ref={customerRef}>
@@ -765,7 +865,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                   value={customerSearch}
                   onChange={e => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true) }}
                   onFocus={() => setShowCustomerDropdown(true)}
-                  className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 {showCustomerDropdown && customerSearch.length >= 2 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
@@ -939,7 +1039,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
             <button
               onClick={openCheckout}
               disabled={cart.length === 0}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-100 text-sm">
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-100 text-sm">
               {cart.length === 0 ? 'Keranjang Kosong' : `Bayar ${BRAND.currency.format(total)}`}
             </button>
             {cart.length > 0 && (
@@ -1241,17 +1341,18 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                         <button
                           key={amount}
                           onClick={() => setAmountPaid(amount.toString())}
-                          className="py-2 px-2 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 text-xs font-bold rounded-xl transition-all">
+                          className="py-3 px-2 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 text-xs font-bold rounded-xl transition-all active:bg-indigo-100">
                           {BRAND.currency.format(amount)}
                         </button>
                       ))}
                   </div>
                   <input
                     type="number"
+                    inputMode="numeric"
                     placeholder="Masukkan jumlah..."
                     value={amountPaid}
                     onChange={e => setAmountPaid(e.target.value)}
-                    className="w-full p-3 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none"
+                    className="w-full p-4 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-xl focus:outline-none"
                   />
                   {paid >= total && (
                     <div className="mt-2 p-3 bg-green-50 rounded-xl flex justify-between">
@@ -2039,6 +2140,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         </div>
       )}
 
+      </div>{/* end flex-1 flex-col min-w-0 (right panel) */}
     </div>
   )
 }
@@ -2127,17 +2229,18 @@ function CartItemRow({
 }) {
   const updateQty = (delta: number) => {
     const updated = [...cart]
+    updated[index] = { ...updated[index] }
     updated[index].quantity += delta
     if (updated[index].quantity <= 0) {
       updated.splice(index, 1)
     } else {
-      updated[index].subtotal = updated[index].quantity * updated[index].price
+      updated[index].subtotal = Math.round(updated[index].quantity * updated[index].price)
     }
     setCart(updated)
   }
 
   return (
-    <div className="bg-gray-50 rounded-xl p-3">
+    <div className="bg-gray-50 rounded-xl p-3 active:bg-gray-100 transition-colors select-none">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-900 truncate">{item.productName}</p>
@@ -2145,7 +2248,7 @@ function CartItemRow({
         </div>
         <button
           onClick={() => updateQty(-item.quantity)}
-          className="text-gray-300 hover:text-red-500 transition-colors text-xs flex-shrink-0">
+          className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-500 active:text-red-600 transition-colors flex-shrink-0 rounded-lg hover:bg-red-50">
           ✕
         </button>
       </div>
@@ -2153,13 +2256,13 @@ function CartItemRow({
         <div className="flex items-center gap-2">
           <button
             onClick={() => updateQty(-1)}
-            className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">
+            className="w-9 h-9 rounded-xl bg-white border-2 border-gray-200 text-gray-700 text-base font-bold hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center transition-all">
             −
           </button>
-          <span className="w-6 text-center text-sm font-black text-gray-900">{item.quantity}</span>
+          <span className="w-7 text-center text-sm font-black text-gray-900">{item.quantity}</span>
           <button
             onClick={() => updateQty(1)}
-            className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">
+            className="w-9 h-9 rounded-xl bg-white border-2 border-gray-200 text-gray-700 text-base font-bold hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center transition-all">
             +
           </button>
         </div>
