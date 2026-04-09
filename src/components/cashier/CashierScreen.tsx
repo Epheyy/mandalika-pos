@@ -11,7 +11,7 @@ import {
   Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight, Printer, Receipt, Volume2
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -2078,48 +2078,70 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 </div>
               </div>
 
-              {/* Actions */}
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">Aksi Cepat</p>
+              {/* ── PENGATURAN PERANGKAT & LOKAL ─────────────────────── */}
+          <div className="space-y-3 mt-6">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+              Pengaturan Perangkat
+            </h3>
 
-              <button
-                onClick={() => { setIsSettingsOpen(false); setIsHistoryOpen(true); setHistorySearch('') }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
-                <History className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Riwayat Transaksi</p>
-                  <p className="text-xs text-gray-400">Lihat & cari transaksi, proses refund</p>
+            {/* Printer Settings */}
+            <div className="flex items-center justify-between p-3.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Printer className="w-5 h-5" />
                 </div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm">Printer Struk Bluetooth</p>
+                  <p className="text-xs text-gray-500">Belum terhubung</p>
+                </div>
+              </div>
+              <button className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                Hubungkan
               </button>
+            </div>
 
-              <button
-                onClick={() => { setIsSettingsOpen(false); openShiftRecap() }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
-                <ClipboardList className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Rekap Shift Hari Ini</p>
-                  <p className="text-xs text-gray-400">Ringkasan transaksi & pendapatan hari ini</p>
+            {/* Auto Print Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-white border border-gray-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                  <Receipt className="w-5 h-5" />
                 </div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm">Cetak Struk Otomatis</p>
+                  <p className="text-xs text-gray-500">Setelah pembayaran berhasil</p>
+                </div>
+              </div>
+              {/* Dummy Toggle UI (You can wire this up to a real state later) */}
+              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-green-500 transition-colors">
+                <span className="inline-block h-4 w-4 translate-x-6 rounded-full bg-white transition-transform" />
               </button>
+            </div>
 
-              <button
-                onClick={() => window.location.href = '/backoffice'}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-2xl transition-all text-left">
-                <Settings className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Back Office</p>
-                  <p className="text-xs text-gray-400">Produk, laporan, pengaturan sistem</p>
+            {/* Sound Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-white border border-gray-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                  <Volume2 className="w-5 h-5" />
                 </div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm">Suara Pemindai & Klik</p>
+                  <p className="text-xs text-gray-500">Bunyi notifikasi aplikasi</p>
+                </div>
+              </div>
+              {/* Dummy Toggle UI off-state */}
+              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors">
+                <span className="inline-block h-4 w-4 translate-x-1 rounded-full bg-white transition-transform" />
               </button>
+            </div>
+          </div>
 
-              <button
-                onClick={() => { setIsSettingsOpen(false); onLogout() }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border-2 border-red-100 hover:border-red-300 hover:bg-red-50 rounded-2xl transition-all text-left">
-                <LogOut className="w-5 h-5 text-red-400 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-red-600">Keluar</p>
-                  <p className="text-xs text-gray-400">Logout dari sesi ini</p>
-                </div>
-              </button>
+          {/* Logout Button (Kept at the bottom as it is standard in settings) */}
+          <button 
+            onClick={() => {/* YOUR LOGOUT HANDLER HERE */}} 
+            className="w-full flex items-center justify-center gap-2 p-3 mt-6 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold transition-colors">
+            <LogOut className="w-5 h-5" />
+            Keluar dari Aplikasi
+          </button>
             </div>
           </div>
         </div>
