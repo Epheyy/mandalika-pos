@@ -11,7 +11,7 @@ import {
   Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight, Printer,
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, ChevronRight, Printer,
   ShoppingBag, Wallet, Globe, RefreshCw, HelpCircle, Type, LayoutGrid, Monitor
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -49,6 +49,14 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [loyalty,    setLoyalty]    = useState<LoyaltySettings>(DEFAULT_LOYALTY)
   const [settings,   setSettings]   = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+
+  // ── Sync wall ─────────────────────────────────────────────
+  const [liveProducts,   setLiveProducts]   = useState<Product[]>([])
+  const [liveCategories, setLiveCategories] = useState<Category[]>([])
+  const [livePromotions, setLivePromotions] = useState<Promotion[]>([])
+  const [hasPendingSync, setHasPendingSync] = useState(false)
+  const [isSyncing,      setIsSyncing]      = useState(false)
+  const [lastSyncedAt,   setLastSyncedAt]   = useState<string | null>(null)
 
   // ── Product Grid ──────────────────────────────────────────
   const [searchQuery,        setSearchQuery]        = useState('')
@@ -150,13 +158,25 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   // ── Firestore subscriptions ───────────────────────────────
   useEffect(() => {
     const u1 = onSnapshot(collection(db, 'products'), s => {
-      setProducts(s.docs.map(d => ({ id: d.id, ...d.data() } as Product)).filter(p => p.isActive))
-      setIsLoadingProducts(false)
+      const fresh = s.docs.map(d => ({ id: d.id, ...d.data() } as Product)).filter(p => p.isActive)
+      setLiveProducts(fresh)
+      if (!localStorage.getItem('pos_products_cache')) {
+        setProducts(fresh)
+        setIsLoadingProducts(false)
+        localStorage.setItem('pos_products_cache', JSON.stringify(fresh))
+        localStorage.setItem('pos_last_synced_at', new Date().toISOString())
+      } else {
+        setHasPendingSync(true)
+      }
     })
     const u2 = onSnapshot(collection(db, 'categories'), s => {
       const cats = s.docs.map(d => ({ id: d.id, ...d.data() } as Category))
-      setCategories(cats)
-      setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
+      setLiveCategories(cats)
+      if (!localStorage.getItem('pos_categories_cache')) {
+        setCategories(cats)
+        setSelectedCategoryId(prev => prev ?? (cats[0]?.id ?? null))
+        localStorage.setItem('pos_categories_cache', JSON.stringify(cats))
+      }
     })
     const u3 = onSnapshot(collection(db, 'customers'), s =>
       setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() } as Customer))))
@@ -168,8 +188,16 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     const u6 = onSnapshot(doc(db, 'settings', 'app'), s => {
       if (s.exists()) setSettings({ ...DEFAULT_SETTINGS, ...s.data() as AppSettings })
     })
-    const u7 = onSnapshot(collection(db, 'promotions'), s =>
-      setPromotions(s.docs.map(d => ({ id: d.id, ...d.data() } as Promotion))))
+    const u7 = onSnapshot(collection(db, 'promotions'), s => {
+      const fresh = s.docs.map(d => ({ id: d.id, ...d.data() } as Promotion))
+      setLivePromotions(fresh)
+      if (!localStorage.getItem('pos_promotions_cache')) {
+        setPromotions(fresh)
+        localStorage.setItem('pos_promotions_cache', JSON.stringify(fresh))
+      } else {
+        setHasPendingSync(true)
+      }
+    })
     // ── Cash flows ─────────────────────────────────────────
     const u8 = onSnapshot(query(collection(db, 'cashFlows'), orderBy('createdAt', 'desc')), s =>
       setCashFlows(s.docs.map(d => ({ id: d.id, ...d.data() } as any))))
@@ -184,7 +212,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9() }
   }, [appUser.uid])
 
-  // ── Load UI preferences from localStorage ────────────────
+  // ── Load UI preferences + data cache from localStorage ───
   useEffect(() => {
     const fs = localStorage.getItem('pos_fontSize') as 'sm' | 'md' | 'lg' | null
     if (fs) setFontSize(fs)
@@ -192,6 +220,23 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     if (gc) setProductGridCols(parseInt(gc) as any)
     const dv = localStorage.getItem('pos_defaultView') as 'products' | 'cart' | null
     if (dv) setDefaultView(dv)
+    // Load cached data (sync wall)
+    const cp = localStorage.getItem('pos_products_cache')
+    const cc = localStorage.getItem('pos_categories_cache')
+    const cr = localStorage.getItem('pos_promotions_cache')
+    const sa = localStorage.getItem('pos_last_synced_at')
+    if (cp) {
+      const parsed = JSON.parse(cp) as Product[]
+      setProducts(parsed)
+      setIsLoadingProducts(false)
+    }
+    if (cc) {
+      const parsed = JSON.parse(cc) as Category[]
+      setCategories(parsed)
+      setSelectedCategoryId(prev => prev ?? (parsed[0]?.id ?? null))
+    }
+    if (cr) setPromotions(JSON.parse(cr))
+    if (sa) setLastSyncedAt(sa)
   }, [])
 
   // ── Auto-open shift if setting enabled ───────────────────
@@ -612,6 +657,39 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     setIsDefaultViewOpen(false)
   }
 
+  // ── Sync wall: apply live data to cashier view ────────────
+  const handleSync = async () => {
+    setIsSyncing(true)
+    try {
+      setProducts(liveProducts)
+      setCategories(liveCategories)
+      setPromotions(livePromotions)
+      setSelectedCategoryId(prev =>
+        liveCategories.find(c => c.id === prev) ? prev : (liveCategories[0]?.id ?? null)
+      )
+      const now = new Date().toISOString()
+      setLastSyncedAt(now)
+      localStorage.setItem('pos_products_cache',   JSON.stringify(liveProducts))
+      localStorage.setItem('pos_categories_cache', JSON.stringify(liveCategories))
+      localStorage.setItem('pos_promotions_cache', JSON.stringify(livePromotions))
+      localStorage.setItem('pos_last_synced_at', now)
+      setHasPendingSync(false)
+      await addDoc(collection(db, 'syncLogs'), {
+        cashierId:   appUser.uid,
+        cashierName: appUser.displayName,
+        outletId:    appUser.outletId || 'default',
+        syncedAt:    now,
+        counts: {
+          products:   liveProducts.length,
+          categories: liveCategories.length,
+          promotions: livePromotions.length,
+        },
+      })
+      setIsSettingsOpen(false)
+    } catch { alert('Gagal sinkronisasi.') }
+    finally { setIsSyncing(false) }
+  }
+
   // ── Open checkout ──────────────────────────────────────────
   const openCheckout = () => {
     setPaymentMethod(enabledPaymentMethods[0]?.id as PaymentMethod || PaymentMethod.CASH)
@@ -882,10 +960,18 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           {/* Search + Filter bar */}
           <div className="bg-white border-b border-gray-200 px-4 py-3 space-y-3 flex-shrink-0">
             <div className="flex gap-2">
-              {/* Mobile menu toggle relocated here */}
-              <button onClick={() => setIsNavOpen(true)}
-                className="lg:hidden p-2.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-xl flex-shrink-0">
-                <Menu className="w-5 h-5 text-gray-500" />
+              {/* Mobile settings/nav button */}
+              <button onClick={() => setIsSettingsOpen(true)}
+                className="lg:hidden relative flex items-center gap-2 pl-2 pr-3 py-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-xl flex-shrink-0">
+                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {appUser.photoURL
+                    ? <img src={appUser.photoURL} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-[10px] font-black text-indigo-600">{appUser.displayName.charAt(0).toUpperCase()}</span>}
+                </div>
+                <Settings className="w-4 h-4 text-gray-500" />
+                {hasPendingSync && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-orange-500 border-2 border-white" />
+                )}
               </button>
               
               <div className="relative flex-1">
@@ -2327,17 +2413,32 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <img src={BRAND.logoUrl} alt="" className="w-8 h-8 object-contain" />
-                <div>
+            <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <img src={BRAND.logoUrl} alt="" className="w-7 h-7 object-contain" />
                   <p className="text-sm font-black text-gray-900">{BRAND.name} POS</p>
-                  <p className="text-xs text-gray-400">{appUser.displayName} · <span className="capitalize">{appUser.role}</span></p>
                 </div>
+                <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
               </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
+              {/* User card */}
+              <div className="flex items-center gap-3 bg-indigo-50 rounded-xl px-3 py-2.5">
+                <div className="w-9 h-9 rounded-full bg-indigo-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {appUser.photoURL
+                    ? <img src={appUser.photoURL} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-sm font-black text-indigo-700">{appUser.displayName.charAt(0).toUpperCase()}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-indigo-900 truncate">{appUser.displayName}</p>
+                  <p className="text-xs text-indigo-500 capitalize">{appUser.role} · {currentShift ? <span className="text-green-600 font-bold">Shift Aktif</span> : <span className="text-gray-400">Tidak ada shift</span>}</p>
+                </div>
+                <button onClick={() => { setIsSettingsOpen(false); window.location.href = '/backoffice' }}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex-shrink-0">
+                  Back Office →
+                </button>
+              </div>
             </div>
 
             {/* Two-column body */}
@@ -2376,18 +2477,22 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                       onClick: () => { window.location.href = '/backoffice' },
                     },
                     {
-                      Icon: RefreshCw, label: 'Sinkronkan',
-                      onClick: () => { setIsSettingsOpen(false); window.location.reload() },
+                      Icon: RefreshCw,
+                      label: isSyncing ? 'Menyinkronkan...' : 'Sinkronkan',
+                      badge: hasPendingSync,
+                      onClick: () => handleSync(),
                     },
-                  ] as { Icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void }[]).map(({ Icon, label, active, onClick }) => (
+                  ] as { Icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; badge?: boolean; onClick: () => void }[]).map(({ Icon, label, active, badge, onClick }) => (
                     <button key={label} onClick={onClick}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left
                         ${active ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}`}>
-                      <div className={`p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
+                      <div className={`relative p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
                         <Icon className={`w-4 h-4 ${active ? 'text-orange-600' : 'text-gray-500'}`} />
+                        {badge && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500" />}
                       </div>
-                      <span className="leading-tight">{label}</span>
-                      {active && <div className="ml-auto w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
+                      <span className="leading-tight flex-1">{label}</span>
+                      {badge && <span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Baru</span>}
+                      {active && !badge && <div className="ml-auto w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
                     </button>
                   ))}
                 </nav>
@@ -2453,12 +2558,21 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0 bg-gray-50">
-              <p className="text-xs text-gray-400">Powered by <span className="font-bold text-gray-600">{BRAND.name}</span></p>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <p className="text-xs text-gray-500 font-medium">Online</p>
+            <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 bg-gray-50 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">Powered by <span className="font-bold text-gray-600">{BRAND.name}</span></p>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <p className="text-xs text-gray-500 font-medium">Online</p>
+                </div>
               </div>
+              {lastSyncedAt && (
+                <p className="text-[11px] text-gray-400">
+                  Terakhir sinkronisasi: <span className="font-semibold text-gray-600">
+                    {format(parseISO(lastSyncedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                  </span>
+                </p>
+              )}
             </div>
           </div>
         </div>
