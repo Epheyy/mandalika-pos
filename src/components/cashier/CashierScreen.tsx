@@ -12,7 +12,7 @@ import {
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
   UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, ChevronRight, Printer,
-  ShoppingBag, Wallet, Globe, RefreshCw, HelpCircle, Type, LayoutGrid, Monitor
+  ShoppingBag, Globe, RefreshCw, HelpCircle, Type, LayoutGrid, Monitor
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -91,7 +91,6 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [isNavOpen,             setIsNavOpen]             = useState(false)
   // ── Settings panel + sub-modals ──────────────────────────
   const [isSettingsOpen,        setIsSettingsOpen]        = useState(false)
-  const [isDepositOpen,         setIsDepositOpen]         = useState(false)
   const [isCashFlowOpen,        setIsCashFlowOpen]        = useState(false)
   const [isHelpOpen,            setIsHelpOpen]            = useState(false)
   const [isPrintSettingsOpen,   setIsPrintSettingsOpen]   = useState(false)
@@ -103,6 +102,14 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [isShiftRecapOpen,  setIsShiftRecapOpen]  = useState(false)
   const [shiftOrders,       setShiftOrders]       = useState<Order[]>([])
   const [isLoadingShift,    setIsLoadingShift]    = useState(false)
+  // ── Recap tabs + history ──────────────────────────────────
+  const [recapTab,              setRecapTab]              = useState<'rekapan' | 'riwayat'>('rekapan')
+  const [historyShifts,         setHistoryShifts]         = useState<Shift[]>([])
+  const [selectedHistoryShift,  setSelectedHistoryShift]  = useState<Shift | null>(null)
+  const [selectedShiftOrders,   setSelectedShiftOrders]   = useState<Order[]>([])
+  const [isLoadingHistoryOrders,setIsLoadingHistoryOrders]= useState(false)
+  const [recapHistorySearch,    setRecapHistorySearch]    = useState('')
+  const [isClosingShift,        setIsClosingShift]        = useState(false)
   const [showAdjustMenu,    setShowAdjustMenu]    = useState(false)
   // ── Variant modal promo dropdown ────────────────────────
   const [variantPromoOpen,  setVariantPromoOpen]  = useState(false)
@@ -127,7 +134,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [productGridCols,    setProductGridCols]    = useState<2 | 3 | 4 | 6>(6)
   const [defaultView,        setDefaultView]        = useState<'products' | 'cart'>('products')
 
-  // ── Shift / Deposit ───────────────────────────────────────
+  // ── Shift ─────────────────────────────────────────────────
   const [currentShift,       setCurrentShift]       = useState<Shift | null>(null)
   const [depositAmount,      setDepositAmount]      = useState('')
   const [isOpeningShift,     setIsOpeningShift]     = useState(false)
@@ -556,14 +563,13 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       }
       await addDoc(collection(db, 'shifts'), newShift)
       setDepositAmount('')
-      setIsDepositOpen(false)
     } catch { alert('Gagal membuka shift.') }
     finally { setIsOpeningShift(false) }
   }
 
   const handleCloseShift = async () => {
     if (!currentShift?.id) return
-    if (!confirm('Tutup shift sekarang?')) return
+    setIsClosingShift(true)
     // Tally today's orders for this cashier
     const today = new Date().toISOString().slice(0, 10)
     const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')))
@@ -583,7 +589,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       transferSales: completed.filter(o => o.paymentMethod === PaymentMethod.TRANSFER).reduce((s, o) => s + o.total, 0),
       qrisSales:    completed.filter(o => o.paymentMethod === PaymentMethod.QRIS).reduce((s, o) => s + o.total, 0),
     })
-    setIsDepositOpen(false)
+    setIsClosingShift(false)
+    // Refresh shift orders for recap display
+    const today2 = new Date().toISOString().slice(0, 10)
+    const ordersSnap2 = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')))
+    setShiftOrders(ordersSnap2.docs.map(d => ({ id: d.id, ...d.data() } as Order)).filter(o => o.createdAt.slice(0, 10) === today2))
   }
 
   // ── Cash Flow ─────────────────────────────────────────────
@@ -729,6 +739,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         ...(surchargeRunning > 0          && { surchargeType: discountType, surchargeValue: surchargeRunning, surchargeAmount }),
         ...(appliedPromoCode              && { discountCode: appliedPromoCode.code }),
         ...(orderNotes.trim()             && { notes: orderNotes.trim() }),
+        ...(currentShift?.id              && { shiftId: currentShift.id }),
       }
       const order = orderData as Omit<Order, 'id'>
       const ref   = await addDoc(collection(db, 'orders'), order)
@@ -793,15 +804,35 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   // ── Shift recap loader ───────────────────────────────────
   const openShiftRecap = async () => {
     setIsShiftRecapOpen(true)
+    setRecapTab('rekapan')
+    setSelectedHistoryShift(null)
     setIsLoadingShift(true)
     const today = new Date().toISOString().slice(0, 10)
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
-    const snap = await getDocs(q)
-    const todayOrders = snap.docs
-      .map(d => ({ id: d.id, ...d.data() } as Order))
-      .filter(o => o.createdAt.slice(0, 10) === today)
-    setShiftOrders(todayOrders)
+    const [ordersSnap, shiftsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'))),
+      getDocs(query(collection(db, 'shifts'), orderBy('openedAt', 'desc'))),
+    ])
+    setShiftOrders(ordersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order))
+      .filter(o => o.createdAt.slice(0, 10) === today))
+    setHistoryShifts(shiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Shift)))
     setIsLoadingShift(false)
+  }
+
+  const handleSelectHistoryShift = async (shift: Shift) => {
+    setSelectedHistoryShift(shift)
+    setIsLoadingHistoryOrders(true)
+    const startAt = shift.openedAt
+    const endAt   = shift.closedAt || new Date().toISOString()
+    const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')))
+    const orders = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Order))
+      .filter(o => {
+        const inRange = o.createdAt >= startAt && o.createdAt <= endAt
+        const sameCashier = o.cashierId === shift.cashierId
+        return inRange && sameCashier
+      })
+    setSelectedShiftOrders(orders)
+    setIsLoadingHistoryOrders(false)
   }
 
   // ── Clear cart ────────────────────────────────────────────
@@ -830,8 +861,421 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   // ─────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────
+  // ── Recap computed values ─────────────────────────────────
+  const recapCompleted   = shiftOrders.filter(o => o.status === 'completed')
+  const recapRefunded    = shiftOrders.filter(o => o.status === 'refunded')
+  const recapSalesByMethod: Record<string, number> = {}
+  settings.paymentMethods.filter(p => p.isEnabled).forEach(pm => { recapSalesByMethod[pm.id] = 0 })
+  recapCompleted.forEach(o => { recapSalesByMethod[o.paymentMethod] = (recapSalesByMethod[o.paymentMethod] || 0) + o.total })
+  const recapTerhitung   = Object.values(recapSalesByMethod).reduce((s, v) => s + v, 0)
+  const recapCashInTotal = cashFlows.filter(f => f.type === 'in').reduce((s, f) => s + f.amount, 0)
+  const recapCashOutTotal= cashFlows.filter(f => f.type === 'out').reduce((s, f) => s + f.amount, 0)
+  const recapGrossSales  = recapCompleted.reduce((s, o) => s + o.subtotal, 0)
+  const recapRefundTotal = recapRefunded.reduce((s, o) => s + o.total, 0)
+  const recapDiscountTotal = recapCompleted.reduce((s, o) => s + o.discountAmount, 0)
+  const recapSurchargeTotal= recapCompleted.reduce((s, o) => s + ((o as any).surchargeAmount || 0), 0)
+  const recapTaxTotal    = recapCompleted.reduce((s, o) => s + o.taxAmount, 0)
+  const recapNetSales    = recapGrossSales - recapRefundTotal - recapDiscountTotal
+  const recapTotalPenjualan = recapTerhitung - recapRefundTotal
+
+  const fmt = BRAND.currency.format
+
   return (
     <>
+    {/* ════════════════════════════════════════════════════════ */}
+    {/* FULL-SCREEN RECAP LAYOUT (Runchise-style)               */}
+    {/* ════════════════════════════════════════════════════════ */}
+    {isShiftRecapOpen ? (
+      <div className="h-screen flex bg-gray-50 overflow-hidden">
+
+        {/* ── LEFT: Recap nav sidebar ─────────────────────── */}
+        <aside className="w-44 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-2.5 mb-1">
+              <img src={BRAND.logoUrl} alt="" className="w-8 h-8 object-contain flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-black text-gray-900 truncate">{BRAND.name}</p>
+                <p className="text-[10px] text-gray-400 truncate">Kasir</p>
+              </div>
+            </div>
+          </div>
+          {/* Nav: Rekapan / Riwayat */}
+          <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+            {([
+              { id: 'rekapan', label: 'Rekapan' },
+              { id: 'riwayat', label: 'Riwayat' },
+            ] as const).map(tab => (
+              <button key={tab.id} onClick={() => setRecapTab(tab.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                  recapTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          {/* Bottom: user + exit */}
+          <div className="p-3 border-t border-gray-100 flex-shrink-0 space-y-2">
+            <div className="flex items-center gap-2 px-2">
+              <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {appUser.photoURL ? <img src={appUser.photoURL} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-[10px] font-black text-indigo-600">{appUser.displayName.charAt(0).toUpperCase()}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-900 truncate">{appUser.displayName}</p>
+                <p className="text-[10px] text-gray-400 capitalize truncate">{appUser.role}</p>
+              </div>
+            </div>
+            <button onClick={() => setIsShiftRecapOpen(false)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">
+              <X className="w-3.5 h-3.5" /> Kembali ke Kasir
+            </button>
+            <div className="flex items-center justify-center gap-1.5 px-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              <span className="text-[10px] text-gray-400">Online</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── CENTER: Main recap content ───────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 min-w-0 bg-gray-50">
+          {isLoadingShift ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            </div>
+          ) : recapTab === 'rekapan' ? (
+            /* ─ REKAPAN tab ─ */
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Info banner */}
+              <div className="flex gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                <div className="w-4 h-4 mt-0.5 rounded-full bg-indigo-400 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[10px] font-black">i</span>
+                </div>
+                <p className="text-xs text-indigo-700">Rekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.</p>
+              </div>
+
+              {/* Payment method rows */}
+              <div className="space-y-2">
+                {settings.paymentMethods.filter(p => p.isEnabled).map(pm => (
+                  <div key={pm.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">{pm.label}</span>
+                    <span className="text-sm font-black text-gray-900">{fmt(recapSalesByMethod[pm.id] || 0)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total summary */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
+                {[
+                  { label: 'Total Terhitung', value: recapTerhitung },
+                  { label: 'Total Tercatat',  value: recapTerhitung },
+                  { label: 'Selisih',         value: 0 },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-indigo-800">{row.label}</span>
+                    <span className="text-sm font-black text-indigo-700">{fmt(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Shift open/close if no shift */}
+              {!currentShift && (
+                <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                  <p className="text-sm font-bold text-gray-700">Buka Shift Baru</p>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Kas Awal (Rp)</label>
+                    <input type="number" inputMode="numeric" value={depositAmount}
+                      onChange={e => setDepositAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
+                  </div>
+                  <button onClick={handleOpenShift} disabled={isOpeningShift}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">
+                    {isOpeningShift ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Buka Shift
+                  </button>
+                </div>
+              )}
+
+              {/* Info: Tutup Shift vs Rekap Final */}
+              <div className="bg-white rounded-xl border border-gray-200 p-3">
+                <p className="text-xs text-gray-600">
+                  <span className="font-black text-indigo-600">Tutup Shift</span> : akhiri shift di tengah hari, untuk pindah ke shift berikutnya<br/>
+                  <span className="font-black text-indigo-800">Rekap Final</span> : akhiri shift untuk penghujung/akhir hari
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-3 gap-2 pt-1 pb-4">
+                <button onClick={() => alert('Buka laci: perangkat kas tidak tersambung.')}
+                  className="py-3 bg-white border-2 border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-50 transition-all">
+                  Buka Laci
+                </button>
+                <button
+                  onClick={handleCloseShift}
+                  disabled={!currentShift || isClosingShift}
+                  className="py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-1.5">
+                  {isClosingShift ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Tutup Shift
+                </button>
+                <button
+                  onClick={handleCloseShift}
+                  disabled={!currentShift || isClosingShift}
+                  className="py-3 bg-indigo-800 hover:bg-indigo-900 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-1.5">
+                  Rekap Final
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ─ RIWAYAT tab ─ */
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Search */}
+              <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={recapHistorySearch} onChange={e => setRecapHistorySearch(e.target.value)}
+                    placeholder="Cari rekapan..."
+                    className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              {/* Table */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="px-4 pt-4 pb-2">
+                  <p className="font-black text-gray-900">Riwayat</p>
+                </div>
+                <div className="px-4">
+                  {/* Header */}
+                  <div className="grid grid-cols-4 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
+                    <span>Tanggal</span>
+                    <span>Shift</span>
+                    <span>Pengguna</span>
+                    <span className="text-right">Jumlah Terhitung</span>
+                  </div>
+                  {/* Rows */}
+                  {historyShifts.filter(s => {
+                    const q = recapHistorySearch.toLowerCase()
+                    return !q || s.cashierName.toLowerCase().includes(q) || s.openedAt.includes(q)
+                  }).length === 0 ? (
+                    <div className="py-12 text-center text-gray-400">
+                      <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-bold">Tidak ada riwayat</p>
+                      <p className="text-xs text-gray-300">The list is currently empty.</p>
+                    </div>
+                  ) : (
+                    historyShifts
+                      .filter(s => {
+                        const q = recapHistorySearch.toLowerCase()
+                        return !q || s.cashierName.toLowerCase().includes(q) || s.openedAt.includes(q)
+                      })
+                      .map((shift, idx) => {
+                        const shiftNum = historyShifts.filter(s => s.cashierId === shift.cashierId && s.openedAt.slice(0,10) === shift.openedAt.slice(0,10)).length - idx
+                        const isSelected = selectedHistoryShift?.id === shift.id
+                        return (
+                          <button key={shift.id} onClick={() => handleSelectHistoryShift(shift)}
+                            className={`w-full grid grid-cols-4 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
+                            <span className="text-gray-700 font-semibold">{format(parseISO(shift.openedAt), 'dd/MM/yyyy', { locale: idLocale })}</span>
+                            <span className="text-gray-500">Shift {shiftNum}</span>
+                            <span className="text-gray-700 truncate pr-2">{shift.cashierName}</span>
+                            <span className={`text-right font-black ${isSelected ? 'text-indigo-600' : 'text-gray-900'}`}>{fmt(shift.totalSales)}</span>
+                          </button>
+                        )
+                      })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: Detail panel ──────────────────────────── */}
+        <div className="w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-gray-200">
+          {recapTab === 'rekapan' ? (
+            /* Rekapan detail panel */
+            <div className="p-4 space-y-4">
+              {/* Uang Masuk/Keluar */}
+              <div>
+                <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
+                <div className="space-y-1">
+                  {[
+                    { label: `${cashFlows.filter(f => f.type === 'in').length} Uang Masuk`, value: recapCashInTotal },
+                    { label: `${cashFlows.filter(f => f.type === 'out').length} Uang Keluar`, value: recapCashOutTotal },
+                  ].map(row => (
+                    <div key={row.label} className="flex justify-between text-sm py-1">
+                      <span className="text-gray-500">{row.label}</span>
+                      <span className="font-bold text-gray-900">{row.value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm py-1 border-t border-gray-100 font-black">
+                    <span>Total</span><span>{recapCashInTotal - recapCashOutTotal}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Uang Masuk breakdown */}
+              <div>
+                <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                  <span>Ringkasan Uang Masuk</span><span>Nominal</span>
+                </div>
+                {cashFlows.filter(f => f.type === 'in').slice(0, 5).map(cf => (
+                  <div key={cf.id} className="flex justify-between text-xs py-1">
+                    <span className="text-gray-500 truncate mr-2">{cf.description}</span>
+                    <span className="font-bold flex-shrink-0">{fmt(cf.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-xs py-1 border-t border-gray-100 font-black">
+                  <span>Total</span><span>{fmt(recapCashInTotal)}</span>
+                </div>
+              </div>
+              {/* Uang Keluar breakdown */}
+              <div>
+                <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                  <span>Ringkasan Uang Keluar</span><span>Nominal</span>
+                </div>
+                {cashFlows.filter(f => f.type === 'out').slice(0, 5).map(cf => (
+                  <div key={cf.id} className="flex justify-between text-xs py-1">
+                    <span className="text-gray-500 truncate mr-2">{cf.description}</span>
+                    <span className="font-bold flex-shrink-0">{fmt(cf.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-xs py-1 border-t border-gray-100 font-black">
+                  <span>Total</span><span>{fmt(recapCashOutTotal)}</span>
+                </div>
+              </div>
+              {/* Deposit */}
+              <div>
+                <p className="text-xs font-black text-gray-900 mb-2">Deposit</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm py-1"><span className="text-gray-500">0 Deposit Pelanggan</span><span className="font-bold">0</span></div>
+                  <div className="flex justify-between text-sm py-1"><span className="text-gray-500">0 Pengembalian Dana</span><span className="font-bold">0</span></div>
+                  <div className="flex justify-between text-sm py-1 border-t border-gray-100 font-black"><span>Total</span><span>0</span></div>
+                </div>
+              </div>
+              {/* Ringkasan Penjualan */}
+              <div>
+                <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Penjualan</p>
+                <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                  <span>Ringkasan Pesanan</span><span>Qty</span>
+                </div>
+                {[
+                  { label: 'Total Transaksi',       value: recapCompleted.length },
+                  { label: 'Total Pengembalian',     value: recapRefunded.length },
+                  { label: 'Total Pengembalian Item',value: recapRefunded.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0) },
+                ].map(row => (
+                  <div key={row.label} className="flex justify-between text-sm py-1">
+                    <span className="text-gray-500">{row.label}</span>
+                    <span className="font-bold">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Sales breakdown */}
+              <div>
+                <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                  <span>Tipe</span><span>Nominal</span>
+                </div>
+                {[
+                  { label: 'Penjualan Kotor',    value: recapGrossSales,    bold: false },
+                  { label: 'Pengembalian Kotor', value: recapRefundTotal,   bold: false },
+                  { label: 'Diskon',             value: recapDiscountTotal, bold: false },
+                  { label: 'Surcharge',          value: recapSurchargeTotal,bold: false },
+                  { label: 'Free Of Charge',     value: 0,                  bold: false },
+                  { label: 'Penjualan Bersih',   value: recapNetSales,      bold: true  },
+                  { label: 'Service Charge',     value: 0,                  bold: false },
+                  { label: 'Pajak',              value: recapTaxTotal,      bold: false },
+                  { label: 'Biaya Tambahan',     value: 0,                  bold: false },
+                  { label: 'Pembulatan',         value: 0,                  bold: false },
+                  { label: 'Biaya Pengiriman',   value: 0,                  bold: false },
+                  { label: 'Total Penjualan',    value: recapTotalPenjualan,bold: true  },
+                ].map(row => (
+                  <div key={row.label} className={`flex justify-between text-sm py-1 ${row.bold ? 'font-black' : ''}`}>
+                    <span className={row.bold ? 'text-gray-900' : 'text-gray-500'}>{row.label}</span>
+                    <span>{fmt(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : selectedHistoryShift ? (
+            /* Riwayat selected shift detail */
+            (() => {
+              const completed = selectedShiftOrders.filter(o => o.status === 'completed')
+              const shiftByMethod: Record<string, number> = {}
+              settings.paymentMethods.forEach(pm => { shiftByMethod[pm.id] = 0 })
+              completed.forEach(o => { shiftByMethod[o.paymentMethod] = (shiftByMethod[o.paymentMethod] || 0) + o.total })
+              const shiftTotal = Object.values(shiftByMethod).reduce((s, v) => s + v, 0)
+              return (
+                <div className="p-4 space-y-4">
+                  <div>
+                    <p className="text-xs text-gray-400">{format(parseISO(selectedHistoryShift.openedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="font-black text-gray-900">Rekapan - {BRAND.name}</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => handleSelectHistoryShift(selectedHistoryShift)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                          <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {BRAND.name} | Shift {historyShifts.indexOf(selectedHistoryShift) + 1} | Server {selectedHistoryShift.cashierName}
+                    </p>
+                  </div>
+                  {/* Ringkasan payment table */}
+                  <div>
+                    <p className="text-xs font-black text-gray-900 mb-2">Ringkasan</p>
+                    <div className="grid grid-cols-4 text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1 gap-1">
+                      <span className="col-span-1">Tipe</span>
+                      <span className="text-right">Terhitung</span>
+                      <span className="text-right">Tercatat</span>
+                      <span className="text-right">Selisih</span>
+                    </div>
+                    {isLoadingHistoryOrders ? (
+                      <div className="py-4 text-center"><Loader2 className="w-5 h-5 animate-spin text-indigo-400 mx-auto" /></div>
+                    ) : (
+                      <>
+                        {settings.paymentMethods.map(pm => (
+                          <div key={pm.id} className="grid grid-cols-4 text-xs py-1.5 border-b border-gray-50 gap-1">
+                            <span className="col-span-1 text-gray-700 truncate">{pm.label}</span>
+                            <span className="text-right font-bold">{shiftByMethod[pm.id] || 0}</span>
+                            <span className="text-right text-gray-400">{shiftByMethod[pm.id] || 0}</span>
+                            <span className="text-right text-gray-400">0</span>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-4 text-xs py-1.5 font-black gap-1 border-t border-gray-200">
+                          <span className="col-span-1">Total</span>
+                          <span className="text-right">{shiftTotal}</span>
+                          <span className="text-right">{shiftTotal}</span>
+                          <span className="text-right">0</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {/* Cash flows for this shift date */}
+                  <div>
+                    <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
+                    {[
+                      { label: '0 Uang Masuk', value: 0 },
+                      { label: '0 Uang Keluar', value: 0 },
+                    ].map(row => (
+                      <div key={row.label} className="flex justify-between text-xs py-1">
+                        <span className="text-gray-500">{row.label}</span>
+                        <span className="font-bold">{row.value}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-xs py-1 border-t border-gray-100 font-black">
+                      <span>Total</span><span>0</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
+          ) : (
+            /* Riwayat empty state */
+            <div className="p-6 space-y-2">
+              <p className="font-black text-gray-900">Rekapan - {BRAND.name}</p>
+              <p className="text-sm text-gray-400">Ketuk salah satu riwayat rekapan untuk menunjukkan detail di sini.</p>
+            </div>
+          )}
+        </div>
+
+      </div>
+    ) : (
     <div className="h-screen flex bg-gray-50 overflow-hidden">
 
       {/* ══════════════════════════════════════════════════ */}
@@ -2271,12 +2715,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════ */}
-      {/* SHIFT RECAP MODAL                                 */}
-      {/* ══════════════════════════════════════════════════ */}
-      {isShiftRecapOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+      {false && (
+        <div className="__old_recap_modal_removed">
+          <div>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
               <div>
                 <h2 className="text-xl font-black text-gray-900">📋 Rekap Shift</h2>
@@ -2465,16 +2906,8 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                       onClick: () => { setIsSettingsOpen(false); openShiftRecap() },
                     },
                     {
-                      Icon: Wallet, label: 'Deposit',
-                      onClick: () => { setIsSettingsOpen(false); setIsDepositOpen(true) },
-                    },
-                    {
                       Icon: ArrowLeftRight, label: 'Uang Masuk/Keluar',
                       onClick: () => { setIsSettingsOpen(false); setIsCashFlowOpen(true) },
-                    },
-                    {
-                      Icon: Globe, label: 'Kelola Restaurant Online',
-                      onClick: () => { window.location.href = '/backoffice' },
                     },
                     {
                       Icon: RefreshCw,
@@ -2580,67 +3013,8 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
 
       </div>{/* end flex-1 flex-col min-w-0 (right panel) */}
     </div>
+    )}{/* end isShiftRecapOpen ternary */}
 
-      {/* ══════════════════════════════════════════════════ */}
-      {/* DEPOSIT / SHIFT MODAL                             */}
-      {/* ══════════════════════════════════════════════════ */}
-      {isDepositOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-xl font-black text-gray-900">
-                {currentShift ? '📋 Status Shift' : '💰 Buka Shift'}
-              </h2>
-              <button onClick={() => setIsDepositOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              {currentShift ? (
-                <>
-                  <div className="bg-green-50 rounded-2xl p-4 space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-sm font-black text-green-700">Shift Sedang Berjalan</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Dibuka</span>
-                      <span className="font-bold">{format(parseISO(currentShift.openedAt), 'dd MMM yyyy HH:mm', { locale: idLocale })}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Kas Awal</span>
-                      <span className="font-bold">{BRAND.currency.format(currentShift.startingCash)}</span>
-                    </div>
-                  </div>
-                  <button onClick={handleCloseShift}
-                    className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all">
-                    Tutup Shift
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-gray-500">Masukkan jumlah uang kas awal untuk membuka shift.</p>
-                  <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Kas Awal (Rp)</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={depositAmount}
-                      onChange={e => setDepositAmount(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-xl focus:outline-none"
-                    />
-                  </div>
-                  <button onClick={handleOpenShift} disabled={isOpeningShift}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2">
-                    {isOpeningShift ? <><Loader2 className="w-4 h-4 animate-spin" />Membuka...</> : 'Buka Shift'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════ */}
       {/* CASH FLOW MODAL                                   */}
