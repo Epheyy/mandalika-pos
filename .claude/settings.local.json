@@ -4,7 +4,8 @@
       "Bash(node -e ':*)",
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -n \"DEPOSIT\\\\|isDepositOpen\\\\|end flex-1 flex-col min-w-0\\\\|</div>$\\\\|SHIFT RECAP MODAL\\\\|SETTINGS PANEL\" \"c:\\\\Users\\\\MSi\\\\Documents\\\\mandalika-pos\\\\src\\\\components\\\\cashier\\\\CashierScreen.tsx\")"
     ]
   }
 }
