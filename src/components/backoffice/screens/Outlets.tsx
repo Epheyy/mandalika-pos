@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react'
 import type { AppUser, Outlet } from '../../../types'
 import { db } from '../../../firebase'
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore'
-import { Plus, Edit2, Trash2, X, Store, MapPin, Phone, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from 'firebase/firestore'
+import { Plus, Edit2, Trash2, X, Store, MapPin, Phone, Loader2, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { id as idLocale } from 'date-fns/locale'
+
+interface SyncLog {
+  id: string
+  cashierId: string
+  cashierName: string
+  outletId: string
+  syncedAt: string
+  counts: { products: number; categories: number; promotions: number }
+}
 
 interface Props { appUser?: AppUser }
 
@@ -16,13 +27,18 @@ export default function Outlets({ appUser: _appUser }: Props) {
   const [formData, setFormData] = useState(EMPTY_OUTLET)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([])
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'outlets'), snap => {
+    const u1 = onSnapshot(collection(db, 'outlets'), snap => {
       setOutlets(snap.docs.map(d => ({ id: d.id, ...d.data() } as Outlet)))
       setIsLoading(false)
     })
-    return () => unsub()
+    const u2 = onSnapshot(
+      query(collection(db, 'syncLogs'), orderBy('syncedAt', 'desc'), limit(50)),
+      snap => setSyncLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as SyncLog)))
+    )
+    return () => { u1(); u2() }
   }, [])
 
   const openAdd = () => {
@@ -155,6 +171,76 @@ export default function Outlets({ appUser: _appUser }: Props) {
           ))}
         </div>
       )}
+
+      {/* Sync Logs */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-gray-400" />
+          <h3 className="font-black text-gray-900">Log Sinkronisasi Kasir</h3>
+          <span className="text-xs text-gray-400 font-normal">— 50 terakhir</span>
+        </div>
+        {syncLogs.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-300 text-sm">
+            Belum ada log sinkronisasi
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            {/* Group by cashier: show one row per unique cashier with their latest sync */}
+            {(() => {
+              const byId: Record<string, SyncLog> = {}
+              syncLogs.forEach(log => {
+                if (!byId[log.cashierId]) byId[log.cashierId] = log
+              })
+              return Object.values(byId).map(log => (
+                <div key={log.cashierId} className="flex items-center justify-between px-5 py-3 border-b border-gray-50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-black text-indigo-600">
+                        {log.cashierName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{log.cashierName}</p>
+                      <p className="text-xs text-gray-400">
+                        {log.counts.products} produk · {log.counts.categories} kategori · {log.counts.promotions} promosi
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-gray-700">
+                      {format(parseISO(log.syncedAt), 'dd MMM yyyy', { locale: idLocale })}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {format(parseISO(log.syncedAt), 'HH:mm', { locale: idLocale })}
+                    </p>
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+        )}
+        {/* Full history collapsible */}
+        {syncLogs.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-indigo-600 font-bold hover:text-indigo-800 select-none">
+              Lihat semua riwayat ({syncLogs.length})
+            </summary>
+            <div className="mt-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              {syncLogs.map(log => (
+                <div key={log.id} className="flex items-center justify-between px-5 py-2.5 border-b border-gray-50 last:border-0">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{log.cashierName}</p>
+                    <p className="text-xs text-gray-400">{log.counts.products}P · {log.counts.categories}K · {log.counts.promotions}PR</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {format(parseISO(log.syncedAt), 'dd MMM HH:mm', { locale: idLocale })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
