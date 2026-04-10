@@ -11,7 +11,7 @@ import {
   Search, ShoppingCart, LogOut, Package, Settings, X, CheckCircle,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
-  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight, Printer, Receipt, Volume2,
+  UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, Menu, ChevronRight, Printer,
   ShoppingBag, Wallet, Globe, RefreshCw, HelpCircle, Type, LayoutGrid, Monitor
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
