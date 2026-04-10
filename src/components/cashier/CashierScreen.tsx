@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import type { AppUser, Product, Category, CartItem, Order, Customer, LoyaltySettings, AppSettings, Promotion } from '../../types'
-import { PaymentMethod, OrderStatus } from '../../types'
+import type { AppUser, Product, Category, CartItem, Order, Customer, LoyaltySettings, AppSettings, Promotion, Shift } from '../../types'
+import { PaymentMethod, OrderStatus, ShiftStatus } from '../../types'
 import { db } from '../../firebase'
 import {
   collection, onSnapshot, addDoc, doc, getDoc,
@@ -114,6 +114,27 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   const [amountPaid,      setAmountPaid]      = useState('')
   const [selectedSalesman,setSelectedSalesman]= useState<AppUser | null>(null)
 
+  // ── UI Preferences (localStorage) ────────────────────────
+  const [fontSize,           setFontSize]           = useState<'sm' | 'md' | 'lg'>('md')
+  const [productGridCols,    setProductGridCols]    = useState<2 | 3 | 4 | 6>(6)
+  const [defaultView,        setDefaultView]        = useState<'products' | 'cart'>('products')
+
+  // ── Shift / Deposit ───────────────────────────────────────
+  const [currentShift,       setCurrentShift]       = useState<Shift | null>(null)
+  const [depositAmount,      setDepositAmount]      = useState('')
+  const [isOpeningShift,     setIsOpeningShift]     = useState(false)
+
+  // ── Cash Flow ─────────────────────────────────────────────
+  const [cashFlowType,       setCashFlowType]       = useState<'in' | 'out'>('in')
+  const [cashFlowAmount,     setCashFlowAmount]     = useState('')
+  const [cashFlowDesc,       setCashFlowDesc]       = useState('')
+  const [isSavingCashFlow,   setIsSavingCashFlow]   = useState(false)
+  const [cashFlows,          setCashFlows]          = useState<Array<{id:string; type:'in'|'out'; amount:number; description:string; createdAt:string; cashierName:string}>>([])
+
+  // ── Promo code input ──────────────────────────────────────
+  const [promoCodeInput,     setPromoCodeInput]     = useState('')
+  const [isValidatingCode,   setIsValidatingCode]   = useState(false)
+
   // ── History ───────────────────────────────────────────────
   const [isHistoryOpen,      setIsHistoryOpen]      = useState(false)
   const [historyOrders,      setHistoryOrders]      = useState<Order[]>([])
@@ -149,8 +170,50 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     })
     const u7 = onSnapshot(collection(db, 'promotions'), s =>
       setPromotions(s.docs.map(d => ({ id: d.id, ...d.data() } as Promotion))))
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7() }
+    // ── Cash flows ─────────────────────────────────────────
+    const u8 = onSnapshot(query(collection(db, 'cashFlows'), orderBy('createdAt', 'desc')), s =>
+      setCashFlows(s.docs.map(d => ({ id: d.id, ...d.data() } as any))))
+    // ── Today's shift ──────────────────────────────────────
+    const u9 = onSnapshot(query(collection(db, 'shifts'), orderBy('openedAt', 'desc')), s => {
+      const today = new Date().toISOString().slice(0, 10)
+      const open = s.docs
+        .map(d => ({ id: d.id, ...d.data() } as Shift))
+        .find(sh => sh.cashierId === appUser.uid && sh.status === ShiftStatus.OPEN && sh.openedAt.slice(0, 10) === today)
+      setCurrentShift(open ?? null)
+    })
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9() }
+  }, [appUser.uid])
+
+  // ── Load UI preferences from localStorage ────────────────
+  useEffect(() => {
+    const fs = localStorage.getItem('pos_fontSize') as 'sm' | 'md' | 'lg' | null
+    if (fs) setFontSize(fs)
+    const gc = localStorage.getItem('pos_gridCols')
+    if (gc) setProductGridCols(parseInt(gc) as any)
+    const dv = localStorage.getItem('pos_defaultView') as 'products' | 'cart' | null
+    if (dv) setDefaultView(dv)
   }, [])
+
+  // ── Auto-open shift if setting enabled ───────────────────
+  useEffect(() => {
+    if (!settings.autoOpenShift || currentShift) return
+    const today = new Date().toISOString().slice(0, 10)
+    // Only auto-open once per session (check if already tried)
+    const key = `pos_autoshift_${appUser.uid}_${today}`
+    if (localStorage.getItem(key)) return
+    localStorage.setItem(key, '1')
+    const newShift: Omit<Shift, 'id'> = {
+      outletId: 'default',
+      cashierId: appUser.uid,
+      cashierName: appUser.displayName,
+      status: ShiftStatus.OPEN,
+      openedAt: new Date().toISOString(),
+      startingCash: 0,
+      totalSales: 0, totalOrders: 0, totalRefunds: 0,
+      cashSales: 0, cardSales: 0, transferSales: 0, qrisSales: 0,
+    }
+    addDoc(collection(db, 'shifts'), newShift).catch(() => {})
+  }, [settings.autoOpenShift, currentShift, appUser.uid, appUser.displayName])
 
   // ── History subscription (when modal open / dates change) ─
   useEffect(() => {
@@ -431,6 +494,124 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     finally { setIsRefundingHistory(false) }
   }
 
+  // ── Shift / Deposit ───────────────────────────────────────
+  const handleOpenShift = async () => {
+    const cash = parseFloat(depositAmount) || 0
+    setIsOpeningShift(true)
+    try {
+      const newShift: Omit<Shift, 'id'> = {
+        outletId: 'default',
+        cashierId: appUser.uid,
+        cashierName: appUser.displayName,
+        status: ShiftStatus.OPEN,
+        openedAt: new Date().toISOString(),
+        startingCash: cash,
+        totalSales: 0, totalOrders: 0, totalRefunds: 0,
+        cashSales: 0, cardSales: 0, transferSales: 0, qrisSales: 0,
+      }
+      await addDoc(collection(db, 'shifts'), newShift)
+      setDepositAmount('')
+      setIsDepositOpen(false)
+    } catch { alert('Gagal membuka shift.') }
+    finally { setIsOpeningShift(false) }
+  }
+
+  const handleCloseShift = async () => {
+    if (!currentShift?.id) return
+    if (!confirm('Tutup shift sekarang?')) return
+    // Tally today's orders for this cashier
+    const today = new Date().toISOString().slice(0, 10)
+    const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')))
+    const todayMine = snap.docs
+      .map(d => ({ ...d.data() } as Order))
+      .filter(o => o.cashierId === appUser.uid && o.createdAt.slice(0, 10) === today)
+    const completed = todayMine.filter(o => o.status === OrderStatus.COMPLETED)
+    const refunded  = todayMine.filter(o => o.status === OrderStatus.REFUNDED)
+    await updateDoc(doc(db, 'shifts', currentShift.id), {
+      status: ShiftStatus.CLOSED,
+      closedAt: new Date().toISOString(),
+      totalSales:   completed.reduce((s, o) => s + o.total, 0),
+      totalOrders:  completed.length,
+      totalRefunds: refunded.reduce((s, o) => s + o.total, 0),
+      cashSales:    completed.filter(o => o.paymentMethod === PaymentMethod.CASH).reduce((s, o) => s + o.total, 0),
+      cardSales:    completed.filter(o => o.paymentMethod === PaymentMethod.CARD).reduce((s, o) => s + o.total, 0),
+      transferSales: completed.filter(o => o.paymentMethod === PaymentMethod.TRANSFER).reduce((s, o) => s + o.total, 0),
+      qrisSales:    completed.filter(o => o.paymentMethod === PaymentMethod.QRIS).reduce((s, o) => s + o.total, 0),
+    })
+    setIsDepositOpen(false)
+  }
+
+  // ── Cash Flow ─────────────────────────────────────────────
+  const handleSaveCashFlow = async () => {
+    const amt = parseFloat(cashFlowAmount)
+    if (!amt || amt <= 0) { alert('Masukkan jumlah yang valid'); return }
+    if (!cashFlowDesc.trim()) { alert('Deskripsi wajib diisi'); return }
+    setIsSavingCashFlow(true)
+    try {
+      await addDoc(collection(db, 'cashFlows'), {
+        type: cashFlowType,
+        amount: amt,
+        description: cashFlowDesc.trim(),
+        cashierId: appUser.uid,
+        cashierName: appUser.displayName,
+        outletId: 'default',
+        createdAt: new Date().toISOString(),
+      })
+      setCashFlowAmount('')
+      setCashFlowDesc('')
+    } catch { alert('Gagal menyimpan.') }
+    finally { setIsSavingCashFlow(false) }
+  }
+
+  // ── Promo code validation ─────────────────────────────────
+  const handleApplyPromoCode = async () => {
+    const code = promoCodeInput.trim().toUpperCase()
+    if (!code) return
+    setIsValidatingCode(true)
+    try {
+      const q = query(collection(db, 'discountCodes'), where('code', '==', code))
+      const snap = await getDocs(q)
+      if (snap.empty) { alert('Kode promo tidak ditemukan.'); return }
+      const dc = snap.docs[0].data() as any
+      if (!dc.isActive) { alert('Kode promo tidak aktif.'); return }
+      const today = new Date().toISOString().slice(0, 10)
+      if (dc.startDate && dc.startDate > today) { alert('Kode promo belum berlaku.'); return }
+      if (dc.endDate   && dc.endDate   < today) { alert('Kode promo sudah kadaluarsa.'); return }
+      if (dc.usageLimit && dc.usageCount >= dc.usageLimit) { alert('Batas pemakaian kode promo sudah tercapai.'); return }
+      if (dc.minPurchase && subtotal < dc.minPurchase) {
+        alert(`Minimum pembelian ${BRAND.currency.format(dc.minPurchase)} untuk menggunakan kode ini.`); return
+      }
+      setAppliedPromoCode({ code: dc.code, value: dc.value, type: dc.type })
+      setPromoCodeInput('')
+      setActiveAdjustment(null)
+    } catch { alert('Gagal memvalidasi kode promo.') }
+    finally { setIsValidatingCode(false) }
+  }
+
+  // ── Print / Receipt Settings save ────────────────────────
+  const handleSaveReceiptSettings = async (updated: AppSettings['receipt']) => {
+    try {
+      await updateDoc(doc(db, 'settings', 'app'), { receipt: updated })
+    } catch { alert('Gagal menyimpan pengaturan struk.') }
+  }
+
+  // ── UI Preferences ────────────────────────────────────────
+  const applyFontSize = (size: 'sm' | 'md' | 'lg') => {
+    setFontSize(size)
+    localStorage.setItem('pos_fontSize', size)
+    setIsFontSizeOpen(false)
+  }
+  const applyGridCols = (cols: 2 | 3 | 4 | 6) => {
+    setProductGridCols(cols)
+    localStorage.setItem('pos_gridCols', String(cols))
+    setIsProductDisplayOpen(false)
+  }
+  const applyDefaultView = (view: 'products' | 'cart') => {
+    setDefaultView(view)
+    localStorage.setItem('pos_defaultView', view)
+    setIsDefaultViewOpen(false)
+  }
+
   // ── Open checkout ──────────────────────────────────────────
   const openCheckout = () => {
     setPaymentMethod(enabledPaymentMethods[0]?.id as PaymentMethod || PaymentMethod.CASH)
@@ -572,6 +753,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
+    <>
     <div className="h-screen flex bg-gray-50 overflow-hidden">
 
       {/* ══════════════════════════════════════════════════ */}
@@ -743,7 +925,12 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto p-4">
             {isLoadingProducts ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className={`grid gap-3 ${
+                productGridCols === 2 ? 'grid-cols-2' :
+                productGridCols === 3 ? 'grid-cols-2 sm:grid-cols-3' :
+                productGridCols === 4 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' :
+                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+              }`}>
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
                     <div className="w-full aspect-square bg-gray-200" />
@@ -765,7 +952,12 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className={`grid gap-3 ${
+                productGridCols === 2 ? 'grid-cols-2' :
+                productGridCols === 3 ? 'grid-cols-2 sm:grid-cols-3' :
+                productGridCols === 4 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' :
+                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+              }`}>
                 {filteredProducts.map(product => (
                   <ProductCard
                     key={product.id}
@@ -1392,48 +1584,93 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       {/* ══════════════════════════════════════════════════ */}
       {isSuccessOpen && lastOrder && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-8">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-10 h-10 text-green-500" />
-            </div>
-            <h2 className="text-2xl font-black text-gray-900 mb-1">Berhasil!</h2>
-            <p className="text-gray-400 text-sm mb-4">{lastOrder.orderNumber}</p>
-            <div className="bg-gray-50 rounded-2xl p-4 text-left space-y-2 mb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Total</span>
-                <span className="font-black text-gray-900">{BRAND.currency.format(lastOrder.total)}</span>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            {/* Receipt-style header */}
+            {settings.receipt.headerText && (
+              <div className="bg-indigo-600 text-white text-center py-3 px-6">
+                <p className="font-black text-base">{settings.receipt.headerText}</p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Metode</span>
-                <span className="font-bold text-gray-900 capitalize">{lastOrder.paymentMethod}</span>
+            )}
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                </div>
+                <h2 className="text-xl font-black text-gray-900">Pembayaran Berhasil!</h2>
+                <p className="text-gray-400 text-xs mt-1">{lastOrder.orderNumber}</p>
+                <p className="text-gray-400 text-xs">{format(parseISO(lastOrder.createdAt), 'dd MMM yyyy · HH:mm', { locale: idLocale })}</p>
               </div>
-              {lastOrder.paymentMethod === PaymentMethod.CASH && lastOrder.change > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Kembalian</span>
-                  <span className="font-black text-green-600">{BRAND.currency.format(lastOrder.change)}</span>
+
+              {/* Receipt body */}
+              <div className="border border-dashed border-gray-200 rounded-2xl p-4 space-y-2 text-sm mb-4">
+                {lastOrder.items.map((item, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span className="text-gray-600 text-xs">{item.productName} {item.variantSize} ×{item.quantity}</span>
+                    <span className="font-bold text-xs">{BRAND.currency.format(item.subtotal)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-dashed border-gray-200 pt-2 space-y-1">
+                  {lastOrder.discountAmount > 0 && (
+                    <div className="flex justify-between text-xs text-green-600 font-bold">
+                      <span>Diskon</span><span>-{BRAND.currency.format(lastOrder.discountAmount)}</span>
+                    </div>
+                  )}
+                  {settings.receipt.showTax && lastOrder.taxAmount > 0 && (
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>PPN {settings.taxRate}%</span><span>{BRAND.currency.format(lastOrder.taxAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-black text-gray-900 text-base pt-1">
+                    <span>Total</span>
+                    <span className="text-indigo-600">{BRAND.currency.format(lastOrder.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Metode</span>
+                    <span className="font-bold capitalize">{lastOrder.paymentMethod}</span>
+                  </div>
+                  {lastOrder.paymentMethod === PaymentMethod.CASH && lastOrder.change > 0 && (
+                    <div className="flex justify-between text-xs text-green-600 font-bold">
+                      <span>Kembalian</span><span>{BRAND.currency.format(lastOrder.change)}</span>
+                    </div>
+                  )}
                 </div>
+                {(lastOrder.customerName || lastOrder.salesmanName || settings.receipt.showCashier) && (
+                  <div className="border-t border-dashed border-gray-200 pt-2 space-y-1">
+                    {lastOrder.customerName && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Pelanggan</span>
+                        <span className="font-bold text-indigo-600">{lastOrder.customerName}</span>
+                      </div>
+                    )}
+                    {lastOrder.salesmanName && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Salesman</span>
+                        <span className="font-bold">{lastOrder.salesmanName}</span>
+                      </div>
+                    )}
+                    {settings.receipt.showCashier && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Kasir</span>
+                        <span className="font-bold">{lastOrder.cashierName}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {lastOrder.notes && (
+                  <div className="text-xs text-gray-500 bg-yellow-50 rounded-lg px-2 py-1.5">📝 {lastOrder.notes}</div>
+                )}
+              </div>
+
+              {settings.receipt.footerText && (
+                <p className="text-center text-xs text-gray-400 mb-4">{settings.receipt.footerText}</p>
               )}
-              {lastOrder.customerName && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Pelanggan</span>
-                  <span className="font-bold text-indigo-600">{lastOrder.customerName}</span>
-                </div>
-              )}
-              {lastOrder.salesmanName && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Salesman</span>
-                  <span className="font-bold text-gray-900">{lastOrder.salesmanName}</span>
-                </div>
-              )}
-              {lastOrder.notes && (
-                <div className="text-xs text-gray-500 bg-yellow-50 rounded-lg px-2 py-1">📝 {lastOrder.notes}</div>
-              )}
+
+              <button
+                onClick={() => setIsSuccessOpen(false)}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl transition-all">
+                Transaksi Baru
+              </button>
             </div>
-            <button
-              onClick={() => setIsSuccessOpen(false)}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl transition-all">
-              Transaksi Baru
-            </button>
           </div>
         </div>
       )}
@@ -1853,6 +2090,33 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 <X className="w-4 h-4 text-gray-400" />
               </button>
             </div>
+            {/* Promo code input */}
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Kode Promo</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoCodeInput}
+                  onChange={e => setPromoCodeInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === 'Enter' && handleApplyPromoCode()}
+                  placeholder="Masukkan kode..."
+                  className="flex-1 px-3 py-2 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl text-sm font-bold uppercase focus:outline-none"
+                />
+                <button
+                  onClick={handleApplyPromoCode}
+                  disabled={isValidatingCode || !promoCodeInput.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1">
+                  {isValidatingCode ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Pakai
+                </button>
+              </div>
+              {appliedPromoCode && (
+                <div className="mt-2 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                  <span className="text-xs font-black text-green-700">✓ {appliedPromoCode.code} — {appliedPromoCode.type === 'percentage' ? `${appliedPromoCode.value}%` : BRAND.currency.format(appliedPromoCode.value)}</span>
+                  <button onClick={() => setAppliedPromoCode(null)} className="text-red-400 hover:text-red-600 text-lg font-black ml-2">×</button>
+                </div>
+              )}
+            </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {(() => {
                 const now = new Date().toISOString().slice(0, 10)
@@ -2202,6 +2466,397 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
 
       </div>{/* end flex-1 flex-col min-w-0 (right panel) */}
     </div>
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* DEPOSIT / SHIFT MODAL                             */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isDepositOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">
+                {currentShift ? '📋 Status Shift' : '💰 Buka Shift'}
+              </h2>
+              <button onClick={() => setIsDepositOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {currentShift ? (
+                <>
+                  <div className="bg-green-50 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-sm font-black text-green-700">Shift Sedang Berjalan</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Dibuka</span>
+                      <span className="font-bold">{format(parseISO(currentShift.openedAt), 'dd MMM yyyy HH:mm', { locale: idLocale })}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Kas Awal</span>
+                      <span className="font-bold">{BRAND.currency.format(currentShift.startingCash)}</span>
+                    </div>
+                  </div>
+                  <button onClick={handleCloseShift}
+                    className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all">
+                    Tutup Shift
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">Masukkan jumlah uang kas awal untuk membuka shift.</p>
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Kas Awal (Rp)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={depositAmount}
+                      onChange={e => setDepositAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-xl focus:outline-none"
+                    />
+                  </div>
+                  <button onClick={handleOpenShift} disabled={isOpeningShift}
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2">
+                    {isOpeningShift ? <><Loader2 className="w-4 h-4 animate-spin" />Membuka...</> : 'Buka Shift'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* CASH FLOW MODAL                                   */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isCashFlowOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-xl font-black text-gray-900">💸 Uang Masuk / Keluar</h2>
+              <button onClick={() => setIsCashFlowOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 flex-shrink-0">
+              <div className="flex gap-2">
+                {(['in', 'out'] as const).map(t => (
+                  <button key={t} onClick={() => setCashFlowType(t)}
+                    className={`flex-1 py-2.5 text-sm font-black rounded-xl border-2 transition-all ${
+                      cashFlowType === t
+                        ? t === 'in' ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 text-gray-500'}`}>
+                    {t === 'in' ? '+ Uang Masuk' : '− Uang Keluar'}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Jumlah (Rp)</label>
+                <input type="number" inputMode="numeric" value={cashFlowAmount}
+                  onChange={e => setCashFlowAmount(e.target.value)}
+                  placeholder="50000"
+                  className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl text-lg font-black focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Keterangan</label>
+                <input type="text" value={cashFlowDesc} onChange={e => setCashFlowDesc(e.target.value)}
+                  placeholder="Mis: Pembelian plastik"
+                  className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl text-sm focus:outline-none" />
+              </div>
+              <button onClick={handleSaveCashFlow} disabled={isSavingCashFlow}
+                className={`w-full py-3.5 font-black rounded-2xl transition-all text-white flex items-center justify-center gap-2 ${
+                  cashFlowType === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}>
+                {isSavingCashFlow ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {cashFlowType === 'in' ? 'Catat Uang Masuk' : 'Catat Uang Keluar'}
+              </button>
+            </div>
+            {cashFlows.length > 0 && (
+              <div className="flex-1 overflow-y-auto border-t border-gray-100">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest px-6 py-3">Riwayat Hari Ini</p>
+                <div className="divide-y divide-gray-50">
+                  {cashFlows
+                    .filter(cf => cf.createdAt.slice(0, 10) === new Date().toISOString().slice(0, 10))
+                    .slice(0, 10)
+                    .map(cf => (
+                      <div key={cf.id} className="flex items-center justify-between px-6 py-3">
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{cf.description}</p>
+                          <p className="text-xs text-gray-400">{cf.cashierName} · {new Date(cf.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                        <span className={`text-sm font-black ${cf.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
+                          {cf.type === 'in' ? '+' : '−'}{BRAND.currency.format(cf.amount)}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* HELP MODAL                                        */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isHelpOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-xl font-black text-gray-900">❓ Bantuan & Dukungan</h2>
+              <button onClick={() => setIsHelpOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {[
+                { q: 'Cara menambah produk ke keranjang?', a: 'Klik kartu produk → pilih varian & jumlah → klik Tambah ke Keranjang.' },
+                { q: 'Cara menggunakan kode promo?', a: 'Di panel keranjang, klik ··· → Promosi → masukkan kode promo atau pilih dari daftar promosi aktif.' },
+                { q: 'Cara proses refund?', a: 'Buka Riwayat Transaksi → klik transaksi → klik Proses Refund → isi alasan.' },
+                { q: 'Cara ganti metode pembayaran?', a: 'Pengaturan metode pembayaran ada di Back Office → Pengaturan → Metode Pembayaran.' },
+                { q: 'Cara menambah pelanggan baru?', a: 'Di panel keranjang kanan, klik Baru di bagian Pelanggan, isi nama & nomor telepon.' },
+                { q: 'Cara melihat rekap penjualan?', a: 'Klik menu samping → Rekap Shift untuk melihat ringkasan hari ini.' },
+                { q: 'Sinkronisasi data tidak update?', a: 'Klik Pengaturan (gear) → Sinkronkan untuk refresh data dari server.' },
+              ].map(({ q, a }) => (
+                <div key={q} className="border border-gray-100 rounded-2xl p-4">
+                  <p className="font-black text-gray-900 text-sm mb-1.5">{q}</p>
+                  <p className="text-sm text-gray-500">{a}</p>
+                </div>
+              ))}
+              <div className="bg-indigo-50 rounded-2xl p-4 text-center">
+                <p className="font-black text-indigo-800 text-sm mb-1">Butuh bantuan lebih lanjut?</p>
+                <p className="text-xs text-indigo-600">Hubungi tim support melalui Back Office → Pengaturan</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* PRINT SETTINGS MODAL                             */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isPrintSettingsOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">🖨️ Pengaturan Struk</h2>
+              <button onClick={() => setIsPrintSettingsOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Preview */}
+              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-2xl p-4 text-center font-mono text-xs space-y-1">
+                <p className="font-black text-sm">{settings.receipt.headerText || BRAND.name}</p>
+                <p className="border-t border-dashed border-gray-300 pt-1">Item 1 ............... Rp XX</p>
+                {settings.receipt.showTax && <p>PPN {settings.taxRate}% ............. Rp XX</p>}
+                <p className="font-black border-t border-dashed border-gray-300 pt-1">TOTAL .............. Rp XX</p>
+                {settings.receipt.showCashier && <p className="text-gray-400">Kasir: {appUser.displayName}</p>}
+                <p className="border-t border-dashed border-gray-300 pt-1 text-gray-500">{settings.receipt.footerText || 'Terima kasih!'}</p>
+              </div>
+
+              {[
+                { key: 'headerText' as const, label: 'Header Struk', placeholder: 'Nama toko / tagline' },
+                { key: 'footerText' as const, label: 'Footer Struk', placeholder: 'Pesan terima kasih' },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
+                  <input type="text" value={settings.receipt[key]}
+                    onChange={e => {
+                      const updated = { ...settings.receipt, [key]: e.target.value }
+                      setSettings(s => ({ ...s, receipt: updated }))
+                      handleSaveReceiptSettings(updated)
+                    }}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              ))}
+
+              {[
+                { key: 'showTax' as const, label: 'Tampilkan Pajak di Struk' },
+                { key: 'showCashier' as const, label: 'Tampilkan Nama Kasir' },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-gray-900">{label}</p>
+                  <button onClick={() => {
+                    const updated = { ...settings.receipt, [key]: !settings.receipt[key] }
+                    setSettings(s => ({ ...s, receipt: updated }))
+                    handleSaveReceiptSettings(updated)
+                  }} className="text-gray-400 hover:text-indigo-600">
+                    {settings.receipt[key]
+                      ? <span className="text-indigo-600 font-black text-sm">ON</span>
+                      : <span className="text-gray-400 font-black text-sm">OFF</span>}
+                  </button>
+                </div>
+              ))}
+              <p className="text-xs text-gray-400 text-center">Perubahan tersimpan otomatis & berlaku di semua kasir</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* FONT SIZE MODAL                                   */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isFontSizeOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">🔤 Ukuran Font</h2>
+              <button onClick={() => setIsFontSizeOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              {([
+                { val: 'sm' as const, label: 'Kecil', desc: 'Tampilkan lebih banyak konten', size: 'text-sm' },
+                { val: 'md' as const, label: 'Sedang', desc: 'Ukuran standar (default)', size: 'text-base' },
+                { val: 'lg' as const, label: 'Besar', desc: 'Lebih mudah dibaca', size: 'text-lg' },
+              ]).map(({ val, label, desc, size }) => (
+                <button key={val} onClick={() => applyFontSize(val)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 text-left transition-all ${fontSize === val ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div>
+                    <p className={`font-black text-gray-900 ${size}`}>{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                  {fontSize === val && <span className="text-indigo-600 font-black text-sm">✓ Aktif</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* PRODUCT DISPLAY MODAL                             */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isProductDisplayOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">🗂️ Tampilan Produk</h2>
+              <button onClick={() => setIsProductDisplayOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Jumlah Kolom Grid</p>
+              {([
+                { val: 2 as const, label: '2 Kolom', desc: 'Kartu besar, cocok untuk layar kecil' },
+                { val: 3 as const, label: '3 Kolom', desc: 'Seimbang antara ukuran dan jumlah' },
+                { val: 4 as const, label: '4 Kolom', desc: 'Tampilkan lebih banyak produk' },
+                { val: 6 as const, label: '6 Kolom', desc: 'Maksimal produk (layar lebar)' },
+              ]).map(({ val, label, desc }) => (
+                <button key={val} onClick={() => applyGridCols(val)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 text-left transition-all ${productGridCols === val ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div>
+                    <p className="font-black text-gray-900 text-sm">{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                  {productGridCols === val && <span className="text-indigo-600 font-black text-sm">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* DEFAULT VIEW MODAL                                */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isDefaultViewOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">🖥️ Tampilan Default</h2>
+              <button onClick={() => setIsDefaultViewOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              {([
+                { val: 'products' as const, label: 'Tampilan Produk', desc: 'Tampilkan grid produk saat pertama buka' },
+                { val: 'cart' as const, label: 'Tampilan Keranjang', desc: 'Fokus ke keranjang saat pertama buka' },
+              ]).map(({ val, label, desc }) => (
+                <button key={val} onClick={() => applyDefaultView(val)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 text-left transition-all ${defaultView === val ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div>
+                    <p className="font-black text-gray-900 text-sm">{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                  {defaultView === val && <span className="text-indigo-600 font-black text-sm">✓ Aktif</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* LANGUAGE MODAL                                    */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isLanguageOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">🌐 Pilih Bahasa</h2>
+              <button onClick={() => setIsLanguageOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              <button className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50 text-left">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🇮🇩</span>
+                  <div>
+                    <p className="font-black text-gray-900 text-sm">Bahasa Indonesia</p>
+                    <p className="text-xs text-gray-400">Bahasa aktif</p>
+                  </div>
+                </div>
+                <span className="text-indigo-600 font-black text-sm">✓ Aktif</span>
+              </button>
+              <button className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed text-left">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🇺🇸</span>
+                  <div>
+                    <p className="font-black text-gray-900 text-sm">English</p>
+                    <p className="text-xs text-gray-400">Segera hadir</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* MOBILE VIEW MODAL                                 */}
+      {/* ══════════════════════════════════════════════════ */}
+      {isMobileViewOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-900">📱 Tampilan Mobile</h2>
+              <button onClick={() => setIsMobileViewOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 rounded-2xl p-4">
+                <p className="font-black text-blue-800 text-sm mb-2">💡 Tips Tampilan Mobile</p>
+                <ul className="text-xs text-blue-700 space-y-1.5">
+                  <li>• Gunakan tablet atau HP dengan layar ≥ 7 inci untuk pengalaman terbaik</li>
+                  <li>• Putar layar ke landscape (horizontal) untuk melihat produk & keranjang sekaligus</li>
+                  <li>• Di layar kecil, keranjang bisa diakses dengan scroll ke bawah</li>
+                  <li>• Aktifkan "Layar Penuh" di browser untuk area tampilan maksimal</li>
+                </ul>
+              </div>
+              <button onClick={() => {
+                if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen()
+                setIsMobileViewOpen(false)
+              }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl transition-all text-sm">
+                Aktifkan Layar Penuh
+              </button>
+              <button onClick={() => setIsMobileViewOpen(false)}
+                className="w-full py-3 border border-gray-200 text-gray-600 font-bold rounded-2xl text-sm hover:bg-gray-50 transition-all">
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
