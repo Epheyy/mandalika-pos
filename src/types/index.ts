@@ -67,6 +67,23 @@ export interface LoyaltySettings {
   redemptionRate: number
 }
 
+export interface LoyaltyCondition {
+  id?: string
+  name: string
+  type: 'always_on' | 'campaign'
+  trigger: 'first_registration' | 'birthday' | 'anniversary' | 'double_date' | 'member_day' | 'product_purchase' | 'spending_threshold'
+  rewardType: 'set_points' | 'multiply_points' | 'product_reward'
+  rewardValue: number
+  rewardProductIds?: string[]
+  campaignStartDate?: string
+  campaignEndDate?: string
+  activeDays?: number[]
+  applicableProductIds?: string[]
+  minimumSpend?: number
+  isActive: boolean
+  createdAt: string
+}
+
 export interface PaymentMethodConfig {
   id: string
   label: string
@@ -78,6 +95,14 @@ export interface ReceiptSettings {
   footerText: string
   showTax: boolean
   showCashier: boolean
+  copies?: number
+  autoPrint?: boolean
+  showOrderNumber?: boolean
+  showCustomerName?: boolean
+  showCustomerPhone?: boolean
+  showDiscount?: boolean
+  showSubtotal?: boolean
+  showChange?: boolean
 }
 
 export interface AppSettings {
@@ -85,6 +110,9 @@ export interface AppSettings {
   taxRate: number
   roundingEnabled: boolean
   roundingType: 'nearest_500' | 'nearest_1000' | 'none'
+  roundingAmount?: number
+  roundingDirection?: 'floor' | 'ceil' | 'nearest'
+  roundingApplyToTax?: boolean
   paymentMethods: PaymentMethodConfig[]
   receipt: ReceiptSettings
   autoOpenShift: boolean
@@ -166,8 +194,14 @@ export interface Promotion {
   value: number
   minPurchase?: number
   applicableProductIds?: string[]
+  applicableVariantKeys?: string[]
   applicableVariantSizes?: string[]
   outletIds?: string[]
+  combinable?: boolean
+  combinableWith?: string[]
+  activeFromHour?: string
+  activeToHour?: string
+  activeDays?: number[]
   isActive: boolean
   startDate?: string
   endDate?: string

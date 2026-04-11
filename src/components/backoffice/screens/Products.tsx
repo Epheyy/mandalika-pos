@@ -4,8 +4,8 @@ import { db } from '../../../firebase'
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import { BRAND } from '../../../config/brand'
 import { uploadImage } from '../../../lib/cloudinary'
-import { exportToCSV, parseCSV } from '../../../lib/csvUtils'
-import { Plus, Edit2, Trash2, X, Upload, Package, Search, Loader2, ImageIcon, Download, Tag } from 'lucide-react'
+import { exportToCSV, exportToXLSX, parseCSV } from '../../../lib/csvUtils'
+import { Plus, Edit2, Trash2, X, Upload, Package, Search, Loader2, ImageIcon, Download, Tag, ChevronDown } from 'lucide-react'
 
 interface Props { appUser?: AppUser }
 
@@ -31,6 +31,7 @@ export default function Products({ appUser: _appUser }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const csvImportRef = useRef<HTMLInputElement>(null)
   const catCsvImportRef = useRef<HTMLInputElement>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   // Category modal
   const [isCatModalOpen, setIsCatModalOpen] = useState(false)
@@ -92,14 +93,24 @@ export default function Products({ appUser: _appUser }: Props) {
 
   const handleDelete = async (id: string) => { await deleteDoc(doc(db, 'products', id)); setDeleteConfirmId(null) }
 
-  // CSV Export Products
-  const exportProducts = () => {
-    const rows = products.flatMap(p => p.variants.map(v => ({
-      'Nama': p.name, 'Brand': p.brand, 'Kategori': categories.find(c => c.id === p.categoryId)?.name || '',
-      'Deskripsi': p.description || '', 'URL Gambar': p.imageUrl || '', 'Ukuran': v.size,
-      'Harga': v.price, 'Stok': v.stock, 'SKU': v.sku, 'Aktif': p.isActive ? 'Ya' : 'Tidak', 'Unggulan': p.isFeatured ? 'Ya' : 'Tidak',
-    })))
-    exportToCSV(rows, 'produk_mandalika')
+  // CSV/XLSX Export Products
+  const getProductRows = () => products.flatMap(p => p.variants.map(v => ({
+    'Nama': p.name, 'Brand': p.brand, 'Kategori': categories.find(c => c.id === p.categoryId)?.name || '',
+    'Deskripsi': p.description || '', 'Ukuran': v.size,
+    'Harga': v.price, 'Stok': v.stock, 'SKU': v.sku, 'Aktif': p.isActive ? 'Ya' : 'Tidak', 'Unggulan': p.isFeatured ? 'Ya' : 'Tidak',
+  })))
+
+  const exportProducts = (format: 'csv' | 'xlsx') => {
+    const rows = getProductRows()
+    if (!rows.length) { alert('Tidak ada produk untuk diekspor'); return }
+    if (format === 'xlsx') exportToXLSX(rows, 'produk_mandalika')
+    else exportToCSV(rows, 'produk_mandalika')
+    setShowExportMenu(false)
+  }
+
+  const downloadTemplate = () => {
+    const rows = [{ 'Nama': '', 'Brand': 'Mandalika', 'Kategori': '', 'Deskripsi': '', 'Ukuran': '', 'Harga': 0, 'Stok': 0, 'SKU': '', 'Aktif': 'Ya', 'Unggulan': 'Tidak' }]
+    exportToCSV(rows, 'template_import_produk')
   }
 
   // CSV Import Products
@@ -122,7 +133,7 @@ export default function Products({ appUser: _appUser }: Props) {
       const cat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
       const data: Omit<Product, 'id'> = {
         name: item['Nama'], brand: item['Brand'], categoryId: cat?.id || '',
-        description: item['Deskripsi'] || '', imageUrl: item['URL Gambar'] || '',
+        description: item['Deskripsi'] || '', imageUrl: '',
         isActive: item['Aktif'] !== 'Tidak', isFeatured: item['Unggulan'] === 'Ya',
         variants: item.variants, createdAt: new Date().toISOString(),
       }
@@ -203,9 +214,17 @@ export default function Products({ appUser: _appUser }: Props) {
           </div>
           {activeTab === 'products' && (
             <>
-              <button onClick={exportProducts} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs transition-all">
-                <Download className="w-3.5 h-3.5" /> Export
-              </button>
+              <div className="relative">
+                <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs transition-all">
+                  <Download className="w-3.5 h-3.5" /> Export <ChevronDown className="w-3 h-3" />
+                </button>
+                {showExportMenu && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
+                    <button onClick={() => exportProducts('csv')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">CSV (.csv)</button>
+                    <button onClick={() => exportProducts('xlsx')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">Excel (.xlsx)</button>
+                  </div>
+                )}
+              </div>
               <button onClick={() => csvImportRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all">
                 <Upload className="w-3.5 h-3.5" /> Import
               </button>
@@ -254,10 +273,15 @@ export default function Products({ appUser: _appUser }: Props) {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
-            <p className="font-bold mb-0.5">Format CSV Import:</p>
-            <p>Kolom: Nama, Brand, Kategori, Deskripsi, URL Gambar, Ukuran, Harga, Stok, SKU, Aktif, Unggulan</p>
-            <p>Satu baris per varian. Produk dengan nama+brand sama akan digabung.</p>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700 flex items-start justify-between gap-3">
+            <div>
+              <p className="font-bold mb-0.5">Format CSV Import:</p>
+              <p>Kolom: Nama, Brand, Kategori, Deskripsi, Ukuran, Harga, Stok, SKU, Aktif, Unggulan</p>
+              <p>Satu baris per varian. Produk dengan nama+brand sama akan digabung. Gambar diupload manual per produk.</p>
+            </div>
+            <button onClick={downloadTemplate} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg text-xs transition-all">
+              <Download className="w-3 h-3" /> Template
+            </button>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

@@ -12,7 +12,7 @@ import {
   Banknote, CreditCard, Smartphone, ArrowLeftRight, History,
   ChevronDown, ChevronUp, User, Tag, Heart,
   UserPlus, Plus, Minus, Loader2, RotateCcw, Calendar, MoreHorizontal, ClipboardList, TrendingUp, ChevronRight, Printer,
-  ShoppingBag, Globe, RefreshCw, HelpCircle, Type, LayoutGrid, Monitor
+  ShoppingBag, RefreshCw, HelpCircle, LayoutGrid, Monitor
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -246,9 +246,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
     if (sa) setLastSyncedAt(sa)
   }, [])
 
-  // ── Auto-open shift if setting enabled ───────────────────
+  // ── Auto-open shift on first daily load ──────────────────
   useEffect(() => {
-    if (!settings.autoOpenShift || currentShift) return
+    if (currentShift) return
     const today = new Date().toISOString().slice(0, 10)
     // Only auto-open once per session (check if already tried)
     const key = `pos_autoshift_${appUser.uid}_${today}`
@@ -265,7 +265,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       cashSales: 0, cardSales: 0, transferSales: 0, qrisSales: 0,
     }
     addDoc(collection(db, 'shifts'), newShift).catch(() => {})
-  }, [settings.autoOpenShift, currentShift, appUser.uid, appUser.displayName])
+  }, [currentShift, appUser.uid, appUser.displayName])
 
   // ── History subscription (when modal open / dates change) ─
   useEffect(() => {
@@ -684,7 +684,9 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
       localStorage.setItem('pos_promotions_cache', JSON.stringify(livePromotions))
       localStorage.setItem('pos_last_synced_at', now)
       setHasPendingSync(false)
-      await addDoc(collection(db, 'syncLogs'), {
+      setIsSettingsOpen(false)
+      // Non-blocking log — fail silently if Firestore rules deny
+      addDoc(collection(db, 'syncLogs'), {
         cashierId:   appUser.uid,
         cashierName: appUser.displayName,
         outletId:    appUser.outletId || 'default',
@@ -694,9 +696,11 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
           categories: liveCategories.length,
           promotions: livePromotions.length,
         },
-      })
+      }).catch(() => {})
+    } catch (e) {
+      console.error('Sync error:', e)
       setIsSettingsOpen(false)
-    } catch { alert('Gagal sinkronisasi.') }
+    }
     finally { setIsSyncing(false) }
   }
 
@@ -1414,7 +1418,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                 </div>
                 <Settings className="w-4 h-4 text-gray-500" />
                 {hasPendingSync && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-orange-500 border-2 border-white" />
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
                 )}
               </button>
               
@@ -2921,7 +2925,7 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                         ${active ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}`}>
                       <div className={`relative p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
                         <Icon className={`w-4 h-4 ${active ? 'text-orange-600' : 'text-gray-500'}`} />
-                        {badge && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500" />}
+                        {badge && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />}
                       </div>
                       <span className="leading-tight flex-1">{label}</span>
                       {badge && <span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Baru</span>}
@@ -2947,20 +2951,12 @@ export default function CashierScreen({ appUser, onLogout }: Props) {
                       onClick: () => { setIsSettingsOpen(false); setIsPrintSettingsOpen(true) },
                     },
                     {
-                      Icon: Type, label: 'Pengaturan Ukuran Font Layar',
-                      onClick: () => { setIsSettingsOpen(false); setIsFontSizeOpen(true) },
-                    },
-                    {
                       Icon: LayoutGrid, label: 'Pengaturan Tampilan Produk',
                       onClick: () => { setIsSettingsOpen(false); setIsProductDisplayOpen(true) },
                     },
                     {
                       Icon: Monitor, label: 'Ganti Tampilan Default',
                       onClick: () => { setIsSettingsOpen(false); setIsDefaultViewOpen(true) },
-                    },
-                    {
-                      Icon: Globe, label: 'Ubah Bahasa',
-                      onClick: () => { setIsSettingsOpen(false); setIsLanguageOpen(true) },
                     },
                     {
                       Icon: Smartphone, label: 'Ganti Ke Tampilan Mobile',

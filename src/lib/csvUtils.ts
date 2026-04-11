@@ -1,3 +1,13 @@
+import * as XLSX from 'xlsx'
+
+export function exportToXLSX(data: Record<string, any>[], filename: string) {
+  if (!data.length) return
+  const ws = XLSX.utils.json_to_sheet(data)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Data')
+  XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 export function exportToCSV(data: Record<string, any>[], filename: string) {
   if (!data.length) return
   const headers = Object.keys(data[0])
