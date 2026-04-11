@@ -11,6 +11,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   taxRate: 11,
   roundingEnabled: false,
   roundingType: 'nearest_500',
+  roundingAmount: 1000,
+  roundingDirection: 'floor',
+  roundingApplyToTax: false,
   paymentMethods: [
     { id: 'cash', label: 'Tunai', isEnabled: true },
     { id: 'card', label: 'Kartu', isEnabled: true },
@@ -22,6 +25,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     footerText: 'Terima kasih telah berbelanja!',
     showTax: true,
     showCashier: true,
+    copies: 1,
+    autoPrint: false,
+    showOrderNumber: true,
+    showCustomerName: true,
+    showCustomerPhone: true,
+    showDiscount: true,
+    showSubtotal: true,
+    showChange: true,
   },
   autoOpenShift: false,
 }
@@ -49,10 +60,7 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
   }
 
   const togglePayment = (id: string) => {
-    setSettings(s => ({
-      ...s,
-      paymentMethods: s.paymentMethods.map(p => p.id === id ? { ...p, isEnabled: !p.isEnabled } : p)
-    }))
+    setSettings(s => ({ ...s, paymentMethods: s.paymentMethods.map(p => p.id === id ? { ...p, isEnabled: !p.isEnabled } : p) }))
   }
 
   const removePayment = (id: string) => {
@@ -68,12 +76,18 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
     setNewPayment('')
   }
 
+  const setReceipt = (key: string, value: any) => {
+    setSettings(s => ({ ...s, receipt: { ...s.receipt, [key]: value } }))
+  }
+
   const sections = [
     { id: 'tax', label: 'Pajak & Pembulatan' },
     { id: 'payment', label: 'Metode Pembayaran' },
     { id: 'receipt', label: 'Struk' },
     { id: 'shift', label: 'Shift' },
   ] as const
+
+  const roundingAmounts = [1, 10, 100, 500, 1000]
 
   return (
     <div className="p-6 space-y-5">
@@ -100,17 +114,18 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 max-w-2xl space-y-5">
 
-        {/* TAX */}
+        {/* TAX & ROUNDING */}
         {activeSection === 'tax' && (
           <>
             <h3 className="font-black text-gray-900">Pajak & Pembulatan</h3>
+
+            {/* Tax toggle */}
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
                 <p className="font-bold text-gray-900">Aktifkan PPN</p>
                 <p className="text-xs text-gray-400">Pajak akan ditampilkan & dihitung di kasir</p>
               </div>
-              <button onClick={() => setSettings(s => ({ ...s, taxEnabled: !s.taxEnabled }))}
-                className="text-gray-400 hover:text-indigo-600">
+              <button onClick={() => setSettings(s => ({ ...s, taxEnabled: !s.taxEnabled }))} className="text-gray-400 hover:text-indigo-600">
                 {settings.taxEnabled ? <ToggleRight className="w-7 h-7 text-indigo-600" /> : <ToggleLeft className="w-7 h-7" />}
               </button>
             </div>
@@ -122,29 +137,56 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
                   className="w-32 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
             )}
+
+            {/* Rounding section */}
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
                 <p className="font-bold text-gray-900">Pembulatan Harga</p>
                 <p className="text-xs text-gray-400">Membulatkan total transaksi</p>
               </div>
-              <button onClick={() => setSettings(s => ({ ...s, roundingEnabled: !s.roundingEnabled }))}
-                className="text-gray-400 hover:text-indigo-600">
+              <button onClick={() => setSettings(s => ({ ...s, roundingEnabled: !s.roundingEnabled }))} className="text-gray-400 hover:text-indigo-600">
                 {settings.roundingEnabled ? <ToggleRight className="w-7 h-7 text-indigo-600" /> : <ToggleLeft className="w-7 h-7" />}
               </button>
             </div>
+
             {settings.roundingEnabled && (
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tipe Pembulatan</label>
-                <div className="flex gap-2">
-                  {[
-                    { val: 'nearest_500', label: 'Rp 500' },
-                    { val: 'nearest_1000', label: 'Rp 1.000' },
-                  ].map(({ val, label }) => (
-                    <button key={val} onClick={() => setSettings(s => ({ ...s, roundingType: val as any }))}
-                      className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${settings.roundingType === val ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
-                      {label}
-                    </button>
-                  ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Rounding amount dropdown */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Pembulatan ke</label>
+                    <select value={settings.roundingAmount ?? 1000}
+                      onChange={e => setSettings(s => ({ ...s, roundingAmount: parseInt(e.target.value) }))}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      {roundingAmounts.map(v => (
+                        <option key={v} value={v}>{v.toLocaleString('id-ID')}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Rounding direction */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tipe Pembulatan</label>
+                    <select value={settings.roundingDirection ?? 'floor'}
+                      onChange={e => setSettings(s => ({ ...s, roundingDirection: e.target.value as any }))}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="floor">Pembulatan ke bawah</option>
+                      <option value="ceil">Pembulatan ke atas</option>
+                      <option value="nearest">Pembulatan terdekat</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Apply to tax */}
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                  <input type="checkbox" id="roundTax"
+                    checked={settings.roundingApplyToTax ?? false}
+                    onChange={e => setSettings(s => ({ ...s, roundingApplyToTax: e.target.checked }))}
+                    className="w-4 h-4 accent-indigo-600" />
+                  <div>
+                    <label htmlFor="roundTax" className="text-sm font-bold text-gray-900 cursor-pointer">Terapkan Pembulatan pada Service Charge dan Pajak</label>
+                    <p className="text-xs text-gray-400">Service charge dan pajak akan dibulatkan ke 1 terdekat</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -186,6 +228,26 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
         {activeSection === 'receipt' && (
           <>
             <h3 className="font-black text-gray-900">Pengaturan Struk</h3>
+
+            {/* Jumlah salinan */}
+            <div>
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Jumlah Salinan Struk</label>
+              <p className="text-xs text-gray-400 mb-2">Atur jumlah salinan dalam satu cetakan</p>
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Jumlah salinan</label>
+              <input type="number" min={1} max={5} value={settings.receipt.copies ?? 1}
+                onChange={e => setReceipt('copies', parseInt(e.target.value) || 1)}
+                className="w-32 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            {/* Cetak otomatis */}
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
+              <p className="font-bold text-gray-900 text-sm">Cetak struk otomatis</p>
+              <button onClick={() => setReceipt('autoPrint', !settings.receipt.autoPrint)} className="text-gray-400 hover:text-indigo-600">
+                {settings.receipt.autoPrint ? <ToggleRight className="w-6 h-6 text-indigo-600" /> : <ToggleLeft className="w-6 h-6" />}
+              </button>
+            </div>
+
+            {/* Header / Footer */}
             {[
               { key: 'headerText', label: 'Teks Header', placeholder: 'Nama toko / tagline' },
               { key: 'footerText', label: 'Teks Footer', placeholder: 'Pesan terima kasih' },
@@ -193,23 +255,35 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
               <div key={key}>
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{label}</label>
                 <input type="text" value={settings.receipt[key as 'headerText' | 'footerText']}
-                  onChange={e => setSettings(s => ({ ...s, receipt: { ...s.receipt, [key]: e.target.value } }))}
+                  onChange={e => setReceipt(key, e.target.value)}
                   placeholder={placeholder}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
             ))}
-            {[
-              { key: 'showTax', label: 'Tampilkan Pajak' },
-              { key: 'showCashier', label: 'Tampilkan Nama Kasir' },
-            ].map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between py-2">
-                <p className="font-bold text-gray-900 text-sm">{label}</p>
-                <button onClick={() => setSettings(s => ({ ...s, receipt: { ...s.receipt, [key]: !s.receipt[key as 'showTax' | 'showCashier'] } }))}
-                  className="text-gray-400 hover:text-indigo-600">
-                  {settings.receipt[key as 'showTax' | 'showCashier'] ? <ToggleRight className="w-6 h-6 text-indigo-600" /> : <ToggleLeft className="w-6 h-6" />}
-                </button>
+
+            {/* Isi struk toggles */}
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Isi Struk</p>
+              <div className="space-y-0 border border-gray-100 rounded-xl overflow-hidden">
+                {[
+                  { key: 'showOrderNumber', label: 'Nomor pesanan' },
+                  { key: 'showCashier', label: 'Dicetak oleh' },
+                  { key: 'showCustomerName', label: 'Nama Pelanggan' },
+                  { key: 'showCustomerPhone', label: 'Nomor Telepon Pelanggan' },
+                  { key: 'showTax', label: 'Tampilkan Pajak' },
+                  { key: 'showDiscount', label: 'Tampilkan Diskon' },
+                  { key: 'showSubtotal', label: 'Tampilkan Subtotal' },
+                  { key: 'showChange', label: 'Tampilkan Kembalian' },
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
+                    <p className="font-bold text-gray-900 text-sm">{label}</p>
+                    <button onClick={() => setReceipt(key, !(settings.receipt as any)[key])} className="text-gray-400 hover:text-indigo-600">
+                      {(settings.receipt as any)[key] ? <ToggleRight className="w-6 h-6 text-indigo-600" /> : <ToggleLeft className="w-6 h-6" />}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </>
         )}
 
@@ -222,8 +296,7 @@ export default function SettingsScreen({ appUser: _appUser }: Props) {
                 <p className="font-bold text-gray-900">Buka Shift Otomatis</p>
                 <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login tanpa perlu input kas awal</p>
               </div>
-              <button onClick={() => setSettings(s => ({ ...s, autoOpenShift: !s.autoOpenShift }))}
-                className="text-gray-400 hover:text-indigo-600">
+              <button onClick={() => setSettings(s => ({ ...s, autoOpenShift: !s.autoOpenShift }))} className="text-gray-400 hover:text-indigo-600">
                 {settings.autoOpenShift ? <ToggleRight className="w-7 h-7 text-indigo-600" /> : <ToggleLeft className="w-7 h-7" />}
               </button>
             </div>

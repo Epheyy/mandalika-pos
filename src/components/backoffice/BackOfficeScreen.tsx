@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react'
 import type { AppUser } from '../../types'
 import { UserPermission } from '../../types'
 import { BRAND } from '../../config/brand'
-import { LayoutDashboard, Package, ShoppingBag, Users, Store, LogOut, ChevronRight, Menu, X, UserCog, Tag, BarChart3, ClipboardList, Settings } from 'lucide-react'
+import { LayoutDashboard, Package, Users, Store, LogOut, ChevronRight, Menu, X, UserCog, Tag, BarChart3, ClipboardList, Settings } from 'lucide-react'
 
 import Dashboard from './screens/Dashboard'
 import Products from './screens/Products'
-import Orders from './screens/Orders'
 import Customers from './screens/Customers'
 import Outlets from './screens/Outlets'
 import UsersScreen from './screens/Users'
@@ -19,7 +18,6 @@ interface Props { appUser: AppUser; onLogout: () => void }
 
 const ALL_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: UserPermission.VIEW_DASHBOARD },
-  { id: 'orders', label: 'Transaksi', icon: ShoppingBag, permission: UserPermission.VIEW_TRANSACTIONS },
   { id: 'products', label: 'Produk', icon: Package, permission: UserPermission.MANAGE_PRODUCTS },
   { id: 'customers', label: 'Pelanggan', icon: Users, permission: UserPermission.MANAGE_CUSTOMERS },
   { id: 'promotions', label: 'Promosi', icon: Tag, permission: UserPermission.MANAGE_PROMOTIONS },
@@ -61,7 +59,6 @@ export default function BackOfficeScreen({ appUser, onLogout }: Props) {
     }
     switch (activeTab) {
       case 'dashboard': return <Dashboard appUser={appUser} />
-      case 'orders': return <Orders appUser={appUser} />
       case 'products': return <Products appUser={appUser} />
       case 'customers': return <Customers appUser={appUser} />
       case 'promotions': return <Promotions appUser={appUser} />
