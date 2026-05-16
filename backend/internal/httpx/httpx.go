@@ -41,3 +41,9 @@ func Decode(r *http.Request, v any) error {
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
 }
+
+// DecodeLoose ignores unknown fields; used for write bodies where the client
+// may echo back server-owned fields (id, createdAt) it received on read.
+func DecodeLoose(r *http.Request, v any) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}

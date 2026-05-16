@@ -17,18 +17,36 @@ import (
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/service"
+	syncpkg "github.com/mandalika/pos-backend/internal/sync"
+	"github.com/mandalika/pos-backend/internal/uploads"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 const readTTL = 15 * time.Second
 
 type Handlers struct {
-	Repo  *read.Repo
-	Cache *cache.Cache
-	Store *auth.Store
+	Repo     *read.Repo
+	Cache    *cache.Cache
+	Store    *auth.Store
+	Write    *write.Repo
+	OrderSvc *service.OrderService
+	Sync     *syncpkg.Engine
+	Signer   *uploads.Signer
 }
 
-func New(repo *read.Repo, c *cache.Cache, store *auth.Store) *Handlers {
-	return &Handlers{Repo: repo, Cache: c, Store: store}
+func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
+	os *service.OrderService, sy *syncpkg.Engine, signer *uploads.Signer) *Handlers {
+	return &Handlers{Repo: repo, Cache: c, Store: store, Write: wr,
+		OrderSvc: os, Sync: sy, Signer: signer}
+}
+
+// invalidate drops the whole read cache (degradable, coarse). Called after any
+// write so the next GET reflects the mutation.
+func (h *Handlers) invalidate(r *http.Request) {
+	if h.Cache != nil {
+		h.Cache.DelByPrefix(r.Context(), "rd:")
+	}
 }
 
 // scope resolves the outlet boundary from the validated token context plus an

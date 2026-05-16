@@ -548,6 +548,227 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/ReportSummary' }
+    IdResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    OrderItemInput:
+      type: object
+      required: [productId, productName, variantSize, price, quantity, subtotal]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        price: { type: number }
+        quantity: { type: integer }
+        subtotal: { type: number }
+        isBundle: { type: boolean }
+    CreateOrderRequest:
+      type: object
+      required: [orderUuid, items, paymentMethod]
+      description: >
+        Server recomputes all money/stock/loyalty (plan §9); client values are
+        provisional. Outlet + cashier come from the JWT. The Idempotency-Key
+        header is required.
+      properties:
+        orderUuid: { type: string, format: uuid }
+        deviceId: { type: string, nullable: true }
+        salesmanId: { type: string, nullable: true }
+        salesmanName: { type: string, nullable: true }
+        customerId: { type: string, nullable: true }
+        customerName: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItemInput' } }
+        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        amountPaid: { type: number }
+        discountType: { type: string, enum: [percentage, fixed], nullable: true }
+        discountValue: { type: number, nullable: true }
+        surchargeValue: { type: number, nullable: true }
+        discountCode: { type: string, nullable: true }
+        promotionId: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        shiftId: { type: string, nullable: true }
+    RefundRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+    OpenShiftRequest:
+      type: object
+      properties:
+        outletName: { type: string, nullable: true }
+        startingCash: { type: number }
+    CloseShiftRequest:
+      type: object
+      properties:
+        closingCash: { type: number }
+    CashFlowRequest:
+      type: object
+      required: [type, amount, description]
+      properties:
+        shiftId: { type: string, nullable: true }
+        type: { type: string }
+        amount: { type: number }
+        description: { type: string }
+    SyncVersion:
+      type: object
+      required: [version, dataManifest]
+      properties:
+        version: { type: integer, format: int64 }
+        dataManifest: { type: object, additionalProperties: true }
+    SyncVersionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncVersion' }
+    SyncPullBundle:
+      type: object
+      required: [version]
+      properties:
+        version: { type: integer, format: int64 }
+        products: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
+        bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }
+        customers: { type: array, items: { $ref: '#/components/schemas/Customer' } }
+        promotions: { type: array, items: { $ref: '#/components/schemas/Promotion' } }
+        discountCodes: { type: array, items: { $ref: '#/components/schemas/DiscountCode' } }
+        loyaltyConditions: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
+        loyaltySettings: { $ref: '#/components/schemas/LoyaltySettings' }
+        appSettings: { $ref: '#/components/schemas/AppSettings' }
+    SyncPullResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncPullBundle' }
+    SyncBatchItem:
+      type: object
+      required: [type, idempotencyKey, payload]
+      properties:
+        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow] }
+        idempotencyKey: { type: string }
+        payload: { type: object, additionalProperties: true }
+    SyncBatchRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/SyncBatchItem' } }
+    SyncItemResult:
+      type: object
+      required: [idempotencyKey, status]
+      properties:
+        idempotencyKey: { type: string }
+        status: { type: string, enum: [ok, duplicate, error] }
+        orderId: { type: string }
+        stockWarning: { type: boolean }
+        error: { type: string }
+    SyncBatchResult:
+      type: object
+      required: [processed, results, version]
+      properties:
+        processed: { type: integer }
+        results: { type: array, items: { $ref: '#/components/schemas/SyncItemResult' } }
+        version: { type: integer, format: int64 }
+    SyncBatchResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncBatchResult' }
+    UploadSignRequest:
+      type: object
+      properties:
+        folder: { type: string }
+    UploadSignature:
+      type: object
+      required: [timestamp, signature, apiKey, cloudName]
+      properties:
+        timestamp: { type: integer, format: int64 }
+        signature: { type: string }
+        apiKey: { type: string }
+        cloudName: { type: string }
+        folder: { type: string }
+    UploadSignResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/UploadSignature' }
+    ProductInput:
+      type: object
+      required: [name, brand, categoryId, variants, isActive]
+      properties:
+        name: { type: string }
+        brand: { type: string }
+        categoryId: { type: string }
+        description: { type: string }
+        imageUrl: { type: string }
+        variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
+        isFeatured: { type: boolean }
+        isFavourite: { type: boolean }
+        isActive: { type: boolean }
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        sortOrder: { type: integer, nullable: true }
+    CustomerInput:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+    PromotionInput:
+      type: object
+      required: [name, type, value, isActive]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        type: { type: string, enum: [percentage, fixed, bogo] }
+        value: { type: number }
+        minPurchase: { type: number, nullable: true }
+        applicableProductIds: { type: array, items: { type: string } }
+        applicableVariantKeys: { type: array, items: { type: string } }
+        applicableVariantSizes: { type: array, items: { type: string } }
+        outletIds: { type: array, items: { type: string } }
+        combinable: { type: boolean, nullable: true }
+        combinableWith: { type: array, items: { type: string } }
+        activeFromHour: { type: string }
+        activeToHour: { type: string }
+        activeDays: { type: array, items: { type: integer } }
+        isActive: { type: boolean }
+        startDate: { type: string }
+        endDate: { type: string }
+    DiscountCodeInput:
+      type: object
+      required: [code, type, value, isActive]
+      properties:
+        code: { type: string }
+        promotionId: { type: string }
+        type: { type: string, enum: [percentage, fixed] }
+        value: { type: number }
+        minPurchase: { type: number, nullable: true }
+        usageLimit: { type: integer, nullable: true }
+        isActive: { type: boolean }
+        startDate: { type: string }
+        endDate: { type: string }
+    OutletInput:
+      type: object
+      required: [name, isActive]
+      properties:
+        name: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        isActive: { type: boolean }
   responses:
     Unauthorized:
       description: unauthenticated
@@ -738,6 +959,22 @@ paths:
         '204': { description: deleted }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/products:
+    post:
+      operationId: createProduct
+      tags: [catalog]
+      summary: Create product (Backoffice; bumps content version)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     get:
       operationId: listProducts
       tags: [catalog]
@@ -758,6 +995,33 @@ paths:
         in: path
         required: true
         schema: { type: string, format: uuid }
+    put:
+      operationId: updateProduct
+      tags: [catalog]
+      summary: Update product (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteProduct
+      tags: [catalog]
+      summary: Delete product (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
     get:
       operationId: getProduct
       tags: [catalog]
@@ -770,6 +1034,21 @@ paths:
               schema: { $ref: '#/components/schemas/ProductResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/categories:
+    post:
+      operationId: createCategory
+      tags: [catalog]
+      summary: Create category (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listCategories
       tags: [catalog]
@@ -792,6 +1071,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BundleListResponse' }
   /api/v1/customers:
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create customer (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listCustomers
       tags: [customers]
@@ -811,6 +1105,33 @@ paths:
         in: path
         required: true
         schema: { type: string, format: uuid }
+    put:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update customer (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete customer (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
     get:
       operationId: getCustomer
       tags: [customers]
@@ -823,6 +1144,21 @@ paths:
               schema: { $ref: '#/components/schemas/CustomerResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/promotions:
+    post:
+      operationId: createPromotion
+      tags: [promotions]
+      summary: Create promotion (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listPromotions
       tags: [promotions]
@@ -836,6 +1172,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PromotionListResponse' }
   /api/v1/discount-codes:
+    post:
+      operationId: createDiscountCode
+      tags: [promotions]
+      summary: Create discount code (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscountCodeInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listDiscountCodes
       tags: [promotions]
@@ -858,6 +1209,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LoyaltyConditionListResponse' }
   /api/v1/outlets:
+    post:
+      operationId: createOutlet
+      tags: [catalog]
+      summary: Create outlet (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutletInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listOutlets
       tags: [catalog]
@@ -880,6 +1246,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CustomRoleListResponse' }
   /api/v1/orders:
+    post:
+      operationId: createOrder
+      tags: [sales]
+      summary: >
+        Checkout in one Postgres tx — server computes money/stock/loyalty,
+        idempotent on the Idempotency-Key header (plan §5, §9).
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201':
+          description: canonical stored order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '400': { description: invalid order }
+        '403': { $ref: '#/components/responses/Forbidden' }
     get:
       operationId: listOrders
       tags: [sales]
@@ -921,6 +1312,23 @@ paths:
               schema: { $ref: '#/components/schemas/OrderResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/shifts:
+    post:
+      operationId: openShift
+      tags: [sales]
+      summary: Open a shift for the active outlet
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OpenShiftRequest' }
+      responses:
+        '201':
+          description: opened shift
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftResponse' }
+        '400': { description: shift already open }
     get:
       operationId: listShifts
       tags: [sales]
@@ -1002,6 +1410,23 @@ paths:
               schema: { $ref: '#/components/schemas/StockCountResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/cash-flows:
+    post:
+      operationId: createCashFlow
+      tags: [sales]
+      summary: Record a cash in/out movement
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CashFlowRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
     get:
       operationId: listCashFlows
       tags: [sales]
@@ -1020,6 +1445,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CashFlowListResponse' }
   /api/v1/settings/app:
+    put:
+      operationId: updateAppSettings
+      tags: [settings]
+      summary: Update app settings (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppSettings' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
     get:
       operationId: getAppSettings
       tags: [settings]
@@ -1031,6 +1471,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AppSettingsResponse' }
   /api/v1/settings/loyalty:
+    put:
+      operationId: updateLoyaltySettings
+      tags: [settings]
+      summary: Update loyalty settings (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoyaltySettings' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
     get:
       operationId: getLoyaltySettings
       tags: [settings]
@@ -1062,3 +1517,232 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ReportSummaryResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/categories/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateCategory
+      tags: [catalog]
+      summary: Update category (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteCategory
+      tags: [catalog]
+      summary: Delete category (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/promotions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updatePromotion
+      tags: [promotions]
+      summary: Update promotion (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deletePromotion
+      tags: [promotions]
+      summary: Delete promotion (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/discount-codes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateDiscountCode
+      tags: [promotions]
+      summary: Update discount code (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscountCodeInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteDiscountCode
+      tags: [promotions]
+      summary: Delete discount code (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/outlets/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateOutlet
+      tags: [catalog]
+      summary: Update outlet (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutletInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/orders/{id}/refund:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: refundOrder
+      tags: [sales]
+      summary: Refund + restore stock (idempotent)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefundRequest' }
+      responses:
+        '201':
+          description: refunded order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '400': { description: not refundable }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/shifts/{id}/close:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: closeShift
+      tags: [sales]
+      summary: Close a shift (server-reconciled totals; idempotent)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CloseShiftRequest' }
+      responses:
+        '200':
+          description: closed shift
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftResponse' }
+  /api/v1/sync/version:
+    get:
+      operationId: syncVersion
+      tags: [sales]
+      summary: Per-outlet content version (sync wall, plan §5a)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncVersionResponse' }
+  /api/v1/sync/pull:
+    get:
+      operationId: syncPull
+      tags: [sales]
+      summary: Full reference snapshot for atomic local swap (plan §5a)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: bundle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPullResponse' }
+  /api/v1/sync/batch:
+    post:
+      operationId: syncBatch
+      tags: [sales]
+      summary: Flush the offline outbox; each item idempotent (plan §5)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncBatchRequest' }
+      responses:
+        '200':
+          description: reconciliation summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncBatchResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/uploads/sign:
+    post:
+      operationId: signUpload
+      tags: [settings]
+      summary: Server-signed Cloudinary upload (secret stays server-side, plan §8)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UploadSignRequest' }
+      responses:
+        '200':
+          description: signature
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadSignResponse' }
+        '503': { description: cloudinary not configured }

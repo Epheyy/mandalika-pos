@@ -15,6 +15,10 @@ import (
 	"github.com/mandalika/pos-backend/internal/httpx"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/service"
+	syncpkg "github.com/mandalika/pos-backend/internal/sync"
+	"github.com/mandalika/pos-backend/internal/uploads"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
@@ -31,7 +35,15 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 
 	store := auth.NewStore(database.Pool)
 	ah := auth.NewHandler(cfg, store, c)
-	h := handlers.New(read.New(database.Pool), c, store)
+	rd := read.New(database.Pool)
+	os := service.NewOrderService(database.Pool)
+	signer := &uploads.Signer{
+		CloudName: cfg.CloudinaryName,
+		APIKey:    cfg.CloudinaryKey,
+		APISecret: cfg.CloudinarySecret,
+	}
+	h := handlers.New(rd, c, store, write.New(database.Pool), os,
+		syncpkg.New(database.Pool, rd, os), signer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		if err := database.Pool.Ping(req.Context()); err != nil {
@@ -77,6 +89,57 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 			r.Get("/stock-counts", h.StockCounts)
 			r.Get("/stock-counts/{id}", h.StockCount)
 			r.Get("/cash-flows", h.CashFlows)
+
+			// ── Sales writes (POS; cashier authenticated, outlet from JWT) ──
+			r.Post("/orders", h.CreateOrder)
+			r.With(mw.RequirePermission("process_refund")).
+				Post("/orders/{id}/refund", h.RefundOrder)
+			r.Post("/shifts", h.OpenShift)
+			r.Post("/shifts/{id}/close", h.CloseShift)
+			r.Post("/cash-flows", h.CreateCashFlow)
+
+			// ── Offline sync (plan §5) ──
+			r.Get("/sync/version", h.SyncVersion)
+			r.Get("/sync/pull", h.SyncPull)
+			r.Post("/sync/batch", h.SyncBatch)
+
+			// ── Reference-data writes (Backoffice; permission-gated, bump
+			// content_version → POS sync wall) ──
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_products"))
+				r.Post("/products", h.CreateProduct)
+				r.Put("/products/{id}", h.UpdateProduct)
+				r.Delete("/products/{id}", h.DeleteProduct)
+				r.Post("/categories", h.CreateCategory)
+				r.Put("/categories/{id}", h.UpdateCategory)
+				r.Delete("/categories/{id}", h.DeleteCategory)
+				r.Post("/uploads/sign", h.SignUpload)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_customers"))
+				r.Post("/customers", h.CreateCustomer)
+				r.Put("/customers/{id}", h.UpdateCustomer)
+				r.Delete("/customers/{id}", h.DeleteCustomer)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_promotions"))
+				r.Post("/promotions", h.CreatePromotion)
+				r.Put("/promotions/{id}", h.UpdatePromotion)
+				r.Delete("/promotions/{id}", h.DeletePromotion)
+				r.Post("/discount-codes", h.CreateDiscountCode)
+				r.Put("/discount-codes/{id}", h.UpdateDiscountCode)
+				r.Delete("/discount-codes/{id}", h.DeleteDiscountCode)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_outlets"))
+				r.Post("/outlets", h.CreateOutlet)
+				r.Put("/outlets/{id}", h.UpdateOutlet)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_settings"))
+				r.Put("/settings/app", h.UpdateAppSettings)
+				r.Put("/settings/loyalty", h.UpdateLoyaltySettings)
+			})
 
 			// Reports — permission-gated.
 			r.With(mw.RequirePermission("view_reports")).

@@ -42,6 +42,20 @@ const (
 	None        AppSettingsRoundingType = "none"
 )
 
+// Defines values for CreateOrderRequestDiscountType.
+const (
+	CreateOrderRequestDiscountTypeFixed      CreateOrderRequestDiscountType = "fixed"
+	CreateOrderRequestDiscountTypePercentage CreateOrderRequestDiscountType = "percentage"
+)
+
+// Defines values for CreateOrderRequestPaymentMethod.
+const (
+	CreateOrderRequestPaymentMethodCard     CreateOrderRequestPaymentMethod = "card"
+	CreateOrderRequestPaymentMethodCash     CreateOrderRequestPaymentMethod = "cash"
+	CreateOrderRequestPaymentMethodQris     CreateOrderRequestPaymentMethod = "qris"
+	CreateOrderRequestPaymentMethodTransfer CreateOrderRequestPaymentMethod = "transfer"
+)
+
 // Defines values for CreateUserRequestRole.
 const (
 	CreateUserRequestRoleAdmin   CreateUserRequestRole = "admin"
@@ -53,6 +67,12 @@ const (
 const (
 	DiscountCodeTypeFixed      DiscountCodeType = "fixed"
 	DiscountCodeTypePercentage DiscountCodeType = "percentage"
+)
+
+// Defines values for DiscountCodeInputType.
+const (
+	DiscountCodeInputTypeFixed      DiscountCodeInputType = "fixed"
+	DiscountCodeInputTypePercentage DiscountCodeInputType = "percentage"
 )
 
 // Defines values for LoyaltyConditionRewardType.
@@ -70,10 +90,10 @@ const (
 
 // Defines values for OrderPaymentMethod.
 const (
-	Card     OrderPaymentMethod = "card"
-	Cash     OrderPaymentMethod = "cash"
-	Qris     OrderPaymentMethod = "qris"
-	Transfer OrderPaymentMethod = "transfer"
+	OrderPaymentMethodCard     OrderPaymentMethod = "card"
+	OrderPaymentMethodCash     OrderPaymentMethod = "cash"
+	OrderPaymentMethodQris     OrderPaymentMethod = "qris"
+	OrderPaymentMethodTransfer OrderPaymentMethod = "transfer"
 )
 
 // Defines values for OrderStatus.
@@ -90,6 +110,13 @@ const (
 	PromotionTypePercentage PromotionType = "percentage"
 )
 
+// Defines values for PromotionInputType.
+const (
+	Bogo       PromotionInputType = "bogo"
+	Fixed      PromotionInputType = "fixed"
+	Percentage PromotionInputType = "percentage"
+)
+
 // Defines values for ShiftStatus.
 const (
 	Closed ShiftStatus = "closed"
@@ -102,6 +129,22 @@ const (
 	StockCountStatusCompleted  StockCountStatus = "completed"
 	StockCountStatusInProgress StockCountStatus = "in_progress"
 	StockCountStatusPlanned    StockCountStatus = "planned"
+)
+
+// Defines values for SyncBatchItemType.
+const (
+	SyncBatchItemTypeCashFlow   SyncBatchItemType = "cash_flow"
+	SyncBatchItemTypeOrder      SyncBatchItemType = "order"
+	SyncBatchItemTypeRefund     SyncBatchItemType = "refund"
+	SyncBatchItemTypeShiftClose SyncBatchItemType = "shift_close"
+	SyncBatchItemTypeShiftOpen  SyncBatchItemType = "shift_open"
+)
+
+// Defines values for SyncItemResultStatus.
+const (
+	SyncItemResultStatusDuplicate SyncItemResultStatus = "duplicate"
+	SyncItemResultStatusError     SyncItemResultStatus = "error"
+	SyncItemResultStatusOk        SyncItemResultStatus = "ok"
 )
 
 // Defines values for UpdateUserRequestRole.
@@ -211,6 +254,14 @@ type CashFlowListResponse struct {
 	Meta *Meta      `json:"meta,omitempty"`
 }
 
+// CashFlowRequest defines model for CashFlowRequest.
+type CashFlowRequest struct {
+	Amount      float32                   `json:"amount"`
+	Description string                    `json:"description"`
+	ShiftId     nullable.Nullable[string] `json:"shiftId,omitempty"`
+	Type        string                    `json:"type"`
+}
+
 // Category defines model for Category.
 type Category struct {
 	Description nullable.Nullable[string] `json:"description,omitempty"`
@@ -219,10 +270,48 @@ type Category struct {
 	SortOrder   nullable.Nullable[int]    `json:"sortOrder,omitempty"`
 }
 
+// CategoryInput defines model for CategoryInput.
+type CategoryInput struct {
+	Description *string                `json:"description,omitempty"`
+	Name        string                 `json:"name"`
+	SortOrder   nullable.Nullable[int] `json:"sortOrder,omitempty"`
+}
+
 // CategoryListResponse defines model for CategoryListResponse.
 type CategoryListResponse struct {
 	Data []Category `json:"data"`
 }
+
+// CloseShiftRequest defines model for CloseShiftRequest.
+type CloseShiftRequest struct {
+	ClosingCash *float32 `json:"closingCash,omitempty"`
+}
+
+// CreateOrderRequest Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required.
+type CreateOrderRequest struct {
+	AmountPaid     *float32                                          `json:"amountPaid,omitempty"`
+	CustomerId     nullable.Nullable[string]                         `json:"customerId,omitempty"`
+	CustomerName   nullable.Nullable[string]                         `json:"customerName,omitempty"`
+	DeviceId       nullable.Nullable[string]                         `json:"deviceId,omitempty"`
+	DiscountCode   nullable.Nullable[string]                         `json:"discountCode,omitempty"`
+	DiscountType   nullable.Nullable[CreateOrderRequestDiscountType] `json:"discountType,omitempty"`
+	DiscountValue  nullable.Nullable[float32]                        `json:"discountValue,omitempty"`
+	Items          []OrderItemInput                                  `json:"items"`
+	Notes          nullable.Nullable[string]                         `json:"notes,omitempty"`
+	OrderUuid      openapi_types.UUID                                `json:"orderUuid"`
+	PaymentMethod  CreateOrderRequestPaymentMethod                   `json:"paymentMethod"`
+	PromotionId    nullable.Nullable[string]                         `json:"promotionId,omitempty"`
+	SalesmanId     nullable.Nullable[string]                         `json:"salesmanId,omitempty"`
+	SalesmanName   nullable.Nullable[string]                         `json:"salesmanName,omitempty"`
+	ShiftId        nullable.Nullable[string]                         `json:"shiftId,omitempty"`
+	SurchargeValue nullable.Nullable[float32]                        `json:"surchargeValue,omitempty"`
+}
+
+// CreateOrderRequestDiscountType defines model for CreateOrderRequest.DiscountType.
+type CreateOrderRequestDiscountType string
+
+// CreateOrderRequestPaymentMethod defines model for CreateOrderRequest.PaymentMethod.
+type CreateOrderRequestPaymentMethod string
 
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
@@ -263,6 +352,13 @@ type Customer struct {
 	VisitCount int                          `json:"visitCount"`
 }
 
+// CustomerInput defines model for CustomerInput.
+type CustomerInput struct {
+	Email *string `json:"email,omitempty"`
+	Name  string  `json:"name"`
+	Phone string  `json:"phone"`
+}
+
 // CustomerListResponse defines model for CustomerListResponse.
 type CustomerListResponse struct {
 	Data []Customer `json:"data"`
@@ -300,6 +396,22 @@ type DiscountCode struct {
 // DiscountCodeType defines model for DiscountCode.Type.
 type DiscountCodeType string
 
+// DiscountCodeInput defines model for DiscountCodeInput.
+type DiscountCodeInput struct {
+	Code        string                     `json:"code"`
+	EndDate     *string                    `json:"endDate,omitempty"`
+	IsActive    bool                       `json:"isActive"`
+	MinPurchase nullable.Nullable[float32] `json:"minPurchase,omitempty"`
+	PromotionId *string                    `json:"promotionId,omitempty"`
+	StartDate   *string                    `json:"startDate,omitempty"`
+	Type        DiscountCodeInputType      `json:"type"`
+	UsageLimit  nullable.Nullable[int]     `json:"usageLimit,omitempty"`
+	Value       float32                    `json:"value"`
+}
+
+// DiscountCodeInputType defines model for DiscountCodeInput.Type.
+type DiscountCodeInputType string
+
 // DiscountCodeListResponse defines model for DiscountCodeListResponse.
 type DiscountCodeListResponse struct {
 	Data []DiscountCode `json:"data"`
@@ -308,6 +420,13 @@ type DiscountCodeListResponse struct {
 // Error defines model for Error.
 type Error struct {
 	Error string `json:"error"`
+}
+
+// IdResponse defines model for IdResponse.
+type IdResponse struct {
+	Data struct {
+		Id openapi_types.UUID `json:"id"`
+	} `json:"data"`
 }
 
 // LoyaltyCondition defines model for LoyaltyCondition.
@@ -359,6 +478,17 @@ type Meta struct {
 	Total int `json:"total"`
 }
 
+// OkResponse defines model for OkResponse.
+type OkResponse struct {
+	Ok bool `json:"ok"`
+}
+
+// OpenShiftRequest defines model for OpenShiftRequest.
+type OpenShiftRequest struct {
+	OutletName   nullable.Nullable[string] `json:"outletName,omitempty"`
+	StartingCash *float32                  `json:"startingCash,omitempty"`
+}
+
 // Order defines model for Order.
 type Order struct {
 	AmountPaid     float32                      `json:"amountPaid"`
@@ -395,6 +525,17 @@ type OrderPaymentMethod string
 // OrderStatus defines model for Order.Status.
 type OrderStatus string
 
+// OrderItemInput defines model for OrderItemInput.
+type OrderItemInput struct {
+	IsBundle    *bool   `json:"isBundle,omitempty"`
+	Price       float32 `json:"price"`
+	ProductId   string  `json:"productId"`
+	ProductName string  `json:"productName"`
+	Quantity    int     `json:"quantity"`
+	Subtotal    float32 `json:"subtotal"`
+	VariantSize string  `json:"variantSize"`
+}
+
 // OrderListResponse defines model for OrderListResponse.
 type OrderListResponse struct {
 	Data []Order `json:"data"`
@@ -414,6 +555,14 @@ type Outlet struct {
 	IsActive  bool                      `json:"isActive"`
 	Name      string                    `json:"name"`
 	Phone     nullable.Nullable[string] `json:"phone,omitempty"`
+}
+
+// OutletInput defines model for OutletInput.
+type OutletInput struct {
+	Address  *string `json:"address,omitempty"`
+	IsActive bool    `json:"isActive"`
+	Name     string  `json:"name"`
+	Phone    *string `json:"phone,omitempty"`
 }
 
 // OutletListResponse defines model for OutletListResponse.
@@ -441,6 +590,19 @@ type Product struct {
 	IsFeatured  bool                      `json:"isFeatured"`
 	Name        string                    `json:"name"`
 	Variants    []ProductVariant          `json:"variants"`
+}
+
+// ProductInput defines model for ProductInput.
+type ProductInput struct {
+	Brand       string           `json:"brand"`
+	CategoryId  string           `json:"categoryId"`
+	Description *string          `json:"description,omitempty"`
+	ImageUrl    *string          `json:"imageUrl,omitempty"`
+	IsActive    bool             `json:"isActive"`
+	IsFavourite *bool            `json:"isFavourite,omitempty"`
+	IsFeatured  *bool            `json:"isFeatured,omitempty"`
+	Name        string           `json:"name"`
+	Variants    []ProductVariant `json:"variants"`
 }
 
 // ProductListResponse defines model for ProductListResponse.
@@ -496,6 +658,30 @@ type Promotion struct {
 // PromotionType defines model for Promotion.Type.
 type PromotionType string
 
+// PromotionInput defines model for PromotionInput.
+type PromotionInput struct {
+	ActiveDays             *[]int                     `json:"activeDays,omitempty"`
+	ActiveFromHour         *string                    `json:"activeFromHour,omitempty"`
+	ActiveToHour           *string                    `json:"activeToHour,omitempty"`
+	ApplicableProductIds   *[]string                  `json:"applicableProductIds,omitempty"`
+	ApplicableVariantKeys  *[]string                  `json:"applicableVariantKeys,omitempty"`
+	ApplicableVariantSizes *[]string                  `json:"applicableVariantSizes,omitempty"`
+	Combinable             nullable.Nullable[bool]    `json:"combinable,omitempty"`
+	CombinableWith         *[]string                  `json:"combinableWith,omitempty"`
+	Description            *string                    `json:"description,omitempty"`
+	EndDate                *string                    `json:"endDate,omitempty"`
+	IsActive               bool                       `json:"isActive"`
+	MinPurchase            nullable.Nullable[float32] `json:"minPurchase,omitempty"`
+	Name                   string                     `json:"name"`
+	OutletIds              *[]string                  `json:"outletIds,omitempty"`
+	StartDate              *string                    `json:"startDate,omitempty"`
+	Type                   PromotionInputType         `json:"type"`
+	Value                  float32                    `json:"value"`
+}
+
+// PromotionInputType defines model for PromotionInput.Type.
+type PromotionInputType string
+
 // PromotionListResponse defines model for PromotionListResponse.
 type PromotionListResponse struct {
 	Data []Promotion `json:"data"`
@@ -515,6 +701,11 @@ type ReceiptSettings struct {
 	ShowOrderNumber   nullable.Nullable[bool] `json:"showOrderNumber,omitempty"`
 	ShowSubtotal      nullable.Nullable[bool] `json:"showSubtotal,omitempty"`
 	ShowTax           bool                    `json:"showTax"`
+}
+
+// RefundRequest defines model for RefundRequest.
+type RefundRequest struct {
+	Reason string `json:"reason"`
 }
 
 // ReportSummary defines model for ReportSummary.
@@ -612,6 +803,75 @@ type StockCountResponse struct {
 	Data StockCount `json:"data"`
 }
 
+// SyncBatchItem defines model for SyncBatchItem.
+type SyncBatchItem struct {
+	IdempotencyKey string                 `json:"idempotencyKey"`
+	Payload        map[string]interface{} `json:"payload"`
+	Type           SyncBatchItemType      `json:"type"`
+}
+
+// SyncBatchItemType defines model for SyncBatchItem.Type.
+type SyncBatchItemType string
+
+// SyncBatchRequest defines model for SyncBatchRequest.
+type SyncBatchRequest struct {
+	Items []SyncBatchItem `json:"items"`
+}
+
+// SyncBatchResponse defines model for SyncBatchResponse.
+type SyncBatchResponse struct {
+	Data SyncBatchResult `json:"data"`
+}
+
+// SyncBatchResult defines model for SyncBatchResult.
+type SyncBatchResult struct {
+	Processed int              `json:"processed"`
+	Results   []SyncItemResult `json:"results"`
+	Version   int64            `json:"version"`
+}
+
+// SyncItemResult defines model for SyncItemResult.
+type SyncItemResult struct {
+	Error          *string              `json:"error,omitempty"`
+	IdempotencyKey string               `json:"idempotencyKey"`
+	OrderId        *string              `json:"orderId,omitempty"`
+	Status         SyncItemResultStatus `json:"status"`
+	StockWarning   *bool                `json:"stockWarning,omitempty"`
+}
+
+// SyncItemResultStatus defines model for SyncItemResult.Status.
+type SyncItemResultStatus string
+
+// SyncPullBundle defines model for SyncPullBundle.
+type SyncPullBundle struct {
+	AppSettings       *AppSettings        `json:"appSettings,omitempty"`
+	Bundles           *[]Bundle           `json:"bundles,omitempty"`
+	Categories        *[]Category         `json:"categories,omitempty"`
+	Customers         *[]Customer         `json:"customers,omitempty"`
+	DiscountCodes     *[]DiscountCode     `json:"discountCodes,omitempty"`
+	LoyaltyConditions *[]LoyaltyCondition `json:"loyaltyConditions,omitempty"`
+	LoyaltySettings   *LoyaltySettings    `json:"loyaltySettings,omitempty"`
+	Products          *[]Product          `json:"products,omitempty"`
+	Promotions        *[]Promotion        `json:"promotions,omitempty"`
+	Version           int64               `json:"version"`
+}
+
+// SyncPullResponse defines model for SyncPullResponse.
+type SyncPullResponse struct {
+	Data SyncPullBundle `json:"data"`
+}
+
+// SyncVersion defines model for SyncVersion.
+type SyncVersion struct {
+	DataManifest map[string]interface{} `json:"dataManifest"`
+	Version      int64                  `json:"version"`
+}
+
+// SyncVersionResponse defines model for SyncVersionResponse.
+type SyncVersionResponse struct {
+	Data SyncVersion `json:"data"`
+}
+
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	DisplayName *string                               `json:"displayName,omitempty"`
@@ -624,6 +884,25 @@ type UpdateUserRequest struct {
 
 // UpdateUserRequestRole defines model for UpdateUserRequest.Role.
 type UpdateUserRequestRole string
+
+// UploadSignRequest defines model for UploadSignRequest.
+type UploadSignRequest struct {
+	Folder *string `json:"folder,omitempty"`
+}
+
+// UploadSignResponse defines model for UploadSignResponse.
+type UploadSignResponse struct {
+	Data UploadSignature `json:"data"`
+}
+
+// UploadSignature defines model for UploadSignature.
+type UploadSignature struct {
+	ApiKey    string  `json:"apiKey"`
+	CloudName string  `json:"cloudName"`
+	Folder    *string `json:"folder,omitempty"`
+	Signature string  `json:"signature"`
+	Timestamp int64   `json:"timestamp"`
+}
 
 // User defines model for User.
 type User struct {
@@ -698,6 +977,12 @@ type ListCashFlowsParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// CreateCashFlowParams defines parameters for CreateCashFlow.
+type CreateCashFlowParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
 // ListCustomersParams defines parameters for ListCustomers.
 type ListCustomersParams struct {
 	Page  *Page  `form:"page,omitempty" json:"page,omitempty"`
@@ -717,8 +1002,21 @@ type ListOrdersParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// CreateOrderParams defines parameters for CreateOrder.
+type CreateOrderParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId      *OutletHeader `json:"X-Outlet-Id,omitempty"`
+	IdempotencyKey string        `json:"Idempotency-Key"`
+}
+
 // GetOrderParams defines parameters for GetOrder.
 type GetOrderParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// RefundOrderParams defines parameters for RefundOrder.
+type RefundOrderParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
@@ -758,6 +1056,12 @@ type ListShiftsParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// OpenShiftParams defines parameters for OpenShift.
+type OpenShiftParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
 // CurrentShiftParams defines parameters for CurrentShift.
 type CurrentShiftParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
@@ -766,6 +1070,12 @@ type CurrentShiftParams struct {
 
 // GetShiftParams defines parameters for GetShift.
 type GetShiftParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// CloseShiftParams defines parameters for CloseShift.
+type CloseShiftParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
@@ -781,6 +1091,24 @@ type ListStockCountsParams struct {
 
 // GetStockCountParams defines parameters for GetStockCount.
 type GetStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// SyncBatchParams defines parameters for SyncBatch.
+type SyncBatchParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// SyncPullParams defines parameters for SyncPull.
+type SyncPullParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// SyncVersionParams defines parameters for SyncVersion.
+type SyncVersionParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
@@ -802,6 +1130,69 @@ type RefreshJSONRequestBody RefreshJSONBody
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = CreateUserRequest
+
+// CreateCashFlowJSONRequestBody defines body for CreateCashFlow for application/json ContentType.
+type CreateCashFlowJSONRequestBody = CashFlowRequest
+
+// CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
+type CreateCategoryJSONRequestBody = CategoryInput
+
+// UpdateCategoryJSONRequestBody defines body for UpdateCategory for application/json ContentType.
+type UpdateCategoryJSONRequestBody = CategoryInput
+
+// CreateCustomerJSONRequestBody defines body for CreateCustomer for application/json ContentType.
+type CreateCustomerJSONRequestBody = CustomerInput
+
+// UpdateCustomerJSONRequestBody defines body for UpdateCustomer for application/json ContentType.
+type UpdateCustomerJSONRequestBody = CustomerInput
+
+// CreateDiscountCodeJSONRequestBody defines body for CreateDiscountCode for application/json ContentType.
+type CreateDiscountCodeJSONRequestBody = DiscountCodeInput
+
+// UpdateDiscountCodeJSONRequestBody defines body for UpdateDiscountCode for application/json ContentType.
+type UpdateDiscountCodeJSONRequestBody = DiscountCodeInput
+
+// CreateOrderJSONRequestBody defines body for CreateOrder for application/json ContentType.
+type CreateOrderJSONRequestBody = CreateOrderRequest
+
+// RefundOrderJSONRequestBody defines body for RefundOrder for application/json ContentType.
+type RefundOrderJSONRequestBody = RefundRequest
+
+// CreateOutletJSONRequestBody defines body for CreateOutlet for application/json ContentType.
+type CreateOutletJSONRequestBody = OutletInput
+
+// UpdateOutletJSONRequestBody defines body for UpdateOutlet for application/json ContentType.
+type UpdateOutletJSONRequestBody = OutletInput
+
+// CreateProductJSONRequestBody defines body for CreateProduct for application/json ContentType.
+type CreateProductJSONRequestBody = ProductInput
+
+// UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
+type UpdateProductJSONRequestBody = ProductInput
+
+// CreatePromotionJSONRequestBody defines body for CreatePromotion for application/json ContentType.
+type CreatePromotionJSONRequestBody = PromotionInput
+
+// UpdatePromotionJSONRequestBody defines body for UpdatePromotion for application/json ContentType.
+type UpdatePromotionJSONRequestBody = PromotionInput
+
+// UpdateAppSettingsJSONRequestBody defines body for UpdateAppSettings for application/json ContentType.
+type UpdateAppSettingsJSONRequestBody = AppSettings
+
+// UpdateLoyaltySettingsJSONRequestBody defines body for UpdateLoyaltySettings for application/json ContentType.
+type UpdateLoyaltySettingsJSONRequestBody = LoyaltySettings
+
+// OpenShiftJSONRequestBody defines body for OpenShift for application/json ContentType.
+type OpenShiftJSONRequestBody = OpenShiftRequest
+
+// CloseShiftJSONRequestBody defines body for CloseShift for application/json ContentType.
+type CloseShiftJSONRequestBody = CloseShiftRequest
+
+// SyncBatchJSONRequestBody defines body for SyncBatch for application/json ContentType.
+type SyncBatchJSONRequestBody = SyncBatchRequest
+
+// SignUploadJSONRequestBody defines body for SignUpload for application/json ContentType.
+type SignUploadJSONRequestBody = UploadSignRequest
 
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
@@ -832,66 +1223,150 @@ type ServerInterface interface {
 	// List cash flows (outlet-scoped)
 	// (GET /api/v1/cash-flows)
 	ListCashFlows(w http.ResponseWriter, r *http.Request, params ListCashFlowsParams)
+	// Record a cash in/out movement
+	// (POST /api/v1/cash-flows)
+	CreateCashFlow(w http.ResponseWriter, r *http.Request, params CreateCashFlowParams)
 	// List categories
 	// (GET /api/v1/categories)
 	ListCategories(w http.ResponseWriter, r *http.Request)
+	// Create category (Backoffice)
+	// (POST /api/v1/categories)
+	CreateCategory(w http.ResponseWriter, r *http.Request)
+	// Delete category (Backoffice)
+	// (DELETE /api/v1/categories/{id})
+	DeleteCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update category (Backoffice)
+	// (PUT /api/v1/categories/{id})
+	UpdateCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List custom roles
 	// (GET /api/v1/custom-roles)
 	ListCustomRoles(w http.ResponseWriter, r *http.Request)
 	// List customers
 	// (GET /api/v1/customers)
 	ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams)
+	// Create customer (Backoffice)
+	// (POST /api/v1/customers)
+	CreateCustomer(w http.ResponseWriter, r *http.Request)
+	// Delete customer (Backoffice)
+	// (DELETE /api/v1/customers/{id})
+	DeleteCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get customer
 	// (GET /api/v1/customers/{id})
 	GetCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update customer (Backoffice)
+	// (PUT /api/v1/customers/{id})
+	UpdateCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List discount codes
 	// (GET /api/v1/discount-codes)
 	ListDiscountCodes(w http.ResponseWriter, r *http.Request)
+	// Create discount code (Backoffice)
+	// (POST /api/v1/discount-codes)
+	CreateDiscountCode(w http.ResponseWriter, r *http.Request)
+	// Delete discount code (Backoffice)
+	// (DELETE /api/v1/discount-codes/{id})
+	DeleteDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update discount code (Backoffice)
+	// (PUT /api/v1/discount-codes/{id})
+	UpdateDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List loyalty conditions
 	// (GET /api/v1/loyalty-conditions)
 	ListLoyaltyConditions(w http.ResponseWriter, r *http.Request)
 	// List orders (outlet-scoped, paginated)
 	// (GET /api/v1/orders)
 	ListOrders(w http.ResponseWriter, r *http.Request, params ListOrdersParams)
+	// Checkout in one Postgres tx — server computes money/stock/loyalty, idempotent on the Idempotency-Key header (plan §5, §9).
+	// (POST /api/v1/orders)
+	CreateOrder(w http.ResponseWriter, r *http.Request, params CreateOrderParams)
 	// Get order (outlet-scoped)
 	// (GET /api/v1/orders/{id})
 	GetOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetOrderParams)
+	// Refund + restore stock (idempotent)
+	// (POST /api/v1/orders/{id}/refund)
+	RefundOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RefundOrderParams)
 	// List outlets
 	// (GET /api/v1/outlets)
 	ListOutlets(w http.ResponseWriter, r *http.Request)
+	// Create outlet (Backoffice)
+	// (POST /api/v1/outlets)
+	CreateOutlet(w http.ResponseWriter, r *http.Request)
+	// Update outlet (Backoffice)
+	// (PUT /api/v1/outlets/{id})
+	UpdateOutlet(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List products
 	// (GET /api/v1/products)
 	ListProducts(w http.ResponseWriter, r *http.Request, params ListProductsParams)
+	// Create product (Backoffice; bumps content version)
+	// (POST /api/v1/products)
+	CreateProduct(w http.ResponseWriter, r *http.Request)
+	// Delete product (Backoffice)
+	// (DELETE /api/v1/products/{id})
+	DeleteProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get product
 	// (GET /api/v1/products/{id})
 	GetProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update product (Backoffice)
+	// (PUT /api/v1/products/{id})
+	UpdateProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List promotions (outlet-honored)
 	// (GET /api/v1/promotions)
 	ListPromotions(w http.ResponseWriter, r *http.Request, params ListPromotionsParams)
+	// Create promotion (Backoffice)
+	// (POST /api/v1/promotions)
+	CreatePromotion(w http.ResponseWriter, r *http.Request)
+	// Delete promotion (Backoffice)
+	// (DELETE /api/v1/promotions/{id})
+	DeletePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update promotion (Backoffice)
+	// (PUT /api/v1/promotions/{id})
+	UpdatePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Server-aggregated sales summary (outlet-scoped)
 	// (GET /api/v1/reports/summary)
 	ReportSummary(w http.ResponseWriter, r *http.Request, params ReportSummaryParams)
 	// App settings singleton
 	// (GET /api/v1/settings/app)
 	GetAppSettings(w http.ResponseWriter, r *http.Request)
+	// Update app settings (Backoffice)
+	// (PUT /api/v1/settings/app)
+	UpdateAppSettings(w http.ResponseWriter, r *http.Request)
 	// Loyalty settings singleton
 	// (GET /api/v1/settings/loyalty)
 	GetLoyaltySettings(w http.ResponseWriter, r *http.Request)
+	// Update loyalty settings (Backoffice)
+	// (PUT /api/v1/settings/loyalty)
+	UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request)
 	// List shifts (outlet-scoped)
 	// (GET /api/v1/shifts)
 	ListShifts(w http.ResponseWriter, r *http.Request, params ListShiftsParams)
+	// Open a shift for the active outlet
+	// (POST /api/v1/shifts)
+	OpenShift(w http.ResponseWriter, r *http.Request, params OpenShiftParams)
 	// Current open shift for active outlet (data null if none)
 	// (GET /api/v1/shifts/current)
 	CurrentShift(w http.ResponseWriter, r *http.Request, params CurrentShiftParams)
 	// Get shift (outlet-scoped)
 	// (GET /api/v1/shifts/{id})
 	GetShift(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetShiftParams)
+	// Close a shift (server-reconciled totals; idempotent)
+	// (POST /api/v1/shifts/{id}/close)
+	CloseShift(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CloseShiftParams)
 	// List stock counts (outlet-scoped)
 	// (GET /api/v1/stock-counts)
 	ListStockCounts(w http.ResponseWriter, r *http.Request, params ListStockCountsParams)
 	// Get stock count (outlet-scoped)
 	// (GET /api/v1/stock-counts/{id})
 	GetStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetStockCountParams)
+	// Flush the offline outbox; each item idempotent (plan §5)
+	// (POST /api/v1/sync/batch)
+	SyncBatch(w http.ResponseWriter, r *http.Request, params SyncBatchParams)
+	// Full reference snapshot for atomic local swap (plan §5a)
+	// (GET /api/v1/sync/pull)
+	SyncPull(w http.ResponseWriter, r *http.Request, params SyncPullParams)
+	// Per-outlet content version (sync wall, plan §5a)
+	// (GET /api/v1/sync/version)
+	SyncVersion(w http.ResponseWriter, r *http.Request, params SyncVersionParams)
+	// Server-signed Cloudinary upload (secret stays server-side, plan §8)
+	// (POST /api/v1/uploads/sign)
+	SignUpload(w http.ResponseWriter, r *http.Request)
 	// List users (admin)
 	// (GET /api/v1/users)
 	ListUsers(w http.ResponseWriter, r *http.Request, params ListUsersParams)
@@ -958,9 +1433,33 @@ func (_ Unimplemented) ListCashFlows(w http.ResponseWriter, r *http.Request, par
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Record a cash in/out movement
+// (POST /api/v1/cash-flows)
+func (_ Unimplemented) CreateCashFlow(w http.ResponseWriter, r *http.Request, params CreateCashFlowParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List categories
 // (GET /api/v1/categories)
 func (_ Unimplemented) ListCategories(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create category (Backoffice)
+// (POST /api/v1/categories)
+func (_ Unimplemented) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete category (Backoffice)
+// (DELETE /api/v1/categories/{id})
+func (_ Unimplemented) DeleteCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update category (Backoffice)
+// (PUT /api/v1/categories/{id})
+func (_ Unimplemented) UpdateCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -976,15 +1475,51 @@ func (_ Unimplemented) ListCustomers(w http.ResponseWriter, r *http.Request, par
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Create customer (Backoffice)
+// (POST /api/v1/customers)
+func (_ Unimplemented) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete customer (Backoffice)
+// (DELETE /api/v1/customers/{id})
+func (_ Unimplemented) DeleteCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get customer
 // (GET /api/v1/customers/{id})
 func (_ Unimplemented) GetCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Update customer (Backoffice)
+// (PUT /api/v1/customers/{id})
+func (_ Unimplemented) UpdateCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List discount codes
 // (GET /api/v1/discount-codes)
 func (_ Unimplemented) ListDiscountCodes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create discount code (Backoffice)
+// (POST /api/v1/discount-codes)
+func (_ Unimplemented) CreateDiscountCode(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete discount code (Backoffice)
+// (DELETE /api/v1/discount-codes/{id})
+func (_ Unimplemented) DeleteDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update discount code (Backoffice)
+// (PUT /api/v1/discount-codes/{id})
+func (_ Unimplemented) UpdateDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1000,9 +1535,21 @@ func (_ Unimplemented) ListOrders(w http.ResponseWriter, r *http.Request, params
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Checkout in one Postgres tx — server computes money/stock/loyalty, idempotent on the Idempotency-Key header (plan §5, §9).
+// (POST /api/v1/orders)
+func (_ Unimplemented) CreateOrder(w http.ResponseWriter, r *http.Request, params CreateOrderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get order (outlet-scoped)
 // (GET /api/v1/orders/{id})
 func (_ Unimplemented) GetOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetOrderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Refund + restore stock (idempotent)
+// (POST /api/v1/orders/{id}/refund)
+func (_ Unimplemented) RefundOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RefundOrderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1012,9 +1559,33 @@ func (_ Unimplemented) ListOutlets(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Create outlet (Backoffice)
+// (POST /api/v1/outlets)
+func (_ Unimplemented) CreateOutlet(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update outlet (Backoffice)
+// (PUT /api/v1/outlets/{id})
+func (_ Unimplemented) UpdateOutlet(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List products
 // (GET /api/v1/products)
 func (_ Unimplemented) ListProducts(w http.ResponseWriter, r *http.Request, params ListProductsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create product (Backoffice; bumps content version)
+// (POST /api/v1/products)
+func (_ Unimplemented) CreateProduct(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete product (Backoffice)
+// (DELETE /api/v1/products/{id})
+func (_ Unimplemented) DeleteProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1024,9 +1595,33 @@ func (_ Unimplemented) GetProduct(w http.ResponseWriter, r *http.Request, id ope
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Update product (Backoffice)
+// (PUT /api/v1/products/{id})
+func (_ Unimplemented) UpdateProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List promotions (outlet-honored)
 // (GET /api/v1/promotions)
 func (_ Unimplemented) ListPromotions(w http.ResponseWriter, r *http.Request, params ListPromotionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create promotion (Backoffice)
+// (POST /api/v1/promotions)
+func (_ Unimplemented) CreatePromotion(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete promotion (Backoffice)
+// (DELETE /api/v1/promotions/{id})
+func (_ Unimplemented) DeletePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update promotion (Backoffice)
+// (PUT /api/v1/promotions/{id})
+func (_ Unimplemented) UpdatePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1042,15 +1637,33 @@ func (_ Unimplemented) GetAppSettings(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Update app settings (Backoffice)
+// (PUT /api/v1/settings/app)
+func (_ Unimplemented) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Loyalty settings singleton
 // (GET /api/v1/settings/loyalty)
 func (_ Unimplemented) GetLoyaltySettings(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Update loyalty settings (Backoffice)
+// (PUT /api/v1/settings/loyalty)
+func (_ Unimplemented) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List shifts (outlet-scoped)
 // (GET /api/v1/shifts)
 func (_ Unimplemented) ListShifts(w http.ResponseWriter, r *http.Request, params ListShiftsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Open a shift for the active outlet
+// (POST /api/v1/shifts)
+func (_ Unimplemented) OpenShift(w http.ResponseWriter, r *http.Request, params OpenShiftParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1066,6 +1679,12 @@ func (_ Unimplemented) GetShift(w http.ResponseWriter, r *http.Request, id opena
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Close a shift (server-reconciled totals; idempotent)
+// (POST /api/v1/shifts/{id}/close)
+func (_ Unimplemented) CloseShift(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CloseShiftParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List stock counts (outlet-scoped)
 // (GET /api/v1/stock-counts)
 func (_ Unimplemented) ListStockCounts(w http.ResponseWriter, r *http.Request, params ListStockCountsParams) {
@@ -1075,6 +1694,30 @@ func (_ Unimplemented) ListStockCounts(w http.ResponseWriter, r *http.Request, p
 // Get stock count (outlet-scoped)
 // (GET /api/v1/stock-counts/{id})
 func (_ Unimplemented) GetStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Flush the offline outbox; each item idempotent (plan §5)
+// (POST /api/v1/sync/batch)
+func (_ Unimplemented) SyncBatch(w http.ResponseWriter, r *http.Request, params SyncBatchParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Full reference snapshot for atomic local swap (plan §5a)
+// (GET /api/v1/sync/pull)
+func (_ Unimplemented) SyncPull(w http.ResponseWriter, r *http.Request, params SyncPullParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-outlet content version (sync wall, plan §5a)
+// (GET /api/v1/sync/version)
+func (_ Unimplemented) SyncVersion(w http.ResponseWriter, r *http.Request, params SyncVersionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Server-signed Cloudinary upload (secret stays server-side, plan §8)
+// (POST /api/v1/uploads/sign)
+func (_ Unimplemented) SignUpload(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1295,6 +1938,52 @@ func (siw *ServerInterfaceWrapper) ListCashFlows(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// CreateCashFlow operation middleware
+func (siw *ServerInterfaceWrapper) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateCashFlowParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCashFlow(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListCategories operation middleware
 func (siw *ServerInterfaceWrapper) ListCategories(w http.ResponseWriter, r *http.Request) {
 
@@ -1306,6 +1995,88 @@ func (siw *ServerInterfaceWrapper) ListCategories(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListCategories(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCategory operation middleware
+func (siw *ServerInterfaceWrapper) CreateCategory(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCategory(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCategory operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCategory(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCategory operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCategory(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1376,6 +2147,57 @@ func (siw *ServerInterfaceWrapper) ListCustomers(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// CreateCustomer operation middleware
+func (siw *ServerInterfaceWrapper) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCustomer(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCustomer operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCustomer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCustomer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetCustomer operation middleware
 func (siw *ServerInterfaceWrapper) GetCustomer(w http.ResponseWriter, r *http.Request) {
 
@@ -1407,6 +2229,37 @@ func (siw *ServerInterfaceWrapper) GetCustomer(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateCustomer operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCustomer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCustomer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListDiscountCodes operation middleware
 func (siw *ServerInterfaceWrapper) ListDiscountCodes(w http.ResponseWriter, r *http.Request) {
 
@@ -1418,6 +2271,88 @@ func (siw *ServerInterfaceWrapper) ListDiscountCodes(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListDiscountCodes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDiscountCode operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiscountCode(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDiscountCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDiscountCode operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDiscountCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDiscountCode(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateDiscountCode operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDiscountCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateDiscountCode(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1533,6 +2468,75 @@ func (siw *ServerInterfaceWrapper) ListOrders(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// CreateOrder operation middleware
+func (siw *ServerInterfaceWrapper) CreateOrder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateOrderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOrder(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetOrder operation middleware
 func (siw *ServerInterfaceWrapper) GetOrder(w http.ResponseWriter, r *http.Request) {
 
@@ -1588,6 +2592,61 @@ func (siw *ServerInterfaceWrapper) GetOrder(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// RefundOrder operation middleware
+func (siw *ServerInterfaceWrapper) RefundOrder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RefundOrderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RefundOrder(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListOutlets operation middleware
 func (siw *ServerInterfaceWrapper) ListOutlets(w http.ResponseWriter, r *http.Request) {
 
@@ -1599,6 +2658,57 @@ func (siw *ServerInterfaceWrapper) ListOutlets(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListOutlets(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateOutlet operation middleware
+func (siw *ServerInterfaceWrapper) CreateOutlet(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOutlet(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateOutlet operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOutlet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateOutlet(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1670,6 +2780,57 @@ func (siw *ServerInterfaceWrapper) ListProducts(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// CreateProduct operation middleware
+func (siw *ServerInterfaceWrapper) CreateProduct(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProduct(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProduct operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProduct(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProduct(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProduct operation middleware
 func (siw *ServerInterfaceWrapper) GetProduct(w http.ResponseWriter, r *http.Request) {
 
@@ -1692,6 +2853,37 @@ func (siw *ServerInterfaceWrapper) GetProduct(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProduct(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProduct operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProduct(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProduct(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1738,6 +2930,88 @@ func (siw *ServerInterfaceWrapper) ListPromotions(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListPromotions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePromotion operation middleware
+func (siw *ServerInterfaceWrapper) CreatePromotion(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePromotion(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePromotion operation middleware
+func (siw *ServerInterfaceWrapper) DeletePromotion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePromotion(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePromotion operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePromotion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePromotion(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1837,6 +3111,26 @@ func (siw *ServerInterfaceWrapper) GetAppSettings(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateAppSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAppSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLoyaltySettings operation middleware
 func (siw *ServerInterfaceWrapper) GetLoyaltySettings(w http.ResponseWriter, r *http.Request) {
 
@@ -1848,6 +3142,26 @@ func (siw *ServerInterfaceWrapper) GetLoyaltySettings(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetLoyaltySettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateLoyaltySettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateLoyaltySettings(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1910,6 +3224,52 @@ func (siw *ServerInterfaceWrapper) ListShifts(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListShifts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OpenShift operation middleware
+func (siw *ServerInterfaceWrapper) OpenShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params OpenShiftParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenShift(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2011,6 +3371,61 @@ func (siw *ServerInterfaceWrapper) GetShift(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetShift(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CloseShift operation middleware
+func (siw *ServerInterfaceWrapper) CloseShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CloseShiftParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CloseShift(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2128,6 +3543,164 @@ func (siw *ServerInterfaceWrapper) GetStockCount(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncBatch operation middleware
+func (siw *ServerInterfaceWrapper) SyncBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncBatchParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncBatch(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncPull operation middleware
+func (siw *ServerInterfaceWrapper) SyncPull(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncPullParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncPull(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncVersion operation middleware
+func (siw *ServerInterfaceWrapper) SyncVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncVersionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncVersion(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SignUpload operation middleware
+func (siw *ServerInterfaceWrapper) SignUpload(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SignUpload(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2440,7 +4013,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/cash-flows", wrapper.ListCashFlows)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/cash-flows", wrapper.CreateCashFlow)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/categories", wrapper.ListCategories)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/categories", wrapper.CreateCategory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/categories/{id}", wrapper.DeleteCategory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/categories/{id}", wrapper.UpdateCategory)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/custom-roles", wrapper.ListCustomRoles)
@@ -2449,10 +4034,28 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/customers", wrapper.ListCustomers)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/customers", wrapper.CreateCustomer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/customers/{id}", wrapper.DeleteCustomer)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/customers/{id}", wrapper.GetCustomer)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/customers/{id}", wrapper.UpdateCustomer)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/discount-codes", wrapper.ListDiscountCodes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/discount-codes", wrapper.CreateDiscountCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/discount-codes/{id}", wrapper.DeleteDiscountCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/discount-codes/{id}", wrapper.UpdateDiscountCode)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/loyalty-conditions", wrapper.ListLoyaltyConditions)
@@ -2461,19 +4064,49 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/orders", wrapper.ListOrders)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/orders", wrapper.CreateOrder)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/orders/{id}", wrapper.GetOrder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/orders/{id}/refund", wrapper.RefundOrder)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/outlets", wrapper.ListOutlets)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/outlets", wrapper.CreateOutlet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/outlets/{id}", wrapper.UpdateOutlet)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/products", wrapper.ListProducts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/products", wrapper.CreateProduct)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/products/{id}", wrapper.DeleteProduct)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/products/{id}", wrapper.GetProduct)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/products/{id}", wrapper.UpdateProduct)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/promotions", wrapper.ListPromotions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/promotions", wrapper.CreatePromotion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/promotions/{id}", wrapper.DeletePromotion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/promotions/{id}", wrapper.UpdatePromotion)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/reports/summary", wrapper.ReportSummary)
@@ -2482,10 +4115,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/settings/app", wrapper.GetAppSettings)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/settings/app", wrapper.UpdateAppSettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/settings/loyalty", wrapper.GetLoyaltySettings)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/settings/loyalty", wrapper.UpdateLoyaltySettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/shifts", wrapper.ListShifts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/shifts", wrapper.OpenShift)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/shifts/current", wrapper.CurrentShift)
@@ -2494,10 +4136,25 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/shifts/{id}", wrapper.GetShift)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/shifts/{id}/close", wrapper.CloseShift)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/stock-counts", wrapper.ListStockCounts)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/stock-counts/{id}", wrapper.GetStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/sync/batch", wrapper.SyncBatch)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/sync/pull", wrapper.SyncPull)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/sync/version", wrapper.SyncVersion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/uploads/sign", wrapper.SignUpload)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/users", wrapper.ListUsers)
@@ -2696,6 +4353,24 @@ func (response ListCashFlows200JSONResponse) VisitListCashFlowsResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateCashFlowRequestObject struct {
+	Params CreateCashFlowParams
+	Body   *CreateCashFlowJSONRequestBody
+}
+
+type CreateCashFlowResponseObject interface {
+	VisitCreateCashFlowResponse(w http.ResponseWriter) error
+}
+
+type CreateCashFlow201JSONResponse IdResponse
+
+func (response CreateCashFlow201JSONResponse) VisitCreateCashFlowResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListCategoriesRequestObject struct {
 }
 
@@ -2708,6 +4383,76 @@ type ListCategories200JSONResponse CategoryListResponse
 func (response ListCategories200JSONResponse) VisitListCategoriesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateCategoryRequestObject struct {
+	Body *CreateCategoryJSONRequestBody
+}
+
+type CreateCategoryResponseObject interface {
+	VisitCreateCategoryResponse(w http.ResponseWriter) error
+}
+
+type CreateCategory201JSONResponse IdResponse
+
+func (response CreateCategory201JSONResponse) VisitCreateCategoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCategoryRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteCategoryResponseObject interface {
+	VisitDeleteCategoryResponse(w http.ResponseWriter) error
+}
+
+type DeleteCategory200JSONResponse OkResponse
+
+func (response DeleteCategory200JSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCategory404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteCategory404JSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCategoryRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateCategoryJSONRequestBody
+}
+
+type UpdateCategoryResponseObject interface {
+	VisitUpdateCategoryResponse(w http.ResponseWriter) error
+}
+
+type UpdateCategory200JSONResponse OkResponse
+
+func (response UpdateCategory200JSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCategory404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCategory404JSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2745,6 +4490,49 @@ func (response ListCustomers200JSONResponse) VisitListCustomersResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateCustomerRequestObject struct {
+	Body *CreateCustomerJSONRequestBody
+}
+
+type CreateCustomerResponseObject interface {
+	VisitCreateCustomerResponse(w http.ResponseWriter) error
+}
+
+type CreateCustomer201JSONResponse IdResponse
+
+func (response CreateCustomer201JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCustomerRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteCustomerResponseObject interface {
+	VisitDeleteCustomerResponse(w http.ResponseWriter) error
+}
+
+type DeleteCustomer200JSONResponse OkResponse
+
+func (response DeleteCustomer200JSONResponse) VisitDeleteCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCustomer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteCustomer404JSONResponse) VisitDeleteCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetCustomerRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -2771,6 +4559,33 @@ func (response GetCustomer404JSONResponse) VisitGetCustomerResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateCustomerRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateCustomerJSONRequestBody
+}
+
+type UpdateCustomerResponseObject interface {
+	VisitUpdateCustomerResponse(w http.ResponseWriter) error
+}
+
+type UpdateCustomer200JSONResponse OkResponse
+
+func (response UpdateCustomer200JSONResponse) VisitUpdateCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCustomer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCustomer404JSONResponse) VisitUpdateCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListDiscountCodesRequestObject struct {
 }
 
@@ -2783,6 +4598,76 @@ type ListDiscountCodes200JSONResponse DiscountCodeListResponse
 func (response ListDiscountCodes200JSONResponse) VisitListDiscountCodesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateDiscountCodeRequestObject struct {
+	Body *CreateDiscountCodeJSONRequestBody
+}
+
+type CreateDiscountCodeResponseObject interface {
+	VisitCreateDiscountCodeResponse(w http.ResponseWriter) error
+}
+
+type CreateDiscountCode201JSONResponse IdResponse
+
+func (response CreateDiscountCode201JSONResponse) VisitCreateDiscountCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteDiscountCodeRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteDiscountCodeResponseObject interface {
+	VisitDeleteDiscountCodeResponse(w http.ResponseWriter) error
+}
+
+type DeleteDiscountCode200JSONResponse OkResponse
+
+func (response DeleteDiscountCode200JSONResponse) VisitDeleteDiscountCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteDiscountCode404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteDiscountCode404JSONResponse) VisitDeleteDiscountCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateDiscountCodeRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateDiscountCodeJSONRequestBody
+}
+
+type UpdateDiscountCodeResponseObject interface {
+	VisitUpdateDiscountCodeResponse(w http.ResponseWriter) error
+}
+
+type UpdateDiscountCode200JSONResponse OkResponse
+
+func (response UpdateDiscountCode200JSONResponse) VisitUpdateDiscountCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateDiscountCode404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateDiscountCode404JSONResponse) VisitUpdateDiscountCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2820,6 +4705,41 @@ func (response ListOrders200JSONResponse) VisitListOrdersResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateOrderRequestObject struct {
+	Params CreateOrderParams
+	Body   *CreateOrderJSONRequestBody
+}
+
+type CreateOrderResponseObject interface {
+	VisitCreateOrderResponse(w http.ResponseWriter) error
+}
+
+type CreateOrder201JSONResponse OrderResponse
+
+func (response CreateOrder201JSONResponse) VisitCreateOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrder400Response struct {
+}
+
+func (response CreateOrder400Response) VisitCreateOrderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(400)
+	return nil
+}
+
+type CreateOrder403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateOrder403JSONResponse) VisitCreateOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetOrderRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params GetOrderParams
@@ -2847,6 +4767,42 @@ func (response GetOrder404JSONResponse) VisitGetOrderResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type RefundOrderRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RefundOrderParams
+	Body   *RefundOrderJSONRequestBody
+}
+
+type RefundOrderResponseObject interface {
+	VisitRefundOrderResponse(w http.ResponseWriter) error
+}
+
+type RefundOrder201JSONResponse OrderResponse
+
+func (response RefundOrder201JSONResponse) VisitRefundOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RefundOrder400Response struct {
+}
+
+func (response RefundOrder400Response) VisitRefundOrderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(400)
+	return nil
+}
+
+type RefundOrder403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RefundOrder403JSONResponse) VisitRefundOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListOutletsRequestObject struct {
 }
 
@@ -2859,6 +4815,50 @@ type ListOutlets200JSONResponse OutletListResponse
 func (response ListOutlets200JSONResponse) VisitListOutletsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOutletRequestObject struct {
+	Body *CreateOutletJSONRequestBody
+}
+
+type CreateOutletResponseObject interface {
+	VisitCreateOutletResponse(w http.ResponseWriter) error
+}
+
+type CreateOutlet201JSONResponse IdResponse
+
+func (response CreateOutlet201JSONResponse) VisitCreateOutletResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOutletRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateOutletJSONRequestBody
+}
+
+type UpdateOutletResponseObject interface {
+	VisitUpdateOutletResponse(w http.ResponseWriter) error
+}
+
+type UpdateOutlet200JSONResponse OkResponse
+
+func (response UpdateOutlet200JSONResponse) VisitUpdateOutletResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOutlet404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateOutlet404JSONResponse) VisitUpdateOutletResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2876,6 +4876,58 @@ type ListProducts200JSONResponse ProductListResponse
 func (response ListProducts200JSONResponse) VisitListProductsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateProductRequestObject struct {
+	Body *CreateProductJSONRequestBody
+}
+
+type CreateProductResponseObject interface {
+	VisitCreateProductResponse(w http.ResponseWriter) error
+}
+
+type CreateProduct201JSONResponse IdResponse
+
+func (response CreateProduct201JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateProduct403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateProduct403JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteProductRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteProductResponseObject interface {
+	VisitDeleteProductResponse(w http.ResponseWriter) error
+}
+
+type DeleteProduct200JSONResponse OkResponse
+
+func (response DeleteProduct200JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteProduct404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteProduct404JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2906,6 +4958,33 @@ func (response GetProduct404JSONResponse) VisitGetProductResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateProductRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateProductJSONRequestBody
+}
+
+type UpdateProductResponseObject interface {
+	VisitUpdateProductResponse(w http.ResponseWriter) error
+}
+
+type UpdateProduct200JSONResponse OkResponse
+
+func (response UpdateProduct200JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateProduct404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateProduct404JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListPromotionsRequestObject struct {
 	Params ListPromotionsParams
 }
@@ -2919,6 +4998,76 @@ type ListPromotions200JSONResponse PromotionListResponse
 func (response ListPromotions200JSONResponse) VisitListPromotionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePromotionRequestObject struct {
+	Body *CreatePromotionJSONRequestBody
+}
+
+type CreatePromotionResponseObject interface {
+	VisitCreatePromotionResponse(w http.ResponseWriter) error
+}
+
+type CreatePromotion201JSONResponse IdResponse
+
+func (response CreatePromotion201JSONResponse) VisitCreatePromotionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePromotionRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeletePromotionResponseObject interface {
+	VisitDeletePromotionResponse(w http.ResponseWriter) error
+}
+
+type DeletePromotion200JSONResponse OkResponse
+
+func (response DeletePromotion200JSONResponse) VisitDeletePromotionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePromotion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeletePromotion404JSONResponse) VisitDeletePromotionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePromotionRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdatePromotionJSONRequestBody
+}
+
+type UpdatePromotionResponseObject interface {
+	VisitUpdatePromotionResponse(w http.ResponseWriter) error
+}
+
+type UpdatePromotion200JSONResponse OkResponse
+
+func (response UpdatePromotion200JSONResponse) VisitUpdatePromotionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePromotion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePromotion404JSONResponse) VisitUpdatePromotionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2965,6 +5114,23 @@ func (response GetAppSettings200JSONResponse) VisitGetAppSettingsResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateAppSettingsRequestObject struct {
+	Body *UpdateAppSettingsJSONRequestBody
+}
+
+type UpdateAppSettingsResponseObject interface {
+	VisitUpdateAppSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateAppSettings200JSONResponse OkResponse
+
+func (response UpdateAppSettings200JSONResponse) VisitUpdateAppSettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetLoyaltySettingsRequestObject struct {
 }
 
@@ -2975,6 +5141,23 @@ type GetLoyaltySettingsResponseObject interface {
 type GetLoyaltySettings200JSONResponse LoyaltySettingsResponse
 
 func (response GetLoyaltySettings200JSONResponse) VisitGetLoyaltySettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateLoyaltySettingsRequestObject struct {
+	Body *UpdateLoyaltySettingsJSONRequestBody
+}
+
+type UpdateLoyaltySettingsResponseObject interface {
+	VisitUpdateLoyaltySettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateLoyaltySettings200JSONResponse OkResponse
+
+func (response UpdateLoyaltySettings200JSONResponse) VisitUpdateLoyaltySettingsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
@@ -2996,6 +5179,32 @@ func (response ListShifts200JSONResponse) VisitListShiftsResponse(w http.Respons
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type OpenShiftRequestObject struct {
+	Params OpenShiftParams
+	Body   *OpenShiftJSONRequestBody
+}
+
+type OpenShiftResponseObject interface {
+	VisitOpenShiftResponse(w http.ResponseWriter) error
+}
+
+type OpenShift201JSONResponse ShiftResponse
+
+func (response OpenShift201JSONResponse) VisitOpenShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OpenShift400Response struct {
+}
+
+func (response OpenShift400Response) VisitOpenShiftResponse(w http.ResponseWriter) error {
+	w.WriteHeader(400)
+	return nil
 }
 
 type CurrentShiftRequestObject struct {
@@ -3042,6 +5251,25 @@ func (response GetShift404JSONResponse) VisitGetShiftResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CloseShiftRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params CloseShiftParams
+	Body   *CloseShiftJSONRequestBody
+}
+
+type CloseShiftResponseObject interface {
+	VisitCloseShiftResponse(w http.ResponseWriter) error
+}
+
+type CloseShift200JSONResponse ShiftResponse
+
+func (response CloseShift200JSONResponse) VisitCloseShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListStockCountsRequestObject struct {
 	Params ListStockCountsParams
 }
@@ -3084,6 +5312,92 @@ func (response GetStockCount404JSONResponse) VisitGetStockCountResponse(w http.R
 	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type SyncBatchRequestObject struct {
+	Params SyncBatchParams
+	Body   *SyncBatchJSONRequestBody
+}
+
+type SyncBatchResponseObject interface {
+	VisitSyncBatchResponse(w http.ResponseWriter) error
+}
+
+type SyncBatch200JSONResponse SyncBatchResponse
+
+func (response SyncBatch200JSONResponse) VisitSyncBatchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SyncBatch403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SyncBatch403JSONResponse) VisitSyncBatchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SyncPullRequestObject struct {
+	Params SyncPullParams
+}
+
+type SyncPullResponseObject interface {
+	VisitSyncPullResponse(w http.ResponseWriter) error
+}
+
+type SyncPull200JSONResponse SyncPullResponse
+
+func (response SyncPull200JSONResponse) VisitSyncPullResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SyncVersionRequestObject struct {
+	Params SyncVersionParams
+}
+
+type SyncVersionResponseObject interface {
+	VisitSyncVersionResponse(w http.ResponseWriter) error
+}
+
+type SyncVersion200JSONResponse SyncVersionResponse
+
+func (response SyncVersion200JSONResponse) VisitSyncVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SignUploadRequestObject struct {
+	Body *SignUploadJSONRequestBody
+}
+
+type SignUploadResponseObject interface {
+	VisitSignUploadResponse(w http.ResponseWriter) error
+}
+
+type SignUpload200JSONResponse UploadSignResponse
+
+func (response SignUpload200JSONResponse) VisitSignUploadResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SignUpload503Response struct {
+}
+
+func (response SignUpload503Response) VisitSignUploadResponse(w http.ResponseWriter) error {
+	w.WriteHeader(503)
+	return nil
 }
 
 type ListUsersRequestObject struct {
@@ -3262,66 +5576,150 @@ type StrictServerInterface interface {
 	// List cash flows (outlet-scoped)
 	// (GET /api/v1/cash-flows)
 	ListCashFlows(ctx context.Context, request ListCashFlowsRequestObject) (ListCashFlowsResponseObject, error)
+	// Record a cash in/out movement
+	// (POST /api/v1/cash-flows)
+	CreateCashFlow(ctx context.Context, request CreateCashFlowRequestObject) (CreateCashFlowResponseObject, error)
 	// List categories
 	// (GET /api/v1/categories)
 	ListCategories(ctx context.Context, request ListCategoriesRequestObject) (ListCategoriesResponseObject, error)
+	// Create category (Backoffice)
+	// (POST /api/v1/categories)
+	CreateCategory(ctx context.Context, request CreateCategoryRequestObject) (CreateCategoryResponseObject, error)
+	// Delete category (Backoffice)
+	// (DELETE /api/v1/categories/{id})
+	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
+	// Update category (Backoffice)
+	// (PUT /api/v1/categories/{id})
+	UpdateCategory(ctx context.Context, request UpdateCategoryRequestObject) (UpdateCategoryResponseObject, error)
 	// List custom roles
 	// (GET /api/v1/custom-roles)
 	ListCustomRoles(ctx context.Context, request ListCustomRolesRequestObject) (ListCustomRolesResponseObject, error)
 	// List customers
 	// (GET /api/v1/customers)
 	ListCustomers(ctx context.Context, request ListCustomersRequestObject) (ListCustomersResponseObject, error)
+	// Create customer (Backoffice)
+	// (POST /api/v1/customers)
+	CreateCustomer(ctx context.Context, request CreateCustomerRequestObject) (CreateCustomerResponseObject, error)
+	// Delete customer (Backoffice)
+	// (DELETE /api/v1/customers/{id})
+	DeleteCustomer(ctx context.Context, request DeleteCustomerRequestObject) (DeleteCustomerResponseObject, error)
 	// Get customer
 	// (GET /api/v1/customers/{id})
 	GetCustomer(ctx context.Context, request GetCustomerRequestObject) (GetCustomerResponseObject, error)
+	// Update customer (Backoffice)
+	// (PUT /api/v1/customers/{id})
+	UpdateCustomer(ctx context.Context, request UpdateCustomerRequestObject) (UpdateCustomerResponseObject, error)
 	// List discount codes
 	// (GET /api/v1/discount-codes)
 	ListDiscountCodes(ctx context.Context, request ListDiscountCodesRequestObject) (ListDiscountCodesResponseObject, error)
+	// Create discount code (Backoffice)
+	// (POST /api/v1/discount-codes)
+	CreateDiscountCode(ctx context.Context, request CreateDiscountCodeRequestObject) (CreateDiscountCodeResponseObject, error)
+	// Delete discount code (Backoffice)
+	// (DELETE /api/v1/discount-codes/{id})
+	DeleteDiscountCode(ctx context.Context, request DeleteDiscountCodeRequestObject) (DeleteDiscountCodeResponseObject, error)
+	// Update discount code (Backoffice)
+	// (PUT /api/v1/discount-codes/{id})
+	UpdateDiscountCode(ctx context.Context, request UpdateDiscountCodeRequestObject) (UpdateDiscountCodeResponseObject, error)
 	// List loyalty conditions
 	// (GET /api/v1/loyalty-conditions)
 	ListLoyaltyConditions(ctx context.Context, request ListLoyaltyConditionsRequestObject) (ListLoyaltyConditionsResponseObject, error)
 	// List orders (outlet-scoped, paginated)
 	// (GET /api/v1/orders)
 	ListOrders(ctx context.Context, request ListOrdersRequestObject) (ListOrdersResponseObject, error)
+	// Checkout in one Postgres tx — server computes money/stock/loyalty, idempotent on the Idempotency-Key header (plan §5, §9).
+	// (POST /api/v1/orders)
+	CreateOrder(ctx context.Context, request CreateOrderRequestObject) (CreateOrderResponseObject, error)
 	// Get order (outlet-scoped)
 	// (GET /api/v1/orders/{id})
 	GetOrder(ctx context.Context, request GetOrderRequestObject) (GetOrderResponseObject, error)
+	// Refund + restore stock (idempotent)
+	// (POST /api/v1/orders/{id}/refund)
+	RefundOrder(ctx context.Context, request RefundOrderRequestObject) (RefundOrderResponseObject, error)
 	// List outlets
 	// (GET /api/v1/outlets)
 	ListOutlets(ctx context.Context, request ListOutletsRequestObject) (ListOutletsResponseObject, error)
+	// Create outlet (Backoffice)
+	// (POST /api/v1/outlets)
+	CreateOutlet(ctx context.Context, request CreateOutletRequestObject) (CreateOutletResponseObject, error)
+	// Update outlet (Backoffice)
+	// (PUT /api/v1/outlets/{id})
+	UpdateOutlet(ctx context.Context, request UpdateOutletRequestObject) (UpdateOutletResponseObject, error)
 	// List products
 	// (GET /api/v1/products)
 	ListProducts(ctx context.Context, request ListProductsRequestObject) (ListProductsResponseObject, error)
+	// Create product (Backoffice; bumps content version)
+	// (POST /api/v1/products)
+	CreateProduct(ctx context.Context, request CreateProductRequestObject) (CreateProductResponseObject, error)
+	// Delete product (Backoffice)
+	// (DELETE /api/v1/products/{id})
+	DeleteProduct(ctx context.Context, request DeleteProductRequestObject) (DeleteProductResponseObject, error)
 	// Get product
 	// (GET /api/v1/products/{id})
 	GetProduct(ctx context.Context, request GetProductRequestObject) (GetProductResponseObject, error)
+	// Update product (Backoffice)
+	// (PUT /api/v1/products/{id})
+	UpdateProduct(ctx context.Context, request UpdateProductRequestObject) (UpdateProductResponseObject, error)
 	// List promotions (outlet-honored)
 	// (GET /api/v1/promotions)
 	ListPromotions(ctx context.Context, request ListPromotionsRequestObject) (ListPromotionsResponseObject, error)
+	// Create promotion (Backoffice)
+	// (POST /api/v1/promotions)
+	CreatePromotion(ctx context.Context, request CreatePromotionRequestObject) (CreatePromotionResponseObject, error)
+	// Delete promotion (Backoffice)
+	// (DELETE /api/v1/promotions/{id})
+	DeletePromotion(ctx context.Context, request DeletePromotionRequestObject) (DeletePromotionResponseObject, error)
+	// Update promotion (Backoffice)
+	// (PUT /api/v1/promotions/{id})
+	UpdatePromotion(ctx context.Context, request UpdatePromotionRequestObject) (UpdatePromotionResponseObject, error)
 	// Server-aggregated sales summary (outlet-scoped)
 	// (GET /api/v1/reports/summary)
 	ReportSummary(ctx context.Context, request ReportSummaryRequestObject) (ReportSummaryResponseObject, error)
 	// App settings singleton
 	// (GET /api/v1/settings/app)
 	GetAppSettings(ctx context.Context, request GetAppSettingsRequestObject) (GetAppSettingsResponseObject, error)
+	// Update app settings (Backoffice)
+	// (PUT /api/v1/settings/app)
+	UpdateAppSettings(ctx context.Context, request UpdateAppSettingsRequestObject) (UpdateAppSettingsResponseObject, error)
 	// Loyalty settings singleton
 	// (GET /api/v1/settings/loyalty)
 	GetLoyaltySettings(ctx context.Context, request GetLoyaltySettingsRequestObject) (GetLoyaltySettingsResponseObject, error)
+	// Update loyalty settings (Backoffice)
+	// (PUT /api/v1/settings/loyalty)
+	UpdateLoyaltySettings(ctx context.Context, request UpdateLoyaltySettingsRequestObject) (UpdateLoyaltySettingsResponseObject, error)
 	// List shifts (outlet-scoped)
 	// (GET /api/v1/shifts)
 	ListShifts(ctx context.Context, request ListShiftsRequestObject) (ListShiftsResponseObject, error)
+	// Open a shift for the active outlet
+	// (POST /api/v1/shifts)
+	OpenShift(ctx context.Context, request OpenShiftRequestObject) (OpenShiftResponseObject, error)
 	// Current open shift for active outlet (data null if none)
 	// (GET /api/v1/shifts/current)
 	CurrentShift(ctx context.Context, request CurrentShiftRequestObject) (CurrentShiftResponseObject, error)
 	// Get shift (outlet-scoped)
 	// (GET /api/v1/shifts/{id})
 	GetShift(ctx context.Context, request GetShiftRequestObject) (GetShiftResponseObject, error)
+	// Close a shift (server-reconciled totals; idempotent)
+	// (POST /api/v1/shifts/{id}/close)
+	CloseShift(ctx context.Context, request CloseShiftRequestObject) (CloseShiftResponseObject, error)
 	// List stock counts (outlet-scoped)
 	// (GET /api/v1/stock-counts)
 	ListStockCounts(ctx context.Context, request ListStockCountsRequestObject) (ListStockCountsResponseObject, error)
 	// Get stock count (outlet-scoped)
 	// (GET /api/v1/stock-counts/{id})
 	GetStockCount(ctx context.Context, request GetStockCountRequestObject) (GetStockCountResponseObject, error)
+	// Flush the offline outbox; each item idempotent (plan §5)
+	// (POST /api/v1/sync/batch)
+	SyncBatch(ctx context.Context, request SyncBatchRequestObject) (SyncBatchResponseObject, error)
+	// Full reference snapshot for atomic local swap (plan §5a)
+	// (GET /api/v1/sync/pull)
+	SyncPull(ctx context.Context, request SyncPullRequestObject) (SyncPullResponseObject, error)
+	// Per-outlet content version (sync wall, plan §5a)
+	// (GET /api/v1/sync/version)
+	SyncVersion(ctx context.Context, request SyncVersionRequestObject) (SyncVersionResponseObject, error)
+	// Server-signed Cloudinary upload (secret stays server-side, plan §8)
+	// (POST /api/v1/uploads/sign)
+	SignUpload(ctx context.Context, request SignUploadRequestObject) (SignUploadResponseObject, error)
 	// List users (admin)
 	// (GET /api/v1/users)
 	ListUsers(ctx context.Context, request ListUsersRequestObject) (ListUsersResponseObject, error)
@@ -3569,6 +5967,39 @@ func (sh *strictHandler) ListCashFlows(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
+// CreateCashFlow operation middleware
+func (sh *strictHandler) CreateCashFlow(w http.ResponseWriter, r *http.Request, params CreateCashFlowParams) {
+	var request CreateCashFlowRequestObject
+
+	request.Params = params
+
+	var body CreateCashFlowJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCashFlow(ctx, request.(CreateCashFlowRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCashFlow")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCashFlowResponseObject); ok {
+		if err := validResponse.VisitCreateCashFlowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListCategories operation middleware
 func (sh *strictHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	var request ListCategoriesRequestObject
@@ -3586,6 +6017,96 @@ func (sh *strictHandler) ListCategories(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListCategoriesResponseObject); ok {
 		if err := validResponse.VisitListCategoriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCategory operation middleware
+func (sh *strictHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	var request CreateCategoryRequestObject
+
+	var body CreateCategoryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCategory(ctx, request.(CreateCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCategoryResponseObject); ok {
+		if err := validResponse.VisitCreateCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCategory operation middleware
+func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteCategoryRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCategory(ctx, request.(DeleteCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCategoryResponseObject); ok {
+		if err := validResponse.VisitDeleteCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCategory operation middleware
+func (sh *strictHandler) UpdateCategory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateCategoryRequestObject
+
+	request.Id = id
+
+	var body UpdateCategoryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCategory(ctx, request.(UpdateCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCategoryResponseObject); ok {
+		if err := validResponse.VisitUpdateCategoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3643,6 +6164,63 @@ func (sh *strictHandler) ListCustomers(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
+// CreateCustomer operation middleware
+func (sh *strictHandler) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+	var request CreateCustomerRequestObject
+
+	var body CreateCustomerJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCustomer(ctx, request.(CreateCustomerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCustomer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCustomerResponseObject); ok {
+		if err := validResponse.VisitCreateCustomerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCustomer operation middleware
+func (sh *strictHandler) DeleteCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteCustomerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCustomer(ctx, request.(DeleteCustomerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCustomer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCustomerResponseObject); ok {
+		if err := validResponse.VisitDeleteCustomerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetCustomer operation middleware
 func (sh *strictHandler) GetCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request GetCustomerRequestObject
@@ -3669,6 +6247,39 @@ func (sh *strictHandler) GetCustomer(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
+// UpdateCustomer operation middleware
+func (sh *strictHandler) UpdateCustomer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateCustomerRequestObject
+
+	request.Id = id
+
+	var body UpdateCustomerJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCustomer(ctx, request.(UpdateCustomerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCustomer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCustomerResponseObject); ok {
+		if err := validResponse.VisitUpdateCustomerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListDiscountCodes operation middleware
 func (sh *strictHandler) ListDiscountCodes(w http.ResponseWriter, r *http.Request) {
 	var request ListDiscountCodesRequestObject
@@ -3686,6 +6297,96 @@ func (sh *strictHandler) ListDiscountCodes(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListDiscountCodesResponseObject); ok {
 		if err := validResponse.VisitListDiscountCodesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDiscountCode operation middleware
+func (sh *strictHandler) CreateDiscountCode(w http.ResponseWriter, r *http.Request) {
+	var request CreateDiscountCodeRequestObject
+
+	var body CreateDiscountCodeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDiscountCode(ctx, request.(CreateDiscountCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDiscountCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDiscountCodeResponseObject); ok {
+		if err := validResponse.VisitCreateDiscountCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDiscountCode operation middleware
+func (sh *strictHandler) DeleteDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteDiscountCodeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDiscountCode(ctx, request.(DeleteDiscountCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDiscountCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDiscountCodeResponseObject); ok {
+		if err := validResponse.VisitDeleteDiscountCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateDiscountCode operation middleware
+func (sh *strictHandler) UpdateDiscountCode(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateDiscountCodeRequestObject
+
+	request.Id = id
+
+	var body UpdateDiscountCodeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateDiscountCode(ctx, request.(UpdateDiscountCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateDiscountCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateDiscountCodeResponseObject); ok {
+		if err := validResponse.VisitUpdateDiscountCodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3743,6 +6444,39 @@ func (sh *strictHandler) ListOrders(w http.ResponseWriter, r *http.Request, para
 	}
 }
 
+// CreateOrder operation middleware
+func (sh *strictHandler) CreateOrder(w http.ResponseWriter, r *http.Request, params CreateOrderParams) {
+	var request CreateOrderRequestObject
+
+	request.Params = params
+
+	var body CreateOrderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateOrder(ctx, request.(CreateOrderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateOrder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateOrderResponseObject); ok {
+		if err := validResponse.VisitCreateOrderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetOrder operation middleware
 func (sh *strictHandler) GetOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetOrderParams) {
 	var request GetOrderRequestObject
@@ -3770,6 +6504,40 @@ func (sh *strictHandler) GetOrder(w http.ResponseWriter, r *http.Request, id ope
 	}
 }
 
+// RefundOrder operation middleware
+func (sh *strictHandler) RefundOrder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RefundOrderParams) {
+	var request RefundOrderRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RefundOrderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RefundOrder(ctx, request.(RefundOrderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RefundOrder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RefundOrderResponseObject); ok {
+		if err := validResponse.VisitRefundOrderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListOutlets operation middleware
 func (sh *strictHandler) ListOutlets(w http.ResponseWriter, r *http.Request) {
 	var request ListOutletsRequestObject
@@ -3787,6 +6555,70 @@ func (sh *strictHandler) ListOutlets(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListOutletsResponseObject); ok {
 		if err := validResponse.VisitListOutletsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateOutlet operation middleware
+func (sh *strictHandler) CreateOutlet(w http.ResponseWriter, r *http.Request) {
+	var request CreateOutletRequestObject
+
+	var body CreateOutletJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateOutlet(ctx, request.(CreateOutletRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateOutlet")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateOutletResponseObject); ok {
+		if err := validResponse.VisitCreateOutletResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateOutlet operation middleware
+func (sh *strictHandler) UpdateOutlet(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateOutletRequestObject
+
+	request.Id = id
+
+	var body UpdateOutletJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateOutlet(ctx, request.(UpdateOutletRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateOutlet")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateOutletResponseObject); ok {
+		if err := validResponse.VisitUpdateOutletResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3820,6 +6652,63 @@ func (sh *strictHandler) ListProducts(w http.ResponseWriter, r *http.Request, pa
 	}
 }
 
+// CreateProduct operation middleware
+func (sh *strictHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var request CreateProductRequestObject
+
+	var body CreateProductJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProduct(ctx, request.(CreateProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProductResponseObject); ok {
+		if err := validResponse.VisitCreateProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProduct operation middleware
+func (sh *strictHandler) DeleteProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteProductRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProduct(ctx, request.(DeleteProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProductResponseObject); ok {
+		if err := validResponse.VisitDeleteProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProduct operation middleware
 func (sh *strictHandler) GetProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request GetProductRequestObject
@@ -3846,6 +6735,39 @@ func (sh *strictHandler) GetProduct(w http.ResponseWriter, r *http.Request, id o
 	}
 }
 
+// UpdateProduct operation middleware
+func (sh *strictHandler) UpdateProduct(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateProductRequestObject
+
+	request.Id = id
+
+	var body UpdateProductJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProduct(ctx, request.(UpdateProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProductResponseObject); ok {
+		if err := validResponse.VisitUpdateProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPromotions operation middleware
 func (sh *strictHandler) ListPromotions(w http.ResponseWriter, r *http.Request, params ListPromotionsParams) {
 	var request ListPromotionsRequestObject
@@ -3865,6 +6787,96 @@ func (sh *strictHandler) ListPromotions(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListPromotionsResponseObject); ok {
 		if err := validResponse.VisitListPromotionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePromotion operation middleware
+func (sh *strictHandler) CreatePromotion(w http.ResponseWriter, r *http.Request) {
+	var request CreatePromotionRequestObject
+
+	var body CreatePromotionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePromotion(ctx, request.(CreatePromotionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePromotion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePromotionResponseObject); ok {
+		if err := validResponse.VisitCreatePromotionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePromotion operation middleware
+func (sh *strictHandler) DeletePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeletePromotionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePromotion(ctx, request.(DeletePromotionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePromotion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePromotionResponseObject); ok {
+		if err := validResponse.VisitDeletePromotionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePromotion operation middleware
+func (sh *strictHandler) UpdatePromotion(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdatePromotionRequestObject
+
+	request.Id = id
+
+	var body UpdatePromotionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePromotion(ctx, request.(UpdatePromotionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePromotion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePromotionResponseObject); ok {
+		if err := validResponse.VisitUpdatePromotionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3922,6 +6934,37 @@ func (sh *strictHandler) GetAppSettings(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// UpdateAppSettings operation middleware
+func (sh *strictHandler) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAppSettingsRequestObject
+
+	var body UpdateAppSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAppSettings(ctx, request.(UpdateAppSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAppSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAppSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateAppSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetLoyaltySettings operation middleware
 func (sh *strictHandler) GetLoyaltySettings(w http.ResponseWriter, r *http.Request) {
 	var request GetLoyaltySettingsRequestObject
@@ -3939,6 +6982,37 @@ func (sh *strictHandler) GetLoyaltySettings(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetLoyaltySettingsResponseObject); ok {
 		if err := validResponse.VisitGetLoyaltySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateLoyaltySettings operation middleware
+func (sh *strictHandler) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateLoyaltySettingsRequestObject
+
+	var body UpdateLoyaltySettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateLoyaltySettings(ctx, request.(UpdateLoyaltySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateLoyaltySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateLoyaltySettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateLoyaltySettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3965,6 +7039,39 @@ func (sh *strictHandler) ListShifts(w http.ResponseWriter, r *http.Request, para
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListShiftsResponseObject); ok {
 		if err := validResponse.VisitListShiftsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OpenShift operation middleware
+func (sh *strictHandler) OpenShift(w http.ResponseWriter, r *http.Request, params OpenShiftParams) {
+	var request OpenShiftRequestObject
+
+	request.Params = params
+
+	var body OpenShiftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenShift(ctx, request.(OpenShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenShiftResponseObject); ok {
+		if err := validResponse.VisitOpenShiftResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4025,6 +7132,40 @@ func (sh *strictHandler) GetShift(w http.ResponseWriter, r *http.Request, id ope
 	}
 }
 
+// CloseShift operation middleware
+func (sh *strictHandler) CloseShift(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CloseShiftParams) {
+	var request CloseShiftRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body CloseShiftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CloseShift(ctx, request.(CloseShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CloseShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CloseShiftResponseObject); ok {
+		if err := validResponse.VisitCloseShiftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListStockCounts operation middleware
 func (sh *strictHandler) ListStockCounts(w http.ResponseWriter, r *http.Request, params ListStockCountsParams) {
 	var request ListStockCountsRequestObject
@@ -4071,6 +7212,122 @@ func (sh *strictHandler) GetStockCount(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetStockCountResponseObject); ok {
 		if err := validResponse.VisitGetStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncBatch operation middleware
+func (sh *strictHandler) SyncBatch(w http.ResponseWriter, r *http.Request, params SyncBatchParams) {
+	var request SyncBatchRequestObject
+
+	request.Params = params
+
+	var body SyncBatchJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncBatch(ctx, request.(SyncBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncBatchResponseObject); ok {
+		if err := validResponse.VisitSyncBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncPull operation middleware
+func (sh *strictHandler) SyncPull(w http.ResponseWriter, r *http.Request, params SyncPullParams) {
+	var request SyncPullRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncPull(ctx, request.(SyncPullRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncPull")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncPullResponseObject); ok {
+		if err := validResponse.VisitSyncPullResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncVersion operation middleware
+func (sh *strictHandler) SyncVersion(w http.ResponseWriter, r *http.Request, params SyncVersionParams) {
+	var request SyncVersionRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncVersion(ctx, request.(SyncVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncVersionResponseObject); ok {
+		if err := validResponse.VisitSyncVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SignUpload operation middleware
+func (sh *strictHandler) SignUpload(w http.ResponseWriter, r *http.Request) {
+	var request SignUploadRequestObject
+
+	var body SignUploadJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SignUpload(ctx, request.(SignUploadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SignUpload")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SignUploadResponseObject); ok {
+		if err := validResponse.VisitSignUploadResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4247,82 +7504,110 @@ func (sh *strictHandler) Health(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"AAD//yGtLo9gfAAA",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
