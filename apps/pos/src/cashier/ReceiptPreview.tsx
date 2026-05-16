@@ -19,6 +19,9 @@ interface ReceiptPreviewProps {
   cashierName: string
   settings: AppSettings
   isPendingSync: boolean
+  canReprint: boolean
+  printError: string | null
+  onReprint: () => void
   onClose: () => void
   onNewSale: () => void
 }
@@ -44,6 +47,9 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   cashierName,
   settings,
   isPendingSync,
+  canReprint,
+  printError,
+  onReprint,
   onClose,
   onNewSale,
 }: ReceiptPreviewProps) {
@@ -159,6 +165,21 @@ export const ReceiptPreview = memo(function ReceiptPreview({
         </div>
 
         {/* Actions */}
+        {printError && (
+          <p className="px-5 text-xs text-red-600 mb-1 flex-shrink-0">
+            ⚠ {printError}
+          </p>
+        )}
+        {canReprint && (
+          <div className="px-5 pb-2 flex-shrink-0">
+            <button
+              onClick={onReprint}
+              className="w-full py-2 border border-indigo-200 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-colors"
+            >
+              🖨 Cetak Ulang Struk
+            </button>
+          </div>
+        )}
         <div className="px-5 pb-5 flex gap-2 flex-shrink-0">
           <button
             onClick={onClose}

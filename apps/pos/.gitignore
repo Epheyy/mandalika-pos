@@ -1,0 +1,22 @@
+# Capacitor — commit the native project source, not generated/build output.
+# The web bundle is copied here by `cap sync`; it is built from `dist/`.
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+android/capacitor-cordova-android-plugins/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+ios/App/App/public
+ios/App/App/capacitor.config.json
+ios/App/App/capacitor.plugins.json
+ios/capacitor-cordova-ios-plugins/
+ios/App/Pods/
+ios/App/output/
+
+# Generated launcher/splash assets (regenerate via `pnpm cap:assets`)
+android/app/src/main/res/mipmap-*/ic_launcher*.png
+android/app/src/main/res/drawable*/splash.png

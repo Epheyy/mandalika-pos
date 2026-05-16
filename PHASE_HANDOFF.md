@@ -27,7 +27,7 @@ Tell each new session verbatim:
 | #2 | B — Read APIs + client seam + app scaffolds | DONE |
 | #3 | C — Writes + order tx + offline core + Cashier split | DONE |
 | #4 | D — Migrate remaining backoffice screens | DONE |
-| #5 | E — Native shell + Bluetooth printing | PENDING |
+| #5 | E — Native shell + Bluetooth printing | DONE |
 | #6 | F — Data migration + cutover | PENDING |
 
 ---
@@ -232,7 +232,62 @@ via `@capacitor-community/bluetooth-le`; `printer/escpos.ts` builds buffer from
 order + `app_settings.receipt`; wire `receipt.autoPrint`/`copies` post-order
 (incl. offline-queued). Keep HTML preview fallback. Store-listing prep.
 
-Open follow-ups → F: still dual-write Firebase + Go.
+**Status: Phase E COMPLETE.** Printer confirmed with user: **I-Ware C5813**
+(58 mm BLE ESC/POS, generic serial profile).
+
+- Capacitor 8 wired into `apps/pos`: `@capacitor/{core,cli,android,ios,app,
+  preferences,splash-screen,status-bar}@8.x` + `@capacitor-community/
+  bluetooth-le@8.1.3` + `@capacitor/assets`. Typed `capacitor.config.ts`
+  (appId `com.mandalika.pos`, `webDir: dist`, no `server.url` → bundled shell,
+  cannot refresh to a browser; SplashScreen + BLE display strings).
+- Android platform added (`apps/pos/android/`, all 5 plugins detected,
+  `cap sync` clean). `AndroidManifest.xml`: API-31+ `BLUETOOTH_SCAN`
+  (`neverForLocation`) + `BLUETOOTH_CONNECT`, legacy BT/location
+  (`maxSdkVersion=30`), `bluetooth_le` feature required. `local.properties`
+  git-ignored; `apps/pos/.gitignore` keeps native source, drops build/copied
+  assets. iOS deferred (needs macOS — documented in `NATIVE.md`).
+- New `@mandalika/printer` pkg (plan §6): `escpos.ts` (`buildReceipt` →
+  ESC/POS bytes, 58 mm / 32 col, layout mirrors `ReceiptPreview`, honors
+  `ReceiptSettings` toggles), `transport.ts` (`PrinterTransport` iface +
+  `NoopTransport`), `ble.ts` (`CapacitorBleTransport` — auto-discovers first
+  writable characteristic, prefers known vendor service UUIDs, chunked
+  write-without-response), `print.ts` (`createTransport` native↔noop,
+  `printReceipt` connect→copies 1–5→disconnect).
+- Secure storage (plan §7): `@mandalika/sync` `initSecureKV()` swaps the KV
+  seam to Capacitor Preferences on native (refresh token + outbox + device id
+  + snapshot; localStorage on web), hydrated mirror keeps the sync KV
+  interface; booted in `main.tsx` before React reads state. `auth.tsx` refresh
+  token + `SyncProvider` engine now use `getKV()`.
+- App glue: `native.ts` (StatusBar, Android back-button guard = minimize not
+  exit mid-sale, splash hide on first-sync settle), `printer.tsx`
+  (PrinterProvider — pair/reprint/test, paired id in secure KV). Cashier
+  auto-prints on order success when `receipt.autoPrint` + paired (works on
+  offline-queued orders — local BLE, sync-independent); `ReceiptPreview` adds
+  "Cetak Ulang" + print-error line; `SettingsScreen` adds Bluetooth-printer
+  pair/test/remove (HTML preview remains the no-hardware fallback).
+- Store-listing prep: `STORE_LISTING.md` (id/desc/data-safety/permission
+  rationale/release checklist), `NATIVE.md` (build/run), placeholder brand
+  art in `assets/` + `gen-source.cjs`; `capacitor-assets generate` produced
+  Android launcher/splash (74 assets).
+- Verify: `pnpm -r build` green (`apps/backoffice` & `apps/pos`
+  `tsc -b`+`vite`); `@mandalika/printer` + `@mandalika/sync` `tsc` clean;
+  `cap add android` + `cap sync android` succeeded. pnpm via
+  `corepack pnpm@9.15.0`.
+
+Open follow-ups → F:
+- Native device verification is a manual hardware step (real APK on a device,
+  BLE pair + print on the I-Ware C5813, secure-storage persistence across
+  reinstall) — code/config/permissions are in place; not run in this session
+  (no device/CI; gradle `assembleDebug` not executed here).
+- iOS platform not added (Windows host). On macOS: `cap add ios`, set
+  `NSBluetoothAlwaysUsageDescription` (see `NATIVE.md`).
+- Brand art is a placeholder ("M" indigo) — replace before store submission.
+- BLE characteristic auto-discovery is generic; if the C5813 exposes multiple
+  writable chars, pin its service/char UUID in `ble.ts KNOWN_SERVICES`.
+- `INEFFECTIVE_DYNAMIC_IMPORT` vite warning (storage.ts dynamic-imports
+  `@capacitor/core` to stay web-safe while native.ts imports it statically) —
+  benign, no chunk split; left as-is.
+- Still dual-write Firebase + Go (strangler) → resolved in F.
 
 ---
 

@@ -11,9 +11,10 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { SyncEngine } from '@mandalika/sync'
+import { SyncEngine, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import { api } from '../api'
+import { hideSplash } from '../native'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncContext = createContext<SyncEngine | null>(null)
@@ -38,10 +39,14 @@ export function SyncProvider({
 
   const engine = useMemo(
     () =>
-      new SyncEngine(api, {
-        onWall: (w) => onWallRef.current?.(w),
-        onOutboxChange: (n) => onPendingRef.current?.(n),
-      }),
+      new SyncEngine(
+        api,
+        {
+          onWall: (w) => onWallRef.current?.(w),
+          onOutboxChange: (n) => onPendingRef.current?.(n),
+        },
+        getKV(),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
@@ -53,7 +58,10 @@ export function SyncProvider({
       .catch(() => {
         // Offline on first load — engine keeps selling from empty snapshot
       })
-      .finally(() => setReady(true))
+      .finally(() => {
+        setReady(true)
+        void hideSplash()
+      })
 
     const stop = engine.start(20_000)
     return stop

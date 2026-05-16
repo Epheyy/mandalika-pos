@@ -8,6 +8,7 @@ import { memo, useContext, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
+import { usePrinter } from '../printer'
 
 type AppSettings = components['schemas']['AppSettings']
 type Shift = components['schemas']['Shift']
@@ -43,6 +44,35 @@ export const SettingsScreen = memo(function SettingsScreen({
   onClose,
 }: SettingsScreenProps) {
   const engine = useContext(SyncContext)
+  const printer = usePrinter()
+  const [printerBusy, setPrinterBusy] = useState(false)
+  const [printerMsg, setPrinterMsg] = useState<string | null>(null)
+
+  const handlePair = async () => {
+    setPrinterBusy(true)
+    setPrinterMsg(null)
+    try {
+      const ok = await printer.pair()
+      setPrinterMsg(ok ? 'Printer tersambung' : 'Tidak ada printer dipilih')
+    } catch (e: unknown) {
+      setPrinterMsg(e instanceof Error ? e.message : 'Gagal memasangkan printer')
+    } finally {
+      setPrinterBusy(false)
+    }
+  }
+
+  const handleTestPrint = async () => {
+    setPrinterBusy(true)
+    setPrinterMsg(null)
+    try {
+      await printer.testPrint(settings.receipt)
+      setPrinterMsg('Tes cetak terkirim')
+    } catch (e: unknown) {
+      setPrinterMsg(e instanceof Error ? e.message : 'Gagal mencetak')
+    } finally {
+      setPrinterBusy(false)
+    }
+  }
 
   const [cashFlowType, setCashFlowType] = useState<'in' | 'out'>('in')
   const [cashFlowAmount, setCashFlowAmount] = useState('')
@@ -201,6 +231,63 @@ export const SettingsScreen = memo(function SettingsScreen({
               Diatur di Backoffice
             </p>
           </div>
+
+          {/* Bluetooth printer (plan §6) */}
+          <Section title="Printer Bluetooth" />
+          {!printer.supported ? (
+            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+              Cetak Bluetooth hanya di aplikasi native. Mode browser memakai
+              pratinjau struk di layar.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 flex justify-between items-center">
+                <span>Printer</span>
+                <span className="font-semibold text-gray-800">
+                  {printer.isPaired
+                    ? (printer.pairedName ?? 'Tersambung')
+                    : 'Belum diatur'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handlePair()}
+                  disabled={printerBusy}
+                  className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+                >
+                  {printer.isPaired ? 'Ganti Printer' : 'Pasangkan Printer'}
+                </button>
+                {printer.isPaired && (
+                  <button
+                    onClick={() => void handleTestPrint()}
+                    disabled={printerBusy}
+                    className="flex-1 py-2 border border-gray-200 text-gray-700 rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                  >
+                    Tes Cetak
+                  </button>
+                )}
+              </div>
+              {printer.isPaired && (
+                <button
+                  onClick={printer.unpair}
+                  className="w-full py-1.5 text-xs text-red-500 hover:text-red-600 font-semibold"
+                >
+                  Hapus Printer
+                </button>
+              )}
+              {printerMsg && (
+                <p
+                  className={`text-xs ${
+                    printerMsg.includes('Gagal') || printerMsg.includes('Tidak')
+                      ? 'text-red-500'
+                      : 'text-green-600'
+                  }`}
+                >
+                  {printerMsg}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tax settings (read-only) */}
           <Section title="Pajak" />

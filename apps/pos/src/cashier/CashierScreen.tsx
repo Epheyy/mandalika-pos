@@ -3,9 +3,11 @@
  * Data from SyncEngine snapshot (offline-first); writes via engine.enqueue.
  */
 
-import { useContext, useReducer, useState, useEffect } from 'react'
+import { useContext, useReducer, useRef, useState, useEffect } from 'react'
 import type { components } from '@mandalika/api'
+import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext } from './SyncProvider'
+import { usePrinter } from '../printer'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useShift } from '../hooks/useShift'
@@ -40,6 +42,10 @@ const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
   autoOpenShift: false,
 }
 
+const PAYMENT_LABELS: Record<string, string> = {
+  cash: 'Tunai', card: 'Kartu', transfer: 'Transfer', qris: 'QRIS',
+}
+
 const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
   enabled: true, tierEnabled: true, pointsPerThousand: 1, redemptionRate: 100,
 }
@@ -65,6 +71,9 @@ export default function CashierScreen() {
   const [isValidatingCode, setIsValidatingCode] = useState(false)
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
+  const printer = usePrinter()
+  const lastReceipt = useRef<ReceiptData | null>(null)
+  const [printError, setPrintError] = useState<string | null>(null)
 
   useEffect(() => {
     const fs = localStorage.getItem('pos_fontSize') as FontSize | null
@@ -137,8 +146,49 @@ export default function CashierScreen() {
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,
       })
+      const receipt: ReceiptData = {
+        orderRef: orderUuid.slice(0, 8).toUpperCase(),
+        pending: true, // server assigns the canonical number at sync (§5)
+        dateTime: new Date(),
+        lines: state.cart.map((i) => ({
+          name: `${i.productName} ${i.variantSize}`.trim(),
+          qty: i.quantity,
+          unitPrice: i.price,
+          amount: i.subtotal,
+        })),
+        subtotal: derived.subtotal,
+        discountAmount: derived.discountAmount,
+        taxAmount: derived.taxAmount,
+        total: derived.total,
+        paymentLabel: PAYMENT_LABELS[state.paymentMethod] ?? state.paymentMethod,
+        amountPaid: state.paymentMethod === 'cash' ? derived.paid : derived.total,
+        change: state.paymentMethod === 'cash' ? derived.change : 0,
+        customerName: state.selectedCustomer?.name ?? null,
+        customerPhone: state.selectedCustomer?.phone ?? null,
+        cashierName: user?.displayName ?? 'Kasir',
+      }
+      lastReceipt.current = receipt
+      setPrintError(null)
       dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid })
+      // Local BLE print — works offline, independent of sync (§6).
+      if (printer.isPaired && settings.receipt.autoPrint) {
+        printer
+          .print(receipt, settings.receipt)
+          .catch((e: unknown) =>
+            setPrintError(e instanceof Error ? e.message : 'Gagal mencetak'),
+          )
+      }
     } catch { dispatch({ type: 'SET_PROCESSING', processing: false }) }
+  }
+
+  const handleReprint = () => {
+    if (!lastReceipt.current) return
+    setPrintError(null)
+    printer
+      .print(lastReceipt.current, settings.receipt)
+      .catch((e: unknown) =>
+        setPrintError(e instanceof Error ? e.message : 'Gagal mencetak'),
+      )
   }
 
   const handleRefundConfirm = (orderId: string, reason: string) => {
@@ -271,6 +321,8 @@ export default function CashierScreen() {
         change={state.paymentMethod === 'cash' ? derived.change : 0}
         customerName={state.selectedCustomer?.name ?? null} cashierName={user.displayName}
         settings={settings} isPendingSync={offlineData.pendingCount > 0}
+        canReprint={printer.isPaired} printError={printError}
+        onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
       />

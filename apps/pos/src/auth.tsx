@@ -8,9 +8,13 @@ import {
   type ReactNode,
 } from 'react'
 import type { User } from '@mandalika/api'
+import { getKV } from '@mandalika/sync'
 import { api, authStore } from './api'
 
+// Refresh token lives in secure storage on native (Capacitor Preferences →
+// app sandbox), localStorage on the web shell — same key, plan §7.
 const REFRESH_KEY = 'mandalika.pos.refresh'
+const tokenStore = getKV()
 
 // POS is Cashier only. Admin/Manager must use the Backoffice app.
 const ALLOWED_ROLES = new Set(['cashier'])
@@ -31,20 +35,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => {
     authStore.access = null
     authStore.outletId = null
-    localStorage.removeItem(REFRESH_KEY)
+    tokenStore.remove(REFRESH_KEY)
     setUser(null)
   }, [])
 
   const apply = useCallback((d: { access: string; refresh: string; user: User }) => {
     authStore.access = d.access
     authStore.outletId = d.user.outletId ?? null
-    localStorage.setItem(REFRESH_KEY, d.refresh)
+    tokenStore.set(REFRESH_KEY, d.refresh)
     setUser(d.user)
   }, [])
 
   useEffect(() => {
     authStore.onUnauthorized = clear
-    const refresh = localStorage.getItem(REFRESH_KEY)
+    const refresh = tokenStore.get(REFRESH_KEY)
     if (!refresh) {
       setReady(true)
       return
@@ -74,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
-    const refresh = localStorage.getItem(REFRESH_KEY)
+    const refresh = tokenStore.get(REFRESH_KEY)
     if (refresh) void api.logout(refresh).catch(() => {})
     clear()
   }, [clear])
