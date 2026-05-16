@@ -42,3 +42,6 @@ Thumbs.db
 .vscode/
 .claude
 
+
+# TS build info
+*.tsbuildinfo

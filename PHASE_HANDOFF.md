@@ -24,7 +24,7 @@ Tell each new session verbatim:
 | Task | Phase | Status |
 |------|-------|--------|
 | #1 | A — Monorepo + Go backend foundation | DONE |
-| #2 | B — Read APIs + client seam + app scaffolds | PENDING |
+| #2 | B — Read APIs + client seam + app scaffolds | DONE |
 | #3 | C — Writes + order tx + offline core + Cashier split | PENDING |
 | #4 | D — Migrate remaining backoffice screens | PENDING |
 | #5 | E — Native shell + Bluetooth printing | PENDING |
@@ -79,7 +79,21 @@ Scope:
    rejects non-cashier, Backoffice rejects cashier).
 7. Exit criterion: one screen runs read-only against Go end-to-end.
 
-Open follow-ups → C: writes still on Firebase (strangler); cache invalidation stubs.
+**Status: Phase B COMPLETE.** Delivered: full `api/openapi.yaml`; oapi-codegen
+tool dep + `internal/api/api.gen.go` (DTOs+chi/strict); `internal/read` (outlet-
+scoped repo via `json_build_object`, reports/summary aggregation);
+`internal/handlers` (17 GET endpoints + Redis cache-aside, per-outlet TTL 15s,
+degradable); users CRUD + admin `/auth/register` (501 replaced); `make
+gen-check` drift gate + `.github/workflows/backend.yml`. pnpm workspaces:
+`packages/{types,api,sync}`, `apps/{pos,backoffice}` (both `tsc -b`+`vite build`
+clean). Auth Context per app, role-gated (POS=cashier only, Backoffice=admin/
+manager). Backoffice `ProductsScreen` verified read-only vs live Go.
+pnpm via `corepack pnpm@9.15.0` (corepack `enable` EPERM on this host).
+
+Open follow-ups → C: all writes still on Firebase (strangler); legacy `src/`
+untouched (Cashier split = C §7a, backoffice screens = D); Redis cache
+invalidation hooks are no-ops until writes land (C); `packages/sync` is a stub;
+POS tokens in localStorage until Phase E secure storage.
 
 ---
 
