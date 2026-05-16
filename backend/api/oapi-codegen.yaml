@@ -1,0 +1,12 @@
+# oapi-codegen config. Regenerate: `make gen-go` (Makefile). CI drift gate
+# re-runs this and fails if the working tree changes (api.gen.go committed).
+package: api
+output: internal/api/api.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  skip-prune: false
+  nullable-type: true

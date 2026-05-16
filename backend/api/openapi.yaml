@@ -1,0 +1,1064 @@
+openapi: 3.1.0
+info:
+  title: Mandalika POS API
+  version: 0.2.0
+  description: >
+    Backend for Mandalika POS. Single contract — Go DTOs (oapi-codegen) and the
+    TypeScript client (openapi-typescript) are generated from this file; CI fails
+    on drift. Phase B exposes auth + read endpoints (outlet-scoped) + reports
+    aggregation + users CRUD. Writes/order-tx/sync land in Phase C.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: catalog
+  - name: customers
+  - name: promotions
+  - name: sales
+  - name: settings
+  - name: users
+  - name: reports
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    OutletHeader:
+      name: X-Outlet-Id
+      in: header
+      required: false
+      description: Active outlet override (admin only, or must match token outlet).
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    OutletQuery:
+      name: outletId
+      in: query
+      description: Admin-only explicit outlet scope; "all" for cross-outlet.
+      schema: { type: string }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    Meta:
+      type: object
+      required: [total, page, limit]
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+    User:
+      type: object
+      required: [id, email, displayName, role, permissions, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [admin, manager, cashier] }
+        outletId: { type: string, format: uuid, nullable: true }
+        photoURL: { type: string, nullable: true }
+        permissions:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+    AuthData:
+      type: object
+      required: [access, refresh, user]
+      properties:
+        access: { type: string }
+        refresh: { type: string }
+        user: { $ref: '#/components/schemas/User' }
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AuthData' }
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/User' }
+    UserListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/User' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CreateUserRequest:
+      type: object
+      required: [email, password, displayName, role]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+        displayName: { type: string }
+        role: { type: string, enum: [admin, manager, cashier] }
+        outletId: { type: string, format: uuid, nullable: true }
+        permissions: { type: array, items: { type: string } }
+    UpdateUserRequest:
+      type: object
+      properties:
+        displayName: { type: string }
+        role: { type: string, enum: [admin, manager, cashier] }
+        outletId: { type: string, format: uuid, nullable: true }
+        photoURL: { type: string, nullable: true }
+        permissions: { type: array, items: { type: string } }
+        password: { type: string, format: password, minLength: 8 }
+    Outlet:
+      type: object
+      required: [id, name, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    OutletListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Outlet' } }
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        sortOrder: { type: integer, nullable: true }
+    CategoryListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Category' } }
+    ProductVariant:
+      type: object
+      required: [size, price, stock, sku]
+      properties:
+        size: { type: string }
+        price: { type: number }
+        stock: { type: integer }
+        sku: { type: string }
+    Product:
+      type: object
+      required: [id, name, brand, categoryId, variants, isFeatured, isFavourite, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        brand: { type: string }
+        categoryId: { type: string }
+        description: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
+        isFeatured: { type: boolean }
+        isFavourite: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    ProductListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ProductResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Product' }
+    BundleItem:
+      type: object
+      required: [productId, productName, variantSize, quantity, price]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        quantity: { type: integer }
+        price: { type: number }
+    Bundle:
+      type: object
+      required: [id, name, items, price, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/BundleItem' } }
+        price: { type: number }
+        imageUrl: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    BundleListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Bundle' } }
+    Customer:
+      type: object
+      required: [id, name, phone, points, totalSpent, visitCount, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        points: { type: integer }
+        totalSpent: { type: number }
+        visitCount: { type: integer }
+        lastVisit: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    CustomerListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Customer' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CustomerResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Customer' }
+    LoyaltySettings:
+      type: object
+      required: [enabled, tierEnabled, pointsPerThousand, redemptionRate]
+      properties:
+        enabled: { type: boolean }
+        tierEnabled: { type: boolean }
+        pointsPerThousand: { type: number }
+        redemptionRate: { type: number }
+    LoyaltySettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LoyaltySettings' }
+    LoyaltyCondition:
+      type: object
+      required: [id, name, type, trigger, rewardType, rewardValue, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string, enum: [always_on, campaign] }
+        trigger: { type: string }
+        rewardType: { type: string, enum: [set_points, multiply_points, product_reward] }
+        rewardValue: { type: number }
+        rewardProductIds: { type: array, items: { type: string }, nullable: true }
+        campaignStartDate: { type: string, nullable: true }
+        campaignEndDate: { type: string, nullable: true }
+        activeDays: { type: array, items: { type: integer }, nullable: true }
+        applicableProductIds: { type: array, items: { type: string }, nullable: true }
+        minimumSpend: { type: number, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    LoyaltyConditionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
+    Promotion:
+      type: object
+      required: [id, name, type, value, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        type: { type: string, enum: [percentage, fixed, bogo] }
+        value: { type: number }
+        minPurchase: { type: number, nullable: true }
+        applicableProductIds: { type: array, items: { type: string }, nullable: true }
+        applicableVariantKeys: { type: array, items: { type: string }, nullable: true }
+        applicableVariantSizes: { type: array, items: { type: string }, nullable: true }
+        outletIds: { type: array, items: { type: string }, nullable: true }
+        combinable: { type: boolean, nullable: true }
+        combinableWith: { type: array, items: { type: string }, nullable: true }
+        activeFromHour: { type: string, nullable: true }
+        activeToHour: { type: string, nullable: true }
+        activeDays: { type: array, items: { type: integer }, nullable: true }
+        isActive: { type: boolean }
+        startDate: { type: string, nullable: true }
+        endDate: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    PromotionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Promotion' } }
+    DiscountCode:
+      type: object
+      required: [id, code, type, value, usageCount, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        promotionId: { type: string, nullable: true }
+        type: { type: string, enum: [percentage, fixed] }
+        value: { type: number }
+        minPurchase: { type: number, nullable: true }
+        usageLimit: { type: integer, nullable: true }
+        usageCount: { type: integer }
+        isActive: { type: boolean }
+        startDate: { type: string, nullable: true }
+        endDate: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    DiscountCodeListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/DiscountCode' } }
+    CartItem:
+      type: object
+      required: [productId, productName, variantSize, price, quantity, subtotal]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        price: { type: number }
+        quantity: { type: integer }
+        subtotal: { type: number }
+        isBundle: { type: boolean }
+    Order:
+      type: object
+      required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        orderNumber: { type: string }
+        outletId: { type: string, format: uuid }
+        cashierId: { type: string }
+        cashierName: { type: string }
+        salesmanId: { type: string, nullable: true }
+        salesmanName: { type: string, nullable: true }
+        customerId: { type: string, nullable: true }
+        customerName: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/CartItem' } }
+        subtotal: { type: number }
+        discountAmount: { type: number }
+        discountType: { type: string, nullable: true }
+        discountValue: { type: number, nullable: true }
+        discountCode: { type: string, nullable: true }
+        taxAmount: { type: number }
+        total: { type: number }
+        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        amountPaid: { type: number }
+        change: { type: number }
+        status: { type: string, enum: [completed, refunded, cancelled] }
+        notes: { type: string, nullable: true }
+        refundReason: { type: string, nullable: true }
+        refundedAt: { type: string, format: date-time, nullable: true }
+        shiftId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    OrderListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Order' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    OrderResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Order' }
+    Shift:
+      type: object
+      required: [id, outletId, cashierId, cashierName, status, openedAt, startingCash, totalSales, totalOrders, totalRefunds, cashSales, cardSales, transferSales, qrisSales]
+      properties:
+        id: { type: string, format: uuid }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string, nullable: true }
+        cashierId: { type: string }
+        cashierName: { type: string }
+        status: { type: string, enum: [open, closed] }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        startingCash: { type: number }
+        closingCash: { type: number, nullable: true }
+        totalSales: { type: number }
+        totalOrders: { type: integer }
+        totalRefunds: { type: number }
+        cashSales: { type: number }
+        cardSales: { type: number }
+        transferSales: { type: number }
+        qrisSales: { type: number }
+    ShiftListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Shift' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ShiftResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Shift'
+    StockCountItem:
+      type: object
+      required: [productId, productName, variantSize, sku, frozenQty]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        frozenQty: { type: integer }
+        actualQty: { type: integer, nullable: true }
+        difference: { type: integer, nullable: true }
+    StockCount:
+      type: object
+      required: [id, name, status, outletId, items, createdBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [planned, in_progress, completed, cancelled] }
+        outletId: { type: string, format: uuid }
+        plannedDate: { type: string, nullable: true }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/StockCountItem' } }
+        notes: { type: string, nullable: true }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+    StockCountListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/StockCount' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    StockCountResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/StockCount' }
+    CashFlow:
+      type: object
+      required: [id, outletId, type, amount, description, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        outletId: { type: string, format: uuid }
+        shiftId: { type: string, nullable: true }
+        type: { type: string }
+        amount: { type: number }
+        description: { type: string }
+        cashierId: { type: string, nullable: true }
+        cashierName: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    CashFlowListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/CashFlow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PaymentMethodConfig:
+      type: object
+      required: [id, label, isEnabled]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        isEnabled: { type: boolean }
+    ReceiptSettings:
+      type: object
+      required: [headerText, footerText, showTax, showCashier]
+      properties:
+        headerText: { type: string }
+        footerText: { type: string }
+        showTax: { type: boolean }
+        showCashier: { type: boolean }
+        copies: { type: integer, nullable: true }
+        autoPrint: { type: boolean, nullable: true }
+        showOrderNumber: { type: boolean, nullable: true }
+        showCustomerName: { type: boolean, nullable: true }
+        showCustomerPhone: { type: boolean, nullable: true }
+        showDiscount: { type: boolean, nullable: true }
+        showSubtotal: { type: boolean, nullable: true }
+        showChange: { type: boolean, nullable: true }
+    AppSettings:
+      type: object
+      required: [taxEnabled, taxRate, roundingEnabled, roundingType, paymentMethods, receipt, autoOpenShift]
+      properties:
+        taxEnabled: { type: boolean }
+        taxRate: { type: number }
+        roundingEnabled: { type: boolean }
+        roundingType: { type: string, enum: [nearest_500, nearest_1000, none] }
+        roundingAmount: { type: number, nullable: true }
+        roundingDirection: { type: string, enum: [floor, ceil, nearest], nullable: true }
+        roundingApplyToTax: { type: boolean, nullable: true }
+        paymentMethods: { type: array, items: { $ref: '#/components/schemas/PaymentMethodConfig' } }
+        receipt: { $ref: '#/components/schemas/ReceiptSettings' }
+        autoOpenShift: { type: boolean }
+    AppSettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AppSettings' }
+    CustomRole:
+      type: object
+      required: [id, name, permissions, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        permissions: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+    CustomRoleListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/CustomRole' } }
+    ProductSalesRow:
+      type: object
+      required: [productId, productName, quantity, revenue]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        quantity: { type: integer }
+        revenue: { type: number }
+    DailySalesRow:
+      type: object
+      required: [date, sales, orders]
+      properties:
+        date: { type: string }
+        sales: { type: number }
+        orders: { type: integer }
+    ReportSummary:
+      type: object
+      required: [from, to, totalSales, totalOrders, totalRefunds, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        outletId: { type: string, nullable: true }
+        totalSales: { type: number }
+        totalOrders: { type: integer }
+        totalRefunds: { type: number }
+        netSales: { type: number }
+        avgOrderValue: { type: number }
+        byPaymentMethod:
+          type: object
+          additionalProperties: { type: number }
+        topProducts: { type: array, items: { $ref: '#/components/schemas/ProductSalesRow' } }
+        dailySales: { type: array, items: { $ref: '#/components/schemas/DailySalesRow' } }
+    ReportSummaryResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ReportSummary' }
+  responses:
+    Unauthorized:
+      description: unauthenticated
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: insufficient role/permission/outlet
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+paths:
+  /healthz:
+    get:
+      operationId: health
+      tags: [auth]
+      security: []
+      summary: Liveness/readiness (DB + Redis)
+      responses:
+        '200': { description: ok }
+        '503': { description: dependency down }
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      summary: Email/password login → JWT access + refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: tokens + user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { description: rate limited }
+  /api/v1/auth/refresh:
+    post:
+      operationId: refresh
+      tags: [auth]
+      security: []
+      summary: Rotate refresh token, issue new access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh]
+              properties:
+                refresh: { type: string }
+      responses:
+        '200':
+          description: tokens + user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      security: []
+      summary: Revoke refresh token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh: { type: string }
+      responses:
+        '200': { description: ok }
+  /api/v1/auth/me:
+    get:
+      operationId: me
+      tags: [auth]
+      summary: Current user
+      responses:
+        '200':
+          description: current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      tags: [users]
+      summary: Admin-only user provisioning (no public signup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users (admin)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user (admin)
+      responses:
+        '200':
+          description: user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user (admin)
+      responses:
+        '204': { description: deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/products:
+    get:
+      operationId: listProducts
+      tags: [catalog]
+      summary: List products
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: products
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductListResponse' }
+  /api/v1/products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getProduct
+      tags: [catalog]
+      summary: Get product
+      responses:
+        '200':
+          description: product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/categories:
+    get:
+      operationId: listCategories
+      tags: [catalog]
+      summary: List categories
+      responses:
+        '200':
+          description: categories
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryListResponse' }
+  /api/v1/bundles:
+    get:
+      operationId: listBundles
+      tags: [catalog]
+      summary: List bundles
+      responses:
+        '200':
+          description: bundles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundleListResponse' }
+  /api/v1/customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: customers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerListResponse' }
+  /api/v1/customers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer
+      responses:
+        '200':
+          description: customer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/promotions:
+    get:
+      operationId: listPromotions
+      tags: [promotions]
+      summary: List promotions (outlet-honored)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: promotions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromotionListResponse' }
+  /api/v1/discount-codes:
+    get:
+      operationId: listDiscountCodes
+      tags: [promotions]
+      summary: List discount codes
+      responses:
+        '200':
+          description: discount codes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
+  /api/v1/loyalty-conditions:
+    get:
+      operationId: listLoyaltyConditions
+      tags: [promotions]
+      summary: List loyalty conditions
+      responses:
+        '200':
+          description: loyalty conditions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoyaltyConditionListResponse' }
+  /api/v1/outlets:
+    get:
+      operationId: listOutlets
+      tags: [catalog]
+      summary: List outlets
+      responses:
+        '200':
+          description: outlets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutletListResponse' }
+  /api/v1/custom-roles:
+    get:
+      operationId: listCustomRoles
+      tags: [users]
+      summary: List custom roles
+      responses:
+        '200':
+          description: custom roles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomRoleListResponse' }
+  /api/v1/orders:
+    get:
+      operationId: listOrders
+      tags: [sales]
+      summary: List orders (outlet-scoped, paginated)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/OutletQuery'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: shiftId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: customerId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: orders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderListResponse' }
+  /api/v1/orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getOrder
+      tags: [sales]
+      summary: Get order (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/shifts:
+    get:
+      operationId: listShifts
+      tags: [sales]
+      summary: List shifts (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: shifts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftListResponse' }
+  /api/v1/shifts/current:
+    get:
+      operationId: currentShift
+      tags: [sales]
+      summary: Current open shift for active outlet (data null if none)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: current shift or null
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftResponse' }
+  /api/v1/shifts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getShift
+      tags: [sales]
+      summary: Get shift (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: shift
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/stock-counts:
+    get:
+      operationId: listStockCounts
+      tags: [sales]
+      summary: List stock counts (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: stock counts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountListResponse' }
+  /api/v1/stock-counts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getStockCount
+      tags: [sales]
+      summary: Get stock count (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: stock count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/cash-flows:
+    get:
+      operationId: listCashFlows
+      tags: [sales]
+      summary: List cash flows (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: shiftId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: cash flows
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashFlowListResponse' }
+  /api/v1/settings/app:
+    get:
+      operationId: getAppSettings
+      tags: [settings]
+      summary: App settings singleton
+      responses:
+        '200':
+          description: app settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppSettingsResponse' }
+  /api/v1/settings/loyalty:
+    get:
+      operationId: getLoyaltySettings
+      tags: [settings]
+      summary: Loyalty settings singleton
+      responses:
+        '200':
+          description: loyalty settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoyaltySettingsResponse' }
+  /api/v1/reports/summary:
+    get:
+      operationId: reportSummary
+      tags: [reports]
+      summary: Server-aggregated sales summary (outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/OutletQuery'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportSummaryResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
