@@ -25,7 +25,7 @@ Tell each new session verbatim:
 |------|-------|--------|
 | #1 | A — Monorepo + Go backend foundation | DONE |
 | #2 | B — Read APIs + client seam + app scaffolds | DONE |
-| #3 | C — Writes + order tx + offline core + Cashier split | PENDING |
+| #3 | C — Writes + order tx + offline core + Cashier split | DONE |
 | #4 | D — Migrate remaining backoffice screens | PENDING |
 | #5 | E — Native shell + Bluetooth printing | PENDING |
 | #6 | F — Data migration + cutover | PENDING |
@@ -118,7 +118,39 @@ Scope:
    rewrite `uploadImage()`.
 7. Outlet switcher for multi-outlet users; stop hardcoded `outletId:'default'`.
 
-Open follow-ups → D: backoffice screens still on Firebase.
+**Status: Phase C COMPLETE.** Backend: `service/pricing.go` (ports §9
+verbatim, 11 golden-parity tests pass), `service/order.go` (`POST /orders`
+one pg tx — server-computed totals, `SELECT FOR UPDATE` stock decrement
+[online zero-floor / offline negative-flag], customer+promo-usage update,
+per-outlet/day server order number; idempotent via Redis fast-path +
+`processed_keys`), `service/shift.go` (open + server-reconciled close, cash
+flow), order refund+restore (idempotent), `write/repo.go` (reference CRUD;
+every mutation bumps per-outlet `content_version`+`data_manifest`),
+`sync/sync.go` (`GET /sync/version`, `GET /sync/pull` atomic snapshot,
+`POST /sync/batch` ordered idempotent outbox + reconciliation),
+`uploads/sign.go` (server-signed Cloudinary). Routes RBAC-gated; Redis
+read-cache invalidated on write. Migration `0002_phase_c.sql` (surcharge,
+offline-reconcile audit, `order_counters`). `openapi.yaml` extended to the
+full Phase C contract; `api.gen.go` regenerated & committed (CI `make
+gen-check` green). Smoke-verified: order tx, idempotent replay exactly-once,
+stock lock, refund+restore, `sync/batch` dup-safety, content-version bump.
+Frontend: `packages/sync` (durable outbox keyed `device_id:order_uuid`,
+read-only Snapshot, SyncEngine flush/wall/resync; localStorage KV with a
+Capacitor-SQLite seam for E); `packages/api/schema.d.ts` regenerated;
+`apps/pos` Cashier split per §7a (orchestrator + 9 components + 3 hooks +
+reducer + display-only `pricing.ts` + SyncWall + OutletSwitcher + migrated
+SettingsScreen + signed uploadImage). All files <800 lines; `apps/pos` +
+`apps/backoffice` build clean (`tsc -b`+`vite`); no firebase/inline-fetch in
+`apps/pos`. pnpm via `corepack pnpm@9.15.0` (corepack enable EPERM on host).
+
+Open follow-ups → D: backoffice screens still on Firebase (Phase C added the
+reference-CRUD + sync APIs and migrated the POS app only; Backoffice screens
+migrate in D against the new CRUD endpoints). Provided but not yet
+E2E-tested: Playwright checkout/offline/sync-wall E2E (plan §11 C items) —
+add in D. `packages/sync` uses localStorage (Capacitor SQLite swap deferred
+to E per plan). Backoffice-added customers/codes not in POS snapshot until
+next resync (expected offline-first, §5a). Cashier client pricing is
+display-only; server authoritative (smoke + service golden tests).
 
 ---
 
