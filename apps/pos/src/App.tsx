@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from './auth'
+import { SyncProvider } from './cashier/SyncProvider'
+import CashierScreen from './cashier/CashierScreen'
 
 function LoginScreen() {
   const { login } = useAuth()
@@ -22,45 +24,50 @@ function LoginScreen() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ maxWidth: 320, margin: '4rem auto' }}>
-      <h1>Mandalika POS</h1>
+    <form onSubmit={onSubmit} style={{ maxWidth: 320, margin: '4rem auto', fontFamily: 'system-ui' }}>
+      <h1 style={{ marginBottom: 24, fontWeight: 900, fontSize: 22 }}>Mandalika POS</h1>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="email"
+        placeholder="Email"
         autoComplete="username"
-        style={{ display: 'block', width: '100%', marginBottom: 8 }}
+        type="email"
+        style={{ display: 'block', width: '100%', marginBottom: 8, padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 8, boxSizing: 'border-box' }}
       />
       <input
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         type="password"
-        placeholder="password"
+        placeholder="Password"
         autoComplete="current-password"
-        style={{ display: 'block', width: '100%', marginBottom: 8 }}
+        style={{ display: 'block', width: '100%', marginBottom: 12, padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 8, boxSizing: 'border-box' }}
       />
-      <button disabled={busy} type="submit">
-        {busy ? 'Signing in…' : 'Sign in'}
+      <button
+        disabled={busy}
+        type="submit"
+        style={{ width: '100%', padding: '10px 0', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}
+      >
+        {busy ? 'Masuk…' : 'Masuk'}
       </button>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <p style={{ color: 'crimson', fontSize: 13, marginTop: 8 }}>{err}</p>}
     </form>
   )
 }
 
 export default function App() {
-  const { user, ready, logout } = useAuth()
-  if (!ready) return <p>Loading…</p>
+  const { user, ready } = useAuth()
+  if (!ready) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui', color: '#6b7280' }}>
+        Memuat…
+      </div>
+    )
+  }
   if (!user) return <LoginScreen />
-  // Phase C builds the real offline-first CashierScreen (plan §7a split).
+  // Phase C: offline-first CashierScreen wrapped in SyncProvider
   return (
-    <main style={{ fontFamily: 'system-ui', padding: 24 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <strong>
-          {user.displayName} · {user.role}
-        </strong>
-        <button onClick={logout}>Sign out</button>
-      </header>
-      <p>POS shell ready. Cashier screen + offline sync land in Phase C.</p>
-    </main>
+    <SyncProvider>
+      <CashierScreen />
+    </SyncProvider>
   )
 }

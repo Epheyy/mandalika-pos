@@ -1,0 +1,176 @@
+import { memo, useEffect, useRef } from 'react'
+import type { components } from '@mandalika/api'
+import { formatRupiah, getCustomerTier } from './pricing'
+
+type Customer = components['schemas']['Customer']
+
+interface CustomerPickerProps {
+  customers: Customer[]
+  selectedCustomer: Customer | null
+  customerSearch: string
+  isAddingCustomer: boolean
+  newCustomerForm: { name: string; phone: string; email: string }
+  isSaving: boolean
+  onSearchChange: (q: string) => void
+  onSelect: (customer: Customer) => void
+  onClear: () => void
+  onToggleAdding: () => void
+  onNewFormChange: (field: 'name' | 'phone' | 'email', value: string) => void
+  onSaveNew: () => void
+  earnedPoints: number
+}
+
+export const CustomerPicker = memo(function CustomerPicker({
+  customers,
+  selectedCustomer,
+  customerSearch,
+  isAddingCustomer,
+  newCustomerForm,
+  isSaving,
+  onSearchChange,
+  onSelect,
+  onClear,
+  onToggleAdding,
+  onNewFormChange,
+  onSaveNew,
+  earnedPoints,
+}: CustomerPickerProps) {
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const filteredCustomers =
+    customerSearch.length >= 2
+      ? customers
+          .filter(
+            (c) =>
+              c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+              c.phone.includes(customerSearch),
+          )
+          .slice(0, 5)
+      : []
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        onSearchChange('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onSearchChange])
+
+  if (selectedCustomer) {
+    return (
+      <div className="px-3 py-2 border-b border-gray-100 bg-indigo-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-indigo-800">
+              {selectedCustomer.name}
+            </p>
+            <p className="text-[10px] text-indigo-600">
+              {selectedCustomer.phone} ·{' '}
+              {getCustomerTier(selectedCustomer.totalSpent)} ·{' '}
+              {selectedCustomer.points} poin
+            </p>
+            {earnedPoints > 0 && (
+              <p className="text-[10px] text-green-600">
+                +{earnedPoints} poin (tampilan sementara)
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClear}
+            className="text-xs text-indigo-500 hover:text-indigo-700 ml-2"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-3 py-2 border-b border-gray-100" ref={dropdownRef}>
+      {isAddingCustomer ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-700">Pelanggan Baru</p>
+          <input
+            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            placeholder="Nama *"
+            value={newCustomerForm.name}
+            onChange={(e) => onNewFormChange('name', e.target.value)}
+          />
+          <input
+            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            placeholder="Telepon *"
+            value={newCustomerForm.phone}
+            onChange={(e) => onNewFormChange('phone', e.target.value)}
+          />
+          <input
+            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            placeholder="Email (opsional)"
+            value={newCustomerForm.email}
+            onChange={(e) => onNewFormChange('email', e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={onSaveNew}
+              disabled={isSaving}
+              className="flex-1 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+            >
+              {isSaving ? 'Menyimpan…' : 'Simpan'}
+            </button>
+            <button
+              onClick={onToggleAdding}
+              className="flex-1 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="relative">
+          <div className="flex gap-2">
+            <input
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              placeholder="Cari pelanggan (min. 2 karakter)…"
+              value={customerSearch}
+              onChange={(e) => onSearchChange(e.target.value)}
+            />
+            <button
+              onClick={onToggleAdding}
+              className="px-2 py-1.5 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200 whitespace-nowrap"
+            >
+              + Baru
+            </button>
+          </div>
+          {filteredCustomers.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
+              {filteredCustomers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    onSelect(c)
+                    onSearchChange('')
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors border-b border-gray-50 last:border-0"
+                >
+                  <p className="text-xs font-semibold text-gray-800">
+                    {c.name}
+                  </p>
+                  <p className="text-[10px] text-gray-500">
+                    {c.phone} · {formatRupiah(c.totalSpent)} ·{' '}
+                    {getCustomerTier(c.totalSpent)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+})

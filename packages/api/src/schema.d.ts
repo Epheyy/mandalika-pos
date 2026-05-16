@@ -155,7 +155,8 @@ export interface paths {
         /** List products */
         get: operations["listProducts"];
         put?: never;
-        post?: never;
+        /** Create product (Backoffice; bumps content version) */
+        post: operations["createProduct"];
         delete?: never;
         options?: never;
         head?: never;
@@ -173,9 +174,11 @@ export interface paths {
         };
         /** Get product */
         get: operations["getProduct"];
-        put?: never;
+        /** Update product (Backoffice) */
+        put: operations["updateProduct"];
         post?: never;
-        delete?: never;
+        /** Delete product (Backoffice) */
+        delete: operations["deleteProduct"];
         options?: never;
         head?: never;
         patch?: never;
@@ -191,7 +194,8 @@ export interface paths {
         /** List categories */
         get: operations["listCategories"];
         put?: never;
-        post?: never;
+        /** Create category (Backoffice) */
+        post: operations["createCategory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -225,7 +229,8 @@ export interface paths {
         /** List customers */
         get: operations["listCustomers"];
         put?: never;
-        post?: never;
+        /** Create customer (Backoffice) */
+        post: operations["createCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -243,9 +248,11 @@ export interface paths {
         };
         /** Get customer */
         get: operations["getCustomer"];
-        put?: never;
+        /** Update customer (Backoffice) */
+        put: operations["updateCustomer"];
         post?: never;
-        delete?: never;
+        /** Delete customer (Backoffice) */
+        delete: operations["deleteCustomer"];
         options?: never;
         head?: never;
         patch?: never;
@@ -261,7 +268,8 @@ export interface paths {
         /** List promotions (outlet-honored) */
         get: operations["listPromotions"];
         put?: never;
-        post?: never;
+        /** Create promotion (Backoffice) */
+        post: operations["createPromotion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -278,7 +286,8 @@ export interface paths {
         /** List discount codes */
         get: operations["listDiscountCodes"];
         put?: never;
-        post?: never;
+        /** Create discount code (Backoffice) */
+        post: operations["createDiscountCode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -312,7 +321,8 @@ export interface paths {
         /** List outlets */
         get: operations["listOutlets"];
         put?: never;
-        post?: never;
+        /** Create outlet (Backoffice) */
+        post: operations["createOutlet"];
         delete?: never;
         options?: never;
         head?: never;
@@ -346,7 +356,8 @@ export interface paths {
         /** List orders (outlet-scoped, paginated) */
         get: operations["listOrders"];
         put?: never;
-        post?: never;
+        /** Checkout in one Postgres tx — server computes money/stock/loyalty, idempotent on the Idempotency-Key header (plan §5, §9). */
+        post: operations["createOrder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -382,7 +393,8 @@ export interface paths {
         /** List shifts (outlet-scoped) */
         get: operations["listShifts"];
         put?: never;
-        post?: never;
+        /** Open a shift for the active outlet */
+        post: operations["openShift"];
         delete?: never;
         options?: never;
         head?: never;
@@ -471,7 +483,8 @@ export interface paths {
         /** List cash flows (outlet-scoped) */
         get: operations["listCashFlows"];
         put?: never;
-        post?: never;
+        /** Record a cash in/out movement */
+        post: operations["createCashFlow"];
         delete?: never;
         options?: never;
         head?: never;
@@ -487,7 +500,8 @@ export interface paths {
         };
         /** App settings singleton */
         get: operations["getAppSettings"];
-        put?: never;
+        /** Update app settings (Backoffice) */
+        put: operations["updateAppSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -504,7 +518,8 @@ export interface paths {
         };
         /** Loyalty settings singleton */
         get: operations["getLoyaltySettings"];
-        put?: never;
+        /** Update loyalty settings (Backoffice) */
+        put: operations["updateLoyaltySettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -523,6 +538,191 @@ export interface paths {
         get: operations["reportSummary"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update category (Backoffice) */
+        put: operations["updateCategory"];
+        post?: never;
+        /** Delete category (Backoffice) */
+        delete: operations["deleteCategory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/promotions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update promotion (Backoffice) */
+        put: operations["updatePromotion"];
+        post?: never;
+        /** Delete promotion (Backoffice) */
+        delete: operations["deletePromotion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discount-codes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update discount code (Backoffice) */
+        put: operations["updateDiscountCode"];
+        post?: never;
+        /** Delete discount code (Backoffice) */
+        delete: operations["deleteDiscountCode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update outlet (Backoffice) */
+        put: operations["updateOutlet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund + restore stock (idempotent) */
+        post: operations["refundOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a shift (server-reconciled totals; idempotent) */
+        post: operations["closeShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-outlet content version (sync wall, plan §5a) */
+        get: operations["syncVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Full reference snapshot for atomic local swap (plan §5a) */
+        get: operations["syncPull"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Flush the offline outbox; each item idempotent (plan §5) */
+        post: operations["syncBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/uploads/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Server-signed Cloudinary upload (secret stays server-side, plan §8) */
+        post: operations["signUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -979,6 +1179,189 @@ export interface components {
         ReportSummaryResponse: {
             data: components["schemas"]["ReportSummary"];
         };
+        IdResponse: {
+            data: {
+                /** Format: uuid */
+                id: string;
+            };
+        };
+        OkResponse: {
+            ok: boolean;
+        };
+        OrderItemInput: {
+            productId: string;
+            productName: string;
+            variantSize: string;
+            price: number;
+            quantity: number;
+            subtotal: number;
+            isBundle?: boolean;
+        };
+        /** @description Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required. */
+        CreateOrderRequest: {
+            /** Format: uuid */
+            orderUuid: string;
+            deviceId?: string | null;
+            salesmanId?: string | null;
+            salesmanName?: string | null;
+            customerId?: string | null;
+            customerName?: string | null;
+            items: components["schemas"]["OrderItemInput"][];
+            /** @enum {string} */
+            paymentMethod: "cash" | "card" | "transfer" | "qris";
+            amountPaid?: number;
+            /** @enum {string|null} */
+            discountType?: "percentage" | "fixed" | null;
+            discountValue?: number | null;
+            surchargeValue?: number | null;
+            discountCode?: string | null;
+            promotionId?: string | null;
+            notes?: string | null;
+            shiftId?: string | null;
+        };
+        RefundRequest: {
+            reason: string;
+        };
+        OpenShiftRequest: {
+            outletName?: string | null;
+            startingCash?: number;
+        };
+        CloseShiftRequest: {
+            closingCash?: number;
+        };
+        CashFlowRequest: {
+            shiftId?: string | null;
+            type: string;
+            amount: number;
+            description: string;
+        };
+        SyncVersion: {
+            /** Format: int64 */
+            version: number;
+            dataManifest: {
+                [key: string]: unknown;
+            };
+        };
+        SyncVersionResponse: {
+            data: components["schemas"]["SyncVersion"];
+        };
+        SyncPullBundle: {
+            /** Format: int64 */
+            version: number;
+            products?: components["schemas"]["Product"][];
+            categories?: components["schemas"]["Category"][];
+            bundles?: components["schemas"]["Bundle"][];
+            customers?: components["schemas"]["Customer"][];
+            promotions?: components["schemas"]["Promotion"][];
+            discountCodes?: components["schemas"]["DiscountCode"][];
+            loyaltyConditions?: components["schemas"]["LoyaltyCondition"][];
+            loyaltySettings?: components["schemas"]["LoyaltySettings"];
+            appSettings?: components["schemas"]["AppSettings"];
+        };
+        SyncPullResponse: {
+            data: components["schemas"]["SyncPullBundle"];
+        };
+        SyncBatchItem: {
+            /** @enum {string} */
+            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow";
+            idempotencyKey: string;
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        SyncBatchRequest: {
+            items: components["schemas"]["SyncBatchItem"][];
+        };
+        SyncItemResult: {
+            idempotencyKey: string;
+            /** @enum {string} */
+            status: "ok" | "duplicate" | "error";
+            orderId?: string;
+            stockWarning?: boolean;
+            error?: string;
+        };
+        SyncBatchResult: {
+            processed: number;
+            results: components["schemas"]["SyncItemResult"][];
+            /** Format: int64 */
+            version: number;
+        };
+        SyncBatchResponse: {
+            data: components["schemas"]["SyncBatchResult"];
+        };
+        UploadSignRequest: {
+            folder?: string;
+        };
+        UploadSignature: {
+            /** Format: int64 */
+            timestamp: number;
+            signature: string;
+            apiKey: string;
+            cloudName: string;
+            folder?: string;
+        };
+        UploadSignResponse: {
+            data: components["schemas"]["UploadSignature"];
+        };
+        ProductInput: {
+            name: string;
+            brand: string;
+            categoryId: string;
+            description?: string;
+            imageUrl?: string;
+            variants: components["schemas"]["ProductVariant"][];
+            isFeatured?: boolean;
+            isFavourite?: boolean;
+            isActive: boolean;
+        };
+        CategoryInput: {
+            name: string;
+            description?: string;
+            sortOrder?: number | null;
+        };
+        CustomerInput: {
+            name: string;
+            phone: string;
+            email?: string;
+        };
+        PromotionInput: {
+            name: string;
+            description?: string;
+            /** @enum {string} */
+            type: "percentage" | "fixed" | "bogo";
+            value: number;
+            minPurchase?: number | null;
+            applicableProductIds?: string[];
+            applicableVariantKeys?: string[];
+            applicableVariantSizes?: string[];
+            outletIds?: string[];
+            combinable?: boolean | null;
+            combinableWith?: string[];
+            activeFromHour?: string;
+            activeToHour?: string;
+            activeDays?: number[];
+            isActive: boolean;
+            startDate?: string;
+            endDate?: string;
+        };
+        DiscountCodeInput: {
+            code: string;
+            promotionId?: string;
+            /** @enum {string} */
+            type: "percentage" | "fixed";
+            value: number;
+            minPurchase?: number | null;
+            usageLimit?: number | null;
+            isActive: boolean;
+            startDate?: string;
+            endDate?: string;
+        };
+        OutletInput: {
+            name: string;
+            address?: string;
+            phone?: string;
+            isActive: boolean;
+        };
     };
     responses: {
         /** @description unauthenticated */
@@ -1329,6 +1712,31 @@ export interface operations {
             };
         };
     };
+    createProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getProduct: {
         parameters: {
             query?: never;
@@ -1352,6 +1760,56 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    updateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     listCategories: {
         parameters: {
             query?: never;
@@ -1368,6 +1826,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryListResponse"];
+                };
+            };
+        };
+    };
+    createCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
                 };
             };
         };
@@ -1415,6 +1897,30 @@ export interface operations {
             };
         };
     };
+    createCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
     getCustomer: {
         parameters: {
             query?: never;
@@ -1433,6 +1939,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
             404: components["responses"]["NotFound"];
@@ -1461,6 +2017,30 @@ export interface operations {
             };
         };
     };
+    createPromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromotionInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
     listDiscountCodes: {
         parameters: {
             query?: never;
@@ -1477,6 +2057,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountCodeListResponse"];
+                };
+            };
+        };
+    };
+    createDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountCodeInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
                 };
             };
         };
@@ -1517,6 +2121,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OutletListResponse"];
+                };
+            };
+        };
+    };
+    createOutlet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutletInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
                 };
             };
         };
@@ -1571,6 +2199,42 @@ export interface operations {
             };
         };
     };
+    createOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description canonical stored order */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description invalid order */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getOrder: {
         parameters: {
             query?: never;
@@ -1620,6 +2284,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ShiftListResponse"];
                 };
+            };
+        };
+    };
+    openShift: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description opened shift */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftResponse"];
+                };
+            };
+            /** @description shift already open */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1751,6 +2449,33 @@ export interface operations {
             };
         };
     };
+    createCashFlow: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashFlowRequest"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
     getAppSettings: {
         parameters: {
             query?: never;
@@ -1771,6 +2496,30 @@ export interface operations {
             };
         };
     };
+    updateAppSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppSettings"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
     getLoyaltySettings: {
         parameters: {
             query?: never;
@@ -1787,6 +2536,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoyaltySettingsResponse"];
+                };
+            };
+        };
+    };
+    updateLoyaltySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltySettings"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
         };
@@ -1818,6 +2591,354 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromotionInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deletePromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountCodeInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateOutlet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutletInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    refundOrder: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundRequest"];
+            };
+        };
+        responses: {
+            /** @description refunded order */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description not refundable */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    closeShift: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CloseShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description closed shift */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftResponse"];
+                };
+            };
+        };
+    };
+    syncVersion: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncVersionResponse"];
+                };
+            };
+        };
+    };
+    syncPull: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description bundle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncPullResponse"];
+                };
+            };
+        };
+    };
+    syncBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description reconciliation summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncBatchResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    signUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UploadSignRequest"];
+            };
+        };
+        responses: {
+            /** @description signature */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSignResponse"];
+                };
+            };
+            /** @description cloudinary not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }
