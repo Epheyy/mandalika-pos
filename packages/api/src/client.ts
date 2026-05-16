@@ -1,10 +1,39 @@
 import type { components } from './schema'
 
-export type Schemas = components['schemas']
-export type User = Schemas['User']
-export type Product = Schemas['Product']
-export type ProductListResponse = Schemas['ProductListResponse']
-export type AuthData = Schemas['AuthData']
+type S = components['schemas']
+
+export type User = S['User']
+export type AuthData = S['AuthData']
+export type Outlet = S['Outlet']
+export type Category = S['Category']
+export type Product = S['Product']
+export type ProductVariant = S['ProductVariant']
+export type Bundle = S['Bundle']
+export type Customer = S['Customer']
+export type Promotion = S['Promotion']
+export type DiscountCode = S['DiscountCode']
+export type LoyaltyCondition = S['LoyaltyCondition']
+export type LoyaltySettings = S['LoyaltySettings']
+export type AppSettings = S['AppSettings']
+export type Order = S['Order']
+export type CartItem = S['CartItem']
+export type Shift = S['Shift']
+export type StockCount = S['StockCount']
+export type StockCountItem = S['StockCountItem']
+export type CashFlow = S['CashFlow']
+export type CustomRole = S['CustomRole']
+export type ReportSummary = S['ReportSummary']
+export type Meta = S['Meta']
+
+export type ProductInput = S['ProductInput']
+export type CategoryInput = S['CategoryInput']
+export type CustomerInput = S['CustomerInput']
+export type PromotionInput = S['PromotionInput']
+export type DiscountCodeInput = S['DiscountCodeInput']
+export type OutletInput = S['OutletInput']
+export type CreateUserRequest = S['CreateUserRequest']
+export type UpdateUserRequest = S['UpdateUserRequest']
+export type UploadSignature = S['UploadSignature']
 
 export interface ClientOptions {
   baseUrl: string
@@ -26,13 +55,96 @@ export class ApiError extends Error {
   }
 }
 
+export interface ListResult<T> {
+  data: T[]
+  meta?: Meta
+}
+
+const API = '/api/v1'
+
 export interface Api {
   request: <T>(method: string, path: string, body?: unknown) => Promise<T>
+
+  // auth
   login: (email: string, password: string) => Promise<AuthData>
   refresh: (refresh: string) => Promise<AuthData>
   logout: (refresh: string) => Promise<void>
   me: () => Promise<User>
-  listProducts: (page?: number, limit?: number) => Promise<ProductListResponse>
+
+  // outlets
+  listOutlets: () => Promise<Outlet[]>
+  createOutlet: (input: OutletInput) => Promise<Outlet>
+  updateOutlet: (id: string, input: OutletInput) => Promise<Outlet>
+
+  // products / categories / bundles
+  listProducts: (page?: number, limit?: number) => Promise<ListResult<Product>>
+  createProduct: (input: ProductInput) => Promise<Product>
+  updateProduct: (id: string, input: ProductInput) => Promise<Product>
+  deleteProduct: (id: string) => Promise<void>
+  listCategories: () => Promise<Category[]>
+  createCategory: (input: CategoryInput) => Promise<Category>
+  updateCategory: (id: string, input: CategoryInput) => Promise<Category>
+  deleteCategory: (id: string) => Promise<void>
+  listBundles: () => Promise<Bundle[]>
+
+  // customers
+  listCustomers: (page?: number, limit?: number) => Promise<ListResult<Customer>>
+  createCustomer: (input: CustomerInput) => Promise<Customer>
+  updateCustomer: (id: string, input: CustomerInput) => Promise<Customer>
+  deleteCustomer: (id: string) => Promise<void>
+
+  // loyalty
+  listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
+  createLoyaltyCondition: (input: Partial<LoyaltyCondition>) => Promise<LoyaltyCondition>
+  updateLoyaltyCondition: (id: string, input: Partial<LoyaltyCondition>) => Promise<LoyaltyCondition>
+  deleteLoyaltyCondition: (id: string) => Promise<void>
+  getLoyaltySettings: () => Promise<LoyaltySettings>
+  updateLoyaltySettings: (input: LoyaltySettings) => Promise<LoyaltySettings>
+
+  // promotions / discount codes
+  listPromotions: () => Promise<Promotion[]>
+  createPromotion: (input: PromotionInput) => Promise<Promotion>
+  updatePromotion: (id: string, input: PromotionInput) => Promise<Promotion>
+  deletePromotion: (id: string) => Promise<void>
+  listDiscountCodes: () => Promise<DiscountCode[]>
+  createDiscountCode: (input: DiscountCodeInput) => Promise<DiscountCode>
+  updateDiscountCode: (id: string, input: DiscountCodeInput) => Promise<DiscountCode>
+  deleteDiscountCode: (id: string) => Promise<void>
+
+  // orders / shifts
+  listOrders: (params?: Record<string, string | number>) => Promise<ListResult<Order>>
+  getOrder: (id: string) => Promise<Order>
+  refundOrder: (id: string, reason: string) => Promise<Order>
+  listShifts: (params?: Record<string, string | number>) => Promise<ListResult<Shift>>
+
+  // stock counts
+  listStockCounts: (page?: number, limit?: number) => Promise<ListResult<StockCount>>
+  getStockCount: (id: string) => Promise<StockCount>
+  createStockCount: (input: {
+    name: string
+    outletId: string
+    plannedDate?: string
+    notes?: string
+    items: StockCountItem[]
+  }) => Promise<StockCount>
+  updateStockCount: (id: string, input: Partial<StockCount>) => Promise<StockCount>
+  completeStockCount: (id: string, items: StockCountItem[]) => Promise<StockCount>
+
+  // users / roles
+  listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
+  createUser: (input: CreateUserRequest) => Promise<User>
+  updateUser: (id: string, input: UpdateUserRequest) => Promise<User>
+  deleteUser: (id: string) => Promise<void>
+  listCustomRoles: () => Promise<CustomRole[]>
+  createCustomRole: (input: { name: string; permissions: string[] }) => Promise<CustomRole>
+  updateCustomRole: (id: string, input: { name: string; permissions: string[] }) => Promise<CustomRole>
+  deleteCustomRole: (id: string) => Promise<void>
+
+  // settings / reports / uploads
+  getAppSettings: () => Promise<AppSettings>
+  updateAppSettings: (input: AppSettings) => Promise<AppSettings>
+  reportSummary: (params?: Record<string, string>) => Promise<ReportSummary>
+  signUpload: (folder?: string) => Promise<UploadSignature>
 }
 
 export function createClient(opts: ClientOptions): Api {
@@ -60,33 +172,125 @@ export function createClient(opts: ClientOptions): Api {
     return json as T
   }
 
+  const qs = (params?: Record<string, string | number>): string => {
+    if (!params) return ''
+    const p = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) p.set(k, String(v))
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+
+  const data = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+    const r = await request<{ data: T }>(method, path, body)
+    return r.data
+  }
+  const list = async <T>(
+    path: string,
+    params?: Record<string, string | number>,
+  ): Promise<ListResult<T>> => request<ListResult<T>>('GET', path + qs(params))
+
   return {
     request,
+
     async login(email, password) {
-      const r = await request<{ data: AuthData }>('POST', '/api/v1/auth/login', {
-        email,
-        password,
-      })
-      return r.data
+      return data<AuthData>('POST', `${API}/auth/login`, { email, password })
     },
     async refresh(refresh) {
-      const r = await request<{ data: AuthData }>('POST', '/api/v1/auth/refresh', {
-        refresh,
-      })
-      return r.data
+      return data<AuthData>('POST', `${API}/auth/refresh`, { refresh })
     },
     async logout(refresh) {
-      await request<unknown>('POST', '/api/v1/auth/logout', { refresh })
+      await request<unknown>('POST', `${API}/auth/logout`, { refresh })
     },
-    async me() {
-      const r = await request<{ data: User }>('GET', '/api/v1/auth/me')
-      return r.data
+    me: () => data<User>('GET', `${API}/auth/me`),
+
+    listOutlets: () => data<Outlet[]>('GET', `${API}/outlets`),
+    createOutlet: (input) => data<Outlet>('POST', `${API}/outlets`, input),
+    updateOutlet: (id, input) => data<Outlet>('PUT', `${API}/outlets/${id}`, input),
+
+    listProducts: (page = 1, limit = 200) =>
+      list<Product>(`${API}/products`, { page, limit }),
+    createProduct: (input) => data<Product>('POST', `${API}/products`, input),
+    updateProduct: (id, input) => data<Product>('PUT', `${API}/products/${id}`, input),
+    deleteProduct: async (id) => {
+      await request('DELETE', `${API}/products/${id}`)
     },
-    async listProducts(page = 1, limit = 50) {
-      return request<ProductListResponse>(
-        'GET',
-        `/api/v1/products?page=${page}&limit=${limit}`,
-      )
+    listCategories: () => data<Category[]>('GET', `${API}/categories`),
+    createCategory: (input) => data<Category>('POST', `${API}/categories`, input),
+    updateCategory: (id, input) => data<Category>('PUT', `${API}/categories/${id}`, input),
+    deleteCategory: async (id) => {
+      await request('DELETE', `${API}/categories/${id}`)
     },
+    listBundles: () => data<Bundle[]>('GET', `${API}/bundles`),
+
+    listCustomers: (page = 1, limit = 500) =>
+      list<Customer>(`${API}/customers`, { page, limit }),
+    createCustomer: (input) => data<Customer>('POST', `${API}/customers`, input),
+    updateCustomer: (id, input) => data<Customer>('PUT', `${API}/customers/${id}`, input),
+    deleteCustomer: async (id) => {
+      await request('DELETE', `${API}/customers/${id}`)
+    },
+
+    listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
+    createLoyaltyCondition: (input) =>
+      data<LoyaltyCondition>('POST', `${API}/loyalty-conditions`, input),
+    updateLoyaltyCondition: (id, input) =>
+      data<LoyaltyCondition>('PUT', `${API}/loyalty-conditions/${id}`, input),
+    deleteLoyaltyCondition: async (id) => {
+      await request('DELETE', `${API}/loyalty-conditions/${id}`)
+    },
+    getLoyaltySettings: () => data<LoyaltySettings>('GET', `${API}/settings/loyalty`),
+    updateLoyaltySettings: (input) =>
+      data<LoyaltySettings>('PUT', `${API}/settings/loyalty`, input),
+
+    listPromotions: () => data<Promotion[]>('GET', `${API}/promotions`),
+    createPromotion: (input) => data<Promotion>('POST', `${API}/promotions`, input),
+    updatePromotion: (id, input) => data<Promotion>('PUT', `${API}/promotions/${id}`, input),
+    deletePromotion: async (id) => {
+      await request('DELETE', `${API}/promotions/${id}`)
+    },
+    listDiscountCodes: () => data<DiscountCode[]>('GET', `${API}/discount-codes`),
+    createDiscountCode: (input) =>
+      data<DiscountCode>('POST', `${API}/discount-codes`, input),
+    updateDiscountCode: (id, input) =>
+      data<DiscountCode>('PUT', `${API}/discount-codes/${id}`, input),
+    deleteDiscountCode: async (id) => {
+      await request('DELETE', `${API}/discount-codes/${id}`)
+    },
+
+    listOrders: (params) => list<Order>(`${API}/orders`, params),
+    getOrder: (id) => data<Order>('GET', `${API}/orders/${id}`),
+    refundOrder: (id, reason) =>
+      data<Order>('POST', `${API}/orders/${id}/refund`, { reason }),
+    listShifts: (params) => list<Shift>(`${API}/shifts`, params),
+
+    listStockCounts: (page = 1, limit = 100) =>
+      list<StockCount>(`${API}/stock-counts`, { page, limit }),
+    getStockCount: (id) => data<StockCount>('GET', `${API}/stock-counts/${id}`),
+    createStockCount: (input) => data<StockCount>('POST', `${API}/stock-counts`, input),
+    updateStockCount: (id, input) =>
+      data<StockCount>('PUT', `${API}/stock-counts/${id}`, input),
+    completeStockCount: (id, items) =>
+      data<StockCount>('POST', `${API}/stock-counts/${id}/complete`, { items }),
+
+    listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
+    createUser: (input) => data<User>('POST', `${API}/users`, input),
+    updateUser: (id, input) => data<User>('PUT', `${API}/users/${id}`, input),
+    deleteUser: async (id) => {
+      await request('DELETE', `${API}/users/${id}`)
+    },
+    listCustomRoles: () => data<CustomRole[]>('GET', `${API}/custom-roles`),
+    createCustomRole: (input) => data<CustomRole>('POST', `${API}/custom-roles`, input),
+    updateCustomRole: (id, input) =>
+      data<CustomRole>('PUT', `${API}/custom-roles/${id}`, input),
+    deleteCustomRole: async (id) => {
+      await request('DELETE', `${API}/custom-roles/${id}`)
+    },
+
+    getAppSettings: () => data<AppSettings>('GET', `${API}/settings/app`),
+    updateAppSettings: (input) => data<AppSettings>('PUT', `${API}/settings/app`, input),
+    reportSummary: (params) =>
+      data<ReportSummary>('GET', `${API}/reports/summary${qs(params)}`),
+    signUpload: (folder) =>
+      data<UploadSignature>('POST', `${API}/uploads/sign`, { folder }),
   }
 }

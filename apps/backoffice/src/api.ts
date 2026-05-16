@@ -1,16 +1,19 @@
 import { createClient } from '@mandalika/api'
 
-// Mutable auth holder shared between the API client and the AuthProvider,
-// avoiding a provider↔client import cycle.
+// Mutable auth holder shared between the API client and the providers,
+// avoiding a provider↔client import cycle. `outletId` drives X-Outlet-Id
+// (admin outlet switcher); null = use the token's own outlet.
 export const authStore: {
   access: string | null
+  outletId: string | null
   onUnauthorized: (() => void) | null
-} = { access: null, onUnauthorized: null }
+} = { access: null, outletId: null, onUnauthorized: null }
 
 const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
 export const api = createClient({
   baseUrl,
   getToken: () => authStore.access,
+  getOutletId: () => authStore.outletId,
   onUnauthorized: () => authStore.onUnauthorized?.(),
 })

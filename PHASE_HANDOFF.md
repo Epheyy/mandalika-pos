@@ -26,7 +26,7 @@ Tell each new session verbatim:
 | #1 | A — Monorepo + Go backend foundation | DONE |
 | #2 | B — Read APIs + client seam + app scaffolds | DONE |
 | #3 | C — Writes + order tx + offline core + Cashier split | DONE |
-| #4 | D — Migrate remaining backoffice screens | PENDING |
+| #4 | D — Migrate remaining backoffice screens | DONE |
 | #5 | E — Native shell + Bluetooth printing | PENDING |
 | #6 | F — Data migration + cutover | PENDING |
 
@@ -162,7 +162,65 @@ replace `onSnapshot` with `usePolledQuery`; enforce outlet scoping per screen;
 decompose >800-line screens. Drop `firebase` dep from `package.json`; delete
 `src/firebase.ts` + `src/lib/seedData.ts`. Exit: zero Firebase imports remain.
 
-Open follow-ups → E: app still browser-only.
+**Status: Phase D COMPLETE.**
+
+Backend (OpenAPI-first, mirrors Phase C patterns):
+- `api/openapi.yaml` extended: `CustomRoleInput`, `StockCountCreateInput`,
+  `StockCountUpdateInput`, `StockCountCompleteInput`; new paths
+  `POST/PUT/DELETE /custom-roles` (+`/{id}`), `POST/PUT /stock-counts`,
+  `POST /stock-counts/{id}/complete`. `api.gen.go` regenerated; **`make
+  gen-check` verified NO DRIFT** (CI green).
+- `internal/write/stockcount.go`: custom-role CRUD (global ref data → bumps
+  `content_version`); stock-count create/update(start/cancel/save)/complete.
+  Complete applies actual qty → product variant stock in ONE pg tx and bumps
+  `products` content version (POS resync, §5a). Outlet-scoped, server-resolved
+  (`scopedSC` → 404 cross-outlet). `internal/handlers/writes.go` +
+  `server.go` routes: custom-roles under admin group, stock-count writes under
+  `RequirePermission("manage_stock_count")`. `go build` + `go vet` clean.
+- Request/response shapes: custom-role `{name,permissions[]}`→`{data:{id}}`/
+  `{ok:true}`; stock-count create `{name,plannedDate,notes,items[]}` (outletId
+  from JWT, NOT body)→`{data:{id}}`; update `{status?|items?|notes?}`→`{ok}`;
+  complete `{items?}`→`{data:StockCount}`.
+
+Frontend:
+- `packages/api/src/client.ts`: full typed CRUD for every resource
+  (products/categories/customers/promotions/discount-codes/outlets/users/
+  custom-roles/stock-counts/loyalty + reports/uploads). `getOutletId`→
+  `X-Outlet-Id`.
+- `apps/backoffice`: Tailwind v4 wired (`@tailwindcss/vite` + `index.css`);
+  deps added (lucide-react, recharts, date-fns, xlsx). New shared infra:
+  `hooks/usePolledQuery.ts` (visibility-aware polling = `onSnapshot`
+  replacement), `outlet.tsx` (`OutletProvider`/`useOutlet`/`OutletSwitcher`,
+  admin cross-outlet), `lib/{brand,csvUtils,uploadImage(signed §8)}`, `api.ts`
+  (+outletId), shell `App.tsx` (sidebar nav + permission/role gating + screen
+  registry), `main.tsx` (Auth→Outlet→App).
+- All 10 screens ported to `packages/api` + `usePolledQuery`, no Firebase:
+  Dashboard, Products(+categories; bundles read-only — see follow-ups),
+  Customers(+loyalty settings/conditions/history), Promotions(+discount
+  codes), Orders(server refund), Reports, StockCount, Outlets, Users(+custom
+  roles), SettingsScreen. Each <800 lines.
+- Teardown: deleted legacy `src/` tree (incl. `firebase.ts`,
+  `lib/seedData.ts`), root `index.html`/`vite.config.ts`/`tsconfig.app|node`;
+  root `package.json` is now a pnpm workspace root (firebase + legacy app deps
+  removed; `build`=`pnpm -r build`). **Zero Firebase imports remain**
+  (`grep -r firebase apps packages` → none).
+- Verify: `pnpm -r build` clean — `apps/backoffice` & `apps/pos` both
+  `tsc -b`+`vite build` green; backend `go build`/`go vet`/`gen-check` green.
+
+Open follow-ups → E:
+- Bundle write API not in Phase B/C contract → Products "Bundle" tab is
+  read-only with an in-UI notice. Add bundle CRUD endpoints + editor when
+  needed.
+- Legacy `syncLogs` cashier-sync log panel (old Outlets screen) dropped — no
+  backend read API; revisit if required.
+- Outlet has no DELETE endpoint (server.go only POST/PUT) → Outlets screen
+  edits/toggles but cannot delete; matches backend surface.
+- `pnpm lint` (root) reports `react-hooks` v7 strictness
+  (`set-state-in-effect`/`exhaustive-deps`) in new infra hooks AND in
+  pre-existing Phase C `apps/pos` (auth/SyncProvider/useShift/CashierScreen) —
+  shared pattern, not a Phase D regression; `pnpm -r build` (the §11 gate) is
+  clean. Tidy across pos+backoffice in a dedicated lint pass if desired.
+- App still browser-only (native shell = E).
 
 ---
 

@@ -353,6 +353,87 @@ func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
 	h.created(w, r, id, err)
 }
 
+// ── Custom roles (admin) ──────────────────────────────────
+
+func (h *Handlers) CreateCustomRole(w http.ResponseWriter, r *http.Request) {
+	c, ok := decodeWrite[write.CustomRole](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateCustomRole(r.Context(), c)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateCustomRole(w http.ResponseWriter, r *http.Request) {
+	c, ok := decodeWrite[write.CustomRole](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateCustomRole(r.Context(), chi.URLParam(r, "id"), c))
+}
+
+func (h *Handlers) DeleteCustomRole(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteCustomRole(r.Context(), chi.URLParam(r, "id")))
+}
+
+// ── Stock counts (outlet-scoped) ──────────────────────────
+
+func (h *Handlers) CreateStockCount(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[write.StockCountCreate](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
+	id, err := h.Write.CreateStockCount(r.Context(), c.outletID, c.userID, body)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[write.StockCountUpdate](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateStockCount(r.Context(),
+		chi.URLParam(r, "id"), c.outletID, body))
+}
+
+func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Items []write.StockCountItem `json:"items"`
+	}
+	_ = httpx.DecodeLoose(r, &body)
+	c, _ := h.caller(r)
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if err := h.Write.CompleteStockCount(r.Context(), id, c.outletID, body.Items); err != nil {
+		if errors.Is(err, write.ErrNotFound) {
+			httpx.Err(w, http.StatusNotFound, "not found")
+			return
+		}
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	h.invalidate(r)
+	v, err := h.Repo.StockCount(r.Context(), scope(r), id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": v})
+}
+
 // ── Sync wall + outbox ────────────────────────────────────
 
 func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {

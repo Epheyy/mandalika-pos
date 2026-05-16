@@ -131,6 +131,12 @@ const (
 	StockCountStatusPlanned    StockCountStatus = "planned"
 )
 
+// Defines values for StockCountUpdateInputStatus.
+const (
+	Cancelled  StockCountUpdateInputStatus = "cancelled"
+	InProgress StockCountUpdateInputStatus = "in_progress"
+)
+
 // Defines values for SyncBatchItemType.
 const (
 	SyncBatchItemTypeCashFlow   SyncBatchItemType = "cash_flow"
@@ -332,6 +338,12 @@ type CustomRole struct {
 	Id          openapi_types.UUID `json:"id"`
 	Name        string             `json:"name"`
 	Permissions []string           `json:"permissions"`
+}
+
+// CustomRoleInput defines model for CustomRoleInput.
+type CustomRoleInput struct {
+	Name        string   `json:"name"`
+	Permissions []string `json:"permissions"`
 }
 
 // CustomRoleListResponse defines model for CustomRoleListResponse.
@@ -781,6 +793,19 @@ type StockCount struct {
 // StockCountStatus defines model for StockCount.Status.
 type StockCountStatus string
 
+// StockCountCompleteInput defines model for StockCountCompleteInput.
+type StockCountCompleteInput struct {
+	Items nullable.Nullable[[]StockCountItem] `json:"items,omitempty"`
+}
+
+// StockCountCreateInput defines model for StockCountCreateInput.
+type StockCountCreateInput struct {
+	Items       []StockCountItem          `json:"items"`
+	Name        string                    `json:"name"`
+	Notes       nullable.Nullable[string] `json:"notes,omitempty"`
+	PlannedDate nullable.Nullable[string] `json:"plannedDate,omitempty"`
+}
+
 // StockCountItem defines model for StockCountItem.
 type StockCountItem struct {
 	ActualQty   nullable.Nullable[int] `json:"actualQty,omitempty"`
@@ -802,6 +827,16 @@ type StockCountListResponse struct {
 type StockCountResponse struct {
 	Data StockCount `json:"data"`
 }
+
+// StockCountUpdateInput defines model for StockCountUpdateInput.
+type StockCountUpdateInput struct {
+	Items  nullable.Nullable[[]StockCountItem]            `json:"items,omitempty"`
+	Notes  nullable.Nullable[string]                      `json:"notes,omitempty"`
+	Status nullable.Nullable[StockCountUpdateInputStatus] `json:"status,omitempty"`
+}
+
+// StockCountUpdateInputStatus defines model for StockCountUpdateInput.Status.
+type StockCountUpdateInputStatus string
 
 // SyncBatchItem defines model for SyncBatchItem.
 type SyncBatchItem struct {
@@ -1089,8 +1124,26 @@ type ListStockCountsParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// CreateStockCountParams defines parameters for CreateStockCount.
+type CreateStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
 // GetStockCountParams defines parameters for GetStockCount.
 type GetStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// UpdateStockCountParams defines parameters for UpdateStockCount.
+type UpdateStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// CompleteStockCountParams defines parameters for CompleteStockCount.
+type CompleteStockCountParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
@@ -1140,6 +1193,12 @@ type CreateCategoryJSONRequestBody = CategoryInput
 // UpdateCategoryJSONRequestBody defines body for UpdateCategory for application/json ContentType.
 type UpdateCategoryJSONRequestBody = CategoryInput
 
+// CreateCustomRoleJSONRequestBody defines body for CreateCustomRole for application/json ContentType.
+type CreateCustomRoleJSONRequestBody = CustomRoleInput
+
+// UpdateCustomRoleJSONRequestBody defines body for UpdateCustomRole for application/json ContentType.
+type UpdateCustomRoleJSONRequestBody = CustomRoleInput
+
 // CreateCustomerJSONRequestBody defines body for CreateCustomer for application/json ContentType.
 type CreateCustomerJSONRequestBody = CustomerInput
 
@@ -1187,6 +1246,15 @@ type OpenShiftJSONRequestBody = OpenShiftRequest
 
 // CloseShiftJSONRequestBody defines body for CloseShift for application/json ContentType.
 type CloseShiftJSONRequestBody = CloseShiftRequest
+
+// CreateStockCountJSONRequestBody defines body for CreateStockCount for application/json ContentType.
+type CreateStockCountJSONRequestBody = StockCountCreateInput
+
+// UpdateStockCountJSONRequestBody defines body for UpdateStockCount for application/json ContentType.
+type UpdateStockCountJSONRequestBody = StockCountUpdateInput
+
+// CompleteStockCountJSONRequestBody defines body for CompleteStockCount for application/json ContentType.
+type CompleteStockCountJSONRequestBody = StockCountCompleteInput
 
 // SyncBatchJSONRequestBody defines body for SyncBatch for application/json ContentType.
 type SyncBatchJSONRequestBody = SyncBatchRequest
@@ -1241,6 +1309,15 @@ type ServerInterface interface {
 	// List custom roles
 	// (GET /api/v1/custom-roles)
 	ListCustomRoles(w http.ResponseWriter, r *http.Request)
+	// Create custom role (admin)
+	// (POST /api/v1/custom-roles)
+	CreateCustomRole(w http.ResponseWriter, r *http.Request)
+	// Delete custom role (admin)
+	// (DELETE /api/v1/custom-roles/{id})
+	DeleteCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update custom role (admin)
+	// (PUT /api/v1/custom-roles/{id})
+	UpdateCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List customers
 	// (GET /api/v1/customers)
 	ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams)
@@ -1352,9 +1429,18 @@ type ServerInterface interface {
 	// List stock counts (outlet-scoped)
 	// (GET /api/v1/stock-counts)
 	ListStockCounts(w http.ResponseWriter, r *http.Request, params ListStockCountsParams)
+	// Create stock count (outlet-scoped; freezes current stock)
+	// (POST /api/v1/stock-counts)
+	CreateStockCount(w http.ResponseWriter, r *http.Request, params CreateStockCountParams)
 	// Get stock count (outlet-scoped)
 	// (GET /api/v1/stock-counts/{id})
 	GetStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetStockCountParams)
+	// Update stock count (start / save progress / cancel; outlet-scoped)
+	// (PUT /api/v1/stock-counts/{id})
+	UpdateStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateStockCountParams)
+	// Complete stock count — applies actual quantities to product stock in one tx and bumps the content version (outlet-scoped).
+	// (POST /api/v1/stock-counts/{id}/complete)
+	CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams)
 	// Flush the offline outbox; each item idempotent (plan §5)
 	// (POST /api/v1/sync/batch)
 	SyncBatch(w http.ResponseWriter, r *http.Request, params SyncBatchParams)
@@ -1466,6 +1552,24 @@ func (_ Unimplemented) UpdateCategory(w http.ResponseWriter, r *http.Request, id
 // List custom roles
 // (GET /api/v1/custom-roles)
 func (_ Unimplemented) ListCustomRoles(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create custom role (admin)
+// (POST /api/v1/custom-roles)
+func (_ Unimplemented) CreateCustomRole(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete custom role (admin)
+// (DELETE /api/v1/custom-roles/{id})
+func (_ Unimplemented) DeleteCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update custom role (admin)
+// (PUT /api/v1/custom-roles/{id})
+func (_ Unimplemented) UpdateCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1691,9 +1795,27 @@ func (_ Unimplemented) ListStockCounts(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Create stock count (outlet-scoped; freezes current stock)
+// (POST /api/v1/stock-counts)
+func (_ Unimplemented) CreateStockCount(w http.ResponseWriter, r *http.Request, params CreateStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get stock count (outlet-scoped)
 // (GET /api/v1/stock-counts/{id})
 func (_ Unimplemented) GetStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update stock count (start / save progress / cancel; outlet-scoped)
+// (PUT /api/v1/stock-counts/{id})
+func (_ Unimplemented) UpdateStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Complete stock count — applies actual quantities to product stock in one tx and bumps the content version (outlet-scoped).
+// (POST /api/v1/stock-counts/{id}/complete)
+func (_ Unimplemented) CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2097,6 +2219,88 @@ func (siw *ServerInterfaceWrapper) ListCustomRoles(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListCustomRoles(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCustomRole operation middleware
+func (siw *ServerInterfaceWrapper) CreateCustomRole(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCustomRole(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCustomRole operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCustomRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCustomRole(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCustomRole operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCustomRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCustomRole(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3497,6 +3701,52 @@ func (siw *ServerInterfaceWrapper) ListStockCounts(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// CreateStockCount operation middleware
+func (siw *ServerInterfaceWrapper) CreateStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateStockCount(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetStockCount operation middleware
 func (siw *ServerInterfaceWrapper) GetStockCount(w http.ResponseWriter, r *http.Request) {
 
@@ -3543,6 +3793,116 @@ func (siw *ServerInterfaceWrapper) GetStockCount(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateStockCount operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteStockCount operation middleware
+func (siw *ServerInterfaceWrapper) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CompleteStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteStockCount(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4031,6 +4391,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/custom-roles", wrapper.ListCustomRoles)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/custom-roles", wrapper.CreateCustomRole)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/custom-roles/{id}", wrapper.DeleteCustomRole)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/custom-roles/{id}", wrapper.UpdateCustomRole)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/customers", wrapper.ListCustomers)
 	})
 	r.Group(func(r chi.Router) {
@@ -4142,7 +4511,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/stock-counts", wrapper.ListStockCounts)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts", wrapper.CreateStockCount)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/stock-counts/{id}", wrapper.GetStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/stock-counts/{id}", wrapper.UpdateStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/complete", wrapper.CompleteStockCount)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/sync/batch", wrapper.SyncBatch)
@@ -4469,6 +4847,85 @@ type ListCustomRoles200JSONResponse CustomRoleListResponse
 func (response ListCustomRoles200JSONResponse) VisitListCustomRolesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateCustomRoleRequestObject struct {
+	Body *CreateCustomRoleJSONRequestBody
+}
+
+type CreateCustomRoleResponseObject interface {
+	VisitCreateCustomRoleResponse(w http.ResponseWriter) error
+}
+
+type CreateCustomRole201JSONResponse IdResponse
+
+func (response CreateCustomRole201JSONResponse) VisitCreateCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateCustomRole403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateCustomRole403JSONResponse) VisitCreateCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCustomRoleRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteCustomRoleResponseObject interface {
+	VisitDeleteCustomRoleResponse(w http.ResponseWriter) error
+}
+
+type DeleteCustomRole200JSONResponse OkResponse
+
+func (response DeleteCustomRole200JSONResponse) VisitDeleteCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteCustomRole404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteCustomRole404JSONResponse) VisitDeleteCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCustomRoleRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateCustomRoleJSONRequestBody
+}
+
+type UpdateCustomRoleResponseObject interface {
+	VisitUpdateCustomRoleResponse(w http.ResponseWriter) error
+}
+
+type UpdateCustomRole200JSONResponse OkResponse
+
+func (response UpdateCustomRole200JSONResponse) VisitUpdateCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCustomRole404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCustomRole404JSONResponse) VisitUpdateCustomRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -5287,6 +5744,33 @@ func (response ListStockCounts200JSONResponse) VisitListStockCountsResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateStockCountRequestObject struct {
+	Params CreateStockCountParams
+	Body   *CreateStockCountJSONRequestBody
+}
+
+type CreateStockCountResponseObject interface {
+	VisitCreateStockCountResponse(w http.ResponseWriter) error
+}
+
+type CreateStockCount201JSONResponse IdResponse
+
+func (response CreateStockCount201JSONResponse) VisitCreateStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateStockCount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateStockCount403JSONResponse) VisitCreateStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetStockCountRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params GetStockCountParams
@@ -5308,6 +5792,62 @@ func (response GetStockCount200JSONResponse) VisitGetStockCountResponse(w http.R
 type GetStockCount404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response GetStockCount404JSONResponse) VisitGetStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params UpdateStockCountParams
+	Body   *UpdateStockCountJSONRequestBody
+}
+
+type UpdateStockCountResponseObject interface {
+	VisitUpdateStockCountResponse(w http.ResponseWriter) error
+}
+
+type UpdateStockCount200JSONResponse OkResponse
+
+func (response UpdateStockCount200JSONResponse) VisitUpdateStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateStockCount404JSONResponse) VisitUpdateStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params CompleteStockCountParams
+	Body   *CompleteStockCountJSONRequestBody
+}
+
+type CompleteStockCountResponseObject interface {
+	VisitCompleteStockCountResponse(w http.ResponseWriter) error
+}
+
+type CompleteStockCount200JSONResponse StockCountResponse
+
+func (response CompleteStockCount200JSONResponse) VisitCompleteStockCountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CompleteStockCount404JSONResponse) VisitCompleteStockCountResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
@@ -5594,6 +6134,15 @@ type StrictServerInterface interface {
 	// List custom roles
 	// (GET /api/v1/custom-roles)
 	ListCustomRoles(ctx context.Context, request ListCustomRolesRequestObject) (ListCustomRolesResponseObject, error)
+	// Create custom role (admin)
+	// (POST /api/v1/custom-roles)
+	CreateCustomRole(ctx context.Context, request CreateCustomRoleRequestObject) (CreateCustomRoleResponseObject, error)
+	// Delete custom role (admin)
+	// (DELETE /api/v1/custom-roles/{id})
+	DeleteCustomRole(ctx context.Context, request DeleteCustomRoleRequestObject) (DeleteCustomRoleResponseObject, error)
+	// Update custom role (admin)
+	// (PUT /api/v1/custom-roles/{id})
+	UpdateCustomRole(ctx context.Context, request UpdateCustomRoleRequestObject) (UpdateCustomRoleResponseObject, error)
 	// List customers
 	// (GET /api/v1/customers)
 	ListCustomers(ctx context.Context, request ListCustomersRequestObject) (ListCustomersResponseObject, error)
@@ -5705,9 +6254,18 @@ type StrictServerInterface interface {
 	// List stock counts (outlet-scoped)
 	// (GET /api/v1/stock-counts)
 	ListStockCounts(ctx context.Context, request ListStockCountsRequestObject) (ListStockCountsResponseObject, error)
+	// Create stock count (outlet-scoped; freezes current stock)
+	// (POST /api/v1/stock-counts)
+	CreateStockCount(ctx context.Context, request CreateStockCountRequestObject) (CreateStockCountResponseObject, error)
 	// Get stock count (outlet-scoped)
 	// (GET /api/v1/stock-counts/{id})
 	GetStockCount(ctx context.Context, request GetStockCountRequestObject) (GetStockCountResponseObject, error)
+	// Update stock count (start / save progress / cancel; outlet-scoped)
+	// (PUT /api/v1/stock-counts/{id})
+	UpdateStockCount(ctx context.Context, request UpdateStockCountRequestObject) (UpdateStockCountResponseObject, error)
+	// Complete stock count — applies actual quantities to product stock in one tx and bumps the content version (outlet-scoped).
+	// (POST /api/v1/stock-counts/{id}/complete)
+	CompleteStockCount(ctx context.Context, request CompleteStockCountRequestObject) (CompleteStockCountResponseObject, error)
 	// Flush the offline outbox; each item idempotent (plan §5)
 	// (POST /api/v1/sync/batch)
 	SyncBatch(ctx context.Context, request SyncBatchRequestObject) (SyncBatchResponseObject, error)
@@ -6131,6 +6689,96 @@ func (sh *strictHandler) ListCustomRoles(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListCustomRolesResponseObject); ok {
 		if err := validResponse.VisitListCustomRolesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCustomRole operation middleware
+func (sh *strictHandler) CreateCustomRole(w http.ResponseWriter, r *http.Request) {
+	var request CreateCustomRoleRequestObject
+
+	var body CreateCustomRoleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCustomRole(ctx, request.(CreateCustomRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCustomRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCustomRoleResponseObject); ok {
+		if err := validResponse.VisitCreateCustomRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCustomRole operation middleware
+func (sh *strictHandler) DeleteCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteCustomRoleRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCustomRole(ctx, request.(DeleteCustomRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCustomRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCustomRoleResponseObject); ok {
+		if err := validResponse.VisitDeleteCustomRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCustomRole operation middleware
+func (sh *strictHandler) UpdateCustomRole(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateCustomRoleRequestObject
+
+	request.Id = id
+
+	var body UpdateCustomRoleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCustomRole(ctx, request.(UpdateCustomRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCustomRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCustomRoleResponseObject); ok {
+		if err := validResponse.VisitUpdateCustomRoleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7192,6 +7840,39 @@ func (sh *strictHandler) ListStockCounts(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// CreateStockCount operation middleware
+func (sh *strictHandler) CreateStockCount(w http.ResponseWriter, r *http.Request, params CreateStockCountParams) {
+	var request CreateStockCountRequestObject
+
+	request.Params = params
+
+	var body CreateStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateStockCount(ctx, request.(CreateStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateStockCountResponseObject); ok {
+		if err := validResponse.VisitCreateStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetStockCount operation middleware
 func (sh *strictHandler) GetStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetStockCountParams) {
 	var request GetStockCountRequestObject
@@ -7212,6 +7893,74 @@ func (sh *strictHandler) GetStockCount(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetStockCountResponseObject); ok {
 		if err := validResponse.VisitGetStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateStockCount operation middleware
+func (sh *strictHandler) UpdateStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateStockCountParams) {
+	var request UpdateStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body UpdateStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateStockCount(ctx, request.(UpdateStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateStockCountResponseObject); ok {
+		if err := validResponse.VisitUpdateStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteStockCount operation middleware
+func (sh *strictHandler) CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams) {
+	var request CompleteStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body CompleteStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteStockCount(ctx, request.(CompleteStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteStockCountResponseObject); ok {
+		if err := validResponse.VisitCompleteStockCountResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7504,110 +8253,115 @@ func (sh *strictHandler) Health(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

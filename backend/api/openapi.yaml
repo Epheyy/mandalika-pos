@@ -511,6 +511,36 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/CustomRole' } }
+    CustomRoleInput:
+      type: object
+      required: [name, permissions]
+      properties:
+        name: { type: string }
+        permissions: { type: array, items: { type: string } }
+    StockCountCreateInput:
+      type: object
+      required: [name, items]
+      properties:
+        name: { type: string }
+        plannedDate: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/StockCountItem' } }
+    StockCountUpdateInput:
+      type: object
+      properties:
+        status: { type: string, enum: [in_progress, cancelled], nullable: true }
+        notes: { type: string, nullable: true }
+        items:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/StockCountItem' }
+    StockCountCompleteInput:
+      type: object
+      properties:
+        items:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/StockCountItem' }
     ProductSalesRow:
       type: object
       required: [productId, productName, quantity, revenue]
@@ -1245,6 +1275,55 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomRoleListResponse' }
+    post:
+      operationId: createCustomRole
+      tags: [users]
+      summary: Create custom role (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomRoleInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/custom-roles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateCustomRole
+      tags: [users]
+      summary: Update custom role (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomRoleInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteCustomRole
+      tags: [users]
+      summary: Delete custom role (admin)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/orders:
     post:
       operationId: createOrder
@@ -1390,12 +1469,48 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountListResponse' }
+    post:
+      operationId: createStockCount
+      tags: [sales]
+      summary: Create stock count (outlet-scoped; freezes current stock)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockCountCreateInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/stock-counts/{id}:
     parameters:
       - name: id
         in: path
         required: true
         schema: { type: string, format: uuid }
+    put:
+      operationId: updateStockCount
+      tags: [sales]
+      summary: Update stock count (start / save progress / cancel; outlet-scoped)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockCountUpdateInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
     get:
       operationId: getStockCount
       tags: [sales]
@@ -1405,6 +1520,32 @@ paths:
       responses:
         '200':
           description: stock count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/stock-counts/{id}/complete:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: completeStockCount
+      tags: [sales]
+      summary: >
+        Complete stock count — applies actual quantities to product stock in
+        one tx and bumps the content version (outlet-scoped).
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockCountCompleteInput' }
+      responses:
+        '200':
+          description: completed
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountResponse' }

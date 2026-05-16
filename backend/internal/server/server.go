@@ -140,6 +140,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 				r.Put("/settings/app", h.UpdateAppSettings)
 				r.Put("/settings/loyalty", h.UpdateLoyaltySettings)
 			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_stock_count"))
+				r.Post("/stock-counts", h.CreateStockCount)
+				r.Put("/stock-counts/{id}", h.UpdateStockCount)
+				r.Post("/stock-counts/{id}/complete", h.CompleteStockCount)
+			})
 
 			// Reports — permission-gated.
 			r.With(mw.RequirePermission("view_reports")).
@@ -155,6 +161,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 				r.Put("/users/{id}", h.UpdateUser)
 				r.Delete("/users/{id}", h.DeleteUser)
 				r.Get("/custom-roles", h.CustomRoles)
+				r.Post("/custom-roles", h.CreateCustomRole)
+				r.Put("/custom-roles/{id}", h.UpdateCustomRole)
+				r.Delete("/custom-roles/{id}", h.DeleteCustomRole)
 			})
 		})
 	})
