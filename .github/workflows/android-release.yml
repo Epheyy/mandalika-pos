@@ -1,0 +1,78 @@
+name: Android Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "VITE_API_URL the APK points at"
+        required: true
+        default: "https://mandalika-pos-538849926142.asia-southeast2.run.app"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Install deps
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Build POS web bundle
+        env:
+          VITE_API_URL: ${{ github.event.inputs.api_url }}
+        run: corepack pnpm --filter @mandalika/pos build
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Capacitor sync (android)
+        run: corepack pnpm --filter @mandalika/pos exec cap sync android
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/apps/pos/android/mandalika-release.jks"
+
+      - name: Assemble signed release
+        working-directory: apps/pos/android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/apps/pos/android/mandalika-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Verify signature
+        run: |
+          APK=apps/pos/android/app/build/outputs/apk/release/app-release.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/36.0.0)
+          "$BT/apksigner" verify --print-certs "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mandalika-pos-release-apk
+          path: apps/pos/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
