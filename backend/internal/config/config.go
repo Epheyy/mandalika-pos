@@ -86,6 +86,13 @@ func Load() *Config {
 
 func (c *Config) IsProd() bool { return strings.EqualFold(c.Env, "production") }
 
+// nativeOrigins are the Capacitor WebView origins that are valid in
+// production CORS even though they contain "localhost".
+var nativeOrigins = map[string]bool{
+	"https://localhost":     true, // Capacitor Android
+	"capacitor://localhost": true, // Capacitor iOS
+}
+
 // weakSecrets are the committed dev defaults that must never reach production.
 var weakSecrets = map[string]bool{
 	"":                         true,
@@ -121,11 +128,18 @@ func (c *Config) Validate() error {
 		errs = append(errs, "CORS_ORIGINS must be set in production")
 	}
 	for _, o := range c.CORSOrigins {
+		// Capacitor's native WebView origin is https://localhost (Android)
+		// or capacitor://localhost (iOS). Those are the legitimate "native
+		// origins" the criterion allows — permit them exactly. Everything
+		// else containing localhost/127.0.0.1 is a dev origin and rejected.
+		if nativeOrigins[o] {
+			continue
+		}
 		switch {
 		case o == "*":
 			errs = append(errs, "CORS_ORIGINS must not be a wildcard in production")
 		case strings.Contains(o, "localhost"), strings.Contains(o, "127.0.0.1"):
-			errs = append(errs, fmt.Sprintf("CORS_ORIGINS must not contain a local origin in production: %s", o))
+			errs = append(errs, fmt.Sprintf("CORS_ORIGINS must not contain a dev/local origin in production: %s", o))
 		case strings.HasPrefix(o, "http://"):
 			errs = append(errs, fmt.Sprintf("CORS_ORIGINS must be https in production: %s", o))
 		}

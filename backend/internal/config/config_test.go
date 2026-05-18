@@ -32,6 +32,9 @@ func TestValidate(t *testing.T) {
 		{"weak seed pass", func(c *Config) { c.SeedAdminPass = "change-me-now" }, "SEED_ADMIN_PASSWORD"},
 		{"wildcard cors", func(c *Config) { c.CORSOrigins = []string{"*"} }, "wildcard"},
 		{"localhost cors", func(c *Config) { c.CORSOrigins = []string{"https://x", "http://localhost:5173"} }, "local origin"},
+		{"native origins allowed", func(c *Config) {
+			c.CORSOrigins = []string{"https://admin.mandalika.app", "https://localhost", "capacitor://localhost"}
+		}, ""},
 		{"http cors", func(c *Config) { c.CORSOrigins = []string{"http://admin.mandalika.app"} }, "https"},
 		{"db no tls", func(c *Config) { c.DatabaseURL = "postgres://u:p@db.neon.tech/m?sslmode=disable" }, "TLS"},
 		{"db localhost", func(c *Config) { c.DatabaseURL = "postgres://u:p@localhost/m" }, "managed database"},
