@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch window background referenced by AppTheme.NoActionBarLaunch.
+     Solid brand indigo (matches capacitor.config SplashScreen backgroundColor).
+     Static so release resource linking never depends on capacitor-assets. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#4f46e5" />
+</shape>
