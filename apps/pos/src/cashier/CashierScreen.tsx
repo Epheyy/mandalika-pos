@@ -21,6 +21,8 @@ import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
+import { OrderHistoryPanel } from './OrderHistoryPanel'
+import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncWall } from '../components/SyncWall'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen } from '../screens/SettingsScreen'
@@ -71,6 +73,8 @@ export default function CashierScreen() {
   const [isValidatingCode, setIsValidatingCode] = useState(false)
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showRecap, setShowRecap] = useState(false)
   const printer = usePrinter()
   const lastReceipt = useRef<ReceiptData | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
@@ -88,6 +92,7 @@ export default function CashierScreen() {
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
   const categories = snapshot.categories ?? []
   const customers = snapshot.customers ?? []
+  const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
   const discountCodes = snapshot.discountCodes ?? []
   const settings = snapshot.appSettings ?? DEFAULT_SETTINGS
@@ -138,11 +143,14 @@ export default function CashierScreen() {
         amountPaid: state.paymentMethod === 'cash' ? derived.paid : derived.total,
         customerId: state.selectedCustomer?.id ?? null,
         customerName: state.selectedCustomer?.name ?? null,
+        salesmanId: state.selectedSalesman?.id ?? null,
+        salesmanName: state.selectedSalesman?.name ?? null,
         discountType: state.discountRunning > 0 ? state.discountType : null,
         discountValue: state.discountRunning > 0 ? state.discountRunning : null,
         surchargeValue: state.surchargeRunning > 0 ? state.surchargeRunning : null,
         discountCode: state.appliedPromoCode?.code ?? null,
         promotionId: state.appliedPromotion?.id ?? null,
+        pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,
       })
@@ -221,6 +229,8 @@ export default function CashierScreen() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 hidden sm:inline">{user.displayName}</span>
+          <button onClick={() => setShowRecap(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Rekap Shift">Rekap</button>
+          <button onClick={() => setShowHistory(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Riwayat Transaksi">Riwayat</button>
           <button onClick={() => setShowSettings(true)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Pengaturan">⚙</button>
           <button onClick={logout} className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-semibold">Keluar</button>
         </div>
@@ -306,6 +316,12 @@ export default function CashierScreen() {
         derived={derived} settings={settings} paymentMethod={state.paymentMethod}
         amountPaid={state.amountPaid} selectedCustomer={state.selectedCustomer}
         orderNotes={state.orderNotes}
+        salesmen={salesmen} selectedSalesmanId={state.selectedSalesman?.id ?? null}
+        onSelectSalesman={(s) => dispatch({ type: 'SET_SALESMAN', salesman: s })}
+        loyaltyEnabled={loyalty.enabled}
+        customerPoints={state.selectedCustomer?.points ?? 0}
+        pointsToRedeem={state.pointsToRedeem}
+        onPointsRedeemedChange={(p) => dispatch({ type: 'SET_POINTS_REDEEMED', points: p })}
         onPaymentMethodChange={(m) => dispatch({ type: 'SET_PAYMENT_METHOD', method: m })}
         onAmountPaidChange={(a) => dispatch({ type: 'SET_AMOUNT_PAID', amount: a })}
         onConfirm={handleConfirmPayment}
@@ -325,6 +341,14 @@ export default function CashierScreen() {
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
+      />
+
+      <ShiftRecapPanel isOpen={showRecap} onClose={() => setShowRecap(false)} />
+
+      <OrderHistoryPanel
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding}

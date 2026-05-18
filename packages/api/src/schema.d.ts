@@ -1007,6 +1007,7 @@ export interface components {
             /** Format: date-time */
             refundedAt?: string | null;
             shiftId?: string | null;
+            pointsRedeemed?: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1257,6 +1258,7 @@ export interface components {
             loyaltyConditions?: components["schemas"]["LoyaltyCondition"][];
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
+            users?: components["schemas"]["User"][];
         };
         SyncPullResponse: {
             data: components["schemas"]["SyncPullBundle"];

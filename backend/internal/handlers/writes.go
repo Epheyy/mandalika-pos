@@ -209,22 +209,23 @@ func (h *Handlers) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request)
 // ── Orders / sales (server-authoritative tx) ──────────────
 
 type createOrderBody struct {
-	OrderUuid     string              `json:"orderUuid"`
-	DeviceID      string              `json:"deviceId"`
-	SalesmanID    string              `json:"salesmanId"`
-	SalesmanName  string              `json:"salesmanName"`
-	CustomerID    string              `json:"customerId"`
-	CustomerName  string              `json:"customerName"`
-	Items         []service.OrderItem `json:"items"`
-	PaymentMethod string              `json:"paymentMethod"`
-	AmountPaid    float64             `json:"amountPaid"`
-	DiscountType  string              `json:"discountType"`
-	DiscountValue float64             `json:"discountValue"`
-	SurchargeVal  float64             `json:"surchargeValue"`
-	DiscountCode  string              `json:"discountCode"`
-	PromotionID   string              `json:"promotionId"`
-	Notes         string              `json:"notes"`
-	ShiftID       string              `json:"shiftId"`
+	OrderUuid      string              `json:"orderUuid"`
+	DeviceID       string              `json:"deviceId"`
+	SalesmanID     string              `json:"salesmanId"`
+	SalesmanName   string              `json:"salesmanName"`
+	CustomerID     string              `json:"customerId"`
+	CustomerName   string              `json:"customerName"`
+	Items          []service.OrderItem `json:"items"`
+	PaymentMethod  string              `json:"paymentMethod"`
+	AmountPaid     float64             `json:"amountPaid"`
+	DiscountType   string              `json:"discountType"`
+	DiscountValue  float64             `json:"discountValue"`
+	SurchargeVal   float64             `json:"surchargeValue"`
+	DiscountCode   string              `json:"discountCode"`
+	PromotionID    string              `json:"promotionId"`
+	PointsRedeemed int                 `json:"pointsRedeemed"`
+	Notes          string              `json:"notes"`
+	ShiftID        string              `json:"shiftId"`
 }
 
 func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -258,7 +259,8 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		AmountPaid: body.AmountPaid, ManualKind: service.DiscountKind(body.DiscountType),
 		ManualValue: body.DiscountValue, Surcharge: body.SurchargeVal,
 		DiscountCode: body.DiscountCode, PromotionID: body.PromotionID,
-		Notes: body.Notes, ShiftID: body.ShiftID, Offline: false,
+		PointsRedeemed: body.PointsRedeemed,
+		Notes:          body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
 	id, _, _, err := h.OrderSvc.CreateOrder(r.Context(), in)
 	if err != nil {
@@ -448,6 +450,10 @@ func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) SyncPull(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
 	b, err := h.Sync.Pull(r.Context(), scope(r), c.outletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)

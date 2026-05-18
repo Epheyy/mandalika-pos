@@ -19,6 +19,8 @@ export interface PricingResult {
   taxableAmount: number
   taxAmount: number
   surchargeAmount: number
+  redeemAmount: number
+  redeemedPoints: number
   total: number
   earnedPoints: number
 }
@@ -64,6 +66,8 @@ export interface PricingInput {
   settings: AppSettings
   loyalty: LoyaltySettings
   hasCustomer: boolean
+  pointsRedeemed: number
+  customerPoints: number
 }
 
 export function computePricing(input: PricingInput): PricingResult {
@@ -77,6 +81,8 @@ export function computePricing(input: PricingInput): PricingResult {
     settings,
     loyalty,
     hasCustomer,
+    pointsRedeemed,
+    customerPoints,
   } = input
 
   const subtotal = cart.reduce((s, i) => s + i.subtotal, 0)
@@ -128,6 +134,18 @@ export function computePricing(input: PricingInput): PricingResult {
       ? Math.floor(total / 1000) * loyalty.pointsPerThousand
       : 0
 
+  // Loyalty redemption — display mirror; server is authoritative. Clamp to
+  // available points and to the order total (cannot pay a negative bill).
+  const rate = loyalty.redemptionRate || 0
+  let redeemedPoints = 0
+  let redeemAmount = 0
+  if (loyalty.enabled && hasCustomer && pointsRedeemed > 0 && rate > 0) {
+    redeemedPoints = Math.min(pointsRedeemed, customerPoints)
+    redeemAmount = Math.min(Math.round(redeemedPoints * rate), total)
+    redeemedPoints = Math.min(redeemedPoints, Math.floor(redeemAmount / rate))
+  }
+  total = total - redeemAmount
+
   return {
     subtotal,
     manualDiscountAmount,
@@ -136,6 +154,8 @@ export function computePricing(input: PricingInput): PricingResult {
     taxableAmount,
     taxAmount,
     surchargeAmount,
+    redeemAmount,
+    redeemedPoints,
     total,
     earnedPoints,
   }

@@ -12,12 +12,22 @@ import (
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
+	"github.com/mandalika/pos-backend/internal/observability"
 	"github.com/mandalika/pos-backend/internal/server"
 )
 
 func main() {
 	cfg := config.Load()
 	ctx := context.Background()
+
+	observability.InitLogger(cfg.Env)
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
+	sentry, err := observability.NewSentry(cfg.SentryDSN, cfg.Env, "mandalika-pos")
+	if err != nil {
+		log.Fatalf("sentry: %v", err)
+	}
 
 	database, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -38,7 +48,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      server.New(cfg, database, c),
+		Handler:      server.New(cfg, database, c, sentry),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}

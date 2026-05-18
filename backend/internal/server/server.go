@@ -1,7 +1,10 @@
 package server
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -14,6 +17,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/handlers"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
+	"github.com/mandalika/pos-backend/internal/observability"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
@@ -21,17 +25,21 @@ import (
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
-func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
+func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
-	r.Use(chimw.Recoverer)
+	r.Use(mw.RequestLogger)
+	r.Use(sentryRecoverer(sentry))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Outlet-Id", "Idempotency-Key"},
 		AllowCredentials: true,
+		MaxAge:           300,
 	}))
+	// Global per-IP rate limit; a POS device bursts on sync but stays modest.
+	r.Use(mw.RateLimit(c, "api", cfg.RateLimitRPS*60, time.Minute))
 
 	store := auth.NewStore(database.Pool)
 	ah := auth.NewHandler(cfg, store, c)
@@ -57,10 +65,21 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// Liveness: process is up. Used by the platform health check; must not
+	// touch dependencies so a transient DB blip doesn't kill the instance.
+	r.Get("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ready"})
+	})
+
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/auth/login", ah.Login)
-		r.Post("/auth/refresh", ah.Refresh)
-		r.Post("/auth/logout", ah.Logout)
+		// Credential endpoints get a strict per-IP limit to blunt
+		// brute-force and token-spray; the global limit still applies.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RateLimit(c, "auth", 10, time.Minute))
+			r.Post("/auth/login", ah.Login)
+			r.Post("/auth/refresh", ah.Refresh)
+			r.Post("/auth/logout", ah.Logout)
+		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(cfg))
@@ -169,4 +188,32 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache) http.Handler {
 	})
 
 	return r
+}
+
+// sentryRecoverer recovers panics, ships them to error tracking, logs a
+// structured error, and returns 500 — replacing chi's plain Recoverer so
+// crashes are observable in production instead of only on stdout.
+func sentryRecoverer(s *observability.Sentry) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil && rec != http.ErrAbortHandler {
+					err, ok := rec.(error)
+					if !ok {
+						err = fmt.Errorf("panic: %v", rec)
+					}
+					slog.Error("panic recovered",
+						"err", err,
+						"path", r.URL.Path,
+						"request_id", chimw.GetReqID(r.Context()))
+					s.CaptureError(r.Context(), err, map[string]string{
+						"path":       r.URL.Path,
+						"request_id": chimw.GetReqID(r.Context()),
+					})
+					httpx.Err(w, http.StatusInternalServerError, "internal error")
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
 }

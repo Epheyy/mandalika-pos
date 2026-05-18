@@ -48,6 +48,7 @@ type CreateOrderInput struct {
 	Surcharge      float64
 	DiscountCode   string // promo code applied
 	PromotionID    string // applied promotion id
+	PointsRedeemed int    // loyalty points the customer spends on this order
 	Notes          string
 	ShiftID        string
 	ClientCreated  *time.Time
@@ -98,7 +99,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	if err != nil {
 		return "", false, false, err
 	}
-	loyEnabled, pointsPerK, err := loadLoyalty(ctx, tx)
+	loyEnabled, pointsPerK, redemptionRate, err := loadLoyalty(ctx, tx)
 	if err != nil {
 		return "", false, false, err
 	}
@@ -115,6 +116,30 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
 		HasCustomer: in.CustomerID != "",
 	})
+
+	// Loyalty redemption (P1-E): authoritative rupiah value from
+	// loyalty_settings.redemption_rate, clamped to the customer's available
+	// points and to the order total (can't pay a negative bill).
+	pointsRedeemed := 0
+	redeemAmount := 0.0
+	if in.PointsRedeemed > 0 && in.CustomerID != "" && loyEnabled && redemptionRate > 0 {
+		var avail int
+		if e := tx.QueryRow(ctx,
+			`SELECT points FROM customers WHERE id=$1 FOR UPDATE`,
+			in.CustomerID).Scan(&avail); e != nil {
+			return "", false, false, fmt.Errorf("load customer points: %w", e)
+		}
+		pointsRedeemed = in.PointsRedeemed
+		if pointsRedeemed > avail {
+			pointsRedeemed = avail
+		}
+		redeemAmount = float64(pointsRedeemed) * redemptionRate
+		if redeemAmount > res.Total {
+			redeemAmount = res.Total
+			pointsRedeemed = int(res.Total / redemptionRate)
+		}
+	}
+	finalTotal := res.Total - redeemAmount
 
 	// Stock decrement under row lock (plan §9 :752-763, FOR UPDATE).
 	for _, it := range in.Items {
@@ -151,12 +176,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	amountPaid := in.AmountPaid
 	change := 0.0
 	if in.PaymentMethod == "cash" {
-		change = amountPaid - res.Total
+		change = amountPaid - finalTotal
 		if change < 0 {
 			change = 0
 		}
 	} else {
-		amountPaid = res.Total
+		amountPaid = finalTotal
 	}
 
 	err = tx.QueryRow(ctx, `
@@ -167,9 +192,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning)
+		  stock_warning, points_redeemed)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -177,9 +202,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		res.Subtotal, res.DiscountAmount, nullStr(string(in.ManualKind)),
 		nullNum(in.ManualValue), nullStr(in.DiscountCode),
 		nullStr(string(in.ManualKind)), nullNum(in.Surcharge), res.SurchargeAmount,
-		res.TaxAmount, res.Total, in.PaymentMethod, amountPaid, change,
-		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, res.Total,
-		stockWarning,
+		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
+		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
+		stockWarning, pointsRedeemed,
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)
@@ -200,8 +225,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	if in.CustomerID != "" {
 		if _, e := tx.Exec(ctx, `
 			UPDATE customers SET total_spent=total_spent+$1, visit_count=visit_count+1,
-			  last_visit=now(), points=points+$2 WHERE id=$3`,
-			res.Total, res.EarnedPoints, in.CustomerID); e != nil {
+			  last_visit=now(), points=points+$2-$4 WHERE id=$3`,
+			finalTotal, res.EarnedPoints, in.CustomerID, pointsRedeemed); e != nil {
 			return "", false, false, fmt.Errorf("update customer: %w", e)
 		}
 	}
@@ -334,13 +359,14 @@ func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, strin
 	return te, tr, re, rt, err
 }
 
-func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, error) {
+func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, float64, error) {
 	var en bool
-	var ppk float64
+	var ppk, rate float64
 	err := tx.QueryRow(ctx,
-		`SELECT enabled, points_per_thousand FROM loyalty_settings WHERE id=1`).
-		Scan(&en, &ppk)
-	return en, ppk, err
+		`SELECT enabled, points_per_thousand, redemption_rate
+		   FROM loyalty_settings WHERE id=1`).
+		Scan(&en, &ppk, &rate)
+	return en, ppk, rate, err
 }
 
 // nextOrderNumber assigns MND-YYYYMMDD-NNNN per outlet/day under a row lock so

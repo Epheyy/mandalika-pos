@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initSecureKV } from '@mandalika/sync'
+import './index.css'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
 import { bootNativeShell } from './native'

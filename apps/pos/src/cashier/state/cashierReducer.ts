@@ -23,6 +23,10 @@ export interface CashierState {
   // Customer
   selectedCustomer: Customer | null
   customerSearch: string
+  // Salesman (staff attributed to the sale)
+  selectedSalesman: { id: string; name: string } | null
+  // Loyalty points the customer redeems on this order
+  pointsToRedeem: number
   // Adjustments
   discountType: 'percentage' | 'fixed'
   discountRunning: number
@@ -52,6 +56,8 @@ export type CashierAction =
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
   | { type: 'SET_CUSTOMER_SEARCH'; search: string }
+  | { type: 'SET_SALESMAN'; salesman: { id: string; name: string } | null }
+  | { type: 'SET_POINTS_REDEEMED'; points: number }
   | { type: 'SET_DISCOUNT_TYPE'; discountType: 'percentage' | 'fixed' }
   | { type: 'APPLY_DISCOUNT'; value: number }
   | { type: 'APPLY_SURCHARGE'; value: number }
@@ -77,6 +83,8 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   cart: [],
   selectedCustomer: null,
   customerSearch: '',
+  selectedSalesman: null,
+  pointsToRedeem: 0,
   discountType: 'fixed',
   discountRunning: 0,
   surchargeRunning: 0,
@@ -166,6 +174,8 @@ export function cashierReducer(
         cart: [],
         selectedCustomer: null,
         customerSearch: '',
+        selectedSalesman: null,
+        pointsToRedeem: 0,
         orderNotes: '',
         discountRunning: 0,
         surchargeRunning: 0,
@@ -180,10 +190,18 @@ export function cashierReducer(
         ...state,
         selectedCustomer: action.customer,
         customerSearch: action.customer ? '' : state.customerSearch,
+        // Points belong to a customer; drop redemption when they change/clear.
+        pointsToRedeem: 0,
       }
 
     case 'SET_CUSTOMER_SEARCH':
       return { ...state, customerSearch: action.search }
+
+    case 'SET_SALESMAN':
+      return { ...state, selectedSalesman: action.salesman }
+
+    case 'SET_POINTS_REDEEMED':
+      return { ...state, pointsToRedeem: Math.max(0, Math.floor(action.points)) }
 
     case 'SET_DISCOUNT_TYPE':
       return { ...state, discountType: action.discountType }

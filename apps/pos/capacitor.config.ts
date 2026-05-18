@@ -12,7 +12,9 @@ const config: CapacitorConfig = {
   // shell never points at a dev server and cannot accidentally refresh to a
   // browser tab. Override VITE_API_URL at build time for the device target.
   android: {
-    // App-served https scheme; the REST API is reached cross-origin over TLS.
+    // PROD: false — the prod API is HTTPS, so the https://localhost WebView
+    // makes only secure-context requests. For LAN dev against a plain-http
+    // backend, temporarily flip to true locally (never commit true).
     allowMixedContent: false,
   },
   ios: {

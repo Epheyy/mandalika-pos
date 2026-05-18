@@ -1,5 +1,19 @@
 apply plugin: 'com.android.application'
 
+// Release signing. Prefers a gitignored keystore.properties next to this
+// module; falls back to env vars for CI. Generate the keystore with
+// scripts/gen-android-keystore.sh. Unsigned debug build still works when
+// none of these are present.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def ksProps = new Properties()
+if (keystorePropsFile.exists()) {
+    ksProps.load(new FileInputStream(keystorePropsFile))
+}
+def ksFile = ksProps['storeFile'] ?: System.getenv("ANDROID_KEYSTORE_FILE")
+def ksPass = ksProps['storePassword'] ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def ksAlias = ksProps['keyAlias'] ?: System.getenv("ANDROID_KEY_ALIAS")
+def ksKeyPass = ksProps['keyPassword'] ?: System.getenv("ANDROID_KEY_PASSWORD")
+
 android {
     namespace = "com.mandalika.pos"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +30,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (ksFile != null) {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword ksKeyPass
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (ksFile != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

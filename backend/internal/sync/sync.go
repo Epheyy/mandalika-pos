@@ -60,6 +60,7 @@ type PullBundle struct {
 	LoyaltyConditions any   `json:"loyaltyConditions"`
 	LoyaltySettings   any   `json:"loyaltySettings"`
 	AppSettings       any   `json:"appSettings"`
+	Users             any   `json:"users"`
 }
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
@@ -94,6 +95,10 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 		return b, err
 	}
 	if b.AppSettings, err = e.Read.AppSettings(ctx); err != nil {
+		return b, err
+	}
+	// Staff list for the salesman picker (offline-capable; small table).
+	if b.Users, _, err = e.Read.Users(ctx, 1, 100000); err != nil {
 		return b, err
 	}
 	return b, nil
@@ -176,6 +181,7 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 			Surcharge:      p.SurchargeValue,
 			DiscountCode:   p.DiscountCode,
 			PromotionID:    p.PromotionID,
+			PointsRedeemed: p.PointsRedeemed,
 			Notes:          p.Notes,
 			ShiftID:        p.ShiftID,
 			ClientCreated:  p.ClientCreatedAt,
@@ -275,6 +281,7 @@ type orderPayload struct {
 	SurchargeValue  float64             `json:"surchargeValue"`
 	DiscountCode    string              `json:"discountCode"`
 	PromotionID     string              `json:"promotionId"`
+	PointsRedeemed  int                 `json:"pointsRedeemed"`
 	Notes           string              `json:"notes"`
 	ShiftID         string              `json:"shiftId"`
 	ClientCreatedAt *time.Time          `json:"clientCreatedAt"`

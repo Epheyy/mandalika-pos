@@ -1,4 +1,4 @@
-.PHONY: tidy run seed up down test gen gen-go gen-ts gen-check vet fmt
+.PHONY: tidy run seed up down test gen gen-go gen-ts gen-check vet fmt migrate-fs migrate-fs-dry
 
 up:
 	docker compose up -d
@@ -31,6 +31,13 @@ gen-go:
 # Regenerate the TypeScript client (requires monorepo + pnpm, Phase B task 15).
 gen-ts:
 	cd .. && pnpm --filter @mandalika/api gen
+
+# Phase F cutover — Firestore export → Postgres. EXPORT=path to export.json.
+migrate-fs-dry:
+	go run ./cmd/migrate-firestore --input $(EXPORT) --dry-run
+
+migrate-fs:
+	go run ./cmd/migrate-firestore --input $(EXPORT)
 
 gen: gen-go gen-ts
 

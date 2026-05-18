@@ -29,10 +29,23 @@ node_modules/
 # Build output
 dist/
 
-# Environment variables (NEVER upload these — they contain your Firebase keys)
+# Environment variables (NEVER commit — JWT/DB/Cloudinary secrets)
 .env
 .env.local
 .env.*.local
+.env.production
+
+# Android release signing (NEVER commit — leak/loss is unrecoverable)
+*.jks
+*.keystore
+keystore.properties
+
+# Local DB backup artifacts (contain customer data — PII)
+backups/
+
+# Firestore cutover artifacts (Phase F — contain PII, delete after cutover)
+export.json
+dump-firestore.mjs
 
 # OS files
 .DS_Store

@@ -17,6 +17,13 @@ interface CheckoutPanelProps {
   amountPaid: string
   selectedCustomer: Customer | null
   orderNotes: string
+  salesmen: { id: string; name: string }[]
+  selectedSalesmanId: string | null
+  onSelectSalesman: (salesman: { id: string; name: string } | null) => void
+  loyaltyEnabled: boolean
+  customerPoints: number
+  pointsToRedeem: number
+  onPointsRedeemedChange: (points: number) => void
   onPaymentMethodChange: (method: PaymentMethod) => void
   onAmountPaidChange: (amount: string) => void
   onConfirm: () => void
@@ -41,6 +48,13 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   amountPaid,
   selectedCustomer,
   orderNotes,
+  salesmen,
+  selectedSalesmanId,
+  onSelectSalesman,
+  loyaltyEnabled,
+  customerPoints,
+  pointsToRedeem,
+  onPointsRedeemedChange,
   onPaymentMethodChange,
   onAmountPaidChange,
   onConfirm,
@@ -106,6 +120,12 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 <span>{formatRupiah(taxAmount)}</span>
               </div>
             )}
+            {derived.redeemAmount > 0 && (
+              <div className="flex justify-between text-indigo-600">
+                <span>Tukar Poin ({derived.redeemedPoints})</span>
+                <span>−{formatRupiah(derived.redeemAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-200">
               <span>Total</span>
               <span>{formatRupiah(derived.total)}</span>
@@ -130,6 +150,70 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             <div className="p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
               <span className="font-semibold">Catatan: </span>
               {orderNotes}
+            </div>
+          )}
+
+          {/* Loyalty redemption */}
+          {loyaltyEnabled && selectedCustomer && customerPoints > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-700 mb-2">
+                Tukar Poin Loyalti
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={customerPoints}
+                  value={pointsToRedeem || ''}
+                  onChange={(e) =>
+                    onPointsRedeemedChange(
+                      Math.min(
+                        customerPoints,
+                        Math.max(0, parseInt(e.target.value) || 0),
+                      ),
+                    )
+                  }
+                  placeholder="0"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => onPointsRedeemedChange(customerPoints)}
+                  className="px-3 py-2.5 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold hover:bg-indigo-100 transition-colors"
+                >
+                  Semua
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Tersedia {customerPoints} poin
+                {pointsToRedeem > 0 && derived.redeemAmount > 0
+                  ? ` · potongan ${formatRupiah(derived.redeemAmount)}`
+                  : ''}
+              </p>
+            </div>
+          )}
+
+          {/* Salesman */}
+          {salesmen.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-700 mb-2">
+                Sales (opsional)
+              </p>
+              <select
+                value={selectedSalesmanId ?? ''}
+                onChange={(e) => {
+                  const s = salesmen.find((x) => x.id === e.target.value)
+                  onSelectSalesman(s ? { id: s.id, name: s.name } : null)
+                }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+              >
+                <option value="">— Tanpa sales —</option>
+                {salesmen.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

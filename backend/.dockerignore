@@ -1,0 +1,8 @@
+.git
+.env
+.env.*
+*_test.go
+sample_seed.sql
+README.md
+Makefile
+docker-compose.yml

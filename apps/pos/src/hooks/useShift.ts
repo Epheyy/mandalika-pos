@@ -2,7 +2,7 @@
  * Manages current shift: fetches via API, open/close via engine.enqueue.
  */
 
-import { useCallback, useContext, useEffect, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -58,6 +58,18 @@ export function useShift(): ShiftState {
     },
     [engine, refreshShift],
   )
+
+  // Auto-open a zero-cash shift on first load when the outlet enables it
+  // (app_settings.autoOpenShift), so cashiers don't get blocked at start.
+  const autoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (isLoadingShift || currentShift || isOpeningShift) return
+    if (autoOpenedRef.current) return
+    if (engine.getSnapshot().appSettings?.autoOpenShift) {
+      autoOpenedRef.current = true
+      openShift(0)
+    }
+  }, [isLoadingShift, currentShift, isOpeningShift, engine, openShift])
 
   const closeShift = useCallback(
     (closingCash: number) => {

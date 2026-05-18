@@ -241,13 +241,14 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
   'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,
+  'pointsRedeemed',o.points_redeemed,
   'items',COALESCE((SELECT json_agg(json_build_object(
      'productId',it.product_id,'productName',it.product_name,
      'variantSize',it.variant_size,'price',it.price,'quantity',it.quantity,
      'subtotal',it.subtotal,'isBundle',it.is_bundle))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
 
-func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID string, page, limit int) ([]api.Order, int, error) {
+func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, to string, page, limit int) ([]api.Order, int, error) {
 	where := "WHERE 1=1"
 	args := []any{}
 	if !sc.CrossAll {
@@ -261,6 +262,14 @@ func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID string,
 	if customerID != "" {
 		args = append(args, customerID)
 		where += fmt.Sprintf(" AND o.customer_id=$%d", len(args))
+	}
+	if from != "" {
+		args = append(args, from)
+		where += fmt.Sprintf(" AND o.created_at >= $%d", len(args))
+	}
+	if to != "" {
+		args = append(args, to)
+		where += fmt.Sprintf(" AND o.created_at < ($%d::date + interval '1 day')", len(args))
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s

@@ -41,6 +41,8 @@ export interface CartDerived {
   taxableAmount: number
   taxAmount: number
   surchargeAmount: number
+  redeemAmount: number
+  redeemedPoints: number
   total: number
   earnedPoints: number
   paid: number
@@ -64,6 +66,8 @@ export function useCart(opts: UseCartOptions): {
     settings,
     loyalty,
     hasCustomer: state.selectedCustomer !== null,
+    pointsRedeemed: state.pointsToRedeem,
+    customerPoints: state.selectedCustomer?.points ?? 0,
   })
 
   const paid =

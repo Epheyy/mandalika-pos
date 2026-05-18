@@ -28,7 +28,7 @@ Tell each new session verbatim:
 | #3 | C — Writes + order tx + offline core + Cashier split | DONE |
 | #4 | D — Migrate remaining backoffice screens | DONE |
 | #5 | E — Native shell + Bluetooth printing | DONE |
-| #6 | F — Data migration + cutover | PENDING |
+| #6 | F — Data migration + cutover | DONE |
 
 ---
 
@@ -299,6 +299,45 @@ shift totals. Offline-sync soak test. Decommission Firebase project. Remove
 Firebase env vars.
 
 Exit: production on Go/Postgres; Firebase off.
+
+**Status: Phase F COMPLETE.** App code was already Firebase-free (Phase D);
+Phase F delivers the data-cutover tooling + runbook.
+
+- `backend/internal/fsmigrate` (`fsmigrate.go` loader/runner/report,
+  `tables.go` per-collection upserts): Firestore JSON export → Postgres,
+  collection→table map per plan §2 (18 collections incl. flattened
+  `variants[]`/`items[]`/`permissions[]` child tables + `appSettings`/
+  `loyaltySettings` singletons). Deterministic UUIDv5 ids (fixed namespace) so
+  cross-doc FKs (`order.customerId`, `discountCode.promotionId`, …) resolve
+  with no lookup table and the run is **idempotent** (`ON CONFLICT` upsert;
+  children delete+reinsert per parent). Whole run is ONE pg tx; `--dry-run`
+  rolls back so staging parity never mutates. Timestamp coercion handles
+  RFC3339 / epoch / Firestore `{_seconds}`. Migrated users get an unusable
+  password hash (Firebase was Google-popup, no passwords) — flagged in the
+  report; admins re-provision.
+- `backend/cmd/migrate-firestore` CLI (`--input`, `--dry-run`); `make
+  migrate-fs[-dry] EXPORT=...`. Parity report = per-collection rows vs input
+  (✓/⚠) + `SUM(orders.total)`/`SUM(shifts.total_sales)` spot-check (plan §11).
+- `CUTOVER.md` runbook: `firebase-admin` dump script, staging dry-run + parity
+  gate, offline-sync soak (plan §11, 5 checks), production cutover (freeze →
+  drain outboxes → final export → apply → verify → user re-provision →
+  monitor), Firebase decommission checklist + env/secret teardown.
+- `fsmigrate` unit tests (id determinism/distinctness, FK-nil, num/timestamp/
+  jsonb coercion, Load) — `go test ./internal/fsmigrate/...` green.
+  `go build ./...`, `go vet`, `gofmt` clean.
+- Final Firebase scrub: `.gitignore` comment de-Firebased + ignores cutover
+  artifacts (`export.json`, `dump-firestore.mjs`, PII). `grep -ri firebase
+  apps packages backend --include='*.ts' --include='*.go'` → none (only docs/
+  historical migration comments remain).
+
+Open follow-ups (operational, not code — require the live Firebase project):
+- Real Firestore export, staging dry-run, parity numbers, offline soak, prod
+  cutover, and project deletion are the §1–§5 manual ops steps in `CUTOVER.md`
+  (no production credentials in this environment).
+- Migrated-user password reset / re-provision is an admin action during the
+  cutover window (communicated per runbook §4.6).
+
+**Re-platform complete: Phases A–F done.**
 
 ---
 
