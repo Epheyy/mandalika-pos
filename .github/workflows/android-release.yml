@@ -49,9 +49,6 @@ jobs:
       - name: Capacitor sync (android)
         run: corepack pnpm --filter @mandalika/pos exec cap sync android
 
-      - name: Generate icons + splash resources
-        run: corepack pnpm --filter @mandalika/pos run cap:assets
-
       - name: Decode keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/apps/pos/android/mandalika-release.jks"
