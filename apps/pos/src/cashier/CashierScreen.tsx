@@ -24,7 +24,7 @@ import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
-import { SyncWall } from '../components/SyncWall'
+import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen } from '../screens/SettingsScreen'
 import { api } from '../api'
@@ -140,7 +140,8 @@ export default function CashierScreen() {
   }
 
   const handleCheckout = () => {
-    if (offlineData.wall.raised) return
+    // Non-blocking sync: a pending backoffice update never blocks a sale —
+    // the order queues and flushes; the SyncStatus chip nudges the cashier.
     if (!ensureShift()) return
     if (!state.selectedCustomer) {
       // Customer is mandatory — surface the picker instead of checkout.
@@ -312,12 +313,6 @@ export default function CashierScreen() {
 
   return (
     <div className={`h-screen flex flex-col bg-gray-50 overflow-hidden ${fontClass}`}>
-      <SyncWall
-        wall={offlineData.wall} isResyncing={offlineData.isResyncing}
-        pendingCount={offlineData.pendingCount} isOnline={offlineData.isOnline}
-        lastSyncedAt={offlineData.lastSyncedAt} onResync={offlineData.resync} onFlush={offlineData.flush}
-      />
-
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between flex-shrink-0 safe-top">
         <div className="flex items-center gap-3">
@@ -325,6 +320,13 @@ export default function CashierScreen() {
           <OutletSwitcher user={user} onResync={offlineData.resync} />
         </div>
         <div className="flex items-center gap-2">
+          <SyncStatus
+            isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
+            failed={offlineData.failed} wall={offlineData.wall}
+            isResyncing={offlineData.isResyncing}
+            onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
+            onRetryFailed={offlineData.retryFailed}
+          />
           <span className="text-xs text-gray-500 hidden sm:inline">{user.displayName}</span>
           <button onClick={() => setShowRecap(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Rekap Shift">Rekap</button>
           <button onClick={() => setShowHistory(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Riwayat Transaksi">Riwayat</button>
@@ -400,7 +402,7 @@ export default function CashierScreen() {
               appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
               onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
               onClearPromo={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
-              wallRaised={offlineData.wall.raised}
+              wallRaised={false}
             />
           </div>
         )}

@@ -7,14 +7,22 @@ import { useCallback, useContext, useEffect, useState } from 'react'
 import type { WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 
+export interface FailedItem {
+  idempotencyKey: string
+  type: string
+  lastError?: string
+}
+
 export interface OfflineDataState {
   isOnline: boolean
   wall: WallState
   pendingCount: number
+  failed: FailedItem[]
   lastSyncedAt: string | null
   isResyncing: boolean
   resync: () => Promise<void>
   flush: () => void
+  retryFailed: () => void
 }
 
 export function useOfflineData(): OfflineDataState {
@@ -26,6 +34,7 @@ export function useOfflineData(): OfflineDataState {
   )
   const [wall, setWall] = useState<WallState>(engine.getWall())
   const [pendingCount, setPendingCount] = useState(engine.pendingCount())
+  const [failed, setFailed] = useState<FailedItem[]>(engine.deadLettered())
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
@@ -76,17 +85,26 @@ export function useOfflineData(): OfflineDataState {
     const interval = setInterval(() => {
       setWall(engine.getWall())
       setPendingCount(engine.pendingCount())
+      setFailed(engine.deadLettered())
     }, 2000)
     return () => clearInterval(interval)
+  }, [engine])
+
+  const retryFailed = useCallback(() => {
+    engine.retryFailed()
+    setFailed(engine.deadLettered())
+    setPendingCount(engine.pendingCount())
   }, [engine])
 
   return {
     isOnline,
     wall,
     pendingCount,
+    failed,
     lastSyncedAt,
     isResyncing,
     resync,
     flush,
+    retryFailed,
   }
 }

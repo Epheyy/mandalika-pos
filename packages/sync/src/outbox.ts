@@ -103,6 +103,20 @@ export class Outbox {
     }
   }
 
+  /** Re-queue every parked (dead-lettered) item: reset status + attempts so
+   *  the next flush retries them. Used by the manual "retry" action. */
+  retryDeadLettered() {
+    let changed = false
+    for (const i of this.items) {
+      if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS) {
+        i.status = 'pending'
+        i.attempts = 0
+        changed = true
+      }
+    }
+    if (changed) this.persist()
+  }
+
   /** Drop acked rows once their canonical order is reconciled locally. */
   prune() {
     this.items = this.items.filter((i) => i.status !== 'acked')

@@ -118,6 +118,22 @@ export class SyncEngine {
     return this.outbox.count()
   }
 
+  /** Permanently-rejected items (server kept refusing) with their error text. */
+  deadLettered(): { idempotencyKey: string; type: string; lastError?: string }[] {
+    return this.outbox.deadLettered().map((i) => ({
+      idempotencyKey: i.idempotencyKey,
+      type: i.type,
+      lastError: i.lastError,
+    }))
+  }
+
+  /** Manual retry of parked items. */
+  retryFailed(): void {
+    this.outbox.retryDeadLettered()
+    this.events.onOutboxChange?.(this.outbox.count())
+    void this.flush()
+  }
+
   /**
    * Flush the outbox in order, one batch at a time. Always allowed even while
    * the sync wall is raised so pending revenue is never trapped (plan §5a).
