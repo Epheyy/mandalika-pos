@@ -295,7 +295,12 @@ export function cashierReducer(
       }
 
     case 'CLOSE_SUCCESS':
-      return { ...state, isSuccessOpen: false, lastOrderId: null }
+      // Closing the success modal (either "Tutup" or "Transaksi Baru") starts
+      // a clean sale — cart, customer, discount, promo, notes all cleared.
+      return {
+        ...CASHIER_INITIAL_STATE,
+        activeTab: state.activeTab,
+      }
 
     case 'SET_ACTIVE_TAB':
       return { ...state, activeTab: action.tab }

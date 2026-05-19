@@ -17,6 +17,9 @@
 /* Android gesture/navigation-bar inset. StatusBar.setOverlaysWebView(false)
    handles the top; the bottom bar still needs manual safe-area padding so
    the mobile tab bar and the Bayar button aren't under the nav bar. */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }

@@ -182,7 +182,7 @@ export const ProductGrid = memo(function ProductGrid({
       {/* Variant popup */}
       {variantPopup && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
           onClick={() => setVariantPopup(null)}
         >
           <div

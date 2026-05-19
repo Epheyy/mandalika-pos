@@ -124,10 +124,8 @@ export function buildReceipt(
   if (settings.footerText && settings.headerText) b.line()
   b.raw(ALIGN_LEFT)
 
-  if (data.pending) {
-    b.raw(ALIGN_CENTER).line('** MENUNGGU SINKRONISASI **').raw(ALIGN_LEFT)
-  }
-
+  // The receipt always shows the order id. Sync state is an app concern, not
+  // something the customer's printed receipt should announce.
   if (settings.showOrderNumber !== false) b.line(pad('No', data.orderRef))
   b.line(
     pad(

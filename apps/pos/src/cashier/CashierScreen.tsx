@@ -85,6 +85,11 @@ export default function CashierScreen() {
   const printer = usePrinter()
   const lastReceipt = useRef<ReceiptData | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   useEffect(() => {
     const fs = localStorage.getItem('pos_fontSize') as FontSize | null
@@ -268,8 +273,11 @@ export default function CashierScreen() {
 
   const handleRefundConfirm = (orderId: string, reason: string) => {
     setIsRefunding(true)
-    try { engine.enqueue('refund', { orderId, reason }); setRefundOrder(null) }
-    finally { setIsRefunding(false) }
+    try {
+      engine.enqueue('refund', { orderId, reason })
+      setRefundOrder(null)
+      showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
+    } finally { setIsRefunding(false) }
   }
 
   const handleFontSize = (s: FontSize) => { setFontSize(s); localStorage.setItem('pos_fontSize', s) }
@@ -287,7 +295,9 @@ export default function CashierScreen() {
       if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
       if (state.activeAdjustment) { dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: null }); return true }
       if (state.activeTab === 'cart') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
-      return false
+      // Nothing to navigate back to — still consume it. A POS must never be
+      // closed/minimized by a stray Back press; only "Keluar" logs out.
+      return true
     })
     return () => setBackHandler(null)
   }, [
@@ -309,7 +319,7 @@ export default function CashierScreen() {
       />
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between flex-shrink-0">
+      <header className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between flex-shrink-0 safe-top">
         <div className="flex items-center gap-3">
           <span className="font-black text-gray-900 text-sm">Mandalika POS</span>
           <OutletSwitcher user={user} onResync={offlineData.resync} />
@@ -376,7 +386,7 @@ export default function CashierScreen() {
 
         {/* Cart panel — only mounts once the cart has items (dynamic). */}
         {derived.totalCartItems > 0 && (
-          <div className={`w-full sm:w-80 flex-shrink-0 flex flex-col sm:flex ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+          <div className={`w-full sm:w-80 flex-shrink-0 flex flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
               cart={state.cart} derived={derived} settings={settings}
               selectedCustomer={state.selectedCustomer}
@@ -388,6 +398,8 @@ export default function CashierScreen() {
               discountRunning={state.discountRunning} surchargeRunning={state.surchargeRunning}
               orderNotes={state.orderNotes}
               appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
+              onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
+              onClearPromo={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
               wallRaised={offlineData.wall.raised}
             />
           </div>
@@ -445,6 +457,12 @@ export default function CashierScreen() {
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding}
         onConfirm={handleRefundConfirm} onClose={() => setRefundOrder(null)} />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg safe-bottom">
+          {toast}
+        </div>
+      )}
 
       {showSettings && (
         <SettingsScreen

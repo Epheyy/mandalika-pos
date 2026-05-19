@@ -142,6 +142,8 @@ export class SyncEngine {
         if (res.status === 'ok' || res.status === 'duplicate') {
           this.outbox.ack(res.idempotencyKey)
         } else {
+          // eslint-disable-next-line no-console
+          console.error('[sync] item rejected', res.idempotencyKey, res.error)
           this.outbox.fail(res.idempotencyKey, res.error ?? 'sync error')
         }
       }
@@ -164,6 +166,8 @@ export class SyncEngine {
       // so a poison batch eventually dead-letters instead of showing
       // "Menunggu sinkronisasi" indefinitely.
       const msg = err instanceof Error ? err.message : 'sync failed'
+      // eslint-disable-next-line no-console
+      console.error('[sync] batch failed', msg, err)
       for (const i of pending) this.outbox.fail(i.idempotencyKey, msg)
       this.events.onOutboxChange?.(this.outbox.count())
       return null

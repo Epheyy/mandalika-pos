@@ -22,6 +22,8 @@ interface CartProps {
   surchargeRunning: number
   orderNotes: string
   appliedPromoLabel: string | null
+  onClearDiscount: () => void
+  onClearPromo: () => void
   wallRaised: boolean
 }
 
@@ -40,6 +42,8 @@ export const Cart = memo(function Cart({
   surchargeRunning,
   orderNotes,
   appliedPromoLabel,
+  onClearDiscount,
+  onClearPromo,
   wallRaised,
 }: CartProps) {
   const isEmpty = cart.length === 0
@@ -174,9 +178,38 @@ export const Cart = memo(function Cart({
             <span>Subtotal</span>
             <span>{formatRupiah(derived.subtotal)}</span>
           </div>
+          {appliedPromoLabel && (
+            <div className="flex justify-between items-center text-green-600">
+              <span className="flex items-center gap-1">
+                Promo: {appliedPromoLabel}
+                <button
+                  onClick={onClearPromo}
+                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
+                  title="Hapus promo"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          )}
+          {discountRunning > 0 && (
+            <div className="flex justify-between items-center text-green-600">
+              <span className="flex items-center gap-1">
+                Diskon manual
+                <button
+                  onClick={onClearDiscount}
+                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
+                  title="Hapus diskon"
+                >
+                  ×
+                </button>
+              </span>
+              <span>−{formatRupiah(discountRunning)}</span>
+            </div>
+          )}
           {derived.discountAmount > 0 && (
             <div className="flex justify-between text-green-600">
-              <span>Diskon</span>
+              <span>Total Diskon</span>
               <span>−{formatRupiah(derived.discountAmount)}</span>
             </div>
           )}

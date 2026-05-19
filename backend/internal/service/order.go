@@ -369,20 +369,15 @@ func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, float64, error)
 	return en, ppk, rate, err
 }
 
-// nextOrderNumber assigns MND-YYYYMMDD-NNNN per outlet/day under a row lock so
-// offline/multi-device sales never collide (plan §5).
-func nextOrderNumber(ctx context.Context, tx pgx.Tx, outletID string) (string, error) {
-	day := time.Now().Format("2006-01-02")
+// nextOrderNumber assigns a short, globally-unique MND-NNNNNN from a single
+// sequence. nextval is atomic, so offline/multi-device sales never collide
+// (plan §5); order_number is also UNIQUE as a backstop.
+func nextOrderNumber(ctx context.Context, tx pgx.Tx, _ string) (string, error) {
 	var seq int64
-	err := tx.QueryRow(ctx, `
-		INSERT INTO order_counters (outlet_id, day, seq) VALUES ($1,$2,1)
-		ON CONFLICT (outlet_id, day)
-		DO UPDATE SET seq = order_counters.seq + 1
-		RETURNING seq`, outletID, day).Scan(&seq)
-	if err != nil {
+	if err := tx.QueryRow(ctx, `SELECT nextval('order_no_seq')`).Scan(&seq); err != nil {
 		return "", fmt.Errorf("order number: %w", err)
 	}
-	return fmt.Sprintf("MND-%s-%04d", time.Now().Format("20060102"), seq), nil
+	return fmt.Sprintf("MND-%06d", seq), nil
 }
 
 func nullStr(s string) any {
