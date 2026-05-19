@@ -248,7 +248,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
      'subtotal',it.subtotal,'isBundle',it.is_bundle))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
 
-func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, to string, page, limit int) ([]api.Order, int, error) {
+func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, to, q string, page, limit int) ([]api.Order, int, error) {
 	where := "WHERE 1=1"
 	args := []any{}
 	if !sc.CrossAll {
@@ -270,6 +270,15 @@ func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, 
 	if to != "" {
 		args = append(args, to)
 		where += fmt.Sprintf(" AND o.created_at < ($%d::date + interval '1 day')", len(args))
+	}
+	if q != "" {
+		args = append(args, "%"+q+"%")
+		// Match order number, the order's stored customer name, or the
+		// linked customer's phone/name.
+		where += fmt.Sprintf(` AND (o.order_number ILIKE $%d OR o.customer_name ILIKE $%d
+		  OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
+		    AND (c.phone ILIKE $%d OR c.name ILIKE $%d)))`,
+			len(args), len(args), len(args), len(args))
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s

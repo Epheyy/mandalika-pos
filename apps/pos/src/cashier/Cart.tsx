@@ -5,11 +5,13 @@ import { formatRupiah } from './pricing'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
+type Customer = components['schemas']['Customer']
 
 interface CartProps {
   cart: CartItem[]
   derived: CartDerived
   settings: AppSettings
+  selectedCustomer: Customer | null
   pendingSync: boolean
   onRemove: (productId: string, variantSize: string) => void
   onSetQty: (productId: string, variantSize: string, qty: number) => void
@@ -27,6 +29,7 @@ export const Cart = memo(function Cart({
   cart,
   derived,
   settings,
+  selectedCustomer,
   pendingSync,
   onRemove,
   onSetQty,
@@ -43,6 +46,17 @@ export const Cart = memo(function Cart({
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-100">
+      {/* Active customer — pinned at the very top of the cart */}
+      {selectedCustomer && (
+        <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex-shrink-0">
+          <p className="text-xs font-bold text-indigo-800 truncate">
+            👤 {selectedCustomer.name}
+          </p>
+          <p className="text-[10px] text-indigo-600">
+            {selectedCustomer.phone} · {selectedCustomer.points} poin
+          </p>
+        </div>
+      )}
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <h2 className="font-bold text-gray-900 text-sm">
@@ -191,7 +205,7 @@ export const Cart = memo(function Cart({
       )}
 
       {/* Checkout button */}
-      <div className="px-3 pb-4 flex-shrink-0">
+      <div className="px-3 pb-4 flex-shrink-0 safe-bottom">
         <button
           onClick={onCheckout}
           disabled={isEmpty || wallRaised}

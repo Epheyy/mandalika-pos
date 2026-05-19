@@ -13,3 +13,13 @@
   --color-indigo-800: #6e4a0c;
   --color-indigo-900: #4d3408;
 }
+
+/* Android gesture/navigation-bar inset. StatusBar.setOverlaysWebView(false)
+   handles the top; the bottom bar still needs manual safe-area padding so
+   the mobile tab bar and the Bayar button aren't under the nav bar. */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.safe-bottom-tab {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}

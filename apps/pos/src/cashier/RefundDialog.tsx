@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 
@@ -18,6 +18,12 @@ export const RefundDialog = memo(function RefundDialog({
   onClose,
 }: RefundDialogProps) {
   const [reason, setReason] = useState('')
+
+  // Clear the reason whenever a different order is opened (or the dialog
+  // closes) so a previous refund's text never bleeds into the next one.
+  useEffect(() => {
+    setReason('')
+  }, [order?.id])
 
   if (!order) return null
 

@@ -8,6 +8,7 @@ import type { components } from '@mandalika/api'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext } from './SyncProvider'
 import { usePrinter } from '../printer'
+import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useShift } from '../hooks/useShift'
@@ -70,11 +71,17 @@ export default function CashierScreen() {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
+  const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
+  // Raised when the cashier tries to sell with no open shift → forces the
+  // ShiftBar open-shift modal (selling without a shift is not allowed).
+  const [shiftPrompt, setShiftPrompt] = useState(false)
+  // Raised when checkout is attempted with no customer (customer is required).
+  const [customerRequired, setCustomerRequired] = useState(false)
   const printer = usePrinter()
   const lastReceipt = useRef<ReceiptData | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
@@ -100,12 +107,54 @@ export default function CashierScreen() {
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
 
+  // Cart panel hides when empty; if the mobile cart tab was active when the
+  // last item left, fall back to products so the screen is never blank.
+  useEffect(() => {
+    if (derived.totalCartItems === 0 && state.activeTab === 'cart') {
+      dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' })
+    }
+  }, [derived.totalCartItems, state.activeTab])
+
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = (enabledMethods[0]?.id ?? 'cash') as 'cash' | 'card' | 'transfer' | 'qris'
 
+  // A shift must be open before anything can be sold. Returns false (and
+  // pops the open-shift modal) when there is no active shift.
+  const ensureShift = (): boolean => {
+    if (shift.currentShift) return true
+    setShiftPrompt(true)
+    return false
+  }
+
+  const handleProductTap = (
+    product: components['schemas']['Product'],
+    variantQtys: Record<string, number>,
+  ) => {
+    if (!ensureShift()) return
+    cartActions.addVariants(product, variantQtys)
+  }
+
+  const handleCheckout = () => {
+    if (offlineData.wall.raised) return
+    if (!ensureShift()) return
+    if (!state.selectedCustomer) {
+      // Customer is mandatory — surface the picker instead of checkout.
+      setCustomerRequired(true)
+      setIsAddingCustomer(false)
+      dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' })
+      return
+    }
+    setCustomerRequired(false)
+    dispatch({ type: 'OPEN_CHECKOUT', defaultMethod })
+  }
+
   const handleAddCustomer = async () => {
-    if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) return
+    if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
+      setCustomerError('Nama dan telepon wajib diisi')
+      return
+    }
     setIsSavingCustomer(true)
+    setCustomerError(null)
     try {
       const r = await api.request<{ data: components['schemas']['Customer'] }>(
         'POST', '/api/v1/customers',
@@ -113,8 +162,25 @@ export default function CashierScreen() {
       )
       dispatch({ type: 'SET_CUSTOMER', customer: r.data })
       setIsAddingCustomer(false)
+      setCustomerRequired(false)
       setNewCustomerForm({ name: '', phone: '', email: '' })
-    } catch { /* silent */ } finally { setIsSavingCustomer(false) }
+    } catch (e: unknown) {
+      setCustomerError(e instanceof Error ? e.message : 'Gagal menyimpan pelanggan')
+    } finally { setIsSavingCustomer(false) }
+  }
+
+  // Unified search → add-new: numeric query becomes the phone, otherwise the
+  // name. Switches the picker into add mode with the field prefilled.
+  const handleAddNewFromSearch = (q: string) => {
+    const isPhone = /^[+0-9][0-9\s-]*$/.test(q)
+    setNewCustomerForm({
+      name: isPhone ? '' : q,
+      phone: isPhone ? q.replace(/[\s-]/g, '') : '',
+      email: '',
+    })
+    setCustomerError(null)
+    setIsAddingCustomer(true)
+    dispatch({ type: 'SET_CUSTOMER_SEARCH', search: '' })
   }
 
   const handleApplyPromoCode = async () => {
@@ -179,7 +245,8 @@ export default function CashierScreen() {
       setPrintError(null)
       dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid })
       // Local BLE print — works offline, independent of sync (§6).
-      if (printer.isPaired && settings.receipt.autoPrint) {
+      // Auto-print on every successful sale when a printer is paired.
+      if (printer.isPaired) {
         printer
           .print(receipt, settings.receipt)
           .catch((e: unknown) =>
@@ -208,6 +275,26 @@ export default function CashierScreen() {
   const handleFontSize = (s: FontSize) => { setFontSize(s); localStorage.setItem('pos_fontSize', s) }
   const handleGridCols = (c: GridCols) => { setGridCols(c); localStorage.setItem('pos_gridCols', String(c)) }
   const handleDefaultView = (v: 'products' | 'cart') => { setDefaultView(v); localStorage.setItem('pos_defaultView', v) }
+
+  // Android hardware Back: close the top-most surface instead of exiting.
+  useEffect(() => {
+    setBackHandler(() => {
+      if (showSettings) { setShowSettings(false); return true }
+      if (showHistory) { setShowHistory(false); return true }
+      if (showRecap) { setShowRecap(false); return true }
+      if (refundOrder) { setRefundOrder(null); return true }
+      if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
+      if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
+      if (state.activeAdjustment) { dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: null }); return true }
+      if (state.activeTab === 'cart') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
+      return false
+    })
+    return () => setBackHandler(null)
+  }, [
+    showSettings, showHistory, showRecap, refundOrder,
+    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
+    state.activeTab,
+  ])
 
   if (!user) return null
 
@@ -240,12 +327,13 @@ export default function CashierScreen() {
         currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
         isOpening={shift.isOpeningShift} isClosing={shift.isClosingShift}
         onOpenShift={shift.openShift} onCloseShift={shift.closeShift}
+        promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
       />
 
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Mobile tab bar */}
-        <div className="sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-10">
+        {/* Mobile tab bar — cart tab only appears when the cart has items. */}
+        <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
             <button key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
               className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500'}`}>
@@ -266,40 +354,44 @@ export default function CashierScreen() {
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
             newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
             onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-            onSelect={(c) => dispatch({ type: 'SET_CUSTOMER', customer: c })}
+            onSelect={(c) => { dispatch({ type: 'SET_CUSTOMER', customer: c }); setCustomerRequired(false) }}
             onClear={() => dispatch({ type: 'SET_CUSTOMER', customer: null })}
-            onToggleAdding={() => setIsAddingCustomer((v) => !v)}
+            onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
             onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
             onSaveNew={() => void handleAddCustomer()}
             earnedPoints={derived.earnedPoints}
+            required={customerRequired}
+            onAddNewFromSearch={handleAddNewFromSearch}
+            errorText={customerError}
           />
           <ProductGrid
             products={products} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
-            onProductTap={(p) => {
-              if (p.variants.length === 1) cartActions.addVariants(p, { [p.variants[0].size]: 1 })
-            }}
+            onProductTap={handleProductTap}
             onCategoryChange={setSelectedCategoryId} onSearchChange={setSearchQuery}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
           />
         </div>
 
-        {/* Cart panel */}
-        <div className={`w-full sm:w-80 flex-shrink-0 flex flex-col sm:flex ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
-          <Cart
-            cart={state.cart} derived={derived} settings={settings}
-            pendingSync={offlineData.pendingCount > 0}
-            onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
-            onClear={cartActions.clearCart}
-            onCheckout={() => { if (!offlineData.wall.raised) dispatch({ type: 'OPEN_CHECKOUT', defaultMethod }) }}
-            onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
-            discountRunning={state.discountRunning} surchargeRunning={state.surchargeRunning}
-            orderNotes={state.orderNotes}
-            appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
-            wallRaised={offlineData.wall.raised}
-          />
-        </div>
+        {/* Cart panel — only mounts once the cart has items (dynamic). */}
+        {derived.totalCartItems > 0 && (
+          <div className={`w-full sm:w-80 flex-shrink-0 flex flex-col sm:flex ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+            <Cart
+              cart={state.cart} derived={derived} settings={settings}
+              selectedCustomer={state.selectedCustomer}
+              pendingSync={offlineData.pendingCount > 0}
+              onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
+              onClear={cartActions.clearCart}
+              onCheckout={handleCheckout}
+              onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
+              discountRunning={state.discountRunning} surchargeRunning={state.surchargeRunning}
+              orderNotes={state.orderNotes}
+              appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
+              wallRaised={offlineData.wall.raised}
+            />
+          </div>
+        )}
       </div>
 
       {/* Floating panels */}

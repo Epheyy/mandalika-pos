@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 
@@ -11,6 +11,10 @@ interface ShiftBarProps {
   isClosing: boolean
   onOpenShift: (startingCash: number) => void
   onCloseShift: (closingCash: number) => void
+  /** When toggled true, force-opens the open-shift modal (e.g. a sale was
+   *  attempted with no active shift). */
+  promptOpen?: boolean
+  onPromptConsumed?: () => void
 }
 
 export const ShiftBar = memo(function ShiftBar({
@@ -20,11 +24,20 @@ export const ShiftBar = memo(function ShiftBar({
   isClosing,
   onOpenShift,
   onCloseShift,
+  promptOpen,
+  onPromptConsumed,
 }: ShiftBarProps) {
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [depositStr, setDepositStr] = useState('')
   const [closingStr, setClosingStr] = useState('')
+
+  useEffect(() => {
+    if (promptOpen && !currentShift) {
+      setShowOpenModal(true)
+      onPromptConsumed?.()
+    }
+  }, [promptOpen, currentShift, onPromptConsumed])
 
   if (isLoading) {
     return (

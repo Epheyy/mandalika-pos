@@ -21,7 +21,14 @@ export interface OutboxItem {
   status: OutboxStatus
   clientCreatedAt: string
   lastError?: string
+  /** Server-rejection count. After MAX_ATTEMPTS the item is parked (kept,
+   *  surfaced via deadLettered()) so one poison item can't block the queue
+   *  or retry forever silently. */
+  attempts?: number
 }
+
+/** A server rejection that recurs this many times is treated as permanent. */
+export const MAX_ATTEMPTS = 5
 
 // Append-only durable queue. Survives app restart/crash (plan §5). Ordered by
 // monotonic seq; flushed one in flight at a time.
@@ -54,11 +61,24 @@ export class Outbox {
     return item
   }
 
-  /** Items still needing delivery, in submission order. */
+  /** Items still needing delivery, in submission order. Parked (repeatedly
+   *  rejected) items are excluded so they neither block the queue nor retry
+   *  forever — they remain visible via {@link deadLettered}. */
   pending(): OutboxItem[] {
     return this.items
-      .filter((i) => i.status !== 'acked')
+      .filter(
+        (i) =>
+          i.status !== 'acked' &&
+          !(i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS),
+      )
       .sort((a, b) => a.seq - b.seq)
+  }
+
+  /** Permanently-rejected items needing manual attention (never auto-retried).*/
+  deadLettered(): OutboxItem[] {
+    return this.items.filter(
+      (i) => i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS,
+    )
   }
 
   count(): number {
@@ -78,6 +98,7 @@ export class Outbox {
     if (it) {
       it.status = 'failed'
       it.lastError = error
+      it.attempts = (it.attempts ?? 0) + 1
       this.persist()
     }
   }

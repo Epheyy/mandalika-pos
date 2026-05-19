@@ -7,6 +7,14 @@ export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
 
+// Optional in-app back handler. Returns true if it consumed the press (e.g.
+// closed a modal); false/absent → the app is minimized (never force-closed).
+let backHandler: (() => boolean) | null = null
+
+export function setBackHandler(fn: (() => boolean) | null): void {
+  backHandler = fn
+}
+
 /**
  * One-time native setup: status-bar style and a hardware back-button guard so
  * Android cannot accidentally close the POS mid-sale (it minimizes instead).
@@ -17,6 +25,9 @@ export async function bootNativeShell(): Promise<void> {
   if (!isNative()) return
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar')
+    // Don't draw the WebView under the status bar — avoids the content /
+    // status-bar overlap. Tinted to the brand colour with light icons.
+    await StatusBar.setOverlaysWebView({ overlay: false })
     await StatusBar.setStyle({ style: Style.Light })
     await StatusBar.setBackgroundColor({ color: '#4f46e5' })
   } catch {
@@ -24,9 +35,11 @@ export async function bootNativeShell(): Promise<void> {
   }
   try {
     const { App } = await import('@capacitor/app')
-    await App.addListener('backButton', ({ canGoBack }) => {
-      if (!canGoBack) void App.minimizeApp()
-      else window.history.back()
+    await App.addListener('backButton', () => {
+      // Let the app handle Back first (close a modal/panel). Only if nothing
+      // consumed it do we minimize — Android Back must never exit the POS.
+      const consumed = backHandler?.() ?? false
+      if (!consumed) void App.minimizeApp()
     })
   } catch {
     /* app plugin unavailable — non-fatal */

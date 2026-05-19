@@ -271,7 +271,8 @@ func (h *Handlers) Orders(w http.ResponseWriter, r *http.Request) {
 		p, l := pageLimit(r)
 		q := r.URL.Query()
 		rows, total, err := h.Repo.Orders(r.Context(), scope(r),
-			q.Get("shiftId"), q.Get("customerId"), q.Get("from"), q.Get("to"), p, l)
+			q.Get("shiftId"), q.Get("customerId"), q.Get("from"), q.Get("to"),
+			q.Get("q"), p, l)
 		if err != nil {
 			return nil, 500, err
 		}

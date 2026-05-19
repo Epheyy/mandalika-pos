@@ -12,7 +12,7 @@ interface ProductGridProps {
   searchQuery: string
   showFavouritesOnly: boolean
   gridCols: 2 | 3 | 4 | 6
-  onProductTap: (product: Product) => void
+  onProductTap: (product: Product, variantQtys: Record<string, number>) => void
   onCategoryChange: (id: string | null) => void
   onSearchChange: (q: string) => void
   onToggleFavourites: () => void
@@ -47,7 +47,7 @@ export const ProductGrid = memo(function ProductGrid({
 
   const handleProductClick = (product: Product) => {
     if (product.variants.length === 1) {
-      onProductTap(product)
+      onProductTap(product, { [product.variants[0].size]: 1 })
       return
     }
     const qtys: Record<string, number> = {}
@@ -68,7 +68,7 @@ export const ProductGrid = memo(function ProductGrid({
 
   const handleConfirmVariants = () => {
     if (!variantPopup) return
-    onProductTap(variantPopup)
+    onProductTap(variantPopup, variantQtys)
     setVariantPopup(null)
   }
 
@@ -142,9 +142,6 @@ export const ProductGrid = memo(function ProductGrid({
         ) : (
           <div className={`grid ${colClass[gridCols] ?? 'grid-cols-4'} gap-2`}>
             {filtered.map((product) => {
-              const minPrice = Math.min(
-                ...product.variants.map((v) => v.price),
-              )
               const inStock = product.variants.some((v) => v.stock > 0)
               return (
                 <button
@@ -168,9 +165,6 @@ export const ProductGrid = memo(function ProductGrid({
                   <div className="p-2">
                     <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight">
                       {product.name}
-                    </p>
-                    <p className="text-xs text-indigo-600 font-bold mt-1">
-                      {formatRupiah(minPrice)}
                     </p>
                     {!inStock && (
                       <p className="text-[10px] text-red-500 mt-0.5">

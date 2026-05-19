@@ -157,6 +157,16 @@ export class SyncEngine {
       }
       this.events.onWall?.(this.wall)
       return r.data
+    } catch (err) {
+      // Whole-batch failure (network blip OR a hard HTTP reject like 403
+      // "no active outlet"). A transient blip should retry; a persistent
+      // reject must not loop forever — count it against every in-flight item
+      // so a poison batch eventually dead-letters instead of showing
+      // "Menunggu sinkronisasi" indefinitely.
+      const msg = err instanceof Error ? err.message : 'sync failed'
+      for (const i of pending) this.outbox.fail(i.idempotencyKey, msg)
+      this.events.onOutboxChange?.(this.outbox.count())
+      return null
     } finally {
       this.flushing = false
     }

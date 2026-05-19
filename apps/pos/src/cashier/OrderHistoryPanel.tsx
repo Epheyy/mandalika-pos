@@ -48,9 +48,12 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
     setIsLoading(true)
     setError(null)
     try {
-      const qs = new URLSearchParams({
+      const params: Record<string, string> = {
         from, to, page: String(page), limit: String(PAGE_SIZE),
-      }).toString()
+      }
+      const term = search.trim()
+      if (term) params.q = term
+      const qs = new URLSearchParams(params).toString()
       const r = await api.request<OrderListResponse>('GET', `/api/v1/orders?${qs}`)
       setOrders(r.data ?? [])
       setTotal(r.meta?.total ?? 0)
@@ -61,27 +64,23 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
     } finally {
       setIsLoading(false)
     }
-  }, [from, to, page])
+  }, [from, to, page, search])
 
+  // Debounced so typing a phone/name doesn't fire a request per keystroke.
   useEffect(() => {
-    if (isOpen) void load()
+    if (!isOpen) return
+    const t = setTimeout(() => void load(), 300)
+    return () => clearTimeout(t)
   }, [isOpen, load])
 
-  // Reset to page 1 whenever the date range changes.
+  // Reset to page 1 whenever the date range or search term changes.
   useEffect(() => {
     setPage(1)
-  }, [from, to])
+  }, [from, to, search])
 
   if (!isOpen) return null
 
-  const q = search.trim().toLowerCase()
-  const filtered = q
-    ? orders.filter(
-        (o) =>
-          o.orderNumber.toLowerCase().includes(q) ||
-          (o.customerName ?? '').toLowerCase().includes(q),
-      )
-    : orders
+  const filtered = orders
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -120,7 +119,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
           <div className="flex-1 min-w-[140px]">
             <label className="block text-[10px] text-gray-500 font-semibold mb-1">Cari</label>
             <input
-              type="text" value={search} placeholder="No. order / nama pelanggan"
+              type="text" value={search} placeholder="No. order / nama / telepon"
               onChange={(e) => setSearch(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
