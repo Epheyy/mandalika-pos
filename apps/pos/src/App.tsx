@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth } from './auth'
+import { hideSplash } from './native'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
 
@@ -56,6 +57,13 @@ function LoginScreen() {
 
 export default function App() {
   const { user, ready } = useAuth()
+  // The native launch splash has launchAutoHide:false. SyncProvider hides it
+  // post-login, but the pre-login screen never mounts SyncProvider — so on a
+  // fresh/logged-out app the splash covered the WebView forever (blank app).
+  // Hide it as soon as React shows anything; SplashScreen.hide() is idempotent.
+  useEffect(() => {
+    void hideSplash()
+  }, [])
   if (!ready) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui', color: '#6b7280' }}>
