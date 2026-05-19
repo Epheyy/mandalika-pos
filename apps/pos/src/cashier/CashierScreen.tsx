@@ -33,6 +33,7 @@ import { api } from '../api'
 type FontSize = 'sm' | 'md' | 'lg'
 type GridCols = 2 | 3 | 4 | 6
 type Order = components['schemas']['Order']
+type Customer = components['schemas']['Customer']
 
 const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
   taxEnabled: true, taxRate: 11, roundingEnabled: false, roundingType: 'none',
@@ -71,6 +72,7 @@ export default function CashierScreen() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>([])
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
@@ -104,7 +106,16 @@ export default function CashierScreen() {
   const snapshot = engine.getSnapshot()
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
   const categories = snapshot.categories ?? []
-  const customers = snapshot.customers ?? []
+  // Customers created on this device this session aren't in the synced
+  // snapshot yet (snapshot only refreshes on resync). Merge them in so the
+  // cashier can immediately find/select them.
+  const snapCustomers = snapshot.customers ?? []
+  const customers = [
+    ...localCustomers.filter(
+      (lc) => !snapCustomers.some((sc) => sc.id === lc.id),
+    ),
+    ...snapCustomers,
+  ]
   const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
   const discountCodes = snapshot.discountCodes ?? []
@@ -167,10 +178,14 @@ export default function CashierScreen() {
         'POST', '/api/v1/customers',
         { name: newCustomerForm.name.trim(), phone: newCustomerForm.phone.trim(), email: newCustomerForm.email.trim() || undefined },
       )
+      setLocalCustomers((prev) => [r.data, ...prev])
       dispatch({ type: 'SET_CUSTOMER', customer: r.data })
       setIsAddingCustomer(false)
       setCustomerRequired(false)
       setNewCustomerForm({ name: '', phone: '', email: '' })
+      // Converge the synced snapshot in the background so it persists
+      // across reloads / shows on other devices.
+      void offlineData.resync().catch(() => {})
     } catch (e: unknown) {
       setCustomerError(e instanceof Error ? e.message : 'Gagal menyimpan pelanggan')
     } finally { setIsSavingCustomer(false) }
@@ -232,7 +247,8 @@ export default function CashierScreen() {
         pending: true, // server assigns the canonical number at sync (§5)
         dateTime: new Date(),
         lines: state.cart.map((i) => ({
-          name: `${i.productName} ${i.variantSize}`.trim(),
+          name: i.productName,
+          variant: i.variantSize || undefined,
           qty: i.quantity,
           unitPrice: i.price,
           amount: i.subtotal,

@@ -13,6 +13,8 @@ export const COLS = 32
 /** One printable line of a receipt (already priced, server- or client-side). */
 export interface ReceiptLine {
   name: string
+  /** Variant/size — printed on its own indented line so it never clips. */
+  variant?: string
   qty: number
   /** Per-unit price in whole Rupiah. */
   unitPrice: number
@@ -143,6 +145,7 @@ export function buildReceipt(
 
   for (const item of data.lines) {
     b.line(item.name.slice(0, COLS))
+    if (item.variant) b.line(`  ${item.variant}`.slice(0, COLS))
     b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, money(item.amount)))
   }
   b.divider()

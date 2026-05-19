@@ -23,16 +23,9 @@ export function setBackHandler(fn: (() => boolean) | null): void {
  */
 export async function bootNativeShell(): Promise<void> {
   if (!isNative()) return
-  try {
-    const { StatusBar, Style } = await import('@capacitor/status-bar')
-    // Don't draw the WebView under the status bar — avoids the content /
-    // status-bar overlap. Tinted to the brand colour with light icons.
-    await StatusBar.setOverlaysWebView({ overlay: false })
-    await StatusBar.setStyle({ style: Style.Light })
-    await StatusBar.setBackgroundColor({ color: '#4f46e5' })
-  } catch {
-    /* status-bar plugin unavailable — non-fatal */
-  }
+  // System bars are managed natively in MainActivity (immersive, edge-to-edge,
+  // swipe-to-reveal). Don't drive the StatusBar plugin here or it fights the
+  // WindowInsetsController.
   try {
     const { App } = await import('@capacitor/app')
     await App.addListener('backButton', () => {
