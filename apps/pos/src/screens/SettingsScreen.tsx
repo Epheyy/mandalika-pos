@@ -372,6 +372,7 @@ export const SettingsScreen = memo(function SettingsScreen({
             </div>
             <input
               type="number"
+              inputMode="numeric"
               value={cashFlowAmount}
               onChange={(e) => {
                 setCashFlowAmount(e.target.value)

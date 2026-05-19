@@ -78,7 +78,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   ].filter((v, i, a) => a.indexOf(v) === i && v >= derived.total)
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div
         className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -162,6 +162,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               <div className="flex items-center gap-2">
                 <input
                   type="number"
+                  inputMode="numeric"
                   min={0}
                   max={customerPoints}
                   value={pointsToRedeem || ''}
@@ -249,6 +250,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               </p>
               <input
                 type="number"
+                inputMode="numeric"
                 value={amountPaid}
                 onChange={(e) => onAmountPaidChange(e.target.value)}
                 placeholder={String(derived.total)}

@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
+import { localOrderRef } from './orderRef'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -80,7 +81,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             </p>
           ) : (
             <p className="text-xs text-gray-500 mt-1">
-              {orderId ? `ID: ${orderId.slice(0, 8)}…` : 'Disinkronisasi'}
+              {orderId ? localOrderRef(orderId) : 'Disinkronisasi'}
             </p>
           )}
         </div>

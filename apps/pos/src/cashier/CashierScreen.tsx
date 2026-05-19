@@ -27,6 +27,7 @@ import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen } from '../screens/SettingsScreen'
+import { localOrderRef } from './orderRef'
 import { api } from '../api'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -227,7 +228,7 @@ export default function CashierScreen() {
         shiftId: shift.currentShift?.id ?? null,
       })
       const receipt: ReceiptData = {
-        orderRef: orderUuid.slice(0, 8).toUpperCase(),
+        orderRef: localOrderRef(orderUuid),
         pending: true, // server assigns the canonical number at sync (§5)
         dateTime: new Date(),
         lines: state.cart.map((i) => ({
@@ -375,6 +376,7 @@ export default function CashierScreen() {
             required={customerRequired}
             onAddNewFromSearch={handleAddNewFromSearch}
             errorText={customerError}
+            loyaltyEnabled={loyalty.enabled}
           />
           <ProductGrid
             products={products} categories={categories}
@@ -397,11 +399,13 @@ export default function CashierScreen() {
               onClear={cartActions.clearCart}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
-              discountRunning={state.discountRunning} surchargeRunning={state.surchargeRunning}
+              discountRunning={state.discountRunning} discountType={state.discountType}
+              surchargeRunning={state.surchargeRunning}
               orderNotes={state.orderNotes}
               appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
               onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
               onClearPromo={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
+              loyaltyEnabled={loyalty.enabled}
               wallRaised={false}
             />
           </div>
@@ -449,7 +453,11 @@ export default function CashierScreen() {
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
       />
 
-      <ShiftRecapPanel isOpen={showRecap} onClose={() => setShowRecap(false)} />
+      <ShiftRecapPanel
+        isOpen={showRecap}
+        onClose={() => setShowRecap(false)}
+        paymentMethods={settings.paymentMethods}
+      />
 
       <OrderHistoryPanel
         isOpen={showHistory}

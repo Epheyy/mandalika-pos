@@ -10,13 +10,50 @@ import { formatRupiah } from './pricing'
 
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
+type Order = components['schemas']['Order']
 type ShiftResponse = components['schemas']['ShiftResponse']
 type ShiftListResponse = components['schemas']['ShiftListResponse']
 type CashFlowListResponse = components['schemas']['CashFlowListResponse']
+type OrderListResponse = components['schemas']['OrderListResponse']
+type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean }
+
+// Live per-method/totals breakdown for an OPEN shift (the stored shift.*Sales
+// columns are only reconciled by the server at close, so an active shift would
+// otherwise show all zeros).
+interface LiveBreakdown {
+  byMethod: Record<string, number>
+  totalSales: number
+  totalOrders: number
+  totalRefunds: number
+  cashSales: number
+}
+
+function aggregate(orders: Order[]): LiveBreakdown {
+  const b: LiveBreakdown = {
+    byMethod: {},
+    totalSales: 0,
+    totalOrders: 0,
+    totalRefunds: 0,
+    cashSales: 0,
+  }
+  for (const o of orders) {
+    if (o.status === 'refunded') {
+      b.totalRefunds += o.total
+      continue
+    }
+    if (o.status === 'cancelled') continue
+    b.totalSales += o.total
+    b.totalOrders += 1
+    b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + o.total
+    if (o.paymentMethod === 'cash') b.cashSales += o.total
+  }
+  return b
+}
 
 interface ShiftRecapPanelProps {
   isOpen: boolean
   onClose: () => void
+  paymentMethods: PaymentMethodCfg[]
 }
 
 type Tab = 'rekap' | 'riwayat'
@@ -33,10 +70,46 @@ function isCashOut(t: string): boolean {
   return t === 'out' || t === 'expense' || t === 'withdrawal'
 }
 
-function ShiftBreakdown({ shift, flows }: { shift: Shift; flows: CashFlow[] }) {
+function ShiftBreakdown({
+  shift,
+  flows,
+  live,
+  paymentMethods,
+}: {
+  shift: Shift
+  flows: CashFlow[]
+  live?: LiveBreakdown
+  paymentMethods: PaymentMethodCfg[]
+}) {
   const cashIn = flows.filter((f) => !isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
   const cashOut = flows.filter((f) => isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
-  const expectedCash = shift.startingCash + shift.cashSales + cashIn - cashOut
+  // Active shift → live order aggregation; closed shift → server-reconciled
+  // columns. Build the rendered numbers from whichever applies.
+  const cashSales = live ? live.cashSales : shift.cashSales
+  const totalSales = live ? live.totalSales : shift.totalSales
+  const totalOrders = live ? live.totalOrders : shift.totalOrders
+  const totalRefunds = live ? live.totalRefunds : shift.totalRefunds
+  // Method rows: every configured method, plus any method seen in orders that
+  // isn't configured (so nothing is hidden).
+  const methodAmount = (id: string): number =>
+    live
+      ? (live.byMethod[id] ?? 0)
+      : id === 'cash'
+        ? shift.cashSales
+        : id === 'card'
+          ? shift.cardSales
+          : id === 'transfer'
+            ? shift.transferSales
+            : id === 'qris'
+              ? shift.qrisSales
+              : 0
+  const methodRows: { id: string; label: string }[] = [
+    ...paymentMethods.map((m) => ({ id: m.id, label: m.label })),
+    ...Object.keys(live?.byMethod ?? {})
+      .filter((id) => !paymentMethods.some((m) => m.id === id))
+      .map((id) => ({ id, label: id })),
+  ]
+  const expectedCash = shift.startingCash + cashSales + cashIn - cashOut
   const variance =
     shift.closingCash != null ? shift.closingCash - expectedCash : null
 
@@ -69,21 +142,20 @@ function ShiftBreakdown({ shift, flows }: { shift: Shift; flows: CashFlow[] }) {
 
       <div className="border border-gray-100 rounded-xl p-3">
         <p className="text-xs font-bold text-gray-700 mb-1">Penjualan per Metode</p>
-        {row('Tunai', formatRupiah(shift.cashSales))}
-        {row('Kartu', formatRupiah(shift.cardSales))}
-        {row('Transfer', formatRupiah(shift.transferSales))}
-        {row('QRIS', formatRupiah(shift.qrisSales))}
+        {methodRows.map((m) => (
+          <div key={m.id}>{row(m.label, formatRupiah(methodAmount(m.id)))}</div>
+        ))}
         <div className="border-t border-dashed border-gray-200 mt-1 pt-1">
-          {row('Total Penjualan', formatRupiah(shift.totalSales), true)}
+          {row('Total Penjualan', formatRupiah(totalSales), true)}
         </div>
-        {row('Jumlah Order', String(shift.totalOrders))}
-        {row('Refund', formatRupiah(shift.totalRefunds))}
+        {row('Jumlah Order', String(totalOrders))}
+        {row('Refund', formatRupiah(totalRefunds))}
       </div>
 
       <div className="border border-gray-100 rounded-xl p-3">
         <p className="text-xs font-bold text-gray-700 mb-1">Rekonsiliasi Kas</p>
         {row('Kas Awal', formatRupiah(shift.startingCash))}
-        {row('Penjualan Tunai', formatRupiah(shift.cashSales))}
+        {row('Penjualan Tunai', formatRupiah(cashSales))}
         {row('Kas Masuk', formatRupiah(cashIn))}
         {row('Kas Keluar', `−${formatRupiah(cashOut)}`)}
         <div className="border-t border-dashed border-gray-200 mt-1 pt-1">
@@ -129,13 +201,14 @@ function ShiftBreakdown({ shift, flows }: { shift: Shift; flows: CashFlow[] }) {
   )
 }
 
-export function ShiftRecapPanel({ isOpen, onClose }: ShiftRecapPanelProps) {
+export function ShiftRecapPanel({ isOpen, onClose, paymentMethods }: ShiftRecapPanelProps) {
   const [tab, setTab] = useState<Tab>('rekap')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [currentShift, setCurrentShift] = useState<Shift | null>(null)
   const [currentFlows, setCurrentFlows] = useState<CashFlow[]>([])
+  const [currentLive, setCurrentLive] = useState<LiveBreakdown | undefined>(undefined)
 
   const [history, setHistory] = useState<Shift[]>([])
   const [selected, setSelected] = useState<Shift | null>(null)
@@ -155,7 +228,19 @@ export function ShiftRecapPanel({ isOpen, onClose }: ShiftRecapPanelProps) {
       const r = await api.request<ShiftResponse>('GET', '/api/v1/shifts/current')
       const s = r.data ?? null
       setCurrentShift(s)
-      setCurrentFlows(s ? await flowsFor(s.id) : [])
+      if (s) {
+        setCurrentFlows(await flowsFor(s.id))
+        // Active shift totals are computed live from its orders (the stored
+        // shift columns are only reconciled by the server at close).
+        const ord = await api.request<OrderListResponse>(
+          'GET',
+          `/api/v1/orders?shiftId=${encodeURIComponent(s.id)}&page=1&limit=1000`,
+        )
+        setCurrentLive(aggregate(ord.data ?? []))
+      } else {
+        setCurrentFlows([])
+        setCurrentLive(undefined)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Gagal memuat rekap')
     } finally {
@@ -233,7 +318,12 @@ export function ShiftRecapPanel({ isOpen, onClose }: ShiftRecapPanelProps) {
 
           {!isLoading && !error && tab === 'rekap' && (
             currentShift ? (
-              <ShiftBreakdown shift={currentShift} flows={currentFlows} />
+              <ShiftBreakdown
+                shift={currentShift}
+                flows={currentFlows}
+                live={currentLive}
+                paymentMethods={paymentMethods}
+              />
             ) : (
               <p className="text-sm text-gray-400 text-center py-8">
                 Belum ada shift aktif
@@ -279,7 +369,11 @@ export function ShiftRecapPanel({ isOpen, onClose }: ShiftRecapPanelProps) {
               >
                 ‹ Kembali ke daftar
               </button>
-              <ShiftBreakdown shift={selected} flows={selectedFlows} />
+              <ShiftBreakdown
+                shift={selected}
+                flows={selectedFlows}
+                paymentMethods={paymentMethods}
+              />
             </div>
           )}
         </div>

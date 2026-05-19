@@ -109,6 +109,7 @@ export const ShiftBar = memo(function ShiftBar({
             </label>
             <input
               type="number"
+              inputMode="numeric"
               value={depositStr}
               onChange={(e) => setDepositStr(e.target.value)}
               placeholder="0"
@@ -155,6 +156,7 @@ export const ShiftBar = memo(function ShiftBar({
             </label>
             <input
               type="number"
+              inputMode="numeric"
               value={closingStr}
               onChange={(e) => setClosingStr(e.target.value)}
               placeholder="0"

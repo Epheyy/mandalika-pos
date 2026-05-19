@@ -19,11 +19,13 @@ interface CartProps {
   onCheckout: () => void
   onOpenAdjustment: (panel: 'notes' | 'discount' | 'promo') => void
   discountRunning: number
+  discountType: 'percentage' | 'fixed'
   surchargeRunning: number
   orderNotes: string
   appliedPromoLabel: string | null
   onClearDiscount: () => void
   onClearPromo: () => void
+  loyaltyEnabled: boolean
   wallRaised: boolean
 }
 
@@ -39,11 +41,13 @@ export const Cart = memo(function Cart({
   onCheckout,
   onOpenAdjustment,
   discountRunning,
+  discountType,
   surchargeRunning,
   orderNotes,
   appliedPromoLabel,
   onClearDiscount,
   onClearPromo,
+  loyaltyEnabled,
   wallRaised,
 }: CartProps) {
   const isEmpty = cart.length === 0
@@ -57,7 +61,8 @@ export const Cart = memo(function Cart({
             👤 {selectedCustomer.name}
           </p>
           <p className="text-[10px] text-indigo-600">
-            {selectedCustomer.phone} · {selectedCustomer.points} poin
+            {selectedCustomer.phone}
+            {loyaltyEnabled && ` · ${selectedCustomer.points} poin`}
           </p>
         </div>
       )}
@@ -195,7 +200,10 @@ export const Cart = memo(function Cart({
           {discountRunning > 0 && (
             <div className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
-                Diskon manual
+                Diskon manual{' '}
+                {discountType === 'percentage'
+                  ? `${discountRunning}%`
+                  : formatRupiah(discountRunning)}
                 <button
                   onClick={onClearDiscount}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
@@ -204,7 +212,6 @@ export const Cart = memo(function Cart({
                   ×
                 </button>
               </span>
-              <span>−{formatRupiah(discountRunning)}</span>
             </div>
           )}
           {derived.discountAmount > 0 && (

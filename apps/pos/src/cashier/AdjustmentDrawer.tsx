@@ -40,7 +40,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
 
   if (state.activeAdjustment === 'notes') {
     return (
-      <div className="fixed inset-0 bg-black/40 z-40 flex items-end sm:items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-gray-900">Catatan Order</h3>
@@ -66,7 +66,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
 
   if (state.activeAdjustment === 'discount') {
     return (
-      <div className="fixed inset-0 bg-black/40 z-40 flex items-end sm:items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-gray-900">Diskon / Surcharge</h3>
@@ -89,6 +89,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
           </div>
           <input
             type="number"
+            inputMode="numeric"
             value={state.adjustInputStr}
             onChange={(e) => dispatch({ type: 'SET_ADJUST_INPUT', value: e.target.value })}
             placeholder={state.discountType === 'percentage' ? 'Contoh: 10' : 'Contoh: 5000'}

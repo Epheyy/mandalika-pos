@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react'
 import type { components } from '@mandalika/api'
-import { formatRupiah, getCustomerTier } from './pricing'
+import { getCustomerTier } from './pricing'
 
 type Customer = components['schemas']['Customer']
 
@@ -24,6 +24,8 @@ interface CustomerPickerProps {
   onAddNewFromSearch: (query: string) => void
   /** Error from the last save attempt (shown in the add form). */
   errorText?: string | null
+  /** Loyalty is configurable in Backoffice; hide tier/points when off. */
+  loyaltyEnabled: boolean
 }
 
 export const CustomerPicker = memo(function CustomerPicker({
@@ -43,6 +45,7 @@ export const CustomerPicker = memo(function CustomerPicker({
   required,
   onAddNewFromSearch,
   errorText,
+  loyaltyEnabled,
 }: CustomerPickerProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -80,11 +83,17 @@ export const CustomerPicker = memo(function CustomerPicker({
               {selectedCustomer.name}
             </p>
             <p className="text-[10px] text-indigo-600">
-              {selectedCustomer.phone} ·{' '}
-              {getCustomerTier(selectedCustomer.totalSpent)} ·{' '}
-              {selectedCustomer.points} poin
+              {selectedCustomer.phone}
+              {loyaltyEnabled && (
+                <>
+                  {' · '}
+                  {getCustomerTier(selectedCustomer.totalSpent)}
+                  {' · '}
+                  {selectedCustomer.points} poin
+                </>
+              )}
             </p>
-            {earnedPoints > 0 && (
+            {loyaltyEnabled && earnedPoints > 0 && (
               <p className="text-[10px] text-green-600">
                 +{earnedPoints} poin (tampilan sementara)
               </p>
@@ -115,6 +124,8 @@ export const CustomerPicker = memo(function CustomerPicker({
           <input
             className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             placeholder="Telepon *"
+            type="tel"
+            inputMode="tel"
             value={newCustomerForm.phone}
             onChange={(e) => onNewFormChange('phone', e.target.value)}
           />
@@ -190,8 +201,8 @@ export const CustomerPicker = memo(function CustomerPicker({
                     {c.name}
                   </p>
                   <p className="text-[10px] text-gray-500">
-                    {c.phone} · {formatRupiah(c.totalSpent)} ·{' '}
-                    {getCustomerTier(c.totalSpent)}
+                    {c.phone}
+                    {loyaltyEnabled && ` · ${getCustomerTier(c.totalSpent)}`}
                   </p>
                 </button>
               ))}
