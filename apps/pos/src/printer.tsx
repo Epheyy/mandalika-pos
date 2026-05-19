@@ -32,6 +32,11 @@ interface PrinterState {
   supported: boolean
   pairedName: string | null
   isPaired: boolean
+  /** Already-bonded (OS-paired) devices — preferred over a blind scan in a
+   *  noisy environment like a mall. */
+  listBonded: () => Promise<{ deviceId: string; name: string }[]>
+  /** Pair to a specific (bonded) device the cashier picked from the list. */
+  pairTo: (deviceId: string, name: string) => void
   pair: () => Promise<boolean>
   unpair: () => void
   print: (data: ReceiptData, settings: ReceiptSettings) => Promise<void>
@@ -61,6 +66,21 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
     setPairedName(dev.name)
     return true
   }, [kv])
+
+  const listBonded = useCallback(async () => {
+    const t = transportRef.current
+    return t.listBonded ? t.listBonded() : []
+  }, [])
+
+  const pairTo = useCallback(
+    (deviceId: string, name: string) => {
+      kv.set(PRINTER_KEY, deviceId)
+      kv.set(PRINTER_NAME_KEY, name)
+      setPairedId(deviceId)
+      setPairedName(name)
+    },
+    [kv],
+  )
 
   const unpair = useCallback(() => {
     kv.remove(PRINTER_KEY)
@@ -117,12 +137,14 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
       supported,
       pairedName,
       isPaired: pairedId != null,
+      listBonded,
+      pairTo,
       pair,
       unpair,
       print,
       testPrint,
     }),
-    [supported, pairedName, pairedId, pair, unpair, print, testPrint],
+    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, testPrint],
   )
 
   return <PrinterCtx.Provider value={value}>{children}</PrinterCtx.Provider>

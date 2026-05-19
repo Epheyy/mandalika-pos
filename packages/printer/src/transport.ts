@@ -15,6 +15,9 @@ export interface PrinterTransport {
   isAvailable(): Promise<boolean>
   /** Interactive scan/picker; resolves with the chosen device or null. */
   pickDevice(): Promise<PrinterDevice | null>
+  /** OS-bonded (already paired) devices. Optional: not all transports
+   *  support it (web/none). Preferred over a blind scan in noisy venues. */
+  listBonded?(): Promise<PrinterDevice[]>
   connect(deviceId: string): Promise<void>
   /** Stream raw ESC/POS bytes (chunked internally for BLE MTU limits). */
   write(payload: Uint8Array): Promise<void>

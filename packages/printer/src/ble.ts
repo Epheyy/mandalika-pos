@@ -53,6 +53,21 @@ export class CapacitorBleTransport implements PrinterTransport {
     }
   }
 
+  async listBonded(): Promise<PrinterDevice[]> {
+    try {
+      await BleClient.initialize({ androidNeverForLocation: true })
+      const devs = await BleClient.getBondedDevices()
+      return devs.map((d) => ({
+        deviceId: d.deviceId,
+        name: d.name ?? 'Perangkat',
+      }))
+    } catch {
+      // iOS has no bonded-device concept / permission denied — caller
+      // falls back to the interactive scan.
+      return []
+    }
+  }
+
   async connect(deviceId: string): Promise<void> {
     await BleClient.initialize({ androidNeverForLocation: true })
     await BleClient.connect(deviceId, () => {

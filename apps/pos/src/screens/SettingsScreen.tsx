@@ -47,6 +47,23 @@ export const SettingsScreen = memo(function SettingsScreen({
   const printer = usePrinter()
   const [printerBusy, setPrinterBusy] = useState(false)
   const [printerMsg, setPrinterMsg] = useState<string | null>(null)
+  const [bonded, setBonded] = useState<{ deviceId: string; name: string }[] | null>(null)
+
+  const handleShowBonded = async () => {
+    setPrinterBusy(true)
+    setPrinterMsg(null)
+    try {
+      const list = await printer.listBonded()
+      setBonded(list)
+      if (list.length === 0) {
+        setPrinterMsg('Tidak ada perangkat terpasang. Pasangkan printer di Pengaturan Bluetooth HP dulu, atau gunakan Pindai.')
+      }
+    } catch (e: unknown) {
+      setPrinterMsg(e instanceof Error ? e.message : 'Gagal memuat perangkat')
+    } finally {
+      setPrinterBusy(false)
+    }
+  }
 
   const handlePair = async () => {
     setPrinterBusy(true)
@@ -251,11 +268,11 @@ export const SettingsScreen = memo(function SettingsScreen({
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => void handlePair()}
+                  onClick={() => void handleShowBonded()}
                   disabled={printerBusy}
                   className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
                 >
-                  {printer.isPaired ? 'Ganti Printer' : 'Pasangkan Printer'}
+                  {printer.isPaired ? 'Ganti Printer' : 'Pilih Printer Terpasang'}
                 </button>
                 {printer.isPaired && (
                   <button
@@ -267,6 +284,32 @@ export const SettingsScreen = memo(function SettingsScreen({
                   </button>
                 )}
               </div>
+
+              {bonded !== null && (
+                <div className="space-y-1">
+                  {bonded.map((d) => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => {
+                        printer.pairTo(d.deviceId, d.name)
+                        setBonded(null)
+                        setPrinterMsg(`Printer dipilih: ${d.name}`)
+                      }}
+                      className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-indigo-50 rounded-lg text-xs"
+                    >
+                      <span className="font-semibold text-gray-800">{d.name}</span>
+                      <span className="block text-[10px] text-gray-400">{d.deviceId}</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => { setBonded(null); void handlePair() }}
+                    disabled={printerBusy}
+                    className="w-full py-1.5 text-[11px] text-indigo-600 font-semibold disabled:opacity-50"
+                  >
+                    Tidak ada di daftar? Pindai (scan)
+                  </button>
+                </div>
+              )}
               {printer.isPaired && (
                 <button
                   onClick={printer.unpair}

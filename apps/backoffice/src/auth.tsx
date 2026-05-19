@@ -11,6 +11,9 @@ import type { User } from '@mandalika/api'
 import { api, authStore } from './api'
 
 const REFRESH_KEY = 'mandalika.backoffice.refresh'
+// Backoffice sessions are day-bound: a new calendar day forces re-login.
+const LOGIN_DATE_KEY = 'mandalika.backoffice.loginDate'
+const today = () => new Date().toISOString().slice(0, 10)
 
 // Backoffice is Admin/Manager only. Cashiers must use the POS app.
 const ALLOWED_ROLES = new Set(['admin', 'manager'])
@@ -30,17 +33,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     authStore.access = null
+    authStore.refresh = null
     localStorage.removeItem(REFRESH_KEY)
+    localStorage.removeItem(LOGIN_DATE_KEY)
     setUser(null)
   }, [])
 
   useEffect(() => {
     authStore.onUnauthorized = clear
+    // Silent refresh keeps the admin signed in through the working day.
+    authStore.onTokens = (d) => {
+      authStore.access = d.access
+      authStore.refresh = d.refresh
+      localStorage.setItem(REFRESH_KEY, d.refresh)
+    }
     const refresh = localStorage.getItem(REFRESH_KEY)
+    const loginDate = localStorage.getItem(LOGIN_DATE_KEY)
     if (!refresh) {
       setReady(true)
       return
     }
+    // Day-bound: a refresh from a previous calendar day is not honored.
+    if (loginDate !== today()) {
+      clear()
+      setReady(true)
+      return
+    }
+    authStore.refresh = refresh
     api
       .refresh(refresh)
       .then((d) => {
@@ -49,11 +68,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         authStore.access = d.access
+        authStore.refresh = d.refresh
         localStorage.setItem(REFRESH_KEY, d.refresh)
         setUser(d.user)
       })
       .catch(() => clear())
       .finally(() => setReady(true))
+  }, [clear])
+
+  // While the tab stays open across midnight, enforce the day boundary on
+  // focus/visibility so a stale session can't continue into a new day.
+  useEffect(() => {
+    const check = () => {
+      const ld = localStorage.getItem(LOGIN_DATE_KEY)
+      if (ld && ld !== today()) {
+        const r = localStorage.getItem(REFRESH_KEY)
+        if (r) void api.logout(r).catch(() => {})
+        clear()
+      }
+    }
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+    }
   }, [clear])
 
   const login = useCallback(async (email: string, password: string) => {
@@ -62,7 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('This account is a cashier. Use the POS app to sign in.')
     }
     authStore.access = d.access
+    authStore.refresh = d.refresh
     localStorage.setItem(REFRESH_KEY, d.refresh)
+    localStorage.setItem(LOGIN_DATE_KEY, today())
     setUser(d.user)
   }, [])
 

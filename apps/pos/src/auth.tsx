@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     authStore.access = null
+    authStore.refresh = null
     authStore.outletId = null
     tokenStore.remove(REFRESH_KEY)
     setUser(null)
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const apply = useCallback((d: { access: string; refresh: string; user: User }) => {
     authStore.access = d.access
+    authStore.refresh = d.refresh
     authStore.outletId = d.user.outletId ?? null
     tokenStore.set(REFRESH_KEY, d.refresh)
     setUser(d.user)
@@ -48,7 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     authStore.onUnauthorized = clear
+    // Silent refresh persists rotated tokens; the POS session then lives
+    // until the cashier explicitly logs out (refresh TTL is long server-side).
+    authStore.onTokens = (d) => {
+      authStore.access = d.access
+      authStore.refresh = d.refresh
+      authStore.outletId = d.user?.outletId ?? authStore.outletId
+      tokenStore.set(REFRESH_KEY, d.refresh)
+    }
     const refresh = tokenStore.get(REFRESH_KEY)
+    if (refresh) authStore.refresh = refresh
     if (!refresh) {
       setReady(true)
       return

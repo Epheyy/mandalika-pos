@@ -43,6 +43,13 @@ export interface ClientOptions {
   getOutletId?: () => string | null
   /** Invoked on a 401 so the app can clear auth / redirect to login. */
   onUnauthorized?: () => void
+  /** Stored refresh token. When present, a 401 triggers a silent
+   *  refresh+retry instead of an immediate logout — so a short access TTL
+   *  never interrupts an active session. */
+  getRefresh?: () => string | null
+  /** Called with the new tokens after a silent refresh so the app can
+   *  persist them (access in memory, refresh in secure storage). */
+  onTokens?: (d: AuthData) => void
 }
 
 export class ApiError extends Error {
@@ -148,18 +155,58 @@ export interface Api {
 }
 
 export function createClient(opts: ClientOptions): Api {
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const token = opts.getToken()
-    if (token) headers.Authorization = `Bearer ${token}`
-    const outlet = opts.getOutletId?.()
-    if (outlet) headers['X-Outlet-Id'] = outlet
+  // De-dupe concurrent refreshes: many requests can 401 at once when the
+  // access token expires; they all await the single in-flight refresh.
+  let refreshing: Promise<boolean> | null = null
 
-    const res = await fetch(opts.baseUrl + path, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
+  async function trySilentRefresh(): Promise<boolean> {
+    const rt = opts.getRefresh?.()
+    if (!rt) return false
+    if (!refreshing) {
+      refreshing = (async () => {
+        try {
+          const res = await fetch(`${opts.baseUrl}${API}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: rt }),
+          })
+          if (!res.ok) return false
+          const j = await res.json()
+          const d = (j?.data ?? j) as AuthData
+          if (!d?.access) return false
+          opts.onTokens?.(d)
+          return true
+        } catch {
+          return false
+        } finally {
+          refreshing = null
+        }
+      })()
+    }
+    return refreshing
+  }
+
+  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const send = async (): Promise<Response> => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const token = opts.getToken()
+      if (token) headers.Authorization = `Bearer ${token}`
+      const outlet = opts.getOutletId?.()
+      if (outlet) headers['X-Outlet-Id'] = outlet
+      return fetch(opts.baseUrl + path, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+    }
+
+    let res = await send()
+    if (res.status === 401 && !path.includes('/auth/')) {
+      // Try one silent refresh+retry before giving up the session.
+      if (await trySilentRefresh()) {
+        res = await send()
+      }
+    }
     if (res.status === 401) {
       opts.onUnauthorized?.()
       throw new ApiError(401, 'unauthorized')
