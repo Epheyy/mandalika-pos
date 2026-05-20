@@ -19,6 +19,7 @@ import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { CustomerPicker } from './CustomerPicker'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
+import { MenuDrawer } from './MenuDrawer'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
@@ -81,6 +82,7 @@ export default function CashierScreen() {
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
   const [shiftPrompt, setShiftPrompt] = useState(false)
@@ -324,6 +326,7 @@ export default function CashierScreen() {
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
+      if (showMenu) { setShowMenu(false); return true }
       if (showSettings) { setShowSettings(false); return true }
       if (showHistory) { setShowHistory(false); return true }
       if (showRecap) { setShowRecap(false); return true }
@@ -338,7 +341,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showSettings, showHistory, showRecap, refundOrder,
+    showMenu, showSettings, showHistory, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
     state.activeTab,
   ])
@@ -363,11 +366,21 @@ export default function CashierScreen() {
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={offlineData.retryFailed}
           />
-          <span className="text-xs text-gray-500 hidden sm:inline">{user.displayName}</span>
-          <button onClick={() => setShowRecap(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Rekap Shift">Rekap</button>
-          <button onClick={() => setShowHistory(true)} className="px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg font-semibold" title="Riwayat Transaksi">Riwayat</button>
-          <button onClick={() => setShowSettings(true)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Pengaturan">⚙</button>
-          <button onClick={logout} className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-semibold">Keluar</button>
+          <button
+            onClick={() => setShowMenu(true)}
+            className="relative flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
+            title="Menu"
+          >
+            <span className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-black text-indigo-700">
+              {user.displayName.charAt(0).toUpperCase()}
+            </span>
+            <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            {offlineData.pendingCount > 0 && (
+              <span className="absolute top-0.5 right-1 w-2 h-2 rounded-full bg-red-500" />
+            )}
+          </button>
         </div>
       </header>
 
@@ -492,6 +505,29 @@ export default function CashierScreen() {
         isOpen={showRecap}
         onClose={() => setShowRecap(false)}
         paymentMethods={settings.paymentMethods}
+        userName={user.displayName}
+        userRole={user.role}
+        onOpenShift={shift.openShift}
+        onCloseShift={shift.closeShift}
+        isOpeningShift={shift.isOpeningShift}
+        isClosingShift={shift.isClosingShift}
+      />
+
+      <MenuDrawer
+        open={showMenu}
+        onClose={() => setShowMenu(false)}
+        user={user}
+        shiftActive={!!shift.currentShift}
+        isOnline={offlineData.isOnline}
+        pendingSync={offlineData.pendingCount > 0}
+        isSyncing={offlineData.isResyncing}
+        onTakeOrder={() => setShowMenu(false)}
+        onHistory={() => setShowHistory(true)}
+        onRecap={() => setShowRecap(true)}
+        onSync={() => void offlineData.resync()}
+        onSettings={() => setShowSettings(true)}
+        onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
+        onLogout={logout}
       />
 
       <OrderHistoryPanel
