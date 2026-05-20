@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Launch window background referenced by AppTheme.NoActionBarLaunch.
-     Solid brand indigo (matches capacitor.config SplashScreen backgroundColor).
+     Brand-dark backdrop with the gold Mandalika logo centred. Sizing is fixed
+     in dp on the item so the single bitmap renders correctly at every density.
      Static so release resource linking never depends on capacitor-assets. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#4f46e5" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="#1a1008" />
+    </item>
+    <item
+        android:width="240dp"
+        android:height="73dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@drawable/logo_gold"
+            android:gravity="center" />
+    </item>
+</layer-list>

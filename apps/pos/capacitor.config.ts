@@ -28,7 +28,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 600,
       launchAutoHide: false, // hidden in code once SyncProvider is ready
-      backgroundColor: '#4f46e5',
+      backgroundColor: '#1a1008', // brand-dark, matches @drawable/splash
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },

@@ -59,6 +59,7 @@ export function calcPromoDiscount(
 export interface PricingInput {
   cart: CartItem[]
   discountType: 'percentage' | 'fixed'
+  surchargeType: 'percentage' | 'fixed'
   discountRunning: number
   surchargeRunning: number
   appliedPromotion: Promotion | null
@@ -74,6 +75,7 @@ export function computePricing(input: PricingInput): PricingResult {
   const {
     cart,
     discountType,
+    surchargeType,
     discountRunning,
     surchargeRunning,
     appliedPromotion,
@@ -96,7 +98,7 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const surchargeAmount =
     surchargeRunning > 0
-      ? discountType === 'percentage'
+      ? surchargeType === 'percentage'
         ? Math.round(subtotal * (surchargeRunning / 100))
         : surchargeRunning
       : 0

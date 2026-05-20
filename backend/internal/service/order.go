@@ -46,6 +46,7 @@ type CreateOrderInput struct {
 	ManualKind     DiscountKind
 	ManualValue    float64
 	Surcharge      float64
+	SurchargeKind  DiscountKind
 	DiscountCode   string // promo code applied
 	PromotionID    string // applied promotion id
 	PointsRedeemed int    // loyalty points the customer spends on this order
@@ -110,7 +111,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	}
 	res := Compute(PricingInput{
 		Items: items, ManualDiscount: in.ManualValue, ManualKind: in.ManualKind,
-		Surcharge: in.Surcharge, Promo: promo,
+		Surcharge: in.Surcharge, SurchargeKind: in.SurchargeKind, Promo: promo,
 		TaxEnabled: taxEnabled, TaxRate: taxRate,
 		RoundingEnabled: roundEnabled, RoundingType: roundType,
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
@@ -201,7 +202,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		nullUUID(in.CustomerID), nullStr(in.CustomerName),
 		res.Subtotal, res.DiscountAmount, nullStr(string(in.ManualKind)),
 		nullNum(in.ManualValue), nullStr(in.DiscountCode),
-		nullStr(string(in.ManualKind)), nullNum(in.Surcharge), res.SurchargeAmount,
+		nullStr(string(in.SurchargeKind)), nullNum(in.Surcharge), res.SurchargeAmount,
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed,

@@ -29,6 +29,7 @@ import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen } from '../screens/SettingsScreen'
 import { localOrderRef } from './orderRef'
 import { api } from '../api'
+import logoGold from '../assets/logo-gold.png'
 
 type FontSize = 'sm' | 'md' | 'lg'
 type GridCols = 2 | 3 | 4 | 6
@@ -173,13 +174,30 @@ export default function CashierScreen() {
     }
     setIsSavingCustomer(true)
     setCustomerError(null)
+    const name = newCustomerForm.name.trim()
+    const phone = newCustomerForm.phone.trim()
+    const email = newCustomerForm.email.trim()
     try {
-      const r = await api.request<{ data: components['schemas']['Customer'] }>(
+      // POST /customers returns only `{ id }`, not the full record. Build the
+      // Customer locally from the form + returned id so it reads immediately
+      // everywhere (cart, receipt, and the synced order's customerName) —
+      // before the background resync brings the server copy.
+      const r = await api.request<{ data: { id: string } }>(
         'POST', '/api/v1/customers',
-        { name: newCustomerForm.name.trim(), phone: newCustomerForm.phone.trim(), email: newCustomerForm.email.trim() || undefined },
+        { name, phone, email: email || undefined },
       )
-      setLocalCustomers((prev) => [r.data, ...prev])
-      dispatch({ type: 'SET_CUSTOMER', customer: r.data })
+      const created: components['schemas']['Customer'] = {
+        id: r.data.id,
+        name,
+        phone,
+        email: email || null,
+        points: 0,
+        totalSpent: 0,
+        visitCount: 0,
+        createdAt: new Date().toISOString(),
+      }
+      setLocalCustomers((prev) => [created, ...prev])
+      dispatch({ type: 'SET_CUSTOMER', customer: created })
       setIsAddingCustomer(false)
       setCustomerRequired(false)
       setNewCustomerForm({ name: '', phone: '', email: '' })
@@ -233,9 +251,10 @@ export default function CashierScreen() {
         customerName: state.selectedCustomer?.name ?? null,
         salesmanId: state.selectedSalesman?.id ?? null,
         salesmanName: state.selectedSalesman?.name ?? null,
-        discountType: state.discountRunning > 0 ? state.discountType : null,
+        discountType: state.discountRunning > 0 ? state.appliedDiscountType : null,
         discountValue: state.discountRunning > 0 ? state.discountRunning : null,
         surchargeValue: state.surchargeRunning > 0 ? state.surchargeRunning : null,
+        surchargeType: state.surchargeRunning > 0 ? state.appliedSurchargeType : null,
         discountCode: state.appliedPromoCode?.code ?? null,
         promotionId: state.appliedPromotion?.id ?? null,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
@@ -333,7 +352,7 @@ export default function CashierScreen() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between flex-shrink-0 safe-top">
         <div className="flex items-center gap-3">
-          <span className="font-black text-gray-900 text-sm">Mandalika POS</span>
+          <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain" />
           <OutletSwitcher user={user} onResync={offlineData.resync} />
         </div>
         <div className="flex items-center gap-2">
@@ -415,7 +434,7 @@ export default function CashierScreen() {
               onClear={cartActions.clearCart}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
-              discountRunning={state.discountRunning} discountType={state.discountType}
+              discountRunning={state.discountRunning} discountType={state.appliedDiscountType}
               surchargeRunning={state.surchargeRunning}
               orderNotes={state.orderNotes}
               appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}

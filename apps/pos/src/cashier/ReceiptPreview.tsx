@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { localOrderRef } from './orderRef'
+import logoGold from '../assets/logo-gold.png'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -88,6 +89,11 @@ export const ReceiptPreview = memo(function ReceiptPreview({
 
         {/* Receipt body */}
         <div className="flex-1 overflow-y-auto p-5">
+          <img
+            src={logoGold}
+            alt="Mandalika"
+            className="h-9 w-auto object-contain mx-auto mb-3"
+          />
           {settings.receipt.headerText && (
             <p className="text-xs text-center text-gray-500 mb-3">
               {settings.receipt.headerText}

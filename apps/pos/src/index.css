@@ -14,15 +14,17 @@
   --color-indigo-900: #4d3408;
 }
 
-/* Android gesture/navigation-bar inset. StatusBar.setOverlaysWebView(false)
-   handles the top; the bottom bar still needs manual safe-area padding so
-   the mobile tab bar and the Bayar button aren't under the nav bar. */
+/* Safe-area padding. --sat/--sab/--sal/--sar are injected by MainActivity from
+   the real Android window insets (display cutout + any visible system bars);
+   env(safe-area-inset-*) is the web/iOS fallback when the vars aren't set yet.
+   With the immersive bars hidden these resolve to 0 and the app draws
+   edge-to-edge; a notch/cutout still pads so nothing is clipped. */
 .safe-top {
-  padding-top: max(env(safe-area-inset-top), 0px);
+  padding-top: max(var(--sat, env(safe-area-inset-top)), 0px);
 }
 .safe-bottom {
-  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  padding-bottom: max(var(--sab, env(safe-area-inset-bottom)), 0px);
 }
 .safe-bottom-tab {
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(0.5rem + max(var(--sab, env(safe-area-inset-bottom)), 0px));
 }

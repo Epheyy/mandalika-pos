@@ -221,6 +221,7 @@ type createOrderBody struct {
 	DiscountType   string              `json:"discountType"`
 	DiscountValue  float64             `json:"discountValue"`
 	SurchargeVal   float64             `json:"surchargeValue"`
+	SurchargeKind  string              `json:"surchargeType"`
 	DiscountCode   string              `json:"discountCode"`
 	PromotionID    string              `json:"promotionId"`
 	PointsRedeemed int                 `json:"pointsRedeemed"`
@@ -258,6 +259,7 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		Items: body.Items, PaymentMethod: body.PaymentMethod,
 		AmountPaid: body.AmountPaid, ManualKind: service.DiscountKind(body.DiscountType),
 		ManualValue: body.DiscountValue, Surcharge: body.SurchargeVal,
+		SurchargeKind: service.DiscountKind(body.SurchargeKind),
 		DiscountCode: body.DiscountCode, PromotionID: body.PromotionID,
 		PointsRedeemed: body.PointsRedeemed,
 		Notes:          body.Notes, ShiftID: body.ShiftID, Offline: false,

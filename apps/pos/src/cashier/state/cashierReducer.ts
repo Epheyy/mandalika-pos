@@ -28,7 +28,13 @@ export interface CashierState {
   // Loyalty points the customer redeems on this order
   pointsToRedeem: number
   // Adjustments
+  // `discountType` is the *staged* segmented selection (what the input box
+  // means right now). The `applied*Type` fields capture the kind at the moment
+  // an adjustment was applied, so toggling the segmented control afterwards
+  // never retroactively reinterprets an already-applied value.
   discountType: 'percentage' | 'fixed'
+  appliedDiscountType: 'percentage' | 'fixed'
+  appliedSurchargeType: 'percentage' | 'fixed'
   discountRunning: number
   surchargeRunning: number
   orderNotes: string
@@ -86,6 +92,8 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   selectedSalesman: null,
   pointsToRedeem: 0,
   discountType: 'fixed',
+  appliedDiscountType: 'fixed',
+  appliedSurchargeType: 'fixed',
   discountRunning: 0,
   surchargeRunning: 0,
   orderNotes: '',
@@ -207,16 +215,20 @@ export function cashierReducer(
       return { ...state, discountType: action.discountType }
 
     case 'APPLY_DISCOUNT':
+      // Replace (not accumulate) and snapshot the staged kind. Replacing avoids
+      // mixing %/Rp values into one meaningless running number.
       return {
         ...state,
-        discountRunning: state.discountRunning + action.value,
+        discountRunning: action.value,
+        appliedDiscountType: state.discountType,
         adjustInputStr: '',
       }
 
     case 'APPLY_SURCHARGE':
       return {
         ...state,
-        surchargeRunning: state.surchargeRunning + action.value,
+        surchargeRunning: action.value,
+        appliedSurchargeType: state.discountType,
         adjustInputStr: '',
       }
 

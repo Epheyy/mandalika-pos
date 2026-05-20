@@ -37,8 +37,9 @@ type PromoSpec struct {
 type PricingInput struct {
 	Items           []LineItem
 	ManualDiscount  float64      // discountRunning
-	ManualKind      DiscountKind // discountType (shared by surcharge)
+	ManualKind      DiscountKind // discountType (manual discount only)
 	Surcharge       float64      // surchargeRunning
+	SurchargeKind   DiscountKind // surchargeType (independent of discount)
 	Promo           *PromoSpec   // applied promotion or promo code, nil if none
 	TaxEnabled      bool
 	TaxRate         float64 // percent, e.g. 11
@@ -140,7 +141,7 @@ func Compute(in PricingInput) PricingResult {
 
 	surcharge := 0.0
 	if in.Surcharge > 0 {
-		if in.ManualKind == DiscountPercentage {
+		if in.SurchargeKind == DiscountPercentage {
 			surcharge = math.Round(subtotal * (in.Surcharge / 100))
 		} else {
 			surcharge = in.Surcharge

@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { hideSplash } from './native'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
+import logoGold from './assets/logo-gold.png'
 
 function LoginScreen() {
   const { login } = useAuth()
@@ -26,7 +27,12 @@ function LoginScreen() {
 
   return (
     <form onSubmit={onSubmit} style={{ maxWidth: 320, margin: '4rem auto', fontFamily: 'system-ui' }}>
-      <h1 style={{ marginBottom: 24, fontWeight: 900, fontSize: 22 }}>Mandalika POS</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+        <img src={logoGold} alt="Mandalika" style={{ height: 56, width: 'auto', objectFit: 'contain' }} />
+        <p style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#8f6210', letterSpacing: 0.4 }}>
+          Point of Sale
+        </p>
+      </div>
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -46,7 +52,7 @@ function LoginScreen() {
       <button
         disabled={busy}
         type="submit"
-        style={{ width: '100%', padding: '10px 0', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}
+        style={{ width: '100%', padding: '10px 0', background: '#b07d18', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}
       >
         {busy ? 'Masuk…' : 'Masuk'}
       </button>

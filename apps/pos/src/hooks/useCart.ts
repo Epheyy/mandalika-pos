@@ -58,7 +58,8 @@ export function useCart(opts: UseCartOptions): {
 
   const pricing = computePricing({
     cart: state.cart,
-    discountType: state.discountType,
+    discountType: state.appliedDiscountType,
+    surchargeType: state.appliedSurchargeType,
     discountRunning: state.discountRunning,
     surchargeRunning: state.surchargeRunning,
     appliedPromotion: state.appliedPromotion as Promotion | null,
