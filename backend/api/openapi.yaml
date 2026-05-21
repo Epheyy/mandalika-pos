@@ -122,6 +122,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
+        code: { type: string, nullable: true }
         address: { type: string, nullable: true }
         phone: { type: string, nullable: true }
         isActive: { type: boolean }
@@ -343,6 +344,9 @@ components:
         discountType: { type: string, nullable: true }
         discountValue: { type: number, nullable: true }
         discountCode: { type: string, nullable: true }
+        surchargeType: { type: string, nullable: true }
+        surchargeValue: { type: number, nullable: true }
+        surchargeAmount: { type: number, nullable: true }
         taxAmount: { type: number }
         total: { type: number }
         paymentMethod: { type: string, enum: [cash, card, transfer, qris] }

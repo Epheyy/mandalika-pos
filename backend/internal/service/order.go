@@ -32,6 +32,7 @@ type OrderItem struct {
 type CreateOrderInput struct {
 	IdempotencyKey string
 	OrderUUID      string
+	OrderNumber    string // client display number ({OUTLET}-{DEV}{SEQ}); server assigns if empty
 	DeviceID       string // optional (sync clients)
 	OutletID       string
 	CashierID      string
@@ -169,9 +170,14 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		}
 	}
 
-	orderNumber, err := nextOrderNumber(ctx, tx, in.OutletID)
-	if err != nil {
-		return "", false, false, err
+	// Client-authoritative display number ({OUTLET}-{DEV}{SEQ}); fall back to the
+	// legacy server sequence only when the client didn't supply one (older apps).
+	orderNumber := in.OrderNumber
+	if orderNumber == "" {
+		orderNumber, err = nextOrderNumber(ctx, tx, in.OutletID)
+		if err != nil {
+			return "", false, false, err
+		}
 	}
 
 	amountPaid := in.AmountPaid
@@ -379,6 +385,36 @@ func nextOrderNumber(ctx context.Context, tx pgx.Tx, _ string) (string, error) {
 		return "", fmt.Errorf("order number: %w", err)
 	}
 	return fmt.Sprintf("MND-%06d", seq), nil
+}
+
+// CreateCustomerInput is an offline-created customer flushed from the POS outbox.
+// The client generates the UUID so a queued order can reference it before it
+// reaches the server.
+type CreateCustomerInput struct {
+	ID    string
+	Name  string
+	Phone string
+	Email string
+}
+
+// CreateCustomer inserts (or upserts) a customer using the client-provided UUID,
+// so offline new-customer creation works and is replay-safe.
+func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInput) (string, error) {
+	if in.Name == "" || in.Phone == "" {
+		return "", errors.New("customer requires name and phone")
+	}
+	var id string
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO customers (id, name, phone, email)
+		VALUES (COALESCE(NULLIF($1,'')::uuid, gen_random_uuid()), $2, $3, $4)
+		ON CONFLICT (id) DO UPDATE
+		  SET name = EXCLUDED.name, phone = EXCLUDED.phone, email = EXCLUDED.email
+		RETURNING id`,
+		in.ID, in.Name, in.Phone, nullStr(in.Email)).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("create customer: %w", err)
+	}
+	return id, nil
 }
 
 func nullStr(s string) any {

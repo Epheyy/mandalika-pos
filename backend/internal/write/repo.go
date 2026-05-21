@@ -331,6 +331,7 @@ func (r *Repo) DeleteDiscountCode(ctx context.Context, id string) error {
 
 type Outlet struct {
 	Name     string `json:"name"`
+	Code     string `json:"code"`
 	Address  string `json:"address"`
 	Phone    string `json:"phone"`
 	IsActive bool   `json:"isActive"`
@@ -340,9 +341,9 @@ func (r *Repo) CreateOutlet(ctx context.Context, o Outlet) (string, error) {
 	var id string
 	err := r.tx(ctx, "outlets", func(t pgx.Tx) error {
 		if e := t.QueryRow(ctx,
-			`INSERT INTO outlets (name, address, phone, is_active)
-			 VALUES ($1,$2,$3,$4) RETURNING id`,
-			o.Name, nullStr(o.Address), nullStr(o.Phone), o.IsActive).
+			`INSERT INTO outlets (name, code, address, phone, is_active)
+			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), o.IsActive).
 			Scan(&id); e != nil {
 			return e
 		}
@@ -358,8 +359,8 @@ func (r *Repo) CreateOutlet(ctx context.Context, o Outlet) (string, error) {
 func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 	return r.tx(ctx, "outlets", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx,
-			`UPDATE outlets SET name=$1, address=$2, phone=$3, is_active=$4 WHERE id=$5`,
-			o.Name, nullStr(o.Address), nullStr(o.Phone), o.IsActive, id)
+			`UPDATE outlets SET name=$1, code=$2, address=$3, phone=$4, is_active=$5 WHERE id=$6`,
+			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), o.IsActive, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}

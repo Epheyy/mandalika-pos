@@ -339,8 +339,29 @@ export interface paths {
         /** List custom roles */
         get: operations["listCustomRoles"];
         put?: never;
-        post?: never;
+        /** Create custom role (admin) */
+        post: operations["createCustomRole"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-roles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update custom role (admin) */
+        put: operations["updateCustomRole"];
+        post?: never;
+        /** Delete custom role (admin) */
+        delete: operations["deleteCustomRole"];
         options?: never;
         head?: never;
         patch?: never;
@@ -447,7 +468,8 @@ export interface paths {
         /** List stock counts (outlet-scoped) */
         get: operations["listStockCounts"];
         put?: never;
-        post?: never;
+        /** Create stock count (outlet-scoped; freezes current stock) */
+        post: operations["createStockCount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -465,8 +487,28 @@ export interface paths {
         };
         /** Get stock count (outlet-scoped) */
         get: operations["getStockCount"];
-        put?: never;
+        /** Update stock count (start / save progress / cancel; outlet-scoped) */
+        put: operations["updateStockCount"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete stock count — applies actual quantities to product stock in one tx and bumps the content version (outlet-scoped). */
+        post: operations["completeStockCount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -798,6 +840,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+            code?: string | null;
             address?: string | null;
             phone?: string | null;
             isActive: boolean;
@@ -994,6 +1037,9 @@ export interface components {
             discountType?: string | null;
             discountValue?: number | null;
             discountCode?: string | null;
+            surchargeType?: string | null;
+            surchargeValue?: number | null;
+            surchargeAmount?: number | null;
             taxAmount: number;
             total: number;
             /** @enum {string} */
@@ -1007,7 +1053,6 @@ export interface components {
             /** Format: date-time */
             refundedAt?: string | null;
             shiftId?: string | null;
-            pointsRedeemed?: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1149,6 +1194,25 @@ export interface components {
         CustomRoleListResponse: {
             data: components["schemas"]["CustomRole"][];
         };
+        CustomRoleInput: {
+            name: string;
+            permissions: string[];
+        };
+        StockCountCreateInput: {
+            name: string;
+            plannedDate?: string | null;
+            notes?: string | null;
+            items: components["schemas"]["StockCountItem"][];
+        };
+        StockCountUpdateInput: {
+            /** @enum {string|null} */
+            status?: "in_progress" | "cancelled" | null;
+            notes?: string | null;
+            items?: components["schemas"]["StockCountItem"][] | null;
+        };
+        StockCountCompleteInput: {
+            items?: components["schemas"]["StockCountItem"][] | null;
+        };
         ProductSalesRow: {
             productId: string;
             productName: string;
@@ -1258,7 +1322,6 @@ export interface components {
             loyaltyConditions?: components["schemas"]["LoyaltyCondition"][];
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
-            users?: components["schemas"]["User"][];
         };
         SyncPullResponse: {
             data: components["schemas"]["SyncPullBundle"];
@@ -2171,6 +2234,81 @@ export interface operations {
             };
         };
     };
+    createCustomRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomRoleInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateCustomRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomRoleInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCustomRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     listOrders: {
         parameters: {
             query?: {
@@ -2398,6 +2536,34 @@ export interface operations {
             };
         };
     };
+    createStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockCountCreateInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getStockCount: {
         parameters: {
             query?: never;
@@ -2413,6 +2579,66 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description stock count */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockCountUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StockCountCompleteInput"];
+            };
+        };
+        responses: {
+            /** @description completed */
             200: {
                 headers: {
                     [name: string]: unknown;

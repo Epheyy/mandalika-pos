@@ -165,6 +165,7 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		in := service.CreateOrderInput{
 			IdempotencyKey: it.IdempotencyKey,
 			OrderUUID:      p.OrderUUID,
+			OrderNumber:    p.OrderNumber,
 			DeviceID:       p.DeviceID,
 			OutletID:       c.OutletID,
 			CashierID:      c.UserID,
@@ -263,12 +264,31 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		}
 		r.Status, r.OrderID = "ok", id
 		return r
+	case "customer_create":
+		var p struct {
+			CustomerID string `json:"customerId"`
+			Name       string `json:"name"`
+			Phone      string `json:"phone"`
+			Email      string `json:"email"`
+		}
+		if err := json.Unmarshal(it.Payload, &p); err != nil {
+			return fail(err)
+		}
+		id, err := e.Orders.CreateCustomer(ctx, service.CreateCustomerInput{
+			ID: p.CustomerID, Name: p.Name, Phone: p.Phone, Email: p.Email,
+		})
+		if err != nil {
+			return fail(err)
+		}
+		r.Status, r.OrderID = "ok", id
+		return r
 	}
 	return fail(errors.New("unknown batch item type: " + it.Type))
 }
 
 type orderPayload struct {
 	OrderUUID       string              `json:"orderUuid"`
+	OrderNumber     string              `json:"orderNumber"`
 	DeviceID        string              `json:"deviceId"`
 	SalesmanID      string              `json:"salesmanId"`
 	SalesmanName    string              `json:"salesmanName"`

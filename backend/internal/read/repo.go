@@ -125,7 +125,7 @@ func (r *Repo) Bundles(ctx context.Context) ([]api.Bundle, int, error) {
 
 func (r *Repo) Outlets(ctx context.Context) ([]api.Outlet, int, error) {
 	return listJSON[api.Outlet](ctx, r.Pool,
-		`SELECT json_build_object('id',id,'name',name,'address',address,
+		`SELECT json_build_object('id',id,'name',name,'code',code,'address',address,
 		   'phone',phone,'isActive',is_active,'createdAt',created_at)
 		   FROM outlets ORDER BY name`)
 }
@@ -237,7 +237,10 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'customerId',o.customer_id,'customerName',o.customer_name,
   'subtotal',o.subtotal,'discountAmount',o.discount_amount,
   'discountType',o.discount_type,'discountValue',o.discount_value,
-  'discountCode',o.discount_code,'taxAmount',o.tax_amount,'total',o.total,
+  'discountCode',o.discount_code,
+  'surchargeType',o.surcharge_type,'surchargeValue',o.surcharge_value,
+  'surchargeAmount',o.surcharge_amount,
+  'taxAmount',o.tax_amount,'total',o.total,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
   'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,
