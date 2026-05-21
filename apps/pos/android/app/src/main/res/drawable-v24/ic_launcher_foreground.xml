@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Adaptive-icon foreground: the gold Mandalika "M" mark centred inside the
-     108dp canvas, sized to sit within the ~72dp safe zone so the launcher mask
-     never clips it. Single bitmap (drawable/ic_logo_mark) scaled here. -->
+     108dp canvas. Kept small (46x29dp ≈ the logo's 1.577 ratio, no stretch) so
+     that even launchers which aggressively zoom the foreground (e.g. MIUI) keep
+     it inside the masked safe zone instead of clipping the top/bottom. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="64dp"
-        android:height="40dp"
+        android:width="46dp"
+        android:height="29dp"
         android:gravity="center">
         <bitmap
             android:src="@drawable/ic_logo_mark"

@@ -29,11 +29,11 @@
   padding-bottom: calc(0.5rem + max(var(--sab, env(safe-area-inset-bottom)), 0px));
 }
 
-/* Left slide-in for the menu drawer panel (anchored to the left edge). The
-   panel uses animate-[slidein_...]; without this keyframe it just popped in. */
-@keyframes slidein {
+/* Right slide-in for the menu drawer panel (anchored to the right edge, under
+   the hamburger). The panel uses animate-[slideinright_...]. */
+@keyframes slideinright {
   from {
-    transform: translateX(-100%);
+    transform: translateX(100%);
   }
   to {
     transform: translateX(0);

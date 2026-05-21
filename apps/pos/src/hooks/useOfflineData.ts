@@ -29,9 +29,10 @@ export function useOfflineData(): OfflineDataState {
   const engine = useContext(SyncContext)
   if (!engine) throw new Error('useOfflineData must be used within SyncProvider')
 
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true,
-  )
+  // Real server reachability from the engine (a GET actually succeeded),
+  // NOT navigator.onLine — which falsely reports online on some Android
+  // WebViews even with no connection.
+  const [isOnline, setIsOnline] = useState(engine.isReachable())
   const [wall, setWall] = useState<WallState>(engine.getWall())
   const [pendingCount, setPendingCount] = useState(engine.pendingCount())
   const [failed, setFailed] = useState<FailedItem[]>(engine.deadLettered())
@@ -41,15 +42,18 @@ export function useOfflineData(): OfflineDataState {
   const [isResyncing, setIsResyncing] = useState(false)
 
   useEffect(() => {
-    const onOnline = () => setIsOnline(true)
-    const onOffline = () => setIsOnline(false)
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
+    // Browser online/offline events are only hints here — on a connectivity
+    // change, force an immediate reachability probe instead of trusting them.
+    const probe = () => { void engine.checkVersion().then(() => setIsOnline(engine.isReachable())) }
+    window.addEventListener('online', probe)
+    window.addEventListener('offline', probe)
+    // Probe once on mount so the dot is correct even if boot resync failed.
+    probe()
     return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', probe)
+      window.removeEventListener('offline', probe)
     }
-  }, [])
+  }, [engine])
 
   useEffect(() => {
     // Inject event listeners into the engine
@@ -86,6 +90,7 @@ export function useOfflineData(): OfflineDataState {
       setWall(engine.getWall())
       setPendingCount(engine.pendingCount())
       setFailed(engine.deadLettered())
+      setIsOnline(engine.isReachable())
     }, 2000)
     return () => clearInterval(interval)
   }, [engine])

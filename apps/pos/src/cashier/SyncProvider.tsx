@@ -63,7 +63,9 @@ export function SyncProvider({
         void hideSplash()
       })
 
-    const stop = engine.start(20_000)
+    // Poll every 12s: flushes the outbox and refreshes real server
+    // reachability (drives the header online/offline dot).
+    const stop = engine.start(12_000)
     return stop
   }, [engine])
 

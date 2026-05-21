@@ -24,6 +24,9 @@ export interface SyncEvents {
   onWall?: (w: WallState) => void
   onReconcile?: (r: BatchResult) => void
   onOutboxChange?: (pending: number) => void
+  /** Real server reachability (a GET to the server actually succeeded/failed),
+   *  not navigator.onLine — which lies on some Android WebViews. */
+  onReachable?: (online: boolean) => void
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -34,6 +37,7 @@ export class SyncEngine {
   readonly snapshot: Snapshot
   private flushing = false
   private wall: WallState
+  private reachable: boolean = ONLINE()
 
   constructor(
     private api: ApiLike,
@@ -46,11 +50,23 @@ export class SyncEngine {
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
   }
 
+  /** Last known real server reachability (updated by resync / checkVersion). */
+  isReachable(): boolean {
+    return this.reachable
+  }
+
+  private setReachable(online: boolean): void {
+    if (online === this.reachable) return
+    this.reachable = online
+    this.events.onReachable?.(online)
+  }
+
   // ── Reference snapshot ──────────────────────────────────
 
   /** Initial/refresh pull when online; atomically swaps the local snapshot. */
   async resync(): Promise<void> {
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
+    this.setReachable(true)
     this.snapshot.replace(r.data)
     this.wall = {
       raised: false,
@@ -70,12 +86,16 @@ export class SyncEngine {
 
   /** Poll the lightweight version endpoint; raise the wall on a server bump. */
   async checkVersion(): Promise<WallState> {
-    if (!ONLINE()) return this.wall
+    if (!ONLINE()) {
+      this.setReachable(false)
+      return this.wall
+    }
     try {
       const r = await this.api.request<{ data: VersionInfo }>(
         'GET',
         '/api/v1/sync/version',
       )
+      this.setReachable(true)
       const server = r.data.version ?? 0
       const local = this.snapshot.localVersion()
       this.wall = {
@@ -85,7 +105,9 @@ export class SyncEngine {
       }
       this.events.onWall?.(this.wall)
     } catch {
-      /* offline / transient — keep selling on last snapshot (plan §5a) */
+      // The GET failed → the server is unreachable (navigator.onLine can falsely
+      // report online on Android WebViews). Keep selling on last snapshot.
+      this.setReachable(false)
     }
     return this.wall
   }

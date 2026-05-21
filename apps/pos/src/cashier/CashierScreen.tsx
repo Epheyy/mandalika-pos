@@ -589,12 +589,10 @@ export default function CashierScreen() {
 
       {showSettings && (
         <SettingsScreen
+          section={settingsSection ?? 'display'}
           settings={settings} currentShift={shift.currentShift}
-          fontSize={fontSize} gridCols={gridCols} defaultView={defaultView}
+          fontSize={fontSize} gridCols={gridCols}
           onFontSizeChange={handleFontSize} onGridColsChange={handleGridCols}
-          onDefaultViewChange={handleDefaultView}
-          onResync={offlineData.resync} isResyncing={offlineData.isResyncing}
-          initialSection={settingsSection}
           onClose={() => { setShowSettings(false); setSettingsSection(undefined) }}
         />
       )}

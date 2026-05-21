@@ -63,17 +63,16 @@ export const ShiftBar = memo(function ShiftBar({
           The Mulai/Kas-awal detail moved to the Rekapan panel; the title
           attribute keeps it a tap-away on hover. */}
       {currentShift ? (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-          <span
-            className="text-xs font-bold text-gray-800 hidden sm:inline"
-            title={`Mulai ${new Date(currentShift.openedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} · Kas awal ${formatRupiah(currentShift.startingCash)}`}
-          >
-            Shift Aktif
+          <span className="text-xs font-bold text-gray-800 flex-shrink-0">Shift Aktif</span>
+          <span className="text-[10px] text-gray-500 truncate hidden sm:inline">
+            · Mulai {new Date(currentShift.openedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+            {' · '}Kas {formatRupiah(currentShift.startingCash)}
           </span>
           <button
             onClick={() => setShowCloseModal(true)}
-            className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors"
+            className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
             Tutup
           </button>
