@@ -260,7 +260,7 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		AmountPaid: body.AmountPaid, ManualKind: service.DiscountKind(body.DiscountType),
 		ManualValue: body.DiscountValue, Surcharge: body.SurchargeVal,
 		SurchargeKind: service.DiscountKind(body.SurchargeKind),
-		DiscountCode: body.DiscountCode, PromotionID: body.PromotionID,
+		DiscountCode:  body.DiscountCode, PromotionID: body.PromotionID,
 		PointsRedeemed: body.PointsRedeemed,
 		Notes:          body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
