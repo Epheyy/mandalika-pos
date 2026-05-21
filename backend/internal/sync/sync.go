@@ -50,17 +50,18 @@ func (e *Engine) Version(ctx context.Context, outletID string) (VersionInfo, err
 // whole snapshot keeps the swap atomic and conflict-free (POS is read-only on
 // reference data — plan §5a).
 type PullBundle struct {
-	Version           int64 `json:"version"`
-	Products          any   `json:"products"`
-	Categories        any   `json:"categories"`
-	Bundles           any   `json:"bundles"`
-	Customers         any   `json:"customers"`
-	Promotions        any   `json:"promotions"`
-	DiscountCodes     any   `json:"discountCodes"`
-	LoyaltyConditions any   `json:"loyaltyConditions"`
-	LoyaltySettings   any   `json:"loyaltySettings"`
-	AppSettings       any   `json:"appSettings"`
-	Users             any   `json:"users"`
+	Version           int64  `json:"version"`
+	OutletCode        string `json:"outletCode"`
+	Products          any    `json:"products"`
+	Categories        any    `json:"categories"`
+	Bundles           any    `json:"bundles"`
+	Customers         any    `json:"customers"`
+	Promotions        any    `json:"promotions"`
+	DiscountCodes     any    `json:"discountCodes"`
+	LoyaltyConditions any    `json:"loyaltyConditions"`
+	LoyaltySettings   any    `json:"loyaltySettings"`
+	AppSettings       any    `json:"appSettings"`
+	Users             any    `json:"users"`
 }
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
@@ -70,6 +71,11 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 		return b, err
 	}
 	b.Version = vi.Version
+	// Outlet code → POS so it can build {OUTLET}-{DEV}{SEQ} order numbers offline.
+	var code *string
+	if e := e.Pool.QueryRow(ctx, `SELECT code FROM outlets WHERE id=$1`, outletID).Scan(&code); e == nil && code != nil {
+		b.OutletCode = *code
+	}
 	if b.Products, _, err = e.Read.Products(ctx, 1, 100000); err != nil {
 		return b, err
 	}

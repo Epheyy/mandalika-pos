@@ -1313,6 +1313,7 @@ export interface components {
         SyncPullBundle: {
             /** Format: int64 */
             version: number;
+            outletCode?: string | null;
             products?: components["schemas"]["Product"][];
             categories?: components["schemas"]["Category"][];
             bundles?: components["schemas"]["Bundle"][];
@@ -1328,7 +1329,7 @@ export interface components {
         };
         SyncBatchItem: {
             /** @enum {string} */
-            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow";
+            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create";
             idempotencyKey: string;
             payload: {
                 [key: string]: unknown;

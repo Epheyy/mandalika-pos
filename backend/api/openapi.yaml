@@ -669,6 +669,7 @@ components:
       required: [version]
       properties:
         version: { type: integer, format: int64 }
+        outletCode: { type: string, nullable: true }
         products: { type: array, items: { $ref: '#/components/schemas/Product' } }
         categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
         bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }
@@ -687,7 +688,7 @@ components:
       type: object
       required: [type, idempotencyKey, payload]
       properties:
-        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow] }
+        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow, customer_create] }
         idempotencyKey: { type: string }
         payload: { type: object, additionalProperties: true }
     SyncBatchRequest:
