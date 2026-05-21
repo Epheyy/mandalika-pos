@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { formatRupiah } from './pricing'
+import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -42,25 +43,43 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // true when the rows shown came from the offline cache, not a live fetch.
+  const [isStale, setIsStale] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
     setError(null)
+    const term = search.trim()
+    const cacheKey = `orders:${from}:${to}:${page}:${term}`
     try {
       const params: Record<string, string> = {
         from, to, page: String(page), limit: String(PAGE_SIZE),
       }
-      const term = search.trim()
       if (term) params.q = term
       const qs = new URLSearchParams(params).toString()
       const r = await api.request<OrderListResponse>('GET', `/api/v1/orders?${qs}`)
-      setOrders(r.data ?? [])
-      setTotal(r.meta?.total ?? 0)
+      const data = r.data ?? []
+      const t = r.meta?.total ?? 0
+      setOrders(data)
+      setTotal(t)
+      setIsStale(false)
+      cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat riwayat')
-      setOrders([])
-      setTotal(0)
+      // Offline / transient: fall back to the last data seen while online so
+      // the cashier still sees their history instead of "Failed to fetch".
+      const cached = cacheRead<{ orders: Order[]; total: number }>(cacheKey, 'orders:last')
+      if (cached) {
+        setOrders(cached.orders)
+        setTotal(cached.total)
+        setIsStale(true)
+        setError(null)
+      } else {
+        setError(e instanceof Error ? e.message : 'Gagal memuat riwayat')
+        setOrders([])
+        setTotal(0)
+        setIsStale(false)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -136,6 +155,11 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
         {/* List */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {error && <p className="text-sm text-red-600 py-4 text-center">{error}</p>}
+          {isStale && !error && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 text-center">
+              {OFFLINE_NOTICE}
+            </p>
+          )}
           {!error && !isLoading && filtered.length === 0 && (
             <p className="text-sm text-gray-400 py-8 text-center">Tidak ada transaksi</p>
           )}

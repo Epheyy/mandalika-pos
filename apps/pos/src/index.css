@@ -28,3 +28,24 @@
 .safe-bottom-tab {
   padding-bottom: calc(0.5rem + max(var(--sab, env(safe-area-inset-bottom)), 0px));
 }
+
+/* Left slide-in for the menu drawer panel (anchored to the left edge). The
+   panel uses animate-[slidein_...]; without this keyframe it just popped in. */
+@keyframes slidein {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Backdrop fade so the drawer doesn't snap a hard black overlay. */
+@keyframes backdropfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

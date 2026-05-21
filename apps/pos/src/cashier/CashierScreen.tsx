@@ -27,7 +27,7 @@ import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
-import { SettingsScreen } from '../screens/SettingsScreen'
+import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { localOrderRef } from './orderRef'
 import { api } from '../api'
 import logoGold from '../assets/logo-gold.png'
@@ -68,7 +68,12 @@ export default function CashierScreen() {
   const [fontSize, setFontSize] = useState<FontSize>('md')
   const [gridCols, setGridCols] = useState<GridCols>(4)
   const [defaultView, setDefaultView] = useState<'products' | 'cart'>('products')
+  // Forced single-column "mobile" layout regardless of screen width (drawer
+  // toggle "Ganti Ke Tampilan Mobile"). Persisted across reloads.
+  const [forceMobile, setForceMobile] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  // Which settings section to scroll to when opened from a drawer shortcut.
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
   const [showFavouritesOnly, setShowFavouritesOnly] = useState(false)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -104,6 +109,7 @@ export default function CashierScreen() {
     if (gc) setGridCols(parseInt(gc) as GridCols)
     const dv = localStorage.getItem('pos_defaultView') as 'products' | 'cart' | null
     if (dv) { setDefaultView(dv); dispatch({ type: 'SET_ACTIVE_TAB', tab: dv }) }
+    if (localStorage.getItem('pos_forceMobile') === '1') setForceMobile(true)
   }, [])
 
   const snapshot = engine.getSnapshot()
@@ -323,6 +329,26 @@ export default function CashierScreen() {
   const handleGridCols = (c: GridCols) => { setGridCols(c); localStorage.setItem('pos_gridCols', String(c)) }
   const handleDefaultView = (v: 'products' | 'cart') => { setDefaultView(v); localStorage.setItem('pos_defaultView', v) }
 
+  // Drawer shortcut: open Settings scrolled to a section.
+  const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
+
+  // Drawer shortcut "Ganti Tampilan Default": flip the startup view and persist.
+  const toggleDefaultView = () => {
+    const next = defaultView === 'products' ? 'cart' : 'products'
+    handleDefaultView(next)
+    showToast(`Tampilan default: ${next === 'products' ? 'Produk' : 'Keranjang'}`)
+  }
+
+  // Drawer shortcut "Ganti Ke Tampilan Mobile/Tablet": force single-column.
+  const toggleForceMobile = () => {
+    setForceMobile((v) => {
+      const next = !v
+      localStorage.setItem('pos_forceMobile', next ? '1' : '0')
+      showToast(next ? 'Tampilan mobile aktif' : 'Tampilan tablet aktif')
+      return next
+    })
+  }
+
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
@@ -352,13 +378,32 @@ export default function CashierScreen() {
 
   return (
     <div className={`h-screen flex flex-col bg-gray-50 overflow-hidden ${fontClass}`}>
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between flex-shrink-0 safe-top">
-        <div className="flex items-center gap-3">
-          <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain" />
-          <OutletSwitcher user={user} onResync={offlineData.resync} />
+      {/* Header — brand logo, then the active-shift chip and the live
+          online/offline indicator in the same row (moved up out of the old
+          shift bar / the drawer footer). */}
+      <header className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
+        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+          <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain flex-shrink-0" />
+          <div className="flex-shrink min-w-0">
+            <OutletSwitcher user={user} onResync={offlineData.resync} />
+          </div>
+          <ShiftBar
+            currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
+            isOpening={shift.isOpeningShift} isClosing={shift.isClosingShift}
+            onOpenShift={shift.openShift} onCloseShift={shift.closeShift}
+            promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
+          />
+          <div
+            className="flex items-center gap-1 flex-shrink-0"
+            title={offlineData.isOnline ? 'Online' : 'Offline'}
+          >
+            <span className={`w-2 h-2 rounded-full ${offlineData.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+            <span className={`text-[11px] font-semibold hidden sm:inline ${offlineData.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+              {offlineData.isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             failed={offlineData.failed} wall={offlineData.wall}
@@ -368,33 +413,23 @@ export default function CashierScreen() {
           />
           <button
             onClick={() => setShowMenu(true)}
-            className="relative flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
-            title="Menu"
+            className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Menu" aria-label="Menu"
           >
-            <span className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-black text-indigo-700">
-              {user.displayName.charAt(0).toUpperCase()}
-            </span>
-            <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <svg className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
             {offlineData.pendingCount > 0 && (
-              <span className="absolute top-0.5 right-1 w-2 h-2 rounded-full bg-red-500" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
             )}
           </button>
         </div>
       </header>
 
-      <ShiftBar
-        currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
-        isOpening={shift.isOpeningShift} isClosing={shift.isClosingShift}
-        onOpenShift={shift.openShift} onCloseShift={shift.closeShift}
-        promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
-      />
-
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Mobile tab bar — cart tab only appears when the cart has items. */}
-        <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
+        <div className={`${forceMobile ? '' : 'sm:hidden'} absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
             <button key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
               className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500'}`}>
@@ -409,7 +444,7 @@ export default function CashierScreen() {
         </div>
 
         {/* Product panel */}
-        <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
+        <div className={`flex-1 min-w-0 overflow-hidden ${forceMobile ? '' : 'sm:block'} ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           <CustomerPicker
             customers={customers} selectedCustomer={state.selectedCustomer}
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
@@ -438,7 +473,7 @@ export default function CashierScreen() {
 
         {/* Cart panel — only mounts once the cart has items (dynamic). */}
         {derived.totalCartItems > 0 && (
-          <div className={`w-full sm:w-80 flex-shrink-0 flex flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+          <div className={`w-full ${forceMobile ? '' : 'sm:w-80'} flex-shrink-0 flex flex-col ${forceMobile ? '' : 'sm:flex'} pb-20 ${forceMobile ? '' : 'sm:pb-0'} ${state.activeTab === 'products' ? (forceMobile ? 'hidden' : 'hidden sm:flex') : 'flex'}`}>
             <Cart
               cart={state.cart} derived={derived} settings={settings}
               selectedCustomer={state.selectedCustomer}
@@ -518,14 +553,21 @@ export default function CashierScreen() {
         onClose={() => setShowMenu(false)}
         user={user}
         shiftActive={!!shift.currentShift}
-        isOnline={offlineData.isOnline}
         pendingSync={offlineData.pendingCount > 0}
         isSyncing={offlineData.isResyncing}
+        forceMobile={forceMobile}
+        lastSyncedLabel={offlineData.lastSyncedAt
+          ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : null}
         onTakeOrder={() => setShowMenu(false)}
         onHistory={() => setShowHistory(true)}
         onRecap={() => setShowRecap(true)}
+        onCashFlow={() => openSettings('cashflow')}
         onSync={() => void offlineData.resync()}
-        onSettings={() => setShowSettings(true)}
+        onPrintSettings={() => openSettings('printer')}
+        onProductDisplay={() => openSettings('display')}
+        onDefaultView={toggleDefaultView}
+        onToggleMobile={toggleForceMobile}
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
         onLogout={logout}
       />
@@ -552,7 +594,8 @@ export default function CashierScreen() {
           onFontSizeChange={handleFontSize} onGridColsChange={handleGridCols}
           onDefaultViewChange={handleDefaultView}
           onResync={offlineData.resync} isResyncing={offlineData.isResyncing}
-          onClose={() => setShowSettings(false)}
+          initialSection={settingsSection}
+          onClose={() => { setShowSettings(false); setSettingsSection(undefined) }}
         />
       )}
     </div>

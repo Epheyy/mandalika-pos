@@ -4,7 +4,7 @@
  * Receipt settings are Backoffice-owned — displayed read-only here.
  */
 
-import { memo, useContext, useState } from 'react'
+import { memo, useContext, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
@@ -28,7 +28,11 @@ interface SettingsScreenProps {
   onResync: () => Promise<void>
   isResyncing: boolean
   onClose: () => void
+  /** Opens scrolled to a section: 'display' | 'printer' | 'cashflow'. */
+  initialSection?: SettingsSection
 }
+
+export type SettingsSection = 'display' | 'printer' | 'cashflow'
 
 export const SettingsScreen = memo(function SettingsScreen({
   settings,
@@ -42,8 +46,20 @@ export const SettingsScreen = memo(function SettingsScreen({
   onResync,
   isResyncing,
   onClose,
+  initialSection,
 }: SettingsScreenProps) {
   const engine = useContext(SyncContext)
+
+  // Deep-link: when opened from a drawer shortcut, scroll to that section.
+  useEffect(() => {
+    if (!initialSection) return
+    const id = `settings-section-${initialSection}`
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [initialSection])
+
   const printer = usePrinter()
   const [printerBusy, setPrinterBusy] = useState(false)
   const [printerMsg, setPrinterMsg] = useState<string | null>(null)
@@ -124,8 +140,11 @@ export const SettingsScreen = memo(function SettingsScreen({
     }
   }
 
-  const Section = ({ title }: { title: string }) => (
-    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-4">
+  const Section = ({ title, id }: { title: string; id?: SettingsSection }) => (
+    <p
+      id={id ? `settings-section-${id}` : undefined}
+      className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-4 scroll-mt-2"
+    >
       {title}
     </p>
   )
@@ -156,7 +175,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           </button>
 
           {/* UI Preferences */}
-          <Section title="Tampilan" />
+          <Section title="Tampilan" id="display" />
 
           <div className="mb-3">
             <p className="text-xs text-gray-600 font-semibold mb-1.5">
@@ -250,7 +269,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           </div>
 
           {/* Bluetooth printer (plan §6) */}
-          <Section title="Printer Bluetooth" />
+          <Section title="Printer Bluetooth" id="printer" />
           {!printer.supported ? (
             <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
               Cetak Bluetooth hanya di aplikasi native. Mode browser memakai
@@ -346,7 +365,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           </div>
 
           {/* Cash flow entry */}
-          <Section title="Kas Masuk / Keluar" />
+          <Section title="Kas Masuk / Keluar" id="cashflow" />
           <div className="space-y-2">
             <div className="flex gap-2">
               <button

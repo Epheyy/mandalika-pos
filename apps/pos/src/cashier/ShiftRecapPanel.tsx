@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { formatRupiah } from './pricing'
+import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
@@ -106,6 +107,8 @@ export function ShiftRecapPanel({
   const [tab, setTab] = useState<Tab>('rekapan')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // true when the figures shown were restored from the offline cache.
+  const [isStale, setIsStale] = useState(false)
 
   const [currentShift, setCurrentShift] = useState<Shift | null>(null)
   const [currentFlows, setCurrentFlows] = useState<CashFlow[]>([])
@@ -140,16 +143,29 @@ export function ShiftRecapPanel({
     try {
       const r = await api.request<ShiftResponse>('GET', '/api/v1/shifts/current')
       const s = r.data ?? null
-      setCurrentShift(s)
+      let flows: CashFlow[] = []
+      let orders: Order[] = []
       if (s) {
-        setCurrentFlows(await flowsFor(s.id))
-        setLive(aggregate(await ordersFor(s.id)))
-      } else {
-        setCurrentFlows([])
-        setLive(null)
+        flows = await flowsFor(s.id)
+        orders = await ordersFor(s.id)
       }
+      setCurrentShift(s)
+      setCurrentFlows(flows)
+      setLive(s ? aggregate(orders) : null)
+      setIsStale(false)
+      cacheWrite('rekap:current', { shift: s, flows, orders })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat rekap')
+      // Offline: rebuild the recap from the last online snapshot.
+      const cached = cacheRead<{ shift: Shift | null; flows: CashFlow[]; orders: Order[] }>('rekap:current')
+      if (cached) {
+        setCurrentShift(cached.shift)
+        setCurrentFlows(cached.flows)
+        setLive(cached.shift ? aggregate(cached.orders) : null)
+        setIsStale(true)
+        setError(null)
+      } else {
+        setError(e instanceof Error ? e.message : 'Gagal memuat rekap')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -160,9 +176,19 @@ export function ShiftRecapPanel({
     setError(null)
     try {
       const r = await api.request<ShiftListResponse>('GET', '/api/v1/shifts?page=1&limit=30')
-      setHistory(r.data ?? [])
+      const data = r.data ?? []
+      setHistory(data)
+      setIsStale(false)
+      cacheWrite('rekap:history', data)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift')
+      const cached = cacheRead<Shift[]>('rekap:history')
+      if (cached) {
+        setHistory(cached)
+        setIsStale(true)
+        setError(null)
+      } else {
+        setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -180,9 +206,12 @@ export function ShiftRecapPanel({
     setSelectedOrders([])
     setLoadingSelected(true)
     try {
-      setSelectedOrders(await ordersFor(s.id))
+      const o = await ordersFor(s.id)
+      setSelectedOrders(o)
+      cacheWrite(`rekap:orders:${s.id}`, o)
     } catch {
-      /* keep empty */
+      // Offline: show the cached orders for this shift if we have them.
+      setSelectedOrders(cacheRead<Order[]>(`rekap:orders:${s.id}`) ?? [])
     } finally {
       setLoadingSelected(false)
     }
@@ -258,6 +287,11 @@ export function ShiftRecapPanel({
 
       {/* ── CENTER ── */}
       <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 min-w-0 bg-gray-50">
+        {isStale && !error && (
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 text-center flex-shrink-0">
+            {OFFLINE_NOTICE}
+          </div>
+        )}
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
