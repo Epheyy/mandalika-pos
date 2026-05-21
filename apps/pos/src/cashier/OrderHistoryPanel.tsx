@@ -208,10 +208,37 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
                           </div>
                         ))}
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 border-t border-dashed border-gray-200 pt-2">
-                        <span>Subtotal {formatRupiah(o.subtotal)}</span>
-                        {o.discountAmount > 0 && <span>Diskon −{formatRupiah(o.discountAmount)}</span>}
-                        {o.taxAmount > 0 && <span>PPN {formatRupiah(o.taxAmount)}</span>}
+                      <div className="border-t border-dashed border-gray-200 pt-2 space-y-0.5 text-xs">
+                        <div className="flex justify-between text-gray-500">
+                          <span>Subtotal</span><span>{formatRupiah(o.subtotal)}</span>
+                        </div>
+                        {o.discountAmount > 0 && (
+                          <div className="flex justify-between text-red-600">
+                            <span>
+                              Diskon
+                              {o.discountCode ? ` · ${o.discountCode}` : ''}
+                              {o.discountType === 'percentage' && o.discountValue ? ` (${o.discountValue}%)` : ''}
+                            </span>
+                            <span>−{formatRupiah(o.discountAmount)}</span>
+                          </div>
+                        )}
+                        {(o.surchargeAmount ?? 0) > 0 && (
+                          <div className="flex justify-between text-gray-500">
+                            <span>
+                              Surcharge
+                              {o.surchargeType === 'percentage' && o.surchargeValue ? ` (${o.surchargeValue}%)` : ''}
+                            </span>
+                            <span>+{formatRupiah(o.surchargeAmount ?? 0)}</span>
+                          </div>
+                        )}
+                        {o.taxAmount > 0 && (
+                          <div className="flex justify-between text-gray-500">
+                            <span>PPN</span><span>{formatRupiah(o.taxAmount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between font-bold text-gray-900 pt-0.5">
+                          <span>Total</span><span>{formatRupiah(o.total)}</span>
+                        </div>
                       </div>
                       {o.refundReason && (
                         <p className="text-[11px] text-red-600 mt-2">

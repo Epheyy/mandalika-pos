@@ -5,7 +5,7 @@ import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 
-const EMPTY = { name: '', address: '', phone: '', isActive: true }
+const EMPTY = { name: '', code: '', address: '', phone: '', isActive: true }
 
 export default function Outlets() {
   const q = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
@@ -24,7 +24,7 @@ export default function Outlets() {
   }
   const openEdit = (o: Outlet) => {
     setEditing(o)
-    setForm({ name: o.name, address: o.address || '', phone: o.phone || '', isActive: o.isActive })
+    setForm({ name: o.name, code: o.code || '', address: o.address || '', phone: o.phone || '', isActive: o.isActive })
     setErr(null)
     setOpen(true)
   }
@@ -34,11 +34,17 @@ export default function Outlets() {
       setErr('Nama outlet wajib diisi')
       return
     }
+    const code = form.code.trim().toUpperCase()
+    if (!/^[A-Z0-9]{2,4}$/.test(code)) {
+      setErr('Kode wajib 2–4 huruf/angka (mis. JKT) — dipakai sebagai prefix no. order')
+      return
+    }
     setBusy(true)
     setErr(null)
     try {
       const body = {
         name: form.name.trim(),
+        code,
         address: form.address.trim(),
         phone: form.phone.trim(),
         isActive: form.isActive,
@@ -57,6 +63,7 @@ export default function Outlets() {
   const toggle = async (o: Outlet) => {
     await api.updateOutlet(o.id, {
       name: o.name,
+      code: o.code || '',
       address: o.address || '',
       phone: o.phone || '',
       isActive: !o.isActive,
@@ -136,6 +143,14 @@ export default function Outlets() {
               <div>
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nama Outlet *</label>
                 <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Kode *</label>
+                <input type="text" value={form.code} maxLength={4}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                  placeholder="mis. JKT"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <p className="text-[11px] text-gray-400 mt-1">2–4 huruf/angka, unik. Prefix nomor order: <span className="font-mono">{(form.code || 'JKT')}-A0042</span></p>
               </div>
               <div>
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Alamat</label>

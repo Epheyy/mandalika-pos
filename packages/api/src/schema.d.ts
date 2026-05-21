@@ -1323,6 +1323,7 @@ export interface components {
             loyaltyConditions?: components["schemas"]["LoyaltyCondition"][];
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
+            users?: components["schemas"]["User"][];
         };
         SyncPullResponse: {
             data: components["schemas"]["SyncPullBundle"];
@@ -1424,6 +1425,7 @@ export interface components {
         };
         OutletInput: {
             name: string;
+            code?: string;
             address?: string;
             phone?: string;
             isActive: boolean;

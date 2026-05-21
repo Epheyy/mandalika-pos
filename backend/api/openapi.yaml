@@ -679,6 +679,7 @@ components:
         loyaltyConditions: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
         loyaltySettings: { $ref: '#/components/schemas/LoyaltySettings' }
         appSettings: { $ref: '#/components/schemas/AppSettings' }
+        users: { type: array, items: { $ref: '#/components/schemas/User' } }
     SyncPullResponse:
       type: object
       required: [data]
@@ -801,6 +802,7 @@ components:
       required: [name, isActive]
       properties:
         name: { type: string }
+        code: { type: string }
         address: { type: string }
         phone: { type: string }
         isActive: { type: boolean }

@@ -28,8 +28,7 @@ import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
-import { localOrderRef } from './orderRef'
-import { api } from '../api'
+import { nextOrderNo } from './orderRef'
 import logoGold from '../assets/logo-gold.png'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -175,7 +174,7 @@ export default function CashierScreen() {
     dispatch({ type: 'OPEN_CHECKOUT', defaultMethod })
   }
 
-  const handleAddCustomer = async () => {
+  const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
       setCustomerError('Nama dan telepon wajib diisi')
       return
@@ -186,16 +185,17 @@ export default function CashierScreen() {
     const phone = newCustomerForm.phone.trim()
     const email = newCustomerForm.email.trim()
     try {
-      // POST /customers returns only `{ id }`, not the full record. Build the
-      // Customer locally from the form + returned id so it reads immediately
-      // everywhere (cart, receipt, and the synced order's customerName) —
-      // before the background resync brings the server copy.
-      const r = await api.request<{ data: { id: string } }>(
-        'POST', '/api/v1/customers',
-        { name, phone, email: email || undefined },
-      )
+      // Offline-first: generate the customer UUID on-device and queue a
+      // `customer_create` op (works with no connection). The queued op flushes
+      // before the sale (FIFO outbox) so the order's customerId resolves
+      // server-side. Optimistically add + select so it's usable immediately.
+      const id =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      engine.enqueue('customer_create', { customerId: id, name, phone, email }, id)
       const created: components['schemas']['Customer'] = {
-        id: r.data.id,
+        id,
         name,
         phone,
         email: email || null,
@@ -209,12 +209,9 @@ export default function CashierScreen() {
       setIsAddingCustomer(false)
       setCustomerRequired(false)
       setNewCustomerForm({ name: '', phone: '', email: '' })
-      // Converge the synced snapshot in the background so it persists
-      // across reloads / shows on other devices.
-      void offlineData.resync().catch(() => {})
-    } catch (e: unknown) {
-      setCustomerError(e instanceof Error ? e.message : 'Gagal menyimpan pelanggan')
-    } finally { setIsSavingCustomer(false) }
+    } finally {
+      setIsSavingCustomer(false)
+    }
   }
 
   // Unified search → add-new: numeric query becomes the phone, otherwise the
@@ -251,7 +248,10 @@ export default function CashierScreen() {
     if (state.isProcessing) return
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
+      // Client-authoritative number: receipt == history, generated on-device.
+      const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId)
       const { orderUuid } = engine.enqueue('order', {
+        orderNumber: orderNo,
         items: state.cart,
         paymentMethod: state.paymentMethod,
         amountPaid: state.paymentMethod === 'cash' ? derived.paid : derived.total,
@@ -270,8 +270,8 @@ export default function CashierScreen() {
         shiftId: shift.currentShift?.id ?? null,
       })
       const receipt: ReceiptData = {
-        orderRef: localOrderRef(orderUuid),
-        pending: true, // server assigns the canonical number at sync (§5)
+        orderRef: orderNo,
+        pending: false, // client-authoritative number; matches history
         dateTime: new Date(),
         lines: state.cart.map((i) => ({
           name: i.productName,
