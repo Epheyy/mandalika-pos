@@ -15,6 +15,7 @@ import { SyncEngine, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import { api } from '../api'
 import { hideSplash } from '../native'
+import { AppLoadingSkeleton } from '../components/Skeleton'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncContext = createContext<SyncEngine | null>(null)
@@ -70,20 +71,7 @@ export function SyncProvider({
   }, [engine])
 
   if (!ready) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          fontFamily: 'system-ui',
-          color: '#6b7280',
-        }}
-      >
-        Memuat data…
-      </div>
-    )
+    return <AppLoadingSkeleton />
   }
 
   return <SyncContext.Provider value={engine}>{children}</SyncContext.Provider>

@@ -7,6 +7,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 
 export default function Orders() {
@@ -105,7 +106,7 @@ export default function Orders() {
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         {q.loading ? (
-          <div className="p-8 text-center text-gray-300">Memuat transaksi...</div>
+          <TableSkeleton />
         ) : filtered.length === 0 ? (
           <div className="p-12 flex flex-col items-center gap-3 text-gray-300">
             <ShoppingBag className="w-12 h-12" />

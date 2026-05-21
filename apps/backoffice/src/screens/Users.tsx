@@ -4,6 +4,7 @@ import { Edit2, X, Users as UsersIcon, Shield, Loader2, Check, Plus, Trash2, Dow
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, parseCSV } from '../lib/csvUtils'
 
 type Role = 'admin' | 'manager' | 'cashier'
@@ -153,7 +154,7 @@ export default function Users() {
       {tab === 'users' && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {uq.loading ? (
-            <div className="p-8 text-center text-gray-300">Memuat...</div>
+            <TableSkeleton />
           ) : users.length === 0 ? (
             <div className="p-12 flex flex-col items-center gap-3 text-gray-300"><UsersIcon className="w-12 h-12" /><p className="font-bold">Belum ada pengguna</p></div>
           ) : (

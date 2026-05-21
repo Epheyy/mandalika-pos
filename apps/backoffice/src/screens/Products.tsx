@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { TableSkeleton } from '../components/Skeleton'
 import { uploadImage } from '../lib/uploadImage'
 import { exportToCSV, exportToXLSX, parseCSV } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
@@ -262,7 +263,7 @@ export default function Products() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             {pq.loading ? (
-              <div className="p-8 text-center text-gray-300">Memuat...</div>
+              <TableSkeleton />
             ) : filtered.length === 0 ? (
               <div className="p-12 flex flex-col items-center gap-3 text-gray-300"><Package className="w-12 h-12" /><p className="font-bold">Tidak ada produk</p></div>
             ) : (

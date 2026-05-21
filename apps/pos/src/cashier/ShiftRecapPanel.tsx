@@ -13,6 +13,7 @@ import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { formatRupiah } from './pricing'
 import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
+import { Skeleton } from '../components/Skeleton'
 
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
@@ -293,8 +294,12 @@ export function ShiftRecapPanel({
           </div>
         )}
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <Skeleton className="h-14 w-full rounded-xl" />
+            <Skeleton className="h-12 w-full rounded-xl" />
+            <Skeleton className="h-12 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
           </div>
         ) : error ? (
           <div className="flex-1 flex items-center justify-center px-6 text-center">
@@ -356,27 +361,12 @@ export function ShiftRecapPanel({
               </div>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 p-3">
-              <p className="text-xs text-gray-600">
-                <span className="font-black text-indigo-600">Tutup Shift</span> : akhiri shift di tengah hari, untuk pindah ke shift berikutnya<br />
-                <span className="font-black text-indigo-800">Rekap Final</span> : akhiri shift untuk penghujung/akhir hari
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 pt-1 pb-4">
-              <button onClick={() => alert('Buka laci: perangkat kas tidak tersambung.')}
-                className="py-3 bg-white border-2 border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-50 transition-all">
-                Buka Laci
-              </button>
-              <button onClick={handleClose} disabled={!currentShift || isClosingShift}
-                className="py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
+            {currentShift && (
+              <button onClick={handleClose} disabled={isClosingShift}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all mb-4">
                 {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
               </button>
-              <button onClick={handleClose} disabled={!currentShift || isClosingShift}
-                className="py-3 bg-indigo-800 hover:bg-indigo-900 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
-                Rekap Final
-              </button>
-            </div>
+            )}
           </div>
         ) : (
           /* ── Riwayat ── */

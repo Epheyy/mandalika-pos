@@ -7,6 +7,7 @@ import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { formatRupiah } from './pricing'
 import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
+import { ListSkeleton } from '../components/Skeleton'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -160,6 +161,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
               {OFFLINE_NOTICE}
             </p>
           )}
+          {isLoading && filtered.length === 0 && <ListSkeleton rows={5} />}
           {!error && !isLoading && filtered.length === 0 && (
             <p className="text-sm text-gray-400 py-8 text-center">Tidak ada transaksi</p>
           )}

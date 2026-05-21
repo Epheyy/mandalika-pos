@@ -6,6 +6,7 @@ import { Plus, X, Play, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, C
 import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { TableSkeleton } from '../components/Skeleton'
 
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
@@ -127,7 +128,7 @@ export default function StockCount() {
 
       <div className="space-y-3">
         {scq.loading ? (
-          <div className="text-center text-gray-300 py-8">Memuat...</div>
+          <TableSkeleton />
         ) : stockCounts.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center gap-3 text-gray-300">
             <ClipboardList className="w-12 h-12" />

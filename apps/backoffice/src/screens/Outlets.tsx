@@ -3,6 +3,7 @@ import type { Outlet } from '@mandalika/api'
 import { Plus, Edit2, X, Store, MapPin, Phone, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { TableSkeleton } from '../components/Skeleton'
 
 const EMPTY = { name: '', address: '', phone: '', isActive: true }
 
@@ -76,7 +77,7 @@ export default function Outlets() {
       </div>
 
       {q.loading ? (
-        <div className="text-center text-gray-300 py-8">Memuat outlet...</div>
+        <TableSkeleton />
       ) : outlets.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center gap-3 text-gray-300">
           <Store className="w-12 h-12" />
