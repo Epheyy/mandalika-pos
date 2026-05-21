@@ -23,6 +23,9 @@ export interface OfflineDataState {
   resync: () => Promise<void>
   flush: () => void
   retryFailed: () => void
+  /** Record dead-lettered items to the local debug log and clear them from the
+   *  queue (so the failed state dismisses). Returns a JSON string to share. */
+  discardFailed: () => string
 }
 
 export function useOfflineData(): OfflineDataState {
@@ -101,6 +104,13 @@ export function useOfflineData(): OfflineDataState {
     setPendingCount(engine.pendingCount())
   }, [engine])
 
+  const discardFailed = useCallback(() => {
+    const log = engine.discardFailed()
+    setFailed(engine.deadLettered())
+    setPendingCount(engine.pendingCount())
+    return log
+  }, [engine])
+
   return {
     isOnline,
     wall,
@@ -111,5 +121,6 @@ export function useOfflineData(): OfflineDataState {
     resync,
     flush,
     retryFailed,
+    discardFailed,
   }
 }

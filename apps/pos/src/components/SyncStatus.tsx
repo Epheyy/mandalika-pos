@@ -19,6 +19,8 @@ interface SyncStatusProps {
   onResync: () => void
   onFlush: () => void
   onRetryFailed: () => void
+  /** Record the failed items to the debug log + share, then dismiss them. */
+  onSendLog: () => void
 }
 
 export const SyncStatus = memo(function SyncStatus({
@@ -30,6 +32,7 @@ export const SyncStatus = memo(function SyncStatus({
   onResync,
   onFlush,
   onRetryFailed,
+  onSendLog,
 }: SyncStatusProps) {
   const [open, setOpen] = useState(false)
 
@@ -126,6 +129,15 @@ export const SyncStatus = memo(function SyncStatus({
                 >
                   Coba lagi
                 </button>
+                <button
+                  onClick={() => { onSendLog(); setOpen(false) }}
+                  className="w-full py-2 border border-red-200 text-red-600 rounded-lg font-semibold"
+                >
+                  Kirim Log &amp; Tutup
+                </button>
+                <p className="text-[10px] text-gray-400 text-center leading-tight">
+                  Log disimpan untuk debug; transaksi gagal ditutup agar tidak menghalangi.
+                </p>
               </div>
             )}
 

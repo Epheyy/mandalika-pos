@@ -2,7 +2,9 @@ import type { components } from '@mandalika/api'
 import { Outbox, type OutboxType } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
-import { defaultKV, type KV } from './storage'
+import { defaultKV, type KV, readJSON, writeJSON } from './storage'
+
+const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 
 type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
@@ -39,11 +41,14 @@ export class SyncEngine {
   private wall: WallState
   private reachable: boolean = ONLINE()
 
+  private readonly kv: KV
+
   constructor(
     private api: ApiLike,
     private events: SyncEvents = {},
     kv: KV = defaultKV,
   ) {
+    this.kv = kv
     this.deviceId = getDeviceId(kv)
     this.outbox = new Outbox(kv)
     this.snapshot = new Snapshot(kv)
@@ -154,6 +159,39 @@ export class SyncEngine {
     this.outbox.retryDeadLettered()
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
+  }
+
+  /**
+   * Record the parked (dead-lettered) items to a durable local debug log, then
+   * drop them from the queue so the "sync failed" state clears. Returns a JSON
+   * string of what was discarded so the cashier can send it to support. The log
+   * is kept (capped) for later debugging via {@link syncLog}.
+   */
+  discardFailed(): string {
+    const dead = this.outbox.discardDeadLettered()
+    if (dead.length) {
+      const now = new Date().toISOString()
+      const log = readJSON<unknown[]>(this.kv, SYNC_LOG_KEY, [])
+      for (const d of dead) {
+        log.push({
+          at: now,
+          deviceId: this.deviceId,
+          type: d.type,
+          idempotencyKey: d.idempotencyKey,
+          lastError: d.lastError,
+          clientCreatedAt: d.clientCreatedAt,
+          payload: d.payload,
+        })
+      }
+      writeJSON(this.kv, SYNC_LOG_KEY, log.slice(-200)) // keep last 200
+      this.events.onOutboxChange?.(this.outbox.count())
+    }
+    return JSON.stringify(dead, null, 2)
+  }
+
+  /** The recorded sync-failure debug log (most recent last, capped at 200). */
+  syncLog(): unknown[] {
+    return readJSON<unknown[]>(this.kv, SYNC_LOG_KEY, [])
   }
 
   /**

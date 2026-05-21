@@ -326,6 +326,16 @@ export default function CashierScreen() {
   }
 
   const handleFontSize = (s: FontSize) => { setFontSize(s); localStorage.setItem('pos_fontSize', s) }
+
+  // Apply font size GLOBALLY by scaling the root rem unit. Tailwind text-* and
+  // spacing are rem-based, so this resizes the whole app (product cards,
+  // cart, modals) — not just one panel. (The old root text-sm class was
+  // overridden by every component's explicit text-* class, so it did nothing.)
+  useEffect(() => {
+    const px = fontSize === 'sm' ? 14 : fontSize === 'lg' ? 18 : 16
+    document.documentElement.style.fontSize = `${px}px`
+    return () => { document.documentElement.style.fontSize = '' }
+  }, [fontSize])
   const handleGridCols = (c: GridCols) => { setGridCols(c); localStorage.setItem('pos_gridCols', String(c)) }
   const handleDefaultView = (v: 'products' | 'cart') => { setDefaultView(v); localStorage.setItem('pos_defaultView', v) }
 
@@ -347,6 +357,26 @@ export default function CashierScreen() {
       showToast(next ? 'Tampilan mobile aktif' : 'Tampilan tablet aktif')
       return next
     })
+  }
+
+  // Failed-sync escape hatch: record the stuck items to the local debug log,
+  // share them (native share / clipboard) so support can debug, then dismiss
+  // them from the queue so a poison item can't block the cashier.
+  const handleSendLog = () => {
+    const text = offlineData.discardFailed()
+    const blob = `Mandalika POS — Sync Log\n${new Date().toISOString()}\n\n${text}`
+    void (async () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: 'Mandalika POS Sync Log', text: blob })
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(blob)
+        }
+      } catch {
+        /* user cancelled share / clipboard blocked — log is already saved locally */
+      }
+    })()
+    showToast('Log disimpan & sinkron gagal ditutup')
   }
 
   // Android hardware Back: close the top-most surface instead of exiting.
@@ -374,10 +404,8 @@ export default function CashierScreen() {
 
   if (!user) return null
 
-  const fontClass = fontSize === 'lg' ? 'text-base' : 'text-sm'
-
   return (
-    <div className={`h-screen flex flex-col bg-gray-50 overflow-hidden ${fontClass}`}>
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header — brand logo, then the active-shift chip and the live
           online/offline indicator in the same row (moved up out of the old
           shift bar / the drawer footer). */}
@@ -409,7 +437,7 @@ export default function CashierScreen() {
             failed={offlineData.failed} wall={offlineData.wall}
             isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
-            onRetryFailed={offlineData.retryFailed}
+            onRetryFailed={offlineData.retryFailed} onSendLog={handleSendLog}
           />
           <button
             onClick={() => setShowMenu(true)}

@@ -117,6 +117,19 @@ export class Outbox {
     if (changed) this.persist()
   }
 
+  /** Remove parked (dead-lettered) items from the queue. Caller is expected to
+   *  have recorded them to a durable debug log first. Returns what was dropped
+   *  so it can be logged/shared. */
+  discardDeadLettered(): OutboxItem[] {
+    const dead = this.deadLettered()
+    if (dead.length) {
+      const keys = new Set(dead.map((d) => d.idempotencyKey))
+      this.items = this.items.filter((i) => !keys.has(i.idempotencyKey))
+      this.persist()
+    }
+    return dead
+  }
+
   /** Drop acked rows once their canonical order is reconciled locally. */
   prune() {
     this.items = this.items.filter((i) => i.status !== 'acked')
