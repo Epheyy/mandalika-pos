@@ -22,6 +22,81 @@ Glossary (words used below):
 
 ---
 
+## PART 0 — CURRENT STATE (live in production — updated 2026-05-21)
+
+The app is **live and selling**. Part A (local dev) and Part B (the `/goal`)
+below are historical; the production goal in Part B is largely **done**. Read
+this section first.
+
+### Live infrastructure
+
+| Piece | Where |
+|---|---|
+| Backend | **Google Cloud Run** `mandalika-pos`, region `asia-southeast2`, GCP project `mandalika-pos` (538849926142). API: `https://mandalika-pos-538849926142.asia-southeast2.run.app` |
+| Database | **Neon** managed Postgres (TLS, pooled) via Secret Manager |
+| Cache | **Upstash** Redis (TLS) via Secret Manager |
+| Backoffice | **Cloudflare Pages** `https://mandalika-pos.pages.dev` — **auto-deploys on push** to `prod-hardening` |
+| POS APK | **GitHub Actions** workflow `Android Release APK` (manual `workflow_dispatch` on `prod-hardening`); release-signed with `mandalika-release.jks` (gitignored, irreplaceable — back it up) |
+| Secrets | GCP **Secret Manager** (DB URL, Redis URL, JWT access/refresh, admin bootstrap, Cloudinary). Not in git. |
+
+Active branch: **`prod-hardening`**. Main is `main`.
+
+### Deploy / rebuild commands
+
+- **Backoffice**: just `git push` to `prod-hardening` → Cloudflare Pages builds.
+- **POS APK**: trigger the `Android Release APK` GitHub Action on `prod-hardening`
+  (manual). Download the `mandalika-pos-release-apk` artifact.
+- **Backend**: CI (`.github/workflows/backend.yml`) only **builds + tests** on
+  push (`go vet`, `gofmt`, `make gen-check` OpenAPI drift gate, `go test -race`)
+  — it does **NOT deploy**. Deploy is **manual** via `gcloud run deploy` from an
+  authed terminal (`gcloud auth login` only works in your real terminal, not the
+  agent sandbox).
+- Local APK build is **blocked on Windows** (space in the path breaks the BLE
+  plugin Gradle step) → use CI.
+
+### Test credentials
+
+- Cashier: `test@mandalika.test`, outlet `ed5f5dfe-cf56-42cd-84d6-e38a4804f4b5`.
+- Admin/seed password: `backend/.env` `SEED_ADMIN_PASSWORD` (dev only).
+
+### Recent hardening (POS UI/UX, branch `prod-hardening`)
+
+Shipped: real-reachability online/offline dot (not `navigator.onLine`);
+offline-cached history/recap (last-online data instead of "Failed to fetch");
+right-side slide-out menu drawer (hamburger) with per-menu modals; header shift
+chip + online pill; skeleton loading (POS + backoffice); single "Tutup Shift"
+(removed the duplicate "Rekap Final" — there was never any day-end logic);
+**white** adaptive app icon (gold M, generated via `scripts/gen-icons.ps1`);
+redesigned split-screen login; **global** font-size (scales root `rem`);
+"Kirim Log & Tutup" escape hatch for poison/stuck sync items (records to
+`mandalika.pos.synclog`, then dismisses).
+
+### ⚠️ Known pending (next backend cycle — needs migration + manual `gcloud` deploy)
+
+1. **Client-authoritative order numbers** (decided: `MND-{OUTLET}-{YYMMDD}-{NNN}`).
+   Today the **receipt** prints a UUID-hash placeholder (`localOrderRef`, e.g.
+   `MND-228641`) while **history** shows the server global sequence
+   (`order_no_seq`, e.g. `MND-000031`) — they can't match. Fix = client generates
+   the final number at sale, server stores it as-is (stop `nextOrderNumber`
+   renumbering), drop the global UNIQUE on `order_number` (uniqueness via
+   `order_uuid`). Touches `backend/internal/service/order.go`,
+   `internal/sync/sync.go`, a migration, and the POS checkout/receipt.
+2. **Offline new-customer create.** New-customer save calls the API directly →
+   fails offline ("Failed to fetch") even though a customer is mandatory. Fix =
+   new outbox op `customer_create` (client UUID, optimistic local add, queued),
+   backend `customer_create` sync case + `service.CreateCustomer` inserting with
+   the client UUID so the queued order's `customer_id` resolves on flush.
+3. **Drag-and-drop product reordering** (best-seller quick access, persisted
+   per-outlet) — frontend, needs a touch DnD lib (`@dnd-kit`).
+
+### ⚠️ Temp debug aids still committed (revert before a true-final build)
+
+- `apps/pos/capacitor.config.ts`: `webContentsDebuggingEnabled: true`,
+  `loggingBehavior: 'debug'`.
+- `packages/sync/src/engine.ts`: any `console.error('[sync] …')` debug lines.
+
+---
+
 ## PART A — Test it in development (zero experience needed)
 
 You need three things alive at the same time: **database**, **backend**,
@@ -185,7 +260,13 @@ Begin by outputting your plan. Then execute end-to-end without checking in until
 
 ## PART C — Full-Stack Production Reality (every layer)
 
-Where this project actually stands, layer by layer. ✅ = done, ⚠️ = dev-only /
+> **HISTORICAL (pre-launch snapshot).** Superseded by PART 0. The `❌`/`⚠️`
+> hosting/database/cloud/deploy rows below are now **done**: deployed on Cloud
+> Run + Neon Postgres + Upstash Redis + Cloudflare Pages, secrets in GCP Secret
+> Manager, signed release APK via CI. Kept for the layer-by-layer checklist;
+> trust PART 0 for current status.
+
+Where this project stood pre-launch, layer by layer. ✅ = done, ⚠️ = dev-only /
 needs work, ❌ = missing.
 
 | Layer | Status | Reality + what to do before shipping |
