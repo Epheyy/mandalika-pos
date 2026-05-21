@@ -59,7 +59,7 @@ Active branch: **`prod-hardening`**. Main is `main`.
 - Cashier: `test@mandalika.test`, outlet `ed5f5dfe-cf56-42cd-84d6-e38a4804f4b5`.
 - Admin/seed password: `backend/.env` `SEED_ADMIN_PASSWORD` (dev only).
 
-### Recent hardening (POS UI/UX, branch `prod-hardening`)
+### Recent hardening (POS UI/UX + analytics, branch `prod-hardening`)
 
 Shipped: real-reachability online/offline dot (not `navigator.onLine`);
 offline-cached history/recap (last-online data instead of "Failed to fetch");
@@ -69,25 +69,29 @@ chip + online pill; skeleton loading (POS + backoffice); single "Tutup Shift"
 **white** adaptive app icon (gold M, generated via `scripts/gen-icons.ps1`);
 redesigned split-screen login; **global** font-size (scales root `rem`);
 "Kirim Log & Tutup" escape hatch for poison/stuck sync items (records to
-`mandalika.pos.synclog`, then dismisses).
+`mandalika.pos.synclog`, then dismisses); **drag-and-drop product reordering**
+(@dnd-kit; long-press on touch, drag on desktop; order persisted in
+`localStorage` `pos_productOrder`).
 
-### ⚠️ Known pending (next backend cycle — needs migration + manual `gcloud` deploy)
+### Order-number cycle — SHIPPED (backend rev 00008, deployed 2026-05-22)
 
-1. **Client-authoritative order numbers** (decided: `MND-{OUTLET}-{YYMMDD}-{NNN}`).
-   Today the **receipt** prints a UUID-hash placeholder (`localOrderRef`, e.g.
-   `MND-228641`) while **history** shows the server global sequence
-   (`order_no_seq`, e.g. `MND-000031`) — they can't match. Fix = client generates
-   the final number at sale, server stores it as-is (stop `nextOrderNumber`
-   renumbering), drop the global UNIQUE on `order_number` (uniqueness via
-   `order_uuid`). Touches `backend/internal/service/order.go`,
-   `internal/sync/sync.go`, a migration, and the POS checkout/receipt.
-2. **Offline new-customer create.** New-customer save calls the API directly →
-   fails offline ("Failed to fetch") even though a customer is mandatory. Fix =
-   new outbox op `customer_create` (client UUID, optimistic local add, queued),
-   backend `customer_create` sync case + `service.CreateCustomer` inserting with
-   the client UUID so the queued order's `customer_id` resolves on flush.
-3. **Drag-and-drop product reordering** (best-seller quick access, persisted
-   per-outlet) — frontend, needs a touch DnD lib (`@dnd-kit`).
+1. **Client-authoritative order numbers** — format **`{OUTLET}-{DEV}{SEQ}`**
+   (e.g. `JKT-A0042`). POS generates it on-device (`orderRef.nextOrderNo`) from
+   the outlet code (sync snapshot) + a deviceId-derived tag + a durable
+   per-device counter, sends it as `order_number`, and prints it → **receipt ==
+   history**. `order_uuid` stays the hard key; migration 0005 dropped the global
+   UNIQUE on `order_number` so a number clash can never fail a flush. Old orders
+   keep their `MND-NNNNNN`; only new sales use the new format.
+2. **Offline new-customer create** — `customer_create` outbox op (client UUID +
+   optimistic local add); backend sync case + `service.CreateCustomer` upsert.
+   Works fully offline; customer stays mandatory.
+3. **Order-history discount/promo detail** — expanded order itemises Subtotal /
+   Diskon (+ promo code & %) / Surcharge / PPN / Total (surcharge fields added to
+   the Order read model + schema).
+4. **Outlet `code`** — migration 0005 adds a unique `outlets.code` (backfilled
+   from names); Backoffice → Outlets has a required "Kode" field. **Operational
+   step:** review/refine each outlet's Kode after deploy (must be unique; it's
+   the order-number prefix).
 
 ### ⚠️ Temp debug aids still committed (revert before a true-final build)
 
