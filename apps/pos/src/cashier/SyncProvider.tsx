@@ -45,6 +45,10 @@ export function SyncProvider({
         {
           onWall: (w) => onWallRef.current?.(w),
           onOutboxChange: (n) => onPendingRef.current?.(n),
+          // TEMP (polish phase): force on so the CI release APK surfaces
+          // [sync] diagnostics on-device. Set to `import.meta.env.DEV`
+          // before true-final (dev-only, silent in release).
+          debug: true,
         },
         getKV(),
       ),

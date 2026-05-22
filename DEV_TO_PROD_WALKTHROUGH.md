@@ -93,11 +93,19 @@ redesigned split-screen login; **global** font-size (scales root `rem`);
    step:** review/refine each outlet's Kode after deploy (must be unique; it's
    the order-number prefix).
 
-### ⚠️ Temp debug aids still committed (revert before a true-final build)
+### ⚠️ Temp debug aids — intentionally ON during the polish phase
 
-- `apps/pos/capacitor.config.ts`: `webContentsDebuggingEnabled: true`,
-  `loggingBehavior: 'debug'`.
-- `packages/sync/src/engine.ts`: any `console.error('[sync] …')` debug lines.
+Kept on so the **CI release APK stays inspectable on-device** while POS +
+backoffice are being polished (local APK builds are blocked on Windows, so the
+CI release artifact is what gets tested). The `[sync]` logs are now behind a
+`debug` flag instead of bare `console.error`, so the **true-final re-clean is
+three small edits**:
+
+- `apps/pos/capacitor.config.ts`: `webContentsDebuggingEnabled: true` → remove;
+  `loggingBehavior: 'debug'` → `'production'`.
+- `apps/pos/src/cashier/SyncProvider.tsx`: `debug: true` → `import.meta.env.DEV`
+  (dev-only; silent in release).
+- `packages/sync/src/engine.ts`: nothing to change — the `debug` gate stays.
 
 ---
 

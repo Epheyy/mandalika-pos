@@ -29,6 +29,10 @@ export interface SyncEvents {
   /** Real server reachability (a GET to the server actually succeeded/failed),
    *  not navigator.onLine — which lies on some Android WebViews. */
   onReachable?: (online: boolean) => void
+  /** Dev-only: emit `[sync]` console diagnostics for rejected items and batch
+   *  failures. Defaults off so release builds stay silent on devices; the app
+   *  wires this to `import.meta.env.DEV`. */
+  debug?: boolean
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -218,8 +222,10 @@ export class SyncEngine {
         if (res.status === 'ok' || res.status === 'duplicate') {
           this.outbox.ack(res.idempotencyKey)
         } else {
-          // eslint-disable-next-line no-console
-          console.error('[sync] item rejected', res.idempotencyKey, res.error)
+          if (this.events.debug) {
+            // eslint-disable-next-line no-console
+            console.error('[sync] item rejected', res.idempotencyKey, res.error)
+          }
           this.outbox.fail(res.idempotencyKey, res.error ?? 'sync error')
         }
       }
@@ -242,8 +248,10 @@ export class SyncEngine {
       // so a poison batch eventually dead-letters instead of showing
       // "Menunggu sinkronisasi" indefinitely.
       const msg = err instanceof Error ? err.message : 'sync failed'
-      // eslint-disable-next-line no-console
-      console.error('[sync] batch failed', msg, err)
+      if (this.events.debug) {
+        // eslint-disable-next-line no-console
+        console.error('[sync] batch failed', msg, err)
+      }
       for (const i of pending) this.outbox.fail(i.idempotencyKey, msg)
       this.events.onOutboxChange?.(this.outbox.count())
       return null

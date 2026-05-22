@@ -75,7 +75,12 @@ curl https://api.<your-domain>/healthz   # {"data":{"status":"ok"}}
 ```
 
 Migrations apply automatically on boot (embedded, idempotent via
-`schema_migrations`). Seed the first admin once:
+`schema_migrations`). Note: two files share the `0005` prefix
+(`0005_order_scheme_outlet_code.sql`, `0005_payment_method_freeform.sql`) —
+harmless because the runner tracks each by full filename and applies it once,
+in sorted order. Both are already applied in prod, so **do not rename them**
+(a rename reads as a new, unapplied migration and re-runs). New migrations
+start at `0006`. Seed the first admin once:
 `fly ssh console -C "/server"` is not interactive — instead run the seed
 locally against the prod DB one time:
 `DATABASE_URL=<neon> SEED_ADMIN_*=... go run ./cmd/seed`.

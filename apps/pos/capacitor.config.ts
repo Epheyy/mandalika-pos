@@ -16,10 +16,12 @@ const config: CapacitorConfig = {
     // makes only secure-context requests. For LAN dev against a plain-http
     // backend, temporarily flip to true locally (never commit true).
     allowMixedContent: false,
-    // TEMP (diagnosis): surface the WebView console in logcat / chrome://inspect
-    // on the release build. Revert before final.
+    // TEMP (polish phase): surface the WebView console in logcat /
+    // chrome://inspect on the CI release APK. Revert before true-final.
     webContentsDebuggingEnabled: true,
   },
+  // TEMP (polish phase): verbose native logs on the release APK.
+  // Revert to 'production' before true-final.
   loggingBehavior: 'debug',
   ios: {
     contentInset: 'always',
