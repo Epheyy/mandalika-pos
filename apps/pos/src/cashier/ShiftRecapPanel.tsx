@@ -547,7 +547,7 @@ export function ShiftRecapPanel({
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   <div className="px-4 pt-3">
-                    <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
+                    <div className="grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
                       <span>Tanggal</span><span>Shift</span><span>Pengguna</span><span className="text-right">Penjualan</span>
                     </div>
                     {paged.length === 0 ? (
@@ -563,7 +563,7 @@ export function ShiftRecapPanel({
                         const isSel = selected?.id === s.id
                         return (
                           <button key={s.id} onClick={() => void selectHistoryShift(s)}
-                            className={`w-full grid grid-cols-[1fr_auto_1fr_auto] gap-2 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
+                            className={`w-full grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
                             <span className="text-gray-700 font-semibold">{fmtDate(s.openedAt)}</span>
                             <span className="text-gray-500">Shift {shiftNum}</span>
                             <span className="text-gray-700 truncate pr-2">{s.cashierName}</span>
