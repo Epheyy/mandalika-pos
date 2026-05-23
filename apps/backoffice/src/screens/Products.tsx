@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
-import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
+import type {
+  Product, Category, Bundle, ProductVariant, ProductInput, OutletVariantConfig,
+} from '@mandalika/api'
 import {
   Plus, Edit2, Trash2, X, Upload, Package, Search,
-  ImageIcon, Download, Tag, ChevronDown,
+  ImageIcon, Download, Tag, ChevronDown, Store,
 } from 'lucide-react'
 import { api } from '../api'
+import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { uploadImage } from '../lib/uploadImage'
@@ -37,7 +40,10 @@ const EMPTY: Form = {
 }
 
 export default function Products() {
-  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data), [])
+  const { outletId, outlets } = useOutlet()
+  // Refetch the list when the admin switches outlet so stock/price/availability
+  // reflect that outlet (the API client sends X-Outlet-Id from the switcher).
+  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data), [outletId])
   const cq = usePolledQuery<Category[]>(() => api.listCategories(), [])
   const bq = usePolledQuery<Bundle[]>(() => api.listBundles(), [])
   const products = pq.data ?? []
@@ -58,6 +64,9 @@ export default function Products() {
   const csvRef = useRef<HTMLInputElement>(null)
   const catCsvRef = useRef<HTMLInputElement>(null)
   const [exportMenu, setExportMenu] = useState(false)
+  // Per-outlet stock/price/availability matrix for the product being edited.
+  const [ocfg, setOcfg] = useState<OutletVariantConfig[]>([])
+  const [ocfgLoading, setOcfgLoading] = useState(false)
 
   const [catOpen, setCatOpen] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
@@ -72,7 +81,7 @@ export default function Products() {
   })
   const catName = (cid: string) => categories.find((c) => c.id === cid)?.name || '—'
 
-  const openEdit = (p: Product) => {
+  const openEdit = async (p: Product) => {
     setEditing(p)
     setForm({
       name: p.name, brand: p.brand, categoryId: p.categoryId,
@@ -81,8 +90,27 @@ export default function Products() {
       variants: p.variants.map((v) => ({ ...v })),
     })
     setErr(null)
+    setOcfg([])
     setOpen(true)
+    setOcfgLoading(true)
+    try {
+      setOcfg(await api.getProductOutletConfig(p.id))
+    } catch {
+      // non-fatal: the per-outlet section just stays empty
+    } finally {
+      setOcfgLoading(false)
+    }
   }
+
+  // Per-outlet matrix editing. Availability is product-level, so toggling it sets
+  // every variant row for that outlet.
+  const updOcfg = (oid: string, size: string, patch: Partial<OutletVariantConfig>) =>
+    setOcfg((rows) =>
+      rows.map((r) => (r.outletId === oid && r.variantSize === size ? { ...r, ...patch } : r)),
+    )
+  const setOutletAvailable = (oid: string, available: boolean) =>
+    setOcfg((rows) => rows.map((r) => (r.outletId === oid ? { ...r, available } : r)))
+  const basePriceOf = (size: string) => form.variants.find((v) => v.size === size)?.price ?? 0
 
   const onImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -126,8 +154,12 @@ export default function Products() {
           stock: Number(v.stock), sku: v.sku.trim(),
         })),
       }
-      if (editing) await api.updateProduct(editing.id, body)
-      else await api.createProduct(body)
+      if (editing) {
+        await api.updateProduct(editing.id, body)
+        if (ocfg.length > 0) await api.updateProductOutletConfig(editing.id, ocfg)
+      } else {
+        await api.createProduct(body)
+      }
       setOpen(false)
       await pq.refetch()
     } catch (e: unknown) {
@@ -243,7 +275,7 @@ export default function Products() {
                   Import
                 </Button>
                 <input ref={csvRef} type="file" accept=".csv" onChange={importProducts} className="hidden" />
-                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOpen(true) }}>
+                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOcfg([]); setOpen(true) }}>
                   Tambah
                 </Button>
               </>
@@ -446,6 +478,13 @@ export default function Products() {
               <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Varian *</label>
               <Button variant="ghost" size="sm" icon={<Plus className="w-3 h-3" />} onClick={() => setForm((f) => ({ ...f, variants: [...f.variants, { ...EMPTY_VARIANT }] }))}>Tambah</Button>
             </div>
+            {!editing && (
+              <p className="text-[11px] text-gray-400 mb-2 -mt-1 flex items-center gap-1">
+                <Store className="w-3 h-3" /> Stok awal masuk ke outlet{' '}
+                <span className="font-bold text-gold-700">{outlets.find((o) => o.id === outletId)?.name || 'Outlet Utama'}</span>
+                ; outlet lain mulai dari 0.
+              </p>
+            )}
             <div className="space-y-2">
               {form.variants.map((v, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
@@ -457,6 +496,73 @@ export default function Products() {
               ))}
             </div>
           </div>
+
+          {editing && (
+            <div>
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                Stok &amp; Harga per Outlet
+              </label>
+              {ocfgLoading ? (
+                <p className="text-sm text-gray-400 py-3">Memuat data outlet…</p>
+              ) : ocfg.length === 0 ? (
+                <p className="text-sm text-gray-400 py-3">Tidak ada outlet aktif.</p>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  {[...new Map(ocfg.map((r) => [r.outletId, r.outletName])).entries()].map(
+                    ([oid, oname]) => {
+                      const rows = ocfg.filter((r) => r.outletId === oid)
+                      const available = rows[0]?.available ?? true
+                      return (
+                        <div key={oid} className="border border-gray-100 rounded-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+                              <Store className="w-3.5 h-3.5 text-gold-600" /> {oname}
+                            </span>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-500">
+                              <input
+                                type="checkbox"
+                                checked={available}
+                                onChange={(e) => setOutletAvailable(oid, e.target.checked)}
+                                className="w-4 h-4 accent-gold-600"
+                              />
+                              Dijual di sini
+                            </label>
+                          </div>
+                          <div className={`space-y-1.5 ${available ? '' : 'opacity-40 pointer-events-none'}`}>
+                            {rows.map((r) => (
+                              <div key={r.variantSize} className="grid grid-cols-12 gap-2 items-center">
+                                <span className="col-span-5 text-xs text-gray-600 truncate">{r.variantSize}</span>
+                                <input
+                                  type="number"
+                                  value={r.stock}
+                                  onChange={(e) => updOcfg(oid, r.variantSize, { stock: Number(e.target.value) })}
+                                  placeholder="Stok"
+                                  className={`${fieldClass} col-span-3 py-1.5`}
+                                />
+                                <input
+                                  type="number"
+                                  value={r.price ?? ''}
+                                  onChange={(e) =>
+                                    updOcfg(oid, r.variantSize, {
+                                      price: e.target.value === '' ? null : Number(e.target.value),
+                                    })
+                                  }
+                                  placeholder={`${basePriceOf(r.variantSize)}`}
+                                  className={`${fieldClass} col-span-4 py-1.5`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    },
+                  )}
+                  <p className="text-[11px] text-gray-400">Harga kosong = pakai harga dasar varian.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>
       </Modal>
