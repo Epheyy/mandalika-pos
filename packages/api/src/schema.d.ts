@@ -703,6 +703,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/error-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List error logs (admin; cross-outlet, paginated, filterable) */
+        get: operations["listErrorLogs"];
+        put?: never;
+        /** Report client errors (sync failures, runtime/print) — batch */
+        post: operations["createErrorLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/version": {
         parameters: {
             query?: never;
@@ -1063,6 +1081,54 @@ export interface components {
             kind?: string | null;
             value?: number | null;
             amount: number;
+        };
+        ErrorBreadcrumb: {
+            at: string;
+            label: string;
+        };
+        ErrorLog: {
+            /** Format: uuid */
+            id: string;
+            outletId?: string | null;
+            outletName?: string | null;
+            deviceId?: string | null;
+            userId?: string | null;
+            userName?: string | null;
+            source: string;
+            kind?: string | null;
+            action?: string | null;
+            message: string;
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            breadcrumbs?: components["schemas"]["ErrorBreadcrumb"][] | null;
+            appVersion?: string | null;
+            /** Format: date-time */
+            clientCreatedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ErrorLogInput: {
+            deviceId?: string | null;
+            outletName?: string | null;
+            source: string;
+            kind?: string | null;
+            action?: string | null;
+            message: string;
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            breadcrumbs?: components["schemas"]["ErrorBreadcrumb"][] | null;
+            appVersion?: string | null;
+            /** Format: date-time */
+            clientCreatedAt?: string | null;
+        };
+        ErrorLogBatchRequest: {
+            items: components["schemas"]["ErrorLogInput"][];
+        };
+        ErrorLogListResponse: {
+            data: components["schemas"]["ErrorLog"][];
+            meta?: components["schemas"]["Meta"];
         };
         OrderListResponse: {
             data: components["schemas"]["Order"][];
@@ -3080,6 +3146,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShiftResponse"];
+                };
+            };
+        };
+    };
+    listErrorLogs: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                outletId?: string;
+                source?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description error logs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorLogListResponse"];
+                };
+            };
+        };
+    };
+    createErrorLogs: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ErrorLogBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
         };

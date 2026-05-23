@@ -373,6 +373,62 @@ components:
         kind: { type: string, nullable: true }
         value: { type: number, nullable: true }
         amount: { type: number }
+    ErrorBreadcrumb:
+      type: object
+      required: [at, label]
+      properties:
+        at: { type: string }
+        label: { type: string }
+    ErrorLog:
+      type: object
+      required: [id, source, message, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        outletId: { type: string, nullable: true }
+        outletName: { type: string, nullable: true }
+        deviceId: { type: string, nullable: true }
+        userId: { type: string, nullable: true }
+        userName: { type: string, nullable: true }
+        source: { type: string }
+        kind: { type: string, nullable: true }
+        action: { type: string, nullable: true }
+        message: { type: string }
+        payload: { type: object, additionalProperties: true, nullable: true }
+        breadcrumbs:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/ErrorBreadcrumb' }
+        appVersion: { type: string, nullable: true }
+        clientCreatedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    ErrorLogInput:
+      type: object
+      required: [source, message]
+      properties:
+        deviceId: { type: string, nullable: true }
+        outletName: { type: string, nullable: true }
+        source: { type: string }
+        kind: { type: string, nullable: true }
+        action: { type: string, nullable: true }
+        message: { type: string }
+        payload: { type: object, additionalProperties: true, nullable: true }
+        breadcrumbs:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/ErrorBreadcrumb' }
+        appVersion: { type: string, nullable: true }
+        clientCreatedAt: { type: string, format: date-time, nullable: true }
+    ErrorLogBatchRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ErrorLogInput' } }
+    ErrorLogListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ErrorLog' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     OrderListResponse:
       type: object
       required: [data]
@@ -1864,6 +1920,49 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftResponse' }
+  /api/v1/error-logs:
+    post:
+      operationId: createErrorLogs
+      tags: [sales]
+      summary: Report client errors (sync failures, runtime/print) — batch
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ErrorLogBatchRequest' }
+      responses:
+        '200':
+          description: recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+    get:
+      operationId: listErrorLogs
+      tags: [admin]
+      summary: List error logs (admin; cross-outlet, paginated, filterable)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: outletId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: source
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string }
+        - name: to
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: error logs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorLogListResponse' }
   /api/v1/sync/version:
     get:
       operationId: syncVersion

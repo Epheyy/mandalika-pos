@@ -21,6 +21,7 @@ export type Shift = S['Shift']
 export type StockCount = S['StockCount']
 export type StockCountItem = S['StockCountItem']
 export type CashFlow = S['CashFlow']
+export type ErrorLog = S['ErrorLog']
 export type CustomRole = S['CustomRole']
 export type ReportSummary = S['ReportSummary']
 export type Meta = S['Meta']
@@ -123,6 +124,7 @@ export interface Api {
   getOrder: (id: string) => Promise<Order>
   refundOrder: (id: string, reason: string) => Promise<Order>
   listShifts: (params?: Record<string, string | number>) => Promise<ListResult<Shift>>
+  listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
 
   // stock counts
   listStockCounts: (page?: number, limit?: number) => Promise<ListResult<StockCount>>
@@ -309,6 +311,7 @@ export function createClient(opts: ClientOptions): Api {
     refundOrder: (id, reason) =>
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason }),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
+    listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
 
     listStockCounts: (page = 1, limit = 100) =>
       list<StockCount>(`${API}/stock-counts`, { page, limit }),

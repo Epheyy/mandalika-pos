@@ -301,6 +301,19 @@ func (h *Handlers) Shifts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ErrorLogs lists captured errors (admin). Not cached — must be fresh.
+func (h *Handlers) ErrorLogs(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query()
+	rows, total, err := h.Repo.ErrorLogs(r.Context(),
+		q.Get("outletId"), q.Get("source"), q.Get("from"), q.Get("to"), p, l)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.ErrorLogListResponse{Data: rows, Meta: meta(total, p, l)})
+}
+
 func (h *Handlers) CurrentShift(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Repo.CurrentShift(r.Context(), scope(r))
 	resp := api.ShiftResponse{}

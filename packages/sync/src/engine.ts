@@ -33,6 +33,11 @@ export interface SyncEvents {
    *  failures. Defaults off so release builds stay silent on devices; the app
    *  wires this to `import.meta.env.DEV`. */
   debug?: boolean
+  /** Fired once per item when it permanently dead-letters (server kept refusing
+   *  past the retry cap) so the app can ship it to the server error log. */
+  onDeadLetter?: (
+    items: { type: OutboxType; idempotencyKey: string; payload: Record<string, unknown>; lastError?: string }[],
+  ) => void
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -42,6 +47,8 @@ export class SyncEngine {
   readonly outbox: Outbox
   readonly snapshot: Snapshot
   private flushing = false
+  // idempotencyKeys already surfaced via onDeadLetter — emit each once.
+  private reportedDead = new Set<string>()
   private wall: WallState
   private reachable: boolean = ONLINE()
 
@@ -257,7 +264,26 @@ export class SyncEngine {
       return null
     } finally {
       this.flushing = false
+      this.emitDeadLetters()
     }
+  }
+
+  /** Surface newly dead-lettered items to the app (once each) for error reporting. */
+  private emitDeadLetters(): void {
+    if (!this.events.onDeadLetter) return
+    const fresh = this.outbox
+      .deadLettered()
+      .filter((i) => !this.reportedDead.has(i.idempotencyKey))
+    if (!fresh.length) return
+    for (const i of fresh) this.reportedDead.add(i.idempotencyKey)
+    this.events.onDeadLetter(
+      fresh.map((i) => ({
+        type: i.type,
+        idempotencyKey: i.idempotencyKey,
+        payload: i.payload,
+        lastError: i.lastError,
+      })),
+    )
   }
 
   /** Wire connectivity + periodic version polling. Returns a disposer. */

@@ -15,6 +15,7 @@ import { SyncEngine, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import { api } from '../api'
 import { hideSplash } from '../native'
+import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -37,10 +38,11 @@ export function SyncProvider({
   onPendingRef.current = onPendingChange
 
   const [ready, setReady] = useState(false)
+  const engineRef = useRef<SyncEngine | null>(null)
 
   const engine = useMemo(
-    () =>
-      new SyncEngine(
+    () => {
+      const e = new SyncEngine(
         api,
         {
           onWall: (w) => onWallRef.current?.(w),
@@ -49,9 +51,25 @@ export function SyncProvider({
           // [sync] diagnostics on-device. Set to `import.meta.env.DEV`
           // before true-final (dev-only, silent in release).
           debug: true,
+          // Permanently-failed sync ops → server error log (Backoffice).
+          onDeadLetter: (items) => {
+            void reportErrors(
+              items.map((i) => ({
+                source: 'sync' as const,
+                kind: i.type,
+                action: `Sinkronisasi gagal: ${i.type}`,
+                message: i.lastError ?? 'sync gagal',
+                payload: i.payload,
+                outletName: engineRef.current?.getSnapshot().outletName ?? null,
+              })),
+            )
+          },
         },
         getKV(),
-      ),
+      )
+      engineRef.current = e
+      return e
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )

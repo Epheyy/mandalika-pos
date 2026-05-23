@@ -5,6 +5,7 @@ import './index.css'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
 import { bootNativeShell } from './native'
+import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
 
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
@@ -12,6 +13,7 @@ import App from './App'
 async function boot(): Promise<void> {
   await initSecureKV()
   await bootNativeShell()
+  installGlobalErrorHandler()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

@@ -29,6 +29,8 @@ import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
+import { reportErrors } from '../lib/errorReporter'
+import { track } from '../lib/activityLog'
 import logoGold from '../assets/logo-gold.png'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -160,6 +162,7 @@ export default function CashierScreen() {
     variantQtys: Record<string, number>,
   ) => {
     if (!ensureShift()) return
+    track(`Tambah ${product.name}`)
     cartActions.addVariants(product, variantQtys)
   }
 
@@ -326,9 +329,11 @@ export default function CashierScreen() {
       if (printer.isPaired) {
         printer
           .print(receipt, settings.receipt)
-          .catch((e: unknown) =>
-            setPrintError(e instanceof Error ? e.message : 'Gagal mencetak'),
-          )
+          .catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : 'Gagal mencetak'
+            setPrintError(msg)
+            void reportErrors([{ source: 'print', kind: 'receipt', action: `Cetak struk ${orderNo}`, message: msg, outletName: snapshot.outletName }])
+          })
       }
     } catch { dispatch({ type: 'SET_PROCESSING', processing: false }) }
   }
@@ -338,9 +343,11 @@ export default function CashierScreen() {
     setPrintError(null)
     printer
       .print(lastReceipt.current, settings.receipt)
-      .catch((e: unknown) =>
-        setPrintError(e instanceof Error ? e.message : 'Gagal mencetak'),
-      )
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Gagal mencetak'
+        setPrintError(msg)
+        void reportErrors([{ source: 'print', kind: 'receipt', action: 'Cetak ulang struk', message: msg, outletName: snapshot.outletName }])
+      })
   }
 
   const handleRefundConfirm = (orderId: string, reason: string) => {
@@ -375,6 +382,17 @@ export default function CashierScreen() {
   // share them (native share / clipboard) so support can debug, then dismiss
   // them from the queue so a poison item can't block the cashier.
   const handleSendLog = () => {
+    // Report to the server error log too (covers the case where the items
+    // dead-lettered while offline and weren't auto-reported yet).
+    const dead = engine.deadLettered()
+    if (dead.length) {
+      void reportErrors(dead.map((d) => ({
+        source: 'sync' as const, kind: d.type,
+        action: `Kirim log: ${d.type}`,
+        message: d.lastError ?? 'sync gagal',
+        outletName: snapshot.outletName,
+      })))
+    }
     const text = offlineData.discardFailed()
     const blob = `Mandalika POS — Sync Log\n${new Date().toISOString()}\n\n${text}`
     void (async () => {

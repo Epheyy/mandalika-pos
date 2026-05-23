@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -340,6 +341,49 @@ func (h *Handlers) CloseShift(w http.ResponseWriter, r *http.Request) {
 	h.invalidate(r)
 	v, _ := h.Repo.Shift(r.Context(), scope(r), chi.URLParam(r, "id"))
 	writeJSON(w, http.StatusOK, map[string]any{"data": nullableShift(v)})
+}
+
+// CreateErrorLogs records a batch of client errors (sync/runtime/print). Outlet
+// and user come from the JWT; the rest from the body. Best-effort.
+func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Items []struct {
+			DeviceID        string          `json:"deviceId"`
+			OutletName      string          `json:"outletName"`
+			Source          string          `json:"source"`
+			Kind            string          `json:"kind"`
+			Action          string          `json:"action"`
+			Message         string          `json:"message"`
+			Payload         json.RawMessage `json:"payload"`
+			Breadcrumbs     json.RawMessage `json:"breadcrumbs"`
+			AppVersion      string          `json:"appVersion"`
+			ClientCreatedAt *time.Time      `json:"clientCreatedAt"`
+		} `json:"items"`
+	}
+	_ = httpx.DecodeLoose(r, &body)
+	c, _ := h.caller(r)
+	logs := make([]write.ErrorLog, 0, len(body.Items))
+	for _, it := range body.Items {
+		if it.Message == "" {
+			continue
+		}
+		src := it.Source
+		if src == "" {
+			src = "runtime"
+		}
+		logs = append(logs, write.ErrorLog{
+			OutletID: c.outletID, OutletName: it.OutletName, DeviceID: it.DeviceID,
+			UserID: c.userID, UserName: c.name, Source: src, Kind: it.Kind,
+			Action: it.Action, Message: it.Message, Payload: it.Payload,
+			Breadcrumbs: it.Breadcrumbs, AppVersion: it.AppVersion,
+			ClientCreatedAt: it.ClientCreatedAt,
+		})
+	}
+	if err := h.Write.InsertErrorLogs(r.Context(), logs); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {

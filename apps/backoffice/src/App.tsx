@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Settings,
   Receipt,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from './auth'
 import { OutletSwitcher } from './outlet'
@@ -28,6 +29,7 @@ import StockCount from './screens/StockCount'
 import Outlets from './screens/Outlets'
 import Users from './screens/Users'
 import SettingsScreen from './screens/SettingsScreen'
+import ErrorLogs from './screens/ErrorLogs'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard', C: Dashboard },
@@ -40,6 +42,9 @@ const NAV = [
   { id: 'outlets', label: 'Outlet', icon: Store, perm: 'manage_outlets', C: Outlets },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
+  // Admin-only: 'view_error_logs' isn't granted to any role, so it shows only
+  // via the isAdmin bypass (and the GET endpoint is admin-gated server-side).
+  { id: 'errors', label: 'Log Error', icon: AlertTriangle, perm: 'view_error_logs', C: ErrorLogs },
 ] as const
 
 function LoginScreen() {

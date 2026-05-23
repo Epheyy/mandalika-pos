@@ -1,9 +1,12 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,10 +30,12 @@ import (
 
 func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
+	// Built early: the panic recoverer persists backend errors to error_logs.
+	wr := write.New(database.Pool)
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(mw.RequestLogger)
-	r.Use(sentryRecoverer(sentry))
+	r.Use(sentryRecoverer(sentry, wr))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -50,7 +55,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		APIKey:    cfg.CloudinaryKey,
 		APISecret: cfg.CloudinarySecret,
 	}
-	h := handlers.New(rd, c, store, write.New(database.Pool), os,
+	h := handlers.New(rd, c, store, wr, os,
 		syncpkg.New(database.Pool, rd, os), signer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
@@ -116,6 +121,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/shifts", h.OpenShift)
 			r.Post("/shifts/{id}/close", h.CloseShift)
 			r.Post("/cash-flows", h.CreateCashFlow)
+			// Client error reporting (sync/runtime/print) — any authenticated device.
+			r.Post("/error-logs", h.CreateErrorLogs)
 
 			// ── Offline sync (plan §5) ──
 			r.Get("/sync/version", h.SyncVersion)
@@ -183,6 +190,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/custom-roles", h.CreateCustomRole)
 				r.Put("/custom-roles/{id}", h.UpdateCustomRole)
 				r.Delete("/custom-roles/{id}", h.DeleteCustomRole)
+				r.Get("/error-logs", h.ErrorLogs)
 			})
 		})
 	})
@@ -193,7 +201,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 // sentryRecoverer recovers panics, ships them to error tracking, logs a
 // structured error, and returns 500 — replacing chi's plain Recoverer so
 // crashes are observable in production instead of only on stdout.
-func sentryRecoverer(s *observability.Sentry) func(http.Handler) http.Handler {
+func sentryRecoverer(s *observability.Sentry, wr *write.Repo) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -202,14 +210,22 @@ func sentryRecoverer(s *observability.Sentry) func(http.Handler) http.Handler {
 					if !ok {
 						err = fmt.Errorf("panic: %v", rec)
 					}
-					slog.Error("panic recovered",
-						"err", err,
-						"path", r.URL.Path,
-						"request_id", chimw.GetReqID(r.Context()))
+					reqID := chimw.GetReqID(r.Context())
+					slog.Error("panic recovered", "err", err, "path", r.URL.Path, "request_id", reqID)
 					s.CaptureError(r.Context(), err, map[string]string{
-						"path":       r.URL.Path,
-						"request_id": chimw.GetReqID(r.Context()),
+						"path": r.URL.Path, "request_id": reqID,
 					})
+					// Persist to the central error log so it shows in Backoffice
+					// (best-effort; a fresh ctx since the request ctx is dying).
+					buf := make([]byte, 4096)
+					n := runtime.Stack(buf, false)
+					uid, _ := r.Context().Value(auth.CtxUserID).(string)
+					outlet, _ := r.Context().Value(auth.CtxOutletID).(string)
+					payload, _ := json.Marshal(map[string]any{"requestId": reqID, "stack": string(buf[:n])})
+					_ = wr.InsertErrorLogs(context.Background(), []write.ErrorLog{{
+						OutletID: outlet, UserID: uid, Source: "backend", Kind: "panic",
+						Action: r.Method + " " + r.URL.Path, Message: err.Error(), Payload: payload,
+					}})
 					httpx.Err(w, http.StatusInternalServerError, "internal error")
 				}
 			}()

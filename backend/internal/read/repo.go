@@ -349,6 +349,45 @@ func (r *Repo) CurrentShift(ctx context.Context, sc Scope) (api.Shift, error) {
 			` ORDER BY s.opened_at DESC LIMIT 1`, args...)
 }
 
+const errorLogObj = `json_build_object('id',e.id,'outletId',e.outlet_id,
+  'outletName',e.outlet_name,'deviceId',e.device_id,'userId',e.user_id,
+  'userName',e.user_name,'source',e.source,'kind',e.kind,'action',e.action,
+  'message',e.message,'payload',e.payload,'breadcrumbs',e.breadcrumbs,
+  'appVersion',e.app_version,'clientCreatedAt',e.client_created_at,
+  'createdAt',e.created_at)`
+
+// ErrorLogs lists captured errors (admin; cross-outlet), newest first.
+func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string, page, limit int) ([]api.ErrorLog, int, error) {
+	args := []any{}
+	cond := ""
+	add := func(clause string, val any) {
+		args = append(args, val)
+		if cond == "" {
+			cond = " WHERE "
+		} else {
+			cond += " AND "
+		}
+		cond += fmt.Sprintf(clause, len(args))
+	}
+	if outletID != "" {
+		add("e.outlet_id=$%d", outletID)
+	}
+	if source != "" {
+		add("e.source=$%d", source)
+	}
+	if from != "" {
+		add("e.created_at >= $%d", from)
+	}
+	if to != "" {
+		add("e.created_at <= $%d", to)
+	}
+	args = append(args, limit, off(page, limit))
+	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM error_logs e%s
+	  ORDER BY e.created_at DESC LIMIT $%d OFFSET $%d`,
+		errorLogObj, cond, len(args)-1, len(args))
+	return listJSON[api.ErrorLog](ctx, r.Pool, sql, args...)
+}
+
 const stockCountObj = `json_build_object('id',sc.id,'name',sc.name,
   'status',sc.status,'outletId',sc.outlet_id,'plannedDate',sc.planned_date,
   'startedAt',sc.started_at,'completedAt',sc.completed_at,'notes',sc.notes,
