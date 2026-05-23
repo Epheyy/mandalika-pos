@@ -214,9 +214,15 @@ func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, item
 		}
 		rows.Close()
 		for _, a := range adjs {
+			// Apply the counted quantity to THIS outlet's stock row (the count is
+			// outlet-scoped via scopedSC); create it if the outlet hasn't been
+			// stocked before.
 			if _, e := t.Exec(ctx,
-				`UPDATE product_variants SET stock=$1 WHERE product_id=$2 AND size=$3`,
-				a.actual, a.pid, a.size); e != nil {
+				`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+				   VALUES ($1,$2,$3,$4)
+				 ON CONFLICT (outlet_id, product_id, variant_size)
+				   DO UPDATE SET stock = EXCLUDED.stock`,
+				outletID, a.pid, a.size, a.actual); e != nil {
 				return e
 			}
 			if _, e := t.Exec(ctx,
