@@ -18,6 +18,7 @@ import {
 import { useAuth } from './auth'
 import { OutletSwitcher } from './outlet'
 import { BRAND } from './lib/brand'
+import { Button, Card, Input } from './ui'
 
 import Dashboard from './screens/Dashboard'
 import Products from './screens/Products'
@@ -68,40 +69,33 @@ function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form
-        onSubmit={onSubmit}
-        className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 w-full max-w-sm space-y-4"
-      >
-        <div className="text-center">
-          <img src={BRAND.logoUrl} alt="" className="h-10 mx-auto mb-3 object-contain" />
-          <h1 className="text-xl font-black text-gray-900">Mandalika Back Office</h1>
-          <p className="text-xs text-gray-400">Masuk dengan akun admin / manajer</p>
-        </div>
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          autoComplete="username"
-          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          placeholder="Kata sandi"
-          autoComplete="current-password"
-          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <button
-          disabled={busy}
-          type="submit"
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold rounded-2xl transition-all"
-        >
-          {busy ? 'Memproses…' : 'Masuk'}
-        </button>
-        {err && <p className="text-sm text-center text-red-600">{err}</p>}
-      </form>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="shadow-xl p-8 w-full max-w-sm">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="text-center">
+            <img src={BRAND.logoUrl} alt="" className="h-10 mx-auto mb-3 object-contain" />
+            <h1 className="text-xl font-black text-gray-900">Mandalika Back Office</h1>
+            <p className="text-xs text-gray-400">Masuk dengan akun admin / manajer</p>
+          </div>
+          <Input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="username"
+          />
+          <Input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            placeholder="Kata sandi"
+            autoComplete="current-password"
+          />
+          <Button type="submit" loading={busy} className="w-full py-3 rounded-2xl">
+            {busy ? 'Memproses…' : 'Masuk'}
+          </Button>
+          {err && <p className="text-sm text-center text-red-600">{err}</p>}
+        </form>
+      </Card>
     </div>
   )
 }
@@ -178,7 +172,7 @@ export default function App() {
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                   active?.id === id
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                    ? 'bg-gold-600 text-white shadow-lg shadow-gold-600/10'
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -190,11 +184,11 @@ export default function App() {
         </nav>
         <div className="p-3 border-t border-gray-100">
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-gold-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-xs font-black text-indigo-600">
+                <span className="text-xs font-black text-gold-700">
                   {user.displayName.charAt(0)}
                 </span>
               )}

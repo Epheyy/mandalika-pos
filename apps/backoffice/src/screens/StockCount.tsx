@@ -2,11 +2,12 @@ import { useState } from 'react'
 import type { StockCount, StockCountItem, Product, Outlet } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Plus, X, Play, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
+import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
+import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, fieldClass } from '../ui'
 
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
@@ -108,41 +109,40 @@ export default function StockCount() {
     }
   }
 
-  const badge = (s: string) =>
-    s === 'planned' ? 'bg-blue-50 text-blue-700' : s === 'in_progress' ? 'bg-yellow-50 text-yellow-700' : s === 'completed' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+  const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
+    s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
   const label = (s: string) =>
     s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-black text-gray-900">Stock Count</h2>
-          <p className="text-sm text-gray-400">Stok dibekukan saat penghitungan. Transaksi tetap berjalan.</p>
-        </div>
-        <button onClick={() => { setErr(null); setOpen(true) }} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-100">
-          <Plus className="w-4 h-4" /> Buat Stock Count
-        </button>
-      </div>
+      <PageHeader
+        title="Stock Count"
+        subtitle="Stok dibekukan saat penghitungan. Transaksi tetap berjalan."
+        actions={
+          <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setErr(null); setOpen(true) }}>
+            Buat Stock Count
+          </Button>
+        }
+      />
 
       <div className="space-y-3">
         {scq.loading ? (
           <TableSkeleton />
         ) : stockCounts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center gap-3 text-gray-300">
-            <ClipboardList className="w-12 h-12" />
-            <p className="font-bold">Belum ada stock count</p>
-          </div>
+          <Card>
+            <EmptyState icon={<ClipboardList />} title="Belum ada stock count" />
+          </Card>
         ) : (
           stockCounts.map((sc) => {
             const items = itemsFor(sc)
             return (
-              <div key={sc.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <Card key={sc.id} className="overflow-hidden">
                 <div className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                      <ClipboardList className="w-5 h-5 text-indigo-600" />
+                    <div className="w-10 h-10 bg-gold-50 rounded-xl flex items-center justify-center">
+                      <ClipboardList className="w-5 h-5 text-gold-600" />
                     </div>
                     <div>
                       <p className="font-bold text-gray-900">{sc.name}</p>
@@ -153,30 +153,30 @@ export default function StockCount() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${badge(sc.status)}`}>{label(sc.status)}</span>
+                    <Badge tone={tone(sc.status)}>{label(sc.status)}</Badge>
                     {sc.status === 'planned' && (
-                      <button onClick={() => start(sc)} className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold rounded-xl">
-                        <Play className="w-3 h-3" /> Mulai
-                      </button>
+                      <Button size="sm" icon={<Play className="w-3 h-3" />} onClick={() => start(sc)}>
+                        Mulai
+                      </Button>
                     )}
                     {sc.status === 'in_progress' && (
                       <>
-                        <button onClick={() => saveProgress(sc)} disabled={activeId === sc.id} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl">
-                          {activeId === sc.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Simpan
-                        </button>
-                        <button onClick={() => complete(sc)} disabled={activeId === sc.id} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl">
-                          <CheckCircle className="w-3 h-3" /> Selesai
-                        </button>
+                        <Button variant="secondary" size="sm" loading={activeId === sc.id} onClick={() => saveProgress(sc)}>
+                          Simpan
+                        </Button>
+                        <Button size="sm" icon={<CheckCircle className="w-3 h-3" />} disabled={activeId === sc.id} onClick={() => complete(sc)}>
+                          Selesai
+                        </Button>
                       </>
                     )}
                     {['planned', 'in_progress'].includes(sc.status) && (
-                      <button onClick={() => cancel(sc)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <IconButton tone="danger" onClick={() => cancel(sc)}>
                         <XCircle className="w-4 h-4" />
-                      </button>
+                      </IconButton>
                     )}
-                    <button onClick={() => setExpanded(expanded === sc.id ? null : sc.id)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                    <IconButton onClick={() => setExpanded(expanded === sc.id ? null : sc.id)}>
                       {expanded === sc.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
                 {expanded === sc.id && (
@@ -195,10 +195,10 @@ export default function StockCount() {
                             <td className="px-4 py-2 text-sm font-bold text-gray-900">{it.productName}</td>
                             <td className="px-4 py-2 text-xs text-gray-600">{it.variantSize}</td>
                             <td className="px-4 py-2 text-xs text-gray-400 font-mono">{it.sku}</td>
-                            <td className="px-4 py-2 text-sm font-bold text-blue-600">{it.frozenQty}</td>
+                            <td className="px-4 py-2 text-sm font-bold text-gold-700">{it.frozenQty}</td>
                             <td className="px-4 py-2">
                               {sc.status === 'in_progress' ? (
-                                <input type="number" value={it.actualQty ?? ''} onChange={(e) => setQty(sc, idx, parseInt(e.target.value) || 0)} className="w-20 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <input type="number" value={it.actualQty ?? ''} onChange={(e) => setQty(sc, idx, parseInt(e.target.value) || 0)} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
                               ) : (
                                 <span className="text-sm font-bold text-gray-900">{it.actualQty ?? '—'}</span>
                               )}
@@ -216,55 +216,39 @@ export default function StockCount() {
                     </table>
                   </div>
                 )}
-              </div>
+              </Card>
             )
           })
         )}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-xl font-black text-gray-900">Buat Stock Count</h2>
-              <button onClick={() => setOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nama *</label>
-                <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              {isAdmin && (
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Outlet *</label>
-                  <select value={form.outletId} onChange={(e) => setForm((f) => ({ ...f, outletId: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Pilih outlet...</option>
-                    {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tanggal Rencana</label>
-                <input type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Catatan</label>
-                <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div className="bg-yellow-50 rounded-xl p-3 text-xs text-yellow-700">
-                Stok {products.length} produk aktif akan dibekukan sebagai referensi.
-              </div>
-              {err && <p className="text-sm text-red-600">{err}</p>}
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setOpen(false)} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl">Batal</button>
-              <button onClick={createSC} disabled={busy} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2">
-                {busy ? <><Loader2 className="w-4 h-4 animate-spin" />Membuat...</> : 'Buat Stock Count'}
-              </button>
-            </div>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Buat Stock Count"
+        footer={
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Batal</Button>
+            <Button className="flex-1" loading={busy} onClick={createSC}>{busy ? 'Membuat...' : 'Buat Stock Count'}</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Nama *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          {isAdmin && (
+            <Select label="Outlet *" value={form.outletId} onChange={(e) => setForm((f) => ({ ...f, outletId: e.target.value }))}>
+              <option value="">Pilih outlet...</option>
+              {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </Select>
+          )}
+          <Input label="Tanggal Rencana" type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} />
+          <Textarea label="Catatan" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">
+            Stok {products.length} produk aktif akan dibekukan sebagai referensi.
           </div>
+          {err && <p className="text-sm text-red-600">{err}</p>}
         </div>
-      )}
+      </Modal>
     </div>
   )
 }

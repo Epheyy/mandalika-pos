@@ -14,6 +14,16 @@ import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
+import {
+  Button,
+  Card,
+  Badge,
+  Input,
+  Select,
+  EmptyState,
+  PageHeader,
+  Tabs,
+} from '../ui'
 
 export default function Reports() {
   const { outletId } = useOutlet()
@@ -99,80 +109,103 @@ export default function Reports() {
       'laporan_shift',
     )
 
-  const sBadge = (st: string) =>
-    st === 'completed' ? 'bg-green-50 text-green-700' : st === 'refunded' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'
+  const statusBadge = (st: string) =>
+    st === 'completed' ? (
+      <Badge tone="success">Selesai</Badge>
+    ) : st === 'refunded' ? (
+      <Badge tone="danger">Refund</Badge>
+    ) : (
+      <Badge tone="neutral">{st}</Badge>
+    )
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-black text-gray-900">Laporan</h2>
-          <p className="text-sm text-gray-400">Ekspor data untuk analisis lebih lanjut</p>
-        </div>
-        <div className="flex bg-gray-100 rounded-xl p-1">
-          {(['transactions', 'shifts'] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
-              {t === 'transactions' ? 'Transaksi' : 'Shift'}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Laporan"
+        subtitle="Ekspor data untuk analisis lebih lanjut"
+        actions={
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { id: 'transactions', label: 'Transaksi' },
+              { id: 'shifts', label: 'Shift' },
+            ]}
+          />
+        }
+      />
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-black text-gray-400 mb-1">Dari</label>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-        </div>
-        <div>
-          <label className="block text-xs font-black text-gray-400 mb-1">Sampai</label>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-        </div>
+      <Card className="p-4 flex flex-wrap gap-3 items-end">
+        <Input
+          type="date"
+          label="Dari"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="w-auto"
+        />
+        <Input
+          type="date"
+          label="Sampai"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="w-auto"
+        />
         {tab === 'transactions' && (
           <>
-            <div>
-              <label className="block text-xs font-black text-gray-400 mb-1">Status</label>
-              <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none">
-                <option value="">Semua Status</option>
-                <option value="completed">Selesai</option>
-                <option value="refunded">Refund</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-black text-gray-400 mb-1">Pembayaran</label>
-              <select value={fPay} onChange={(e) => setFPay(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none">
-                <option value="">Semua</option>
-                <option value="cash">Tunai</option>
-                <option value="card">Kartu</option>
-                <option value="qris">QRIS</option>
-                <option value="transfer">Transfer</option>
-              </select>
-            </div>
+            <Select
+              label="Status"
+              value={fStatus}
+              onChange={(e) => setFStatus(e.target.value)}
+              className="w-auto"
+            >
+              <option value="">Semua Status</option>
+              <option value="completed">Selesai</option>
+              <option value="refunded">Refund</option>
+            </Select>
+            <Select
+              label="Pembayaran"
+              value={fPay}
+              onChange={(e) => setFPay(e.target.value)}
+              className="w-auto"
+            >
+              <option value="">Semua</option>
+              <option value="cash">Tunai</option>
+              <option value="card">Kartu</option>
+              <option value="qris">QRIS</option>
+              <option value="transfer">Transfer</option>
+            </Select>
           </>
         )}
-        <button onClick={tab === 'transactions' ? exportTx : exportSh} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm">
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
-      </div>
+        <Button
+          variant="secondary"
+          onClick={tab === 'transactions' ? exportTx : exportSh}
+          icon={<Download className="w-4 h-4" />}
+        >
+          Export CSV
+        </Button>
+      </Card>
 
       {tab === 'transactions' ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Penjualan', value: BRAND.currency.format(revenue), icon: <TrendingUp className="w-4 h-4" />, color: 'text-green-600 bg-green-50' },
-              { label: 'Jumlah Transaksi', value: String(completed.length), icon: <ShoppingBag className="w-4 h-4" />, color: 'text-indigo-600 bg-indigo-50' },
-              { label: 'Total Refund', value: BRAND.currency.format(refunds), icon: <RotateCcw className="w-4 h-4" />, color: 'text-red-600 bg-red-50' },
-              { label: 'Transaksi Direfund', value: String(refunded.length), icon: <RotateCcw className="w-4 h-4" />, color: 'text-orange-600 bg-orange-50' },
+              { label: 'Total Penjualan', value: BRAND.currency.format(revenue), icon: <TrendingUp className="w-5 h-5" /> },
+              { label: 'Jumlah Transaksi', value: String(completed.length), icon: <ShoppingBag className="w-5 h-5" /> },
+              { label: 'Total Refund', value: BRAND.currency.format(refunds), icon: <RotateCcw className="w-5 h-5" /> },
+              { label: 'Transaksi Direfund', value: String(refunded.length), icon: <RotateCcw className="w-5 h-5" /> },
             ].map((c) => (
-              <div key={c.label} className="bg-white rounded-2xl border border-gray-100 p-4">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${c.color}`}>{c.icon}</div>
+              <Card key={c.label} className="p-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 bg-gold-50 text-gold-600">
+                  {c.icon}
+                </div>
                 <p className="text-xl font-black text-gray-900">{c.value}</p>
                 <p className="text-xs text-gray-400">{c.label}</p>
-              </div>
+              </Card>
             ))}
           </div>
 
           {Object.keys(byPay).length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <Card className="p-5">
               <h3 className="font-black text-gray-900 mb-3">Breakdown Pembayaran</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {Object.entries(byPay).map(([m, a]) => (
@@ -183,25 +216,22 @@ export default function Reports() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100">
               <p className="text-sm font-bold text-gray-500">{fOrders.length} transaksi</p>
             </div>
             {fOrders.length === 0 ? (
-              <div className="p-8 text-center text-gray-300">
-                <ShoppingBag className="w-10 h-10 mx-auto mb-2" />
-                <p>Tidak ada transaksi</p>
-              </div>
+              <EmptyState icon={<ShoppingBag />} title="Tidak ada transaksi" />
             ) : (
               <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {fOrders.map((o) => (
                   <div key={o.id}>
                     <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(expanded === o.id ? null : o.id)}>
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-indigo-50'}`}>
-                        <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-indigo-500'}`} />
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
+                        <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
@@ -211,9 +241,7 @@ export default function Reports() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`px-2 py-0.5 text-xs font-bold rounded-lg ${sBadge(o.status)}`}>
-                          {o.status === 'completed' ? 'Selesai' : o.status === 'refunded' ? 'Refund' : o.status}
-                        </span>
+                        {statusBadge(o.status)}
                         <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                         {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                       </div>
@@ -237,7 +265,7 @@ export default function Reports() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </>
       ) : (
         <>
@@ -248,15 +276,15 @@ export default function Reports() {
               { label: 'Total Refund', value: BRAND.currency.format(fShifts.reduce((s, sh) => s + (sh.totalRefunds || 0), 0)) },
               { label: 'Jumlah Shift', value: String(fShifts.length) },
             ].map((c) => (
-              <div key={c.label} className="bg-white rounded-2xl border border-gray-100 p-4">
+              <Card key={c.label} className="p-4">
                 <p className="text-xl font-black text-gray-900">{c.value}</p>
                 <p className="text-xs text-gray-400">{c.label}</p>
-              </div>
+              </Card>
             ))}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <Card className="overflow-hidden">
             {fShifts.length === 0 ? (
-              <div className="p-8 text-center text-gray-300"><p>Tidak ada shift</p></div>
+              <EmptyState icon={<ShoppingBag />} title="Tidak ada shift" />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -276,7 +304,7 @@ export default function Reports() {
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{s.closedAt ? format(parseISO(s.closedAt), 'dd MMM HH:mm', { locale: idLocale }) : <span className="text-green-600 font-bold">Buka</span>}</td>
                         <td className="px-4 py-3 text-sm font-bold text-gray-900">{s.totalOrders}</td>
                         <td className="px-4 py-3 text-sm font-bold text-red-600">{BRAND.currency.format(s.totalRefunds || 0)}</td>
-                        <td className="px-4 py-3 text-sm font-black text-indigo-600">{BRAND.currency.format(s.totalSales)}</td>
+                        <td className="px-4 py-3 text-sm font-black text-gold-600">{BRAND.currency.format(s.totalSales)}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.cashSales)}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.qrisSales)}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.transferSales)}</td>
@@ -287,7 +315,7 @@ export default function Reports() {
                 </table>
               </div>
             )}
-          </div>
+          </Card>
         </>
       )}
     </div>

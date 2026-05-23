@@ -6,10 +6,11 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
+import { Badge, Button, Card, EmptyState, PageHeader, Tabs } from '../ui'
 
 const PAGE_SIZE = 50
 
-const SOURCES = [
+const SOURCES: ReadonlyArray<{ id: string; label: string }> = [
   { id: '', label: 'Semua Sumber' },
   { id: 'sync', label: 'Sync' },
   { id: 'runtime', label: 'Runtime' },
@@ -17,12 +18,19 @@ const SOURCES = [
   { id: 'backend', label: 'Backend' },
 ]
 
-const SOURCE_STYLE: Record<string, string> = {
-  sync: 'bg-amber-50 text-amber-700',
-  runtime: 'bg-red-50 text-red-600',
-  print: 'bg-blue-50 text-blue-700',
-  backend: 'bg-purple-50 text-purple-700',
+type Tone = 'gold' | 'success' | 'danger' | 'neutral'
+
+// Severity-by-source mapping (semantic only):
+//   runtime → danger (crashes/runtime errors)
+//   sync    → warning (amber, applied via className since Badge has no amber tone)
+//   backend → gold (brand/server-side)
+//   print   → neutral (info)
+const SOURCE_TONE: Record<string, Tone> = {
+  runtime: 'danger',
+  backend: 'gold',
+  print: 'neutral',
 }
+const SOURCE_WARNING = new Set(['sync'])
 
 function fmtTime(s?: string | null): string {
   if (!s) return '—'
@@ -53,43 +61,33 @@ export default function ErrorLogs() {
 
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h2 className="text-xl font-black text-gray-900">Log Error</h2>
-        <p className="text-sm text-gray-400">
-          {total} error · sync / runtime / cetak / backend — termasuk aktivitas pengguna, outlet & perangkat.
-        </p>
-      </div>
+      <PageHeader
+        title="Log Error"
+        subtitle={`${total} error · sync / runtime / cetak / backend — termasuk aktivitas pengguna, outlet & perangkat.`}
+        actions={
+          <Button variant="secondary" onClick={() => void q.refetch()}>
+            Muat ulang
+          </Button>
+        }
+      />
 
-      <div className="flex flex-wrap gap-3">
-        <select
-          value={source}
-          onChange={(e) => { setSource(e.target.value); setPage(1) }}
-          className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none"
-        >
-          {SOURCES.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
-          ))}
-        </select>
-        <button
-          onClick={() => void q.refetch()}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50"
-        >
-          Muat ulang
-        </button>
-      </div>
+      <Tabs
+        value={source}
+        onChange={(v) => { setSource(v); setPage(1) }}
+        tabs={SOURCES}
+      />
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <Card className="overflow-hidden">
         {q.loading && rows.length === 0 ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
-          <div className="p-12 flex flex-col items-center gap-3 text-gray-300">
-            <AlertTriangle className="w-12 h-12" />
-            <p className="font-bold">Tidak ada error tercatat</p>
-          </div>
+          <EmptyState icon={<AlertTriangle />} title="Tidak ada error tercatat" />
         ) : (
           <div className="divide-y divide-gray-50">
             {rows.map((e) => {
               const open = expanded === e.id
+              const isWarning = SOURCE_WARNING.has(e.source)
+              const label = `${e.source}${e.kind ? ` · ${e.kind}` : ''}`
               return (
                 <div key={e.id}>
                   <div
@@ -101,9 +99,16 @@ export default function ErrorLogs() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-lg uppercase ${SOURCE_STYLE[e.source] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {e.source}{e.kind ? ` · ${e.kind}` : ''}
-                        </span>
+                        {isWarning ? (
+                          // Badge has no amber tone; warnings use an amber span matching Badge shape.
+                          <span className="px-2.5 py-1 text-xs font-bold rounded-lg uppercase bg-amber-50 text-amber-700">
+                            {label}
+                          </span>
+                        ) : (
+                          <Badge tone={SOURCE_TONE[e.source] ?? 'neutral'} className="uppercase">
+                            {label}
+                          </Badge>
+                        )}
                         <p className="font-bold text-gray-900 text-sm truncate">{e.message}</p>
                       </div>
                       <p className="text-xs text-gray-400 truncate">
@@ -120,12 +125,12 @@ export default function ErrorLogs() {
                   {open && (
                     <div className="px-5 pb-5 bg-gray-50 border-t border-gray-100 pt-4 space-y-4">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <Field label="Outlet" value={e.outletName ?? e.outletId ?? '—'} />
-                        <Field label="Pengguna" value={e.userName ?? e.userId ?? '—'} />
-                        <Field label="Perangkat" value={e.deviceId ?? '—'} />
-                        <Field label="Versi" value={e.appVersion ?? '—'} />
-                        <Field label="Terjadi" value={fmtTime(e.clientCreatedAt)} />
-                        <Field label="Tercatat" value={fmtTime(e.createdAt)} />
+                        <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? '—'} />
+                        <DetailField label="Pengguna" value={e.userName ?? e.userId ?? '—'} />
+                        <DetailField label="Perangkat" value={e.deviceId ?? '—'} />
+                        <DetailField label="Versi" value={e.appVersion ?? '—'} />
+                        <DetailField label="Terjadi" value={fmtTime(e.clientCreatedAt)} />
+                        <DetailField label="Tercatat" value={fmtTime(e.createdAt)} />
                       </div>
 
                       {e.breadcrumbs && e.breadcrumbs.length > 0 && (
@@ -157,26 +162,28 @@ export default function ErrorLogs() {
             })}
           </div>
         )}
-      </div>
+      </Card>
 
       {total > 0 && (
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500">Hal {page}/{totalPages}</span>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
             >
               ‹ Sebelumnya
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
             >
               Berikutnya ›
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -184,7 +191,7 @@ export default function ErrorLogs() {
   )
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{label}</p>

@@ -63,7 +63,7 @@ export function OutletSwitcher() {
     <select
       value={outletId ?? ''}
       onChange={(e) => setOutletId(e.target.value || null)}
-      className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-gold-500/40"
     >
       <option value="">Semua Outlet</option>
       {outlets.map((o) => (
