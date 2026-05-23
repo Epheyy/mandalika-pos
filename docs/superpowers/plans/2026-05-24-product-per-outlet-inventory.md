@@ -485,13 +485,22 @@ git commit -m "feat(api): outlet-config client methods + regenerated types"
   per-outlet stock count; outlet-config endpoints + create seeding.
 - **Decisions applied:** not-yet-stocked outlets start at 0 on first sale (no legacy
   inherit); new-product stock seeds the selected outlet (primary when "Semua").
-- **NEXT = Task 7: deploy backend to Cloud Run** (`gcloud run deploy mandalika-pos
-  --source backend --region asia-southeast2 --quiet`) — migration auto-applies on
-  boot. **Gated on user go-ahead** (production, live selling app) + confirm the
-  resolved primary outlet (Task 1 Step 2 query). After deploy: verify `/readyz`,
-  scoped product reads, and a real test sale decrements the right outlet + refund
-  restores. ONLY THEN do frontend Tasks 8–12.
-- **Remaining:** Task 7 (deploy+verify backend), Tasks 8–12 (TS client regen +
-  backoffice list scoping + edit per-outlet table + create label + deploy UI).
+- **Task 7 DONE (2026-05-24): deployed rev `mandalika-pos-00014-kwv`.** Verified live:
+  `/readyz`=200; backfill landed on **Mandalika PMS** (most completed orders) =
+  87/88/92; **Mandalika BSD**=0; "Semua Outlet" sums correctly; outlet-config GET
+  returns the per-outlet matrix (200). Order-path decrement/refund is build+logic
+  verified but NOT yet live-tested by a real sale (avoided polluting prod) — confirm
+  via one POS sale (right outlet drops, refund restores).
+- **Task 8 DONE: TS client regenerated + getProductOutletConfig/updateProductOutletConfig.**
+- **Tasks 9–12 DONE: backoffice UI shipped** (commit `a9e0f22`, pushed → Cloudflare).
+  List refetches on outlet switch; edit modal has the per-outlet stock/price/
+  availability table (load+save via outlet-config); create modal notes the seed
+  outlet. Typecheck+build green. Verified live: outlet-config GET (200) + idempotent
+  PUT round-trip (200, data unchanged).
+- **PHASE 1 COMPLETE.** Remaining confidence check: one real POS sale to confirm the
+  live decrement hits the right outlet + refund restores.
+- **Phases 2–4 remain (future):** Add/Edit wizard (Umum/Unit&Harga/Lokasi + Type
+  flags), "Atur" menus (Unit/Grup/Tabel Harga/Stok/Kadaluarsa; skip AYCE/Course/
+  Resep/Produksi), import template download.
 - Known limitation (Rule 6): generated price type is float32 (~16.7M exact-int
   ceiling) — fine for current IDR perfume prices; flag if prices exceed that.
