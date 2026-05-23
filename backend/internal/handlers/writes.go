@@ -324,11 +324,12 @@ func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) CloseShift(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ClosingCash float64 `json:"closingCash"`
+		ClosingCash     float64            `json:"closingCash"`
+		CountedByMethod map[string]float64 `json:"countedByMethod"`
 	}
 	_ = httpx.DecodeLoose(r, &body)
 	c, _ := h.caller(r)
-	if err := h.OrderSvc.CloseShift(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash); err != nil {
+	if err := h.OrderSvc.CloseShift(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash, body.CountedByMethod); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}

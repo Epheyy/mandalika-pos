@@ -67,7 +67,16 @@ interface SortableCardProps {
 }
 
 const SortableCard = memo(function SortableCard({ product, onTap }: SortableCardProps) {
-  const inStock = product.variants.some((v) => v.stock > 0)
+  const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
+  const inStock = totalStock > 0
+  const prices = product.variants.map((v) => v.price)
+  const minPrice = prices.length ? Math.min(...prices) : 0
+  const maxPrice = prices.length ? Math.max(...prices) : 0
+  // Compact price for small grids: a single price, or the minimum with "+"
+  // when variants differ (e.g. "Rp 250.000+").
+  const priceLabel = minPrice === maxPrice ? formatRupiah(minPrice) : `${formatRupiah(minPrice)}+`
+  const initial = (product.name || '?').charAt(0).toUpperCase()
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: product.id })
 
@@ -87,26 +96,43 @@ const SortableCard = memo(function SortableCard({ product, onTap }: SortableCard
       role="button"
       tabIndex={inStock ? 0 : -1}
       onClick={() => { if (inStock) onTap(product) }}
-      className={`flex flex-col rounded-xl border text-left overflow-hidden select-none touch-manipulation ${
+      className={`group flex flex-col rounded-xl border text-left overflow-hidden select-none touch-manipulation ${
         inStock
-          ? 'border-gray-200 hover:border-indigo-300 hover:shadow-sm bg-white cursor-pointer'
-          : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
-      } ${isDragging ? 'shadow-lg ring-2 ring-indigo-300' : 'transition-all'}`}
+          ? 'border-gray-200 bg-white cursor-pointer hover:border-indigo-300 hover:shadow-md active:scale-[0.98]'
+          : 'border-gray-100 bg-gray-50 cursor-not-allowed'
+      } ${isDragging ? 'shadow-lg ring-2 ring-indigo-300' : 'transition-all duration-150'}`}
     >
-      {product.imageUrl && (
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          className="w-full aspect-square object-cover pointer-events-none"
-          loading="lazy"
-          draggable={false}
-        />
-      )}
+      {/* Media — uniform aspect-square so every card is the same height,
+          whether the product has a photo or a fallback initial tile. */}
+      <div className="relative w-full aspect-square overflow-hidden">
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className={`w-full h-full object-cover pointer-events-none transition-transform duration-200 ${inStock ? 'group-hover:scale-105' : 'grayscale opacity-60'}`}
+            loading="lazy"
+            draggable={false}
+          />
+        ) : (
+          <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-indigo-100 ${!inStock ? 'opacity-60' : ''}`}>
+            <span className="text-3xl font-black text-indigo-300 select-none">{initial}</span>
+          </div>
+        )}
+        {!inStock && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/40">
+            <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-red-500 text-white rounded-full">Habis</span>
+          </div>
+        )}
+      </div>
+
       <div className="p-2">
-        <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight">
+        <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight min-h-[2.1em]">
           {product.name}
         </p>
-        {!inStock && <p className="text-[10px] text-red-500 mt-0.5">Habis</p>}
+        <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
+        <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
+          {inStock ? `Stok ${totalStock}` : 'Stok habis'}
+        </p>
       </div>
     </div>
   )

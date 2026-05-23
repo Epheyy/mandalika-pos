@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -51,7 +52,19 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 
 // CloseShift is server-reconciled: totals are recomputed from the shift's
 // orders, never trusted from the client (plan §9 :875-882). Idempotent.
-func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string, closingCash float64) error {
+// counted is the optional per-method cash the cashier physically counted at
+// close (reconciliation "Terhitung"); nil/empty leaves any existing value
+// untouched so a re-close (idempotent retry) never wipes it.
+func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string, closingCash float64, counted map[string]float64) error {
+	var countedJSON []byte
+	if len(counted) > 0 {
+		b, err := json.Marshal(counted)
+		if err != nil {
+			return err
+		}
+		countedJSON = b
+	}
+
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -74,6 +87,7 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 	_, err = tx.Exec(ctx, `
 		UPDATE shifts s SET
 		  status='closed', closed_at=now(), closing_cash=$3,
+		  counted_by_method = COALESCE($4::jsonb, s.counted_by_method),
 		  total_sales    = COALESCE(a.total_sales,0),
 		  total_orders   = COALESCE(a.total_orders,0),
 		  total_refunds  = COALESCE(a.total_refunds,0),
@@ -93,7 +107,7 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 		  FROM orders WHERE shift_id=$1
 		) a
 		WHERE s.id=$1 AND s.outlet_id=$2`,
-		shiftID, outletID, closingCash)
+		shiftID, outletID, closingCash, countedJSON)
 	if err != nil {
 		return err
 	}

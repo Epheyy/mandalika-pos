@@ -87,10 +87,12 @@ interface ShiftRecapPanelProps {
   userName: string
   userRole: string
   onOpenShift: (startingCash: number) => void
-  onCloseShift: (closingCash: number) => void
+  onCloseShift: (closingCash: number, countedByMethod?: Record<string, number>) => void
   isOpeningShift: boolean
   isClosingShift: boolean
 }
+
+const HISTORY_PAGE_SIZE = 20
 
 type Tab = 'rekapan' | 'riwayat'
 
@@ -117,12 +119,18 @@ export function ShiftRecapPanel({
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [histPage, setHistPage] = useState(1)
   const [selected, setSelected] = useState<Shift | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Order[]>([])
   const [loadingSelected, setLoadingSelected] = useState(false)
 
   const [depositAmount, setDepositAmount] = useState('')
   const [closingCash, setClosingCash] = useState('')
+  // Per-method cash the cashier physically counted (reconciliation "Terhitung").
+  // Keyed by payment-method id; only filled keys are sent on close.
+  const [counted, setCounted] = useState<Record<string, number>>({})
 
   const flowsFor = useCallback(async (shiftId: string): Promise<CashFlow[]> => {
     const r = await api.request<CashFlowListResponse>(
@@ -153,6 +161,7 @@ export function ShiftRecapPanel({
       setCurrentShift(s)
       setCurrentFlows(flows)
       setLive(s ? aggregate(orders) : null)
+      setCounted((s?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       setIsStale(false)
       cacheWrite('rekap:current', { shift: s, flows, orders })
     } catch (e: unknown) {
@@ -176,7 +185,7 @@ export function ShiftRecapPanel({
     setIsLoading(true)
     setError(null)
     try {
-      const r = await api.request<ShiftListResponse>('GET', '/api/v1/shifts?page=1&limit=30')
+      const r = await api.request<ShiftListResponse>('GET', '/api/v1/shifts?page=1&limit=500')
       const data = r.data ?? []
       setHistory(data)
       setIsStale(false)
@@ -199,7 +208,7 @@ export function ShiftRecapPanel({
     if (!isOpen) return
     setSelected(null)
     if (tab === 'rekapan') void loadRekap()
-    else void loadHistory()
+    else { setHistPage(1); void loadHistory() }
   }, [isOpen, tab, loadRekap, loadHistory])
 
   const selectHistoryShift = async (s: Shift) => {
@@ -224,7 +233,10 @@ export function ShiftRecapPanel({
     setTimeout(() => void loadRekap(), 1700)
   }
   const handleClose = () => {
-    onCloseShift(parseInt(closingCash, 10) || 0)
+    onCloseShift(
+      parseInt(closingCash, 10) || 0,
+      Object.keys(counted).length ? counted : undefined,
+    )
     setClosingCash('')
     setTimeout(() => void loadRekap(), 1700)
   }
@@ -317,26 +329,76 @@ export function ShiftRecapPanel({
             </div>
 
             <div className="space-y-2">
-              {paymentMethods.filter((p) => p.isEnabled).map((pm) => (
-                <div key={pm.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">{pm.label}</span>
-                  <span className="text-sm font-black text-gray-900">{formatRupiah(live?.byMethod[pm.id] ?? 0)}</span>
-                </div>
-              ))}
+              {paymentMethods.filter((p) => p.isEnabled).map((pm) => {
+                const recorded = live?.byMethod[pm.id] ?? 0
+                const hasC = counted[pm.id] !== undefined
+                const diff = (counted[pm.id] ?? 0) - recorded
+                return (
+                  <div key={pm.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">{pm.label}</span>
+                      <span className="text-xs text-gray-400">
+                        Tercatat <span className="font-bold text-gray-600">{formatRupiah(recorded)}</span>
+                      </span>
+                    </div>
+                    {currentShift && (
+                      <>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">Terhitung</span>
+                          <input
+                            type="number" inputMode="numeric"
+                            value={hasC ? String(counted[pm.id]) : ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setCounted((prev) => {
+                                const next = { ...prev }
+                                if (v === '') delete next[pm.id]
+                                else next[pm.id] = Math.max(0, Math.round(Number(v) || 0))
+                                return next
+                              })
+                            }}
+                            placeholder={String(recorded)}
+                            className="flex-1 min-w-0 px-3 py-1.5 bg-gray-50 border border-gray-200 focus:border-indigo-500 rounded-lg text-sm font-bold text-right focus:outline-none"
+                          />
+                        </div>
+                        {hasC && diff !== 0 && (
+                          <p className={`mt-1 text-[11px] font-bold text-right ${diff > 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                            Selisih {diff > 0 ? '+' : ''}{formatRupiah(diff)}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
-              {[
-                { label: 'Total Terhitung', value: live?.totalSales ?? 0 },
-                { label: 'Total Tercatat', value: live?.totalSales ?? 0 },
-                { label: 'Selisih', value: 0 },
-              ].map((r) => (
-                <div key={r.label} className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-indigo-800">{r.label}</span>
-                  <span className="text-sm font-black text-indigo-700">{formatRupiah(r.value)}</span>
+            {(() => {
+              const recordedTotal = live?.totalSales ?? 0
+              const hasCounted = Object.keys(counted).length > 0
+              const countedTotal = Object.values(counted).reduce((a, b) => a + b, 0)
+              const diffTotal = countedTotal - recordedTotal
+              const diffCls = !hasCounted || diffTotal === 0
+                ? 'text-indigo-700' : diffTotal > 0 ? 'text-amber-600' : 'text-red-600'
+              return (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-indigo-800">Total Tercatat</span>
+                    <span className="text-sm font-black text-indigo-700">{formatRupiah(recordedTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-indigo-800">Total Terhitung</span>
+                    <span className="text-sm font-black text-indigo-700">{hasCounted ? formatRupiah(countedTotal) : '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-indigo-200 pt-2">
+                    <span className="text-sm font-semibold text-indigo-800">Selisih</span>
+                    <span className={`text-sm font-black ${diffCls}`}>
+                      {hasCounted ? `${diffTotal > 0 ? '+' : ''}${formatRupiah(diffTotal)}` : '—'}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
+              )
+            })()}
 
             {!currentShift ? (
               <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -370,51 +432,82 @@ export function ShiftRecapPanel({
           </div>
         ) : (
           /* ── Riwayat ── */
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
-              <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)}
-                placeholder="Cari rekapan…"
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <p className="px-4 pt-4 pb-2 font-black text-gray-900">Riwayat</p>
-              <div className="px-4">
-                <div className="grid grid-cols-4 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
-                  <span>Tanggal</span><span>Shift</span><span>Pengguna</span><span className="text-right">Jumlah Terhitung</span>
-                </div>
-                {history.filter((s) => {
-                  const q = historySearch.toLowerCase()
-                  return !q || s.cashierName.toLowerCase().includes(q) || (s.openedAt ?? '').includes(q)
-                }).length === 0 ? (
-                  <div className="py-12 text-center text-gray-400">
-                    <p className="text-sm font-bold">Tidak ada riwayat</p>
+          (() => {
+            const q = historySearch.toLowerCase()
+            const filtered = history.filter((s) => {
+              if (q && !s.cashierName.toLowerCase().includes(q)) return false
+              const day = (s.openedAt ?? '').slice(0, 10)
+              if (dateFrom && day < dateFrom) return false
+              if (dateTo && day > dateTo) return false
+              return true
+            })
+            const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE))
+            const page = Math.min(histPage, totalPages)
+            const paged = filtered.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE)
+            const hasFilter = !!(historySearch || dateFrom || dateTo)
+            const inputCls = 'flex-1 min-w-0 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500'
+            return (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 space-y-2">
+                  <input type="text" value={historySearch}
+                    onChange={(e) => { setHistorySearch(e.target.value); setHistPage(1) }}
+                    placeholder="Cari nama kasir…"
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={dateFrom} aria-label="Dari tanggal"
+                      onChange={(e) => { setDateFrom(e.target.value); setHistPage(1) }} className={inputCls} />
+                    <span className="text-xs text-gray-400 flex-shrink-0">s/d</span>
+                    <input type="date" value={dateTo} aria-label="Sampai tanggal"
+                      onChange={(e) => { setDateTo(e.target.value); setHistPage(1) }} className={inputCls} />
+                    {hasFilter && (
+                      <button onClick={() => { setHistorySearch(''); setDateFrom(''); setDateTo(''); setHistPage(1) }}
+                        className="text-xs font-bold text-gray-400 hover:text-gray-600 flex-shrink-0 px-1">Reset</button>
+                    )}
                   </div>
-                ) : (
-                  history
-                    .filter((s) => {
-                      const q = historySearch.toLowerCase()
-                      return !q || s.cashierName.toLowerCase().includes(q) || (s.openedAt ?? '').includes(q)
-                    })
-                    .map((s) => {
-                      const sameDay = history.filter(
-                        (h) => (h.openedAt ?? '').slice(0, 10) === (s.openedAt ?? '').slice(0, 10),
-                      )
-                      const shiftNum = sameDay.length - sameDay.indexOf(s)
-                      const isSel = selected?.id === s.id
-                      return (
-                        <button key={s.id} onClick={() => void selectHistoryShift(s)}
-                          className={`w-full grid grid-cols-4 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
-                          <span className="text-gray-700 font-semibold">{fmtDate(s.openedAt)}</span>
-                          <span className="text-gray-500">Shift {shiftNum}</span>
-                          <span className="text-gray-700 truncate pr-2">{s.cashierName}</span>
-                          <span className={`text-right font-black ${isSel ? 'text-indigo-600' : 'text-gray-900'}`}>{formatRupiah(s.totalSales)}</span>
-                        </button>
-                      )
-                    })
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="px-4 pt-3">
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
+                      <span>Tanggal</span><span>Shift</span><span>Pengguna</span><span className="text-right">Penjualan</span>
+                    </div>
+                    {paged.length === 0 ? (
+                      <div className="py-12 text-center text-gray-400">
+                        <p className="text-sm font-bold">Tidak ada riwayat</p>
+                      </div>
+                    ) : (
+                      paged.map((s) => {
+                        const sameDay = history.filter(
+                          (h) => (h.openedAt ?? '').slice(0, 10) === (s.openedAt ?? '').slice(0, 10),
+                        )
+                        const shiftNum = sameDay.length - sameDay.indexOf(s)
+                        const isSel = selected?.id === s.id
+                        return (
+                          <button key={s.id} onClick={() => void selectHistoryShift(s)}
+                            className={`w-full grid grid-cols-[1fr_auto_1fr_auto] gap-2 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
+                            <span className="text-gray-700 font-semibold">{fmtDate(s.openedAt)}</span>
+                            <span className="text-gray-500">Shift {shiftNum}</span>
+                            <span className="text-gray-700 truncate pr-2">{s.cashierName}</span>
+                            <span className={`text-right font-black ${isSel ? 'text-indigo-600' : 'text-gray-900'}`}>{formatRupiah(s.totalSales)}</span>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+                {filtered.length > 0 && (
+                  <div className="px-4 py-2 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+                    <span className="text-xs text-gray-500">{filtered.length} shift · Hal {page}/{totalPages}</span>
+                    <div className="flex gap-1">
+                      <button disabled={page <= 1} onClick={() => setHistPage(page - 1)}
+                        className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">‹</button>
+                      <button disabled={page >= totalPages} onClick={() => setHistPage(page + 1)}
+                        className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">›</button>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
+            )
+          })()
         )}
       </div>
 
@@ -481,42 +574,116 @@ export function ShiftRecapPanel({
         ) : selected ? (
           (() => {
             const b = aggregate(selectedOrders)
+            const countedMap = (selected.countedByMethod ?? {}) as Record<string, number>
+            const countedTotal = Object.values(countedMap).reduce((a, n) => a + n, 0)
+            const hasCounted = Object.keys(countedMap).length > 0
+            const totalDiff = countedTotal - b.totalSales
+            // Products + variants sold this shift (exclude refunded/cancelled).
+            const soldMap = new Map<string, { name: string; variant: string; qty: number; amount: number }>()
+            for (const o of selectedOrders) {
+              if (o.status === 'refunded' || o.status === 'cancelled') continue
+              for (const it of o.items) {
+                const key = `${it.productName}|${it.variantSize ?? ''}`
+                const cur = soldMap.get(key) ?? { name: it.productName, variant: it.variantSize ?? '', qty: 0, amount: 0 }
+                cur.qty += it.quantity
+                cur.amount += it.subtotal
+                soldMap.set(key, cur)
+              }
+            }
+            const sold = [...soldMap.values()].sort((a, c) => c.qty - a.qty)
             return (
               <div className="p-4 space-y-4">
                 <div>
                   <p className="text-xs text-gray-400">{fmtDate(selected.openedAt)}</p>
                   <p className="font-black text-gray-900">Rekapan - Mandalika</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Server {selected.cashierName}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-black text-gray-900 mb-2">Ringkasan</p>
-                  <div className="grid grid-cols-4 text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1 gap-1">
-                    <span>Tipe</span><span className="text-right">Terhitung</span>
-                    <span className="text-right">Tercatat</span><span className="text-right">Selisih</span>
+
+                {loadingSelected ? (
+                  <div className="py-4 text-center">
+                    <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mx-auto" />
                   </div>
-                  {loadingSelected ? (
-                    <div className="py-4 text-center">
-                      <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mx-auto" />
-                    </div>
-                  ) : (
-                    <>
-                      {paymentMethods.map((pm) => (
-                        <div key={pm.id} className="grid grid-cols-4 text-xs py-1.5 border-b border-gray-50 gap-1">
-                          <span className="truncate text-gray-700">{pm.label}</span>
-                          <span className="text-right font-bold">{formatRupiah(b.byMethod[pm.id] ?? 0)}</span>
-                          <span className="text-right text-gray-400">{formatRupiah(b.byMethod[pm.id] ?? 0)}</span>
-                          <span className="text-right text-gray-400">0</span>
-                        </div>
-                      ))}
-                      <div className="grid grid-cols-4 text-xs py-1.5 font-black gap-1 border-t border-gray-200">
-                        <span>Total</span>
-                        <span className="text-right">{formatRupiah(b.totalSales)}</span>
-                        <span className="text-right">{formatRupiah(b.totalSales)}</span>
-                        <span className="text-right">0</span>
+                ) : (
+                  <>
+                    {/* Reconciliation — stacked per method so large amounts never overlap. */}
+                    <div>
+                      <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Pembayaran</p>
+                      <div className="space-y-2">
+                        {paymentMethods.map((pm) => {
+                          const recorded = b.byMethod[pm.id] ?? 0
+                          const hasC = pm.id in countedMap
+                          const c = countedMap[pm.id] ?? 0
+                          const diff = c - recorded
+                          if (recorded === 0 && !hasC) return null
+                          return (
+                            <div key={pm.id} className="border border-gray-100 rounded-lg px-3 py-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-gray-700">{pm.label}</span>
+                                {hasC && (
+                                  <span className={`text-[11px] font-bold ${diff === 0 ? 'text-gray-400' : diff > 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                                    {diff > 0 ? '+' : ''}{formatRupiah(diff)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] mt-1">
+                                <span className="text-gray-400">Tercatat</span>
+                                <span className="font-semibold text-gray-600">{formatRupiah(recorded)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-gray-400">Terhitung</span>
+                                <span className="font-semibold text-gray-600">{hasC ? formatRupiah(c) : '—'}</span>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
-                    </>
-                  )}
-                </div>
+                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                        <div className="flex justify-between text-xs font-black text-gray-900">
+                          <span>Total Tercatat</span><span>{formatRupiah(b.totalSales)}</span>
+                        </div>
+                        {hasCounted && (
+                          <>
+                            <div className="flex justify-between text-xs font-bold text-gray-600">
+                              <span>Total Terhitung</span><span>{formatRupiah(countedTotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold">
+                              <span className="text-gray-600">Selisih</span>
+                              <span className={totalDiff === 0 ? 'text-gray-400' : totalDiff > 0 ? 'text-amber-600' : 'text-red-600'}>
+                                {totalDiff > 0 ? '+' : ''}{formatRupiah(totalDiff)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Products + variants sold this shift. */}
+                    <div>
+                      <p className="text-xs font-black text-gray-900 mb-2">Produk Terjual</p>
+                      {sold.length === 0 ? (
+                        <p className="text-xs text-gray-400">Tidak ada penjualan.</p>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                            <span>Produk</span><span>Qty · Subtotal</span>
+                          </div>
+                          {sold.map((p) => (
+                            <div key={`${p.name}|${p.variant}`} className="flex justify-between gap-2 py-1.5 border-b border-gray-50">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-700 truncate">{p.name}</p>
+                                {p.variant && <p className="text-[10px] text-gray-400">{p.variant}</p>}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-xs font-bold text-gray-800">×{p.qty}</p>
+                                <p className="text-[10px] text-gray-400">{formatRupiah(p.amount)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )
           })()

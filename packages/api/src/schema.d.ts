@@ -1086,6 +1086,9 @@ export interface components {
             cardSales: number;
             transferSales: number;
             qrisSales: number;
+            countedByMethod?: {
+                [key: string]: number;
+            } | null;
         };
         ShiftListResponse: {
             data: components["schemas"]["Shift"][];
@@ -1293,6 +1296,9 @@ export interface components {
         };
         CloseShiftRequest: {
             closingCash?: number;
+            countedByMethod?: {
+                [key: string]: number;
+            };
         };
         CashFlowRequest: {
             shiftId?: string | null;

@@ -63,13 +63,10 @@ export default function CashierScreen() {
   const shift = useShift()
   const [state, dispatch] = useReducer(cashierReducer, CASHIER_INITIAL_STATE)
 
-  // UI prefs
+  // UI prefs. The layout is a single adaptive view (responsive by width); the
+  // old products/cart "default view" and forced-mobile toggles were removed.
   const [fontSize, setFontSize] = useState<FontSize>('md')
   const [gridCols, setGridCols] = useState<GridCols>(4)
-  const [defaultView, setDefaultView] = useState<'products' | 'cart'>('products')
-  // Forced single-column "mobile" layout regardless of screen width (drawer
-  // toggle "Ganti Ke Tampilan Mobile"). Persisted across reloads.
-  const [forceMobile, setForceMobile] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -106,9 +103,6 @@ export default function CashierScreen() {
     if (fs) setFontSize(fs)
     const gc = localStorage.getItem('pos_gridCols')
     if (gc) setGridCols(parseInt(gc) as GridCols)
-    const dv = localStorage.getItem('pos_defaultView') as 'products' | 'cart' | null
-    if (dv) { setDefaultView(dv); dispatch({ type: 'SET_ACTIVE_TAB', tab: dv }) }
-    if (localStorage.getItem('pos_forceMobile') === '1') setForceMobile(true)
   }, [])
 
   const snapshot = engine.getSnapshot()
@@ -337,27 +331,9 @@ export default function CashierScreen() {
     return () => { document.documentElement.style.fontSize = '' }
   }, [fontSize])
   const handleGridCols = (c: GridCols) => { setGridCols(c); localStorage.setItem('pos_gridCols', String(c)) }
-  const handleDefaultView = (v: 'products' | 'cart') => { setDefaultView(v); localStorage.setItem('pos_defaultView', v) }
 
   // Drawer shortcut: open Settings scrolled to a section.
   const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
-
-  // Drawer shortcut "Ganti Tampilan Default": flip the startup view and persist.
-  const toggleDefaultView = () => {
-    const next = defaultView === 'products' ? 'cart' : 'products'
-    handleDefaultView(next)
-    showToast(`Tampilan default: ${next === 'products' ? 'Produk' : 'Keranjang'}`)
-  }
-
-  // Drawer shortcut "Ganti Ke Tampilan Mobile/Tablet": force single-column.
-  const toggleForceMobile = () => {
-    setForceMobile((v) => {
-      const next = !v
-      localStorage.setItem('pos_forceMobile', next ? '1' : '0')
-      showToast(next ? 'Tampilan mobile aktif' : 'Tampilan tablet aktif')
-      return next
-    })
-  }
 
   // Failed-sync escape hatch: record the stuck items to the local debug log,
   // share them (native share / clipboard) so support can debug, then dismiss
@@ -421,12 +397,13 @@ export default function CashierScreen() {
             onOpenShift={shift.openShift} onCloseShift={shift.closeShift}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
           />
+          {/* Online/offline pill — label always visible (incl. portrait). */}
           <div
-            className="flex items-center gap-1 flex-shrink-0"
+            className={`flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full ${offlineData.isOnline ? 'bg-green-50' : 'bg-gray-100'}`}
             title={offlineData.isOnline ? 'Online' : 'Offline'}
           >
             <span className={`w-2 h-2 rounded-full ${offlineData.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-            <span className={`text-[11px] font-semibold hidden sm:inline ${offlineData.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className={`text-[11px] font-semibold ${offlineData.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
               {offlineData.isOnline ? 'Online' : 'Offline'}
             </span>
           </div>
@@ -457,7 +434,7 @@ export default function CashierScreen() {
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Mobile tab bar — cart tab only appears when the cart has items. */}
-        <div className={`${forceMobile ? '' : 'sm:hidden'} absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
+        <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
             <button key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
               className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500'}`}>
@@ -472,7 +449,7 @@ export default function CashierScreen() {
         </div>
 
         {/* Product panel */}
-        <div className={`flex-1 min-w-0 overflow-hidden ${forceMobile ? '' : 'sm:block'} ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
+        <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           <CustomerPicker
             customers={customers} selectedCustomer={state.selectedCustomer}
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
@@ -501,7 +478,7 @@ export default function CashierScreen() {
 
         {/* Cart panel — only mounts once the cart has items (dynamic). */}
         {derived.totalCartItems > 0 && (
-          <div className={`w-full ${forceMobile ? '' : 'sm:w-80'} flex-shrink-0 flex flex-col ${forceMobile ? '' : 'sm:flex'} pb-20 ${forceMobile ? '' : 'sm:pb-0'} ${state.activeTab === 'products' ? (forceMobile ? 'hidden' : 'hidden sm:flex') : 'flex'}`}>
+          <div className={`w-full sm:w-80 flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
               cart={state.cart} derived={derived} settings={settings}
               selectedCustomer={state.selectedCustomer}
@@ -583,7 +560,6 @@ export default function CashierScreen() {
         shiftActive={!!shift.currentShift}
         pendingSync={offlineData.pendingCount > 0}
         isSyncing={offlineData.isResyncing}
-        forceMobile={forceMobile}
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}
@@ -594,8 +570,6 @@ export default function CashierScreen() {
         onSync={() => void offlineData.resync()}
         onPrintSettings={() => openSettings('printer')}
         onProductDisplay={() => openSettings('display')}
-        onDefaultView={toggleDefaultView}
-        onToggleMobile={toggleForceMobile}
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
         onLogout={logout}
       />

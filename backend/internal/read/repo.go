@@ -307,7 +307,8 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
   'startingCash',s.starting_cash,'closingCash',s.closing_cash,
   'totalSales',s.total_sales,'totalOrders',s.total_orders,
   'totalRefunds',s.total_refunds,'cashSales',s.cash_sales,'cardSales',s.card_sales,
-  'transferSales',s.transfer_sales,'qrisSales',s.qris_sales)`
+  'transferSales',s.transfer_sales,'qrisSales',s.qris_sales,
+  'countedByMethod',s.counted_by_method)`
 
 func (r *Repo) Shifts(ctx context.Context, sc Scope, page, limit int) ([]api.Shift, int, error) {
 	where := ""

@@ -15,7 +15,7 @@ export interface ShiftState {
   isOpeningShift: boolean
   isClosingShift: boolean
   openShift: (startingCash: number, outletName?: string) => void
-  closeShift: (closingCash: number) => void
+  closeShift: (closingCash: number, countedByMethod?: Record<string, number>) => void
   refreshShift: () => Promise<void>
 }
 
@@ -72,12 +72,16 @@ export function useShift(): ShiftState {
   }, [isLoadingShift, currentShift, isOpeningShift, engine, openShift])
 
   const closeShift = useCallback(
-    (closingCash: number) => {
+    (closingCash: number, countedByMethod?: Record<string, number>) => {
       if (!currentShift?.id) return
       setIsClosingShift(true)
       engine.enqueue('shift_close', {
         shiftId: currentShift.id,
         closingCash,
+        // Per-method counted cash (reconciliation). Optional — the quick close
+        // from the header omits it; the Rekapan close sends it. Offline-safe:
+        // it rides the same shift_close outbox op.
+        ...(countedByMethod ? { countedByMethod } : {}),
       })
       setTimeout(() => {
         void refreshShift().finally(() => setIsClosingShift(false))

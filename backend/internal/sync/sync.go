@@ -239,13 +239,14 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		return r
 	case "shift_close":
 		var p struct {
-			ShiftID     string  `json:"shiftId"`
-			ClosingCash float64 `json:"closingCash"`
+			ShiftID         string             `json:"shiftId"`
+			ClosingCash     float64            `json:"closingCash"`
+			CountedByMethod map[string]float64 `json:"countedByMethod"`
 		}
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(err)
 		}
-		if err := e.Orders.CloseShift(ctx, c.OutletID, p.ShiftID, p.ClosingCash); err != nil {
+		if err := e.Orders.CloseShift(ctx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod); err != nil {
 			return fail(err)
 		}
 		r.Status, r.OrderID = "ok", p.ShiftID

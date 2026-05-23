@@ -1,11 +1,10 @@
 /**
  * Slide-out left menu drawer — replaces the old top-nav link cluster.
  * Two columns: Operasional (order/history/recap/cash-flow/sync) and Pengaturan
- * (print / product-display / default-view / mobile-layout), with a user card
- * header and a status footer. The online/offline indicator now lives in the
- * app header (beside the shift chip), not here. Icons are inline SVG to avoid
- * pulling in an icon dependency. Brand gold comes free: index.css remaps the
- * indigo palette to gold.
+ * (print / product-display), with a user card header and a status footer. The
+ * online/offline indicator now lives in the app header (beside the shift chip),
+ * not here. Icons are inline SVG to avoid pulling in an icon dependency. Brand
+ * gold comes free: index.css remaps the indigo palette to gold.
  */
 import { memo } from 'react'
 import type { ReactElement } from 'react'
@@ -20,7 +19,6 @@ interface MenuDrawerProps {
   shiftActive: boolean
   pendingSync: boolean
   isSyncing: boolean
-  forceMobile: boolean
   lastSyncedLabel?: string | null
   onTakeOrder: () => void
   onHistory: () => void
@@ -29,8 +27,6 @@ interface MenuDrawerProps {
   onSync: () => void
   onPrintSettings: () => void
   onProductDisplay: () => void
-  onDefaultView: () => void
-  onToggleMobile: () => void
   onBackOffice: () => void
   onLogout: () => void
 }
@@ -58,12 +54,6 @@ const PrinterIcon = ({ className }: IconProps) => (
 const DisplayIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
 )
-const LayoutIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M15 3v18" /></svg>
-)
-const MobileIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M11 18h2" /></svg>
-)
 const LogoutIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
 )
@@ -86,7 +76,6 @@ export const MenuDrawer = memo(function MenuDrawer({
   shiftActive,
   pendingSync,
   isSyncing,
-  forceMobile,
   lastSyncedLabel,
   onTakeOrder,
   onHistory,
@@ -95,8 +84,6 @@ export const MenuDrawer = memo(function MenuDrawer({
   onSync,
   onPrintSettings,
   onProductDisplay,
-  onDefaultView,
-  onToggleMobile,
   onBackOffice,
   onLogout,
 }: MenuDrawerProps) {
@@ -115,8 +102,6 @@ export const MenuDrawer = memo(function MenuDrawer({
   const settingItems: Item[] = [
     { Icon: PrinterIcon, label: 'Pengaturan Cetakan', onClick: () => { onClose(); onPrintSettings() } },
     { Icon: DisplayIcon, label: 'Pengaturan Tampilan Produk', onClick: () => { onClose(); onProductDisplay() } },
-    { Icon: LayoutIcon, label: 'Ganti Tampilan Default', onClick: () => { onClose(); onDefaultView() } },
-    { Icon: MobileIcon, label: forceMobile ? 'Ganti Ke Tampilan Tablet' : 'Ganti Ke Tampilan Mobile', onClick: () => { onClose(); onToggleMobile() } },
   ]
 
   const renderItem = ({ Icon, label, active, badge, onClick }: Item) => (

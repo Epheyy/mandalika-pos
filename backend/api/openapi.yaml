@@ -390,6 +390,12 @@ components:
         cardSales: { type: number }
         transferSales: { type: number }
         qrisSales: { type: number }
+        # Per-method counted cash entered by the cashier at close (reconciliation
+        # "Terhitung"). Keys are payment-method ids; null when not reconciled.
+        countedByMethod:
+          type: object
+          additionalProperties: { type: number }
+          nullable: true
     ShiftListResponse:
       type: object
       required: [data]
@@ -645,6 +651,10 @@ components:
       type: object
       properties:
         closingCash: { type: number }
+        # Optional per-method counted cash captured at close (reconciliation).
+        countedByMethod:
+          type: object
+          additionalProperties: { type: number }
     CashFlowRequest:
       type: object
       required: [type, amount, description]

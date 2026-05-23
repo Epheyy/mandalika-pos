@@ -29,6 +29,7 @@ export const ShiftBar = memo(function ShiftBar({
 }: ShiftBarProps) {
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
   const [depositStr, setDepositStr] = useState('')
   const [closingStr, setClosingStr] = useState('')
 
@@ -60,22 +61,56 @@ export const ShiftBar = memo(function ShiftBar({
   return (
     <>
       {/* Compact inline chip — lives in the app header beside the brand logo.
-          The Mulai/Kas-awal detail moved to the Rekapan panel; the title
-          attribute keeps it a tap-away on hover. */}
+          Tap the chip to reveal Mulai / Kas-awal detail in a popover (works in
+          portrait where the inline detail wouldn't fit). */}
       {currentShift ? (
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-          <span className="text-xs font-bold text-gray-800 flex-shrink-0">Shift Aktif</span>
-          <span className="text-[10px] text-gray-500 truncate hidden sm:inline">
-            · Mulai {new Date(currentShift.openedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-            {' · '}Kas {formatRupiah(currentShift.startingCash)}
-          </span>
+        <div className="relative flex items-center gap-1.5 min-w-0">
+          <button
+            onClick={() => setShowDetail((v) => !v)}
+            className="flex items-center gap-1.5 min-w-0 flex-shrink"
+            aria-expanded={showDetail}
+            title="Detail shift"
+          >
+            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+            <span className="text-xs font-bold text-gray-800 flex-shrink-0">Shift Aktif</span>
+            <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
           <button
             onClick={() => setShowCloseModal(true)}
             className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
             Tutup
           </button>
+
+          {showDetail && (
+            <>
+              {/* click-away */}
+              <div className="fixed inset-0 z-40" onClick={() => setShowDetail(false)} />
+              <div className="absolute top-full left-0 mt-2 z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-2">
+                <p className="text-xs font-black text-gray-900">Shift Aktif</p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Mulai</span>
+                  <span className="font-bold text-gray-800">
+                    {new Date(currentShift.openedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Kas Awal</span>
+                  <span className="font-bold text-gray-800">{formatRupiah(currentShift.startingCash)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Kasir</span>
+                  <span className="font-bold text-gray-800 truncate ml-2">{currentShift.cashierName}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                  Penjualan & rekonsiliasi ada di menu Rekapan.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
