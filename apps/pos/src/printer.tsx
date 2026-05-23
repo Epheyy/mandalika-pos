@@ -17,8 +17,10 @@ import type { components } from '@mandalika/api'
 import {
   createTransport,
   printReceipt,
+  printRecap,
   type PrinterTransport,
   type ReceiptData,
+  type RecapData,
 } from '@mandalika/printer'
 import { getKV } from '@mandalika/sync'
 
@@ -40,6 +42,7 @@ interface PrinterState {
   pair: () => Promise<boolean>
   unpair: () => void
   print: (data: ReceiptData, settings: ReceiptSettings) => Promise<void>
+  printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
   testPrint: (settings: ReceiptSettings) => Promise<void>
 }
 
@@ -101,6 +104,18 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
     [pairedId],
   )
 
+  const doPrintRecap = useCallback(
+    async (data: RecapData, settings: ReceiptSettings) => {
+      await printRecap({
+        transport: transportRef.current,
+        deviceId: pairedId,
+        data,
+        settings,
+      })
+    },
+    [pairedId],
+  )
+
   const testPrint = useCallback(
     async (settings: ReceiptSettings) => {
       const now = new Date()
@@ -142,9 +157,10 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
       pair,
       unpair,
       print,
+      printRecap: doPrintRecap,
       testPrint,
     }),
-    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, testPrint],
+    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, testPrint],
   )
 
   return <PrinterCtx.Provider value={value}>{children}</PrinterCtx.Provider>

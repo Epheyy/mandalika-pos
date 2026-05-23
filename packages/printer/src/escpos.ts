@@ -180,4 +180,108 @@ export function buildReceipt(
   return b.done()
 }
 
+// ── Shift recap slip ─────────────────────────────────────
+
+/** One payment-method reconciliation row on the recap. */
+export interface RecapMethodRow {
+  label: string
+  /** System-computed (Tercatat). */
+  recorded: number
+  /** Cashier-counted (Terhitung); null when not reconciled. */
+  counted: number | null
+}
+
+/** Everything needed to print a shift recap (current or a past shift). */
+export interface RecapData {
+  title: string
+  outletName: string
+  cashierName: string
+  openedAt: Date | null
+  closedAt: Date | null
+  startingCash: number | null
+  closingCash: number | null
+  methods: RecapMethodRow[]
+  totalRecorded: number
+  totalCounted: number | null
+  /** Cash in/out — null skips the section (e.g. a past shift's flows aren't loaded). */
+  cashIn: number | null
+  cashOut: number | null
+  gross: number
+  refundTotal: number
+  refundCount: number
+  discount: number
+  surcharge: number
+  net: number
+  tax: number
+  totalSales: number
+  totalOrders: number
+  generatedAt: Date
+}
+
+/** Build the ESC/POS payload for a shift recap slip (one copy). */
+export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Array {
+  const b = new Buf().raw(INIT)
+  const dt = (d: Date) =>
+    d.toLocaleString('id-ID', {
+      day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
+    })
+
+  b.raw(ALIGN_CENTER)
+  if (settings.headerText) {
+    b.raw(BOLD_ON).raw(DOUBLE_ON).line(settings.headerText).raw(DOUBLE_OFF).raw(BOLD_OFF)
+  }
+  b.raw(BOLD_ON).line(data.title).raw(BOLD_OFF)
+  b.raw(ALIGN_LEFT)
+
+  b.line(pad('Outlet', data.outletName))
+  b.line(pad('Kasir', data.cashierName))
+  if (data.openedAt) b.line(pad('Buka', dt(data.openedAt)))
+  if (data.closedAt) b.line(pad('Tutup', dt(data.closedAt)))
+  if (data.startingCash != null) b.line(pad('Kas Awal', money(data.startingCash)))
+  if (data.closingCash != null) b.line(pad('Kas Akhir', money(data.closingCash)))
+  b.divider()
+
+  b.raw(BOLD_ON).line('PEMBAYARAN').raw(BOLD_OFF)
+  for (const m of data.methods) {
+    b.line(m.label.slice(0, COLS))
+    b.line(pad('  Tercatat', money(m.recorded)))
+    if (m.counted != null) {
+      b.line(pad('  Terhitung', money(m.counted)))
+      const diff = m.counted - m.recorded
+      if (diff !== 0) b.line(pad('  Selisih', (diff > 0 ? '+' : '') + money(diff)))
+    }
+  }
+  b.raw(BOLD_ON).line(pad('Total Tercatat', money(data.totalRecorded))).raw(BOLD_OFF)
+  if (data.totalCounted != null) {
+    b.line(pad('Total Terhitung', money(data.totalCounted)))
+    const d = data.totalCounted - data.totalRecorded
+    b.line(pad('Selisih', (d > 0 ? '+' : '') + money(d)))
+  }
+  b.divider()
+
+  if (data.cashIn != null || data.cashOut != null) {
+    b.raw(BOLD_ON).line('UANG MASUK/KELUAR').raw(BOLD_OFF)
+    b.line(pad('Uang Masuk', money(data.cashIn ?? 0)))
+    b.line(pad('Uang Keluar', money(data.cashOut ?? 0)))
+    b.divider()
+  }
+
+  b.raw(BOLD_ON).line('PENJUALAN').raw(BOLD_OFF)
+  b.line(pad('Transaksi', String(data.totalOrders)))
+  if (data.refundCount > 0) b.line(pad('Pengembalian', String(data.refundCount)))
+  b.line(pad('Penjualan Kotor', money(data.gross)))
+  if (data.refundTotal > 0) b.line(pad('Pengembalian Kotor', '-' + money(data.refundTotal)))
+  if (data.discount > 0) b.line(pad('Diskon', '-' + money(data.discount)))
+  if (data.surcharge > 0) b.line(pad('Surcharge', money(data.surcharge)))
+  b.line(pad('Penjualan Bersih', money(data.net)))
+  if (data.tax > 0) b.line(pad('Pajak', money(data.tax)))
+  b.raw(BOLD_ON).line(pad('TOTAL', money(data.totalSales))).raw(BOLD_OFF)
+  b.divider()
+
+  b.raw(ALIGN_CENTER).line('Dicetak ' + dt(data.generatedAt))
+  if (settings.footerText) b.line().line(settings.footerText.slice(0, COLS))
+  b.raw(ALIGN_LEFT).raw(FEED_3).raw(CUT)
+  return b.done()
+}
+
 export { center, money, pad }

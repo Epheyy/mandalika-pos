@@ -10,11 +10,14 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
+import type { RecapData } from '@mandalika/printer'
 import { api } from '../api'
+import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
 import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { Skeleton } from '../components/Skeleton'
 
+type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
 type Order = components['schemas']['Order']
@@ -86,6 +89,7 @@ interface ShiftRecapPanelProps {
   paymentMethods: PaymentMethodCfg[]
   userName: string
   userRole: string
+  receipt: ReceiptSettings
   onOpenShift: (startingCash: number) => void
   onCloseShift: (closingCash: number, countedByMethod?: Record<string, number>) => void
   isOpeningShift: boolean
@@ -102,11 +106,14 @@ export function ShiftRecapPanel({
   paymentMethods,
   userName,
   userRole,
+  receipt,
   onOpenShift,
   onCloseShift,
   isOpeningShift,
   isClosingShift,
 }: ShiftRecapPanelProps) {
+  const printer = usePrinter()
+  const [printMsg, setPrintMsg] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('rekapan')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -212,6 +219,7 @@ export function ShiftRecapPanel({
     if (!isOpen) return
     setSelected(null)
     setShowMobileDetail(false)
+    setPrintMsg(null)
     if (tab === 'rekapan') void loadRekap()
     else { setHistPage(1); void loadHistory() }
   }, [isOpen, tab, loadRekap, loadHistory])
@@ -253,6 +261,44 @@ export function ShiftRecapPanel({
   const cashOut = currentFlows.filter((f) => isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
   const inFlows = currentFlows.filter((f) => !isCashOut(f.type))
   const outFlows = currentFlows.filter((f) => isCashOut(f.type))
+
+  const handlePrintRecap = async (data: RecapData) => {
+    setPrintMsg(null)
+    try {
+      await printer.printRecap(data, receipt)
+      setPrintMsg('Rekap tercetak')
+    } catch (e: unknown) {
+      setPrintMsg(e instanceof Error ? e.message : 'Gagal mencetak')
+    }
+  }
+
+  // Recap slip for the current (open) shift — live figures + entered counts.
+  const buildCurrentRecap = (): RecapData => ({
+    title: 'Rekap Shift',
+    outletName: currentShift?.outletName ?? 'Mandalika',
+    cashierName: userName,
+    openedAt: currentShift ? new Date(currentShift.openedAt) : null,
+    closedAt: currentShift?.closedAt ? new Date(currentShift.closedAt) : null,
+    startingCash: currentShift?.startingCash ?? null,
+    closingCash: currentShift?.closingCash ?? null,
+    methods: paymentMethods
+      .filter((p) => p.isEnabled)
+      .map((pm) => ({ label: pm.label, recorded: live?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null })),
+    totalRecorded: live?.totalSales ?? 0,
+    totalCounted: Object.keys(counted).length ? Object.values(counted).reduce((a, b) => a + b, 0) : null,
+    cashIn,
+    cashOut,
+    gross: live?.gross ?? 0,
+    refundTotal: live?.refundTotal ?? 0,
+    refundCount: live?.refundCount ?? 0,
+    discount: live?.discount ?? 0,
+    surcharge: live?.surcharge ?? 0,
+    net: live?.net ?? 0,
+    tax: live?.tax ?? 0,
+    totalSales: live?.totalSales ?? 0,
+    totalOrders: live?.totalOrders ?? 0,
+    generatedAt: new Date(),
+  })
 
   const sumRow = (label: string, value: string, bold = false) => (
     <div className={`flex justify-between text-sm py-1 ${bold ? 'font-black text-gray-900' : ''}`}>
@@ -443,10 +489,20 @@ export function ShiftRecapPanel({
             )}
 
             {currentShift && (
-              <button onClick={handleClose} disabled={isClosingShift}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
-                {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
-              </button>
+              <div className="space-y-2">
+                <button onClick={handleClose} disabled={isClosingShift}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
+                  {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
+                </button>
+                <button onClick={() => void handlePrintRecap(buildCurrentRecap())}
+                  className="w-full py-2.5 border border-indigo-200 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                  Cetak Rekap
+                </button>
+                {printMsg && (
+                  <p className={`text-xs text-center ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
+                )}
+              </div>
             )}
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}
             <button onClick={() => setShowMobileDetail(true)}
@@ -619,13 +675,53 @@ export function ShiftRecapPanel({
               }
             }
             const sold = [...soldMap.values()].sort((a, c) => c.qty - a.qty)
+            const recapData: RecapData = {
+              title: 'Rekap Shift',
+              outletName: selected.outletName ?? 'Mandalika',
+              cashierName: selected.cashierName,
+              openedAt: new Date(selected.openedAt),
+              closedAt: selected.closedAt ? new Date(selected.closedAt) : null,
+              startingCash: selected.startingCash,
+              closingCash: selected.closingCash ?? null,
+              methods: paymentMethods.map((pm) => ({
+                label: pm.label,
+                recorded: b.byMethod[pm.id] ?? 0,
+                counted: pm.id in countedMap ? countedMap[pm.id] : null,
+              })),
+              totalRecorded: b.totalSales,
+              totalCounted: hasCounted ? countedTotal : null,
+              cashIn: null,
+              cashOut: null,
+              gross: b.gross,
+              refundTotal: b.refundTotal,
+              refundCount: b.refundCount,
+              discount: b.discount,
+              surcharge: b.surcharge,
+              net: b.net,
+              tax: b.tax,
+              totalSales: b.totalSales,
+              totalOrders: b.totalOrders,
+              generatedAt: new Date(),
+            }
             return (
               <div className="p-4 space-y-4">
-                <div>
-                  <p className="text-xs text-gray-400">{fmtDate(selected.openedAt)}</p>
-                  <p className="font-black text-gray-900">Rekapan - Mandalika</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">{fmtDate(selected.openedAt)}</p>
+                    <p className="font-black text-gray-900">Rekapan - Mandalika</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
+                  </div>
+                  {!loadingSelected && (
+                    <button onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
+                      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 transition-all">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                      Cetak
+                    </button>
+                  )}
                 </div>
+                {printMsg && (
+                  <p className={`text-xs ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
+                )}
 
                 {loadingSelected ? (
                   <div className="py-4 text-center">

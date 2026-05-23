@@ -4,7 +4,7 @@
 
 import { Capacitor } from '@capacitor/core'
 import type { components } from '@mandalika/api'
-import { buildReceipt, type ReceiptData } from './escpos'
+import { buildReceipt, buildRecap, type ReceiptData, type RecapData } from './escpos'
 import { CapacitorBleTransport } from './ble'
 import { NoopTransport, type PrinterTransport } from './transport'
 
@@ -40,6 +40,25 @@ export async function printReceipt(job: PrintJob): Promise<void> {
     for (let i = 0; i < copies; i++) {
       await job.transport.write(payload)
     }
+  } finally {
+    await job.transport.disconnect().catch(() => {})
+  }
+}
+
+export interface RecapJob {
+  transport: PrinterTransport
+  deviceId: string | null
+  data: RecapData
+  settings: ReceiptSettings
+}
+
+/** Connect if needed and print a single shift-recap slip. Throws on failure. */
+export async function printRecap(job: RecapJob): Promise<void> {
+  if (!job.deviceId) throw new Error('Printer belum dipilih')
+  const payload = buildRecap(job.data, job.settings)
+  await job.transport.connect(job.deviceId)
+  try {
+    await job.transport.write(payload)
   } finally {
     await job.transport.disconnect().catch(() => {})
   }

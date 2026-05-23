@@ -581,6 +581,7 @@ export default function CashierScreen() {
         paymentMethods={settings.paymentMethods}
         userName={user.displayName}
         userRole={user.role}
+        receipt={settings.receipt}
         onOpenShift={shift.openShift}
         onCloseShift={shift.closeShift}
         isOpeningShift={shift.isOpeningShift}
