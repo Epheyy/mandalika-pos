@@ -89,6 +89,8 @@ interface ShiftRecapPanelProps {
   paymentMethods: PaymentMethodCfg[]
   userName: string
   userRole: string
+  outletName: string
+  closeIntent?: boolean
   receipt: ReceiptSettings
   onOpenShift: (startingCash: number) => void
   onCloseShift: (closingCash: number, countedByMethod?: Record<string, number>) => void
@@ -106,6 +108,8 @@ export function ShiftRecapPanel({
   paymentMethods,
   userName,
   userRole,
+  outletName,
+  closeIntent,
   receipt,
   onOpenShift,
   onCloseShift,
@@ -114,6 +118,7 @@ export function ShiftRecapPanel({
 }: ShiftRecapPanelProps) {
   const printer = usePrinter()
   const [printMsg, setPrintMsg] = useState<string | null>(null)
+  const [closeError, setCloseError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('rekapan')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -215,11 +220,18 @@ export function ShiftRecapPanel({
     }
   }, [])
 
+  // Always land on Rekapan when (re)opening — both the menu shortcut and the
+  // header "Tutup" route here; Riwayat is reached from the in-panel nav.
+  useEffect(() => {
+    if (isOpen) setTab('rekapan')
+  }, [isOpen])
+
   useEffect(() => {
     if (!isOpen) return
     setSelected(null)
     setShowMobileDetail(false)
     setPrintMsg(null)
+    setCloseError(null)
     if (tab === 'rekapan') void loadRekap()
     else { setHistPage(1); void loadHistory() }
   }, [isOpen, tab, loadRekap, loadHistory])
@@ -247,6 +259,16 @@ export function ShiftRecapPanel({
     setTimeout(() => void loadRekap(), 1700)
   }
   const handleClose = () => {
+    // Counted income is mandatory for every enabled method that took money —
+    // the cashier must reconcile each tender before the shift can close.
+    const needCount = paymentMethods.filter(
+      (p) => p.isEnabled && (live?.byMethod[p.id] ?? 0) > 0 && counted[p.id] === undefined,
+    )
+    if (needCount.length > 0) {
+      setCloseError(`Isi Terhitung dulu untuk: ${needCount.map((m) => m.label).join(', ')}`)
+      return
+    }
+    setCloseError(null)
     onCloseShift(
       parseInt(closingCash, 10) || 0,
       Object.keys(counted).length ? counted : undefined,
@@ -275,7 +297,7 @@ export function ShiftRecapPanel({
   // Recap slip for the current (open) shift — live figures + entered counts.
   const buildCurrentRecap = (): RecapData => ({
     title: 'Rekap Shift',
-    outletName: currentShift?.outletName ?? 'Mandalika',
+    outletName: currentShift?.outletName ?? outletName,
     cashierName: userName,
     openedAt: currentShift ? new Date(currentShift.openedAt) : null,
     closedAt: currentShift?.closedAt ? new Date(currentShift.closedAt) : null,
@@ -329,7 +351,7 @@ export function ShiftRecapPanel({
             <span className="text-xs font-black text-indigo-700">{(userName || '?').charAt(0).toUpperCase()}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-black text-gray-900 truncate">Mandalika</p>
+            <p className="text-xs font-black text-gray-900 truncate">{outletName}</p>
             <p className="text-[10px] text-gray-400 capitalize truncate">{userRole}</p>
           </div>
         </div>
@@ -392,6 +414,15 @@ export function ShiftRecapPanel({
                 Rekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.
               </p>
             </div>
+
+            {closeIntent && currentShift && (
+              <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <span className="text-amber-500 text-sm font-black flex-shrink-0">!</span>
+                <p className="text-xs text-amber-700">
+                  Isi <b>Terhitung</b> (pendapatan dihitung) untuk setiap metode pembayaran, lalu tekan <b>Tutup Shift</b>.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               {paymentMethods.filter((p) => p.isEnabled).map((pm) => {
@@ -490,6 +521,9 @@ export function ShiftRecapPanel({
 
             {currentShift && (
               <div className="space-y-2">
+                {closeError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{closeError}</p>
+                )}
                 <button onClick={handleClose} disabled={isClosingShift}
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
@@ -677,7 +711,7 @@ export function ShiftRecapPanel({
             const sold = [...soldMap.values()].sort((a, c) => c.qty - a.qty)
             const recapData: RecapData = {
               title: 'Rekap Shift',
-              outletName: selected.outletName ?? 'Mandalika',
+              outletName: selected.outletName ?? outletName,
               cashierName: selected.cashierName,
               openedAt: new Date(selected.openedAt),
               closedAt: selected.closedAt ? new Date(selected.closedAt) : null,
@@ -708,7 +742,7 @@ export function ShiftRecapPanel({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs text-gray-400">{fmtDate(selected.openedAt)}</p>
-                    <p className="font-black text-gray-900">Rekapan - Mandalika</p>
+                    <p className="font-black text-gray-900">Rekapan - {outletName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
                   </div>
                   {!loadingSelected && (
@@ -813,7 +847,7 @@ export function ShiftRecapPanel({
           })()
         ) : (
           <div className="p-6 space-y-2">
-            <p className="font-black text-gray-900">Rekapan - Mandalika</p>
+            <p className="font-black text-gray-900">Rekapan - {outletName}</p>
             <p className="text-sm text-gray-400">Ketuk salah satu riwayat rekapan untuk menunjukkan detail di sini.</p>
           </div>
         )}

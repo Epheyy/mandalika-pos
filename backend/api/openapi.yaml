@@ -700,6 +700,7 @@ components:
       properties:
         version: { type: integer, format: int64 }
         outletCode: { type: string, nullable: true }
+        outletName: { type: string, nullable: true }
         products: { type: array, items: { $ref: '#/components/schemas/Product' } }
         categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
         bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }

@@ -87,6 +87,9 @@ export default function CashierScreen() {
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
+  // Raised when the recap was opened to close the shift (header "Tutup") — the
+  // panel then requires counted income before allowing the close.
+  const [closeIntent, setCloseIntent] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -426,8 +429,9 @@ export default function CashierScreen() {
           </div>
           <ShiftBar
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
-            isOpening={shift.isOpeningShift} isClosing={shift.isClosingShift}
-            onOpenShift={shift.openShift} onCloseShift={shift.closeShift}
+            isOpening={shift.isOpeningShift}
+            onOpenShift={shift.openShift}
+            onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
           />
           {/* Online/offline pill — label always visible (incl. portrait). */}
@@ -577,10 +581,12 @@ export default function CashierScreen() {
 
       <ShiftRecapPanel
         isOpen={showRecap}
-        onClose={() => setShowRecap(false)}
+        onClose={() => { setShowRecap(false); setCloseIntent(false) }}
         paymentMethods={settings.paymentMethods}
         userName={user.displayName}
         userRole={user.role}
+        outletName={snapshot.outletName ?? 'Mandalika'}
+        closeIntent={closeIntent}
         receipt={settings.receipt}
         onOpenShift={shift.openShift}
         onCloseShift={shift.closeShift}

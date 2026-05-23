@@ -1330,6 +1330,7 @@ export interface components {
             /** Format: int64 */
             version: number;
             outletCode?: string | null;
+            outletName?: string | null;
             products?: components["schemas"]["Product"][];
             categories?: components["schemas"]["Category"][];
             bundles?: components["schemas"]["Bundle"][];

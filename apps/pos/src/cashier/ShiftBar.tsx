@@ -8,9 +8,10 @@ interface ShiftBarProps {
   currentShift: Shift | null
   isLoading: boolean
   isOpening: boolean
-  isClosing: boolean
   onOpenShift: (startingCash: number) => void
-  onCloseShift: (closingCash: number) => void
+  /** Closing is reconciled in the Rekap screen (counted income is mandatory),
+   *  so the header "Tutup" routes there instead of a quick-close modal. */
+  onRequestClose: () => void
   /** When toggled true, force-opens the open-shift modal (e.g. a sale was
    *  attempted with no active shift). */
   promptOpen?: boolean
@@ -21,14 +22,12 @@ export const ShiftBar = memo(function ShiftBar({
   currentShift,
   isLoading,
   isOpening,
-  isClosing,
   onOpenShift,
-  onCloseShift,
+  onRequestClose,
   promptOpen,
   onPromptConsumed,
 }: ShiftBarProps) {
   const [showOpenModal, setShowOpenModal] = useState(false)
-  const [showCloseModal, setShowCloseModal] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   // The chip lives inside an overflow-hidden header, so the detail popover is
   // rendered fixed and anchored to the button's on-screen rect (an absolute
@@ -36,7 +35,6 @@ export const ShiftBar = memo(function ShiftBar({
   const detailBtnRef = useRef<HTMLButtonElement>(null)
   const [detailPos, setDetailPos] = useState<{ top: number; left: number } | null>(null)
   const [depositStr, setDepositStr] = useState('')
-  const [closingStr, setClosingStr] = useState('')
 
   const toggleDetail = () => {
     setShowDetail((v) => {
@@ -67,13 +65,6 @@ export const ShiftBar = memo(function ShiftBar({
     setDepositStr('')
   }
 
-  const handleClose = () => {
-    const cash = parseFloat(closingStr) || 0
-    onCloseShift(cash)
-    setShowCloseModal(false)
-    setClosingStr('')
-  }
-
   return (
     <>
       {/* Compact inline chip — lives in the app header beside the brand logo.
@@ -96,7 +87,7 @@ export const ShiftBar = memo(function ShiftBar({
             </svg>
           </button>
           <button
-            onClick={() => setShowCloseModal(true)}
+            onClick={onRequestClose}
             className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
             Tutup
@@ -170,53 +161,6 @@ export const ShiftBar = memo(function ShiftBar({
               </button>
               <button
                 onClick={() => setShowOpenModal(false)}
-                className="flex-1 py-2 border border-gray-200 rounded-xl font-semibold text-sm text-gray-600"
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Close shift modal */}
-      {showCloseModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xs p-5 shadow-xl">
-            <h3 className="font-bold text-gray-900 mb-4">Tutup Shift</h3>
-            {currentShift && (
-              <div className="bg-gray-50 rounded-xl p-3 mb-4 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total Penjualan</span>
-                  <span className="font-bold">{formatRupiah(currentShift.totalSales)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Jumlah Order</span>
-                  <span className="font-bold">{currentShift.totalOrders}</span>
-                </div>
-              </div>
-            )}
-            <label className="block text-xs text-gray-600 mb-1">
-              Uang penutup (kas fisik)
-            </label>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={closingStr}
-              onChange={(e) => setClosingStr(e.target.value)}
-              placeholder="0"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-red-400"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleClose}
-                disabled={isClosing}
-                className="flex-1 py-2 bg-red-600 text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-red-700 transition-colors"
-              >
-                {isClosing ? 'Menutup…' : 'Tutup Shift'}
-              </button>
-              <button
-                onClick={() => setShowCloseModal(false)}
                 className="flex-1 py-2 border border-gray-200 rounded-xl font-semibold text-sm text-gray-600"
               >
                 Batal

@@ -52,6 +52,7 @@ func (e *Engine) Version(ctx context.Context, outletID string) (VersionInfo, err
 type PullBundle struct {
 	Version           int64  `json:"version"`
 	OutletCode        string `json:"outletCode"`
+	OutletName        string `json:"outletName"`
 	Products          any    `json:"products"`
 	Categories        any    `json:"categories"`
 	Bundles           any    `json:"bundles"`
@@ -72,9 +73,15 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	}
 	b.Version = vi.Version
 	// Outlet code → POS so it can build {OUTLET}-{DEV}{SEQ} order numbers offline.
-	var code *string
-	if e := e.Pool.QueryRow(ctx, `SELECT code FROM outlets WHERE id=$1`, outletID).Scan(&code); e == nil && code != nil {
-		b.OutletCode = *code
+	// Outlet name → POS so the recap/print read the active outlet, not a constant.
+	var code, name *string
+	if e := e.Pool.QueryRow(ctx, `SELECT code, name FROM outlets WHERE id=$1`, outletID).Scan(&code, &name); e == nil {
+		if code != nil {
+			b.OutletCode = *code
+		}
+		if name != nil {
+			b.OutletName = *name
+		}
 	}
 	if b.Products, _, err = e.Read.Products(ctx, 1, 100000); err != nil {
 		return b, err
