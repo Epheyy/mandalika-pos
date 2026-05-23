@@ -145,19 +145,31 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	}
 	finalTotal := res.Total - redeemAmount
 
-	// Stock decrement under row lock (plan §9 :752-763, FOR UPDATE).
+	// Per-outlet stock decrement under row lock (FOR UPDATE). Stock lives in
+	// outlet_variant_stock keyed by (outlet_id, product_id, variant_size). A row
+	// is created lazily at 0 the first time an outlet sells a real variant (an
+	// un-stocked outlet starts empty; the backfilled primary outlet keeps its
+	// number). Bundle components / deleted variants have no product_variants row
+	// and are skipped, matching legacy behavior.
 	for _, it := range in.Items {
-		var vid string
+		if _, e := tx.Exec(ctx, `
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+			SELECT $1,$2,$3,0
+			WHERE EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id=$2 AND pv.size=$3)
+			ON CONFLICT (outlet_id, product_id, variant_size) DO NOTHING`,
+			in.OutletID, it.ProductID, it.VariantSize); e != nil {
+			return "", false, false, fmt.Errorf("ensure stock row: %w", e)
+		}
 		var stock int
 		e := tx.QueryRow(ctx,
-			`SELECT pv.id, pv.stock FROM product_variants pv
-			   WHERE pv.product_id=$1 AND pv.size=$2 FOR UPDATE`,
-			it.ProductID, it.VariantSize).Scan(&vid, &stock)
+			`SELECT stock FROM outlet_variant_stock
+			   WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 FOR UPDATE`,
+			in.OutletID, it.ProductID, it.VariantSize).Scan(&stock)
 		if errors.Is(e, pgx.ErrNoRows) {
 			continue // bundle component or deleted variant — skip, do not fail the sale
 		}
 		if e != nil {
-			return "", false, false, fmt.Errorf("lock variant: %w", e)
+			return "", false, false, fmt.Errorf("lock variant stock: %w", e)
 		}
 		next := stock - it.Quantity
 		if next < 0 {
@@ -167,7 +179,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 				next = 0 // online zero-floor (legacy parity)
 			}
 		}
-		if _, e := tx.Exec(ctx, `UPDATE product_variants SET stock=$1 WHERE id=$2`, next, vid); e != nil {
+		if _, e := tx.Exec(ctx,
+			`UPDATE outlet_variant_stock SET stock=$1
+			   WHERE outlet_id=$2 AND product_id=$3 AND variant_size=$4`,
+			next, in.OutletID, it.ProductID, it.VariantSize); e != nil {
 			return "", false, false, fmt.Errorf("decrement stock: %w", e)
 		}
 	}
@@ -310,8 +325,11 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	rows.Close()
 	for _, r := range restock {
 		if _, err = tx.Exec(ctx,
-			`UPDATE product_variants SET stock=stock+$1
-			   WHERE product_id=$2 AND size=$3`, r.qty, r.pid, r.size); err != nil {
+			`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+			   VALUES ($1,$2,$3,$4)
+			 ON CONFLICT (outlet_id, product_id, variant_size)
+			   DO UPDATE SET stock = outlet_variant_stock.stock + EXCLUDED.stock`,
+			outletID, r.pid, r.size, r.qty); err != nil {
 			return err
 		}
 	}
