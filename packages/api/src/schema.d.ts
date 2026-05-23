@@ -184,6 +184,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{id}/outlet-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Per-outlet stock/price/availability matrix for a product (Backoffice) */
+        get: operations["getProductOutletConfig"];
+        /** Set per-outlet stock/price/availability for a product (Backoffice) */
+        put: operations["updateProductOutletConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categories": {
         parameters: {
             query?: never;
@@ -1464,6 +1484,21 @@ export interface components {
             isFavourite?: boolean;
             isActive: boolean;
         };
+        OutletVariantConfig: {
+            /** Format: uuid */
+            outletId: string;
+            outletName: string;
+            variantSize: string;
+            stock: number;
+            price?: number | null;
+            available: boolean;
+        };
+        OutletConfigResponse: {
+            data: components["schemas"]["OutletVariantConfig"][];
+        };
+        OutletConfigInput: {
+            items: components["schemas"]["OutletVariantConfig"][];
+        };
         CategoryInput: {
             name: string;
             description?: string;
@@ -1948,6 +1983,56 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getProductOutletConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description outlet config */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutletConfigResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateProductOutletConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutletConfigInput"];
+            };
+        };
         responses: {
             /** @description ok */
             200: {

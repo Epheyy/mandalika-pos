@@ -32,6 +32,7 @@ export type CustomerInput = S['CustomerInput']
 export type PromotionInput = S['PromotionInput']
 export type DiscountCodeInput = S['DiscountCodeInput']
 export type OutletInput = S['OutletInput']
+export type OutletVariantConfig = S['OutletVariantConfig']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
 export type UploadSignature = S['UploadSignature']
@@ -89,6 +90,8 @@ export interface Api {
   createProduct: (input: ProductInput) => Promise<Product>
   updateProduct: (id: string, input: ProductInput) => Promise<Product>
   deleteProduct: (id: string) => Promise<void>
+  getProductOutletConfig: (id: string) => Promise<OutletVariantConfig[]>
+  updateProductOutletConfig: (id: string, items: OutletVariantConfig[]) => Promise<void>
   listCategories: () => Promise<Category[]>
   createCategory: (input: CategoryInput) => Promise<Category>
   updateCategory: (id: string, input: CategoryInput) => Promise<Category>
@@ -262,6 +265,11 @@ export function createClient(opts: ClientOptions): Api {
     updateProduct: (id, input) => data<Product>('PUT', `${API}/products/${id}`, input),
     deleteProduct: async (id) => {
       await request('DELETE', `${API}/products/${id}`)
+    },
+    getProductOutletConfig: (id) =>
+      data<OutletVariantConfig[]>('GET', `${API}/products/${id}/outlet-config`),
+    updateProductOutletConfig: async (id, items) => {
+      await request('PUT', `${API}/products/${id}/outlet-config`, { items })
     },
     listCategories: () => data<Category[]>('GET', `${API}/categories`),
     createCategory: (input) => data<Category>('POST', `${API}/categories`, input),
