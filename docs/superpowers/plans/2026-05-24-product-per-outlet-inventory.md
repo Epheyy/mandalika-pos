@@ -479,5 +479,19 @@ git commit -m "feat(api): outlet-config client methods + regenerated types"
 
 ## Progress / resume notes
 - Update the checkboxes above and commit as each task completes.
-- Current status: **not started** (plan just written).
-- Open confirmations needed from user before deploy: (a) resolved primary outlet name (Task 1 Step 2); (b) order-path seeding choice for not-yet-seeded outlets (Task 4 Step 1) — default seeds from legacy stock; (c) create-seeding target (Task 6 Step 5).
+- **Current status (2026-05-24): Tasks 1–6 DONE and committed (all backend code).**
+  Backend gate green: build, vet, gofmt, `make gen-check` (deterministic), `go test ./...`.
+  Commits: migration `0010`; per-outlet read+sync; per-outlet order decrement+refund;
+  per-outlet stock count; outlet-config endpoints + create seeding.
+- **Decisions applied:** not-yet-stocked outlets start at 0 on first sale (no legacy
+  inherit); new-product stock seeds the selected outlet (primary when "Semua").
+- **NEXT = Task 7: deploy backend to Cloud Run** (`gcloud run deploy mandalika-pos
+  --source backend --region asia-southeast2 --quiet`) — migration auto-applies on
+  boot. **Gated on user go-ahead** (production, live selling app) + confirm the
+  resolved primary outlet (Task 1 Step 2 query). After deploy: verify `/readyz`,
+  scoped product reads, and a real test sale decrements the right outlet + refund
+  restores. ONLY THEN do frontend Tasks 8–12.
+- **Remaining:** Task 7 (deploy+verify backend), Tasks 8–12 (TS client regen +
+  backoffice list scoping + edit per-outlet table + create label + deploy UI).
+- Known limitation (Rule 6): generated price type is float32 (~16.7M exact-int
+  ceiling) — fine for current IDR perfume prices; flag if prices exceed that.
