@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import type { User, CustomRole } from '@mandalika/api'
-import { Edit2, X, Users as UsersIcon, Shield, Loader2, Check, Plus, Trash2, Download, Upload } from 'lucide-react'
+import type { User, CustomRole, Outlet } from '@mandalika/api'
+import { Edit2, X, Users as UsersIcon, Shield, Loader2, Check, Plus, Trash2, Download, Upload, Store } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -32,18 +32,22 @@ export default function Users() {
   const { user: me } = useAuth()
   const uq = usePolledQuery<User[]>(() => api.listUsers().then((r) => r.data), [])
   const rq = usePolledQuery<CustomRole[]>(() => api.listCustomRoles(), [])
+  const oq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const users = uq.data ?? []
   const roles = rq.data ?? []
+  const outlets = oq.data ?? []
+  const outletNameOf = (id?: string | null) => outlets.find((o) => o.id === id)?.name
   const [tab, setTab] = useState<'users' | 'roles'>('users')
   const csvRef = useRef<HTMLInputElement>(null)
 
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [editRole, setEditRole] = useState<Role>('cashier')
   const [editPerms, setEditPerms] = useState<string[]>([])
+  const [editOutletId, setEditOutletId] = useState<string>('')
   const [busy, setBusy] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
-  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, permissions: [] as string[] })
+  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: [] as string[] })
 
   const [roleOpen, setRoleOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
@@ -54,7 +58,7 @@ export default function Users() {
     if (!editingUser) return
     setBusy(true)
     try {
-      await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms })
+      await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, outletId: editOutletId || null })
       setEditingUser(null)
       await uq.refetch()
     } finally {
@@ -71,10 +75,11 @@ export default function Users() {
         password: nf.password,
         displayName: nf.displayName.trim(),
         role: nf.role,
+        outletId: nf.outletId || null,
         permissions: nf.permissions,
       })
       setAddOpen(false)
-      setNf({ displayName: '', email: '', password: '', role: 'cashier', permissions: [] })
+      setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: [] })
       await uq.refetch()
     } finally {
       setBusy(false)
@@ -91,6 +96,7 @@ export default function Users() {
         password: row['Password'] || 'changeme123',
         displayName: row['Nama'] || row['Email'],
         role: (row['Role'] as Role) || 'cashier',
+        outletId: row['Outlet'] ? (outlets.find((o) => o.name === row['Outlet'].trim())?.id ?? null) : null,
         permissions: row['Permissions'] ? row['Permissions'].split(';').filter(Boolean) : [],
       })
     }
@@ -131,7 +137,7 @@ export default function Users() {
           </div>
           {tab === 'users' && (
             <>
-              <button onClick={() => exportToCSV(users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: u.role, Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })), 'pengguna_mandalika')} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs">
+              <button onClick={() => exportToCSV(users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: u.role, Outlet: outletNameOf(u.outletId) || '', Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })), 'pengguna_mandalika')} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs">
                 <Download className="w-3.5 h-3.5" /> Export
               </button>
               <button onClick={() => csvRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs">
@@ -170,13 +176,19 @@ export default function Users() {
                       {u.id === me?.id && <span className="text-xs font-bold text-gray-400">(Anda)</span>}
                     </div>
                     <p className="text-xs text-gray-400">{u.email}</p>
-                    {u.role !== 'admin' && (u.permissions || []).length > 0 && (
-                      <p className="text-xs text-indigo-500 mt-0.5">{(u.permissions || []).length} permission aktif</p>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                        <Store className="w-3 h-3 flex-shrink-0" />
+                        {outletNameOf(u.outletId) || (u.role === 'admin' ? 'Semua Outlet' : 'Belum diatur')}
+                      </span>
+                      {u.role !== 'admin' && (u.permissions || []).length > 0 && (
+                        <span className="text-xs text-indigo-500">· {(u.permissions || []).length} permission aktif</span>
+                      )}
+                    </div>
                   </div>
                   <span className={`px-2.5 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${ROLE_COLOR[u.role as Role]}`}>{ROLE_LABEL[u.role as Role]}</span>
                   {me?.role === 'admin' && u.id !== me?.id && (
-                    <button onClick={() => { setEditingUser(u); setEditRole(u.role as Role); setEditPerms(u.permissions || []) }} className="p-2 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-xl flex-shrink-0"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => { setEditingUser(u); setEditRole(u.role as Role); setEditPerms(u.permissions || []); setEditOutletId(u.outletId || '') }} className="p-2 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-xl flex-shrink-0"><Edit2 className="w-4 h-4" /></button>
                   )}
                 </div>
               ))}
@@ -232,6 +244,18 @@ export default function Users() {
                     <button key={r} onClick={() => setEditRole(r)} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Outlet</label>
+                <select value={editOutletId} onChange={(e) => setEditOutletId(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Semua Outlet (tanpa pembatasan)</option>
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+                {editRole === 'cashier' && !editOutletId && (
+                  <p className="text-[11px] text-amber-600 mt-1">Kasir sebaiknya ditempatkan di satu outlet agar POS dibatasi pada outlet tersebut.</p>
+                )}
               </div>
               {editRole !== 'admin' && roles.length > 0 && (
                 <div>
@@ -297,6 +321,18 @@ export default function Users() {
                     <button key={r} onClick={() => setNf((f) => ({ ...f, role: r }))} className={`py-2 text-sm font-bold rounded-xl border-2 ${nf.role === r ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Outlet</label>
+                <select value={nf.outletId} onChange={(e) => setNf((f) => ({ ...f, outletId: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Semua Outlet (tanpa pembatasan)</option>
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+                {nf.role === 'cashier' && !nf.outletId && (
+                  <p className="text-[11px] text-amber-600 mt-1">Kasir sebaiknya ditempatkan di satu outlet.</p>
+                )}
               </div>
               {nf.role !== 'admin' && (
                 <div>
