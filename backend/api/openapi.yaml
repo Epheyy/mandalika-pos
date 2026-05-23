@@ -836,6 +836,27 @@ components:
         isFeatured: { type: boolean }
         isFavourite: { type: boolean }
         isActive: { type: boolean }
+    OutletVariantConfig:
+      type: object
+      required: [outletId, outletName, variantSize, stock, available]
+      properties:
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        variantSize: { type: string }
+        stock: { type: integer }
+        # null = use the variant's base price (no per-outlet override)
+        price: { type: number, nullable: true }
+        available: { type: boolean }
+    OutletConfigResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/OutletVariantConfig' } }
+    OutletConfigInput:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/OutletVariantConfig' } }
     CategoryInput:
       type: object
       required: [name]
@@ -1156,6 +1177,39 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/products/{id}/outlet-config:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getProductOutletConfig
+      tags: [catalog]
+      summary: Per-outlet stock/price/availability matrix for a product (Backoffice)
+      responses:
+        '200':
+          description: outlet config
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutletConfigResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateProductOutletConfig
+      tags: [catalog]
+      summary: Set per-outlet stock/price/availability for a product (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutletConfigInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/categories:
     post:

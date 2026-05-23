@@ -10,6 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mandalika/pos-backend/internal/api"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -34,6 +36,25 @@ func bumpVersion(ctx context.Context, q pgx.Tx, resource string) error {
 		      COALESCE((content_versions.data_manifest->>$1)::int,0) + 1),
 		  updated_at = now()`, resource)
 	return err
+}
+
+// bumpVersionOutlets bumps the content version for only the given outlets — used
+// for per-outlet writes (e.g. outlet-config) so a change at one outlet doesn't
+// force every outlet to resync. Run inside the caller's tx.
+func bumpVersionOutlets(ctx context.Context, q pgx.Tx, resource string, outletIDs []string) error {
+	for _, oid := range outletIDs {
+		if _, err := q.Exec(ctx, `
+			INSERT INTO content_versions (outlet_id, version, data_manifest, updated_at)
+			VALUES ($2, 2, jsonb_build_object($1::text,1), now())
+			ON CONFLICT (outlet_id) DO UPDATE SET
+			  version = content_versions.version + 1,
+			  data_manifest = content_versions.data_manifest ||
+			    jsonb_build_object($1::text, COALESCE((content_versions.data_manifest->>$1)::int,0)+1),
+			  updated_at = now()`, resource, oid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // tx runs fn in a transaction, bumping the content version for resource.
@@ -80,7 +101,7 @@ type Product struct {
 	IsActive    bool      `json:"isActive"`
 }
 
-func (r *Repo) CreateProduct(ctx context.Context, p Product) (string, error) {
+func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product) (string, error) {
 	var id string
 	err := r.tx(ctx, "products", func(t pgx.Tx) error {
 		if e := t.QueryRow(ctx, `
@@ -92,9 +113,45 @@ func (r *Repo) CreateProduct(ctx context.Context, p Product) (string, error) {
 			Scan(&id); e != nil {
 			return e
 		}
-		return insertVariants(ctx, t, id, p.Variants)
+		if e := insertVariants(ctx, t, id, p.Variants); e != nil {
+			return e
+		}
+		return seedOutletStock(ctx, t, id, seedOutletID, p.Variants)
 	})
 	return id, err
+}
+
+// seedOutletStock writes a new product's initial per-variant stock to one outlet:
+// seedOutletID when set, else the primary outlet (most completed orders, tie-break
+// oldest active). Variants with 0 are skipped; other outlets start empty.
+func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID string, vs []Variant) error {
+	outlet := seedOutletID
+	if outlet == "" {
+		if e := t.QueryRow(ctx, `
+			SELECT o.id FROM outlets o
+			LEFT JOIN (SELECT outlet_id, count(*) n FROM orders WHERE status='completed' GROUP BY outlet_id) oc
+			  ON oc.outlet_id=o.id
+			WHERE o.is_active
+			ORDER BY COALESCE(oc.n,0) DESC, o.created_at ASC LIMIT 1`).Scan(&outlet); e != nil {
+			if errors.Is(e, pgx.ErrNoRows) {
+				return nil // no active outlet to seed
+			}
+			return e
+		}
+	}
+	for _, v := range vs {
+		if v.Stock == 0 {
+			continue
+		}
+		if _, e := t.Exec(ctx, `
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+			VALUES ($1,$2,$3,$4)
+			ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+			outlet, productID, v.Size, v.Stock); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
@@ -132,6 +189,60 @@ func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Varian
 
 func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
 	return r.delete(ctx, "products", "products", id)
+}
+
+// SetProductOutletConfig applies the per-outlet stock/price/availability matrix
+// for one product in a single tx, then bumps only the affected outlets' content
+// version. A null price clears the override (falls back to base). Availability is
+// product-level (repeated per variant row in the matrix; idempotent upsert).
+func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletVariantConfig) error {
+	t, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer t.Rollback(ctx)
+
+	seen := map[string]bool{}
+	var outletIDs []string
+	for _, it := range items {
+		oid := it.OutletId.String()
+		if !seen[oid] {
+			seen[oid] = true
+			outletIDs = append(outletIDs, oid)
+		}
+		if _, e := t.Exec(ctx, `
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+			VALUES ($1,$2,$3,$4)
+			ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+			oid, productID, it.VariantSize, it.Stock); e != nil {
+			return e
+		}
+		if v, e := it.Price.Get(); e == nil {
+			if _, e := t.Exec(ctx, `
+				INSERT INTO outlet_variant_price (outlet_id, product_id, variant_size, price)
+				VALUES ($1,$2,$3,$4)
+				ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET price=EXCLUDED.price`,
+				oid, productID, it.VariantSize, v); e != nil {
+				return e
+			}
+		} else if _, e := t.Exec(ctx, `
+			DELETE FROM outlet_variant_price
+			WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3`,
+			oid, productID, it.VariantSize); e != nil {
+			return e
+		}
+		if _, e := t.Exec(ctx, `
+			INSERT INTO outlet_product_availability (outlet_id, product_id, available)
+			VALUES ($1,$2,$3)
+			ON CONFLICT (outlet_id, product_id) DO UPDATE SET available=EXCLUDED.available`,
+			oid, productID, it.Available); e != nil {
+			return e
+		}
+	}
+	if e := bumpVersionOutlets(ctx, t, "products", outletIDs); e != nil {
+		return fmt.Errorf("bump version: %w", e)
+	}
+	return t.Commit(ctx)
 }
 
 // ── Categories ────────────────────────────────────────────

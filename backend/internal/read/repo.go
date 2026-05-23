@@ -151,6 +151,29 @@ func (r *Repo) Product(ctx context.Context, sc Scope, id string) (api.Product, e
 		`SELECT `+obj+` FROM products p WHERE p.id=$2`, sc.OutletID, id)
 }
 
+// ProductOutletConfig returns the per-outlet stock/price/availability matrix for
+// one product: a row per active outlet × variant. stock defaults 0, price is
+// null when there's no override, available defaults true.
+func (r *Repo) ProductOutletConfig(ctx context.Context, productID string) ([]api.OutletVariantConfig, error) {
+	rows, _, err := listJSON[api.OutletVariantConfig](ctx, r.Pool, `
+		SELECT json_build_object(
+		  'outletId', o.id, 'outletName', o.name, 'variantSize', v.size,
+		  'stock', COALESCE(s.stock, 0),
+		  'price', op.price,
+		  'available', COALESCE(a.available, true))
+		FROM outlets o
+		CROSS JOIN product_variants v
+		LEFT JOIN outlet_variant_stock s
+		  ON s.outlet_id=o.id AND s.product_id=v.product_id AND s.variant_size=v.size
+		LEFT JOIN outlet_variant_price op
+		  ON op.outlet_id=o.id AND op.product_id=v.product_id AND op.variant_size=v.size
+		LEFT JOIN outlet_product_availability a
+		  ON a.outlet_id=o.id AND a.product_id=v.product_id
+		WHERE v.product_id=$1 AND o.is_active
+		ORDER BY o.name, v.size`, productID)
+	return rows, err
+}
+
 func (r *Repo) Categories(ctx context.Context) ([]api.Category, int, error) {
 	return listJSON[api.Category](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'name',name,'description',description,

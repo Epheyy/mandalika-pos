@@ -136,6 +136,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/products", h.CreateProduct)
 				r.Put("/products/{id}", h.UpdateProduct)
 				r.Delete("/products/{id}", h.DeleteProduct)
+				r.Get("/products/{id}/outlet-config", h.GetProductOutletConfig)
+				r.Put("/products/{id}/outlet-config", h.PutProductOutletConfig)
 				r.Post("/categories", h.CreateCategory)
 				r.Put("/categories/{id}", h.UpdateCategory)
 				r.Delete("/categories/{id}", h.DeleteCategory)
