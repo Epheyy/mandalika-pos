@@ -22,11 +22,12 @@ Glossary (words used below):
 
 ---
 
-## PART 0 — CURRENT STATE (live in production — updated 2026-05-21)
+## PART 0 — CURRENT STATE (live in production — updated 2026-05-23)
 
 The app is **live and selling**. Part A (local dev) and Part B (the `/goal`)
 below are historical; the production goal in Part B is largely **done**. Read
-this section first.
+this section first. Backend at Cloud Run rev **00013-q9b**; migrations through
+**0009**. For the full per-session handoff + next steps, see `SESSION_HANDOFF.md`.
 
 ### Live infrastructure
 
@@ -47,10 +48,11 @@ Active branch: **`prod-hardening`**. Main is `main`.
 - **POS APK**: trigger the `Android Release APK` GitHub Action on `prod-hardening`
   (manual). Download the `mandalika-pos-release-apk` artifact.
 - **Backend**: CI (`.github/workflows/backend.yml`) only **builds + tests** on
-  push (`go vet`, `gofmt`, `make gen-check` OpenAPI drift gate, `go test -race`)
-  — it does **NOT deploy**. Deploy is **manual** via `gcloud run deploy` from an
-  authed terminal (`gcloud auth login` only works in your real terminal, not the
-  agent sandbox).
+  push — it does **NOT deploy**. Deploy is `gcloud run deploy mandalika-pos
+  --source backend --region asia-southeast2 --quiet`. NOTE: `gcloud` is now
+  authed on this machine and the agent **can run the deploy itself** (Bash with
+  sandbox disabled) and **dispatch the APK workflow** via the GitHub REST API
+  (token from `git credential fill`). See `SESSION_HANDOFF.md`.
 - Local APK build is **blocked on Windows** (space in the path breaks the BLE
   plugin Gradle step) → use CI.
 
@@ -72,6 +74,25 @@ redesigned split-screen login; **global** font-size (scales root `rem`);
 `mandalika.pos.synclog`, then dismisses); **drag-and-drop product reordering**
 (@dnd-kit; long-press on touch, drag on desktop; order persisted in
 `localStorage` `pos_productOrder`).
+
+### Shipped 2026-05-23 (revs 00009–00013, migrations 0006–0009)
+
+- **Shift reconciliation**: per-method counted income ("Terhitung") vs recorded
+  ("Tercatat") with Selisih; persisted (`shifts.counted_by_method`). **Closing a
+  shift now routes through the Rekap screen and counted income is mandatory**
+  (the header "Tutup" opens Rekapan, not a quick modal).
+- **Recap/Riwayat**: portrait-responsive (top tabs + full-screen detail overlay),
+  searchable date range + pagination, fixed column alignment, **print shift recap**
+  via BLE, active-outlet name (snapshot `outletName`, no longer hardcoded).
+- **Discounts**: per-order denormalized `discount_label` + itemized
+  `discount_breakdown` (each stacked discount shown with its nominal in POS
+  history + backoffice); backoffice **Orders Export (XLSX)**.
+- **Product cards**: price/stock/variant are opt-in toggles (Pengaturan Tampilan
+  Produk); per-variant stock/price; image-fallback tile.
+- **Central error log** (migration 0009 `error_logs`): POS sync dead-letters,
+  runtime errors, print failures, and backend panics are captured server-side
+  with device/outlet/user + activity breadcrumbs → new **Backoffice → Log Error**
+  screen (admin). Replaces the clipboard-only sync log.
 
 ### Order-number cycle — SHIPPED (backend rev 00008, deployed 2026-05-22)
 
