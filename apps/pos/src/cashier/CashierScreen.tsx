@@ -251,6 +251,22 @@ export default function CashierScreen() {
     try {
       // Client-authoritative number: receipt == history, generated on-device.
       const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId)
+      // Itemize each applied discount (manual + promo can stack) with its own
+      // nominal, so history/exports show each line instead of one collapsed total.
+      const discountBreakdown = [
+        derived.manualDiscountAmount > 0 && {
+          label: 'Diskon Manual',
+          kind: state.appliedDiscountType,
+          value: state.discountRunning,
+          amount: derived.manualDiscountAmount,
+        },
+        derived.promoDiscountAmount > 0 && {
+          label: state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? 'Promo',
+          kind: state.appliedPromotion?.type ?? state.appliedPromoCode?.type ?? null,
+          value: state.appliedPromotion?.value ?? state.appliedPromoCode?.value ?? null,
+          amount: derived.promoDiscountAmount,
+        },
+      ].filter(Boolean)
       const { orderUuid } = engine.enqueue('order', {
         orderNumber: orderNo,
         items: state.cart,
@@ -272,6 +288,7 @@ export default function CashierScreen() {
           state.appliedPromotion?.name ??
           state.appliedPromoCode?.code ??
           (state.discountRunning > 0 ? 'Diskon Manual' : null),
+        discountBreakdown: discountBreakdown.length ? discountBreakdown : null,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,

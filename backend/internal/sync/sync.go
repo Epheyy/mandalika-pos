@@ -169,32 +169,33 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 			return fail(err)
 		}
 		in := service.CreateOrderInput{
-			IdempotencyKey: it.IdempotencyKey,
-			OrderUUID:      p.OrderUUID,
-			OrderNumber:    p.OrderNumber,
-			DeviceID:       p.DeviceID,
-			OutletID:       c.OutletID,
-			CashierID:      c.UserID,
-			CashierName:    c.DisplayName,
-			SalesmanID:     p.SalesmanID,
-			SalesmanName:   p.SalesmanName,
-			CustomerID:     p.CustomerID,
-			CustomerName:   p.CustomerName,
-			Items:          p.Items,
-			PaymentMethod:  p.PaymentMethod,
-			AmountPaid:     p.AmountPaid,
-			ManualKind:     service.DiscountKind(p.DiscountType),
-			ManualValue:    p.DiscountValue,
-			Surcharge:      p.SurchargeValue,
-			SurchargeKind:  service.DiscountKind(p.SurchargeType),
-			DiscountCode:   p.DiscountCode,
-			PromotionID:    p.PromotionID,
-			DiscountLabel:  p.DiscountLabel,
-			PointsRedeemed: p.PointsRedeemed,
-			Notes:          p.Notes,
-			ShiftID:        p.ShiftID,
-			ClientCreated:  p.ClientCreatedAt,
-			Offline:        true,
+			IdempotencyKey:    it.IdempotencyKey,
+			OrderUUID:         p.OrderUUID,
+			OrderNumber:       p.OrderNumber,
+			DeviceID:          p.DeviceID,
+			OutletID:          c.OutletID,
+			CashierID:         c.UserID,
+			CashierName:       c.DisplayName,
+			SalesmanID:        p.SalesmanID,
+			SalesmanName:      p.SalesmanName,
+			CustomerID:        p.CustomerID,
+			CustomerName:      p.CustomerName,
+			Items:             p.Items,
+			PaymentMethod:     p.PaymentMethod,
+			AmountPaid:        p.AmountPaid,
+			ManualKind:        service.DiscountKind(p.DiscountType),
+			ManualValue:       p.DiscountValue,
+			Surcharge:         p.SurchargeValue,
+			SurchargeKind:     service.DiscountKind(p.SurchargeType),
+			DiscountCode:      p.DiscountCode,
+			PromotionID:       p.PromotionID,
+			DiscountLabel:     p.DiscountLabel,
+			DiscountBreakdown: p.DiscountBreakdown,
+			PointsRedeemed:    p.PointsRedeemed,
+			Notes:             p.Notes,
+			ShiftID:           p.ShiftID,
+			ClientCreated:     p.ClientCreatedAt,
+			Offline:           true,
 		}
 		id, dup, warn, err := e.Orders.CreateOrder(ctx, in)
 		if err != nil {
@@ -295,25 +296,26 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 }
 
 type orderPayload struct {
-	OrderUUID       string              `json:"orderUuid"`
-	OrderNumber     string              `json:"orderNumber"`
-	DeviceID        string              `json:"deviceId"`
-	SalesmanID      string              `json:"salesmanId"`
-	SalesmanName    string              `json:"salesmanName"`
-	CustomerID      string              `json:"customerId"`
-	CustomerName    string              `json:"customerName"`
-	Items           []service.OrderItem `json:"items"`
-	PaymentMethod   string              `json:"paymentMethod"`
-	AmountPaid      float64             `json:"amountPaid"`
-	DiscountType    string              `json:"discountType"`
-	DiscountValue   float64             `json:"discountValue"`
-	SurchargeValue  float64             `json:"surchargeValue"`
-	SurchargeType   string              `json:"surchargeType"`
-	DiscountCode    string              `json:"discountCode"`
-	PromotionID     string              `json:"promotionId"`
-	DiscountLabel   string              `json:"discountLabel"`
-	PointsRedeemed  int                 `json:"pointsRedeemed"`
-	Notes           string              `json:"notes"`
-	ShiftID         string              `json:"shiftId"`
-	ClientCreatedAt *time.Time          `json:"clientCreatedAt"`
+	OrderUUID         string              `json:"orderUuid"`
+	OrderNumber       string              `json:"orderNumber"`
+	DeviceID          string              `json:"deviceId"`
+	SalesmanID        string              `json:"salesmanId"`
+	SalesmanName      string              `json:"salesmanName"`
+	CustomerID        string              `json:"customerId"`
+	CustomerName      string              `json:"customerName"`
+	Items             []service.OrderItem `json:"items"`
+	PaymentMethod     string              `json:"paymentMethod"`
+	AmountPaid        float64             `json:"amountPaid"`
+	DiscountType      string              `json:"discountType"`
+	DiscountValue     float64             `json:"discountValue"`
+	SurchargeValue    float64             `json:"surchargeValue"`
+	SurchargeType     string              `json:"surchargeType"`
+	DiscountCode      string              `json:"discountCode"`
+	PromotionID       string              `json:"promotionId"`
+	DiscountLabel     string              `json:"discountLabel"`
+	DiscountBreakdown json.RawMessage     `json:"discountBreakdown"`
+	PointsRedeemed    int                 `json:"pointsRedeemed"`
+	Notes             string              `json:"notes"`
+	ShiftID           string              `json:"shiftId"`
+	ClientCreatedAt   *time.Time          `json:"clientCreatedAt"`
 }

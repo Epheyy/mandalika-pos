@@ -346,6 +346,11 @@ components:
         discountCode: { type: string, nullable: true }
         # Human-readable discount source (promotion name / promo code / "Manual").
         discountLabel: { type: string, nullable: true }
+        # Itemized discount components when multiple stack (manual + promo).
+        discountBreakdown:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/DiscountComponent' }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, nullable: true }
         surchargeAmount: { type: number, nullable: true }
@@ -360,6 +365,14 @@ components:
         refundedAt: { type: string, format: date-time, nullable: true }
         shiftId: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+    DiscountComponent:
+      type: object
+      required: [label, amount]
+      properties:
+        label: { type: string }
+        kind: { type: string, nullable: true }
+        value: { type: number, nullable: true }
+        amount: { type: number }
     OrderListResponse:
       type: object
       required: [data]
@@ -638,6 +651,10 @@ components:
         discountCode: { type: string, nullable: true }
         promotionId: { type: string, nullable: true }
         discountLabel: { type: string, nullable: true }
+        discountBreakdown:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/DiscountComponent' }
         notes: { type: string, nullable: true }
         shiftId: { type: string, nullable: true }
     RefundRequest:

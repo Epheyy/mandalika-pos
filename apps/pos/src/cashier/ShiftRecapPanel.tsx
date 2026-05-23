@@ -125,6 +125,10 @@ export function ShiftRecapPanel({
   const [selected, setSelected] = useState<Shift | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Order[]>([])
   const [loadingSelected, setLoadingSelected] = useState(false)
+  // Portrait: the right detail pane is a full-screen overlay instead of a
+  // squished third column. Opened on shift-select (Riwayat) or via a button
+  // (Rekapan); ignored on sm+ where the side panel is always shown.
+  const [showMobileDetail, setShowMobileDetail] = useState(false)
 
   const [depositAmount, setDepositAmount] = useState('')
   const [closingCash, setClosingCash] = useState('')
@@ -207,12 +211,14 @@ export function ShiftRecapPanel({
   useEffect(() => {
     if (!isOpen) return
     setSelected(null)
+    setShowMobileDetail(false)
     if (tab === 'rekapan') void loadRekap()
     else { setHistPage(1); void loadHistory() }
   }, [isOpen, tab, loadRekap, loadHistory])
 
   const selectHistoryShift = async (s: Shift) => {
     setSelected(s)
+    setShowMobileDetail(true)
     setSelectedOrders([])
     setLoadingSelected(true)
     try {
@@ -256,9 +262,22 @@ export function ShiftRecapPanel({
   )
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 flex overflow-hidden safe-top safe-bottom">
-      {/* ── LEFT: nav ── */}
-      <aside className="w-44 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+    <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col sm:flex-row overflow-hidden safe-top safe-bottom">
+      {/* ── Mobile top bar (replaces the left rail in portrait) ── */}
+      <div className="sm:hidden flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
+        <div className="flex-1 flex gap-1 bg-gray-100 rounded-xl p-1">
+          {([{ id: 'rekapan', label: 'Rekapan' }, { id: 'riwayat', label: 'Riwayat' }] as const).map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── LEFT: nav (desktop only) ── */}
+      <aside className="hidden sm:flex w-44 bg-white border-r border-gray-200 flex-col flex-shrink-0">
         <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-black text-indigo-700">{(userName || '?').charAt(0).toUpperCase()}</span>
@@ -299,7 +318,7 @@ export function ShiftRecapPanel({
       </aside>
 
       {/* ── CENTER ── */}
-      <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 min-w-0 bg-gray-50">
+      <div className="flex-1 flex flex-col overflow-hidden sm:border-r border-gray-200 min-w-0 bg-gray-50">
         {isStale && !error && (
           <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 text-center flex-shrink-0">
             {OFFLINE_NOTICE}
@@ -425,10 +444,15 @@ export function ShiftRecapPanel({
 
             {currentShift && (
               <button onClick={handleClose} disabled={isClosingShift}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all mb-4">
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                 {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
               </button>
             )}
+            {/* Portrait: open the cash-flow / sales summary as an overlay. */}
+            <button onClick={() => setShowMobileDetail(true)}
+              className="sm:hidden w-full py-2.5 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-100 transition-all mb-4">
+              Lihat Ringkasan
+            </button>
           </div>
         ) : (
           /* ── Riwayat ── */
@@ -511,8 +535,12 @@ export function ShiftRecapPanel({
         )}
       </div>
 
-      {/* ── RIGHT: detail ── */}
-      <div className="w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-gray-200">
+      {/* ── RIGHT: detail (desktop side panel; full-screen overlay in portrait) ── */}
+      <div className={`${showMobileDetail ? 'fixed inset-0 z-[60]' : 'hidden'} sm:static sm:z-auto sm:block w-full sm:w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-gray-200 safe-top safe-bottom`}>
+        <div className="sm:hidden sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white">
+          <button onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
+          <span className="font-bold text-gray-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
+        </div>
         {tab === 'rekapan' ? (
           <div className="p-4 space-y-4">
             <div>

@@ -30,32 +30,33 @@ type OrderItem struct {
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
 // never the payload. Offline=true (sync path) allows stock to go negative.
 type CreateOrderInput struct {
-	IdempotencyKey string
-	OrderUUID      string
-	OrderNumber    string // client display number ({OUTLET}-{DEV}{SEQ}); server assigns if empty
-	DeviceID       string // optional (sync clients)
-	OutletID       string
-	CashierID      string
-	CashierName    string
-	SalesmanID     string
-	SalesmanName   string
-	CustomerID     string
-	CustomerName   string
-	Items          []OrderItem
-	PaymentMethod  string
-	AmountPaid     float64
-	ManualKind     DiscountKind
-	ManualValue    float64
-	Surcharge      float64
-	SurchargeKind  DiscountKind
-	DiscountCode   string // promo code applied
-	PromotionID    string // applied promotion id
-	DiscountLabel  string // denormalized source: promotion name / code / "Manual"
-	PointsRedeemed int    // loyalty points the customer spends on this order
-	Notes          string
-	ShiftID        string
-	ClientCreated  *time.Time
-	Offline        bool
+	IdempotencyKey    string
+	OrderUUID         string
+	OrderNumber       string // client display number ({OUTLET}-{DEV}{SEQ}); server assigns if empty
+	DeviceID          string // optional (sync clients)
+	OutletID          string
+	CashierID         string
+	CashierName       string
+	SalesmanID        string
+	SalesmanName      string
+	CustomerID        string
+	CustomerName      string
+	Items             []OrderItem
+	PaymentMethod     string
+	AmountPaid        float64
+	ManualKind        DiscountKind
+	ManualValue       float64
+	Surcharge         float64
+	SurchargeKind     DiscountKind
+	DiscountCode      string // promo code applied
+	PromotionID       string // applied promotion id
+	DiscountLabel     string // denormalized source: promotion name / code / "Manual"
+	DiscountBreakdown []byte // raw JSON array of {label,kind,value,amount}; stored as jsonb
+	PointsRedeemed    int    // loyalty points the customer spends on this order
+	Notes             string
+	ShiftID           string
+	ClientCreated     *time.Time
+	Offline           bool
 }
 
 type OrderService struct{ Pool *pgxpool.Pool }
@@ -200,9 +201,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -212,7 +213,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		nullStr(string(in.SurchargeKind)), nullNum(in.Surcharge), res.SurchargeAmount,
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
-		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel),
+		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)
@@ -437,4 +438,13 @@ func nullNum(n float64) any {
 		return nil
 	}
 	return n
+}
+
+// nullBytes returns nil for empty raw JSON so a $N::jsonb param stores SQL NULL
+// instead of failing to parse an empty string.
+func nullBytes(b []byte) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
 }

@@ -1038,6 +1038,7 @@ export interface components {
             discountValue?: number | null;
             discountCode?: string | null;
             discountLabel?: string | null;
+            discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             surchargeType?: string | null;
             surchargeValue?: number | null;
             surchargeAmount?: number | null;
@@ -1056,6 +1057,12 @@ export interface components {
             shiftId?: string | null;
             /** Format: date-time */
             createdAt: string;
+        };
+        DiscountComponent: {
+            label: string;
+            kind?: string | null;
+            value?: number | null;
+            amount: number;
         };
         OrderListResponse: {
             data: components["schemas"]["Order"][];
@@ -1286,6 +1293,7 @@ export interface components {
             discountCode?: string | null;
             promotionId?: string | null;
             discountLabel?: string | null;
+            discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             notes?: string | null;
             shiftId?: string | null;
         };

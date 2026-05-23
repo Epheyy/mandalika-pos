@@ -86,6 +86,9 @@ export default function Orders() {
       'Sumber Diskon': o.discountLabel ?? o.discountCode ?? '',
       'Tipe Diskon': o.discountType ?? '',
       'Nilai Diskon': o.discountValue ?? '',
+      'Rincian Diskon': (o.discountBreakdown ?? [])
+        .map((d) => `${d.label}: ${d.amount}`)
+        .join('; '),
       Pajak: o.taxAmount,
       Total: o.total,
     }))
@@ -188,10 +191,19 @@ export default function Orders() {
                       <div className="border-t border-gray-200 pt-3 space-y-1">
                         <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
                         {o.discountAmount > 0 && (
-                          <div className="flex justify-between text-sm text-green-600">
-                            <span>Diskon{o.discountLabel ? ` · ${o.discountLabel}` : o.discountCode ? ` · ${o.discountCode}` : ''}</span>
-                            <span>-{BRAND.currency.format(o.discountAmount)}</span>
-                          </div>
+                          o.discountBreakdown && o.discountBreakdown.length > 0 ? (
+                            o.discountBreakdown.map((d, i) => (
+                              <div key={i} className="flex justify-between text-sm text-green-600">
+                                <span>Diskon · {d.label}{d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}</span>
+                                <span>-{BRAND.currency.format(d.amount)}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex justify-between text-sm text-green-600">
+                              <span>Diskon{o.discountLabel ? ` · ${o.discountLabel}` : o.discountCode ? ` · ${o.discountCode}` : ''}</span>
+                              <span>-{BRAND.currency.format(o.discountAmount)}</span>
+                            </div>
+                          )
                         )}
                         <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>

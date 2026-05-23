@@ -209,25 +209,26 @@ func (h *Handlers) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request)
 // ── Orders / sales (server-authoritative tx) ──────────────
 
 type createOrderBody struct {
-	OrderUuid      string              `json:"orderUuid"`
-	DeviceID       string              `json:"deviceId"`
-	SalesmanID     string              `json:"salesmanId"`
-	SalesmanName   string              `json:"salesmanName"`
-	CustomerID     string              `json:"customerId"`
-	CustomerName   string              `json:"customerName"`
-	Items          []service.OrderItem `json:"items"`
-	PaymentMethod  string              `json:"paymentMethod"`
-	AmountPaid     float64             `json:"amountPaid"`
-	DiscountType   string              `json:"discountType"`
-	DiscountValue  float64             `json:"discountValue"`
-	SurchargeVal   float64             `json:"surchargeValue"`
-	SurchargeKind  string              `json:"surchargeType"`
-	DiscountCode   string              `json:"discountCode"`
-	PromotionID    string              `json:"promotionId"`
-	DiscountLabel  string              `json:"discountLabel"`
-	PointsRedeemed int                 `json:"pointsRedeemed"`
-	Notes          string              `json:"notes"`
-	ShiftID        string              `json:"shiftId"`
+	OrderUuid         string              `json:"orderUuid"`
+	DeviceID          string              `json:"deviceId"`
+	SalesmanID        string              `json:"salesmanId"`
+	SalesmanName      string              `json:"salesmanName"`
+	CustomerID        string              `json:"customerId"`
+	CustomerName      string              `json:"customerName"`
+	Items             []service.OrderItem `json:"items"`
+	PaymentMethod     string              `json:"paymentMethod"`
+	AmountPaid        float64             `json:"amountPaid"`
+	DiscountType      string              `json:"discountType"`
+	DiscountValue     float64             `json:"discountValue"`
+	SurchargeVal      float64             `json:"surchargeValue"`
+	SurchargeKind     string              `json:"surchargeType"`
+	DiscountCode      string              `json:"discountCode"`
+	PromotionID       string              `json:"promotionId"`
+	DiscountLabel     string              `json:"discountLabel"`
+	DiscountBreakdown json.RawMessage     `json:"discountBreakdown"`
+	PointsRedeemed    int                 `json:"pointsRedeemed"`
+	Notes             string              `json:"notes"`
+	ShiftID           string              `json:"shiftId"`
 }
 
 func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -262,9 +263,10 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		ManualValue: body.DiscountValue, Surcharge: body.SurchargeVal,
 		SurchargeKind: service.DiscountKind(body.SurchargeKind),
 		DiscountCode:  body.DiscountCode, PromotionID: body.PromotionID,
-		DiscountLabel:  body.DiscountLabel,
-		PointsRedeemed: body.PointsRedeemed,
-		Notes:          body.Notes, ShiftID: body.ShiftID, Offline: false,
+		DiscountLabel:     body.DiscountLabel,
+		DiscountBreakdown: body.DiscountBreakdown,
+		PointsRedeemed:    body.PointsRedeemed,
+		Notes:             body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
 	id, _, _, err := h.OrderSvc.CreateOrder(r.Context(), in)
 	if err != nil {

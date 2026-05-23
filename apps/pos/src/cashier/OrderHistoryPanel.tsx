@@ -213,16 +213,28 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
                           <span>Subtotal</span><span>{formatRupiah(o.subtotal)}</span>
                         </div>
                         {o.discountAmount > 0 && (
-                          <div className="flex justify-between text-red-600">
-                            <span>
-                              Diskon
-                              {o.discountLabel
-                                ? ` · ${o.discountLabel}`
-                                : o.discountCode ? ` · ${o.discountCode}` : ''}
-                              {o.discountType === 'percentage' && o.discountValue ? ` (${o.discountValue}%)` : ''}
-                            </span>
-                            <span>−{formatRupiah(o.discountAmount)}</span>
-                          </div>
+                          o.discountBreakdown && o.discountBreakdown.length > 0 ? (
+                            o.discountBreakdown.map((d, i) => (
+                              <div key={i} className="flex justify-between text-red-600">
+                                <span>
+                                  Diskon · {d.label}
+                                  {d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}
+                                </span>
+                                <span>−{formatRupiah(d.amount)}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex justify-between text-red-600">
+                              <span>
+                                Diskon
+                                {o.discountLabel
+                                  ? ` · ${o.discountLabel}`
+                                  : o.discountCode ? ` · ${o.discountCode}` : ''}
+                                {o.discountType === 'percentage' && o.discountValue ? ` (${o.discountValue}%)` : ''}
+                              </span>
+                              <span>−{formatRupiah(o.discountAmount)}</span>
+                            </div>
+                          )
                         )}
                         {(o.surchargeAmount ?? 0) > 0 && (
                           <div className="flex justify-between text-gray-500">

@@ -135,18 +135,33 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
         <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight min-h-[2.1em]">
           {product.name}
         </p>
-        {showPrice && (
-          <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
-        )}
-        {showVariants && product.variants.length > 0 && (
-          <p className="mt-0.5 text-[10px] text-gray-400 truncate">
-            {product.variants.map((v) => v.size).join(' · ')}
-          </p>
-        )}
-        {showStock && (
-          <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
-            {inStock ? `Stok ${totalStock}` : 'Stok habis'}
-          </p>
+        {showVariants ? (
+          /* Per-variant rows — each variant's own price/stock, not an
+             accumulated total. */
+          <div className="mt-1 space-y-0.5">
+            {product.variants.map((v) => (
+              <div key={v.size} className="flex items-baseline justify-between gap-1.5 text-[10px]">
+                <span className="text-gray-600 truncate">{v.size}</span>
+                {(showPrice || showStock) && (
+                  <span className="flex-shrink-0 flex items-center gap-1.5">
+                    {showPrice && <span className="font-bold text-indigo-600">{formatRupiah(v.price)}</span>}
+                    {showStock && <span className={v.stock > 0 ? 'text-gray-400' : 'text-red-500 font-semibold'}>Stok {v.stock}</span>}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            {showPrice && (
+              <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
+            )}
+            {showStock && (
+              <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
+                {inStock ? `Stok ${totalStock}` : 'Stok habis'}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
