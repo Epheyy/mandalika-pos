@@ -135,7 +135,7 @@ func ckey(r *http.Request) string {
 func (h *Handlers) Products(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
-		rows, total, err := h.Repo.Products(r.Context(), p, l)
+		rows, total, err := h.Repo.Products(r.Context(), scope(r), p, l)
 		if err != nil {
 			return nil, 500, err
 		}
@@ -145,7 +145,7 @@ func (h *Handlers) Products(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Product(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
-		v, err := h.Repo.Product(r.Context(), chi.URLParam(r, "id"))
+		v, err := h.Repo.Product(r.Context(), scope(r), chi.URLParam(r, "id"))
 		if err != nil {
 			return nil, 500, err
 		}

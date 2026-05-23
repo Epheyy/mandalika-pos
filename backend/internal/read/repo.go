@@ -84,25 +84,71 @@ func off(page, limit int) int {
 
 // ── Catalog ───────────────────────────────────────────────
 
-const productObj = `json_build_object(
-  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
-  'description',p.description,'imageUrl',p.image_url,
-  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
-  'createdAt',p.created_at,
-  'variants',COALESCE((SELECT json_agg(json_build_object(
-     'size',v.size,'price',v.price,'stock',v.stock,'sku',v.sku) ORDER BY v.size)
-     FROM product_variants v WHERE v.product_id=p.id),'[]'::json))`
-
-func (r *Repo) Products(ctx context.Context, page, limit int) ([]api.Product, int, error) {
-	return listJSON[api.Product](ctx, r.Pool,
-		`SELECT `+productObj+`, count(*) OVER() AS total
-		   FROM products p ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
-		limit, off(page, limit))
+// productObjScoped builds the product JSON with per-outlet stock/price resolved.
+// When sc.OutletID != "" the variant stock/price resolve to that outlet (0 / base
+// when no row) and unavailable products are excluded by the caller's WHERE; the
+// outlet id is passed as $1. Otherwise (CrossAll/admin "all") stock is summed
+// across outlets and the base variant price is used.
+func productObjScoped(sc Scope) string {
+	if sc.CrossAll || sc.OutletID == "" {
+		return `json_build_object(
+		  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
+		  'description',p.description,'imageUrl',p.image_url,
+		  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
+		  'createdAt',p.created_at,
+		  'variants',COALESCE((SELECT json_agg(json_build_object(
+		     'size',v.size,'price',v.price,
+		     'stock',COALESCE((SELECT SUM(s.stock)::int FROM outlet_variant_stock s
+		        WHERE s.product_id=v.product_id AND s.variant_size=v.size),0),
+		     'sku',v.sku) ORDER BY v.size)
+		     FROM product_variants v WHERE v.product_id=p.id),'[]'::json))`
+	}
+	return `json_build_object(
+	  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
+	  'description',p.description,'imageUrl',p.image_url,
+	  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
+	  'createdAt',p.created_at,
+	  'variants',COALESCE((SELECT json_agg(json_build_object(
+	     'size',v.size,
+	     'price',COALESCE((SELECT op.price FROM outlet_variant_price op
+	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size), v.price),
+	     'stock',COALESCE((SELECT os.stock FROM outlet_variant_stock os
+	        WHERE os.outlet_id=$1 AND os.product_id=v.product_id AND os.variant_size=v.size),0),
+	     'sku',v.sku) ORDER BY v.size)
+	     FROM product_variants v WHERE v.product_id=p.id),'[]'::json))`
 }
 
-func (r *Repo) Product(ctx context.Context, id string) (api.Product, error) {
+// availabilityWhere excludes products turned off at the scoped outlet ($argPos).
+func availabilityWhere(sc Scope, argPos int) string {
+	if sc.CrossAll || sc.OutletID == "" {
+		return ""
+	}
+	return fmt.Sprintf(` AND NOT EXISTS (SELECT 1 FROM outlet_product_availability a
+	   WHERE a.product_id=p.id AND a.outlet_id=$%d AND a.available=false)`, argPos)
+}
+
+func (r *Repo) Products(ctx context.Context, sc Scope, page, limit int) ([]api.Product, int, error) {
+	obj := productObjScoped(sc)
+	if sc.CrossAll || sc.OutletID == "" {
+		return listJSON[api.Product](ctx, r.Pool,
+			`SELECT `+obj+`, count(*) OVER() AS total
+			   FROM products p ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
+			limit, off(page, limit))
+	}
+	return listJSON[api.Product](ctx, r.Pool,
+		`SELECT `+obj+`, count(*) OVER() AS total
+		   FROM products p WHERE true`+availabilityWhere(sc, 1)+`
+		   ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		sc.OutletID, limit, off(page, limit))
+}
+
+func (r *Repo) Product(ctx context.Context, sc Scope, id string) (api.Product, error) {
+	obj := productObjScoped(sc)
+	if sc.CrossAll || sc.OutletID == "" {
+		return oneJSON[api.Product](ctx, r.Pool, `SELECT `+obj+` FROM products p WHERE p.id=$1`, id)
+	}
 	return oneJSON[api.Product](ctx, r.Pool,
-		`SELECT `+productObj+` FROM products p WHERE p.id=$1`, id)
+		`SELECT `+obj+` FROM products p WHERE p.id=$2`, sc.OutletID, id)
 }
 
 func (r *Repo) Categories(ctx context.Context) ([]api.Category, int, error) {
