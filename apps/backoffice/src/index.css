@@ -1,7 +1,10 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Override indigo palette → Mandalika Gold */
+  /* ── Mandalika Gold ──────────────────────────────────────
+     The whole UI was built on Tailwind's `indigo-*`; overriding the ramp
+     repaints every legacy `indigo-*` class as brand gold with no markup
+     edits. `gold-*` is the same ramp under a clearer name for new code. */
   --color-indigo-50: #fdf8ee;
   --color-indigo-100: #f9edcc;
   --color-indigo-200: #f0d48a;
@@ -12,4 +15,32 @@
   --color-indigo-700: #8f6210;
   --color-indigo-800: #6e4a0c;
   --color-indigo-900: #4d3408;
+
+  --color-gold-50: #fdf8ee;
+  --color-gold-100: #f9edcc;
+  --color-gold-200: #f0d48a;
+  --color-gold-300: #e4b84a;
+  --color-gold-400: #d4a030;
+  --color-gold-500: #c49020;
+  --color-gold-600: #b07d18;
+  --color-gold-700: #8f6210;
+  --color-gold-800: #6e4a0c;
+  --color-gold-900: #4d3408;
+
+  /* ── Warm neutrals ───────────────────────────────────────
+     Remap the cool `gray-*` ramp to a refined warm-paper ramp. This is what
+     turns "SaaS" into "light luxury": every `bg-gray-50` canvas, `border-gray-*`
+     line and `text-gray-*` label warms up at once. Cards stay `bg-white`
+     (white on warm paper reads luxury). `gray-900` = brand dark `#1a1008`. */
+  --color-gray-50: #f9f7f3;
+  --color-gray-100: #f2efe8;
+  --color-gray-200: #e8e2d7;
+  --color-gray-300: #d7cfc0;
+  --color-gray-400: #a89f8f;
+  --color-gray-500: #827969;
+  --color-gray-600: #645b4d;
+  --color-gray-700: #4a4338;
+  --color-gray-800: #2e2920;
+  --color-gray-900: #1a1008;
+  --color-gray-950: #100b05;
 }
