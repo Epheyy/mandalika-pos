@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { cn } from './cn'
 
-type Tone = 'gold' | 'success' | 'danger' | 'neutral'
+type Tone = 'gold' | 'success' | 'danger' | 'warning' | 'neutral'
 
 const TONE: Record<Tone, string> = {
   gold: 'bg-gold-50 text-gold-700',
   success: 'bg-green-50 text-green-700',
   danger: 'bg-red-50 text-red-700',
+  warning: 'bg-amber-50 text-amber-700',
   neutral: 'bg-gray-100 text-gray-600',
 }
 
