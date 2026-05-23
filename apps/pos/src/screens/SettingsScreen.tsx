@@ -35,9 +35,33 @@ interface SettingsScreenProps {
   currentShift: Shift | null
   fontSize: FontSize
   gridCols: GridCols
+  showPrice: boolean
+  showStock: boolean
+  showVariants: boolean
   onFontSizeChange: (size: FontSize) => void
   onGridColsChange: (cols: GridCols) => void
+  onShowPriceChange: (v: boolean) => void
+  onShowStockChange: (v: boolean) => void
+  onShowVariantsChange: (v: boolean) => void
   onClose: () => void
+}
+
+/** Compact labelled on/off switch. */
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between py-1.5"
+    >
+      <span className="text-sm text-gray-700">{label}</span>
+      <span className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </span>
+    </button>
+  )
 }
 
 export const SettingsScreen = memo(function SettingsScreen({
@@ -46,8 +70,14 @@ export const SettingsScreen = memo(function SettingsScreen({
   currentShift,
   fontSize,
   gridCols,
+  showPrice,
+  showStock,
+  showVariants,
   onFontSizeChange,
   onGridColsChange,
+  onShowPriceChange,
+  onShowStockChange,
+  onShowVariantsChange,
   onClose,
 }: SettingsScreenProps) {
   const engine = useContext(SyncContext)
@@ -185,6 +215,15 @@ export const SettingsScreen = memo(function SettingsScreen({
                       {c}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-600 font-semibold mb-1">Detail di Kartu Produk</p>
+                <div className="divide-y divide-gray-100">
+                  <Toggle label="Tampilkan Harga" checked={showPrice} onChange={onShowPriceChange} />
+                  <Toggle label="Tampilkan Stok" checked={showStock} onChange={onShowStockChange} />
+                  <Toggle label="Tampilkan Varian" checked={showVariants} onChange={onShowVariantsChange} />
                 </div>
               </div>
             </div>

@@ -54,6 +54,9 @@ interface ProductGridProps {
   searchQuery: string
   showFavouritesOnly: boolean
   gridCols: 2 | 3 | 4 | 6
+  showPrice: boolean
+  showStock: boolean
+  showVariants: boolean
   onProductTap: (product: Product, variantQtys: Record<string, number>) => void
   onCategoryChange: (id: string | null) => void
   onSearchChange: (q: string) => void
@@ -63,10 +66,13 @@ interface ProductGridProps {
 
 interface SortableCardProps {
   product: Product
+  showPrice: boolean
+  showStock: boolean
+  showVariants: boolean
   onTap: (product: Product) => void
 }
 
-const SortableCard = memo(function SortableCard({ product, onTap }: SortableCardProps) {
+const SortableCard = memo(function SortableCard({ product, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
   const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
   const inStock = totalStock > 0
   const prices = product.variants.map((v) => v.price)
@@ -129,10 +135,19 @@ const SortableCard = memo(function SortableCard({ product, onTap }: SortableCard
         <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight min-h-[2.1em]">
           {product.name}
         </p>
-        <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
-        <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
-          {inStock ? `Stok ${totalStock}` : 'Stok habis'}
-        </p>
+        {showPrice && (
+          <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
+        )}
+        {showVariants && product.variants.length > 0 && (
+          <p className="mt-0.5 text-[10px] text-gray-400 truncate">
+            {product.variants.map((v) => v.size).join(' · ')}
+          </p>
+        )}
+        {showStock && (
+          <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
+            {inStock ? `Stok ${totalStock}` : 'Stok habis'}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -145,6 +160,9 @@ export const ProductGrid = memo(function ProductGrid({
   searchQuery,
   showFavouritesOnly,
   gridCols,
+  showPrice,
+  showStock,
+  showVariants,
   onProductTap,
   onCategoryChange,
   onSearchChange,
@@ -286,7 +304,9 @@ export const ProductGrid = memo(function ProductGrid({
             <SortableContext items={filtered.map((p) => p.id)} strategy={rectSortingStrategy}>
               <div className={`grid ${colClass[gridCols] ?? 'grid-cols-4'} gap-2`}>
                 {filtered.map((product) => (
-                  <SortableCard key={product.id} product={product} onTap={handleProductClick} />
+                  <SortableCard key={product.id} product={product}
+                    showPrice={showPrice} showStock={showStock} showVariants={showVariants}
+                    onTap={handleProductClick} />
                 ))}
               </div>
             </SortableContext>

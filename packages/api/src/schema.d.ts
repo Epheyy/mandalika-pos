@@ -1037,6 +1037,7 @@ export interface components {
             discountType?: string | null;
             discountValue?: number | null;
             discountCode?: string | null;
+            discountLabel?: string | null;
             surchargeType?: string | null;
             surchargeValue?: number | null;
             surchargeAmount?: number | null;
@@ -1284,6 +1285,7 @@ export interface components {
             surchargeValue?: number | null;
             discountCode?: string | null;
             promotionId?: string | null;
+            discountLabel?: string | null;
             notes?: string | null;
             shiftId?: string | null;
         };

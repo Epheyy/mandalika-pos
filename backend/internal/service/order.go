@@ -50,6 +50,7 @@ type CreateOrderInput struct {
 	SurchargeKind  DiscountKind
 	DiscountCode   string // promo code applied
 	PromotionID    string // applied promotion id
+	DiscountLabel  string // denormalized source: promotion name / code / "Manual"
 	PointsRedeemed int    // loyalty points the customer spends on this order
 	Notes          string
 	ShiftID        string
@@ -199,9 +200,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed)
+		  stock_warning, points_redeemed, discount_label)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -211,7 +212,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		nullStr(string(in.SurchargeKind)), nullNum(in.Surcharge), res.SurchargeAmount,
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
-		stockWarning, pointsRedeemed,
+		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel),
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)

@@ -344,6 +344,8 @@ components:
         discountType: { type: string, nullable: true }
         discountValue: { type: number, nullable: true }
         discountCode: { type: string, nullable: true }
+        # Human-readable discount source (promotion name / promo code / "Manual").
+        discountLabel: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, nullable: true }
         surchargeAmount: { type: number, nullable: true }
@@ -635,6 +637,7 @@ components:
         surchargeValue: { type: number, nullable: true }
         discountCode: { type: string, nullable: true }
         promotionId: { type: string, nullable: true }
+        discountLabel: { type: string, nullable: true }
         notes: { type: string, nullable: true }
         shiftId: { type: string, nullable: true }
     RefundRequest:

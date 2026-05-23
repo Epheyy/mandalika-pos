@@ -2,13 +2,14 @@ import { useState } from 'react'
 import type { Order } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { ShoppingBag, Search, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
+import { ShoppingBag, Search, ChevronDown, ChevronUp, RotateCcw, Download } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
+import { exportToXLSX } from '../lib/csvUtils'
 
 export default function Orders() {
   const { user } = useAuth()
@@ -69,6 +70,28 @@ export default function Orders() {
   const label = (st: string) =>
     st === 'completed' ? 'Selesai' : st === 'refunded' ? 'Refund' : st === 'cancelled' ? 'Dibatalkan' : st
 
+  // Detailed export for analysts — one row per order with the discount source
+  // (promotion name / code / manual) and structured discount fields.
+  const handleExport = () => {
+    const rows = filtered.map((o) => ({
+      'No. Order': o.orderNumber,
+      Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
+      Status: label(o.status),
+      Pembayaran: o.paymentMethod,
+      Kasir: o.cashierName,
+      Pelanggan: o.customerName ?? '',
+      'Jumlah Item': o.items.reduce((s, it) => s + it.quantity, 0),
+      Subtotal: o.subtotal,
+      Diskon: o.discountAmount,
+      'Sumber Diskon': o.discountLabel ?? o.discountCode ?? '',
+      'Tipe Diskon': o.discountType ?? '',
+      'Nilai Diskon': o.discountValue ?? '',
+      Pajak: o.taxAmount,
+      Total: o.total,
+    }))
+    exportToXLSX(rows, 'transaksi')
+  }
+
   return (
     <div className="p-6 space-y-5">
       <div>
@@ -102,6 +125,13 @@ export default function Orders() {
           <option value="qris">QRIS</option>
           <option value="transfer">Transfer</option>
         </select>
+        <button
+          onClick={handleExport}
+          disabled={filtered.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-sm font-semibold transition-colors"
+        >
+          <Download className="w-4 h-4" /> Export
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -159,7 +189,8 @@ export default function Orders() {
                         <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
                         {o.discountAmount > 0 && (
                           <div className="flex justify-between text-sm text-green-600">
-                            <span>Diskon</span><span>-{BRAND.currency.format(o.discountAmount)}</span>
+                            <span>Diskon{o.discountLabel ? ` · ${o.discountLabel}` : o.discountCode ? ` · ${o.discountCode}` : ''}</span>
+                            <span>-{BRAND.currency.format(o.discountAmount)}</span>
                           </div>
                         )}
                         <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>

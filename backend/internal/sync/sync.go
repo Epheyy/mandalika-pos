@@ -189,6 +189,7 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 			SurchargeKind:  service.DiscountKind(p.SurchargeType),
 			DiscountCode:   p.DiscountCode,
 			PromotionID:    p.PromotionID,
+			DiscountLabel:  p.DiscountLabel,
 			PointsRedeemed: p.PointsRedeemed,
 			Notes:          p.Notes,
 			ShiftID:        p.ShiftID,
@@ -310,6 +311,7 @@ type orderPayload struct {
 	SurchargeType   string              `json:"surchargeType"`
 	DiscountCode    string              `json:"discountCode"`
 	PromotionID     string              `json:"promotionId"`
+	DiscountLabel   string              `json:"discountLabel"`
 	PointsRedeemed  int                 `json:"pointsRedeemed"`
 	Notes           string              `json:"notes"`
 	ShiftID         string              `json:"shiftId"`

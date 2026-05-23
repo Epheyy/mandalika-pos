@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 
@@ -30,8 +30,24 @@ export const ShiftBar = memo(function ShiftBar({
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  // The chip lives inside an overflow-hidden header, so the detail popover is
+  // rendered fixed and anchored to the button's on-screen rect (an absolute
+  // popover would be clipped — that was the "dropdown shows nothing" bug).
+  const detailBtnRef = useRef<HTMLButtonElement>(null)
+  const [detailPos, setDetailPos] = useState<{ top: number; left: number } | null>(null)
   const [depositStr, setDepositStr] = useState('')
   const [closingStr, setClosingStr] = useState('')
+
+  const toggleDetail = () => {
+    setShowDetail((v) => {
+      const next = !v
+      if (next) {
+        const r = detailBtnRef.current?.getBoundingClientRect()
+        if (r) setDetailPos({ top: r.bottom + 8, left: r.left })
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (promptOpen && !currentShift) {
@@ -66,7 +82,8 @@ export const ShiftBar = memo(function ShiftBar({
       {currentShift ? (
         <div className="relative flex items-center gap-1.5 min-w-0">
           <button
-            onClick={() => setShowDetail((v) => !v)}
+            ref={detailBtnRef}
+            onClick={toggleDetail}
             className="flex items-center gap-1.5 min-w-0 flex-shrink"
             aria-expanded={showDetail}
             title="Detail shift"
@@ -89,7 +106,10 @@ export const ShiftBar = memo(function ShiftBar({
             <>
               {/* click-away */}
               <div className="fixed inset-0 z-40" onClick={() => setShowDetail(false)} />
-              <div className="absolute top-full left-0 mt-2 z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-2">
+              <div
+                style={detailPos ? { position: 'fixed', top: detailPos.top, left: detailPos.left } : undefined}
+                className="z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-2"
+              >
                 <p className="text-xs font-black text-gray-900">Shift Aktif</p>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500">Mulai</span>

@@ -67,6 +67,10 @@ export default function CashierScreen() {
   // old products/cart "default view" and forced-mobile toggles were removed.
   const [fontSize, setFontSize] = useState<FontSize>('md')
   const [gridCols, setGridCols] = useState<GridCols>(4)
+  // Optional product-card details — off by default, toggled in display settings.
+  const [showPrice, setShowPrice] = useState(false)
+  const [showStock, setShowStock] = useState(false)
+  const [showVariants, setShowVariants] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -103,6 +107,9 @@ export default function CashierScreen() {
     if (fs) setFontSize(fs)
     const gc = localStorage.getItem('pos_gridCols')
     if (gc) setGridCols(parseInt(gc) as GridCols)
+    setShowPrice(localStorage.getItem('pos_cardPrice') === '1')
+    setShowStock(localStorage.getItem('pos_cardStock') === '1')
+    setShowVariants(localStorage.getItem('pos_cardVariants') === '1')
   }, [])
 
   const snapshot = engine.getSnapshot()
@@ -259,6 +266,12 @@ export default function CashierScreen() {
         surchargeType: state.surchargeRunning > 0 ? state.appliedSurchargeType : null,
         discountCode: state.appliedPromoCode?.code ?? null,
         promotionId: state.appliedPromotion?.id ?? null,
+        // Denormalized discount source for analytics: promotion name › code ›
+        // manual. Persisted on the order so history/exports show what applied.
+        discountLabel:
+          state.appliedPromotion?.name ??
+          state.appliedPromoCode?.code ??
+          (state.discountRunning > 0 ? 'Diskon Manual' : null),
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,
@@ -331,6 +344,9 @@ export default function CashierScreen() {
     return () => { document.documentElement.style.fontSize = '' }
   }, [fontSize])
   const handleGridCols = (c: GridCols) => { setGridCols(c); localStorage.setItem('pos_gridCols', String(c)) }
+  const handleShowPrice = (v: boolean) => { setShowPrice(v); localStorage.setItem('pos_cardPrice', v ? '1' : '0') }
+  const handleShowStock = (v: boolean) => { setShowStock(v); localStorage.setItem('pos_cardStock', v ? '1' : '0') }
+  const handleShowVariants = (v: boolean) => { setShowVariants(v); localStorage.setItem('pos_cardVariants', v ? '1' : '0') }
 
   // Drawer shortcut: open Settings scrolled to a section.
   const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
@@ -470,6 +486,7 @@ export default function CashierScreen() {
             products={products} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
+            showPrice={showPrice} showStock={showStock} showVariants={showVariants}
             onProductTap={handleProductTap}
             onCategoryChange={setSelectedCategoryId} onSearchChange={setSearchQuery}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
@@ -594,7 +611,10 @@ export default function CashierScreen() {
           section={settingsSection ?? 'display'}
           settings={settings} currentShift={shift.currentShift}
           fontSize={fontSize} gridCols={gridCols}
+          showPrice={showPrice} showStock={showStock} showVariants={showVariants}
           onFontSizeChange={handleFontSize} onGridColsChange={handleGridCols}
+          onShowPriceChange={handleShowPrice} onShowStockChange={handleShowStock}
+          onShowVariantsChange={handleShowVariants}
           onClose={() => { setShowSettings(false); setSettingsSection(undefined) }}
         />
       )}

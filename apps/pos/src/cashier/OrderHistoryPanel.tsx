@@ -216,7 +216,9 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
                           <div className="flex justify-between text-red-600">
                             <span>
                               Diskon
-                              {o.discountCode ? ` · ${o.discountCode}` : ''}
+                              {o.discountLabel
+                                ? ` · ${o.discountLabel}`
+                                : o.discountCode ? ` · ${o.discountCode}` : ''}
                               {o.discountType === 'percentage' && o.discountValue ? ` (${o.discountValue}%)` : ''}
                             </span>
                             <span>−{formatRupiah(o.discountAmount)}</span>
