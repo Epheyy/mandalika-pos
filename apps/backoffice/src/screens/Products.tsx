@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import {
-  Plus, Edit2, Trash2, X, Upload, Package, Search, Loader2,
+  Plus, Edit2, Trash2, X, Upload, Package, Search,
   ImageIcon, Download, Tag, ChevronDown,
 } from 'lucide-react'
 import { api } from '../api'
@@ -10,6 +10,21 @@ import { TableSkeleton } from '../components/Skeleton'
 import { uploadImage } from '../lib/uploadImage'
 import { exportToCSV, exportToXLSX, parseCSV } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
+import {
+  Button,
+  Card,
+  Badge,
+  Modal,
+  Field,
+  Input,
+  Select,
+  Textarea,
+  IconButton,
+  EmptyState,
+  PageHeader,
+  Tabs,
+  fieldClass,
+} from '../ui'
 
 const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '' }
 type Form = {
@@ -197,75 +212,77 @@ export default function Products() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div>
-          <h2 className="text-xl font-black text-gray-900">Produk</h2>
-          <p className="text-sm text-gray-400">{products.length} produk · {categories.length} kategori · {bundles.length} bundle</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <div className="flex bg-gray-100 rounded-xl p-1">
-            {(['products', 'categories', 'bundles'] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
-                {t === 'products' ? 'Produk' : t === 'categories' ? 'Kategori' : 'Bundle'}
-              </button>
-            ))}
-          </div>
-          {tab === 'products' && (
-            <>
-              <div className="relative">
-                <button onClick={() => setExportMenu((v) => !v)} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs">
-                  <Download className="w-3.5 h-3.5" /> Export <ChevronDown className="w-3 h-3" />
-                </button>
-                {exportMenu && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
-                    <button onClick={() => exportProducts('csv')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">CSV (.csv)</button>
-                    <button onClick={() => exportProducts('xlsx')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">Excel (.xlsx)</button>
-                  </div>
-                )}
-              </div>
-              <button onClick={() => csvRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs">
-                <Upload className="w-3.5 h-3.5" /> Import
-              </button>
-              <input ref={csvRef} type="file" accept=".csv" onChange={importProducts} className="hidden" />
-              <button onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOpen(true) }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-100">
-                <Plus className="w-4 h-4" /> Tambah
-              </button>
-            </>
-          )}
-          {tab === 'categories' && (
-            <>
-              <button onClick={() => exportToCSV(categories.map((c) => ({ Nama: c.name, Deskripsi: c.description || '', Urutan: c.sortOrder || 0 })), 'kategori_mandalika')} className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs">
-                <Download className="w-3.5 h-3.5" /> Export
-              </button>
-              <button onClick={() => catCsvRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs">
-                <Upload className="w-3.5 h-3.5" /> Import
-              </button>
-              <input ref={catCsvRef} type="file" accept=".csv" onChange={importCats} className="hidden" />
-              <button onClick={() => { setEditingCat(null); setCatForm({ name: '', description: '' }); setCatOpen(true) }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-100">
-                <Plus className="w-4 h-4" /> Tambah
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Produk"
+        subtitle={`${products.length} produk · ${categories.length} kategori · ${bundles.length} bundle`}
+        actions={
+          <>
+            <Tabs
+              value={tab}
+              onChange={setTab}
+              tabs={[
+                { id: 'products', label: 'Produk' },
+                { id: 'categories', label: 'Kategori' },
+                { id: 'bundles', label: 'Bundle' },
+              ]}
+            />
+            {tab === 'products' && (
+              <>
+                <div className="relative">
+                  <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => setExportMenu((v) => !v)}>
+                    Export <ChevronDown className="w-3 h-3" />
+                  </Button>
+                  {exportMenu && (
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
+                      <button onClick={() => exportProducts('csv')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">CSV (.csv)</button>
+                      <button onClick={() => exportProducts('xlsx')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">Excel (.xlsx)</button>
+                    </div>
+                  )}
+                </div>
+                <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => csvRef.current?.click()}>
+                  Import
+                </Button>
+                <input ref={csvRef} type="file" accept=".csv" onChange={importProducts} className="hidden" />
+                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOpen(true) }}>
+                  Tambah
+                </Button>
+              </>
+            )}
+            {tab === 'categories' && (
+              <>
+                <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => exportToCSV(categories.map((c) => ({ Nama: c.name, Deskripsi: c.description || '', Urutan: c.sortOrder || 0 })), 'kategori_mandalika')}>
+                  Export
+                </Button>
+                <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => catCsvRef.current?.click()}>
+                  Import
+                </Button>
+                <input ref={catCsvRef} type="file" accept=".csv" onChange={importCats} className="hidden" />
+                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingCat(null); setCatForm({ name: '', description: '' }); setCatOpen(true) }}>
+                  Tambah
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
 
       {tab === 'products' && (
         <>
           <div className="flex gap-3 flex-wrap">
             <div className="relative flex-1 min-w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder="Cari produk..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+              <input type="text" placeholder="Cari produk..." value={search} onChange={(e) => setSearch(e.target.value)} className={`${fieldClass} pl-9`} />
             </div>
-            <select value={fCat} onChange={(e) => setFCat(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none">
+            <select value={fCat} onChange={(e) => setFCat(e.target.value)} className={`${fieldClass} w-auto`}>
               <option value="">Semua Kategori</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <Card className="overflow-hidden">
             {pq.loading ? (
               <TableSkeleton />
             ) : filtered.length === 0 ? (
-              <div className="p-12 flex flex-col items-center gap-3 text-gray-300"><Package className="w-12 h-12" /><p className="font-bold">Tidak ada produk</p></div>
+              <EmptyState icon={<Package />} title="Tidak ada produk" />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -290,21 +307,21 @@ export default function Products() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3"><span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg">{catName(p.categoryId)}</span></td>
+                        <td className="px-5 py-3"><Badge tone="gold">{catName(p.categoryId)}</Badge></td>
                         <td className="px-5 py-3">
                           <div className="flex flex-wrap gap-1">
                             {p.variants.map((v) => (
-                              <span key={v.size} className={`px-2 py-0.5 text-xs font-bold rounded-lg ${v.stock <= 5 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{v.size}: {v.stock}</span>
+                              <Badge key={v.size} tone={v.stock <= 5 ? 'danger' : 'neutral'}>{v.size}: {v.stock}</Badge>
                             ))}
                           </div>
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${p.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                          <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(p)} className="p-2 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-xl"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => setDelId(p.id)} className="p-2 hover:bg-red-50 hover:text-red-600 text-gray-400 rounded-xl"><Trash2 className="w-4 h-4" /></button>
+                            <IconButton onClick={() => openEdit(p)}><Edit2 className="w-4 h-4" /></IconButton>
+                            <IconButton tone="danger" onClick={() => setDelId(p.id)}><Trash2 className="w-4 h-4" /></IconButton>
                           </div>
                         </td>
                       </tr>
@@ -313,14 +330,14 @@ export default function Products() {
                 </table>
               </div>
             )}
-          </div>
+          </Card>
         </>
       )}
 
       {tab === 'categories' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <Card className="overflow-hidden">
           {categories.length === 0 ? (
-            <div className="p-12 flex flex-col items-center gap-3 text-gray-300"><Tag className="w-12 h-12" /><p>Belum ada kategori</p></div>
+            <EmptyState icon={<Tag />} title="Belum ada kategori" />
           ) : (
             <table className="w-full">
               <thead>
@@ -333,11 +350,11 @@ export default function Products() {
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3 font-bold text-gray-900">{c.name}</td>
                     <td className="px-5 py-3 text-sm text-gray-500">{c.description || '—'}</td>
-                    <td className="px-5 py-3 text-sm font-bold text-indigo-600">{products.filter((p) => p.categoryId === c.id).length}</td>
+                    <td className="px-5 py-3 text-sm font-bold text-gold-600">{products.filter((p) => p.categoryId === c.id).length}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => { setEditingCat(c); setCatForm({ name: c.name, description: c.description || '' }); setCatOpen(true) }} className="p-2 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-xl"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => setDelCatId(c.id)} className="p-2 hover:bg-red-50 hover:text-red-600 text-gray-400 rounded-xl"><Trash2 className="w-4 h-4" /></button>
+                        <IconButton onClick={() => { setEditingCat(c); setCatForm({ name: c.name, description: c.description || '' }); setCatOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
+                        <IconButton tone="danger" onClick={() => setDelCatId(c.id)}><Trash2 className="w-4 h-4" /></IconButton>
                       </div>
                     </td>
                   </tr>
@@ -345,154 +362,140 @@ export default function Products() {
               </tbody>
             </table>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === 'bundles' && (
         <div className="space-y-3">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
             Bundle dikelola read-only dari katalog. Editor bundle menyusul.
           </div>
           {bundles.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center gap-3 text-gray-300"><Package className="w-12 h-12" /><p className="font-bold">Belum ada bundle</p></div>
+            <Card>
+              <EmptyState icon={<Package />} title="Belum ada bundle" />
+            </Card>
           ) : bundles.map((b) => (
-            <div key={b.id} className="bg-white rounded-2xl border border-gray-100 p-5">
+            <Card key={b.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-black text-gray-900">{b.name}</p>
-                  <p className="text-sm text-indigo-600 font-bold">{BRAND.currency.format(b.price)}</p>
+                  <p className="text-sm text-gold-600 font-bold">{BRAND.currency.format(b.price)}</p>
                   <p className="text-xs text-gray-400 mt-1">{b.items.length} item</p>
                 </div>
-                <span className={`px-2 py-1 text-xs font-bold rounded-lg ${b.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                <Badge tone={b.isActive ? 'success' : 'neutral'}>{b.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {b.items.map((it, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg">{it.productName} {it.variantSize} ×{it.quantity}</span>
+                  <Badge key={i} tone="neutral">{it.productName} {it.variantSize} ×{it.quantity}</Badge>
                 ))}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
-      {open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-              <h2 className="text-xl font-black text-gray-900">{editing ? 'Edit Produk' : 'Tambah Produk'}</h2>
-              <button onClick={() => setOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        size="xl"
+        title={editing ? 'Edit Produk' : 'Tambah Produk'}
+        footer={
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Batal</Button>
+            <Button variant="primary" className="flex-1" loading={busy} onClick={save}>
+              {editing ? 'Simpan' : 'Tambah'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <Field label="Foto Produk">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                {form.imageUrl ? <img src={form.imageUrl} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-gray-300" />}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Button variant="secondary" className="w-full border-dashed border-2" loading={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => fileRef.current?.click()}>
+                  {uploading ? 'Mengupload...' : 'Upload Foto'}
+                </Button>
+                <input ref={fileRef} type="file" accept="image/*" onChange={onImage} className="hidden" />
+                <input type="text" placeholder="Atau tempel URL gambar..." value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} className={fieldClass} />
+              </div>
             </div>
-            <div className="overflow-y-auto flex-1 p-6 space-y-5">
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Foto Produk</label>
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                    {form.imageUrl ? <img src={form.imageUrl} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-gray-300" />}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 hover:border-indigo-400 text-gray-500 text-sm font-bold rounded-xl w-full justify-center">
-                      {uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Mengupload...</> : <><Upload className="w-4 h-4" />Upload Foto</>}
-                    </button>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={onImage} className="hidden" />
-                    <input type="text" placeholder="Atau tempel URL gambar..." value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {(['name', 'brand'] as const).map((k) => (
-                  <div key={k}>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{k === 'name' ? 'Nama Produk *' : 'Brand *'}</label>
-                    <input type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                ))}
-              </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Kategori *</label>
-                <select value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Pilih kategori...</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Deskripsi</label>
-                <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div className="flex gap-4">
-                {(['isActive', 'isFeatured'] as const).map((k) => (
-                  <label key={k} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-indigo-600" />
-                    <span className="text-sm font-bold text-gray-700">{k === 'isActive' ? 'Produk Aktif' : 'Produk Unggulan'}</span>
-                  </label>
-                ))}
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Varian *</label>
-                  <button onClick={() => setForm((f) => ({ ...f, variants: [...f.variants, { ...EMPTY_VARIANT }] }))} className="flex items-center gap-1 text-xs font-bold text-indigo-600"><Plus className="w-3 h-3" />Tambah</button>
-                </div>
-                <div className="space-y-2">
-                  {form.variants.map((v, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      {(['size', 'price', 'stock', 'sku'] as const).map((field, fi) => (
-                        <input key={field} type={field === 'price' || field === 'stock' ? 'number' : 'text'} value={v[field]} onChange={(e) => updVariant(i, field, e.target.value)} placeholder={['30ml', '150000', '10', 'MND-01'][fi]} className="col-span-3 px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      ))}
-                      <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
-                    </div>
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            {(['name', 'brand'] as const).map((k) => (
+              <Input key={k} label={k === 'name' ? 'Nama Produk *' : 'Brand *'} type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+            ))}
+          </div>
+          <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
+            <option value="">Pilih kategori...</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+          <Textarea label="Deskripsi" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+          <div className="flex gap-4">
+            {(['isActive', 'isFeatured'] as const).map((k) => (
+              <label key={k} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
+                <span className="text-sm font-bold text-gray-700">{k === 'isActive' ? 'Produk Aktif' : 'Produk Unggulan'}</span>
+              </label>
+            ))}
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Varian *</label>
+              <Button variant="ghost" size="sm" icon={<Plus className="w-3 h-3" />} onClick={() => setForm((f) => ({ ...f, variants: [...f.variants, { ...EMPTY_VARIANT }] }))}>Tambah</Button>
+            </div>
+            <div className="space-y-2">
+              {form.variants.map((v, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  {(['size', 'price', 'stock', 'sku'] as const).map((field, fi) => (
+                    <input key={field} type={field === 'price' || field === 'stock' ? 'number' : 'text'} value={v[field]} onChange={(e) => updVariant(i, field, e.target.value)} placeholder={['30ml', '150000', '10', 'MND-01'][fi]} className={`${fieldClass} col-span-3`} />
                   ))}
+                  <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
                 </div>
-              </div>
-              {err && <p className="text-sm text-red-600">{err}</p>}
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
-              <button onClick={() => setOpen(false)} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl">Batal</button>
-              <button onClick={save} disabled={busy} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2">
-                {busy ? <><Loader2 className="w-4 h-4 animate-spin" />Menyimpan...</> : editing ? 'Simpan' : 'Tambah'}
-              </button>
+              ))}
             </div>
           </div>
+          {err && <p className="text-sm text-red-600">{err}</p>}
         </div>
-      )}
+      </Modal>
 
-      {catOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-xl font-black text-gray-900">{editingCat ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
-              <button onClick={() => setCatOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nama *</label>
-                <input type="text" value={catForm.name} onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Deskripsi</label>
-                <textarea value={catForm.description} onChange={(e) => setCatForm((f) => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none" />
-              </div>
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setCatOpen(false)} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl">Batal</button>
-              <button onClick={saveCat} disabled={busy} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2">
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
-              </button>
-            </div>
-          </div>
+      <Modal
+        open={catOpen}
+        onClose={() => setCatOpen(false)}
+        size="sm"
+        title={editingCat ? 'Edit Kategori' : 'Tambah Kategori'}
+        footer={
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => setCatOpen(false)}>Batal</Button>
+            <Button variant="primary" className="flex-1" loading={busy} onClick={saveCat}>Simpan</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Nama *" type="text" value={catForm.name} onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))} />
+          <Textarea label="Deskripsi" value={catForm.description} onChange={(e) => setCatForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
         </div>
-      )}
+      </Modal>
 
-      {(delId || delCatId) && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm text-center">
-            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">Konfirmasi Hapus</h3>
-            <p className="text-sm text-gray-400 mb-6">Data tidak dapat dikembalikan.</p>
-            <div className="flex gap-3">
-              <button onClick={() => { setDelId(null); setDelCatId(null) }} className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl">Batal</button>
-              <button onClick={async () => { if (delId) await del(delId); if (delCatId) { await api.deleteCategory(delCatId); setDelCatId(null); await cq.refetch() } }} className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl">Ya, Hapus</button>
-            </div>
-          </div>
+      <Modal
+        open={!!(delId || delCatId)}
+        onClose={() => { setDelId(null); setDelCatId(null) }}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" className="flex-1" onClick={() => { setDelId(null); setDelCatId(null) }}>Batal</Button>
+            <Button variant="danger" className="flex-1" onClick={async () => { if (delId) await del(delId); if (delCatId) { await api.deleteCategory(delCatId); setDelCatId(null); await cq.refetch() } }}>Ya, Hapus</Button>
+          </>
+        }
+      >
+        <div className="text-center">
+          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
+          <h3 className="text-xl font-black text-gray-900 mb-2">Konfirmasi Hapus</h3>
+          <p className="text-sm text-gray-400">Data tidak dapat dikembalikan.</p>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }

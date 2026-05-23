@@ -2,12 +2,13 @@ import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from './cn'
 
-type Size = 'sm' | 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg' | 'xl'
 
 const MAX: Record<Size, string> = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
+  xl: 'max-w-2xl',
 }
 
 interface ModalProps {

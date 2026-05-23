@@ -10,6 +10,16 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 import { exportToXLSX } from '../lib/csvUtils'
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Select,
+  Textarea,
+  fieldClass,
+} from '../ui'
 
 export default function Orders() {
   const { user } = useAuth()
@@ -61,12 +71,8 @@ export default function Orders() {
     }
   }
 
-  const badge = (st: string) =>
-    st === 'completed'
-      ? 'bg-green-50 text-green-700'
-      : st === 'refunded'
-        ? 'bg-red-50 text-red-600'
-        : 'bg-gray-100 text-gray-500'
+  const badgeTone = (st: string): 'success' | 'danger' | 'neutral' =>
+    st === 'completed' ? 'success' : st === 'refunded' ? 'danger' : 'neutral'
   const label = (st: string) =>
     st === 'completed' ? 'Selesai' : st === 'refunded' ? 'Refund' : st === 'cancelled' ? 'Dibatalkan' : st
 
@@ -97,54 +103,50 @@ export default function Orders() {
 
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h2 className="text-xl font-black text-gray-900">Transaksi</h2>
-        <p className="text-sm text-gray-400">
-          {filtered.length} transaksi · Total: {BRAND.currency.format(revenue)}
-        </p>
-      </div>
+      <PageHeader
+        title="Transaksi"
+        subtitle={`${filtered.length} transaksi · Total: ${BRAND.currency.format(revenue)}`}
+      />
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
           <input
             type="text"
             placeholder="Cari order / kasir / pelanggan..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`${fieldClass} pl-9`}
           />
         </div>
-        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none">
+        <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-auto">
           <option value="">Semua Status</option>
           <option value="completed">Selesai</option>
           <option value="refunded">Refund</option>
           <option value="cancelled">Dibatalkan</option>
-        </select>
-        <select value={fPay} onChange={(e) => setFPay(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none">
+        </Select>
+        <Select value={fPay} onChange={(e) => setFPay(e.target.value)} className="w-auto">
           <option value="">Semua Pembayaran</option>
           <option value="cash">Tunai</option>
           <option value="card">Kartu</option>
           <option value="qris">QRIS</option>
           <option value="transfer">Transfer</option>
-        </select>
-        <button
+        </Select>
+        <Button
+          variant="secondary"
           onClick={handleExport}
           disabled={filtered.length === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-sm font-semibold transition-colors"
+          icon={<Download className="w-4 h-4" />}
         >
-          <Download className="w-4 h-4" /> Export
-        </button>
+          Export
+        </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <Card className="overflow-hidden">
         {q.loading ? (
           <TableSkeleton />
         ) : filtered.length === 0 ? (
-          <div className="p-12 flex flex-col items-center gap-3 text-gray-300">
-            <ShoppingBag className="w-12 h-12" />
-            <p className="font-bold">Tidak ada transaksi</p>
-          </div>
+          <EmptyState icon={<ShoppingBag />} title="Tidak ada transaksi" />
         ) : (
           <div className="divide-y divide-gray-50">
             {filtered.map((o) => (
@@ -157,8 +159,8 @@ export default function Orders() {
                     setNote('')
                   }}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-indigo-50'}`}>
-                    <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-indigo-600'}`} />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
+                    <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
@@ -169,7 +171,7 @@ export default function Orders() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${badge(o.status)}`}>{label(o.status)}</span>
+                    <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                     {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                   </div>
@@ -212,9 +214,9 @@ export default function Orders() {
                         )}
                       </div>
                       {o.notes && (
-                        <div className="bg-yellow-50 rounded-xl p-3">
-                          <p className="text-xs font-black text-yellow-700 mb-1">Catatan</p>
-                          <p className="text-sm text-yellow-800">{o.notes}</p>
+                        <div className="bg-amber-50 rounded-xl p-3">
+                          <p className="text-xs font-black text-amber-700 mb-1">Catatan</p>
+                          <p className="text-sm text-amber-800">{o.notes}</p>
                         </div>
                       )}
                       {o.status === 'refunded' && o.refundReason && (
@@ -232,29 +234,41 @@ export default function Orders() {
                         <div>
                           {refundingId === o.id ? (
                             <div className="space-y-2">
-                              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Alasan Refund *</p>
-                              <textarea
+                              <Textarea
+                                label="Alasan Refund *"
                                 value={note}
                                 onChange={(e) => setNote(e.target.value)}
                                 placeholder="Tuliskan alasan refund secara jelas..."
                                 rows={3}
-                                className="w-full px-3 py-2 bg-white border-2 border-red-200 rounded-xl text-sm resize-none focus:outline-none focus:border-red-400"
+                                error={err ?? undefined}
                               />
-                              {err && <p className="text-xs text-red-600">{err}</p>}
                               <div className="flex gap-2">
-                                <button onClick={() => { setRefundingId(null); setNote(''); setErr(null) }} className="flex-1 py-2 border border-gray-200 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-100">Batal</button>
-                                <button onClick={() => refund(o.id)} disabled={busy} className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-bold rounded-xl">
+                                <Button
+                                  variant="secondary"
+                                  className="flex-1"
+                                  onClick={() => { setRefundingId(null); setNote(''); setErr(null) }}
+                                >
+                                  Batal
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  className="flex-1"
+                                  loading={busy}
+                                  onClick={() => refund(o.id)}
+                                >
                                   {busy ? 'Memproses...' : 'Konfirmasi Refund'}
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           ) : (
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => { e.stopPropagation(); setRefundingId(o.id); setNote(''); setErr(null) }}
-                              className="flex items-center gap-2 px-3 py-2 text-red-500 hover:bg-red-50 text-sm font-bold rounded-xl"
+                              icon={<RotateCcw className="w-3.5 h-3.5" />}
                             >
-                              <RotateCcw className="w-3.5 h-3.5" /> Proses Refund
-                            </button>
+                              Proses Refund
+                            </Button>
                           )}
                         </div>
                       )}
@@ -265,7 +279,7 @@ export default function Orders() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   )
 }
