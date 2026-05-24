@@ -186,13 +186,15 @@ export interface StockRow {
   stock: number
 }
 
-/** Variants at or below `threshold`, out-of-stock first. */
+/** Variants at or below their PAR level (per-outlet) — or `threshold` when no PAR
+ *  is set — out-of-stock first. */
 export function lowStock(products: Product[], threshold = 5): StockRow[] {
   const rows: StockRow[] = []
   for (const p of products) {
     if (p.isActive === false) continue
     for (const v of p.variants) {
-      if (v.stock <= threshold) {
+      const par = v.parLevel ?? threshold
+      if (v.stock <= par) {
         rows.push({ name: `${p.name}${v.size ? ` ${v.size}` : ''}`.trim(), stock: v.stock })
       }
     }

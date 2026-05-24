@@ -905,6 +905,7 @@ export interface components {
             price: number;
             stock: number;
             sku: string;
+            parLevel?: number | null;
         };
         Product: {
             /** Format: uuid */
@@ -914,6 +915,9 @@ export interface components {
             categoryId: string;
             description?: string | null;
             imageUrl?: string | null;
+            images?: string[] | null;
+            upc?: string | null;
+            sellable?: boolean | null;
             variants: components["schemas"]["ProductVariant"][];
             isFeatured: boolean;
             isFavourite: boolean;
@@ -1481,6 +1485,9 @@ export interface components {
             categoryId: string;
             description?: string;
             imageUrl?: string;
+            images?: string[] | null;
+            upc?: string | null;
+            sellable?: boolean | null;
             variants: components["schemas"]["ProductVariant"][];
             isFeatured?: boolean;
             isFavourite?: boolean;
@@ -1494,6 +1501,7 @@ export interface components {
             stock: number;
             price?: number | null;
             available: boolean;
+            parLevel?: number | null;
         };
         OutletConfigResponse: {
             data: components["schemas"]["OutletVariantConfig"][];

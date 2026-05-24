@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import {
   Plus, Edit2, Trash2, X, Upload, Package, Search,
-  ImageIcon, Download, Tag, ChevronDown, ChevronRight, Store,
+  Download, Tag, ChevronDown, ChevronRight, Store,
 } from 'lucide-react'
 import { api } from '../api'
 import { useOutlet } from '../outlet'
@@ -28,14 +28,21 @@ import {
 } from '../ui'
 
 const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '' }
+const MAX_IMAGES = 5
 type Form = {
   name: string; brand: string; categoryId: string; description: string
-  imageUrl: string; isActive: boolean; isFeatured: boolean; variants: ProductVariant[]
+  images: string[]; upc: string; sellable: boolean
+  isActive: boolean; isFeatured: boolean; variants: ProductVariant[]
 }
 const EMPTY: Form = {
-  name: '', brand: 'Mandalika', categoryId: '', description: '', imageUrl: '',
-  isActive: true, isFeatured: false, variants: [{ ...EMPTY_VARIANT }],
+  name: '', brand: 'Mandalika', categoryId: '', description: '', images: [],
+  upc: '', sellable: true, isActive: true, isFeatured: false,
+  variants: [{ ...EMPTY_VARIANT }],
 }
+
+// Per-outlet editable row for one (outlet, variant): null price = use base.
+type OcRow = { stock: number; price: number | null; available: boolean; parLevel: number | null }
+const EMPTY_OC: OcRow = { stock: 0, price: null, available: true, parLevel: null }
 
 export default function Products() {
   const { outletId } = useOutlet()
@@ -66,9 +73,7 @@ export default function Products() {
   // `${outletId}|${variantSize}` and rendered as outlets × current form.variants
   // so newly added variants appear (with defaults) before saving.
   const [ocfgOutlets, setOcfgOutlets] = useState<{ id: string; name: string }[]>([])
-  const [ocfgMap, setOcfgMap] = useState<
-    Record<string, { stock: number; price: number | null; available: boolean }>
-  >({})
+  const [ocfgMap, setOcfgMap] = useState<Record<string, OcRow>>({})
   const [ocfgLoading, setOcfgLoading] = useState(false)
   const [ocCollapsed, setOcCollapsed] = useState<Record<string, boolean>>({})
 
@@ -89,7 +94,8 @@ export default function Products() {
     setEditing(p)
     setForm({
       name: p.name, brand: p.brand, categoryId: p.categoryId,
-      description: p.description || '', imageUrl: p.imageUrl || '',
+      description: p.description || '', images: p.images ?? (p.imageUrl ? [p.imageUrl] : []),
+      upc: p.upc ?? '', sellable: p.sellable ?? true,
       isActive: p.isActive, isFeatured: p.isFeatured,
       variants: p.variants.map((v) => ({ ...v })),
     })
@@ -102,17 +108,24 @@ export default function Products() {
     try {
       // Base product (all-outlet scope) gives the true base price/size/sku for the
       // Varian section — not the currently-selected outlet's resolved values. The
-      // per-outlet matrix drives stock + price overrides + availability.
+      // per-outlet matrix drives stock + price overrides + availability + PAR.
       const [base, cfg] = await Promise.all([
         api.getProduct(p.id).catch(() => null),
         api.getProductOutletConfig(p.id),
       ])
-      if (base) setForm((f) => ({ ...f, variants: base.variants.map((v) => ({ ...v })) }))
+      if (base)
+        setForm((f) => ({
+          ...f,
+          images: base.images ?? f.images,
+          upc: base.upc ?? f.upc,
+          sellable: base.sellable ?? f.sellable,
+          variants: base.variants.map((v) => ({ ...v })),
+        }))
       const oMap = new Map<string, string>()
-      const m: Record<string, { stock: number; price: number | null; available: boolean }> = {}
+      const m: Record<string, OcRow> = {}
       for (const r of cfg) {
         oMap.set(r.outletId, r.outletName)
-        m[`${r.outletId}|${r.variantSize}`] = { stock: r.stock, price: r.price ?? null, available: r.available }
+        m[`${r.outletId}|${r.variantSize}`] = { stock: r.stock, price: r.price ?? null, available: r.available, parLevel: r.parLevel ?? null }
       }
       setOcfgOutlets([...oMap].map(([id, name]) => ({ id, name })))
       setOcfgMap(m)
@@ -124,17 +137,11 @@ export default function Products() {
   }
 
   const ocKey = (oid: string, size: string) => `${oid}|${size}`
-  const ocGet = (oid: string, size: string) =>
-    ocfgMap[ocKey(oid, size)] ?? { stock: 0, price: null as number | null, available: true }
-  const ocSet = (
-    oid: string,
-    size: string,
-    patch: Partial<{ stock: number; price: number | null; available: boolean }>,
-  ) =>
+  const ocGet = (oid: string, size: string): OcRow => ocfgMap[ocKey(oid, size)] ?? EMPTY_OC
+  const ocSet = (oid: string, size: string, patch: Partial<OcRow>) =>
     setOcfgMap((m) => {
       const k = ocKey(oid, size)
-      const cur = m[k] ?? { stock: 0, price: null as number | null, available: true }
-      return { ...m, [k]: { ...cur, ...patch } }
+      return { ...m, [k]: { ...(m[k] ?? EMPTY_OC), ...patch } }
     })
   // Master tick: set availability for every variant of one outlet.
   const setOutletAllAvailable = (oid: string, available: boolean) =>
@@ -143,25 +150,34 @@ export default function Products() {
       for (const v of form.variants) {
         if (!v.size.trim()) continue
         const k = ocKey(oid, v.size)
-        next[k] = { ...(next[k] ?? { stock: 0, price: null, available: true }), available }
+        next[k] = { ...(next[k] ?? EMPTY_OC), available }
       }
       return next
     })
   const basePriceOf = (size: string) => form.variants.find((v) => v.size === size)?.price ?? 0
 
   const onImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setUploading(true)
     try {
-      const url = await uploadImage(file)
-      setForm((f) => ({ ...f, imageUrl: url }))
+      for (const file of files) {
+        if (form.images.length >= MAX_IMAGES) break
+        const url = await uploadImage(file)
+        setForm((f) => (f.images.length >= MAX_IMAGES ? f : { ...f, images: [...f.images, url] }))
+      }
     } catch {
       setErr('Gagal upload gambar.')
     } finally {
       setUploading(false)
+      e.target.value = ''
     }
   }
+
+  const removeImage = (i: number) =>
+    setForm((f) => ({ ...f, images: f.images.filter((_, x) => x !== i) }))
+  const makeMainImage = (i: number) =>
+    setForm((f) => ({ ...f, images: [f.images[i], ...f.images.filter((_, x) => x !== i)] }))
 
   const updVariant = (i: number, k: keyof ProductVariant, val: string) => {
     // Renaming a variant size: carry its per-outlet stock/price/availability over
@@ -203,7 +219,10 @@ export default function Products() {
         brand: form.brand.trim(),
         categoryId: form.categoryId,
         description: form.description,
-        imageUrl: form.imageUrl,
+        imageUrl: form.images[0] ?? '',
+        images: form.images,
+        upc: form.upc.trim(),
+        sellable: form.sellable,
         isActive: form.isActive,
         isFeatured: form.isFeatured,
         variants: form.variants.map((v) => ({
@@ -218,7 +237,7 @@ export default function Products() {
             form.variants
               .filter((v) => v.size.trim())
               .map((v) => {
-                const c = ocfgMap[`${o.id}|${v.size}`] ?? { stock: 0, price: null, available: true }
+                const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
                 return {
                   outletId: o.id,
                   outletName: o.name,
@@ -226,6 +245,7 @@ export default function Products() {
                   stock: c.stock,
                   price: c.price,
                   available: c.available,
+                  parLevel: c.parLevel,
                 }
               }),
           )
@@ -254,7 +274,9 @@ export default function Products() {
       p.variants.map((v) => ({
         Nama: p.name, Brand: p.brand, Kategori: catName(p.categoryId),
         Deskripsi: p.description || '', Ukuran: v.size, Harga: v.price,
-        Stok: v.stock, SKU: v.sku, Aktif: p.isActive ? 'Ya' : 'Tidak',
+        Stok: v.stock, SKU: v.sku, UPC: p.upc || '',
+        Jual: p.sellable === false ? 'Tidak' : 'Ya',
+        Aktif: p.isActive ? 'Ya' : 'Tidak',
         Unggulan: p.isFeatured ? 'Ya' : 'Tidak',
       })),
     )
@@ -302,6 +324,9 @@ export default function Products() {
         categoryId: cat?.id || existing?.categoryId || '',
         description: row['Deskripsi'] || '',
         imageUrl: existing?.imageUrl || '',
+        images: existing?.images ?? [],
+        upc: row['UPC'] || existing?.upc || '',
+        sellable: row['Jual'] ? row['Jual'] !== 'Tidak' : (existing?.sellable ?? true),
         isActive: row['Aktif'] !== 'Tidak',
         isFeatured: row['Unggulan'] === 'Ya',
         variants,
@@ -451,7 +476,10 @@ export default function Products() {
                           </div>
                         </td>
                         <td className="px-5 py-3">
-                          <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
+                            {p.sellable === false && <Badge tone="warning">Internal</Badge>}
+                          </div>
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-end gap-1">
@@ -544,18 +572,39 @@ export default function Products() {
         }
       >
         <div className="space-y-5">
-          <Field label="Foto Produk">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                {form.imageUrl ? <img src={form.imageUrl} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-gray-300" />}
-              </div>
-              <div className="flex-1 space-y-2">
-                <Button variant="secondary" className="w-full border-dashed border-2" loading={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => fileRef.current?.click()}>
-                  {uploading ? 'Mengupload...' : 'Upload Foto'}
-                </Button>
-                <input ref={fileRef} type="file" accept="image/*" onChange={onImage} className="hidden" />
-                <input type="text" placeholder="Atau tempel URL gambar..." value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} className={fieldClass} />
-              </div>
+          <Field label={`Foto Produk (maks ${MAX_IMAGES}, foto pertama = utama)`}>
+            <div className="flex flex-wrap gap-2">
+              {form.images.map((url, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 group">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  {i === 0 && (
+                    <span className="absolute top-0 left-0 bg-gold-600 text-white text-[9px] font-bold px-1 rounded-br-lg">Utama</span>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition">
+                    {i !== 0 && (
+                      <button type="button" onClick={() => makeMainImage(i)} title="Jadikan utama" className="text-white text-[10px] font-bold bg-gold-600 px-1.5 py-0.5 rounded">
+                        Utama
+                      </button>
+                    )}
+                    <button type="button" onClick={() => removeImage(i)} title="Hapus" className="text-white bg-red-600 rounded p-1">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {form.images.length < MAX_IMAGES && (
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-gold-400 hover:text-gold-600 disabled:opacity-50">
+                  {uploading ? (
+                    <span className="text-[10px]">...</span>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      <span className="text-[10px] mt-0.5">Tambah</span>
+                    </>
+                  )}
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" multiple onChange={onImage} className="hidden" />
             </div>
           </Field>
           <div className="grid grid-cols-2 gap-4">
@@ -563,16 +612,19 @@ export default function Products() {
               <Input key={k} label={k === 'name' ? 'Nama Produk *' : 'Brand *'} type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
             ))}
           </div>
-          <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
-            <option value="">Pilih kategori...</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
+              <option value="">Pilih kategori...</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Input label="UPC / Barcode" type="text" value={form.upc} onChange={(e) => setForm((f) => ({ ...f, upc: e.target.value }))} placeholder="Kode barcode (opsional)" />
+          </div>
           <Textarea label="Deskripsi" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
-          <div className="flex gap-4">
-            {(['isActive', 'isFeatured'] as const).map((k) => (
+          <div className="flex gap-4 flex-wrap">
+            {(['isActive', 'isFeatured', 'sellable'] as const).map((k) => (
               <label key={k} className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
-                <span className="text-sm font-bold text-gray-700">{k === 'isActive' ? 'Produk Aktif' : 'Produk Unggulan'}</span>
+                <span className="text-sm font-bold text-gray-700">{k === 'isActive' ? 'Produk Aktif' : k === 'isFeatured' ? 'Produk Unggulan' : 'Dijual ke pelanggan'}</span>
               </label>
             ))}
           </div>
@@ -641,19 +693,28 @@ export default function Products() {
                             {sizes.length === 0 ? (
                               <p className="text-[11px] text-gray-400">Tambahkan varian dulu di atas.</p>
                             ) : (
-                              sizes.map((v) => {
-                                const c = ocGet(o.id, v.size)
-                                return (
-                                  <div key={v.size} className="grid grid-cols-12 gap-2 items-center">
-                                    <label className="col-span-1 flex justify-center cursor-pointer">
-                                      <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
-                                    </label>
-                                    <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
-                                    <input type="number" value={c.stock === 0 ? '' : c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="0" disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
-                                    <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-4 py-1.5 disabled:opacity-40`} />
-                                  </div>
-                                )
-                              })
+                              <>
+                                <div className="grid grid-cols-12 gap-2 px-1">
+                                  <span className="col-span-5" />
+                                  <span className="col-span-2 text-[10px] font-bold text-gray-400">Stok</span>
+                                  <span className="col-span-3 text-[10px] font-bold text-gray-400">Harga</span>
+                                  <span className="col-span-2 text-[10px] font-bold text-gray-400">PAR</span>
+                                </div>
+                                {sizes.map((v) => {
+                                  const c = ocGet(o.id, v.size)
+                                  return (
+                                    <div key={v.size} className="grid grid-cols-12 gap-2 items-center">
+                                      <label className="col-span-1 flex justify-center cursor-pointer">
+                                        <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
+                                      </label>
+                                      <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
+                                      <input type="number" value={c.stock === 0 ? '' : c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="0" disabled={!c.available} className={`${fieldClass} col-span-2 py-1.5 disabled:opacity-40`} />
+                                      <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
+                                      <input type="number" value={c.parLevel ?? ''} onChange={(e) => ocSet(o.id, v.size, { parLevel: e.target.value === '' ? null : Number(e.target.value) })} placeholder="—" disabled={!c.available} title="Batas stok menipis (low-stock)" className={`${fieldClass} col-span-2 py-1.5 disabled:opacity-40`} />
+                                    </div>
+                                  )
+                                })}
+                              </>
                             )}
                           </div>
                         )}
