@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/api"
@@ -83,16 +85,27 @@ func jsonb(v any) ([]byte, error) {
 // ── Products (+ variants child table) ─────────────────────
 
 type Variant struct {
-	ID    string  `json:"id"` // permanent id; empty = new (modal sends it; CSV omits it)
-	Size  string  `json:"size"`
-	Price float64 `json:"price"`
-	Stock int     `json:"stock"`
-	SKU   string  `json:"sku"`
+	ID      string  `json:"id"` // permanent id; empty = new (modal sends it; CSV omits it)
+	Size    string  `json:"size"`
+	Price   float64 `json:"price"`
+	Stock   int     `json:"stock"`
+	SKU     string  `json:"sku"`
+	Barcode string  `json:"barcode"` // scan key; empty ⇒ defaults to SKU
 }
 
-// validateVariants enforces SKU as the stable handle: required + unique per product.
+// variantBarcode resolves the scan key: explicit barcode, else the SKU.
+func variantBarcode(v Variant) string {
+	if v.Barcode != "" {
+		return v.Barcode
+	}
+	return v.SKU
+}
+
+// validateVariants enforces SKU (required + unique per product) and rejects
+// duplicate effective scan keys (barcode ⇒ SKU) within the product.
 func validateVariants(vs []Variant) error {
 	seen := map[string]bool{}
+	seenBC := map[string]bool{}
 	for _, v := range vs {
 		if v.SKU == "" {
 			return fmt.Errorf("setiap varian wajib punya SKU")
@@ -101,6 +114,11 @@ func validateVariants(vs []Variant) error {
 			return fmt.Errorf("SKU duplikat dalam produk: %s", v.SKU)
 		}
 		seen[v.SKU] = true
+		bc := variantBarcode(v)
+		if seenBC[bc] {
+			return fmt.Errorf("barcode duplikat dalam produk: %s", bc)
+		}
+		seenBC[bc] = true
 	}
 	return nil
 }
@@ -112,7 +130,6 @@ type Product struct {
 	Description string    `json:"description"`
 	ImageURL    string    `json:"imageUrl"`
 	Images      []string  `json:"images"`
-	UPC         string    `json:"upc"`
 	Sellable    bool      `json:"sellable"`
 	Variants    []Variant `json:"variants"`
 	IsFeatured  bool      `json:"isFeatured"`
@@ -144,10 +161,10 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 		imgs, main := productImages(p)
 		if e := t.QueryRow(ctx, `
 			INSERT INTO products (name, brand, category_id, description, image_url,
-			  images, upc, sellable, is_featured, is_favourite, is_active)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+			  images, sellable, is_featured, is_favourite, is_active)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
-			nullStr(main), imgs, p.UPC, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive).
+			nullStr(main), imgs, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive).
 			Scan(&id); e != nil {
 			return e
 		}
@@ -156,7 +173,7 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 		}
 		return seedOutletStock(ctx, t, id, seedOutletID, p.Variants)
 	})
-	return id, err
+	return id, barcodeConflict(err)
 }
 
 // seedOutletStock writes a new product's initial per-variant stock to one outlet:
@@ -202,15 +219,15 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 	if e := validateVariants(p.Variants); e != nil {
 		return e
 	}
-	return r.tx(ctx, "products", func(t pgx.Tx) error {
+	return barcodeConflict(r.tx(ctx, "products", func(t pgx.Tx) error {
 		imgs, main := productImages(p)
 		ct, e := t.Exec(ctx, `
 			UPDATE products SET name=$1, brand=$2, category_id=$3, description=$4,
-			  image_url=$5, images=$6, upc=$7, sellable=$8,
-			  is_featured=$9, is_favourite=$10, is_active=$11
-			WHERE id=$12`,
+			  image_url=$5, images=$6, sellable=$7,
+			  is_featured=$8, is_favourite=$9, is_active=$10
+			WHERE id=$11`,
 			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
-			nullStr(main), imgs, p.UPC, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive, id)
+			nullStr(main), imgs, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive, id)
 		if e != nil {
 			return e
 		}
@@ -246,8 +263,8 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 			}
 			if cur, ok := byID[vid]; ok {
 				if _, e := t.Exec(ctx,
-					`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4 WHERE id=$5`,
-					v.Size, v.Price, v.Stock, v.SKU, vid); e != nil {
+					`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4, barcode=$5 WHERE id=$6`,
+					v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v), vid); e != nil {
 					return e
 				}
 				if cur.size != v.Size {
@@ -266,8 +283,8 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 				continue
 			}
 			if _, e := t.Exec(ctx,
-				`INSERT INTO product_variants (product_id, size, price, stock, sku) VALUES ($1,$2,$3,$4,$5)`,
-				id, v.Size, v.Price, v.Stock, v.SKU); e != nil {
+				`INSERT INTO product_variants (product_id, size, price, stock, sku, barcode) VALUES ($1,$2,$3,$4,$5,$6)`,
+				id, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
 				return e
 			}
 		}
@@ -286,15 +303,15 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 			}
 		}
 		return nil
-	})
+	}))
 }
 
 func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Variant) error {
 	for _, v := range vs {
 		if _, e := t.Exec(ctx, `
-			INSERT INTO product_variants (product_id, size, price, stock, sku)
-			VALUES ($1,$2,$3,$4,$5)`,
-			productID, v.Size, v.Price, v.Stock, v.SKU); e != nil {
+			INSERT INTO product_variants (product_id, size, price, stock, sku, barcode)
+			VALUES ($1,$2,$3,$4,$5,$6)`,
+			productID, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
 			return e
 		}
 	}
@@ -677,6 +694,25 @@ func (r *Repo) delete(ctx context.Context, resource, table, id string) error {
 		}
 		return e
 	})
+}
+
+// barcodeConflict maps the catalog-wide barcode unique-violation to a friendly,
+// non-leaky message naming the offending code (best-effort parse of pg Detail).
+func barcodeConflict(err error) error {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "idx_variant_barcode" {
+		code := ""
+		if i := strings.Index(pg.Detail, "=("); i >= 0 {
+			if j := strings.Index(pg.Detail[i+2:], ")"); j >= 0 {
+				code = pg.Detail[i+2 : i+2+j]
+			}
+		}
+		if code != "" {
+			return fmt.Errorf("barcode sudah dipakai varian lain: %s", code)
+		}
+		return fmt.Errorf("barcode sudah dipakai varian lain")
+	}
+	return err
 }
 
 func nullStr(s string) any {
