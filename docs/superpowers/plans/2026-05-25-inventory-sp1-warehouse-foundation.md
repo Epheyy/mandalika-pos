@@ -637,4 +637,24 @@ Import the new types (`Warehouse`, `WarehouseInput`, `WarehouseStockRow`, `Goods
 ---
 
 ## Progress / resume notes
-- (fill in as you execute — deployed rev, verification results, any flagged stockcount-refactor ambiguity)
+
+**2026-05-25 (autopilot run) — SP1 CORE DONE & VERIFIED LIVE; warehouse-opname is the one remaining slice.**
+
+DONE & deployed (backend **rev 00020-vqw**, backoffice pushed `7d906db` → Cloudflare):
+- **A** migration `0015` (`cf1ba55`), openapi+regen (`1cc9a24`), warehouse CRUD+read+routes (`6cbdd9b`).
+- **B** goods-in + adjust (`dbd02fe`).
+- **C1** location-polymorphic `stockcount.go` (`b1b2286`) — `scopedSC`→`scopeCount`, `CompleteStockCount` branches outlet(`r.tx`/bump) vs warehouse(`noBumpTx`); removed dead `scopedSC`.
+- **D1/D2** api client methods + `manage_inventory` perm (`4612b62`). **D3** Gudang screen + nav + extracted `warehouses/{GoodsInModal,AdjustModal}.tsx` (`7d906db`).
+
+VERIFIED LIVE (authed API): warehouse create + list; stock matrix (6 variant rows @0); goods-in additive (10 → 15); adjust absolute set → 7; adjust w/o reason → 400 "alasan wajib diisi". **Outlet opname REGRESSION-TESTED OK** (create→complete still writes outlet stock = 42 — C1 is backward-compatible). Demo warehouse **"Gudang Pusat (contoh)"** left in DB with one variant @7 for UI eyeballing.
+
+⚠️ **REMAINING — warehouse stock-count end-to-end (deferred: touches the WORKING outlet opname; needs eyes-open + a UI choice).** Backend repo (C1) is ready & polymorphic; warehouse counts currently return **403 "no active outlet"** (cleanly blocked, no corruption). To finish:
+1. **Handlers** `backend/internal/handlers/writes.go`:
+   - `CreateStockCount`: if `body.WarehouseID != ""` → pass `outletID=""` and SKIP the `c.outletID==""→403` guard; else keep the guard.
+   - `UpdateStockCount` + `CompleteStockCount`: relax the `c.outletID==""→403` guard (rely on repo `scopeCount`, which authorizes warehouse counts and 404s mismatched outlet counts); keep passing `c.outletID`.
+   - `CompleteStockCount`'s closing read `h.Repo.StockCount(scope(r), id)` must find warehouse counts (ensure admin scope is CrossAll, or make the read warehouse-aware — see #2).
+2. **Read** `backend/internal/read/repo.go`: `StockCounts`/`StockCount` scope `WHERE sc.outlet_id=$1` → warehouse counts only surface under `CrossAll`. Add `warehouseId` (+ optional `warehouseName` join) to `stockCountObj` so the UI can show/filter; make list/read include warehouse counts for admin.
+3. **Frontend D4** — choose ONE: (a) add an outlet|warehouse location picker to the existing opname screen (`grep -rl StockCount apps/backoffice/src`), or (b) **host the count flow inside the Gudang screen** (lower risk — leaves the working opname screen untouched). Send `warehouseId` on create; list/complete warehouse counts.
+4. Regression-gate: after wiring, re-verify BOTH an outlet opname AND a warehouse opname end-to-end (a Python urllib harness like the one used this session works well: login → create → complete → check stock).
+
+Also still pending (pre-existing, unrelated): the scan-to-cart **on-device APK verification** (camera/wedge) and the later **drop dead `products.upc`** migration.
