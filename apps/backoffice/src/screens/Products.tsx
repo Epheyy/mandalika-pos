@@ -163,12 +163,30 @@ export default function Products() {
     }
   }
 
-  const updVariant = (i: number, k: keyof ProductVariant, val: string) =>
+  const updVariant = (i: number, k: keyof ProductVariant, val: string) => {
+    // Renaming a variant size: carry its per-outlet stock/price/availability over
+    // to the new size key so the values aren't lost (rows are keyed by size).
+    if (k === 'size') {
+      const old = form.variants[i].size
+      if (old && old !== val) {
+        setOcfgMap((m) => {
+          const next: typeof m = {}
+          for (const [key, cfg] of Object.entries(m)) {
+            const sep = key.indexOf('|')
+            const oid = key.slice(0, sep)
+            const sz = key.slice(sep + 1)
+            next[sz === old ? `${oid}|${val}` : key] = cfg
+          }
+          return next
+        })
+      }
+    }
     setForm((f) => {
       const v = [...f.variants]
       v[i] = { ...v[i], [k]: k === 'price' || k === 'stock' ? Number(val) : val }
       return { ...f, variants: v }
     })
+  }
 
   const save = async () => {
     if (!form.name.trim()) return setErr('Nama produk wajib diisi')
@@ -552,7 +570,7 @@ export default function Products() {
                     { k: 'price', span: 'col-span-4', ph: '150000', num: true },
                     { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
                   ] as const).map(({ k, span, ph, num }) => (
-                    <input key={k} type={num ? 'number' : 'text'} value={v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} className={`${fieldClass} ${span}`} />
+                    <input key={k} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} className={`${fieldClass} ${span}`} />
                   ))}
                   <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
                 </div>
@@ -600,7 +618,7 @@ export default function Products() {
                                       <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
                                     </label>
                                     <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
-                                    <input type="number" value={c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: Number(e.target.value) })} placeholder="Stok" disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
+                                    <input type="number" value={c.stock === 0 ? '' : c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="0" disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
                                     <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-4 py-1.5 disabled:opacity-40`} />
                                   </div>
                                 )
