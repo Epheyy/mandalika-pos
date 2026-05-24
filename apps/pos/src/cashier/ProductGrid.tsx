@@ -60,6 +60,8 @@ interface ProductGridProps {
   onProductTap: (product: Product, variantQtys: Record<string, number>) => void
   onCategoryChange: (id: string | null) => void
   onSearchChange: (q: string) => void
+  onSearchSubmit?: (q: string) => void
+  onScanClick?: () => void
   onToggleFavourites: () => void
   isLoading: boolean
 }
@@ -181,6 +183,8 @@ export const ProductGrid = memo(function ProductGrid({
   onProductTap,
   onCategoryChange,
   onSearchChange,
+  onSearchSubmit,
+  onScanClick,
   onToggleFavourites,
   isLoading,
 }: ProductGridProps) {
@@ -256,15 +260,32 @@ export const ProductGrid = memo(function ProductGrid({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Search bar */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+      {/* Search bar — Enter submits (keyboard-wedge scanners append CR) */}
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 flex gap-2">
         <input
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Cari produk…"
-          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && onSearchSubmit) {
+              e.preventDefault()
+              onSearchSubmit(searchQuery)
+            }
+          }}
+          placeholder="Cari / scan produk…"
+          className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
         />
+        {onScanClick && (
+          <button
+            type="button"
+            onClick={onScanClick}
+            className="flex-shrink-0 px-3 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 transition"
+            title="Scan barcode / QR"
+            aria-label="Scan barcode atau QR"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>
+          </button>
+        )}
       </div>
 
       {/* Category tabs */}

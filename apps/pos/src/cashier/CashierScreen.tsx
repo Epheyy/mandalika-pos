@@ -3,7 +3,7 @@
  * Data from SyncEngine snapshot (offline-first); writes via engine.enqueue.
  */
 
-import { useContext, useReducer, useRef, useState, useEffect } from 'react'
+import { useContext, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext } from './SyncProvider'
@@ -15,6 +15,7 @@ import { useShift } from '../hooks/useShift'
 import { useCart } from '../hooks/useCart'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
 import { ProductGrid } from './ProductGrid'
+import { buildScanIndex, resolveScan } from './scan'
 import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { CustomerPicker } from './CustomerPicker'
@@ -119,6 +120,7 @@ export default function CashierScreen() {
 
   const snapshot = engine.getSnapshot()
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
+  const scanIndex = useMemo(() => buildScanIndex(products), [products])
   const categories = snapshot.categories ?? []
   // Customers created on this device this session aren't in the synced
   // snapshot yet (snapshot only refreshes on resync). Merge them in so the
@@ -164,6 +166,37 @@ export default function CashierScreen() {
     if (!ensureShift()) return
     track(`Tambah ${product.name}`)
     cartActions.addVariants(product, variantQtys)
+  }
+
+  // Scan-to-cart: resolve the code to a variant, add 1 respecting stock.
+  // Shared by the keyboard-wedge (search Enter) and camera paths.
+  const handleScan = (code: string) => {
+    const trimmed = code.trim()
+    if (!trimmed) return
+    const match = resolveScan(scanIndex, trimmed)
+    if (!match) {
+      showToast('Kode tidak dikenal')
+      return
+    }
+    const { product, variant } = match
+    const inCart = state.cart
+      .filter((i) => i.productId === product.id && i.variantSize === variant.size)
+      .reduce((s, i) => s + i.quantity, 0)
+    if (inCart + 1 > variant.stock) {
+      showToast('Stok habis')
+      return
+    }
+    handleProductTap(product, { [variant.size]: 1 })
+    showToast(`Ditambah: ${product.name} ${variant.size}`)
+  }
+
+  // Wedge path: Enter in the search box. If it exactly matches a barcode, scan
+  // and clear the box; otherwise leave it as a normal name filter.
+  const handleSearchSubmit = (q: string) => {
+    if (resolveScan(scanIndex, q)) {
+      handleScan(q)
+      setSearchQuery('')
+    }
   }
 
   const handleCheckout = () => {
@@ -528,6 +561,7 @@ export default function CashierScreen() {
             showPrice={showPrice} showStock={showStock} showVariants={showVariants}
             onProductTap={handleProductTap}
             onCategoryChange={setSelectedCategoryId} onSearchChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
           />
         </div>
