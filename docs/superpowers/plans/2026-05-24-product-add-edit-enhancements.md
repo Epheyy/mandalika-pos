@@ -64,4 +64,15 @@ UPDATE products SET images = jsonb_build_array(image_url)
 ## Task 7: build/deploy/verify UI + update memory/checkboxes.
 
 ## Progress / resume notes
-- Status: **not started** (plan written 2026-05-24). One migration (0013), one backend deploy, one frontend deploy. par_level column already exists from 0010.
+- **DONE & VERIFIED LIVE (2026-05-24, backend rev 00018-sdc, frontend 1cf9d7a).** Migration
+  0013 (upc/sellable/images on products; par_level already existed from 0010). Verified: UPC +
+  images persist; sellable=false hides the product from POS sync, sellable=true shows it
+  (clean re-pull confirmed); per-outlet PAR round-trips on outlet-config + the scoped product
+  read; Dashboard Barang Habis uses per-outlet PAR (fallback 5). Single modal kept (no wizard):
+  multi-image strip (≤5, reorder, first=main), UPC field, "Dijual ke pelanggan" toggle,
+  per-outlet PAR column, "Internal" list badge; CSV export/import carry UPC + Jual.
+- Note (Rule 6): a sellable-toggle write then an *immediate* cashier sync pull can briefly read
+  stale (pooled-connection visibility lag); self-corrects on next pull — not a real issue.
+  POS sync filters via `read.Scope.SellableOnly` (set in sync.Pull).
+- Roadmap (memory `product-module-roadmap`): Inventory (warehouse transfers) + Recipe/Formula
+  modules planned next for the multi-brand template.
