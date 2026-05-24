@@ -233,6 +233,26 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			return e
 		}
 	}
+	// Clean up rows for variant sizes that no longer exist (renamed or removed),
+	// so a renamed variant doesn't leave orphaned stock behind.
+	sizes := make([]string, 0, len(items))
+	seenSize := map[string]bool{}
+	for _, it := range items {
+		if !seenSize[it.VariantSize] {
+			seenSize[it.VariantSize] = true
+			sizes = append(sizes, it.VariantSize)
+		}
+	}
+	if _, e := t.Exec(ctx,
+		`DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size <> ALL($2::text[])`,
+		productID, sizes); e != nil {
+		return e
+	}
+	if _, e := t.Exec(ctx,
+		`DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size <> ALL($2::text[])`,
+		productID, sizes); e != nil {
+		return e
+	}
 	if e := bumpVersionOutlets(ctx, t, "products", outletIDs); e != nil {
 		return fmt.Errorf("bump version: %w", e)
 	}
