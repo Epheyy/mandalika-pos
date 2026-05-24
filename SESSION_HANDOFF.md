@@ -2,6 +2,57 @@
 
 Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev **00013-q9b**
 
+---
+
+# ⭐ LATEST SESSION — 2026-05-25 (READ THIS FIRST; supersedes older "current state" below)
+
+Branch `prod-hardening` · latest backend rev **00019-q4r** · latest commit `708b653`.
+
+## ‼️ Production status correction
+The app is **deployed & functional on free-tier infra but runs TEST DATA ONLY —
+NOT real sales, NOT fully production-ready** (user confirmed 2026-05-25). The
+walkthrough's "live and selling" = the `/goal` (proving a cashier *can* sell +
+the deploy works), not real usage. So **do NOT over-caution about disturbing
+real sales** — deploys/migrations need basic hygiene, not kid-gloves. Pre-prod
+checklist = `DEV_TO_PROD_WALKTHROUGH.md` Part D.
+
+## The 6 working rules (user-required, confirm on new sessions)
+ask don't assume · don't touch unrelated · flag uncertainty · verify on failure ·
+show changes · admit gaps. (Memory: `working-rules-six`.)
+
+## DONE this session (commits on prod-hardening, all pushed)
+1. **UPC → per-variant scan-to-cart redesign** (spec `docs/superpowers/specs/2026-05-25-per-variant-scan-to-cart-design.md`, plan `…/plans/2026-05-25-per-variant-scan-to-cart.md`). Backend **LIVE rev 00019-q4r**:
+   - migration **0014**: per-variant `product_variants.barcode` (defaults to SKU, catalog-wide unique via partial index `idx_variant_barcode`; dedupe before index). `products.upc` DROPPED FROM API but COLUMN KEPT DEAD (expand/contract — **TODO: drop in a later migration** once no old revision reads it).
+   - backend write defaults empty barcode→SKU (`variantBarcode`), within-product dup check, `barcodeConflict` maps pg 23505 → friendly 400.
+   - read emits per-variant `barcode`. Verified live (round-trip + dup-reject 400).
+   - Backoffice: per-variant Barcode field (blank⇒SKU at save) + CSV `Barcode` column; parent UPC input removed.
+   - POS scan-to-cart: pure `apps/pos/src/cashier/scan.ts` (`buildScanIndex`/`resolveScan`) + **keyboard-wedge** (Enter in product search → add 1, stock-guarded, toast) + **camera** (`@capacitor-mlkit/barcode-scanning@8.1.0`, QR+1D; CAMERA perm + `uses-feature required=false`).
+   - **Pure-function unit tests added** — Go (`backend/internal/write/repo_test.go`) + **first JS test runner: Vitest 4.1.7** in apps/pos (`apps/pos/src/cashier/scan.test.ts`; `test`=`vitest run`; `*.test.ts` excluded from prod `tsc -b`).
+   - **APK built**: CI run 26369022325 success, artifact `mandalika-pos-release-apk`. **ON-DEVICE VERIFY = still USER-PENDING** (camera QR+1D, wedge, backoffice barcode UI/CSV).
+2. **Phase 4 — product import-template** (`be66137`): "Template" button in Products toolbar downloads `template_produk_mandalika_<date>.csv` (importer columns + 2 example variant rows) via exportToCSV. Backoffice-only.
+
+## Product-module phase mapping (clarified 2026-05-25)
+- Phase 1 = per-outlet inventory & pricing → DONE.
+- Phase 2 = (was a multi-step wizard) → **REPLACED** by cherry-picked single-modal enhancements (PAR/UPC/sellable/multi-image) + per-variant availability + stable variant identity + scan-to-cart. DONE, no wizard.
+- **Phase 3 = Inventory / Warehouse module → IN PROGRESS (planning done, see below).**
+- Phase 4 = import-template → DONE.
+
+## ▶️ NEXT: Inventory module (Phase 3) — decomposed into SP1–SP4
+Spec (incl. full module decomposition + module-wide locked decisions): `docs/superpowers/specs/2026-05-25-inventory-sp1-warehouse-foundation-design.md`.
+**Module-wide LOCKED decisions:** mesh topology (any↔any) · two-step send→receive with in-transit · **separate** warehouse subsystem (own tables, never POS-synced) · goods-in entry (cost informational only) · receive-actual-and-record-discrepancy · **draft** transfers · authoritative **PIN + selected roles** for approval · new `manage_inventory` permission.
+- **SP1 — Warehouse foundation** (backoffice): warehouses CRUD + `warehouse_variant_stock` + goods-in + manual adjust (set absolute + reason) + warehouse stock-count (reuse `stock_counts`, made location-polymorphic via nullable `warehouse_id` + CHECK). **Spec + plan WRITTEN, NOT yet implemented.** Plan: `docs/superpowers/plans/2026-05-25-inventory-sp1-warehouse-foundation.md` (phases A=schema+CRUD+stock read, B=goods-in+adjust, C=polymorphic opname, D=Gudang UI). Migration will be **0015**.
+- **SP2 — Transfers core** (backoffice): draft→send→in-transit→receive→discrepancy; mesh polymorphic source/dest (warehouse|outlet); cancel; **must bump `content_version` on outlet legs** so POS resyncs. (brainstorm→spec→plan when reached.)
+- **SP3 — POS-side receiving + PIN**: in-transit transfers sync to destination outlet's POS; receiver confirms on-device with REAL counted qty (cross-checks admin input); offline-capable enqueue; authoritative PIN + role gate. (brainstorm→spec→plan when reached.)
+- **SP4 — Transfer documents & sharing**: printable delivery note / surat jalan (thermal print via existing BLE `@mandalika/printer` + in-device view) at send; PDF/image export + WhatsApp/OS-share (share-sheet, not WA API). (brainstorm→spec→plan when reached.)
+
+## ▶️ THEN (do NOT forget): Recipe / Formula per product module
+After Inventory SP1–SP4. Tie a formula/recipe to each product for production tracking — wanted for the **Flamboyan Perfume** & **Performance Perfume** brands (this POS is a 3-brand template). Own brainstorm→spec→plan. (Memory: `product-module-roadmap`.)
+
+## Execution method in use
+Subagent-driven development (fresh implementer per task + spec & code-quality review) on `prod-hardening` directly (NOT worktrees — Cloudflare auto-deploys backoffice from this branch; backend via `gcloud run deploy`; APK via GH Actions dispatch). All deploy/APK commands are below in the older sections (still valid).
+
+---
+
 ## Purpose / how to use this doc
 The app is **live and selling** (free-tier cutover). Work is an iterative
 UI/UX + correctness polish loop driven by on-device testing. **Next focus:
