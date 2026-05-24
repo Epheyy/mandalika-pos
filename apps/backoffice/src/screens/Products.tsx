@@ -27,16 +27,16 @@ import {
   fieldClass,
 } from '../ui'
 
-const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '' }
+const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '', barcode: '' }
 const MAX_IMAGES = 5
 type Form = {
   name: string; brand: string; categoryId: string; description: string
-  images: string[]; upc: string; sellable: boolean
+  images: string[]; sellable: boolean
   isActive: boolean; isFeatured: boolean; variants: ProductVariant[]
 }
 const EMPTY: Form = {
   name: '', brand: 'Mandalika', categoryId: '', description: '', images: [],
-  upc: '', sellable: true, isActive: true, isFeatured: false,
+  sellable: true, isActive: true, isFeatured: false,
   variants: [{ ...EMPTY_VARIANT }],
 }
 
@@ -95,7 +95,7 @@ export default function Products() {
     setForm({
       name: p.name, brand: p.brand, categoryId: p.categoryId,
       description: p.description || '', images: p.images ?? (p.imageUrl ? [p.imageUrl] : []),
-      upc: p.upc ?? '', sellable: p.sellable ?? true,
+      sellable: p.sellable ?? true,
       isActive: p.isActive, isFeatured: p.isFeatured,
       variants: p.variants.map((v) => ({ ...v })),
     })
@@ -117,7 +117,6 @@ export default function Products() {
         setForm((f) => ({
           ...f,
           images: base.images ?? f.images,
-          upc: base.upc ?? f.upc,
           sellable: base.sellable ?? f.sellable,
           variants: base.variants.map((v) => ({ ...v })),
         }))
@@ -221,13 +220,13 @@ export default function Products() {
         description: form.description,
         imageUrl: form.images[0] ?? '',
         images: form.images,
-        upc: form.upc.trim(),
         sellable: form.sellable,
         isActive: form.isActive,
         isFeatured: form.isFeatured,
         variants: form.variants.map((v) => ({
           id: v.id, size: v.size.trim(), price: Number(v.price),
           stock: Number(v.stock), sku: v.sku.trim(),
+          barcode: (v.barcode ?? '').trim() || v.sku.trim(),
         })),
       }
       if (editing) {
@@ -274,7 +273,7 @@ export default function Products() {
       p.variants.map((v) => ({
         Nama: p.name, Brand: p.brand, Kategori: catName(p.categoryId),
         Deskripsi: p.description || '', Ukuran: v.size, Harga: v.price,
-        Stok: v.stock, SKU: v.sku, UPC: p.upc || '',
+        Stok: v.stock, SKU: v.sku, Barcode: v.barcode || v.sku,
         Jual: p.sellable === false ? 'Tidak' : 'Ya',
         Aktif: p.isActive ? 'Ya' : 'Tidak',
         Unggulan: p.isFeatured ? 'Ya' : 'Tidak',
@@ -306,6 +305,7 @@ export default function Products() {
       grouped[key].variants.push({
         size: row['Ukuran'] || '', price: parseFloat(row['Harga']) || 0,
         stock: parseInt(row['Stok']) || 0, sku: row['SKU'].trim(),
+        barcode: (row['Barcode'] || '').trim() || row['SKU'].trim(),
       })
     }
     let created = 0
@@ -325,7 +325,6 @@ export default function Products() {
         description: row['Deskripsi'] || '',
         imageUrl: existing?.imageUrl || '',
         images: existing?.images ?? [],
-        upc: row['UPC'] || existing?.upc || '',
         sellable: row['Jual'] ? row['Jual'] !== 'Tidak' : (existing?.sellable ?? true),
         isActive: row['Aktif'] !== 'Tidak',
         isFeatured: row['Unggulan'] === 'Ya',
@@ -612,13 +611,10 @@ export default function Products() {
               <Input key={k} label={k === 'name' ? 'Nama Produk *' : 'Brand *'} type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
-              <option value="">Pilih kategori...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            <Input label="UPC / Barcode" type="text" value={form.upc} onChange={(e) => setForm((f) => ({ ...f, upc: e.target.value }))} placeholder="Kode barcode (opsional)" />
-          </div>
+          <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
+            <option value="">Pilih kategori...</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
           <Textarea label="Deskripsi" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
           <div className="flex gap-4 flex-wrap">
             {(['isActive', 'isFeatured', 'sellable'] as const).map((k) => (
@@ -640,21 +636,30 @@ export default function Products() {
               </p>
             )}
             <div className="grid grid-cols-12 gap-2 px-1 mb-1">
-              <span className="col-span-4 text-[11px] font-bold text-gray-400">Ukuran</span>
-              <span className="col-span-4 text-[11px] font-bold text-gray-400">Harga Dasar</span>
+              <span className="col-span-3 text-[11px] font-bold text-gray-400">Ukuran</span>
+              <span className="col-span-3 text-[11px] font-bold text-gray-400">Harga Dasar</span>
               <span className="col-span-3 text-[11px] font-bold text-gray-400">SKU</span>
+              <span className="col-span-2 text-[11px] font-bold text-gray-400">Barcode</span>
               <span className="col-span-1" />
             </div>
             <div className="space-y-2">
               {form.variants.map((v, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
                   {([
-                    { k: 'size', span: 'col-span-4', ph: '30ml', num: false },
-                    { k: 'price', span: 'col-span-4', ph: '150000', num: true },
+                    { k: 'size', span: 'col-span-3', ph: '30ml', num: false },
+                    { k: 'price', span: 'col-span-3', ph: '150000', num: true },
                     { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
                   ] as const).map(({ k, span, ph, num }) => (
                     <input key={k} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} className={`${fieldClass} ${span}`} />
                   ))}
+                  <input
+                    type="text"
+                    value={v.barcode ?? ''}
+                    onChange={(e) => updVariant(i, 'barcode', e.target.value)}
+                    placeholder={v.sku.trim() || '= SKU'}
+                    title="Kosongkan untuk memakai SKU sebagai barcode"
+                    className={`${fieldClass} col-span-2`}
+                  />
                   <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
                 </div>
               ))}
