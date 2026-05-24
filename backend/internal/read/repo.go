@@ -96,20 +96,20 @@ func productObjScoped(sc Scope) string {
 		return `json_build_object(
 		  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
 		  'description',p.description,'imageUrl',p.image_url,
-	  'images',p.images,'upc',p.upc,'sellable',p.sellable,
+	  'images',p.images,'sellable',p.sellable,
 		  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 		  'createdAt',p.created_at,
 		  'variants',COALESCE((SELECT json_agg(json_build_object(
 		     'id',v.id,'size',v.size,'price',v.price,
 		     'stock',COALESCE((SELECT SUM(s.stock)::int FROM outlet_variant_stock s
 		        WHERE s.product_id=v.product_id AND s.variant_size=v.size),0),
-		     'sku',v.sku) ORDER BY v.size)
+		     'sku',v.sku,'barcode',v.barcode) ORDER BY v.size)
 		     FROM product_variants v WHERE v.product_id=p.id),'[]'::json))`
 	}
 	return `json_build_object(
 	  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
 	  'description',p.description,'imageUrl',p.image_url,
-	  'images',p.images,'upc',p.upc,'sellable',p.sellable,
+	  'images',p.images,'sellable',p.sellable,
 	  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 	  'createdAt',p.created_at,
 	  'variants',COALESCE((SELECT json_agg(json_build_object(
@@ -120,7 +120,7 @@ func productObjScoped(sc Scope) string {
 	        WHERE os.outlet_id=$1 AND os.product_id=v.product_id AND os.variant_size=v.size),0),
 	     'parLevel',(SELECT op.par_level FROM outlet_variant_stock op
 	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size),
-	     'sku',v.sku) ORDER BY v.size)
+	     'sku',v.sku,'barcode',v.barcode) ORDER BY v.size)
 	     FROM product_variants v WHERE v.product_id=p.id
 	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
 	        WHERE oa.outlet_id=$1 AND oa.product_id=v.product_id AND oa.variant_size=v.size), true)),'[]'::json))`
