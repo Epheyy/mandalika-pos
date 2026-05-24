@@ -170,7 +170,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/warehouses", h.CreateWarehouse)
 				r.Put("/warehouses/{id}", h.UpdateWarehouse)
 				r.Delete("/warehouses/{id}", h.DeleteWarehouse)
-				// goods-receipt + adjust routes are added in a later task
+				r.Post("/warehouses/{id}/goods-receipt", h.CreateGoodsReceipt)
+				r.Post("/warehouses/{id}/adjust", h.AdjustWarehouseStock)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_settings"))

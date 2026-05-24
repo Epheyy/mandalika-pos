@@ -248,6 +248,24 @@ func (h *Handlers) WarehouseStock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
 }
 
+func (h *Handlers) CreateGoodsReceipt(w http.ResponseWriter, r *http.Request) {
+	g, ok := decodeWrite[write.GoodsReceipt](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.CreateGoodsReceipt(r.Context(), chi.URLParam(r, "id"), c.userID, g))
+}
+
+func (h *Handlers) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request) {
+	a, ok := decodeWrite[write.WarehouseAdjust](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.AdjustWarehouseStock(r.Context(), chi.URLParam(r, "id"), c.userID, a))
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
