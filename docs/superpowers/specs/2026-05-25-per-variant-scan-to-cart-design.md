@@ -109,8 +109,11 @@ Migration-runner note: runner tracks by full filename; next number is 0014
   - `Product` struct: remove `UPC`.
   - Variant write: persist `barcode` per variant.
   - On the Postgres `unique_violation` (code `23505`) for `idx_variant_barcode`,
-    return a `409 Conflict` whose message names the colliding barcode, so the
-    backoffice can surface it inline.
+    translate to a friendly, non-leaky error naming the colliding barcode. It
+    surfaces as the codebase's standard `400` validation response (the shared
+    `created`/`mutated` handlers map all write-validation errors to 400 — we
+    follow that convention rather than adding a bespoke 409 path), and the
+    backoffice shows the message inline.
 - Sync / order service: unchanged — `barcode` rides along on the variant; the
   cart and order lines still key by `size`.
 
