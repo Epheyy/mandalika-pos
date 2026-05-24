@@ -21,6 +21,7 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   view_reports: { label: 'Lihat Laporan', desc: 'Akses laporan & export' },
   manage_settings: { label: 'Pengaturan', desc: 'Ubah konfigurasi sistem' },
   manage_stock_count: { label: 'Stock Count', desc: 'Kelola penghitungan stok' },
+  manage_inventory: { label: 'Kelola Gudang', desc: 'Gudang, barang masuk & stok' },
 }
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
 const ROLE_TONE: Record<Role, 'gold' | 'success' | 'danger'> = {

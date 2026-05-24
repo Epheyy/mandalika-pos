@@ -25,6 +25,8 @@ export type ErrorLog = S['ErrorLog']
 export type CustomRole = S['CustomRole']
 export type ReportSummary = S['ReportSummary']
 export type Meta = S['Meta']
+export type Warehouse = S['Warehouse']
+export type WarehouseStockRow = S['WarehouseStockRow']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -36,6 +38,9 @@ export type OutletVariantConfig = S['OutletVariantConfig']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
 export type UploadSignature = S['UploadSignature']
+export type WarehouseInput = S['WarehouseInput']
+export type GoodsReceiptInput = S['GoodsReceiptInput']
+export type WarehouseAdjustInput = S['WarehouseAdjustInput']
 
 export interface ClientOptions {
   baseUrl: string
@@ -143,6 +148,15 @@ export interface Api {
   }) => Promise<StockCount>
   updateStockCount: (id: string, input: Partial<StockCount>) => Promise<StockCount>
   completeStockCount: (id: string, items: StockCountItem[]) => Promise<StockCount>
+
+  // warehouses / inventory
+  listWarehouses: () => Promise<Warehouse[]>
+  createWarehouse: (input: WarehouseInput) => Promise<{ id: string }>
+  updateWarehouse: (id: string, input: WarehouseInput) => Promise<void>
+  deleteWarehouse: (id: string) => Promise<void>
+  getWarehouseStock: (id: string) => Promise<WarehouseStockRow[]>
+  createGoodsReceipt: (id: string, input: GoodsReceiptInput) => Promise<void>
+  adjustWarehouseStock: (id: string, input: WarehouseAdjustInput) => Promise<void>
 
   // users / roles
   listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
@@ -332,6 +346,23 @@ export function createClient(opts: ClientOptions): Api {
       data<StockCount>('PUT', `${API}/stock-counts/${id}`, input),
     completeStockCount: (id, items) =>
       data<StockCount>('POST', `${API}/stock-counts/${id}/complete`, { items }),
+
+    listWarehouses: () => data<Warehouse[]>('GET', `${API}/warehouses`),
+    createWarehouse: (input) => data<{ id: string }>('POST', `${API}/warehouses`, input),
+    updateWarehouse: async (id, input) => {
+      await request('PUT', `${API}/warehouses/${id}`, input)
+    },
+    deleteWarehouse: async (id) => {
+      await request('DELETE', `${API}/warehouses/${id}`)
+    },
+    getWarehouseStock: (id) =>
+      data<WarehouseStockRow[]>('GET', `${API}/warehouses/${id}/stock`),
+    createGoodsReceipt: async (id, input) => {
+      await request('POST', `${API}/warehouses/${id}/goods-receipt`, input)
+    },
+    adjustWarehouseStock: async (id, input) => {
+      await request('POST', `${API}/warehouses/${id}/adjust`, input)
+    },
 
     listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
     createUser: (input) => data<User>('POST', `${API}/users`, input),
