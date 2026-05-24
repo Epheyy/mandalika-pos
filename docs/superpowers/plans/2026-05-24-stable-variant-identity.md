@@ -264,5 +264,11 @@ New variants added in the modal have no `id` (EMPTY_VARIANT has none) → backen
 - [ ] Update memory + this plan's checkboxes. Note remaining Phase 2–4 items (Add/Edit wizard + Type flags, Atur menus, import-template download — the importer upsert here is a step toward the template work).
 
 ## Progress / resume notes
-- Status: **not started** (plan written 2026-05-24).
-- Open confirmation: dup-SKU check (Task 1 Step 2) before deploy.
+- **DONE & VERIFIED LIVE (2026-05-24, backend rev 00017-fll, frontend 0d5cdb3).**
+  Modal rename (by id) and CSV rename (by SKU) both kept BSD stock=33 through
+  rename+revert; blank-SKU update → 400. Live sale/decrement path untouched
+  (per-outlet tables still keyed by size; UpdateProduct moves rows old→new in-tx).
+  Migration 0012 (SKU backfill + unique index) applied on boot. CSV import is now
+  an upsert (match product by Nama+Brand, variants by SKU; rows without SKU skipped).
+- Note: scoped (outlet/POS) product read does NOT emit variant `id` (unneeded; the
+  edit modal reads ids via getProduct `?outletId=all`).
