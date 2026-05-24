@@ -132,6 +132,68 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Outlet' } }
+    Warehouse:
+      type: object
+      required: [id, name, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    WarehouseInput:
+      type: object
+      required: [name, isActive]
+      properties:
+        name: { type: string }
+        code: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        isActive: { type: boolean }
+    WarehouseListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Warehouse' } }
+    WarehouseStockRow:
+      type: object
+      required: [productId, productName, variantSize, stock]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        stock: { type: integer }
+    WarehouseStockResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/WarehouseStockRow' } }
+    GoodsReceiptItemInput:
+      type: object
+      required: [productId, variantSize, qty]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        qty: { type: integer }
+        unitCost: { type: number, nullable: true }
+    GoodsReceiptInput:
+      type: object
+      required: [items]
+      properties:
+        supplier: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/GoodsReceiptItemInput' } }
+    WarehouseAdjustInput:
+      type: object
+      required: [productId, variantSize, newQty, reason]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        newQty: { type: integer }
+        reason: { type: string }
     Category:
       type: object
       required: [id, name]
@@ -1420,6 +1482,126 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OutletListResponse' }
+  /api/v1/warehouses:
+    post:
+      operationId: createWarehouse
+      tags: [catalog]
+      summary: Create warehouse (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+    get:
+      operationId: listWarehouses
+      tags: [catalog]
+      summary: List warehouses
+      responses:
+        '200':
+          description: warehouses
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WarehouseListResponse' }
+  /api/v1/warehouses/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateWarehouse
+      tags: [catalog]
+      summary: Update warehouse (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteWarehouse
+      tags: [catalog]
+      summary: Delete warehouse (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/warehouses/{id}/stock:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getWarehouseStock
+      tags: [catalog]
+      summary: Warehouse stock rows (Backoffice)
+      responses:
+        '200':
+          description: warehouse stock
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WarehouseStockResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/warehouses/{id}/goods-receipt:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: createGoodsReceipt
+      tags: [catalog]
+      summary: Receive goods into warehouse (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoodsReceiptInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/warehouses/{id}/adjust:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: adjustWarehouseStock
+      tags: [catalog]
+      summary: Adjust warehouse stock to a new quantity (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/custom-roles:
     get:
       operationId: listCustomRoles

@@ -349,6 +349,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/warehouses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List warehouses */
+        get: operations["listWarehouses"];
+        put?: never;
+        /** Create warehouse (Backoffice) */
+        post: operations["createWarehouse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/warehouses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update warehouse (Backoffice) */
+        put: operations["updateWarehouse"];
+        post?: never;
+        /** Delete warehouse (Backoffice) */
+        delete: operations["deleteWarehouse"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/warehouses/{id}/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Warehouse stock rows (Backoffice) */
+        get: operations["getWarehouseStock"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/warehouses/{id}/goods-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive goods into warehouse (Backoffice) */
+        post: operations["createGoodsReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/warehouses/{id}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust warehouse stock to a new quantity (Backoffice) */
+        post: operations["adjustWarehouseStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/custom-roles": {
         parameters: {
             query?: never;
@@ -887,6 +982,57 @@ export interface components {
         };
         OutletListResponse: {
             data: components["schemas"]["Outlet"][];
+        };
+        Warehouse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            code?: string | null;
+            address?: string | null;
+            phone?: string | null;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        WarehouseInput: {
+            name: string;
+            code?: string | null;
+            address?: string | null;
+            phone?: string | null;
+            isActive: boolean;
+        };
+        WarehouseListResponse: {
+            data: components["schemas"]["Warehouse"][];
+        };
+        WarehouseStockRow: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku?: string;
+            stock: number;
+        };
+        WarehouseStockResponse: {
+            data: components["schemas"]["WarehouseStockRow"][];
+        };
+        GoodsReceiptItemInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            qty: number;
+            unitCost?: number | null;
+        };
+        GoodsReceiptInput: {
+            supplier?: string | null;
+            note?: string | null;
+            items: components["schemas"]["GoodsReceiptItemInput"][];
+        };
+        WarehouseAdjustInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            newQty: number;
+            reason: string;
         };
         Category: {
             /** Format: uuid */
@@ -2392,6 +2538,177 @@ export interface operations {
                     "application/json": components["schemas"]["IdResponse"];
                 };
             };
+        };
+    };
+    listWarehouses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description warehouses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WarehouseListResponse"];
+                };
+            };
+        };
+    };
+    createWarehouse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarehouseInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    updateWarehouse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarehouseInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteWarehouse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWarehouseStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description warehouse stock */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WarehouseStockResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createGoodsReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoodsReceiptInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adjustWarehouseStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarehouseAdjustInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     listCustomRoles: {
