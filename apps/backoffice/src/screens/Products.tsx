@@ -193,6 +193,8 @@ export default function Products() {
     if (!form.categoryId) return setErr('Pilih kategori')
     if (form.variants.some((v) => !v.size || v.price <= 0))
       return setErr('Semua varian harus punya ukuran dan harga')
+    if (form.variants.some((v) => !v.sku.trim()))
+      return setErr('Setiap varian wajib punya SKU')
     setBusy(true)
     setErr(null)
     try {
@@ -205,7 +207,7 @@ export default function Products() {
         isActive: form.isActive,
         isFeatured: form.isFeatured,
         variants: form.variants.map((v) => ({
-          size: v.size.trim(), price: Number(v.price),
+          id: v.id, size: v.size.trim(), price: Number(v.price),
           stock: Number(v.stock), sku: v.sku.trim(),
         })),
       }
@@ -265,30 +267,59 @@ export default function Products() {
   const importProducts = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Upsert: a product is matched by Nama+Brand; within it, variants are matched
+    // by SKU (keep SKU, change Ukuran = rename → stock preserved server-side).
+    // Rows without a SKU can't be correlated, so they're skipped.
     const rows = parseCSV(await file.text())
     const grouped: Record<string, { row: Record<string, string>; variants: ProductVariant[] }> = {}
+    let skipped = 0
     for (const row of rows) {
-      const key = `${row['Nama']}|${row['Brand']}`
+      if (!row['Nama']?.trim()) continue
+      if (!row['SKU']?.trim()) {
+        skipped++
+        continue
+      }
+      const key = `${row['Nama'].trim().toLowerCase()}|${(row['Brand'] || '').trim().toLowerCase()}`
       if (!grouped[key]) grouped[key] = { row, variants: [] }
       grouped[key].variants.push({
-        size: row['Ukuran'], price: parseFloat(row['Harga']) || 0,
-        stock: parseInt(row['Stok']) || 0, sku: row['SKU'] || '',
+        size: row['Ukuran'] || '', price: parseFloat(row['Harga']) || 0,
+        stock: parseInt(row['Stok']) || 0, sku: row['SKU'].trim(),
       })
     }
-    let n = 0
+    let created = 0
+    let updated = 0
     for (const { row, variants } of Object.values(grouped)) {
+      if (variants.length === 0) continue
       const cat = categories.find((c) => c.name.toLowerCase() === (row['Kategori'] || '').toLowerCase())
-      await api.createProduct({
-        name: row['Nama'], brand: row['Brand'] || 'Mandalika',
-        categoryId: cat?.id || '', description: row['Deskripsi'] || '',
-        imageUrl: '', isActive: row['Aktif'] !== 'Tidak',
-        isFeatured: row['Unggulan'] === 'Ya', variants,
-      })
-      n++
+      const existing = products.find(
+        (p) =>
+          p.name.trim().toLowerCase() === row['Nama'].trim().toLowerCase() &&
+          p.brand.trim().toLowerCase() === (row['Brand'] || '').trim().toLowerCase(),
+      )
+      const body: ProductInput = {
+        name: row['Nama'].trim(),
+        brand: row['Brand'] || 'Mandalika',
+        categoryId: cat?.id || existing?.categoryId || '',
+        description: row['Deskripsi'] || '',
+        imageUrl: existing?.imageUrl || '',
+        isActive: row['Aktif'] !== 'Tidak',
+        isFeatured: row['Unggulan'] === 'Ya',
+        variants,
+      }
+      if (existing) {
+        await api.updateProduct(existing.id, body)
+        updated++
+      } else {
+        await api.createProduct(body)
+        created++
+      }
     }
     e.target.value = ''
     await pq.refetch()
-    setErr(`${n} produk diimport`)
+    setErr(
+      `${created} produk dibuat, ${updated} diperbarui` +
+        (skipped ? `, ${skipped} baris dilewati (tanpa SKU)` : ''),
+    )
   }
 
   const saveCat = async () => {

@@ -899,6 +899,8 @@ export interface components {
             data: components["schemas"]["Category"][];
         };
         ProductVariant: {
+            /** Format: uuid */
+            id?: string | null;
             size: string;
             price: number;
             stock: number;
