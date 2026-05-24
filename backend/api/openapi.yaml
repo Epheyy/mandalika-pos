@@ -149,6 +149,7 @@ components:
       type: object
       required: [size, price, stock, sku]
       properties:
+        id: { type: string, format: uuid, nullable: true }
         size: { type: string }
         price: { type: number }
         stock: { type: integer }

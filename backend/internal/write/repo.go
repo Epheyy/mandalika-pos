@@ -83,10 +83,26 @@ func jsonb(v any) ([]byte, error) {
 // ── Products (+ variants child table) ─────────────────────
 
 type Variant struct {
+	ID    string  `json:"id"` // permanent id; empty = new (modal sends it; CSV omits it)
 	Size  string  `json:"size"`
 	Price float64 `json:"price"`
 	Stock int     `json:"stock"`
 	SKU   string  `json:"sku"`
+}
+
+// validateVariants enforces SKU as the stable handle: required + unique per product.
+func validateVariants(vs []Variant) error {
+	seen := map[string]bool{}
+	for _, v := range vs {
+		if v.SKU == "" {
+			return fmt.Errorf("setiap varian wajib punya SKU")
+		}
+		if seen[v.SKU] {
+			return fmt.Errorf("SKU duplikat dalam produk: %s", v.SKU)
+		}
+		seen[v.SKU] = true
+	}
+	return nil
 }
 
 type Product struct {
@@ -102,6 +118,9 @@ type Product struct {
 }
 
 func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product) (string, error) {
+	if e := validateVariants(p.Variants); e != nil {
+		return "", e
+	}
 	var id string
 	err := r.tx(ctx, "products", func(t pgx.Tx) error {
 		if e := t.QueryRow(ctx, `
@@ -154,7 +173,16 @@ func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID stri
 	return nil
 }
 
+// UpdateProduct preserves variant identity instead of delete+reinsert: each
+// incoming variant is matched to an existing one by id (modal) or SKU (CSV). A
+// matched variant is updated in place; if its size changed, its per-outlet
+// stock/price rows are moved old→new size in the same tx (so stock follows a
+// rename via any caller). Unmatched incoming = new variant; existing variants not
+// in the payload = removed (with their per-outlet rows).
 func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
+	if e := validateVariants(p.Variants); e != nil {
+		return e
+	}
 	return r.tx(ctx, "products", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx, `
 			UPDATE products SET name=$1, brand=$2, category_id=$3, description=$4,
@@ -168,10 +196,75 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 		if ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
-		if _, e := t.Exec(ctx, `DELETE FROM product_variants WHERE product_id=$1`, id); e != nil {
+
+		rows, e := t.Query(ctx, `SELECT id, size, sku FROM product_variants WHERE product_id=$1`, id)
+		if e != nil {
 			return e
 		}
-		return insertVariants(ctx, t, id, p.Variants)
+		type ex struct{ size, sku string }
+		byID := map[string]ex{}
+		bySKU := map[string]string{}
+		for rows.Next() {
+			var vid, sz, sku string
+			if e := rows.Scan(&vid, &sz, &sku); e != nil {
+				rows.Close()
+				return e
+			}
+			byID[vid] = ex{sz, sku}
+			if sku != "" {
+				bySKU[sku] = vid
+			}
+		}
+		rows.Close()
+
+		kept := map[string]bool{}
+		for _, v := range p.Variants {
+			vid := v.ID
+			if vid == "" {
+				vid = bySKU[v.SKU] // CSV path: correlate by SKU
+			}
+			if cur, ok := byID[vid]; ok {
+				if _, e := t.Exec(ctx,
+					`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4 WHERE id=$5`,
+					v.Size, v.Price, v.Stock, v.SKU, vid); e != nil {
+					return e
+				}
+				if cur.size != v.Size {
+					if _, e := t.Exec(ctx,
+						`UPDATE outlet_variant_stock SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3`,
+						v.Size, id, cur.size); e != nil {
+						return e
+					}
+					if _, e := t.Exec(ctx,
+						`UPDATE outlet_variant_price SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3`,
+						v.Size, id, cur.size); e != nil {
+						return e
+					}
+				}
+				kept[vid] = true
+				continue
+			}
+			if _, e := t.Exec(ctx,
+				`INSERT INTO product_variants (product_id, size, price, stock, sku) VALUES ($1,$2,$3,$4,$5)`,
+				id, v.Size, v.Price, v.Stock, v.SKU); e != nil {
+				return e
+			}
+		}
+		for vid, cur := range byID {
+			if kept[vid] {
+				continue
+			}
+			if _, e := t.Exec(ctx, `DELETE FROM product_variants WHERE id=$1`, vid); e != nil {
+				return e
+			}
+			if _, e := t.Exec(ctx, `DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size=$2`, id, cur.size); e != nil {
+				return e
+			}
+			if _, e := t.Exec(ctx, `DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size=$2`, id, cur.size); e != nil {
+				return e
+			}
+		}
+		return nil
 	})
 }
 
