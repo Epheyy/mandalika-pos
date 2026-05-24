@@ -285,6 +285,17 @@ export default function Products() {
     setExportMenu(false)
   }
 
+  // Downloadable CSV template: the exact importer columns + two example rows
+  // (one product, two variants → same Nama+Brand) so the grouping is self-evident.
+  // First row leaves Barcode blank to show it defaults to the SKU.
+  const downloadTemplate = () => {
+    const example = [
+      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, Stok: 10, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, Stok: 5, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+    ]
+    exportToCSV(example, 'template_produk_mandalika')
+  }
+
   const importProducts = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -398,6 +409,9 @@ export default function Products() {
                     </div>
                   )}
                 </div>
+                <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={downloadTemplate}>
+                  Template
+                </Button>
                 <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => csvRef.current?.click()}>
                   Import
                 </Button>
