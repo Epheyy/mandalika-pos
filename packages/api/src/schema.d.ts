@@ -905,6 +905,7 @@ export interface components {
             price: number;
             stock: number;
             sku: string;
+            barcode?: string;
             parLevel?: number | null;
         };
         Product: {
@@ -916,7 +917,6 @@ export interface components {
             description?: string | null;
             imageUrl?: string | null;
             images?: string[] | null;
-            upc?: string | null;
             sellable?: boolean | null;
             variants: components["schemas"]["ProductVariant"][];
             isFeatured: boolean;
@@ -1486,7 +1486,6 @@ export interface components {
             description?: string;
             imageUrl?: string;
             images?: string[] | null;
-            upc?: string | null;
             sellable?: boolean | null;
             variants: components["schemas"]["ProductVariant"][];
             isFeatured?: boolean;

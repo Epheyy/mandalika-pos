@@ -154,6 +154,7 @@ components:
         price: { type: number }
         stock: { type: integer }
         sku: { type: string }
+        barcode: { type: string }
         parLevel: { type: integer, nullable: true }
     Product:
       type: object
@@ -166,7 +167,6 @@ components:
         description: { type: string, nullable: true }
         imageUrl: { type: string, nullable: true }
         images: { type: array, items: { type: string }, nullable: true }
-        upc: { type: string, nullable: true }
         sellable: { type: boolean, nullable: true }
         variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
         isFeatured: { type: boolean }
@@ -838,7 +838,6 @@ components:
         description: { type: string }
         imageUrl: { type: string }
         images: { type: array, items: { type: string }, nullable: true }
-        upc: { type: string, nullable: true }
         sellable: { type: boolean, nullable: true }
         variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
         isFeatured: { type: boolean }
