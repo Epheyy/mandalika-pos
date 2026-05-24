@@ -194,7 +194,7 @@ func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
 // SetProductOutletConfig applies the per-outlet stock/price/availability matrix
 // for one product in a single tx, then bumps only the affected outlets' content
 // version. A null price clears the override (falls back to base). Availability is
-// product-level (repeated per variant row in the matrix; idempotent upsert).
+// per-variant (stored on outlet_variant_stock).
 func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletVariantConfig) error {
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
@@ -211,10 +211,11 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			outletIDs = append(outletIDs, oid)
 		}
 		if _, e := t.Exec(ctx, `
-			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
-			VALUES ($1,$2,$3,$4)
-			ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
-			oid, productID, it.VariantSize, it.Stock); e != nil {
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock, available)
+			VALUES ($1,$2,$3,$4,$5)
+			ON CONFLICT (outlet_id, product_id, variant_size)
+			  DO UPDATE SET stock=EXCLUDED.stock, available=EXCLUDED.available`,
+			oid, productID, it.VariantSize, it.Stock, it.Available); e != nil {
 			return e
 		}
 		if v, e := it.Price.Get(); e == nil {
@@ -229,13 +230,6 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			DELETE FROM outlet_variant_price
 			WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3`,
 			oid, productID, it.VariantSize); e != nil {
-			return e
-		}
-		if _, e := t.Exec(ctx, `
-			INSERT INTO outlet_product_availability (outlet_id, product_id, available)
-			VALUES ($1,$2,$3)
-			ON CONFLICT (outlet_id, product_id) DO UPDATE SET available=EXCLUDED.available`,
-			oid, productID, it.Available); e != nil {
 			return e
 		}
 	}

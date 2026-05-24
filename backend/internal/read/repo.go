@@ -115,16 +115,22 @@ func productObjScoped(sc Scope) string {
 	     'stock',COALESCE((SELECT os.stock FROM outlet_variant_stock os
 	        WHERE os.outlet_id=$1 AND os.product_id=v.product_id AND os.variant_size=v.size),0),
 	     'sku',v.sku) ORDER BY v.size)
-	     FROM product_variants v WHERE v.product_id=p.id),'[]'::json))`
+	     FROM product_variants v WHERE v.product_id=p.id
+	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
+	        WHERE oa.outlet_id=$1 AND oa.product_id=v.product_id AND oa.variant_size=v.size), true)),'[]'::json))`
 }
 
-// availabilityWhere excludes products turned off at the scoped outlet ($argPos).
+// availabilityWhere keeps a product only if it has at least one variant available
+// at the scoped outlet ($argPos) — i.e. drops products whose every variant is
+// turned off there.
 func availabilityWhere(sc Scope, argPos int) string {
 	if sc.CrossAll || sc.OutletID == "" {
 		return ""
 	}
-	return fmt.Sprintf(` AND NOT EXISTS (SELECT 1 FROM outlet_product_availability a
-	   WHERE a.product_id=p.id AND a.outlet_id=$%d AND a.available=false)`, argPos)
+	return fmt.Sprintf(` AND EXISTS (SELECT 1 FROM product_variants v2
+	   WHERE v2.product_id=p.id
+	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
+	        WHERE oa.outlet_id=$%d AND oa.product_id=v2.product_id AND oa.variant_size=v2.size), true))`, argPos)
 }
 
 func (r *Repo) Products(ctx context.Context, sc Scope, page, limit int) ([]api.Product, int, error) {
@@ -160,15 +166,13 @@ func (r *Repo) ProductOutletConfig(ctx context.Context, productID string) ([]api
 		  'outletId', o.id, 'outletName', o.name, 'variantSize', v.size,
 		  'stock', COALESCE(s.stock, 0),
 		  'price', op.price,
-		  'available', COALESCE(a.available, true))
+		  'available', COALESCE(s.available, true))
 		FROM outlets o
 		CROSS JOIN product_variants v
 		LEFT JOIN outlet_variant_stock s
 		  ON s.outlet_id=o.id AND s.product_id=v.product_id AND s.variant_size=v.size
 		LEFT JOIN outlet_variant_price op
 		  ON op.outlet_id=o.id AND op.product_id=v.product_id AND op.variant_size=v.size
-		LEFT JOIN outlet_product_availability a
-		  ON a.outlet_id=o.id AND a.product_id=v.product_id
 		WHERE v.product_id=$1 AND o.is_active
 		ORDER BY o.name, v.size`, productID)
 	return rows, err
