@@ -48,4 +48,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <!-- Camera is optional: scan-to-cart falls back to the keyboard-wedge path,
+         so don't let the implicit uses-feature hide the app from camera-less tablets. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
