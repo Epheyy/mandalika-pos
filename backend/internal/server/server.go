@@ -96,6 +96,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/categories", h.Categories)
 			r.Get("/bundles", h.Bundles)
 			r.Get("/outlets", h.Outlets)
+			r.Get("/warehouses", h.Warehouses)
+			r.Get("/warehouses/{id}/stock", h.WarehouseStock)
 			r.Get("/promotions", h.Promotions)
 			r.Get("/discount-codes", h.DiscountCodes)
 			r.Get("/loyalty-conditions", h.LoyaltyConditions)
@@ -162,6 +164,13 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_outlets"))
 				r.Post("/outlets", h.CreateOutlet)
 				r.Put("/outlets/{id}", h.UpdateOutlet)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_inventory"))
+				r.Post("/warehouses", h.CreateWarehouse)
+				r.Put("/warehouses/{id}", h.UpdateWarehouse)
+				r.Delete("/warehouses/{id}", h.DeleteWarehouse)
+				// goods-receipt + adjust routes are added in a later task
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_settings"))
