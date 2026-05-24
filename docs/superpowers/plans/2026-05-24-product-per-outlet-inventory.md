@@ -497,10 +497,18 @@ git commit -m "feat(api): outlet-config client methods + regenerated types"
   availability table (load+save via outlet-config); create modal notes the seed
   outlet. Typecheck+build green. Verified live: outlet-config GET (200) + idempotent
   PUT round-trip (200, data unchanged).
-- **PHASE 1 COMPLETE.** Remaining confidence check: one real POS sale to confirm the
-  live decrement hits the right outlet + refund restores.
+- **PHASE 1 COMPLETE & VERIFIED LIVE.** Decrement/refund confirmed via a self-cleaning
+  temp-cashier sale: PMS 87→86 (−1), BSD untouched (0), refund→87. Changed-value
+  outlet-config PUT persists + list reflects. (Left one refunded test order
+  MND-000032 — harmless test data.)
+- **Post-test fixes (commit `cc3481a`, deployed):** (1) usePolledQuery clears data on
+  dep change → no ~2s stale stock on outlet switch / no editing stale rows. (2)
+  Products edit: removed the per-variant stock field (wrote to the dead legacy column
+  → "saved nothing changes"); stock edited only in the per-outlet table; Varian shows
+  true base price via all-scope api.getProduct. (3) Create: stock set per outlet after
+  creating. User to re-test the UI.
+- float32 price KEPT: per-pcs ≤1.35M (≪16.7M); order totals compute in float64
+  server-side, so accumulation isn't limited.
 - **Phases 2–4 remain (future):** Add/Edit wizard (Umum/Unit&Harga/Lokasi + Type
   flags), "Atur" menus (Unit/Grup/Tabel Harga/Stok/Kadaluarsa; skip AYCE/Course/
   Resep/Produksi), import template download.
-- Known limitation (Rule 6): generated price type is float32 (~16.7M exact-int
-  ceiling) — fine for current IDR perfume prices; flag if prices exceed that.
