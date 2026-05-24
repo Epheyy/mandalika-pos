@@ -873,8 +873,12 @@ git commit -m "docs: per-variant scan-to-cart done + verified"
 - **T10 camera path** — gate CLEARED: `@capacitor-mlkit/barcode-scanning@8.1.0` peers `@capacitor/core >=8.0.0` (we're on 8.3.4). Installed + CAMERA permission + `handleCameraScan` (QR+1D) wired; `cap sync android` succeeded (`5626a16`). Camera marked optional `uses-feature required=false` so camera-less tablets aren't excluded (`98b99a8`).
 - All per-task spec + code-quality reviews passed (minor non-blocking notes only). Accepted-as-is minor: T8 `useMemo([products])` rebuilds each render (negligible — tiny catalog; real fix depends on `engine.getSnapshot()` ref-stability, not worth speculative change).
 
+**T11 DONE (2026-05-25):** pushed `cdbed6a..059cbdf` to prod-hardening → Cloudflare Pages
+auto-deploys backoffice; signed APK CI run **26369022325** = SUCCESS, artifact
+`mandalika-pos-release-apk` (14.4 MB). **On-device verification = USER-PENDING** (camera
+QR+1D, wedge Enter-in-search, backoffice barcode field + dup-reject + CSV round-trip).
+
 **REMAINING:**
-- **T11** push branch (⇒ Cloudflare Pages backoffice auto-deploy + APK CI) → on-device verify (camera QR+1D, wedge, backoffice barcode UI/CSV). *Push is outward-facing — awaiting user go-ahead.*
-- **T12** finalize docs/memory with APK + on-device results.
+- **On-device verify** (user) — then record results here + mark fully done.
 - **Follow-up (later migration):** drop the now-dead `products.upc` column once no old revision references it (expand/contract).
 - **Optional:** pure unit tests for `variantBarcode`/`validateVariants` (Go) and `resolveScan`/`buildScanIndex` (TS) — repo currently has no JS test runner; would be opt-in.
