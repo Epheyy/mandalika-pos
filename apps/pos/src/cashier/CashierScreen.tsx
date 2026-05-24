@@ -16,6 +16,7 @@ import { useCart } from '../hooks/useCart'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
 import { ProductGrid } from './ProductGrid'
 import { buildScanIndex, resolveScan } from './scan'
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning'
 import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { CustomerPicker } from './CustomerPicker'
@@ -196,6 +197,30 @@ export default function CashierScreen() {
     if (resolveScan(scanIndex, q)) {
       handleScan(q)
       setSearchQuery('')
+    }
+  }
+
+  // Camera path: ML Kit modal scanner (QR + common 1D). Falls back gracefully
+  // when unsupported or permission denied — the wedge path still works.
+  const handleCameraScan = async () => {
+    try {
+      const { supported } = await BarcodeScanner.isSupported()
+      if (!supported) { showToast('Kamera scan tidak didukung perangkat ini'); return }
+      const perm = await BarcodeScanner.requestPermissions()
+      if (perm.camera !== 'granted' && perm.camera !== 'limited') {
+        showToast('Izin kamera ditolak'); return
+      }
+      const { barcodes } = await BarcodeScanner.scan({
+        formats: [
+          BarcodeFormat.QrCode, BarcodeFormat.Ean13, BarcodeFormat.Ean8,
+          BarcodeFormat.UpcA, BarcodeFormat.UpcE, BarcodeFormat.Code128,
+          BarcodeFormat.Code39, BarcodeFormat.DataMatrix,
+        ],
+      })
+      const value = barcodes[0]?.rawValue
+      if (value) handleScan(value)
+    } catch {
+      // user cancelled or scanner error — no-op (wedge path remains)
     }
   }
 
@@ -562,6 +587,7 @@ export default function CashierScreen() {
             onProductTap={handleProductTap}
             onCategoryChange={setSelectedCategoryId} onSearchChange={setSearchQuery}
             onSearchSubmit={handleSearchSubmit}
+            onScanClick={() => void handleCameraScan()}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
           />
         </div>
