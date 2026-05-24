@@ -14,6 +14,7 @@ import {
   Settings,
   Receipt,
   AlertTriangle,
+  Warehouse,
 } from 'lucide-react'
 import { useAuth } from './auth'
 import { OutletSwitcher } from './outlet'
@@ -27,6 +28,7 @@ import Promotions from './screens/Promotions'
 import Orders from './screens/Orders'
 import Reports from './screens/Reports'
 import StockCount from './screens/StockCount'
+import Warehouses from './screens/Warehouses'
 import Outlets from './screens/Outlets'
 import Users from './screens/Users'
 import SettingsScreen from './screens/SettingsScreen'
@@ -40,6 +42,7 @@ const NAV = [
   { id: 'orders', label: 'Transaksi', icon: Receipt, perm: 'view_transactions', C: Orders },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'stock', label: 'Stock Count', icon: ClipboardList, perm: 'manage_stock_count', C: StockCount },
+  { id: 'warehouses', label: 'Gudang', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
   { id: 'outlets', label: 'Outlet', icon: Store, perm: 'manage_outlets', C: Outlets },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
