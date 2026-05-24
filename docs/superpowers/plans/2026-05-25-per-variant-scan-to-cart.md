@@ -864,4 +864,17 @@ git commit -m "docs: per-variant scan-to-cart done + verified"
 
 ## Progress / resume notes
 
-- (fill in as you execute — deployed rev, verification results, any gated camera-plugin gap)
+**2026-05-25 — Tasks 1-10 done (subagent-driven). Backend deployed + live-verified.**
+
+- **T1** migration `0014_variant_barcode.sql` (`2c91395`). **T2** openapi + regen: `barcode` on ProductVariant, `upc` removed from Product/ProductInput (`f2f5f9b`). **T3** write/repo.go: persist `barcode` (empty⇒SKU via `variantBarcode`), drop UPC, within-product dup check, `barcodeConflict` unique-violation→friendly msg (`73a7f05`). **T4** read/repo.go: emit `barcode`, drop `upc` both branches (`d2c0188`).
+- **T5 deploy** — Cloud Run rev **`mandalika-pos-00019-q4r`**, `/readyz` 200 (⇒ migration 0014 applied cleanly on boot). Live-verified with admin token: variants carry `barcode` (backfilled = SKU, e.g. `A10M-HOL`), no top-level `upc`; catalog-wide collision rejected → `HTTP 400 {"error":"barcode sudah dipakai varian lain: A10M-HOL"}` (nothing persisted).
+- **T6** backoffice Products.tsx: per-variant Barcode field (blank⇒SKU at save), CSV `Barcode` column, parent UPC removed (`e717782`). **T7** backoffice prod build OK (live UI verify pending push).
+- **T8** POS scan: pure `scan.ts` (`buildScanIndex`/`resolveScan`) + wedge path (Enter in search → add 1, stock-guarded, toast) (`7d43a22`). **T9** POS prod build OK (interactive verify folded into on-device).
+- **T10 camera path** — gate CLEARED: `@capacitor-mlkit/barcode-scanning@8.1.0` peers `@capacitor/core >=8.0.0` (we're on 8.3.4). Installed + CAMERA permission + `handleCameraScan` (QR+1D) wired; `cap sync android` succeeded (`5626a16`). Camera marked optional `uses-feature required=false` so camera-less tablets aren't excluded (`98b99a8`).
+- All per-task spec + code-quality reviews passed (minor non-blocking notes only). Accepted-as-is minor: T8 `useMemo([products])` rebuilds each render (negligible — tiny catalog; real fix depends on `engine.getSnapshot()` ref-stability, not worth speculative change).
+
+**REMAINING:**
+- **T11** push branch (⇒ Cloudflare Pages backoffice auto-deploy + APK CI) → on-device verify (camera QR+1D, wedge, backoffice barcode UI/CSV). *Push is outward-facing — awaiting user go-ahead.*
+- **T12** finalize docs/memory with APK + on-device results.
+- **Follow-up (later migration):** drop the now-dead `products.upc` column once no old revision references it (expand/contract).
+- **Optional:** pure unit tests for `variantBarcode`/`validateVariants` (Go) and `resolveScan`/`buildScanIndex` (TS) — repo currently has no JS test runner; would be opt-in.
