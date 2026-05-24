@@ -881,4 +881,4 @@ QR+1D, wedge Enter-in-search, backoffice barcode field + dup-reject + CSV round-
 **REMAINING:**
 - **On-device verify** (user) — then record results here + mark fully done.
 - **Follow-up (later migration):** drop the now-dead `products.upc` column once no old revision references it (expand/contract).
-- **Optional:** pure unit tests for `variantBarcode`/`validateVariants` (Go) and `resolveScan`/`buildScanIndex` (TS) — repo currently has no JS test runner; would be opt-in.
+- **Pure-function unit tests DONE (`7617c50`):** Go `variantBarcode`/`validateVariants` (`backend/internal/write/repo_test.go`, table-driven, runs in `go test ./...`); TS `buildScanIndex`/`resolveScan` (`apps/pos/src/cashier/scan.test.ts`, 8 tests). Added **Vitest 4.1.7** to apps/pos (`test` script = `vitest run`; `*.test.ts` excluded from prod `tsc -b` so the APK build stays decoupled). This is the repo's first JS test runner.
