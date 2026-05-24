@@ -14,5 +14,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src", "capacitor.config.ts"]
+  "include": ["src", "capacitor.config.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
