@@ -40,7 +40,7 @@ const EMPTY: Form = {
 }
 
 export default function Products() {
-  const { outletId, outlets } = useOutlet()
+  const { outletId } = useOutlet()
   // Refetch the list when the admin switches outlet so stock/price/availability
   // reflect that outlet (the API client sends X-Outlet-Id from the switcher).
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data), [outletId])
@@ -94,7 +94,15 @@ export default function Products() {
     setOpen(true)
     setOcfgLoading(true)
     try {
-      setOcfg(await api.getProductOutletConfig(p.id))
+      // Base product (all-outlet scope) gives the true base price/size/sku for the
+      // Varian section — not the currently-selected outlet's resolved values. The
+      // per-outlet matrix drives stock + price overrides + availability.
+      const [base, cfg] = await Promise.all([
+        api.getProduct(p.id).catch(() => null),
+        api.getProductOutletConfig(p.id),
+      ])
+      if (base) setForm((f) => ({ ...f, variants: base.variants.map((v) => ({ ...v })) }))
+      setOcfg(cfg)
     } catch {
       // non-fatal: the per-outlet section just stays empty
     } finally {
@@ -480,16 +488,25 @@ export default function Products() {
             </div>
             {!editing && (
               <p className="text-[11px] text-gray-400 mb-2 -mt-1 flex items-center gap-1">
-                <Store className="w-3 h-3" /> Stok awal masuk ke outlet{' '}
-                <span className="font-bold text-gold-700">{outlets.find((o) => o.id === outletId)?.name || 'Outlet Utama'}</span>
-                ; outlet lain mulai dari 0.
+                <Store className="w-3 h-3" /> Harga dasar di sini. Stok diatur per outlet
+                setelah produk dibuat (Edit → Stok &amp; Harga per Outlet).
               </p>
             )}
+            <div className="grid grid-cols-12 gap-2 px-1 mb-1">
+              <span className="col-span-4 text-[11px] font-bold text-gray-400">Ukuran</span>
+              <span className="col-span-4 text-[11px] font-bold text-gray-400">Harga Dasar</span>
+              <span className="col-span-3 text-[11px] font-bold text-gray-400">SKU</span>
+              <span className="col-span-1" />
+            </div>
             <div className="space-y-2">
               {form.variants.map((v, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  {(['size', 'price', 'stock', 'sku'] as const).map((field, fi) => (
-                    <input key={field} type={field === 'price' || field === 'stock' ? 'number' : 'text'} value={v[field]} onChange={(e) => updVariant(i, field, e.target.value)} placeholder={['30ml', '150000', '10', 'MND-01'][fi]} className={`${fieldClass} col-span-3`} />
+                  {([
+                    { k: 'size', span: 'col-span-4', ph: '30ml', num: false },
+                    { k: 'price', span: 'col-span-4', ph: '150000', num: true },
+                    { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
+                  ] as const).map(({ k, span, ph, num }) => (
+                    <input key={k} type={num ? 'number' : 'text'} value={v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} className={`${fieldClass} ${span}`} />
                   ))}
                   <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
                 </div>

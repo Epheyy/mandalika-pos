@@ -40,6 +40,10 @@ export function usePolledQuery<T>(
 
   useEffect(() => {
     alive.current = true
+    // Clear data from the previous deps (e.g. the prior outlet) so a context
+    // switch shows the loading skeleton instead of stale numbers from another
+    // scope. The interval poll keeps deps stable, so it stays stale-while-revalidate.
+    setData(undefined)
     setLoading(true)
     void run()
     const id = setInterval(() => {

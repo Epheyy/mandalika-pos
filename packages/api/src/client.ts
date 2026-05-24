@@ -90,6 +90,8 @@ export interface Api {
   createProduct: (input: ProductInput) => Promise<Product>
   updateProduct: (id: string, input: ProductInput) => Promise<Product>
   deleteProduct: (id: string) => Promise<void>
+  /** Single product at base/all-outlet scope (base price, summed stock). */
+  getProduct: (id: string) => Promise<Product>
   getProductOutletConfig: (id: string) => Promise<OutletVariantConfig[]>
   updateProductOutletConfig: (id: string, items: OutletVariantConfig[]) => Promise<void>
   listCategories: () => Promise<Category[]>
@@ -266,6 +268,7 @@ export function createClient(opts: ClientOptions): Api {
     deleteProduct: async (id) => {
       await request('DELETE', `${API}/products/${id}`)
     },
+    getProduct: (id) => data<Product>('GET', `${API}/products/${id}?outletId=all`),
     getProductOutletConfig: (id) =>
       data<OutletVariantConfig[]>('GET', `${API}/products/${id}/outlet-config`),
     updateProductOutletConfig: async (id, items) => {
