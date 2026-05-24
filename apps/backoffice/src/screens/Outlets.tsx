@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Outlet } from '@mandalika/api'
 import { Plus, Edit2, Store, MapPin, Phone, ToggleLeft, ToggleRight } from 'lucide-react'
 import { api } from '../api'
+import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { Button, Input, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader } from '../ui'
@@ -9,6 +10,7 @@ import { Button, Input, Textarea, Modal, Card, Badge, IconButton, EmptyState, Pa
 const EMPTY = { name: '', code: '', address: '', phone: '', isActive: true }
 
 export default function Outlets() {
+  const { refreshOutlets } = useOutlet()
   const q = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const outlets = q.data ?? []
   const [open, setOpen] = useState(false)
@@ -54,6 +56,7 @@ export default function Outlets() {
       else await api.createOutlet(body)
       setOpen(false)
       await q.refetch()
+      refreshOutlets() // update the global outlet switcher immediately
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal menyimpan outlet.')
     } finally {

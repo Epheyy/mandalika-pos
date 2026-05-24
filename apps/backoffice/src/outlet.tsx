@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -16,6 +17,8 @@ interface OutletState {
   setOutletId: (id: string | null) => void
   outlets: Outlet[]
   isAdmin: boolean
+  /** Re-fetch the outlet list (e.g. right after creating an outlet). */
+  refreshOutlets: () => void
 }
 
 const OutletCtx = createContext<OutletState | null>(null)
@@ -31,21 +34,40 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     setOutletIdState(id)
   }
 
+  const refreshOutlets = useCallback(() => {
+    if (!isAdmin) return
+    api
+      .listOutlets()
+      .then(setOutlets)
+      .catch(() => {})
+  }, [isAdmin])
+
   useEffect(() => {
     // Admin: cross-outlet by default (no X-Outlet-Id). Non-admin: the token's
     // own outlet governs scope server-side, so leave the header unset.
     authStore.outletId = null
     setOutletIdState(null)
-    if (!isAdmin) return
-    api
-      .listOutlets()
-      .then(setOutlets)
-      .catch(() => setOutlets([]))
-  }, [isAdmin])
+    if (!isAdmin) {
+      setOutlets([])
+      return
+    }
+    // Poll + refresh on focus so a newly created outlet shows in the switcher
+    // without a hard refresh.
+    refreshOutlets()
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshOutlets()
+    }, 15000)
+    const onFocus = () => refreshOutlets()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [isAdmin, refreshOutlets])
 
   const value = useMemo<OutletState>(
-    () => ({ outletId, setOutletId, outlets, isAdmin }),
-    [outletId, outlets, isAdmin],
+    () => ({ outletId, setOutletId, outlets, isAdmin, refreshOutlets }),
+    [outletId, outlets, isAdmin, refreshOutlets],
   )
   return <OutletCtx.Provider value={value}>{children}</OutletCtx.Provider>
 }

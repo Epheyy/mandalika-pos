@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react'
-import type {
-  Product, Category, Bundle, ProductVariant, ProductInput, OutletVariantConfig,
-} from '@mandalika/api'
+import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import {
   Plus, Edit2, Trash2, X, Upload, Package, Search,
-  ImageIcon, Download, Tag, ChevronDown, Store,
+  ImageIcon, Download, Tag, ChevronDown, ChevronRight, Store,
 } from 'lucide-react'
 import { api } from '../api'
 import { useOutlet } from '../outlet'
@@ -64,9 +62,15 @@ export default function Products() {
   const csvRef = useRef<HTMLInputElement>(null)
   const catCsvRef = useRef<HTMLInputElement>(null)
   const [exportMenu, setExportMenu] = useState(false)
-  // Per-outlet stock/price/availability matrix for the product being edited.
-  const [ocfg, setOcfg] = useState<OutletVariantConfig[]>([])
+  // Per-outlet stock/price/availability for the product being edited. Keyed
+  // `${outletId}|${variantSize}` and rendered as outlets × current form.variants
+  // so newly added variants appear (with defaults) before saving.
+  const [ocfgOutlets, setOcfgOutlets] = useState<{ id: string; name: string }[]>([])
+  const [ocfgMap, setOcfgMap] = useState<
+    Record<string, { stock: number; price: number | null; available: boolean }>
+  >({})
   const [ocfgLoading, setOcfgLoading] = useState(false)
+  const [ocCollapsed, setOcCollapsed] = useState<Record<string, boolean>>({})
 
   const [catOpen, setCatOpen] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
@@ -90,7 +94,9 @@ export default function Products() {
       variants: p.variants.map((v) => ({ ...v })),
     })
     setErr(null)
-    setOcfg([])
+    setOcfgOutlets([])
+    setOcfgMap({})
+    setOcCollapsed({})
     setOpen(true)
     setOcfgLoading(true)
     try {
@@ -102,7 +108,14 @@ export default function Products() {
         api.getProductOutletConfig(p.id),
       ])
       if (base) setForm((f) => ({ ...f, variants: base.variants.map((v) => ({ ...v })) }))
-      setOcfg(cfg)
+      const oMap = new Map<string, string>()
+      const m: Record<string, { stock: number; price: number | null; available: boolean }> = {}
+      for (const r of cfg) {
+        oMap.set(r.outletId, r.outletName)
+        m[`${r.outletId}|${r.variantSize}`] = { stock: r.stock, price: r.price ?? null, available: r.available }
+      }
+      setOcfgOutlets([...oMap].map(([id, name]) => ({ id, name })))
+      setOcfgMap(m)
     } catch {
       // non-fatal: the per-outlet section just stays empty
     } finally {
@@ -110,14 +123,30 @@ export default function Products() {
     }
   }
 
-  // Per-outlet matrix editing. Availability is product-level, so toggling it sets
-  // every variant row for that outlet.
-  const updOcfg = (oid: string, size: string, patch: Partial<OutletVariantConfig>) =>
-    setOcfg((rows) =>
-      rows.map((r) => (r.outletId === oid && r.variantSize === size ? { ...r, ...patch } : r)),
-    )
-  const setOutletAvailable = (oid: string, available: boolean) =>
-    setOcfg((rows) => rows.map((r) => (r.outletId === oid ? { ...r, available } : r)))
+  const ocKey = (oid: string, size: string) => `${oid}|${size}`
+  const ocGet = (oid: string, size: string) =>
+    ocfgMap[ocKey(oid, size)] ?? { stock: 0, price: null as number | null, available: true }
+  const ocSet = (
+    oid: string,
+    size: string,
+    patch: Partial<{ stock: number; price: number | null; available: boolean }>,
+  ) =>
+    setOcfgMap((m) => {
+      const k = ocKey(oid, size)
+      const cur = m[k] ?? { stock: 0, price: null as number | null, available: true }
+      return { ...m, [k]: { ...cur, ...patch } }
+    })
+  // Master tick: set availability for every variant of one outlet.
+  const setOutletAllAvailable = (oid: string, available: boolean) =>
+    setOcfgMap((m) => {
+      const next = { ...m }
+      for (const v of form.variants) {
+        if (!v.size.trim()) continue
+        const k = ocKey(oid, v.size)
+        next[k] = { ...(next[k] ?? { stock: 0, price: null, available: true }), available }
+      }
+      return next
+    })
   const basePriceOf = (size: string) => form.variants.find((v) => v.size === size)?.price ?? 0
 
   const onImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +193,24 @@ export default function Products() {
       }
       if (editing) {
         await api.updateProduct(editing.id, body)
-        if (ocfg.length > 0) await api.updateProductOutletConfig(editing.id, ocfg)
+        if (ocfgOutlets.length > 0) {
+          const items = ocfgOutlets.flatMap((o) =>
+            form.variants
+              .filter((v) => v.size.trim())
+              .map((v) => {
+                const c = ocfgMap[`${o.id}|${v.size}`] ?? { stock: 0, price: null, available: true }
+                return {
+                  outletId: o.id,
+                  outletName: o.name,
+                  variantSize: v.size.trim(),
+                  stock: c.stock,
+                  price: c.price,
+                  available: c.available,
+                }
+              }),
+          )
+          await api.updateProductOutletConfig(editing.id, items)
+        }
       } else {
         await api.createProduct(body)
       }
@@ -283,7 +329,7 @@ export default function Products() {
                   Import
                 </Button>
                 <input ref={csvRef} type="file" accept=".csv" onChange={importProducts} className="hidden" />
-                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOcfg([]); setOpen(true) }}>
+                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOcfgOutlets([]); setOcfgMap({}); setOpen(true) }}>
                   Tambah
                 </Button>
               </>
@@ -521,60 +567,51 @@ export default function Products() {
               </label>
               {ocfgLoading ? (
                 <p className="text-sm text-gray-400 py-3">Memuat data outlet…</p>
-              ) : ocfg.length === 0 ? (
+              ) : ocfgOutlets.length === 0 ? (
                 <p className="text-sm text-gray-400 py-3">Tidak ada outlet aktif.</p>
               ) : (
                 <div className="mt-2 space-y-3">
-                  {[...new Map(ocfg.map((r) => [r.outletId, r.outletName])).entries()].map(
-                    ([oid, oname]) => {
-                      const rows = ocfg.filter((r) => r.outletId === oid)
-                      const available = rows[0]?.available ?? true
-                      return (
-                        <div key={oid} className="border border-gray-100 rounded-xl p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
-                              <Store className="w-3.5 h-3.5 text-gold-600" /> {oname}
-                            </span>
-                            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-500">
-                              <input
-                                type="checkbox"
-                                checked={available}
-                                onChange={(e) => setOutletAvailable(oid, e.target.checked)}
-                                className="w-4 h-4 accent-gold-600"
-                              />
-                              Dijual di sini
-                            </label>
-                          </div>
-                          <div className={`space-y-1.5 ${available ? '' : 'opacity-40 pointer-events-none'}`}>
-                            {rows.map((r) => (
-                              <div key={r.variantSize} className="grid grid-cols-12 gap-2 items-center">
-                                <span className="col-span-5 text-xs text-gray-600 truncate">{r.variantSize}</span>
-                                <input
-                                  type="number"
-                                  value={r.stock}
-                                  onChange={(e) => updOcfg(oid, r.variantSize, { stock: Number(e.target.value) })}
-                                  placeholder="Stok"
-                                  className={`${fieldClass} col-span-3 py-1.5`}
-                                />
-                                <input
-                                  type="number"
-                                  value={r.price ?? ''}
-                                  onChange={(e) =>
-                                    updOcfg(oid, r.variantSize, {
-                                      price: e.target.value === '' ? null : Number(e.target.value),
-                                    })
-                                  }
-                                  placeholder={`${basePriceOf(r.variantSize)}`}
-                                  className={`${fieldClass} col-span-4 py-1.5`}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                  {ocfgOutlets.map((o) => {
+                    const sizes = form.variants.filter((v) => v.size.trim())
+                    const allOn = sizes.length > 0 && sizes.every((v) => ocGet(o.id, v.size).available)
+                    const collapsed = ocCollapsed[o.id]
+                    return (
+                      <div key={o.id} className="border border-gray-100 rounded-xl">
+                        <div className="flex items-center justify-between p-3">
+                          <button type="button" onClick={() => setOcCollapsed((c) => ({ ...c, [o.id]: !c[o.id] }))} className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+                            {collapsed ? <ChevronRight className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                            <Store className="w-3.5 h-3.5 text-gold-600" /> {o.name}
+                          </button>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-500">
+                            <input type="checkbox" checked={allOn} onChange={(e) => setOutletAllAvailable(o.id, e.target.checked)} className="w-4 h-4 accent-gold-600" />
+                            Dijual di sini (semua)
+                          </label>
                         </div>
-                      )
-                    },
-                  )}
-                  <p className="text-[11px] text-gray-400">Harga kosong = pakai harga dasar varian.</p>
+                        {!collapsed && (
+                          <div className="px-3 pb-3 space-y-1.5">
+                            {sizes.length === 0 ? (
+                              <p className="text-[11px] text-gray-400">Tambahkan varian dulu di atas.</p>
+                            ) : (
+                              sizes.map((v) => {
+                                const c = ocGet(o.id, v.size)
+                                return (
+                                  <div key={v.size} className="grid grid-cols-12 gap-2 items-center">
+                                    <label className="col-span-1 flex justify-center cursor-pointer">
+                                      <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
+                                    </label>
+                                    <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
+                                    <input type="number" value={c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: Number(e.target.value) })} placeholder="Stok" disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
+                                    <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-4 py-1.5 disabled:opacity-40`} />
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <p className="text-[11px] text-gray-400">Centang = dijual di outlet itu. Harga kosong = pakai harga dasar varian.</p>
                 </div>
               )}
             </div>
