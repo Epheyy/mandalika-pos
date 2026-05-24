@@ -154,6 +154,7 @@ components:
         price: { type: number }
         stock: { type: integer }
         sku: { type: string }
+        parLevel: { type: integer, nullable: true }
     Product:
       type: object
       required: [id, name, brand, categoryId, variants, isFeatured, isFavourite, isActive, createdAt]
@@ -164,6 +165,9 @@ components:
         categoryId: { type: string }
         description: { type: string, nullable: true }
         imageUrl: { type: string, nullable: true }
+        images: { type: array, items: { type: string }, nullable: true }
+        upc: { type: string, nullable: true }
+        sellable: { type: boolean, nullable: true }
         variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
         isFeatured: { type: boolean }
         isFavourite: { type: boolean }
@@ -833,6 +837,9 @@ components:
         categoryId: { type: string }
         description: { type: string }
         imageUrl: { type: string }
+        images: { type: array, items: { type: string }, nullable: true }
+        upc: { type: string, nullable: true }
+        sellable: { type: boolean, nullable: true }
         variants: { type: array, items: { $ref: '#/components/schemas/ProductVariant' } }
         isFeatured: { type: boolean }
         isFavourite: { type: boolean }
@@ -848,6 +855,7 @@ components:
         # null = use the variant's base price (no per-outlet override)
         price: { type: number, nullable: true }
         available: { type: boolean }
+        parLevel: { type: integer, nullable: true }
     OutletConfigResponse:
       type: object
       required: [data]

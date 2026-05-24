@@ -111,10 +111,28 @@ type Product struct {
 	CategoryID  string    `json:"categoryId"`
 	Description string    `json:"description"`
 	ImageURL    string    `json:"imageUrl"`
+	Images      []string  `json:"images"`
+	UPC         string    `json:"upc"`
+	Sellable    bool      `json:"sellable"`
 	Variants    []Variant `json:"variants"`
 	IsFeatured  bool      `json:"isFeatured"`
 	IsFavourite bool      `json:"isFavourite"`
 	IsActive    bool      `json:"isActive"`
+}
+
+// productImages resolves the images array + main image (images[0], back-compat
+// with the legacy single image_url column).
+func productImages(p Product) ([]byte, string) {
+	imgs := p.Images
+	if len(imgs) == 0 && p.ImageURL != "" {
+		imgs = []string{p.ImageURL}
+	}
+	main := ""
+	if len(imgs) > 0 {
+		main = imgs[0]
+	}
+	b, _ := json.Marshal(imgs)
+	return b, main
 }
 
 func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product) (string, error) {
@@ -123,12 +141,13 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 	}
 	var id string
 	err := r.tx(ctx, "products", func(t pgx.Tx) error {
+		imgs, main := productImages(p)
 		if e := t.QueryRow(ctx, `
 			INSERT INTO products (name, brand, category_id, description, image_url,
-			  is_featured, is_favourite, is_active)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+			  images, upc, sellable, is_featured, is_favourite, is_active)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
 			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
-			nullStr(p.ImageURL), p.IsFeatured, p.IsFavourite, p.IsActive).
+			nullStr(main), imgs, p.UPC, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive).
 			Scan(&id); e != nil {
 			return e
 		}
@@ -184,12 +203,14 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 		return e
 	}
 	return r.tx(ctx, "products", func(t pgx.Tx) error {
+		imgs, main := productImages(p)
 		ct, e := t.Exec(ctx, `
 			UPDATE products SET name=$1, brand=$2, category_id=$3, description=$4,
-			  image_url=$5, is_featured=$6, is_favourite=$7, is_active=$8
-			WHERE id=$9`,
+			  image_url=$5, images=$6, upc=$7, sellable=$8,
+			  is_featured=$9, is_favourite=$10, is_active=$11
+			WHERE id=$12`,
 			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
-			nullStr(p.ImageURL), p.IsFeatured, p.IsFavourite, p.IsActive, id)
+			nullStr(main), imgs, p.UPC, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive, id)
 		if e != nil {
 			return e
 		}
@@ -303,12 +324,16 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			seen[oid] = true
 			outletIDs = append(outletIDs, oid)
 		}
+		var par any
+		if v, e := it.ParLevel.Get(); e == nil {
+			par = v
+		}
 		if _, e := t.Exec(ctx, `
-			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock, available)
-			VALUES ($1,$2,$3,$4,$5)
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock, available, par_level)
+			VALUES ($1,$2,$3,$4,$5,$6)
 			ON CONFLICT (outlet_id, product_id, variant_size)
-			  DO UPDATE SET stock=EXCLUDED.stock, available=EXCLUDED.available`,
-			oid, productID, it.VariantSize, it.Stock, it.Available); e != nil {
+			  DO UPDATE SET stock=EXCLUDED.stock, available=EXCLUDED.available, par_level=EXCLUDED.par_level`,
+			oid, productID, it.VariantSize, it.Stock, it.Available, par); e != nil {
 			return e
 		}
 		if v, e := it.Price.Get(); e == nil {

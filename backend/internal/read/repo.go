@@ -23,6 +23,8 @@ func New(p *pgxpool.Pool) *Repo { return &Repo{Pool: p} }
 type Scope struct {
 	CrossAll bool
 	OutletID string
+	// SellableOnly excludes products flagged not-for-customers (POS pull only).
+	SellableOnly bool
 }
 
 // listJSON runs a query whose first column is a per-row JSON object and whose
@@ -94,6 +96,7 @@ func productObjScoped(sc Scope) string {
 		return `json_build_object(
 		  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
 		  'description',p.description,'imageUrl',p.image_url,
+	  'images',p.images,'upc',p.upc,'sellable',p.sellable,
 		  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 		  'createdAt',p.created_at,
 		  'variants',COALESCE((SELECT json_agg(json_build_object(
@@ -106,6 +109,7 @@ func productObjScoped(sc Scope) string {
 	return `json_build_object(
 	  'id',p.id,'name',p.name,'brand',p.brand,'categoryId',p.category_id,
 	  'description',p.description,'imageUrl',p.image_url,
+	  'images',p.images,'upc',p.upc,'sellable',p.sellable,
 	  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 	  'createdAt',p.created_at,
 	  'variants',COALESCE((SELECT json_agg(json_build_object(
@@ -114,6 +118,8 @@ func productObjScoped(sc Scope) string {
 	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size), v.price),
 	     'stock',COALESCE((SELECT os.stock FROM outlet_variant_stock os
 	        WHERE os.outlet_id=$1 AND os.product_id=v.product_id AND os.variant_size=v.size),0),
+	     'parLevel',(SELECT op.par_level FROM outlet_variant_stock op
+	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size),
 	     'sku',v.sku) ORDER BY v.size)
 	     FROM product_variants v WHERE v.product_id=p.id
 	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
@@ -133,17 +139,26 @@ func availabilityWhere(sc Scope, argPos int) string {
 	        WHERE oa.outlet_id=$%d AND oa.product_id=v2.product_id AND oa.variant_size=v2.size), true))`, argPos)
 }
 
+// sellableWhere hides not-for-customer products (POS pull only).
+func sellableWhere(sc Scope) string {
+	if sc.SellableOnly {
+		return ` AND p.sellable`
+	}
+	return ""
+}
+
 func (r *Repo) Products(ctx context.Context, sc Scope, page, limit int) ([]api.Product, int, error) {
 	obj := productObjScoped(sc)
 	if sc.CrossAll || sc.OutletID == "" {
 		return listJSON[api.Product](ctx, r.Pool,
 			`SELECT `+obj+`, count(*) OVER() AS total
-			   FROM products p ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
+			   FROM products p WHERE true`+sellableWhere(sc)+`
+			   ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
 			limit, off(page, limit))
 	}
 	return listJSON[api.Product](ctx, r.Pool,
 		`SELECT `+obj+`, count(*) OVER() AS total
-		   FROM products p WHERE true`+availabilityWhere(sc, 1)+`
+		   FROM products p WHERE true`+availabilityWhere(sc, 1)+sellableWhere(sc)+`
 		   ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
 		sc.OutletID, limit, off(page, limit))
 }
@@ -166,6 +181,7 @@ func (r *Repo) ProductOutletConfig(ctx context.Context, productID string) ([]api
 		  'outletId', o.id, 'outletName', o.name, 'variantSize', v.size,
 		  'stock', COALESCE(s.stock, 0),
 		  'price', op.price,
+		  'parLevel', s.par_level,
 		  'available', COALESCE(s.available, true))
 		FROM outlets o
 		CROSS JOIN product_variants v

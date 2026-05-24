@@ -83,8 +83,9 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 			b.OutletName = *name
 		}
 	}
-	// Outlet-scoped: POS receives this outlet's resolved stock/price and only
-	// products available here (sc.OutletID is the cashier's outlet).
+	// Outlet-scoped: POS receives this outlet's resolved stock/price, only products
+	// available here, and only customer-sellable ones (sc.OutletID = cashier outlet).
+	sc.SellableOnly = true
 	if b.Products, _, err = e.Read.Products(ctx, sc, 1, 100000); err != nil {
 		return b, err
 	}
