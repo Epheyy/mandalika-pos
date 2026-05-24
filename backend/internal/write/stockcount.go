@@ -2,6 +2,8 @@ package write
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -74,6 +76,7 @@ type StockCountCreate struct {
 	Name        string           `json:"name"`
 	PlannedDate string           `json:"plannedDate"`
 	Notes       string           `json:"notes"`
+	WarehouseID string           `json:"warehouseId"` // set → warehouse count; else outlet count (outletID from caller)
 	Items       []StockCountItem `json:"items"`
 }
 
@@ -86,6 +89,14 @@ type StockCountUpdate struct {
 // CreateStockCount freezes the supplied snapshot. Outlet + creator come from
 // the caller (server-resolved), never the body (plan §2a).
 func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string, s StockCountCreate) (string, error) {
+	// A count belongs to exactly one location. A warehouseId in the body makes it
+	// a warehouse count (ignore any outlet scope); otherwise it's an outlet count
+	// and the outlet comes from the caller's scope.
+	if s.WarehouseID != "" {
+		outletID = ""
+	} else if outletID == "" {
+		return "", fmt.Errorf("outlet atau gudang wajib")
+	}
 	var id string
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
@@ -93,10 +104,10 @@ func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string,
 	}
 	defer t.Rollback(ctx)
 	if e := t.QueryRow(ctx, `
-		INSERT INTO stock_counts (name, status, outlet_id, planned_date, notes, created_by)
-		VALUES ($1,'planned',$2,$3,$4,$5) RETURNING id`,
-		s.Name, outletID, nullDate(s.PlannedDate), nullStr(s.Notes),
-		nullUUID(createdBy)).Scan(&id); e != nil {
+		INSERT INTO stock_counts (name, status, outlet_id, warehouse_id, planned_date, notes, created_by)
+		VALUES ($1,'planned',$2,$3,$4,$5,$6) RETURNING id`,
+		s.Name, nullUUID(outletID), nullUUID(s.WarehouseID), nullDate(s.PlannedDate),
+		nullStr(s.Notes), nullUUID(createdBy)).Scan(&id); e != nil {
 		return "", e
 	}
 	if e := insertStockItems(ctx, t, id, s.Items); e != nil {
@@ -119,16 +130,24 @@ func insertStockItems(ctx context.Context, t pgx.Tx, scID string, items []StockC
 	return nil
 }
 
-// scopedSC returns ErrNotFound when the stock count is not in the caller's outlet.
-func scopedSC(ctx context.Context, t pgx.Tx, id, outletID string) error {
-	var n int
-	if e := t.QueryRow(ctx,
-		`SELECT count(*) FROM stock_counts WHERE id=$1 AND outlet_id=$2`,
-		id, outletID).Scan(&n); e != nil {
+// scopeCount authorizes a stock count by id, handling both location types:
+// outlet counts must belong to the caller's outlet; warehouse counts are
+// permission-gated (existence check only — no outlet binding).
+func scopeCount(ctx context.Context, t pgx.Tx, id, outletID string) error {
+	var oid, wid *string
+	e := t.QueryRow(ctx,
+		`SELECT outlet_id, warehouse_id FROM stock_counts WHERE id=$1`, id).Scan(&oid, &wid)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if e != nil {
 		return e
 	}
-	if n == 0 {
-		return ErrNotFound
+	if wid != nil {
+		return nil // warehouse count: gated by permission
+	}
+	if oid == nil || *oid != outletID {
+		return ErrNotFound // outlet count: must match the caller's outlet
 	}
 	return nil
 }
@@ -141,7 +160,7 @@ func (r *Repo) UpdateStockCount(ctx context.Context, id, outletID string, u Stoc
 		return err
 	}
 	defer t.Rollback(ctx)
-	if e := scopedSC(ctx, t, id, outletID); e != nil {
+	if e := scopeCount(ctx, t, id, outletID); e != nil {
 		return e
 	}
 	switch u.Status {
@@ -179,10 +198,24 @@ func (r *Repo) UpdateStockCount(ctx context.Context, id, outletID string, u Stoc
 // bumps the products content version so POS resyncs (plan §5a). If items are
 // supplied they replace the stored items first.
 func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, items []StockCountItem) error {
-	return r.tx(ctx, "products", func(t pgx.Tx) error {
-		if e := scopedSC(ctx, t, id, outletID); e != nil {
-			return e
+	// Determine the count's location up front: it picks the tx wrapper (outlet
+	// counts bump content_version so POS resyncs; warehouse counts don't) and the
+	// stock table the counted quantities are written to.
+	var oid, wid *string
+	if e := r.Pool.QueryRow(ctx,
+		`SELECT outlet_id, warehouse_id FROM stock_counts WHERE id=$1`, id).Scan(&oid, &wid); e != nil {
+		if errors.Is(e, pgx.ErrNoRows) {
+			return ErrNotFound
 		}
+		return e
+	}
+	// Authorize: outlet counts must match the caller's outlet; warehouse counts
+	// are permission-gated.
+	if wid == nil && (oid == nil || *oid != outletID) {
+		return ErrNotFound
+	}
+
+	work := func(t pgx.Tx) error {
 		if items != nil {
 			if _, e := t.Exec(ctx,
 				`DELETE FROM stock_count_items WHERE stock_count_id=$1`, id); e != nil {
@@ -214,16 +247,26 @@ func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, item
 		}
 		rows.Close()
 		for _, a := range adjs {
-			// Apply the counted quantity to THIS outlet's stock row (the count is
-			// outlet-scoped via scopedSC); create it if the outlet hasn't been
-			// stocked before.
-			if _, e := t.Exec(ctx,
-				`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
-				   VALUES ($1,$2,$3,$4)
-				 ON CONFLICT (outlet_id, product_id, variant_size)
-				   DO UPDATE SET stock = EXCLUDED.stock`,
-				outletID, a.pid, a.size, a.actual); e != nil {
-				return e
+			if wid != nil {
+				// warehouse count → write the counted qty to warehouse stock
+				if _, e := t.Exec(ctx,
+					`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
+					   VALUES ($1,$2,$3,$4)
+					 ON CONFLICT (warehouse_id, product_id, variant_size)
+					   DO UPDATE SET stock = EXCLUDED.stock`,
+					*wid, a.pid, a.size, a.actual); e != nil {
+					return e
+				}
+			} else {
+				// outlet count → write to this outlet's stock row
+				if _, e := t.Exec(ctx,
+					`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+					   VALUES ($1,$2,$3,$4)
+					 ON CONFLICT (outlet_id, product_id, variant_size)
+					   DO UPDATE SET stock = EXCLUDED.stock`,
+					outletID, a.pid, a.size, a.actual); e != nil {
+					return e
+				}
 			}
 			if _, e := t.Exec(ctx,
 				`UPDATE stock_count_items SET difference=$1
@@ -236,5 +279,10 @@ func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, item
 			`UPDATE stock_counts SET status='completed', completed_at=now() WHERE id=$1`,
 			id)
 		return e
-	})
+	}
+
+	if wid != nil {
+		return r.noBumpTx(ctx, work) // warehouse: no POS resync needed
+	}
+	return r.tx(ctx, "products", work) // outlet: bump content_version
 }
