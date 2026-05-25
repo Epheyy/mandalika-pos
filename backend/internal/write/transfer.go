@@ -213,3 +213,47 @@ func (r *Repo) UpdateTransferDraft(ctx context.Context, id string, t TransferCre
 		return insertTransferItems(ctx, tx, id, t.Items)
 	})
 }
+
+// SendTransfer deducts each line from the source (guarding against oversend),
+// marks the transfer in_transit, and bumps the source outlet leg if any.
+func (r *Repo) SendTransfer(ctx context.Context, id string) error {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	t, e := loadTransfer(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+	if _, e := transferTransition(t.status, "send"); e != nil {
+		return e
+	}
+	lines, e := transferLines(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+	for _, l := range lines {
+		have, e := currentStock(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size)
+		if e != nil {
+			return e
+		}
+		if have < l.sent {
+			return fmt.Errorf("stok tidak cukup untuk dikirim")
+		}
+		if e := addStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size, -l.sent); e != nil {
+			return e
+		}
+	}
+	if _, e := tx.Exec(ctx,
+		`UPDATE transfers SET status='in_transit', sent_at=now() WHERE id=$1`, id); e != nil {
+		return e
+	}
+	if t.srcOutlet != nil {
+		if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.srcOutlet}); e != nil {
+			return e
+		}
+	}
+	return tx.Commit(ctx)
+}
