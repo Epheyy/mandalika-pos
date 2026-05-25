@@ -6,7 +6,7 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 # ⭐ LATEST SESSION — 2026-05-25 (READ THIS FIRST; supersedes older "current state" below)
 
-Branch `prod-hardening` · latest backend rev **00023-tz9** · Inventory **SP2 (transfers) DONE & deployed** (see below).
+Branch `prod-hardening` · latest backend rev **00023-tz9** · Inventory **SP2 (transfers) DONE & deployed** (see below). **▶️ NEXT ACTION: brainstorm SP3** — POS-side receiving + PIN (in-transit transfers sync to the destination outlet's POS; receiver confirms on-device with REAL counted qty cross-checking admin input; offline-capable enqueue; authoritative PIN + selected roles to approve). Start with `superpowers:brainstorming`.
 
 ## ‼️ Production status correction
 The app is **deployed & functional on free-tier infra but runs TEST DATA ONLY —
