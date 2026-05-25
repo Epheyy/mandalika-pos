@@ -27,6 +27,11 @@ export type ReportSummary = S['ReportSummary']
 export type Meta = S['Meta']
 export type Warehouse = S['Warehouse']
 export type WarehouseStockRow = S['WarehouseStockRow']
+export type Transfer = S['Transfer']
+export type TransferItem = S['TransferItem']
+export type TransferLocation = S['TransferLocation']
+export type TransferCreateInput = S['TransferCreateInput']
+export type TransferReceiveInput = S['TransferReceiveInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -158,6 +163,16 @@ export interface Api {
   getWarehouseStock: (id: string) => Promise<WarehouseStockRow[]>
   createGoodsReceipt: (id: string, input: GoodsReceiptInput) => Promise<void>
   adjustWarehouseStock: (id: string, input: WarehouseAdjustInput) => Promise<void>
+
+  // transfers (SP2)
+  listTransfers: (status?: string, page?: number, limit?: number) => Promise<ListResult<Transfer>>
+  getTransfer: (id: string) => Promise<Transfer>
+  getTransferLocationStock: (kind: string, id: string) => Promise<WarehouseStockRow[]>
+  createTransfer: (input: TransferCreateInput) => Promise<{ id: string }>
+  updateTransfer: (id: string, input: TransferCreateInput) => Promise<void>
+  sendTransfer: (id: string) => Promise<void>
+  receiveTransfer: (id: string, input: TransferReceiveInput) => Promise<void>
+  cancelTransfer: (id: string) => Promise<void>
 
   // users / roles
   listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
@@ -363,6 +378,24 @@ export function createClient(opts: ClientOptions): Api {
     },
     adjustWarehouseStock: async (id, input) => {
       await request('POST', `${API}/warehouses/${id}/adjust`, input)
+    },
+    listTransfers: (status, page = 1, limit = 50) =>
+      list<Transfer>(`${API}/transfers`, { ...(status ? { status } : {}), page, limit }),
+    getTransfer: (id) => data<Transfer>('GET', `${API}/transfers/${id}`),
+    getTransferLocationStock: (kind, id) =>
+      data<WarehouseStockRow[]>('GET', `${API}/transfers/location-stock?kind=${kind}&id=${id}`),
+    createTransfer: (input) => data<{ id: string }>('POST', `${API}/transfers`, input),
+    updateTransfer: async (id, input) => {
+      await request('PUT', `${API}/transfers/${id}`, input)
+    },
+    sendTransfer: async (id) => {
+      await request('POST', `${API}/transfers/${id}/send`)
+    },
+    receiveTransfer: async (id, input) => {
+      await request('POST', `${API}/transfers/${id}/receive`, input)
+    },
+    cancelTransfer: async (id) => {
+      await request('POST', `${API}/transfers/${id}/cancel`)
     },
 
     listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
