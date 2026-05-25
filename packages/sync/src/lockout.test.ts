@@ -23,4 +23,11 @@ describe('lockout', () => {
   it('reset clears failures', () => {
     expect(canAttempt(reset(), t0).allowed).toBe(true)
   })
+  it('starts a fresh failure batch after the cooldown elapses', () => {
+    let s: Lockout = reset()
+    for (let i = 0; i < MAX_PIN_ATTEMPTS; i++) s = recordFailure(s, t0) // locked at t0
+    const after = recordFailure(s, t0 + LOCKOUT_MS + 1) // one wrong PIN after cooldown
+    expect(after.failures).toBe(1)
+    expect(canAttempt(after, t0 + LOCKOUT_MS + 2).allowed).toBe(true)
+  })
 })

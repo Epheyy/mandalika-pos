@@ -11,7 +11,9 @@ export function reset(): Lockout {
 }
 
 export function recordFailure(s: Lockout, now: number): Lockout {
-  const failures = s.failures + 1
+  // If a prior lockout has fully elapsed, start a fresh failure count.
+  const base = s.lockedUntil !== 0 && now >= s.lockedUntil ? 0 : s.failures
+  const failures = base + 1
   const lockedUntil = failures >= MAX_PIN_ATTEMPTS ? now + LOCKOUT_MS : 0
   return { failures, lockedUntil }
 }
