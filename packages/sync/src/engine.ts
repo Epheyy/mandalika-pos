@@ -7,6 +7,17 @@ import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 
+/** Strip sensitive fields (currently the receive PIN) from an outbox payload
+ *  before it is surfaced to logs, error reports, or shareable blobs. */
+function redactPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  if (payload && typeof payload === 'object' && 'pin' in payload) {
+    const clone: Record<string, unknown> = { ...payload }
+    delete clone.pin
+    return clone
+  }
+  return payload
+}
+
 type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
 type VersionInfo = components['schemas']['SyncVersion']
@@ -228,13 +239,14 @@ export class SyncEngine {
           idempotencyKey: d.idempotencyKey,
           lastError: d.lastError,
           clientCreatedAt: d.clientCreatedAt,
-          payload: d.payload,
+          payload: redactPayload(d.payload),
         })
       }
       writeJSON(this.kv, SYNC_LOG_KEY, log.slice(-200)) // keep last 200
       this.events.onOutboxChange?.(this.outbox.count())
     }
-    return JSON.stringify(dead, null, 2)
+    const redacted = dead.map((d) => ({ ...d, payload: redactPayload(d.payload) }))
+    return JSON.stringify(redacted, null, 2)
   }
 
   /** The recorded sync-failure debug log (most recent last, capped at 200). */
@@ -323,7 +335,7 @@ export class SyncEngine {
       fresh.map((i) => ({
         type: i.type,
         idempotencyKey: i.idempotencyKey,
-        payload: i.payload,
+        payload: redactPayload(i.payload),
         lastError: i.lastError,
       })),
     )
