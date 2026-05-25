@@ -561,12 +561,13 @@ components:
         difference: { type: integer, nullable: true }
     StockCount:
       type: object
-      required: [id, name, status, outletId, items, createdBy, createdAt]
+      required: [id, name, status, items, createdBy, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         status: { type: string, enum: [planned, in_progress, completed, cancelled] }
-        outletId: { type: string, format: uuid }
+        outletId: { type: string, format: uuid, nullable: true }
+        warehouseId: { type: string, format: uuid, nullable: true }
         plannedDate: { type: string, nullable: true }
         startedAt: { type: string, format: date-time, nullable: true }
         completedAt: { type: string, format: date-time, nullable: true }
@@ -670,6 +671,7 @@ components:
       required: [name, items]
       properties:
         name: { type: string }
+        warehouseId: { type: string, format: uuid, nullable: true }
         plannedDate: { type: string, nullable: true }
         notes: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/StockCountItem' } }

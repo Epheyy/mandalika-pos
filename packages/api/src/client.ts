@@ -141,7 +141,8 @@ export interface Api {
   getStockCount: (id: string) => Promise<StockCount>
   createStockCount: (input: {
     name: string
-    outletId: string
+    outletId?: string
+    warehouseId?: string
     plannedDate?: string
     notes?: string
     items: StockCountItem[]

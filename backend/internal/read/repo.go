@@ -503,7 +503,7 @@ func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string,
 }
 
 const stockCountObj = `json_build_object('id',sc.id,'name',sc.name,
-  'status',sc.status,'outletId',sc.outlet_id,'plannedDate',sc.planned_date,
+  'status',sc.status,'outletId',sc.outlet_id,'warehouseId',sc.warehouse_id,'plannedDate',sc.planned_date,
   'startedAt',sc.started_at,'completedAt',sc.completed_at,'notes',sc.notes,
   'createdBy',sc.created_by,'createdAt',sc.created_at,
   'items',COALESCE((SELECT json_agg(json_build_object(
@@ -531,7 +531,9 @@ func (r *Repo) StockCount(ctx context.Context, s Scope, id string) (api.StockCou
 	cond := ""
 	if !s.CrossAll {
 		args = append(args, s.OutletID)
-		cond = " AND sc.outlet_id=$2"
+		// Outlet-scoped readers see their outlet's counts plus any warehouse count
+		// (warehouse counts have no outlet binding; they're permission-gated).
+		cond = " AND (sc.outlet_id=$2 OR sc.warehouse_id IS NOT NULL)"
 	}
 	return oneJSON[api.StockCount](ctx, r.Pool,
 		`SELECT `+stockCountObj+` FROM stock_counts sc WHERE sc.id=$1`+cond, args...)

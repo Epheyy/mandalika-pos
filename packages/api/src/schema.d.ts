@@ -1359,7 +1359,9 @@ export interface components {
             /** @enum {string} */
             status: "planned" | "in_progress" | "completed" | "cancelled";
             /** Format: uuid */
-            outletId: string;
+            outletId?: string | null;
+            /** Format: uuid */
+            warehouseId?: string | null;
             plannedDate?: string | null;
             /** Format: date-time */
             startedAt?: string | null;
@@ -1449,6 +1451,8 @@ export interface components {
         };
         StockCountCreateInput: {
             name: string;
+            /** Format: uuid */
+            warehouseId?: string | null;
             plannedDate?: string | null;
             notes?: string | null;
             items: components["schemas"]["StockCountItem"][];

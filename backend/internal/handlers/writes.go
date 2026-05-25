@@ -514,11 +514,14 @@ func (h *Handlers) CreateStockCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := h.caller(r)
-	if c.outletID == "" {
+	outletID := c.outletID
+	if body.WarehouseID != "" {
+		outletID = "" // warehouse count: location is the warehouse, not an outlet
+	} else if outletID == "" {
 		httpx.Err(w, http.StatusForbidden, "no active outlet")
 		return
 	}
-	id, err := h.Write.CreateStockCount(r.Context(), c.outletID, c.userID, body)
+	id, err := h.Write.CreateStockCount(r.Context(), outletID, c.userID, body)
 	h.created(w, r, id, err)
 }
 
@@ -528,10 +531,8 @@ func (h *Handlers) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := h.caller(r)
-	if c.outletID == "" {
-		httpx.Err(w, http.StatusForbidden, "no active outlet")
-		return
-	}
+	// No outlet guard — the repo (scopeCount) authorizes: outlet counts must match
+	// the caller's outlet; warehouse counts are permission-gated by the route.
 	h.mutated(w, r, h.Write.UpdateStockCount(r.Context(),
 		chi.URLParam(r, "id"), c.outletID, body))
 }
@@ -542,10 +543,7 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = httpx.DecodeLoose(r, &body)
 	c, _ := h.caller(r)
-	if c.outletID == "" {
-		httpx.Err(w, http.StatusForbidden, "no active outlet")
-		return
-	}
+	// No outlet guard — repo authorizes (see UpdateStockCount).
 	id := chi.URLParam(r, "id")
 	if err := h.Write.CompleteStockCount(r.Context(), id, c.outletID, body.Items); err != nil {
 		if errors.Is(err, write.ErrNotFound) {
