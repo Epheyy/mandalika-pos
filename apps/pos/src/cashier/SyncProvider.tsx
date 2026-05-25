@@ -31,21 +31,18 @@ interface SyncProviderProps {
   children: ReactNode
   onWall?: (w: WallState) => void
   onPendingChange?: (count: number) => void
-  onReceiveRejected?: (msg: string) => void
 }
 
 export function SyncProvider({
   children,
   onWall,
   onPendingChange,
-  onReceiveRejected,
 }: SyncProviderProps) {
   const onWallRef = useRef(onWall)
   onWallRef.current = onWall
   const onPendingRef = useRef(onPendingChange)
   onPendingRef.current = onPendingChange
-  const onReceiveRejectedRef = useRef(onReceiveRejected)
-  onReceiveRejectedRef.current = onReceiveRejected
+  const onReceiveRejectedRef = useRef<((msg: string) => void) | undefined>(undefined)
 
   const [ready, setReady] = useState(false)
   const engineRef = useRef<SyncEngine | null>(null)
