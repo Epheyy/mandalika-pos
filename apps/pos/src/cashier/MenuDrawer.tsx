@@ -29,12 +29,17 @@ interface MenuDrawerProps {
   onProductDisplay: () => void
   onBackOffice: () => void
   onLogout: () => void
+  onReceiveTransfer: () => void
+  inboundCount: number
 }
 
 type IconProps = { className?: string }
 
 const BagIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+)
+const InboxIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>
 )
 const HistoryIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
@@ -86,6 +91,8 @@ export const MenuDrawer = memo(function MenuDrawer({
   onProductDisplay,
   onBackOffice,
   onLogout,
+  onReceiveTransfer,
+  inboundCount,
 }: MenuDrawerProps) {
   if (!open) return null
 
@@ -96,6 +103,7 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: HistoryIcon, label: 'Riwayat', onClick: () => { onClose(); onHistory() } },
     { Icon: RecapIcon, label: 'Rekapan', onClick: () => { onClose(); onRecap() } },
     { Icon: CashIcon, label: 'Uang Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
+    { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
     { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Sinkronkan', badge: pendingSync, onClick: () => onSync() },
   ]
 

@@ -6,7 +6,7 @@
 import { useContext, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import type { ReceiptData } from '@mandalika/printer'
-import { SyncContext } from './SyncProvider'
+import { SyncContext, SyncReceiveRejectedRefContext } from './SyncProvider'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
@@ -22,6 +22,9 @@ import { CheckoutPanel } from './CheckoutPanel'
 import { CustomerPicker } from './CustomerPicker'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
+import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
+import { PinStepUpModal } from './receive/PinStepUpModal'
+import { inboundTransfers, receiveApprovers } from './receive/receiveTypes'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
@@ -63,6 +66,7 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
 export default function CashierScreen() {
   const { user, logout } = useAuth()
   const engine = useContext(SyncContext)!
+  const receiveRejectedRef = useContext(SyncReceiveRejectedRefContext)
   const offlineData = useOfflineData()
   const shift = useShift()
   const [state, dispatch] = useReducer(cashierReducer, CASHIER_INITIAL_STATE)
@@ -95,6 +99,8 @@ export default function CashierScreen() {
   // panel then requires counted income before allowing the close.
   const [closeIntent, setCloseIntent] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showReceive, setShowReceive] = useState(false)
+  const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
   const [shiftPrompt, setShiftPrompt] = useState(false)
@@ -109,6 +115,16 @@ export default function CashierScreen() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Register the receive-reject notice callback via the ref exposed by
+  // SyncProvider so dead-lettered transfer_receive items surface a toast.
+  useEffect(() => {
+    if (!receiveRejectedRef) return
+    receiveRejectedRef.current = (msg: string) => showToast(msg)
+    return () => { receiveRejectedRef.current = undefined }
+  // showToast is stable (defined in render body but stable via setToast/setTimeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiveRejectedRef])
+
   useEffect(() => {
     const fs = localStorage.getItem('pos_fontSize') as FontSize | null
     if (fs) setFontSize(fs)
@@ -120,6 +136,8 @@ export default function CashierScreen() {
   }, [])
 
   const snapshot = engine.getSnapshot()
+  const inbound = inboundTransfers(snapshot)
+  const approvers = receiveApprovers(snapshot)
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
   const scanIndex = useMemo(() => buildScanIndex(products), [products])
   const categories = snapshot.categories ?? []
@@ -691,6 +709,8 @@ export default function CashierScreen() {
         onProductDisplay={() => openSettings('display')}
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
         onLogout={logout}
+        onReceiveTransfer={() => setShowReceive(true)}
+        inboundCount={inbound.length}
       />
 
       <OrderHistoryPanel
@@ -701,6 +721,35 @@ export default function CashierScreen() {
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding}
         onConfirm={handleRefundConfirm} onClose={() => setRefundOrder(null)} />
+
+      {showReceive && (
+        <ReceiveTransferPanel
+          transfers={inbound}
+          onClose={() => setShowReceive(false)}
+          onConfirm={(transferId, items, reason) => {
+            setShowReceive(false)
+            setPendingReceive({ transferId, items, reason })
+          }}
+        />
+      )}
+
+      {pendingReceive && (
+        <PinStepUpModal
+          approvers={approvers}
+          onCancel={() => setPendingReceive(null)}
+          onApproved={(approverUserId, pin) => {
+            engine.enqueueTransferReceive({
+              transferId: pendingReceive.transferId,
+              items: pendingReceive.items,
+              discrepancyReason: pendingReceive.reason,
+              approverUserId,
+              pin,
+            })
+            setPendingReceive(null)
+            showToast('Diterima — akan disinkronkan')
+          }}
+        />
+      )}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg safe-bottom">

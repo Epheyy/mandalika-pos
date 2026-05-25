@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type ReactNode,
 } from 'react'
 import { SyncEngine, getKV } from '@mandalika/sync'
@@ -21,21 +22,30 @@ import { AppLoadingSkeleton } from '../components/Skeleton'
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncContext = createContext<SyncEngine | null>(null)
 
+// Exposes the onReceiveRejected ref so CashierScreen can register a toast
+// callback without the prop needing to be threaded through App.tsx.
+// eslint-disable-next-line react-refresh/only-export-components
+export const SyncReceiveRejectedRefContext = createContext<MutableRefObject<((msg: string) => void) | undefined> | null>(null)
+
 interface SyncProviderProps {
   children: ReactNode
   onWall?: (w: WallState) => void
   onPendingChange?: (count: number) => void
+  onReceiveRejected?: (msg: string) => void
 }
 
 export function SyncProvider({
   children,
   onWall,
   onPendingChange,
+  onReceiveRejected,
 }: SyncProviderProps) {
   const onWallRef = useRef(onWall)
   onWallRef.current = onWall
   const onPendingRef = useRef(onPendingChange)
   onPendingRef.current = onPendingChange
+  const onReceiveRejectedRef = useRef(onReceiveRejected)
+  onReceiveRejectedRef.current = onReceiveRejected
 
   const [ready, setReady] = useState(false)
   const engineRef = useRef<SyncEngine | null>(null)
@@ -63,6 +73,10 @@ export function SyncProvider({
                 outletName: engineRef.current?.getSnapshot().outletName ?? null,
               })),
             )
+            const hadReceiveReject = items.some((i) => i.type === 'transfer_receive')
+            if (hadReceiveReject) {
+              onReceiveRejectedRef.current?.('Penerimaan dibatalkan — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan.')
+            }
           },
         },
         getKV(),
@@ -96,5 +110,11 @@ export function SyncProvider({
     return <AppLoadingSkeleton />
   }
 
-  return <SyncContext.Provider value={engine}>{children}</SyncContext.Provider>
+  return (
+    <SyncContext.Provider value={engine}>
+      <SyncReceiveRejectedRefContext.Provider value={onReceiveRejectedRef}>
+        {children}
+      </SyncReceiveRejectedRefContext.Provider>
+    </SyncContext.Provider>
+  )
 }
