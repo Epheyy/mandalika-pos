@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { StockCount, StockCountItem, Product, Outlet } from '@mandalika/api'
+import type { StockCount, StockCountItem, Product, Outlet, Warehouse } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
@@ -14,9 +14,11 @@ export default function StockCount() {
   const scq = usePolledQuery<StockCount[]>(() => api.listStockCounts().then((r) => r.data), [outletId])
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
+  const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const stockCounts = scq.data ?? []
   const products = pq.data ?? []
   const outlets = ctxOutlets.length ? ctxOutlets : ouq.data ?? []
+  const warehouses = wq.data ?? []
 
   const [expanded, setExpanded] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -26,7 +28,7 @@ export default function StockCount() {
   const [draft, setDraft] = useState<Record<string, StockCountItem[]>>({})
   const [form, setForm] = useState({
     name: '',
-    outletId: '',
+    locationKey: '',
     plannedDate: new Date().toISOString().slice(0, 10),
     notes: '',
   })
@@ -35,31 +37,51 @@ export default function StockCount() {
 
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
-    const targetOutlet = isAdmin ? form.outletId : null
-    if (isAdmin && !targetOutlet) return setErr('Pilih outlet')
+    if (isAdmin && !form.locationKey) return setErr('Pilih lokasi')
+    const [kind, locId] = isAdmin ? form.locationKey.split(':') : ['o', null]
     setBusy(true)
     setErr(null)
     const prev = authStore.outletId
     try {
-      if (isAdmin) authStore.outletId = targetOutlet
-      const items: StockCountItem[] = products.flatMap((p) =>
-        p.variants.map((v) => ({
-          productId: p.id,
-          productName: p.name,
-          variantSize: v.size,
-          sku: v.sku,
-          frozenQty: v.stock,
-        })),
-      )
-      await api.createStockCount({
-        name: form.name.trim(),
-        outletId: targetOutlet ?? '',
-        plannedDate: form.plannedDate,
-        notes: form.notes.trim(),
-        items,
-      })
+      if (kind === 'w' && locId) {
+        // Warehouse count: snapshot from warehouse stock, no authStore switch.
+        const wrows = await api.getWarehouseStock(locId)
+        const items: StockCountItem[] = wrows.map((r) => ({
+          productId: r.productId,
+          productName: r.productName,
+          variantSize: r.variantSize,
+          sku: r.sku ?? '',
+          frozenQty: r.stock,
+        }))
+        await api.createStockCount({
+          name: form.name.trim(),
+          warehouseId: locId,
+          plannedDate: form.plannedDate,
+          notes: form.notes.trim(),
+          items,
+        })
+      } else {
+        // Outlet count: snapshot from products, switch authStore for admins.
+        if (isAdmin && locId) authStore.outletId = locId
+        const items: StockCountItem[] = products.flatMap((p) =>
+          p.variants.map((v) => ({
+            productId: p.id,
+            productName: p.name,
+            variantSize: v.size,
+            sku: v.sku,
+            frozenQty: v.stock,
+          })),
+        )
+        await api.createStockCount({
+          name: form.name.trim(),
+          outletId: isAdmin ? locId ?? '' : '',
+          plannedDate: form.plannedDate,
+          notes: form.notes.trim(),
+          items,
+        })
+      }
       setOpen(false)
-      setForm({ name: '', outletId: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
+      setForm({ name: '', locationKey: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal membuat stock count.')
@@ -114,6 +136,11 @@ export default function StockCount() {
   const label = (s: string) =>
     s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
+  const locName = (sc: StockCount) =>
+    sc.warehouseId
+      ? warehouses.find((w) => w.id === sc.warehouseId)?.name ?? 'Gudang'
+      : outletName(sc.outletId ?? '')
+  const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
 
   return (
     <div className="p-6 space-y-5">
@@ -147,7 +174,7 @@ export default function StockCount() {
                     <div>
                       <p className="font-bold text-gray-900">{sc.name}</p>
                       <p className="text-xs text-gray-400">
-                        {outletName(sc.outletId)} · {sc.plannedDate ? format(parseISO(sc.plannedDate), 'dd MMM yyyy', { locale: idLocale }) : '—'} · {items.length} item
+                        <span className="font-bold text-gray-500">{locKind(sc)}</span> {locName(sc)} · {sc.plannedDate ? format(parseISO(sc.plannedDate), 'dd MMM yyyy', { locale: idLocale }) : '—'} · {items.length} item
                         {sc.status === 'in_progress' && ` · ${items.filter((i) => i.actualQty != null).length}/${items.length} dihitung`}
                       </p>
                     </div>
@@ -236,9 +263,14 @@ export default function StockCount() {
         <div className="space-y-4">
           <Input label="Nama *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           {isAdmin && (
-            <Select label="Outlet *" value={form.outletId} onChange={(e) => setForm((f) => ({ ...f, outletId: e.target.value }))}>
-              <option value="">Pilih outlet...</option>
-              {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            <Select label="Lokasi *" value={form.locationKey} onChange={(e) => setForm((f) => ({ ...f, locationKey: e.target.value }))}>
+              <option value="">Pilih lokasi...</option>
+              <optgroup label="Outlet">
+                {outlets.map((o) => <option key={o.id} value={`o:${o.id}`}>{o.name}</option>)}
+              </optgroup>
+              <optgroup label="Gudang">
+                {warehouses.map((w) => <option key={w.id} value={`w:${w.id}`}>{w.name}</option>)}
+              </optgroup>
             </Select>
           )}
           <Input label="Tanggal Rencana" type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} />
