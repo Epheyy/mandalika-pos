@@ -648,7 +648,9 @@ DONE & deployed (backend **rev 00020-vqw**, backoffice pushed `7d906db` → Clou
 
 VERIFIED LIVE (authed API): warehouse create + list; stock matrix (6 variant rows @0); goods-in additive (10 → 15); adjust absolute set → 7; adjust w/o reason → 400 "alasan wajib diisi". **Outlet opname REGRESSION-TESTED OK** (create→complete still writes outlet stock = 42 — C1 is backward-compatible). Demo warehouse **"Gudang Pusat (contoh)"** left in DB with one variant @7 for UI eyeballing.
 
-⚠️ **REMAINING — warehouse stock-count end-to-end (deferred: touches the WORKING outlet opname; needs eyes-open + a UI choice).** Backend repo (C1) is ready & polymorphic; warehouse counts currently return **403 "no active outlet"** (cleanly blocked, no corruption). To finish:
+✅ **WAREHOUSE STOCK-COUNT DONE & VERIFIED (2026-05-25, option (a); backend rev 00021-d5c, frontend `131f4e2`) ⇒ SP1 FULLY COMPLETE.** Wired: stock-count handlers warehouse-aware (Create branches on `body.WarehouseID`; Update/Complete dropped the redundant outlet guard → rely on repo `scopeCount`); read emits `warehouseId` and `StockCount(id)` tolerates warehouse counts; openapi `StockCount.warehouseId` (+ `outletId` nullable) regenerated; `StockCount.tsx` got a unified Outlet/Gudang location picker (optgroups) that freezes the warehouse snapshot via `getWarehouseStock` and sends `warehouseId`. VERIFIED end-to-end via API: **outlet opname regression intact (→55); warehouse opname create→complete (→33); warehouse count lists under admin "Semua" with `warehouseId`.** Minor UX note: warehouse counts appear only in admin "Semua outlet" mode (they're cross-outlet) — acceptable, refine later if wanted.
+
+(historical — the steps below were how it got finished; kept for reference:)
 1. **Handlers** `backend/internal/handlers/writes.go`:
    - `CreateStockCount`: if `body.WarehouseID != ""` → pass `outletID=""` and SKIP the `c.outletID==""→403` guard; else keep the guard.
    - `UpdateStockCount` + `CompleteStockCount`: relax the `c.outletID==""→403` guard (rely on repo `scopeCount`, which authorizes warehouse counts and 404s mismatched outlet counts); keep passing `c.outletID`.
