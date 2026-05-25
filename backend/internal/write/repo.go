@@ -632,16 +632,17 @@ func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 
 func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error {
 	var s struct {
-		TaxEnabled         bool            `json:"taxEnabled"`
-		TaxRate            float64         `json:"taxRate"`
-		RoundingEnabled    bool            `json:"roundingEnabled"`
-		RoundingType       string          `json:"roundingType"`
-		RoundingAmount     *float64        `json:"roundingAmount"`
-		RoundingDirection  *string         `json:"roundingDirection"`
-		RoundingApplyToTax *bool           `json:"roundingApplyToTax"`
-		AutoOpenShift      bool            `json:"autoOpenShift"`
-		PaymentMethods     json.RawMessage `json:"paymentMethods"`
-		Receipt            json.RawMessage `json:"receipt"`
+		TaxEnabled           bool            `json:"taxEnabled"`
+		TaxRate              float64         `json:"taxRate"`
+		RoundingEnabled      bool            `json:"roundingEnabled"`
+		RoundingType         string          `json:"roundingType"`
+		RoundingAmount       *float64        `json:"roundingAmount"`
+		RoundingDirection    *string         `json:"roundingDirection"`
+		RoundingApplyToTax   *bool           `json:"roundingApplyToTax"`
+		AutoOpenShift        bool            `json:"autoOpenShift"`
+		PaymentMethods       json.RawMessage `json:"paymentMethods"`
+		Receipt              json.RawMessage `json:"receipt"`
+		ReceiveApproverRoles []string        `json:"receiveApproverRoles"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
@@ -652,15 +653,19 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 	if len(s.Receipt) == 0 {
 		s.Receipt = json.RawMessage("{}")
 	}
+	if s.ReceiveApproverRoles == nil {
+		s.ReceiveApproverRoles = []string{}
+	}
 	return r.tx(ctx, "appSettings", func(t pgx.Tx) error {
 		_, e := t.Exec(ctx, `
 			UPDATE app_settings SET tax_enabled=$1, tax_rate=$2,
 			  rounding_enabled=$3, rounding_type=$4, rounding_amount=$5,
 			  rounding_direction=$6, rounding_apply_to_tax=$7, auto_open_shift=$8,
-			  payment_methods=$9, receipt=$10 WHERE id=1`,
+			  payment_methods=$9, receipt=$10, receive_approver_roles=$11 WHERE id=1`,
 			s.TaxEnabled, s.TaxRate, s.RoundingEnabled, s.RoundingType,
 			s.RoundingAmount, s.RoundingDirection, s.RoundingApplyToTax,
-			s.AutoOpenShift, []byte(s.PaymentMethods), []byte(s.Receipt))
+			s.AutoOpenShift, []byte(s.PaymentMethods), []byte(s.Receipt),
+			s.ReceiveApproverRoles)
 		return e
 	})
 }

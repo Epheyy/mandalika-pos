@@ -156,6 +156,28 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 	return tx.Commit(ctx)
 }
 
+// SetReceivePin hashes and stores a user's receive-approval PIN (argon2id, same
+// format as the password). Empty pin clears it.
+func (s *Store) SetReceivePin(ctx context.Context, userID, pin string) error {
+	if pin == "" {
+		return s.ClearReceivePin(ctx, userID)
+	}
+	hash, err := HashPassword(pin)
+	if err != nil {
+		return err
+	}
+	_, err = s.Pool.Exec(ctx,
+		`UPDATE users SET receive_pin_hash=$1, receive_pin_set_at=now() WHERE id=$2`,
+		hash, userID)
+	return err
+}
+
+func (s *Store) ClearReceivePin(ctx context.Context, userID string) error {
+	_, err := s.Pool.Exec(ctx,
+		`UPDATE users SET receive_pin_hash=NULL, receive_pin_set_at=NULL WHERE id=$1`, userID)
+	return err
+}
+
 // DeleteUser removes a user (cascades permissions/outlets/refresh tokens).
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	ct, err := s.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
