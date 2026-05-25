@@ -45,11 +45,12 @@ export function Transfers() {
 function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id: string) => void }) {
   const q = usePolledQuery(() => api.listTransfers(), [])
   const rows = q.data?.data ?? []
+  const total = q.data?.meta?.total ?? rows.length
   return (
     <div className="space-y-5">
       <PageHeader
         title="Transfer Stok"
-        subtitle={`${rows.length} transfer`}
+        subtitle={`${total} transfer`}
         actions={
           <Button onClick={onCreate} icon={<Plus className="w-4 h-4" />}>
             Transfer Baru

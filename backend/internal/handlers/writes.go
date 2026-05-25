@@ -288,8 +288,17 @@ func (h *Handlers) Transfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) TransferLocationStock(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.Repo.LocationStock(r.Context(),
-		r.URL.Query().Get("kind"), r.URL.Query().Get("id"))
+	kind := r.URL.Query().Get("kind")
+	id := r.URL.Query().Get("id")
+	if kind != "warehouse" && kind != "outlet" {
+		httpx.Err(w, http.StatusBadRequest, "kind harus 'warehouse' atau 'outlet'")
+		return
+	}
+	if id == "" {
+		httpx.Err(w, http.StatusBadRequest, "id wajib")
+		return
+	}
+	rows, err := h.Repo.LocationStock(r.Context(), kind, id)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

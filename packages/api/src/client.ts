@@ -383,7 +383,7 @@ export function createClient(opts: ClientOptions): Api {
       list<Transfer>(`${API}/transfers`, { ...(status ? { status } : {}), page, limit }),
     getTransfer: (id) => data<Transfer>('GET', `${API}/transfers/${id}`),
     getTransferLocationStock: (kind, id) =>
-      data<WarehouseStockRow[]>('GET', `${API}/transfers/location-stock?kind=${kind}&id=${id}`),
+      data<WarehouseStockRow[]>('GET', `${API}/transfers/location-stock${qs({ kind, id })}`),
     createTransfer: (input) => data<{ id: string }>('POST', `${API}/transfers`, input),
     updateTransfer: async (id, input) => {
       await request('PUT', `${API}/transfers/${id}`, input)

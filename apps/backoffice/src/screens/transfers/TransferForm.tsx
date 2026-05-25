@@ -46,8 +46,8 @@ export function TransferForm({ outlets, warehouses, onCancel, onCreated }: Trans
 
   const parse = (v: string): LocPick | null => {
     if (!v) return null
-    const [kind, id] = v.split(':')
-    return { kind: kind as LocKind, id }
+    const idx = v.indexOf(':')
+    return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
   }
 
   // Load source on-hand whenever the source changes.
