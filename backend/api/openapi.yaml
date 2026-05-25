@@ -721,6 +721,10 @@ components:
         paymentMethods: { type: array, items: { $ref: '#/components/schemas/PaymentMethodConfig' } }
         receipt: { $ref: '#/components/schemas/ReceiptSettings' }
         autoOpenShift: { type: boolean }
+        receiveApproverRoles:
+          type: array
+          items: { type: string }
+          description: Roles whose users may approve a POS transfer receive.
     AppSettingsResponse:
       type: object
       required: [data]
@@ -1065,6 +1069,18 @@ components:
         address: { type: string }
         phone: { type: string }
         isActive: { type: boolean }
+    ReceiveApprover:
+      type: object
+      required: [userId, displayName, receivePinHash]
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        receivePinHash: { type: string }
+    SetReceivePinRequest:
+      type: object
+      properties:
+        pin: { type: string, minLength: 4, maxLength: 8, nullable: true }
+        clear: { type: boolean, nullable: true }
   responses:
     Unauthorized:
       description: unauthenticated
@@ -2470,3 +2486,16 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UploadSignResponse' }
         '503': { description: cloudinary not configured }
+  /api/v1/users/{id}/receive-pin:
+    put:
+      operationId: setUserReceivePin
+      tags: [users]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetReceivePinRequest' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
