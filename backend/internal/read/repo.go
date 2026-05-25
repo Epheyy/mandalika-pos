@@ -311,8 +311,25 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 		   'roundingEnabled',rounding_enabled,'roundingType',rounding_type,
 		   'roundingAmount',rounding_amount,'roundingDirection',rounding_direction,
 		   'roundingApplyToTax',rounding_apply_to_tax,'autoOpenShift',auto_open_shift,
-		   'paymentMethods',payment_methods,'receipt',receipt)
+		   'paymentMethods',payment_methods,'receipt',receipt,
+		   'receiveApproverRoles',receive_approver_roles)
 		   FROM app_settings WHERE id=1`)
+}
+
+// ReceiveApprovingUsers returns the users who may approve a transfer receive at
+// a given outlet: role ∈ receive_approver_roles OR role = 'admin', scoped to
+// the outlet (or global for admins), and must have a PIN hash set.
+func (r *Repo) ReceiveApprovingUsers(ctx context.Context, outletID string) ([]api.ReceiveApprover, error) {
+	sql := `SELECT json_build_object(
+	    'userId', u.id, 'displayName', u.display_name, 'receivePinHash', u.receive_pin_hash),
+	    count(*) OVER() AS total
+	  FROM users u, app_settings s
+	  WHERE s.id = 1 AND u.receive_pin_hash IS NOT NULL
+	    AND (u.role = ANY (s.receive_approver_roles) OR u.role = 'admin')
+	    AND (u.outlet_id = $1 OR u.role = 'admin')
+	  ORDER BY u.display_name`
+	rows, _, err := listJSON[api.ReceiveApprover](ctx, r.Pool, sql, outletID)
+	return rows, err
 }
 
 func (r *Repo) CustomRoles(ctx context.Context) ([]api.CustomRole, int, error) {
