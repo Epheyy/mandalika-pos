@@ -335,6 +335,15 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		if !ok {
 			return fail(errors.New("PIN salah"))
 		}
+		// Scope re-validation (defense-in-depth; the on-device bundle scoping is not a server control):
+		// the receive must target THIS device's outlet, and the approver must belong to that outlet (or be an admin).
+		destOutlet, err := e.Read.TransferDestOutlet(ctx, p.TransferID)
+		if err != nil {
+			return fail(errors.New("transfer tidak ditemukan"))
+		}
+		if msg := receiveScope(c.OutletID, destOutlet, appr.Role, appr.OutletID); msg != "" {
+			return fail(errors.New(msg))
+		}
 		items := make([]write.TransferReceiveItem, len(p.Items))
 		for i, it := range p.Items {
 			items[i] = write.TransferReceiveItem{
@@ -367,6 +376,20 @@ func approverAllowed(role string, approverRoles []string) bool {
 		}
 	}
 	return false
+}
+
+// receiveScope checks that (a) the transfer's destination outlet matches the
+// caller's outlet, and (b) the approver is either an admin or assigned to that
+// same outlet. Returns "" on success, or an Indonesian error string on failure.
+// destOutlet == "" means the transfer targets a warehouse (not an outlet).
+func receiveScope(callerOutlet, destOutlet, approverRole, approverOutlet string) string {
+	if destOutlet == "" || destOutlet != callerOutlet {
+		return "transfer bukan untuk outlet ini"
+	}
+	if approverRole != "admin" && approverOutlet != destOutlet {
+		return "tidak berwenang"
+	}
+	return ""
 }
 
 type transferReceivePayload struct {

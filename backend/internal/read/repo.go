@@ -664,19 +664,38 @@ func (r *Repo) CashFlows(ctx context.Context, s Scope, shiftID string, page, lim
 type ApproverAuth struct {
 	Role           string
 	ReceivePinHash string
+	OutletID       string // "" when the user has no outlet (e.g. admins)
 }
 
-// UserAuth fetches the role and receive PIN hash for the given user id.
+// UserAuth fetches the role, receive PIN hash, and outlet id for the given user id.
 // Returns pgx.ErrNoRows (wrapped) when the user does not exist.
 func (r *Repo) UserAuth(ctx context.Context, id string) (ApproverAuth, error) {
 	var a ApproverAuth
 	var hash *string
+	var outlet *string
 	e := r.Pool.QueryRow(ctx,
-		`SELECT role, receive_pin_hash FROM users WHERE id=$1`, id).Scan(&a.Role, &hash)
+		`SELECT role, receive_pin_hash, outlet_id FROM users WHERE id=$1`, id).Scan(&a.Role, &hash, &outlet)
 	if hash != nil {
 		a.ReceivePinHash = *hash
 	}
+	if outlet != nil {
+		a.OutletID = *outlet
+	}
 	return a, e
+}
+
+// TransferDestOutlet returns the destination outlet id of a transfer, or "" if
+// the transfer's destination is a warehouse (not an outlet). Errors if not found.
+func (r *Repo) TransferDestOutlet(ctx context.Context, id string) (string, error) {
+	var dest *string
+	e := r.Pool.QueryRow(ctx, `SELECT dest_outlet_id FROM transfers WHERE id=$1`, id).Scan(&dest)
+	if e != nil {
+		return "", e
+	}
+	if dest == nil {
+		return "", nil
+	}
+	return *dest, nil
 }
 
 // ReceiveApproverRoles returns the list of roles allowed to approve a POS
