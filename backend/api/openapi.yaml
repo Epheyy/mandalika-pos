@@ -919,6 +919,8 @@ components:
         loyaltySettings: { $ref: '#/components/schemas/LoyaltySettings' }
         appSettings: { $ref: '#/components/schemas/AppSettings' }
         users: { type: array, items: { $ref: '#/components/schemas/User' } }
+        transfers: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
+        receiveApprovers: { type: array, items: { $ref: '#/components/schemas/ReceiveApprover' } }
     SyncPullResponse:
       type: object
       required: [data]
