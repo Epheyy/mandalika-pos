@@ -657,3 +657,33 @@ func (r *Repo) CashFlows(ctx context.Context, s Scope, shiftID string, page, lim
 		where, len(args)-1, len(args))
 	return listJSON[api.CashFlow](ctx, r.Pool, sql, args...)
 }
+
+// ── Sync helpers (transfer receive auth) ─────────────────
+
+// ApproverAuth holds the minimal fields needed to validate a POS receive approver.
+type ApproverAuth struct {
+	Role           string
+	ReceivePinHash string
+}
+
+// UserAuth fetches the role and receive PIN hash for the given user id.
+// Returns pgx.ErrNoRows (wrapped) when the user does not exist.
+func (r *Repo) UserAuth(ctx context.Context, id string) (ApproverAuth, error) {
+	var a ApproverAuth
+	var hash *string
+	e := r.Pool.QueryRow(ctx,
+		`SELECT role, receive_pin_hash FROM users WHERE id=$1`, id).Scan(&a.Role, &hash)
+	if hash != nil {
+		a.ReceivePinHash = *hash
+	}
+	return a, e
+}
+
+// ReceiveApproverRoles returns the list of roles allowed to approve a POS
+// transfer receive (stored in app_settings.receive_approver_roles).
+func (r *Repo) ReceiveApproverRoles(ctx context.Context) ([]string, error) {
+	var roles []string
+	e := r.Pool.QueryRow(ctx,
+		`SELECT receive_approver_roles FROM app_settings WHERE id=1`).Scan(&roles)
+	return roles, e
+}

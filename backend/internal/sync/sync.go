@@ -12,18 +12,21 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 type Engine struct {
 	Pool   *pgxpool.Pool
 	Read   *read.Repo
 	Orders *service.OrderService
+	Write  *write.Repo
 }
 
-func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService) *Engine {
-	return &Engine{Pool: p, Read: rd, Orders: os}
+func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
+	return &Engine{Pool: p, Read: rd, Orders: os, Write: wr}
 }
 
 type VersionInfo struct {
@@ -312,6 +315,42 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		}
 		r.Status, r.OrderID = "ok", id
 		return r
+	case "transfer_receive":
+		var p transferReceivePayload
+		if err := json.Unmarshal(it.Payload, &p); err != nil {
+			return fail(errors.New("payload tidak valid"))
+		}
+		appr, err := e.Read.UserAuth(ctx, p.ApproverUserID)
+		if err != nil {
+			return fail(errors.New("penyetuju tidak ditemukan"))
+		}
+		roles, _ := e.Read.ReceiveApproverRoles(ctx)
+		if !approverAllowed(appr.Role, roles) {
+			return fail(errors.New("tidak berwenang"))
+		}
+		if appr.ReceivePinHash == "" {
+			return fail(errors.New("PIN belum disetel"))
+		}
+		ok, _ := auth.VerifyPassword(p.Pin, appr.ReceivePinHash)
+		if !ok {
+			return fail(errors.New("PIN salah"))
+		}
+		items := make([]write.TransferReceiveItem, len(p.Items))
+		for i, it := range p.Items {
+			items[i] = write.TransferReceiveItem{
+				ProductID:   it.ProductID,
+				VariantSize: it.VariantSize,
+				ReceivedQty: it.ReceivedQty,
+			}
+		}
+		if err := e.Write.ReceiveTransfer(ctx, p.TransferID,
+			write.TransferReceive{Items: items, DiscrepancyReason: p.DiscrepancyReason},
+			write.ReceiveMeta{ReceivedBy: p.ApproverUserID, ReceivedVia: "pos", IdempotencyKey: it.IdempotencyKey},
+		); err != nil {
+			return fail(err)
+		}
+		r.Status, r.OrderID = "ok", p.TransferID
+		return r
 	}
 	return fail(errors.New("unknown batch item type: " + it.Type))
 }
@@ -328,6 +367,18 @@ func approverAllowed(role string, approverRoles []string) bool {
 		}
 	}
 	return false
+}
+
+type transferReceivePayload struct {
+	TransferID string `json:"transferId"`
+	Items      []struct {
+		ProductID   string `json:"productId"`
+		VariantSize string `json:"variantSize"`
+		ReceivedQty int    `json:"receivedQty"`
+	} `json:"items"`
+	DiscrepancyReason string `json:"discrepancyReason"`
+	ApproverUserID    string `json:"approverUserId"`
+	Pin               string `json:"pin"`
 }
 
 type orderPayload struct {

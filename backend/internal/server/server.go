@@ -56,7 +56,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		APISecret: cfg.CloudinarySecret,
 	}
 	h := handlers.New(rd, c, store, wr, os,
-		syncpkg.New(database.Pool, rd, os), signer)
+		syncpkg.New(database.Pool, rd, os, wr), signer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		if err := database.Pool.Ping(req.Context()); err != nil {
