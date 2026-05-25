@@ -257,3 +257,78 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 	}
 	return tx.Commit(ctx)
 }
+
+// ReceiveTransfer credits the dest with the ACTUAL received qty per line, records
+// each line's difference (received - sent), requires a discrepancy reason when
+// any line differs, completes the transfer, and bumps the dest outlet leg if any.
+func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive) error {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	t, e := loadTransfer(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+	if _, e := transferTransition(t.status, "receive"); e != nil {
+		return e
+	}
+	lines, e := transferLines(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+
+	// Index supplied received quantities; a line not supplied defaults to its
+	// sent qty (received in full, no discrepancy).
+	recv := map[string]int{}
+	for _, it := range rcv.Items {
+		if it.ReceivedQty < 0 {
+			return fmt.Errorf("jumlah terima tidak boleh negatif")
+		}
+		recv[it.ProductID+"|"+it.VariantSize] = it.ReceivedQty
+	}
+	type resolved struct {
+		l   transferLine
+		got int
+	}
+	res := make([]resolved, 0, len(lines))
+	anyDiff := false
+	for _, l := range lines {
+		got, ok := recv[l.pid+"|"+l.size]
+		if !ok {
+			got = l.sent
+		}
+		if got != l.sent {
+			anyDiff = true
+		}
+		res = append(res, resolved{l, got})
+	}
+	if anyDiff && rcv.DiscrepancyReason == "" {
+		return fmt.Errorf("alasan selisih wajib diisi")
+	}
+
+	for _, rr := range res {
+		if e := addStockDelta(ctx, tx, t.dstOutlet, t.dstWarehouse, rr.l.pid, rr.l.size, rr.got); e != nil {
+			return e
+		}
+		if _, e := tx.Exec(ctx,
+			`UPDATE transfer_items SET received_qty=$1, difference=$2
+			   WHERE transfer_id=$3 AND product_id=$4 AND variant_size=$5`,
+			rr.got, transferDiff(rr.l.sent, rr.got), id, rr.l.pid, rr.l.size); e != nil {
+			return e
+		}
+	}
+	if _, e := tx.Exec(ctx,
+		`UPDATE transfers SET status='completed', received_at=now(), discrepancy_reason=$1 WHERE id=$2`,
+		nullStr(rcv.DiscrepancyReason), id); e != nil {
+		return e
+	}
+	if t.dstOutlet != nil {
+		if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.dstOutlet}); e != nil {
+			return e
+		}
+	}
+	return tx.Commit(ctx)
+}
