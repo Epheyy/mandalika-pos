@@ -34,6 +34,7 @@ const DEFAULT: AppSettings = {
     showChange: true,
   },
   autoOpenShift: false,
+  receiveApproverRoles: ['admin'],
 }
 
 /** Gold-toned on/off switch — semantic toggle for enable rows. */
@@ -64,12 +65,14 @@ export default function SettingsScreen() {
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift'>('tax')
+  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver'>('tax')
 
   useEffect(() => {
     if (q.data && !loaded) {
       setS({ ...DEFAULT, ...q.data })
+      setApproverRoles(q.data.receiveApproverRoles ?? [])
       setLoaded(true)
     }
   }, [q.data, loaded])
@@ -78,7 +81,7 @@ export default function SettingsScreen() {
     setSaving(true)
     setMsg(null)
     try {
-      await api.updateAppSettings(s)
+      await api.updateAppSettings({ ...s, receiveApproverRoles: approverRoles })
       setMsg('Pengaturan disimpan!')
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Gagal menyimpan.')
@@ -95,6 +98,7 @@ export default function SettingsScreen() {
     { id: 'payment', label: 'Metode Pembayaran' },
     { id: 'receipt', label: 'Struk' },
     { id: 'shift', label: 'Shift' },
+    { id: 'approver', label: 'Persetujuan Transfer' },
   ] as const
 
   return (
@@ -266,6 +270,27 @@ export default function SettingsScreen() {
                 <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login</p>
               </div>
               <Toggle checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
+            </div>
+          </>
+        )}
+
+        {section === 'approver' && (
+          <>
+            <h3 className="font-black text-gray-900">Persetujuan Penerimaan Transfer</h3>
+            <p className="text-xs text-gray-400">Peran yang boleh menyetujui penerimaan transfer di POS.</p>
+            <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
+              {(['admin', 'manager', 'cashier'] as const).map((role) => (
+                <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
+                  <p className="font-bold text-gray-900 text-sm capitalize">{role}</p>
+                  <Toggle
+                    checked={approverRoles.includes(role)}
+                    size="sm"
+                    onClick={() => setApproverRoles((prev) =>
+                      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+                    )}
+                  />
+                </div>
+              ))}
             </div>
           </>
         )}
