@@ -10,6 +10,7 @@ export type OutboxType =
   | 'shift_close'
   | 'cash_flow'
   | 'customer_create'
+  | 'transfer_receive'
 
 export type OutboxStatus = 'pending' | 'sent' | 'acked' | 'failed'
 
