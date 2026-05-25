@@ -24,15 +24,41 @@ import {
   IconButton,
   EmptyState,
   PageHeader,
+  Tabs,
   fieldClass,
 } from '../ui'
 import { GoodsInModal } from './warehouses/GoodsInModal'
 import { AdjustModal } from './warehouses/AdjustModal'
+import { Transfers } from './transfers/Transfers'
 
 const EMPTY_WAREHOUSE = { name: '', code: '', address: '', phone: '', isActive: true }
 const rowKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
-export default function Warehouses() {
+const GUDANG_TABS = [
+  { id: 'gudang', label: 'Gudang' },
+  { id: 'transfer', label: 'Transfer' },
+] as const
+type GudangTab = (typeof GUDANG_TABS)[number]['id']
+
+export default function Gudang() {
+  const [tab, setTab] = useState<GudangTab>('gudang')
+  return (
+    <div>
+      <div className="px-6 pt-6">
+        <Tabs value={tab} onChange={setTab} tabs={GUDANG_TABS} />
+      </div>
+      {tab === 'gudang' ? (
+        <WarehouseList />
+      ) : (
+        <div className="px-6 pb-6 pt-2">
+          <Transfers />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WarehouseList() {
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const warehouses = wq.data ?? []
 
