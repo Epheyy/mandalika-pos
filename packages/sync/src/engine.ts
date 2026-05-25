@@ -3,6 +3,7 @@ import { Outbox, type OutboxType } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
+import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 
@@ -46,6 +47,8 @@ export class SyncEngine {
   readonly deviceId: string
   readonly outbox: Outbox
   readonly snapshot: Snapshot
+  readonly pending: PendingCredits
+  private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
@@ -63,6 +66,8 @@ export class SyncEngine {
     this.deviceId = getDeviceId(kv)
     this.outbox = new Outbox(kv)
     this.snapshot = new Snapshot(kv)
+    this.pending = new PendingCredits(kv)
+    this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
   }
 
@@ -77,6 +82,11 @@ export class SyncEngine {
     this.events.onReachable?.(online)
   }
 
+  private recomputeCredited(): void {
+    const credits = this.pending.list()
+    this.creditedView = credits.length ? applyCredits(this.snapshot.get(), credits) : null
+  }
+
   // ── Reference snapshot ──────────────────────────────────
 
   /** Initial/refresh pull when online; atomically swaps the local snapshot. */
@@ -84,6 +94,8 @@ export class SyncEngine {
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
     this.setReachable(true)
     this.snapshot.replace(r.data)
+    this.pending.retire(r.data.version ?? 0)
+    this.recomputeCredited()
     this.wall = {
       raised: false,
       localVersion: r.data.version ?? 0,
@@ -93,7 +105,7 @@ export class SyncEngine {
   }
 
   getSnapshot(): Bundle {
-    return this.snapshot.get()
+    return this.creditedView ?? this.snapshot.get()
   }
 
   getWall(): WallState {
@@ -150,6 +162,31 @@ export class SyncEngine {
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
     return { idempotencyKey, orderUuid }
+  }
+
+  /** Enqueue a POS transfer receive and optimistically credit the counted qty.
+   *  The PIN is validated by the UI before this; it rides in the payload for
+   *  server re-validation and is dropped from the outbox when the item acks. */
+  enqueueTransferReceive(input: {
+    transferId: string
+    items: { productId: string; variantSize: string; receivedQty: number }[]
+    discrepancyReason?: string
+    approverUserId: string
+    pin: string
+  }): { idempotencyKey: string } {
+    const { idempotencyKey } = this.enqueue('transfer_receive', {
+      transferId: input.transferId,
+      items: input.items,
+      discrepancyReason: input.discrepancyReason ?? '',
+      approverUserId: input.approverUserId,
+      pin: input.pin,
+    })
+    const lines: CreditLine[] = input.items
+      .filter((it) => it.receivedQty > 0)
+      .map((it) => ({ productId: it.productId, variantSize: it.variantSize, qty: it.receivedQty }))
+    this.pending.add({ idempotencyKey, lines, ackVersion: null })
+    this.recomputeCredited()
+    return { idempotencyKey }
   }
 
   pendingCount(): number {
@@ -228,6 +265,7 @@ export class SyncEngine {
       for (const res of r.data.results) {
         if (res.status === 'ok' || res.status === 'duplicate') {
           this.outbox.ack(res.idempotencyKey)
+          this.pending.stampAck(res.idempotencyKey, r.data.version ?? 0)
         } else {
           if (this.events.debug) {
             // eslint-disable-next-line no-console
@@ -236,6 +274,7 @@ export class SyncEngine {
           this.outbox.fail(res.idempotencyKey, res.error ?? 'sync error')
         }
       }
+      this.recomputeCredited()
       this.outbox.prune()
       this.events.onOutboxChange?.(this.outbox.count())
       this.events.onReconcile?.(r.data)
@@ -276,6 +315,10 @@ export class SyncEngine {
       .filter((i) => !this.reportedDead.has(i.idempotencyKey))
     if (!fresh.length) return
     for (const i of fresh) this.reportedDead.add(i.idempotencyKey)
+    for (const i of fresh) {
+      if (i.type === 'transfer_receive') this.pending.remove(i.idempotencyKey)
+    }
+    this.recomputeCredited()
     this.events.onDeadLetter(
       fresh.map((i) => ({
         type: i.type,
