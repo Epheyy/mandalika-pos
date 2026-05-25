@@ -689,6 +689,20 @@ func (h *Handlers) SyncBatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": res})
 }
 
+func (h *Handlers) GetInboundTransfers(w http.ResponseWriter, r *http.Request) {
+	c, _ := h.caller(r)
+	if c.outletID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
+		return
+	}
+	rows, err := h.Repo.TransfersForOutlet(r.Context(), c.outletID, "in_transit")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
+}
+
 func (h *Handlers) SignUpload(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Folder string `json:"folder"`

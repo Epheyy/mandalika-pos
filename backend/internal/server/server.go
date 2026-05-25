@@ -130,6 +130,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/version", h.SyncVersion)
 			r.Get("/sync/pull", h.SyncPull)
 			r.Post("/sync/batch", h.SyncBatch)
+			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 
 			// ── Reference-data writes (Backoffice; permission-gated, bump
 			// content_version → POS sync wall) ──

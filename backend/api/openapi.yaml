@@ -2472,6 +2472,23 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SyncBatchResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/sync/inbound-transfers:
+    get:
+      operationId: getInboundTransfers
+      tags: [sales]
+      summary: In-transit transfers destined for the caller's outlet (non-blocking inbound poll)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: in-transit transfers destined for the caller's outlet
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
   /api/v1/uploads/sign:
     post:
       operationId: signUpload
