@@ -332,3 +332,42 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 	}
 	return tx.Commit(ctx)
 }
+
+// CancelTransfer voids a draft (no stock effect) or reverses an in_transit
+// transfer (restore each line's sent qty to the source, bump source outlet leg).
+func (r *Repo) CancelTransfer(ctx context.Context, id string) error {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	t, e := loadTransfer(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+	if _, e := transferTransition(t.status, "cancel"); e != nil {
+		return e
+	}
+	if t.status == "in_transit" {
+		lines, e := transferLines(ctx, tx, id)
+		if e != nil {
+			return e
+		}
+		for _, l := range lines {
+			if e := addStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size, l.sent); e != nil {
+				return e
+			}
+		}
+		if t.srcOutlet != nil {
+			if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.srcOutlet}); e != nil {
+				return e
+			}
+		}
+	}
+	if _, e := tx.Exec(ctx,
+		`UPDATE transfers SET status='cancelled', cancelled_at=now() WHERE id=$1`, id); e != nil {
+		return e
+	}
+	return tx.Commit(ctx)
+}
