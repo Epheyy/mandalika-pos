@@ -126,3 +126,24 @@ func (h *Handlers) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handlers) SetUserReceivePin(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Pin   *string `json:"pin"`
+		Clear *bool   `json:"clear"`
+	}
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	pin := ""
+	if body.Pin != nil && (body.Clear == nil || !*body.Clear) {
+		pin = *body.Pin
+	}
+	if pin != "" && (len(pin) < 4 || len(pin) > 8) {
+		httpx.Err(w, http.StatusBadRequest, "PIN harus 4-8 digit")
+		return
+	}
+	h.mutated(w, r, h.Store.SetReceivePin(r.Context(), id, pin))
+}
