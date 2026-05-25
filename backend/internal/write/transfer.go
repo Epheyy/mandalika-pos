@@ -234,6 +234,12 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 	if e != nil {
 		return e
 	}
+	// Oversend guard is read-then-write (currentStock then addStockDelta), not an
+	// atomic guarded decrement. That is a deliberate, accepted choice for the
+	// single-admin backoffice: two concurrent sends from the same source could
+	// race the guard. If concurrent same-source sends become possible (e.g. a
+	// future multi-device flow), switch this to `UPDATE ... SET stock = stock -
+	// $qty WHERE stock >= $qty` and check the affected rows instead.
 	for _, l := range lines {
 		have, e := currentStock(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size)
 		if e != nil {
