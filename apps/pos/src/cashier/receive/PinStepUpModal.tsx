@@ -4,6 +4,9 @@ import {
   canAttempt,
   recordFailure,
   resetLockout,
+  getKV,
+  readJSON,
+  writeJSON,
   type Lockout,
 } from '@mandalika/sync'
 import type { ReceiveApprover } from './receiveTypes'
@@ -11,15 +14,11 @@ import type { ReceiveApprover } from './receiveTypes'
 const LOCKOUT_KEY = 'mandalika.pos.pinLockout'
 
 function loadLockout(): Lockout {
-  try {
-    return JSON.parse(localStorage.getItem(LOCKOUT_KEY) ?? '') as Lockout
-  } catch {
-    return resetLockout()
-  }
+  return readJSON<Lockout>(getKV(), LOCKOUT_KEY, resetLockout())
 }
 
 function saveLockout(s: Lockout): void {
-  localStorage.setItem(LOCKOUT_KEY, JSON.stringify(s))
+  writeJSON(getKV(), LOCKOUT_KEY, s)
 }
 
 interface Props {
