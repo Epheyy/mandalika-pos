@@ -333,7 +333,10 @@ func (h *Handlers) ReceiveTransfer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.mutated(w, r, h.Write.ReceiveTransfer(r.Context(), chi.URLParam(r, "id"), body))
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.ReceiveTransfer(r.Context(), chi.URLParam(r, "id"), body, write.ReceiveMeta{
+		ReceivedBy: c.userID, ReceivedVia: "backoffice",
+	}))
 }
 
 func (h *Handlers) CancelTransfer(w http.ResponseWriter, r *http.Request) {

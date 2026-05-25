@@ -32,6 +32,12 @@ type TransferReceive struct {
 	DiscrepancyReason string                `json:"discrepancyReason"`
 }
 
+type ReceiveMeta struct {
+	ReceivedBy     string // approver/admin user id ("" allowed)
+	ReceivedVia    string // "pos" | "backoffice"
+	IdempotencyKey string // POS offline retry guard ("" for backoffice)
+}
+
 // loaded transfer row (locations are nil for the leg that is the other kind).
 type transferRow struct {
 	status                                           string
@@ -267,7 +273,7 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 // ReceiveTransfer credits the dest with the ACTUAL received qty per line, records
 // each line's difference (received - sent), requires a discrepancy reason when
 // any line differs, completes the transfer, and bumps the dest outlet leg if any.
-func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive) error {
+func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -278,6 +284,20 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 	if e != nil {
 		return e
 	}
+
+	// Idempotent retry: a transfer already completed by THIS exact receive key is a
+	// duplicate → succeed as a no-op (so the POS outbox acks instead of dead-lettering).
+	if meta.IdempotencyKey != "" {
+		var existing *string
+		if e := tx.QueryRow(ctx,
+			`SELECT received_idempotency_key FROM transfers WHERE id=$1`, id).Scan(&existing); e != nil {
+			return e
+		}
+		if t.status == "completed" && existing != nil && *existing == meta.IdempotencyKey {
+			return tx.Commit(ctx) // already applied by this receive
+		}
+	}
+
 	if _, e := transferTransition(t.status, "receive"); e != nil {
 		return e
 	}
@@ -327,8 +347,10 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		}
 	}
 	if _, e := tx.Exec(ctx,
-		`UPDATE transfers SET status='completed', received_at=now(), discrepancy_reason=$1 WHERE id=$2`,
-		nullStr(rcv.DiscrepancyReason), id); e != nil {
+		`UPDATE transfers SET status='completed', received_at=now(), discrepancy_reason=$1,
+		   received_by=$2, received_via=$3, received_idempotency_key=$4 WHERE id=$5`,
+		nullStr(rcv.DiscrepancyReason), nullUUID(meta.ReceivedBy),
+		nullStr(meta.ReceivedVia), nullStr(meta.IdempotencyKey), id); e != nil {
 		return e
 	}
 	if t.dstOutlet != nil {
