@@ -24,7 +24,7 @@ import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
 import { PinStepUpModal } from './receive/PinStepUpModal'
-import { inboundTransfers, receiveApprovers } from './receive/receiveTypes'
+import { receiveApprovers } from './receive/receiveTypes'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
@@ -136,7 +136,7 @@ export default function CashierScreen() {
   }, [])
 
   const snapshot = engine.getSnapshot()
-  const inbound = inboundTransfers(snapshot)
+  const inbound = engine.getInboundTransfers()
   const approvers = receiveApprovers(snapshot)
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
   const scanIndex = useMemo(() => buildScanIndex(products), [products])

@@ -1802,7 +1802,6 @@ export interface components {
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
             users?: components["schemas"]["User"][];
-            transfers?: components["schemas"]["Transfer"][];
             receiveApprovers?: components["schemas"]["ReceiveApprover"][];
         };
         SyncPullResponse: {

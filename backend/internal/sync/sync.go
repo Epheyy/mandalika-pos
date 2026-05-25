@@ -66,7 +66,6 @@ type PullBundle struct {
 	LoyaltySettings   any    `json:"loyaltySettings"`
 	AppSettings       any    `json:"appSettings"`
 	Users             any    `json:"users"`
-	Transfers         any    `json:"transfers"`
 	ReceiveApprovers  any    `json:"receiveApprovers"`
 }
 
@@ -122,11 +121,8 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	if b.Users, _, err = e.Read.Users(ctx, 1, 100000); err != nil {
 		return b, err
 	}
-	// Inbound in-transit transfers + scoped receive approvers (outlet pulls only).
+	// Scoped receive approvers (outlet pulls only; transfers now served by the inbound poll).
 	if outletID != "" {
-		if b.Transfers, err = e.Read.TransfersForOutlet(ctx, outletID, "in_transit"); err != nil {
-			return b, err
-		}
 		if b.ReceiveApprovers, err = e.Read.ReceiveApprovingUsers(ctx, outletID); err != nil {
 			return b, err
 		}
