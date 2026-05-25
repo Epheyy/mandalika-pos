@@ -6,6 +6,7 @@ import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
+const INBOUND_KEY = 'mandalika.pos.inboundTransfers'
 
 /** Strip sensitive fields (currently the receive PIN) from an outbox payload
  *  before it is surfaced to logs, error reports, or shareable blobs. */
@@ -21,6 +22,7 @@ function redactPayload(payload: Record<string, unknown>): Record<string, unknown
 type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
 type VersionInfo = components['schemas']['SyncVersion']
+type Transfer = components['schemas']['Transfer']
 
 // Minimal seam onto the generated API client (packages/api `request`).
 export interface ApiLike {
@@ -351,18 +353,40 @@ export class SyncEngine {
     )
   }
 
+  /** Poll the lightweight inbound-transfers endpoint (cashier-scoped to the
+   *  caller's outlet). Caches the list locally; on failure keeps the last cache
+   *  (offline-tolerant). Does NOT raise the wall or block sales. */
+  async pollInbound(): Promise<void> {
+    if (!ONLINE()) return
+    try {
+      const r = await this.api.request<{ data: Transfer[] }>('GET', '/api/v1/sync/inbound-transfers')
+      this.setReachable(true)
+      writeJSON(this.kv, INBOUND_KEY, r.data ?? [])
+    } catch {
+      this.setReachable(false) // keep the cached list
+    }
+  }
+
+  /** Last-cached inbound in-transit transfers for this outlet (offline-tolerant). */
+  getInboundTransfers(): Transfer[] {
+    return readJSON<Transfer[]>(this.kv, INBOUND_KEY, [])
+  }
+
   /** Wire connectivity + periodic version polling. Returns a disposer. */
   start(pollMs = 20000): () => void {
     const onOnline = () => {
       void this.flush()
       void this.checkVersion()
+      void this.pollInbound()
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
     }
+    void this.pollInbound()
     const timer = setInterval(() => {
       void this.flush()
       void this.checkVersion()
+      void this.pollInbound()
     }, pollMs)
     return () => {
       if (typeof window !== 'undefined') {
