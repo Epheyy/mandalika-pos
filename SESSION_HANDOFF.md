@@ -6,7 +6,29 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 # ⭐ LATEST SESSION — 2026-05-25 (READ THIS FIRST; supersedes older "current state" below)
 
-Branch `prod-hardening` · latest backend rev **00023-tz9** · Inventory **SP2 (transfers) DONE & deployed** (see below). **▶️ NEXT ACTION: brainstorm SP3** — POS-side receiving + PIN (in-transit transfers sync to the destination outlet's POS; receiver confirms on-device with REAL counted qty cross-checking admin input; offline-capable enqueue; authoritative PIN + selected roles to approve). Start with `superpowers:brainstorming`.
+Branch `prod-hardening` · Inventory **SP3 (POS-side receiving + PIN) CODE COMPLETE & reviewed** — backend deployed (rev **00026-d2z**, migration **0017** applied & verified via `/readyz`). **▶️ NEXT ACTION: push + verify SP3** — (1) `git push` prod-hardening → Cloudflare auto-deploys backoffice + enables the APK build; (2) dispatch the signed APK; (3) **authed + on-device E2E** (the only USER-PENDING part — needs an admin/cashier login I can't self-auth, and a physical device). See "SP3 status" below.
+
+## ⭐ SP3 — POS-side receiving + PIN: CODE COMPLETE (2026-05-25)
+Spec `docs/superpowers/specs/2026-05-25-inventory-sp3-pos-receiving-pin-design.md` · plan `docs/superpowers/plans/2026-05-25-inventory-sp3-pos-receiving-pin.md` (phased A–E, subagent-driven). Commits on `prod-hardening` (`e541236`→`5874f17`), **NOT pushed yet**.
+
+**Locked design (9 decisions):** per-user PIN + **manager step-up** on the cashier device · **on-device** argon2id verify (hash-wasm) + server re-validate · **informed count** (sentQty pre-filled) · **POS primary + backoffice override** (warehouse-dest stays backoffice) · **per-role org-wide** approver config · **admin-assigned** PINs · PIN-hash sync **scoped to outlet+admins** · **optimistic local credit + reconciliation** · atomic receive.
+
+**Built & verified (non-device):**
+- Migration **0017** (users.receive_pin_hash/_set_at; transfers.received_by/_via/_idempotency_key; app_settings.receive_approver_roles) — applied live (`/readyz` ok).
+- Backend: `transfer_receive` sync handler (re-validates PIN+role+**scope**, idempotent via received_idempotency_key) → reuses `ReceiveTransfer` (now takes `ReceiveMeta`); pull bundle carries in-transit transfers + scoped approvers; set/clear-PIN endpoint (admin). Go tests: `approverAllowed`, `receiveScope`. `go build`+`go test`+`make gen-check` green.
+- `packages/sync`: `verifyPin` (hash-wasm), pure `lockout`, `pendingCredits`/`applyCredits`/reconcile, engine credited-snapshot + `enqueueTransferReceive`. **12 vitest pass** incl. Go↔JS argon2id round-trip. POS prod build OK (hash-wasm bundles).
+- POS UI: "Terima Transfer" menu+badge, inbound list + informed-count receive screen, manager PIN step-up modal (lockout), optimistic credit + dead-letter rollback notice.
+- Backoffice: per-user receive-PIN field (Users), approver-roles toggles (Settings), outlet-dest "force receive (override)" caption.
+- **Final opus review:** core (idempotency/reconciliation/data-integrity) sound, no double-count/lost-rollback. **2 HIGH fixed:** (a) server now re-validates scope (`3663583`), (b) PIN redacted from dead-letter error-log + shareable sync-log (`5874f17`).
+
+**Open MINOR follow-ups (reviewer, optional):** (1) PIN lockout uses raw `localStorage` not `getKV()` (trivially clearable; server backstops). (2) `lockout.recordFailure` re-locks immediately on one wrong PIN after cooldown instead of granting a fresh batch. (3) SettingsScreen default `['admin']` vs migration default `'{}'` (cosmetic; admins always allowed server-side).
+
+**USER-PENDING (E6):** push → APK dispatch → on-device + authed E2E (inbound badge; informed count w/ discrepancy; PIN accept/reject+lockout; offline receive→reconnect→credit-once+badge-clear; backoffice override → POS rollback notice).
+
+---
+
+### (Superseded) prior SP2 next-action
+SP2 (transfers) was DONE & deployed (rev 00023-tz9); SP3 above is the successor.
 
 ## ‼️ Production status correction
 The app is **deployed & functional on free-tier infra but runs TEST DATA ONLY —
