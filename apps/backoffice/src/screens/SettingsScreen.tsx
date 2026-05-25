@@ -34,7 +34,7 @@ const DEFAULT: AppSettings = {
     showChange: true,
   },
   autoOpenShift: false,
-  receiveApproverRoles: ['admin'],
+  receiveApproverRoles: [],
 }
 
 /** Gold-toned on/off switch — semantic toggle for enable rows. */
@@ -72,7 +72,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     if (q.data && !loaded) {
       setS({ ...DEFAULT, ...q.data })
-      setApproverRoles(q.data.receiveApproverRoles ?? [])
+      setApproverRoles((q.data.receiveApproverRoles ?? []).filter((r) => r !== 'admin'))
       setLoaded(true)
     }
   }, [q.data, loaded])
@@ -277,9 +277,18 @@ export default function SettingsScreen() {
         {section === 'approver' && (
           <>
             <h3 className="font-black text-gray-900">Persetujuan Penerimaan Transfer</h3>
-            <p className="text-xs text-gray-400">Peran yang boleh menyetujui penerimaan transfer di POS.</p>
+            <p className="text-xs text-gray-400">Admin selalu boleh; pilih peran lain yang boleh menyetujui penerimaan di POS.</p>
             <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
-              {(['admin', 'manager', 'cashier'] as const).map((role) => (
+              {/* Admin row — always-on, non-interactive */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50 opacity-60">
+                <div>
+                  <p className="font-bold text-gray-900 text-sm capitalize">Admin</p>
+                  <p className="text-xs text-gray-400">Admin selalu dapat menyetujui.</p>
+                </div>
+                <ToggleRight className="w-6 h-6 text-gold-600" />
+              </div>
+              {/* Manager & cashier — real interactive toggles */}
+              {(['manager', 'cashier'] as const).map((role) => (
                 <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
                   <p className="font-bold text-gray-900 text-sm capitalize">{role}</p>
                   <Toggle
