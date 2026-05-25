@@ -82,6 +82,11 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
       }
     >
       <div className="space-y-4">
+        {transfer.dest.kind === 'outlet' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+            Penerimaan paksa (override) — tanpa hitung di POS. Gunakan hanya jika perangkat POS tujuan bermasalah.
+          </div>
+        )}
         <div className="grid grid-cols-12 gap-2 px-1">
           <span className="col-span-5 text-[11px] font-bold text-gray-400">Produk</span>
           <span className="col-span-2 text-[11px] font-bold text-gray-400">Ukuran</span>
