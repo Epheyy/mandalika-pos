@@ -75,6 +75,7 @@ export function SyncProvider({
               onReceiveRejectedRef.current?.('Penerimaan dibatalkan — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan.')
             }
           },
+          onReceiveRejected: (msg) => onReceiveRejectedRef.current?.(msg),
         },
         getKV(),
       )

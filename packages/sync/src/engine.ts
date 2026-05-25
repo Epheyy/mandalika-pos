@@ -50,6 +50,9 @@ export interface SyncEvents {
   onDeadLetter?: (
     items: { type: OutboxType; idempotencyKey: string; payload: Record<string, unknown>; lastError?: string }[],
   ) => void
+  /** Fired when a transfer_receive is terminally rejected by the server and rolled
+   *  back (handled — NOT a failed sync the cashier must retry). */
+  onReceiveRejected?: (msg: string) => void
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -269,6 +272,7 @@ export class SyncEngine {
         idempotencyKey: i.idempotencyKey,
         payload: i.payload,
       }))
+      const typeByKey = new Map(pending.map((i) => [i.idempotencyKey, i.type]))
       const r = await this.api.request<{ data: BatchResult }>(
         'POST',
         '/api/v1/sync/batch',
@@ -278,6 +282,12 @@ export class SyncEngine {
         if (res.status === 'ok' || res.status === 'duplicate') {
           this.outbox.ack(res.idempotencyKey)
           this.pending.stampAck(res.idempotencyKey, r.data.version ?? 0)
+        } else if (typeByKey.get(res.idempotencyKey) === 'transfer_receive') {
+          // Deterministic rejection (e.g. already received elsewhere): roll back the
+          // optimistic credit and resolve the item cleanly — not a failed sync.
+          this.pending.remove(res.idempotencyKey)
+          this.outbox.discard(res.idempotencyKey)
+          this.events.onReceiveRejected?.('Penerimaan dibatalkan — transfer sudah diterima di tempat lain. Stok dikembalikan.')
         } else {
           if (this.events.debug) {
             // eslint-disable-next-line no-console

@@ -132,6 +132,13 @@ export class Outbox {
     return dead
   }
 
+  /** Remove a single resolved item from the outbox (e.g. a handled terminal rejection). */
+  discard(idempotencyKey: string): void {
+    const before = this.items.length
+    this.items = this.items.filter((i) => i.idempotencyKey !== idempotencyKey)
+    if (this.items.length !== before) this.persist()
+  }
+
   /** Drop acked rows once their canonical order is reconciled locally. */
   prune() {
     this.items = this.items.filter((i) => i.status !== 'acked')
