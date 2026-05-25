@@ -266,6 +266,71 @@ func (h *Handlers) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request) 
 	h.mutated(w, r, h.Write.AdjustWarehouseStock(r.Context(), chi.URLParam(r, "id"), c.userID, a))
 }
 
+// ── Transfers (Backoffice; mesh warehouse/outlet) ─────────
+
+func (h *Handlers) Transfers(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	rows, total, err := h.Repo.Transfers(r.Context(), r.URL.Query().Get("status"), p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.TransferListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) Transfer(w http.ResponseWriter, r *http.Request) {
+	v, err := h.Repo.Transfer(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 0, err) // writeErr maps read.ErrNotFound → 404
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": v})
+}
+
+func (h *Handlers) TransferLocationStock(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.LocationStock(r.Context(),
+		r.URL.Query().Get("kind"), r.URL.Query().Get("id"))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
+}
+
+func (h *Handlers) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[write.TransferCreate](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.CreateTransfer(r.Context(), c.userID, body)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateTransfer(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[write.TransferCreate](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateTransferDraft(r.Context(), chi.URLParam(r, "id"), body))
+}
+
+func (h *Handlers) SendTransfer(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.SendTransfer(r.Context(), chi.URLParam(r, "id")))
+}
+
+func (h *Handlers) ReceiveTransfer(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[write.TransferReceive](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.ReceiveTransfer(r.Context(), chi.URLParam(r, "id"), body))
+}
+
+func (h *Handlers) CancelTransfer(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.CancelTransfer(r.Context(), chi.URLParam(r, "id")))
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
