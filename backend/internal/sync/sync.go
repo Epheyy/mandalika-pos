@@ -316,6 +316,20 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 	return fail(errors.New("unknown batch item type: " + it.Type))
 }
 
+// approverAllowed reports whether a user with the given role may approve a POS
+// transfer receive. Admins are always allowed; others must be in approverRoles.
+func approverAllowed(role string, approverRoles []string) bool {
+	if role == "admin" {
+		return true
+	}
+	for _, r := range approverRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
 type orderPayload struct {
 	OrderUUID         string              `json:"orderUuid"`
 	OrderNumber       string              `json:"orderNumber"`
