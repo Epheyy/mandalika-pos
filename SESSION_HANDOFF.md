@@ -6,10 +6,10 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 # ⭐ LATEST SESSION — 2026-05-25 (READ THIS FIRST; supersedes older "current state" below)
 
-Branch `prod-hardening` · Inventory **SP3 (POS-side receiving + PIN) CODE COMPLETE & reviewed** — backend deployed (rev **00026-d2z**, migration **0017** applied & verified via `/readyz`). **▶️ NEXT ACTION: push + verify SP3** — (1) `git push` prod-hardening → Cloudflare auto-deploys backoffice + enables the APK build; (2) dispatch the signed APK; (3) **authed + on-device E2E** (the only USER-PENDING part — needs an admin/cashier login I can't self-auth, and a physical device). See "SP3 status" below.
+Branch `prod-hardening` · Inventory **SP3 (POS-side receiving + PIN) CODE COMPLETE, reviewed, deployed & PUSHED** + **2 device-test follow-ups shipped (FU-1 non-blocking inbound poll, FU-2 clean rejected-receive)**. Backend **rev 00027-5cd** (migration 0017 applied; `/readyz` ok; `/sync/inbound-transfers` live → 401 unauth). Backoffice pushed (Cloudflare auto-deploys). **▶️ NEXT ACTION: on-device re-test** (the only USER-PENDING part — needs an admin/cashier login I can't self-auth + a physical device); latest APK CI = run on prod-hardening. Then **SP4** (transfer documents / surat jalan). See "SP3 status" below.
 
 ## ⭐ SP3 — POS-side receiving + PIN: CODE COMPLETE (2026-05-25)
-Spec `docs/superpowers/specs/2026-05-25-inventory-sp3-pos-receiving-pin-design.md` · plan `docs/superpowers/plans/2026-05-25-inventory-sp3-pos-receiving-pin.md` (phased A–E, subagent-driven). Commits on `prod-hardening` (`e541236`→`5874f17`), **NOT pushed yet**.
+Spec `docs/superpowers/specs/2026-05-25-inventory-sp3-pos-receiving-pin-design.md` · plan `docs/superpowers/plans/2026-05-25-inventory-sp3-pos-receiving-pin.md` (phased A–E, subagent-driven). Commits on `prod-hardening` (`e541236`→`d3d1c03`), **pushed**.
 
 **Locked design (9 decisions):** per-user PIN + **manager step-up** on the cashier device · **on-device** argon2id verify (hash-wasm) + server re-validate · **informed count** (sentQty pre-filled) · **POS primary + backoffice override** (warehouse-dest stays backoffice) · **per-role org-wide** approver config · **admin-assigned** PINs · PIN-hash sync **scoped to outlet+admins** · **optimistic local credit + reconciliation** · atomic receive.
 
@@ -21,9 +21,13 @@ Spec `docs/superpowers/specs/2026-05-25-inventory-sp3-pos-receiving-pin-design.m
 - Backoffice: per-user receive-PIN field (Users), approver-roles toggles (Settings), outlet-dest "force receive (override)" caption.
 - **Final opus review:** core (idempotency/reconciliation/data-integrity) sound, no double-count/lost-rollback. **2 HIGH fixed:** (a) server now re-validates scope (`3663583`), (b) PIN redacted from dead-letter error-log + shareable sync-log (`5874f17`).
 
-**Open MINOR follow-ups (reviewer, optional):** (1) PIN lockout uses raw `localStorage` not `getKV()` (trivially clearable; server backstops). (2) `lockout.recordFailure` re-locks immediately on one wrong PIN after cooldown instead of granting a fresh batch. (3) SettingsScreen default `['admin']` vs migration default `'{}'` (cosmetic; admins always allowed server-side).
+**Device-test follow-ups SHIPPED (2026-05-25, rev 00027-5cd):**
+- **FU-1 — non-blocking inbound poll** (`d8cd8f0`→`d3d1c03`): inbound transfers reach the POS via a lightweight **cashier-scoped poll** `GET /api/v1/sync/inbound-transfers` (~20s, offline-tolerant KV cache) instead of the heavy version-gated bundle — badge+receive list update **without a sales-blocking full resync**. `transfers` REMOVED from the pull bundle (`receiveApprovers` stays). Engine: `pollInbound()`/`getInboundTransfers()`, wired into `start()`. POS reads `engine.getInboundTransfers()`. WHY: device test showed a sent transfer didn't surface until a manual sync, and full-resync-on-every-stock-change felt redundant.
+- **FU-2 — clean rejected-receive** (`2244a3f`): a `transfer_receive` that gets a deterministic server rejection (e.g. already received via backoffice override) now rolls back IMMEDIATELY in `flush()` — `pending.remove` + `outbox.discard` + one `onReceiveRejected` toast — **no retry, no dead-letter, no POS "sync failed" false-alarm, no error-log entry**. Transient failures still retry/dead-letter normally. WHY: device test rollback worked but surfaced a scary "Sinkronisasi gagal" on the POS for a handled case.
 
-**USER-PENDING (E6):** push → APK dispatch → on-device + authed E2E (inbound badge; informed count w/ discrepancy; PIN accept/reject+lockout; offline receive→reconnect→credit-once+badge-clear; backoffice override → POS rollback notice).
+**Open MINOR follow-ups (still optional, NOT done):** (1) PIN lockout uses raw `localStorage` not `getKV()`. (2) `lockout.recordFailure` re-locks on one wrong PIN right after cooldown. (3) SettingsScreen default `['admin']` vs migration default `'{}'` (cosmetic).
+
+**USER-PENDING re-test:** install latest APK; verify FU-1 (transfer sent → badge appears on POS within ~20s WITHOUT manual sync / no sales block) and FU-2 (offline receive → backoffice force-receive same → reconnect → quiet rollback toast, NO failed-sync alarm). Plus the original E2E: informed count w/ discrepancy; PIN accept/reject+lockout; offline receive→reconnect→credit-once.
 
 ---
 
