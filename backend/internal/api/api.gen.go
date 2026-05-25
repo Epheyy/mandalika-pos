@@ -133,8 +133,8 @@ const (
 
 // Defines values for StockCountUpdateInputStatus.
 const (
-	Cancelled  StockCountUpdateInputStatus = "cancelled"
-	InProgress StockCountUpdateInputStatus = "in_progress"
+	StockCountUpdateInputStatusCancelled  StockCountUpdateInputStatus = "cancelled"
+	StockCountUpdateInputStatusInProgress StockCountUpdateInputStatus = "in_progress"
 )
 
 // Defines values for SyncBatchItemType.
@@ -154,6 +154,26 @@ const (
 	SyncItemResultStatusOk        SyncItemResultStatus = "ok"
 )
 
+// Defines values for TransferStatus.
+const (
+	TransferStatusCancelled TransferStatus = "cancelled"
+	TransferStatusCompleted TransferStatus = "completed"
+	TransferStatusDraft     TransferStatus = "draft"
+	TransferStatusInTransit TransferStatus = "in_transit"
+)
+
+// Defines values for TransferLocationKind.
+const (
+	TransferLocationKindOutlet    TransferLocationKind = "outlet"
+	TransferLocationKindWarehouse TransferLocationKind = "warehouse"
+)
+
+// Defines values for TransferLocationInputKind.
+const (
+	TransferLocationInputKindOutlet    TransferLocationInputKind = "outlet"
+	TransferLocationInputKindWarehouse TransferLocationInputKind = "warehouse"
+)
+
 // Defines values for UpdateUserRequestRole.
 const (
 	UpdateUserRequestRoleAdmin   UpdateUserRequestRole = "admin"
@@ -166,6 +186,12 @@ const (
 	Admin   UserRole = "admin"
 	Cashier UserRole = "cashier"
 	Manager UserRole = "manager"
+)
+
+// Defines values for GetTransferLocationStockParamsKind.
+const (
+	GetTransferLocationStockParamsKindOutlet    GetTransferLocationStockParamsKind = "outlet"
+	GetTransferLocationStockParamsKindWarehouse GetTransferLocationStockParamsKind = "warehouse"
 )
 
 // AppSettings defines model for AppSettings.
@@ -1025,6 +1051,94 @@ type SyncVersionResponse struct {
 	Data SyncVersion `json:"data"`
 }
 
+// Transfer defines model for Transfer.
+type Transfer struct {
+	CancelledAt       nullable.Nullable[time.Time] `json:"cancelledAt,omitempty"`
+	CreatedAt         time.Time                    `json:"createdAt"`
+	Dest              TransferLocation             `json:"dest"`
+	DiscrepancyReason nullable.Nullable[string]    `json:"discrepancyReason,omitempty"`
+	Id                openapi_types.UUID           `json:"id"`
+	Items             []TransferItem               `json:"items"`
+	Note              nullable.Nullable[string]    `json:"note,omitempty"`
+	ReceivedAt        nullable.Nullable[time.Time] `json:"receivedAt,omitempty"`
+	SentAt            nullable.Nullable[time.Time] `json:"sentAt,omitempty"`
+	Source            TransferLocation             `json:"source"`
+	Status            TransferStatus               `json:"status"`
+	TransferNo        string                       `json:"transferNo"`
+}
+
+// TransferStatus defines model for Transfer.Status.
+type TransferStatus string
+
+// TransferCreateInput defines model for TransferCreateInput.
+type TransferCreateInput struct {
+	Dest   TransferLocationInput     `json:"dest"`
+	Items  []TransferItemInput       `json:"items"`
+	Note   nullable.Nullable[string] `json:"note,omitempty"`
+	Source TransferLocationInput     `json:"source"`
+}
+
+// TransferItem defines model for TransferItem.
+type TransferItem struct {
+	Difference  nullable.Nullable[int] `json:"difference,omitempty"`
+	ProductId   openapi_types.UUID     `json:"productId"`
+	ProductName string                 `json:"productName"`
+	ReceivedQty nullable.Nullable[int] `json:"receivedQty,omitempty"`
+	SentQty     int                    `json:"sentQty"`
+	Sku         *string                `json:"sku,omitempty"`
+	VariantSize string                 `json:"variantSize"`
+}
+
+// TransferItemInput defines model for TransferItemInput.
+type TransferItemInput struct {
+	ProductId   openapi_types.UUID `json:"productId"`
+	Qty         int                `json:"qty"`
+	VariantSize string             `json:"variantSize"`
+}
+
+// TransferListResponse defines model for TransferListResponse.
+type TransferListResponse struct {
+	Data []Transfer `json:"data"`
+	Meta Meta       `json:"meta"`
+}
+
+// TransferLocation defines model for TransferLocation.
+type TransferLocation struct {
+	Id   openapi_types.UUID   `json:"id"`
+	Kind TransferLocationKind `json:"kind"`
+	Name *string              `json:"name,omitempty"`
+}
+
+// TransferLocationKind defines model for TransferLocation.Kind.
+type TransferLocationKind string
+
+// TransferLocationInput defines model for TransferLocationInput.
+type TransferLocationInput struct {
+	Id   openapi_types.UUID        `json:"id"`
+	Kind TransferLocationInputKind `json:"kind"`
+}
+
+// TransferLocationInputKind defines model for TransferLocationInput.Kind.
+type TransferLocationInputKind string
+
+// TransferReceiveInput defines model for TransferReceiveInput.
+type TransferReceiveInput struct {
+	DiscrepancyReason nullable.Nullable[string]  `json:"discrepancyReason,omitempty"`
+	Items             []TransferReceiveItemInput `json:"items"`
+}
+
+// TransferReceiveItemInput defines model for TransferReceiveItemInput.
+type TransferReceiveItemInput struct {
+	ProductId   openapi_types.UUID `json:"productId"`
+	ReceivedQty int                `json:"receivedQty"`
+	VariantSize string             `json:"variantSize"`
+}
+
+// TransferResponse defines model for TransferResponse.
+type TransferResponse struct {
+	Data Transfer `json:"data"`
+}
+
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	DisplayName *string                               `json:"displayName,omitempty"`
@@ -1347,6 +1461,22 @@ type SyncVersionParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// ListTransfersParams defines parameters for ListTransfers.
+type ListTransfersParams struct {
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+	Page   *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetTransferLocationStockParams defines parameters for GetTransferLocationStock.
+type GetTransferLocationStockParams struct {
+	Kind GetTransferLocationStockParamsKind `form:"kind" json:"kind"`
+	Id   openapi_types.UUID                 `form:"id" json:"id"`
+}
+
+// GetTransferLocationStockParamsKind defines parameters for GetTransferLocationStock.
+type GetTransferLocationStockParamsKind string
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Page  *Page  `form:"page,omitempty" json:"page,omitempty"`
@@ -1445,6 +1575,15 @@ type CompleteStockCountJSONRequestBody = StockCountCompleteInput
 
 // SyncBatchJSONRequestBody defines body for SyncBatch for application/json ContentType.
 type SyncBatchJSONRequestBody = SyncBatchRequest
+
+// CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
+type CreateTransferJSONRequestBody = TransferCreateInput
+
+// UpdateTransferJSONRequestBody defines body for UpdateTransfer for application/json ContentType.
+type UpdateTransferJSONRequestBody = TransferCreateInput
+
+// ReceiveTransferJSONRequestBody defines body for ReceiveTransfer for application/json ContentType.
+type ReceiveTransferJSONRequestBody = TransferReceiveInput
 
 // SignUploadJSONRequestBody defines body for SignUpload for application/json ContentType.
 type SignUploadJSONRequestBody = UploadSignRequest
@@ -1661,6 +1800,30 @@ type ServerInterface interface {
 	// Per-outlet content version (sync wall, plan §5a)
 	// (GET /api/v1/sync/version)
 	SyncVersion(w http.ResponseWriter, r *http.Request, params SyncVersionParams)
+	// List transfers (Backoffice)
+	// (GET /api/v1/transfers)
+	ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams)
+	// Create a draft transfer (Backoffice)
+	// (POST /api/v1/transfers)
+	CreateTransfer(w http.ResponseWriter, r *http.Request)
+	// On-hand stock rows for a transfer source/dest location (Backoffice)
+	// (GET /api/v1/transfers/location-stock)
+	GetTransferLocationStock(w http.ResponseWriter, r *http.Request, params GetTransferLocationStockParams)
+	// Transfer detail (Backoffice)
+	// (GET /api/v1/transfers/{id})
+	GetTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Edit a draft transfer (Backoffice)
+	// (PUT /api/v1/transfers/{id})
+	UpdateTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Cancel a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/cancel)
+	CancelTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Receive a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/receive)
+	ReceiveTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Send a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/send)
+	SendTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Server-signed Cloudinary upload (secret stays server-side, plan §8)
 	// (POST /api/v1/uploads/sign)
 	SignUpload(w http.ResponseWriter, r *http.Request)
@@ -2090,6 +2253,54 @@ func (_ Unimplemented) SyncPull(w http.ResponseWriter, r *http.Request, params S
 // Per-outlet content version (sync wall, plan §5a)
 // (GET /api/v1/sync/version)
 func (_ Unimplemented) SyncVersion(w http.ResponseWriter, r *http.Request, params SyncVersionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List transfers (Backoffice)
+// (GET /api/v1/transfers)
+func (_ Unimplemented) ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a draft transfer (Backoffice)
+// (POST /api/v1/transfers)
+func (_ Unimplemented) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// On-hand stock rows for a transfer source/dest location (Backoffice)
+// (GET /api/v1/transfers/location-stock)
+func (_ Unimplemented) GetTransferLocationStock(w http.ResponseWriter, r *http.Request, params GetTransferLocationStockParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Transfer detail (Backoffice)
+// (GET /api/v1/transfers/{id})
+func (_ Unimplemented) GetTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Edit a draft transfer (Backoffice)
+// (PUT /api/v1/transfers/{id})
+func (_ Unimplemented) UpdateTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Cancel a transfer (Backoffice)
+// (POST /api/v1/transfers/{id}/cancel)
+func (_ Unimplemented) CancelTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Receive a transfer (Backoffice)
+// (POST /api/v1/transfers/{id}/receive)
+func (_ Unimplemented) ReceiveTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send a transfer (Backoffice)
+// (POST /api/v1/transfers/{id}/send)
+func (_ Unimplemented) SendTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4529,6 +4740,285 @@ func (siw *ServerInterfaceWrapper) SyncVersion(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListTransfers operation middleware
+func (siw *ServerInterfaceWrapper) ListTransfers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTransfersParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTransfers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTransfer operation middleware
+func (siw *ServerInterfaceWrapper) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTransfer(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTransferLocationStock operation middleware
+func (siw *ServerInterfaceWrapper) GetTransferLocationStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTransferLocationStockParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	if paramValue := r.URL.Query().Get("kind"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "id" -------------
+
+	if paramValue := r.URL.Query().Get("id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "id", r.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTransferLocationStock(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTransfer operation middleware
+func (siw *ServerInterfaceWrapper) GetTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTransfer operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelTransfer operation middleware
+func (siw *ServerInterfaceWrapper) CancelTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReceiveTransfer operation middleware
+func (siw *ServerInterfaceWrapper) ReceiveTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReceiveTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendTransfer operation middleware
+func (siw *ServerInterfaceWrapper) SendTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SignUpload operation middleware
 func (siw *ServerInterfaceWrapper) SignUpload(w http.ResponseWriter, r *http.Request) {
 
@@ -5216,6 +5706,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/sync/version", wrapper.SyncVersion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/transfers", wrapper.ListTransfers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/transfers", wrapper.CreateTransfer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/transfers/location-stock", wrapper.GetTransferLocationStock)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/transfers/{id}", wrapper.GetTransfer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/transfers/{id}", wrapper.UpdateTransfer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/transfers/{id}/cancel", wrapper.CancelTransfer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/transfers/{id}/receive", wrapper.ReceiveTransfer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/transfers/{id}/send", wrapper.SendTransfer)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/uploads/sign", wrapper.SignUpload)
@@ -6710,6 +7224,189 @@ func (response SyncVersion200JSONResponse) VisitSyncVersionResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListTransfersRequestObject struct {
+	Params ListTransfersParams
+}
+
+type ListTransfersResponseObject interface {
+	VisitListTransfersResponse(w http.ResponseWriter) error
+}
+
+type ListTransfers200JSONResponse TransferListResponse
+
+func (response ListTransfers200JSONResponse) VisitListTransfersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateTransferRequestObject struct {
+	Body *CreateTransferJSONRequestBody
+}
+
+type CreateTransferResponseObject interface {
+	VisitCreateTransferResponse(w http.ResponseWriter) error
+}
+
+type CreateTransfer201JSONResponse IdResponse
+
+func (response CreateTransfer201JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTransferLocationStockRequestObject struct {
+	Params GetTransferLocationStockParams
+}
+
+type GetTransferLocationStockResponseObject interface {
+	VisitGetTransferLocationStockResponse(w http.ResponseWriter) error
+}
+
+type GetTransferLocationStock200JSONResponse WarehouseStockResponse
+
+func (response GetTransferLocationStock200JSONResponse) VisitGetTransferLocationStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTransferRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetTransferResponseObject interface {
+	VisitGetTransferResponse(w http.ResponseWriter) error
+}
+
+type GetTransfer200JSONResponse TransferResponse
+
+func (response GetTransfer200JSONResponse) VisitGetTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetTransfer404JSONResponse) VisitGetTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateTransferRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateTransferJSONRequestBody
+}
+
+type UpdateTransferResponseObject interface {
+	VisitUpdateTransferResponse(w http.ResponseWriter) error
+}
+
+type UpdateTransfer200JSONResponse OkResponse
+
+func (response UpdateTransfer200JSONResponse) VisitUpdateTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateTransfer404JSONResponse) VisitUpdateTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelTransferRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type CancelTransferResponseObject interface {
+	VisitCancelTransferResponse(w http.ResponseWriter) error
+}
+
+type CancelTransfer200JSONResponse OkResponse
+
+func (response CancelTransfer200JSONResponse) VisitCancelTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelTransfer404JSONResponse) VisitCancelTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReceiveTransferRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *ReceiveTransferJSONRequestBody
+}
+
+type ReceiveTransferResponseObject interface {
+	VisitReceiveTransferResponse(w http.ResponseWriter) error
+}
+
+type ReceiveTransfer200JSONResponse OkResponse
+
+func (response ReceiveTransfer200JSONResponse) VisitReceiveTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReceiveTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReceiveTransfer404JSONResponse) VisitReceiveTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SendTransferRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type SendTransferResponseObject interface {
+	VisitSendTransferResponse(w http.ResponseWriter) error
+}
+
+type SendTransfer200JSONResponse OkResponse
+
+func (response SendTransfer200JSONResponse) VisitSendTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SendTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SendTransfer404JSONResponse) VisitSendTransferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type SignUploadRequestObject struct {
 	Body *SignUploadJSONRequestBody
 }
@@ -7248,6 +7945,30 @@ type StrictServerInterface interface {
 	// Per-outlet content version (sync wall, plan §5a)
 	// (GET /api/v1/sync/version)
 	SyncVersion(ctx context.Context, request SyncVersionRequestObject) (SyncVersionResponseObject, error)
+	// List transfers (Backoffice)
+	// (GET /api/v1/transfers)
+	ListTransfers(ctx context.Context, request ListTransfersRequestObject) (ListTransfersResponseObject, error)
+	// Create a draft transfer (Backoffice)
+	// (POST /api/v1/transfers)
+	CreateTransfer(ctx context.Context, request CreateTransferRequestObject) (CreateTransferResponseObject, error)
+	// On-hand stock rows for a transfer source/dest location (Backoffice)
+	// (GET /api/v1/transfers/location-stock)
+	GetTransferLocationStock(ctx context.Context, request GetTransferLocationStockRequestObject) (GetTransferLocationStockResponseObject, error)
+	// Transfer detail (Backoffice)
+	// (GET /api/v1/transfers/{id})
+	GetTransfer(ctx context.Context, request GetTransferRequestObject) (GetTransferResponseObject, error)
+	// Edit a draft transfer (Backoffice)
+	// (PUT /api/v1/transfers/{id})
+	UpdateTransfer(ctx context.Context, request UpdateTransferRequestObject) (UpdateTransferResponseObject, error)
+	// Cancel a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/cancel)
+	CancelTransfer(ctx context.Context, request CancelTransferRequestObject) (CancelTransferResponseObject, error)
+	// Receive a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/receive)
+	ReceiveTransfer(ctx context.Context, request ReceiveTransferRequestObject) (ReceiveTransferResponseObject, error)
+	// Send a transfer (Backoffice)
+	// (POST /api/v1/transfers/{id}/send)
+	SendTransfer(ctx context.Context, request SendTransferRequestObject) (SendTransferResponseObject, error)
 	// Server-signed Cloudinary upload (secret stays server-side, plan §8)
 	// (POST /api/v1/uploads/sign)
 	SignUpload(ctx context.Context, request SignUploadRequestObject) (SignUploadResponseObject, error)
@@ -9165,6 +9886,233 @@ func (sh *strictHandler) SyncVersion(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// ListTransfers operation middleware
+func (sh *strictHandler) ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams) {
+	var request ListTransfersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTransfers(ctx, request.(ListTransfersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTransfers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTransfersResponseObject); ok {
+		if err := validResponse.VisitListTransfersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTransfer operation middleware
+func (sh *strictHandler) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+	var request CreateTransferRequestObject
+
+	var body CreateTransferJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTransfer(ctx, request.(CreateTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTransferResponseObject); ok {
+		if err := validResponse.VisitCreateTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTransferLocationStock operation middleware
+func (sh *strictHandler) GetTransferLocationStock(w http.ResponseWriter, r *http.Request, params GetTransferLocationStockParams) {
+	var request GetTransferLocationStockRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTransferLocationStock(ctx, request.(GetTransferLocationStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTransferLocationStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTransferLocationStockResponseObject); ok {
+		if err := validResponse.VisitGetTransferLocationStockResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTransfer operation middleware
+func (sh *strictHandler) GetTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetTransferRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTransfer(ctx, request.(GetTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTransferResponseObject); ok {
+		if err := validResponse.VisitGetTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateTransfer operation middleware
+func (sh *strictHandler) UpdateTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateTransferRequestObject
+
+	request.Id = id
+
+	var body UpdateTransferJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateTransfer(ctx, request.(UpdateTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateTransferResponseObject); ok {
+		if err := validResponse.VisitUpdateTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelTransfer operation middleware
+func (sh *strictHandler) CancelTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request CancelTransferRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelTransfer(ctx, request.(CancelTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelTransferResponseObject); ok {
+		if err := validResponse.VisitCancelTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReceiveTransfer operation middleware
+func (sh *strictHandler) ReceiveTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request ReceiveTransferRequestObject
+
+	request.Id = id
+
+	var body ReceiveTransferJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReceiveTransfer(ctx, request.(ReceiveTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReceiveTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReceiveTransferResponseObject); ok {
+		if err := validResponse.VisitReceiveTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SendTransfer operation middleware
+func (sh *strictHandler) SendTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request SendTransferRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SendTransfer(ctx, request.(SendTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SendTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SendTransferResponseObject); ok {
+		if err := validResponse.VisitSendTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SignUpload operation middleware
 func (sh *strictHandler) SignUpload(w http.ResponseWriter, r *http.Request) {
 	var request SignUploadRequestObject
@@ -9571,132 +10519,141 @@ func (sh *strictHandler) Health(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

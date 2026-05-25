@@ -444,6 +444,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List transfers (Backoffice) */
+        get: operations["listTransfers"];
+        put?: never;
+        /** Create a draft transfer (Backoffice) */
+        post: operations["createTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/location-stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** On-hand stock rows for a transfer source/dest location (Backoffice) */
+        get: operations["getTransferLocationStock"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Transfer detail (Backoffice) */
+        get: operations["getTransfer"];
+        /** Edit a draft transfer (Backoffice) */
+        put: operations["updateTransfer"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a transfer (Backoffice) */
+        post: operations["sendTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive a transfer (Backoffice) */
+        post: operations["receiveTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a transfer (Backoffice) */
+        post: operations["cancelTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/custom-roles": {
         parameters: {
             query?: never;
@@ -1033,6 +1145,78 @@ export interface components {
             variantSize: string;
             newQty: number;
             reason: string;
+        };
+        TransferLocation: {
+            /** @enum {string} */
+            kind: "outlet" | "warehouse";
+            /** Format: uuid */
+            id: string;
+            name?: string;
+        };
+        TransferLocationInput: {
+            /** @enum {string} */
+            kind: "outlet" | "warehouse";
+            /** Format: uuid */
+            id: string;
+        };
+        TransferItem: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku?: string;
+            sentQty: number;
+            receivedQty?: number | null;
+            difference?: number | null;
+        };
+        Transfer: {
+            /** Format: uuid */
+            id: string;
+            transferNo: string;
+            /** @enum {string} */
+            status: "draft" | "in_transit" | "completed" | "cancelled";
+            source: components["schemas"]["TransferLocation"];
+            dest: components["schemas"]["TransferLocation"];
+            note?: string | null;
+            discrepancyReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            sentAt?: string | null;
+            /** Format: date-time */
+            receivedAt?: string | null;
+            /** Format: date-time */
+            cancelledAt?: string | null;
+            items: components["schemas"]["TransferItem"][];
+        };
+        TransferListResponse: {
+            data: components["schemas"]["Transfer"][];
+            meta: components["schemas"]["Meta"];
+        };
+        TransferResponse: {
+            data: components["schemas"]["Transfer"];
+        };
+        TransferItemInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            qty: number;
+        };
+        TransferCreateInput: {
+            source: components["schemas"]["TransferLocationInput"];
+            dest: components["schemas"]["TransferLocationInput"];
+            note?: string | null;
+            items: components["schemas"]["TransferItemInput"][];
+        };
+        TransferReceiveItemInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            receivedQty: number;
+        };
+        TransferReceiveInput: {
+            items: components["schemas"]["TransferReceiveItemInput"][];
+            discrepancyReason?: string | null;
         };
         Category: {
             /** Format: uuid */
@@ -2702,6 +2886,200 @@ export interface operations {
                 "application/json": components["schemas"]["WarehouseAdjustInput"];
             };
         };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTransfers: {
+        parameters: {
+            query?: {
+                status?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description transfers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferListResponse"];
+                };
+            };
+        };
+    };
+    createTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferCreateInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    getTransferLocationStock: {
+        parameters: {
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description stock rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WarehouseStockResponse"];
+                };
+            };
+        };
+    };
+    getTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description transfer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferCreateInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    receiveTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferReceiveInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description ok */
             200: {

@@ -194,6 +194,85 @@ components:
         variantSize: { type: string }
         newQty: { type: integer }
         reason: { type: string }
+    TransferLocation:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: { type: string, enum: [outlet, warehouse] }
+        id: { type: string, format: uuid }
+        name: { type: string }
+    TransferLocationInput:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: { type: string, enum: [outlet, warehouse] }
+        id: { type: string, format: uuid }
+    TransferItem:
+      type: object
+      required: [productId, productName, variantSize, sentQty]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        sentQty: { type: integer }
+        receivedQty: { type: integer, nullable: true }
+        difference: { type: integer, nullable: true }
+    Transfer:
+      type: object
+      required: [id, transferNo, status, source, dest, createdAt, items]
+      properties:
+        id: { type: string, format: uuid }
+        transferNo: { type: string }
+        status: { type: string, enum: [draft, in_transit, completed, cancelled] }
+        source: { $ref: '#/components/schemas/TransferLocation' }
+        dest: { $ref: '#/components/schemas/TransferLocation' }
+        note: { type: string, nullable: true }
+        discrepancyReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+        receivedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/TransferItem' } }
+    TransferListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    TransferResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Transfer' }
+    TransferItemInput:
+      type: object
+      required: [productId, variantSize, qty]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        qty: { type: integer }
+    TransferCreateInput:
+      type: object
+      required: [source, dest, items]
+      properties:
+        source: { $ref: '#/components/schemas/TransferLocationInput' }
+        dest: { $ref: '#/components/schemas/TransferLocationInput' }
+        note: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/TransferItemInput' } }
+    TransferReceiveItemInput:
+      type: object
+      required: [productId, variantSize, receivedQty]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        receivedQty: { type: integer }
+    TransferReceiveInput:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TransferReceiveItemInput' } }
+        discrepancyReason: { type: string, nullable: true }
     Category:
       type: object
       required: [id, name]
@@ -1597,6 +1676,127 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/transfers:
+    get:
+      operationId: listTransfers
+      tags: [catalog]
+      summary: List transfers (Backoffice)
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: page, in: query, required: false, schema: { type: integer } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200':
+          description: transfers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferListResponse' }
+    post:
+      operationId: createTransfer
+      tags: [catalog]
+      summary: Create a draft transfer (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferCreateInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+  /api/v1/transfers/location-stock:
+    get:
+      operationId: getTransferLocationStock
+      tags: [catalog]
+      summary: On-hand stock rows for a transfer source/dest location (Backoffice)
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: stock rows
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WarehouseStockResponse' }
+  /api/v1/transfers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getTransfer
+      tags: [catalog]
+      summary: Transfer detail (Backoffice)
+      responses:
+        '200':
+          description: transfer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateTransfer
+      tags: [catalog]
+      summary: Edit a draft transfer (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferCreateInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/transfers/{id}/send:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: sendTransfer
+      tags: [catalog]
+      summary: Send a transfer (Backoffice)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/transfers/{id}/receive:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: receiveTransfer
+      tags: [catalog]
+      summary: Receive a transfer (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferReceiveInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/transfers/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: cancelTransfer
+      tags: [catalog]
+      summary: Cancel a transfer (Backoffice)
       responses:
         '200':
           description: ok
