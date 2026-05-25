@@ -608,6 +608,16 @@ func (r *Repo) Transfer(ctx context.Context, id string) (api.Transfer, error) {
 		`SELECT `+transferObj+` `+transferFrom+` WHERE t.id=$1`, id)
 }
 
+// TransfersForOutlet returns transfers of a given status destined to this outlet.
+// Used by the POS pull bundle (status="in_transit") so the destination outlet can
+// receive on-device.
+func (r *Repo) TransfersForOutlet(ctx context.Context, outletID, status string) ([]api.Transfer, error) {
+	sql := `SELECT ` + transferObj + `, count(*) OVER() AS total ` + transferFrom +
+		` WHERE t.dest_outlet_id=$1 AND t.status=$2 ORDER BY t.created_at DESC`
+	rows, _, err := listJSON[api.Transfer](ctx, r.Pool, sql, outletID, status)
+	return rows, err
+}
+
 // LocationStock returns on-hand rows for a polymorphic location, so the
 // create-transfer UI can show the source's live stock. Warehouse reuses the
 // existing matrix; outlet reads outlet_variant_stock.
