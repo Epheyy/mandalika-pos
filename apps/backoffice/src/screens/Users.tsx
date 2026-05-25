@@ -46,6 +46,8 @@ export default function Users() {
   const [editRole, setEditRole] = useState<Role>('cashier')
   const [editPerms, setEditPerms] = useState<string[]>([])
   const [editOutletId, setEditOutletId] = useState<string>('')
+  const [pin, setPin] = useState('')
+  const [clearPin, setClearPin] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
@@ -61,7 +63,14 @@ export default function Users() {
     setBusy(true)
     try {
       await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, outletId: editOutletId || null })
+      if (clearPin) {
+        await api.setUserReceivePin(editingUser.id, { clear: true })
+      } else if (pin) {
+        await api.setUserReceivePin(editingUser.id, { pin })
+      }
       setEditingUser(null)
+      setPin('')
+      setClearPin(false)
       await uq.refetch()
     } finally {
       setBusy(false)
@@ -196,7 +205,7 @@ export default function Users() {
                   </div>
                   <Badge tone={ROLE_TONE[u.role as Role]} className="flex-shrink-0">{ROLE_LABEL[u.role as Role]}</Badge>
                   {me?.role === 'admin' && u.id !== me?.id && (
-                    <IconButton onClick={() => { setEditingUser(u); setEditRole(u.role as Role); setEditPerms(u.permissions || []); setEditOutletId(u.outletId || '') }}><Edit2 className="w-4 h-4" /></IconButton>
+                    <IconButton onClick={() => { setEditingUser(u); setEditRole(u.role as Role); setEditPerms(u.permissions || []); setEditOutletId(u.outletId || ''); setPin(''); setClearPin(false) }}><Edit2 className="w-4 h-4" /></IconButton>
                   )}
                 </div>
               ))}
@@ -238,12 +247,12 @@ export default function Users() {
 
       <Modal
         open={!!editingUser}
-        onClose={() => setEditingUser(null)}
+        onClose={() => { setEditingUser(null); setPin(''); setClearPin(false) }}
         title="Edit Akses"
         subtitle={editingUser?.displayName}
         footer={
           <>
-            <Button variant="secondary" className="flex-1" onClick={() => setEditingUser(null)}>Batal</Button>
+            <Button variant="secondary" className="flex-1" onClick={() => { setEditingUser(null); setPin(''); setClearPin(false) }}>Batal</Button>
             <Button className="flex-1" loading={busy} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           </>
         }
@@ -269,6 +278,21 @@ export default function Users() {
           {editRole === 'cashier' && !editOutletId && (
             <p className="text-[11px] text-amber-600 -mt-3">Kasir sebaiknya ditempatkan di satu outlet agar POS dibatasi pada outlet tersebut.</p>
           )}
+          <Field label="PIN penerimaan transfer (opsional)">
+            <input
+              inputMode="numeric"
+              maxLength={8}
+              placeholder="Isi untuk set / ganti PIN"
+              value={pin}
+              onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setClearPin(false) }}
+              disabled={clearPin}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition disabled:opacity-50"
+            />
+            <label className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+              <input type="checkbox" checked={clearPin} onChange={(e) => setClearPin(e.target.checked)} />
+              Hapus PIN
+            </label>
+          </Field>
           {editRole !== 'admin' && roles.length > 0 && (
             <Field label="Terapkan Template">
               <div className="flex gap-2 flex-wrap">

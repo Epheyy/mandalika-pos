@@ -42,6 +42,7 @@ export type OutletInput = S['OutletInput']
 export type OutletVariantConfig = S['OutletVariantConfig']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
+export type SetReceivePinRequest = S['SetReceivePinRequest']
 export type UploadSignature = S['UploadSignature']
 export type WarehouseInput = S['WarehouseInput']
 export type GoodsReceiptInput = S['GoodsReceiptInput']
@@ -178,6 +179,7 @@ export interface Api {
   listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
   createUser: (input: CreateUserRequest) => Promise<User>
   updateUser: (id: string, input: UpdateUserRequest) => Promise<User>
+  setUserReceivePin: (id: string, input: SetReceivePinRequest) => Promise<void>
   deleteUser: (id: string) => Promise<void>
   listCustomRoles: () => Promise<CustomRole[]>
   createCustomRole: (input: { name: string; permissions: string[] }) => Promise<CustomRole>
@@ -401,6 +403,9 @@ export function createClient(opts: ClientOptions): Api {
     listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
     createUser: (input) => data<User>('POST', `${API}/users`, input),
     updateUser: (id, input) => data<User>('PUT', `${API}/users/${id}`, input),
+    setUserReceivePin: async (id, input) => {
+      await request('PUT', `${API}/users/${id}/receive-pin`, input)
+    },
     deleteUser: async (id) => {
       await request('DELETE', `${API}/users/${id}`)
     },
