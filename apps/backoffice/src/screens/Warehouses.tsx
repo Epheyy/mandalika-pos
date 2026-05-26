@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import type { Warehouse, WarehouseInput, WarehouseStockRow } from '@mandalika/api'
 import {
   Plus,
@@ -10,9 +11,12 @@ import {
   ArrowLeft,
   PackagePlus,
   SlidersHorizontal,
+  Upload,
+  X,
 } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { TableSkeleton } from '../components/Skeleton'
 import {
   Button,
@@ -26,12 +30,13 @@ import {
   PageHeader,
   Tabs,
   fieldClass,
+  Field,
 } from '../ui'
 import { GoodsInModal } from './warehouses/GoodsInModal'
 import { AdjustModal } from './warehouses/AdjustModal'
 import { Transfers } from './transfers/Transfers'
 
-const EMPTY_WAREHOUSE = { name: '', code: '', address: '', phone: '', isActive: true }
+const EMPTY_WAREHOUSE = { name: '', code: '', address: '', phone: '', isActive: true, logoUrl: undefined as string | undefined }
 const rowKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
 const GUDANG_TABS = [
@@ -87,9 +92,28 @@ function WarehouseList() {
       address: w.address || '',
       phone: w.phone || '',
       isActive: w.isActive,
+      logoUrl: w.logoUrl ?? undefined,
     })
     setErr(null)
     setOpen(true)
+  }
+
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
+
+  const onLogoFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const url = await uploadImage(file, 'mandalika-pos/warehouses')
+      setForm((f) => ({ ...f, logoUrl: url }))
+    } catch {
+      setErr('Gagal upload logo.')
+    } finally {
+      setLogoUploading(false)
+      e.target.value = ''
+    }
   }
 
   const save = async () => {
@@ -106,6 +130,7 @@ function WarehouseList() {
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
         isActive: form.isActive,
+        logoUrl: form.logoUrl ?? null,
       }
       if (editing) await api.updateWarehouse(editing.id, body)
       else await api.createWarehouse(body)
@@ -248,18 +273,50 @@ function WarehouseList() {
             onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             placeholder="mis. GDG-01"
           />
-          <Textarea
-            label="Alamat"
-            value={form.address}
-            onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-            rows={2}
-          />
-          <Input
-            label="No. Telepon"
-            type="tel"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-          />
+          <div>
+            <Textarea
+              label="Alamat"
+              value={form.address}
+              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              rows={2}
+            />
+            <p className="text-xs text-gray-500 mt-1">Juga digunakan sebagai alamat surat jalan / tanda terima.</p>
+          </div>
+          <div>
+            <Input
+              label="No. Telepon"
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500 mt-1">Juga muncul di surat jalan / tanda terima.</p>
+          </div>
+          <Field label="Logo (opsional, ditampilkan di surat jalan / tanda terima)">
+            <div className="flex items-center gap-3">
+              {form.logoUrl ? (
+                <div className="relative">
+                  <img src={getThumbnailUrl(form.logoUrl, 64)} alt="" className="w-16 h-16 rounded border object-contain" />
+                  <button
+                    type="button"
+                    aria-label="Hapus logo"
+                    onClick={() => setForm((f) => ({ ...f, logoUrl: undefined }))}
+                    className="absolute -top-1 -right-1 bg-white border rounded-full p-0.5 shadow"
+                  >
+                    <X className="w-3 h-3 text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded border border-dashed grid place-items-center text-xs text-gray-400">
+                  <Upload className="w-5 h-5 text-gray-300" />
+                </div>
+              )}
+              <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={onLogoFile} />
+              <Button variant="secondary" loading={logoUploading} onClick={() => logoFileRef.current?.click()}>
+                {form.logoUrl ? 'Ganti' : 'Unggah'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Kosongkan untuk pakai logo merek dari halaman Pengaturan.</p>
+          </Field>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"

@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import type { Outlet } from '@mandalika/api'
-import { Plus, Edit2, Store, MapPin, Phone, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Edit2, Store, MapPin, Phone, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react'
 import { api } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { TableSkeleton } from '../components/Skeleton'
-import { Button, Input, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader } from '../ui'
+import { Button, Input, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Field } from '../ui'
 
-const EMPTY = { name: '', code: '', address: '', phone: '', isActive: true }
+const EMPTY = { name: '', code: '', address: '', phone: '', isActive: true, logoUrl: undefined as string | undefined }
 
 export default function Outlets() {
   const { refreshOutlets } = useOutlet()
@@ -27,9 +29,27 @@ export default function Outlets() {
   }
   const openEdit = (o: Outlet) => {
     setEditing(o)
-    setForm({ name: o.name, code: o.code || '', address: o.address || '', phone: o.phone || '', isActive: o.isActive })
+    setForm({ name: o.name, code: o.code || '', address: o.address || '', phone: o.phone || '', isActive: o.isActive, logoUrl: o.logoUrl ?? undefined })
     setErr(null)
     setOpen(true)
+  }
+
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
+
+  const onLogoFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const url = await uploadImage(file, 'mandalika-pos/outlets')
+      setForm((f) => ({ ...f, logoUrl: url }))
+    } catch {
+      setErr('Gagal upload logo.')
+    } finally {
+      setLogoUploading(false)
+      e.target.value = ''
+    }
   }
 
   const save = async () => {
@@ -51,6 +71,7 @@ export default function Outlets() {
         address: form.address.trim(),
         phone: form.phone.trim(),
         isActive: form.isActive,
+        logoUrl: form.logoUrl ?? null,
       }
       if (editing) await api.updateOutlet(editing.id, body)
       else await api.createOutlet(body)
@@ -70,6 +91,7 @@ export default function Outlets() {
       code: o.code || '',
       address: o.address || '',
       phone: o.phone || '',
+      logoUrl: o.logoUrl ?? null,
       isActive: !o.isActive,
     })
     await q.refetch()
@@ -168,18 +190,50 @@ export default function Outlets() {
               </>
             }
           />
-          <Textarea
-            label="Alamat"
-            value={form.address}
-            onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-            rows={2}
-          />
-          <Input
-            label="No. Telepon"
-            type="tel"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-          />
+          <div>
+            <Textarea
+              label="Alamat"
+              value={form.address}
+              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              rows={2}
+            />
+            <p className="text-xs text-gray-500 mt-1">Juga digunakan sebagai alamat surat jalan / tanda terima.</p>
+          </div>
+          <div>
+            <Input
+              label="No. Telepon"
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500 mt-1">Juga muncul di surat jalan / tanda terima.</p>
+          </div>
+          <Field label="Logo (opsional, ditampilkan di surat jalan / tanda terima)">
+            <div className="flex items-center gap-3">
+              {form.logoUrl ? (
+                <div className="relative">
+                  <img src={getThumbnailUrl(form.logoUrl, 64)} alt="" className="w-16 h-16 rounded border object-contain" />
+                  <button
+                    type="button"
+                    aria-label="Hapus logo"
+                    onClick={() => setForm((f) => ({ ...f, logoUrl: undefined }))}
+                    className="absolute -top-1 -right-1 bg-white border rounded-full p-0.5 shadow"
+                  >
+                    <X className="w-3 h-3 text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded border border-dashed grid place-items-center text-xs text-gray-400">
+                  <Upload className="w-5 h-5 text-gray-300" />
+                </div>
+              )}
+              <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={onLogoFile} />
+              <Button variant="secondary" loading={logoUploading} onClick={() => logoFileRef.current?.click()}>
+                {form.logoUrl ? 'Ganti' : 'Unggah'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Kosongkan untuk pakai logo merek dari halaman Pengaturan.</p>
+          </Field>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
