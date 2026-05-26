@@ -125,6 +125,7 @@ components:
         code: { type: string, nullable: true }
         address: { type: string, nullable: true }
         phone: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
     OutletListResponse:
@@ -141,6 +142,7 @@ components:
         code: { type: string, nullable: true }
         address: { type: string, nullable: true }
         phone: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
     WarehouseInput:
@@ -201,6 +203,18 @@ components:
         kind: { type: string, enum: [outlet, warehouse] }
         id: { type: string, format: uuid }
         name: { type: string }
+    Letterhead:
+      type: object
+      required: [locationName, addressLines]
+      properties:
+        locationName: { type: string }
+        brandName:    { type: string, nullable: true }
+        logoUrl:      { type: string, nullable: true }
+        addressLines:
+          type: array
+          items: { type: string }
+        phone:        { type: string, nullable: true }
+        npwp:         { type: string, nullable: true }
     TransferLocationInput:
       type: object
       required: [kind, id]
@@ -234,6 +248,10 @@ components:
         receivedAt: { type: string, format: date-time, nullable: true }
         cancelledAt: { type: string, format: date-time, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/TransferItem' } }
+        suratJalanNo:       { type: string, nullable: true }
+        tandaTerimaNo:      { type: string, nullable: true }
+        senderLetterhead:   { $ref: '#/components/schemas/Letterhead', nullable: true }
+        receiverLetterhead: { $ref: '#/components/schemas/Letterhead', nullable: true }
     TransferListResponse:
       type: object
       required: [data, meta]
@@ -725,11 +743,21 @@ components:
           type: array
           items: { type: string }
           description: Roles whose users may approve a POS transfer receive.
+        documents:
+          $ref: '#/components/schemas/DocumentSettings'
     AppSettingsResponse:
       type: object
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/AppSettings' }
+    DocumentSettings:
+      type: object
+      properties:
+        logoUrl:      { type: string, nullable: true }
+        brandName:    { type: string, nullable: true }
+        addressLines: { type: string, nullable: true }   # multiline; newline-separated
+        phone:        { type: string, nullable: true }
+        npwp:         { type: string, nullable: true }
     CustomRole:
       type: object
       required: [id, name, permissions, createdAt]
@@ -946,6 +974,10 @@ components:
         orderId: { type: string }
         stockWarning: { type: boolean }
         error: { type: string }
+        tandaTerimaNo: { type: string, nullable: true }   # set on transfer_receive ok
+        transfer:                                          # full completed snapshot on transfer_receive ok
+          $ref: '#/components/schemas/Transfer'
+          nullable: true
     SyncBatchResult:
       type: object
       required: [processed, results, version]

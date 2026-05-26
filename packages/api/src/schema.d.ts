@@ -1121,6 +1121,7 @@ export interface components {
             code?: string | null;
             address?: string | null;
             phone?: string | null;
+            logoUrl?: string | null;
             isActive: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1135,6 +1136,7 @@ export interface components {
             code?: string | null;
             address?: string | null;
             phone?: string | null;
+            logoUrl?: string | null;
             isActive: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1186,6 +1188,14 @@ export interface components {
             id: string;
             name?: string;
         };
+        Letterhead: {
+            locationName: string;
+            brandName?: string | null;
+            logoUrl?: string | null;
+            addressLines: string[];
+            phone?: string | null;
+            npwp?: string | null;
+        };
         TransferLocationInput: {
             /** @enum {string} */
             kind: "outlet" | "warehouse";
@@ -1221,6 +1231,10 @@ export interface components {
             /** Format: date-time */
             cancelledAt?: string | null;
             items: components["schemas"]["TransferItem"][];
+            suratJalanNo?: string | null;
+            tandaTerimaNo?: string | null;
+            senderLetterhead?: components["schemas"]["Letterhead"];
+            receiverLetterhead?: components["schemas"]["Letterhead"];
         };
         TransferListResponse: {
             data: components["schemas"]["Transfer"][];
@@ -1649,9 +1663,17 @@ export interface components {
             autoOpenShift: boolean;
             /** @description Roles whose users may approve a POS transfer receive. */
             receiveApproverRoles?: string[];
+            documents?: components["schemas"]["DocumentSettings"];
         };
         AppSettingsResponse: {
             data: components["schemas"]["AppSettings"];
+        };
+        DocumentSettings: {
+            logoUrl?: string | null;
+            brandName?: string | null;
+            addressLines?: string | null;
+            phone?: string | null;
+            npwp?: string | null;
         };
         CustomRole: {
             /** Format: uuid */
@@ -1825,6 +1847,8 @@ export interface components {
             orderId?: string;
             stockWarning?: boolean;
             error?: string;
+            tandaTerimaNo?: string | null;
+            transfer?: components["schemas"]["Transfer"];
         };
         SyncBatchResult: {
             processed: number;
