@@ -58,3 +58,9 @@ Thumbs.db
 
 # TS build info
 *.tsbuildinfo
+
+# Superpowers brainstorming mockups (local; safe to discard)
+.superpowers/
+
+# Playwright MCP local artifacts
+.playwright-mcp/
