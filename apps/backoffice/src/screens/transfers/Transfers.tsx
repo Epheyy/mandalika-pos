@@ -7,6 +7,7 @@ import { TableSkeleton } from '../../components/Skeleton'
 import { Button, Card, Badge, EmptyState, PageHeader } from '../../ui'
 import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
+import { SuratJalanPanel } from './SuratJalanPanel'
 
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'detail'; id: string }
 
@@ -163,6 +164,8 @@ function TransferDetail({ id, onBack }: { id: string; onBack: () => void }) {
           </>
         }
       />
+
+      {t.suratJalanNo && <SuratJalanPanel transfer={t} />}
 
       <Card className="p-5">
         <div className="flex items-center gap-3 mb-4">
