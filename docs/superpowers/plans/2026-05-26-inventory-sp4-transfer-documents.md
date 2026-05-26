@@ -38,6 +38,21 @@ The spec lists `apps/backoffice/src/lib/letterhead.ts` as a **client-side** reso
 ## Phase A — Backend foundations
 
 > Goal of phase A: every backend touchpoint (schema, DTO, sequences, sync ack) is in place so both client surfaces can integrate against a stable contract.
+>
+> **Test-shape note for all of Phase A** (revised after A1 review): the backend
+> has **no DB-touching test harness** today — every `*_test.go` in
+> `backend/internal/` is a pure-function test. Building a `testPool` integration
+> harness purely for SP4 is out of scope and would deviate sharply from the repo
+> pattern. So for every Phase-A task, the test-code shown in the plan should be
+> implemented in the **pure-helper shape used by existing tests**
+> (e.g. `variantBarcode`, `validLocKind`, `formatDocNo`) where it can be
+> meaningfully decomposed. Integration paths that genuinely need a live
+> DB (SendTransfer assignment, ReceiveTransfer idempotency, transferObj
+> read-back, app_settings round-trip, warehouse/outlet override round-trip)
+> are **deferred to A10's expanded live-verify matrix** against the real Neon
+> DB. The implementer should still write any *pure* test the task suggests, and
+> may add a `// integration path verified at A10` comment in the test file
+> where the DB-coupled test cases were intentionally omitted.
 
 ### Task A1 — Migration 0018: documents schema & doc_sequences
 
@@ -99,108 +114,62 @@ git commit -m "feat(backend): SP4 migration 0018 — documents brand/location + 
 
 ---
 
-### Task A2 — `nextDocNo` Go helper + concurrent test
+### Task A2 — `nextDocNo` Go helper + pure formatter test
 
 **Files:**
 - Create: `backend/internal/write/doc_sequences.go`
 - Create: `backend/internal/write/doc_sequences_test.go`
 
-- [ ] **Step 1: Write the failing test**
+> **Test-shape note** (revised after A1 review): the backend has **no DB-touching
+> test harness** today — every `*_test.go` in `backend/internal/` is a pure
+> function test (`repo_test.go` tests `variantBarcode`/`validateVariants`;
+> `transfer_test.go` tests `validLocKind`/`sameLoc`/`transferTransition`). Building
+> a `testPool` integration harness for one helper is out of scope. Instead, follow
+> the existing repo pattern: extract the **format** as a pure helper and test
+> that; defer the SQL atomic-counter behavior to A10's live verify (where send +
+> receive will trip through `nextDocNo` against the real Neon DB).
+
+- [ ] **Step 1: Write the failing pure-formatter test**
 
 ```go
 // backend/internal/write/doc_sequences_test.go
 package write
 
-import (
-	"context"
-	"sync"
-	"testing"
+import "testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-)
-
-// testPool is provided by repo_test.go's setup helper (see existing tests).
-// If absent, follow the same pattern as repo_test.go (skip on no DB).
-
-func TestNextDocNo_FirstCallReturnsOne(t *testing.T) {
-	if testPool == nil { t.Skip("no DB") }
-	ctx := context.Background()
-	tx, _ := testPool.Begin(ctx)
-	defer tx.Rollback(ctx)
-
-	n, err := nextDocNo(ctx, tx, "SJ", 2027) // unused year → fresh row
-	if err != nil { t.Fatal(err) }
-	if n != "SJ-2027-00001" { t.Fatalf("got %q, want SJ-2027-00001", n) }
-}
-
-func TestNextDocNo_IncrementsWithinYear(t *testing.T) {
-	if testPool == nil { t.Skip("no DB") }
-	ctx := context.Background()
-	tx, _ := testPool.Begin(ctx)
-	defer tx.Rollback(ctx)
-
-	a, _ := nextDocNo(ctx, tx, "TT", 2027)
-	b, _ := nextDocNo(ctx, tx, "TT", 2027)
-	if a != "TT-2027-00001" || b != "TT-2027-00002" {
-		t.Fatalf("got %q, %q", a, b)
+func TestFormatDocNo(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+		year int
+		n    int64
+		want string
+	}{
+		{"first SJ of the year", "SJ", 2026, 1, "SJ-2026-00001"},
+		{"first TT of the year", "TT", 2026, 1, "TT-2026-00001"},
+		{"5-digit padding",       "SJ", 2026, 42, "SJ-2026-00042"},
+		{"year rollover",         "SJ", 2027, 1, "SJ-2027-00001"},
+		{"5-digit cap not exceeded", "TT", 2026, 99999, "TT-2026-99999"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatDocNo(tt.kind, tt.year, tt.n); got != tt.want {
+				t.Fatalf("formatDocNo(%q,%d,%d) = %q, want %q",
+					tt.kind, tt.year, tt.n, got, tt.want)
+			}
+		})
 	}
 }
-
-func TestNextDocNo_IndependentPerKindAndYear(t *testing.T) {
-	if testPool == nil { t.Skip("no DB") }
-	ctx := context.Background()
-	tx, _ := testPool.Begin(ctx)
-	defer tx.Rollback(ctx)
-
-	sj27a, _ := nextDocNo(ctx, tx, "SJ", 2027)
-	tt27a, _ := nextDocNo(ctx, tx, "TT", 2027)
-	sj28a, _ := nextDocNo(ctx, tx, "SJ", 2028)
-	if sj27a != "SJ-2027-00001" || tt27a != "TT-2027-00001" || sj28a != "SJ-2028-00001" {
-		t.Fatalf("got %q %q %q", sj27a, tt27a, sj28a)
-	}
-}
-
-func TestNextDocNo_ConcurrentCallsGetDistinct(t *testing.T) {
-	if testPool == nil { t.Skip("no DB") }
-	ctx := context.Background()
-
-	const N = 10
-	out := make(chan string, N)
-	wg := sync.WaitGroup{}
-	for i := 0; i < N; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			tx, _ := testPool.Begin(ctx)
-			defer tx.Rollback(ctx)
-			n, _ := nextDocNo(ctx, tx, "SJ", 2029) // fresh year
-			out <- n
-			tx.Commit(ctx)
-		}()
-	}
-	wg.Wait()
-	close(out)
-	seen := map[string]bool{}
-	for n := range out {
-		if seen[n] { t.Fatalf("duplicate %q", n) }
-		seen[n] = true
-	}
-	if len(seen) != N { t.Fatalf("got %d distinct, want %d", len(seen), N) }
-}
-
-var testPool *pgxpool.Pool // wired by existing TestMain in repo_test.go
 ```
 
-If `repo_test.go` doesn't already wire `testPool`, lift its existing connection pattern into a shared `setup_test.go` helper used by all `write` tests — that is in-scope cleanup.
-
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run, expect FAIL**
 
 ```bash
-cd backend && go test ./internal/write/ -run TestNextDocNo -v
-# Expected: FAIL — "nextDocNo undefined"
+cd backend && go test ./internal/write/ -run TestFormatDocNo -v
+# Expected: FAIL — formatDocNo undefined
 ```
 
-- [ ] **Step 3: Implement `nextDocNo`**
+- [ ] **Step 3: Implement both helpers**
 
 ```go
 // backend/internal/write/doc_sequences.go
@@ -213,8 +182,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// nextDocNo atomically allocates the next per-year sequence number for `kind`
-// ("SJ" or "TT"), formats it as "<KIND>-<YEAR>-<5-DIGIT>", and returns it.
+// formatDocNo turns a (kind, year, sequence-number) triple into the canonical
+// document number string used by surat jalan + tanda terima.
+// Examples: formatDocNo("SJ", 2026, 1)  == "SJ-2026-00001"
+//           formatDocNo("TT", 2026, 42) == "TT-2026-00042"
+func formatDocNo(kind string, year int, n int64) string {
+	return fmt.Sprintf("%s-%d-%05d", kind, year, n)
+}
+
+// nextDocNo atomically allocates and returns the next per-year sequence number
+// for `kind` ("SJ" or "TT"), formatted via formatDocNo.
 //
 // Uses an UPSERT-with-increment so two concurrent callers on the same row
 // serialize on a row-level lock — each gets a distinct number with no holes.
@@ -222,6 +199,8 @@ import (
 // next_seq IS the assigned number (not the "next one to use"). On first INSERT
 // the row lands with next_seq=1 and returns 1; subsequent UPDATEs increment
 // then return the new value.
+//
+// SQL behavior is verified live at Task A10 (a real Send + Receive trip).
 func nextDocNo(ctx context.Context, tx pgx.Tx, kind string, year int) (string, error) {
 	var n int64
 	err := tx.QueryRow(ctx,
@@ -233,22 +212,23 @@ func nextDocNo(ctx context.Context, tx pgx.Tx, kind string, year int) (string, e
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s-%d-%05d", kind, year, n), nil
+	return formatDocNo(kind, year, n), nil
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests + build**
 
 ```bash
-cd backend && go test ./internal/write/ -run TestNextDocNo -v
-# Expected: PASS (or SKIP if no DB)
+cd backend && go test ./internal/write/ -run TestFormatDocNo -v
+cd backend && go build ./...
+# Expected: PASS, and the whole backend builds cleanly.
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend/internal/write/doc_sequences.go backend/internal/write/doc_sequences_test.go
-git commit -m "feat(backend): nextDocNo per-year sequence helper for SP4 docs"
+git commit -m "feat(backend): nextDocNo per-year sequence helper + formatDocNo (pure test)"
 ```
 
 ---
@@ -874,26 +854,70 @@ curl -sS https://mandalika-pos-538849926142.asia-southeast2.run.app/readyz
 # Expected: 200 ok
 ```
 
-- [ ] **Step 3: Smoke via authed API**
+- [ ] **Step 3: Expanded live-verify matrix (covers all integration paths deferred from A2-A9)**
 
-Use the existing admin login pattern from prior SP runbooks (test creds in `SESSION_HANDOFF.md`). Spot-checks:
+Use the existing admin login pattern from prior SP runbooks (test creds in `SESSION_HANDOFF.md`).
 
 ```bash
-# PUT app_settings.documents
 TOKEN=$(login as admin@mandalika.test)
-curl -sS -X PUT https://…/api/v1/app-settings -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"documents":{"brandName":"Mandalika POS","addressLines":"Jl. A\nJl. B","phone":"0812-0000-0000"}}'
-
-# Create + Send a transfer, then GET it and look for suratJalanNo + senderLetterhead.brandName
-curl -sS https://…/api/v1/transfers/<id> -H "Authorization: Bearer $TOKEN" | jq '.suratJalanNo, .senderLetterhead'
-# Expected: "SJ-2026-00001" + Letterhead with brandName="Mandalika POS"
+BASE=https://mandalika-pos-538849926142.asia-southeast2.run.app/api/v1
 ```
+
+**(a) `app_settings.documents` round-trip — covers A7.**
+
+```bash
+curl -sS -X PUT $BASE/app-settings -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"documents":{"brandName":"Mandalika POS","addressLines":"Jl. A\nJl. B","phone":"0812-0000-0000","npwp":"12.345.678"}}'
+curl -sS $BASE/app-settings -H "Authorization: Bearer $TOKEN" | jq '.documents'
+# Expected: object with all five fields populated.
+```
+
+**(b) Warehouse/outlet `logo_url` round-trip — covers A8.**
+
+```bash
+WHID=$(curl -sS $BASE/warehouses -H "Authorization: Bearer $TOKEN" | jq -r '.data[0].id')
+curl -sS -X PUT $BASE/warehouses/$WHID -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"...","code":"...","address":"Jl. Override\nLine 2","phone":"0811-XXXX","logoUrl":"https://res.cloudinary.com/.../wh.png","isActive":true}'
+# (use the actual current values for the unchanged fields)
+curl -sS $BASE/warehouses/$WHID -H "Authorization: Bearer $TOKEN" | jq '.address, .phone, .logoUrl'
+```
+
+**(c) `SendTransfer` assigns SJ — covers A3.**
+
+```bash
+# Create draft + send; capture the id from create response.
+TID=$(curl -sS -X POST $BASE/transfers -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"source":{"kind":"warehouse","id":"'$WHID'"},"dest":{"kind":"outlet","id":"<outletId>"},"note":"SP4 verify","items":[{"productId":"<pid>","variantSize":"<size>","qty":1}]}' \
+  | jq -r .id)
+curl -sS -X POST $BASE/transfers/$TID/send -H "Authorization: Bearer $TOKEN"
+curl -sS $BASE/transfers/$TID -H "Authorization: Bearer $TOKEN" | jq '.suratJalanNo, .senderLetterhead, .receiverLetterhead'
+# Expected: suratJalanNo = "SJ-2026-00001" (or next per-year); both letterheads populated.
+```
+
+**(d) `ReceiveTransfer` assigns TT + idempotent — covers A4.**
+
+```bash
+curl -sS -X POST $BASE/transfers/$TID/receive -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"items":[],"discrepancyReason":""}'
+TT1=$(curl -sS $BASE/transfers/$TID -H "Authorization: Bearer $TOKEN" | jq -r .tandaTerimaNo)
+# (admin-receive does not use idempotency key; idempotent replay is exercised via POS)
+echo "TT assigned: $TT1"
+```
+
+**(e) Per-year counter independence — covers A2.**
+
+Send a 2nd transfer in the same year, confirm the SJ number increments by 1.
+
+**(f) Sync ack carries Transfer + tandaTerimaNo — covers A9.**
+
+This is exercised on the POS side at E2 (device APK install). Mark `verified-on-device` in the handoff once D3's modal pops with the right TT number.
 
 - [ ] **Step 4: Note the live rev in commit message**
 
 ```bash
-git commit --allow-empty -m "ops: SP4 backend rev <NEW_REV> live (verified suratJalanNo + letterheads)"
+git commit --allow-empty -m "ops: SP4 backend rev <NEW_REV> live (verified SJ/TT, letterheads, docs settings, logo override)"
 ```
 
 ---
