@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -260,6 +261,16 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 	}
 	if _, e := tx.Exec(ctx,
 		`UPDATE transfers SET status='in_transit', sent_at=now() WHERE id=$1`, id); e != nil {
+		return e
+	}
+	// SP4: stamp the surat jalan number now that the transfer is in_transit
+	// (integration verified at A10 — no DB-coupled unit test exists in this package).
+	sjNo, e := nextDocNo(ctx, tx, "SJ", time.Now().Year())
+	if e != nil {
+		return e
+	}
+	if _, e := tx.Exec(ctx,
+		`UPDATE transfers SET surat_jalan_no=$1 WHERE id=$2`, sjNo, id); e != nil {
 		return e
 	}
 	if t.srcOutlet != nil {
