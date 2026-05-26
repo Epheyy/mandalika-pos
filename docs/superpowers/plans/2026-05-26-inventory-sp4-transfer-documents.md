@@ -57,24 +57,25 @@ ALTER TABLE app_settings ADD COLUMN documents_address_lines text;
 ALTER TABLE app_settings ADD COLUMN documents_phone         text;
 ALTER TABLE app_settings ADD COLUMN documents_npwp          text;
 
--- Per-location overrides; NULL ⇒ fall back to brand.
-ALTER TABLE warehouses ADD COLUMN address_lines text;
-ALTER TABLE warehouses ADD COLUMN phone         text;
-ALTER TABLE warehouses ADD COLUMN logo_url      text;
+-- Per-location LOGO override (NULL ⇒ fall back to brand). The existing
+-- `address` and `phone` columns on outlets (migration 0001) and warehouses
+-- (migration 0015) are reused as the per-location override for those two
+-- fields — adding new override columns would duplicate data and collide on
+-- `phone`. The letterhead resolver in `transferObj` (Task A6) COALESCEs the
+-- existing columns through to `app_settings.documents_*` defaults.
+ALTER TABLE warehouses ADD COLUMN logo_url text;
+ALTER TABLE outlets    ADD COLUMN logo_url text;
 
-ALTER TABLE outlets    ADD COLUMN address_lines text;
-ALTER TABLE outlets    ADD COLUMN phone         text;
-ALTER TABLE outlets    ADD COLUMN logo_url      text;
-
--- Doc numbers assigned at status transition (NULL for pre-SP4 transfers).
+-- Doc numbers assigned at status transition. NULL = pre-SP4 transfer;
+-- Postgres UNIQUE allows multiple NULLs so the old rows are safe.
 ALTER TABLE transfers ADD COLUMN surat_jalan_no  text UNIQUE;
 ALTER TABLE transfers ADD COLUMN tanda_terima_no text UNIQUE;
 
 -- Per-year counter rows. UPSERT-with-increment yields the next number atomically.
 CREATE TABLE doc_sequences (
-  kind     text   NOT NULL,
-  year     int    NOT NULL,
-  next_seq bigint NOT NULL DEFAULT 1,
+  kind     text    NOT NULL,
+  year     integer NOT NULL,
+  next_seq bigint  NOT NULL DEFAULT 1,
   PRIMARY KEY (kind, year)
 );
 ```
@@ -518,12 +519,10 @@ Add the `DocumentSettings` schema:
         npwp:         { type: string, nullable: true }
 ```
 
-Add optional override fields to the existing `Warehouse` and `Outlet` schemas (inside their `properties:`):
+Add ONLY the new `logoUrl` field to the existing `Warehouse` and `Outlet` schemas (inside their `properties:`). The existing `address` + `phone` properties already exist there from migrations 0001/0015 and are reused as the per-location letterhead override:
 
 ```yaml
-        addressLines: { type: string, nullable: true }
-        phone:        { type: string, nullable: true }
-        logoUrl:      { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
 ```
 
 For the sync ack — find the `BatchItemResult` (or equivalent) schema and add:
@@ -591,8 +590,10 @@ const transferObj = `json_build_object(
     'locationName', COALESCE(so.name, sw.name),
     'brandName',    s.documents_brand_name,
     'logoUrl',      COALESCE(so.logo_url, sw.logo_url, s.documents_logo_url),
+    -- Existing `address` column on outlets/warehouses (singular, text) is the
+    -- per-location override; it can hold newline-separated lines for the letterhead.
     'addressLines', string_to_array(
-                      COALESCE(NULLIF(COALESCE(so.address_lines, sw.address_lines), ''),
+                      COALESCE(NULLIF(COALESCE(so.address, sw.address), ''),
                                s.documents_address_lines, ''), E'\n'),
     'phone',        COALESCE(so.phone, sw.phone, s.documents_phone),
     'npwp',         s.documents_npwp),
@@ -601,7 +602,7 @@ const transferObj = `json_build_object(
     'brandName',    s.documents_brand_name,
     'logoUrl',      COALESCE(do2.logo_url, dw.logo_url, s.documents_logo_url),
     'addressLines', string_to_array(
-                      COALESCE(NULLIF(COALESCE(do2.address_lines, dw.address_lines), ''),
+                      COALESCE(NULLIF(COALESCE(do2.address, dw.address), ''),
                                s.documents_address_lines, ''), E'\n'),
     'phone',        COALESCE(do2.phone, dw.phone, s.documents_phone),
     'npwp',         s.documents_npwp),
@@ -720,23 +721,28 @@ git commit -m "feat(backend): app_settings.documents read+write round-trip"
 
 ---
 
-### Task A8 — Wire warehouse/outlet letterhead overrides into read+write
+### Task A8 — Wire `logo_url` into warehouse + outlet read/write
 
 **Files:**
 - Modify: `backend/internal/read/repo.go` (the existing `Warehouses` + `Outlets` list/get)
 - Modify: `backend/internal/write/warehouse.go` + the outlets write path (find via `grep -n "func.*Outlet"`)
 
-- [ ] **Step 1: Add `address_lines`, `phone`, `logo_url` to the existing SELECT/INSERT/UPDATE for both tables**
+> **Scope note** (revised after A1 review): the per-location override re-uses the
+> EXISTING `address` (singular `text`) and `phone` columns on outlets+warehouses.
+> Those are already read+written by the existing handlers — they do NOT need
+> changes for SP4. **Only the new `logo_url` column needs wiring into read+write.**
 
-Follow the same pattern as `Task A7` (pointer-nullable). Keep edits surgical — do NOT refactor unrelated columns.
+- [ ] **Step 1: Add `logo_url` to the existing SELECT/INSERT/UPDATE for both tables**
+
+Follow the same pointer-nullable pattern the existing `address`/`phone` use. Keep edits surgical — do NOT touch the existing `address`/`phone` plumbing.
 
 - [ ] **Step 2: Add a round-trip test for both**
 
 ```go
-func TestWarehouse_LetterheadOverrideRoundTrip(t *testing.T) {
-	// arrange: insert warehouse with override fields → fetch → assert
+func TestWarehouse_LogoUrlRoundTrip(t *testing.T) {
+	// arrange: insert warehouse with logo_url → fetch → assert
 }
-func TestOutlet_LetterheadOverrideRoundTrip(t *testing.T) {
+func TestOutlet_LogoUrlRoundTrip(t *testing.T) {
 	// same pattern
 }
 ```
@@ -746,7 +752,7 @@ func TestOutlet_LetterheadOverrideRoundTrip(t *testing.T) {
 ```bash
 cd backend && go test ./internal/... -v
 git add backend/internal/read/repo.go backend/internal/write/warehouse.go backend/internal/write/repo.go backend/internal/read/repo_test.go
-git commit -m "feat(backend): warehouses+outlets carry optional letterhead override (address/phone/logo)"
+git commit -m "feat(backend): warehouses+outlets carry optional logo_url override"
 ```
 
 ---
@@ -993,19 +999,25 @@ git commit -m "feat(backoffice): Settings — Dokumen section for SP4 brand lett
 grep -rn "name.*addressLines\|export function.*WarehouseForm\|OutletEdit" apps/backoffice/src/screens/
 ```
 
-- [ ] **Step 2: Add the 3 optional fields to each edit modal**
+- [ ] **Step 2: Add the new `logoUrl` field to each edit modal**
+
+The existing `address` and `phone` inputs are already in both edit modals (or trivially added if missing — verify with grep). Re-use them: they ARE the per-location override for the letterhead. The only NEW field SP4 needs is the logo upload.
 
 ```tsx
-<Textarea label="Alamat (opsional, override merek)" rows={2}
-  value={form.addressLines ?? ''}
-  onChange={(v) => setForm({ ...form, addressLines: v || null })} />
-<Input label="Telepon (opsional)" value={form.phone ?? ''}
-  onChange={(v) => setForm({ ...form, phone: v || null })} />
+{/* Already present in the existing modal — add a help line clarifying its
+    document role (one line, near the existing field): */}
+<Textarea label="Alamat" rows={2}
+  value={form.address ?? ''}
+  onChange={(v) => setForm({ ...form, address: v || null })}
+  helperText="Juga digunakan sebagai alamat surat jalan / tanda terima." />
+
+{/* NEW SP4 field: */}
 <ImageUpload label="Logo (opsional, override merek)" value={form.logoUrl ?? null}
-  onChange={(v) => setForm({ ...form, logoUrl: v })} />
+  onChange={(v) => setForm({ ...form, logoUrl: v })}
+  helperText="Kosongkan untuk pakai logo merek dari halaman Pengaturan." />
 ```
 
-Help text: "Kosongkan untuk pakai pengaturan merek di halaman Pengaturan."
+Help text on the logo: "Kosongkan untuk pakai pengaturan merek di halaman Pengaturan."
 
 - [ ] **Step 3: Manual verification after deploy**
 
