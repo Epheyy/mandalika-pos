@@ -4,7 +4,7 @@
 
 import { Capacitor } from '@capacitor/core'
 import type { components } from '@mandalika/api'
-import { buildReceipt, buildRecap, type ReceiptData, type RecapData } from './escpos'
+import { buildReceipt, buildRecap, buildTandaTerima, type ReceiptData, type RecapData, type TandaTerimaData } from './escpos'
 import { CapacitorBleTransport } from './ble'
 import { NoopTransport, type PrinterTransport } from './transport'
 
@@ -56,6 +56,28 @@ export interface RecapJob {
 export async function printRecap(job: RecapJob): Promise<void> {
   if (!job.deviceId) throw new Error('Printer belum dipilih')
   const payload = buildRecap(job.data, job.settings)
+  await job.transport.connect(job.deviceId)
+  try {
+    await job.transport.write(payload)
+  } finally {
+    await job.transport.disconnect().catch(() => {})
+  }
+}
+
+export interface TandaTerimaJob {
+  transport: PrinterTransport
+  deviceId: string | null
+  data: TandaTerimaData
+  settings: ReceiptSettings
+}
+
+/** Connect if needed and print a single tanda terima slip. Throws on failure
+ *  so the caller can surface a "cetak ulang" affordance — the receive itself
+ *  is already recorded on the server.
+ */
+export async function printTandaTerima(job: TandaTerimaJob): Promise<void> {
+  if (!job.deviceId) throw new Error('Printer belum dipilih')
+  const payload = buildTandaTerima(job.data, job.settings)
   await job.transport.connect(job.deviceId)
   try {
     await job.transport.write(payload)

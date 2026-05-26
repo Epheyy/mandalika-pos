@@ -18,9 +18,11 @@ import {
   createTransport,
   printReceipt,
   printRecap,
+  printTandaTerima,
   type PrinterTransport,
   type ReceiptData,
   type RecapData,
+  type TandaTerimaData,
 } from '@mandalika/printer'
 import { getKV } from '@mandalika/sync'
 
@@ -43,6 +45,7 @@ interface PrinterState {
   unpair: () => void
   print: (data: ReceiptData, settings: ReceiptSettings) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
+  printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings) => Promise<void>
   testPrint: (settings: ReceiptSettings) => Promise<void>
 }
 
@@ -116,6 +119,18 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
     [pairedId],
   )
 
+  const doPrintTandaTerima = useCallback(
+    async (data: TandaTerimaData, settings: ReceiptSettings) => {
+      await printTandaTerima({
+        transport: transportRef.current,
+        deviceId: pairedId,
+        data,
+        settings,
+      })
+    },
+    [pairedId],
+  )
+
   const testPrint = useCallback(
     async (settings: ReceiptSettings) => {
       const now = new Date()
@@ -158,9 +173,10 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
       unpair,
       print,
       printRecap: doPrintRecap,
+      printTandaTerima: doPrintTandaTerima,
       testPrint,
     }),
-    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, testPrint],
+    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, doPrintTandaTerima, testPrint],
   )
 
   return <PrinterCtx.Provider value={value}>{children}</PrinterCtx.Provider>

@@ -6,5 +6,5 @@ export type { ReceiptData, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaDa
 export { NoopTransport } from './transport'
 export type { PrinterTransport, PrinterDevice, PrinterKind } from './transport'
 export { CapacitorBleTransport } from './ble'
-export { createTransport, printReceipt, printRecap } from './print'
-export type { PrintJob, RecapJob } from './print'
+export { createTransport, printReceipt, printRecap, printTandaTerima } from './print'
+export type { PrintJob, RecapJob, TandaTerimaJob } from './print'
