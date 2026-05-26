@@ -285,3 +285,108 @@ export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Arr
 }
 
 export { center, money, pad }
+
+// ── Tanda terima slip (SP4) ──────────────────────────────
+
+/** One row in a tanda terima items table (already received + diffed). */
+export interface TandaTerimaLine {
+  productName: string
+  variant: string       // e.g. '50ml'
+  sentQty: number
+  receivedQty: number
+  difference: number    // receivedQty - sentQty
+}
+
+/** Everything needed to print one tanda terima slip. */
+export interface TandaTerimaData {
+  tandaTerimaNo: string             // 'TT-2026-00001'
+  transferNo: string                // 'TRF-00005'
+  receivedAt: Date
+  /** Receiver letterhead lines, brand or per-location override. First line is
+   *  the brand/location name (printed bold + centered); the rest is address /
+   *  phone (centered, normal). */
+  receiverHeaderLines: string[]
+  senderName: string                // 'Gudang Pusat'
+  items: TandaTerimaLine[]
+  discrepancyReason: string | null
+  receivedByName: string
+}
+
+/** Build the ESC/POS payload for a tanda terima (one copy).
+ *
+ *  Column math (locked, total = 32 chars on 58 mm / Font A):
+ *    Header line: ' '.repeat(19) + 'Krm' + '  ' + 'Trm' + '  ' + 'Sel' = 19+3+2+3+2+3 = 32
+ *    Row line:    '  ' (indent 2) + variant.padEnd(17) + krm(3) + '  ' + trm(3) + '  ' + sel(3) = 2+17+3+2+3+2+3 = 32
+ *      (Exact for |krm|,|trm|<=999 and |sel|<=99. When |difference|>=100, sel
+ *       widens to 4 chars and the row wraps to a second line — acceptable, since
+ *       truncating would mislead the cashier about the actual shortfall.)
+ *  productName renders on its own preceding line via b.line(...slice(0, COLS)).
+ */
+export function buildTandaTerima(
+  data: TandaTerimaData,
+  settings: ReceiptSettings,
+): Uint8Array {
+  const b = new Buf().raw(INIT)
+  const dt = (d: Date) =>
+    d.toLocaleString('id-ID', {
+      day: '2-digit', month: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    })
+
+  // Letterhead (centered). First non-empty line bold; rest normal.
+  const head = data.receiverHeaderLines.filter((l) => l && l.trim().length > 0)
+  if (head.length > 0) {
+    b.raw(ALIGN_CENTER)
+    b.raw(BOLD_ON).line(head[0].slice(0, COLS)).raw(BOLD_OFF)
+    for (const l of head.slice(1)) b.line(l.slice(0, COLS))
+  }
+  b.divider()
+  b.raw(BOLD_ON).line(center('TANDA TERIMA')).raw(BOLD_OFF)
+  b.divider()
+  b.raw(ALIGN_LEFT)
+
+  b.line(pad('No', data.tandaTerimaNo))
+  b.line(pad('Ref', data.transferNo))
+  b.line(pad('Tgl', dt(data.receivedAt)))
+  b.line(pad('Dari', data.senderName))
+  b.divider()
+
+  // K/T/S column header — total must equal 32:
+  // 19 leading spaces + 'Krm' + '  ' + 'Trm' + '  ' + 'Sel' = 19+3+2+3+2+3 = 32.
+  b.line(' '.repeat(19) + 'Krm' + '  ' + 'Trm' + '  ' + 'Sel')
+
+  for (const it of data.items) {
+    b.line(it.productName.slice(0, COLS))
+    // '  ' indent (2) + variant.padEnd(17) + krm(3) + '  ' + trm(3) + '  ' + sel(3) = 32.
+    const krm = String(it.sentQty).padStart(3)
+    const trm = String(it.receivedQty).padStart(3)
+    const sel = (it.difference > 0 ? '+' : '') + String(it.difference)
+    b.line(
+      '  ' +
+        it.variant.padEnd(17).slice(0, 17) +
+        krm +
+        '  ' +
+        trm +
+        '  ' +
+        sel.padStart(3),
+    )
+  }
+  b.divider()
+
+  if (data.discrepancyReason && data.discrepancyReason.trim().length > 0) {
+    b.line('Selisih: ' + data.discrepancyReason)
+    b.divider()
+  }
+
+  b.line('Diterima oleh: ' + data.receivedByName)
+  b.line()
+  b.line()
+  b.line('_'.repeat(COLS))
+  b.line(center('Tanda Tangan'))
+  b.line()
+
+  b.raw(ALIGN_CENTER).line('Dicetak ' + dt(new Date()))
+  if (settings.footerText) b.line().line(settings.footerText.slice(0, COLS))
+  b.raw(ALIGN_LEFT).raw(FEED_3).raw(CUT)
+  return b.done()
+}
