@@ -558,6 +558,7 @@ func (r *Repo) StockCount(ctx context.Context, s Scope, id string) (api.StockCou
 
 const transferObj = `json_build_object(
   'id', t.id, 'transferNo', t.transfer_no, 'status', t.status,
+  'suratJalanNo', t.surat_jalan_no, 'tandaTerimaNo', t.tanda_terima_no,
   'source', json_build_object(
     'kind', CASE WHEN t.source_outlet_id IS NOT NULL THEN 'outlet' ELSE 'warehouse' END,
     'id',   COALESCE(t.source_outlet_id, t.source_warehouse_id),
@@ -566,6 +567,24 @@ const transferObj = `json_build_object(
     'kind', CASE WHEN t.dest_outlet_id IS NOT NULL THEN 'outlet' ELSE 'warehouse' END,
     'id',   COALESCE(t.dest_outlet_id, t.dest_warehouse_id),
     'name', COALESCE(do2.name, dw.name)),
+  'senderLetterhead', json_build_object(
+    'locationName', COALESCE(so.name, sw.name),
+    'brandName',    s.documents_brand_name,
+    'logoUrl',      COALESCE(so.logo_url, sw.logo_url, s.documents_logo_url),
+    'addressLines', string_to_array(
+                      COALESCE(NULLIF(COALESCE(so.address, sw.address), ''),
+                               s.documents_address_lines, ''), E'\n'),
+    'phone',        COALESCE(so.phone, sw.phone, s.documents_phone),
+    'npwp',         s.documents_npwp),
+  'receiverLetterhead', json_build_object(
+    'locationName', COALESCE(do2.name, dw.name),
+    'brandName',    s.documents_brand_name,
+    'logoUrl',      COALESCE(do2.logo_url, dw.logo_url, s.documents_logo_url),
+    'addressLines', string_to_array(
+                      COALESCE(NULLIF(COALESCE(do2.address, dw.address), ''),
+                               s.documents_address_lines, ''), E'\n'),
+    'phone',        COALESCE(do2.phone, dw.phone, s.documents_phone),
+    'npwp',         s.documents_npwp),
   'note', t.note, 'discrepancyReason', t.discrepancy_reason,
   'createdAt', t.created_at, 'sentAt', t.sent_at,
   'receivedAt', t.received_at, 'cancelledAt', t.cancelled_at,
@@ -580,12 +599,14 @@ const transferObj = `json_build_object(
      WHERE ti.transfer_id = t.id), '[]'::json))`
 
 // transferFrom resolves both polymorphic endpoints' names. `do2`/`dw` aliases
-// avoid the reserved word `do`.
+// avoid the reserved word `do`. The single-row app_settings table is joined
+// unconditionally (ON true) to supply brand-level letterhead defaults.
 const transferFrom = `FROM transfers t
   LEFT JOIN outlets    so  ON so.id  = t.source_outlet_id
   LEFT JOIN warehouses sw  ON sw.id  = t.source_warehouse_id
   LEFT JOIN outlets    do2 ON do2.id = t.dest_outlet_id
-  LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id`
+  LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id
+  LEFT JOIN app_settings s ON true`
 
 // Transfers lists transfers newest-first, optionally filtered by status.
 func (r *Repo) Transfers(ctx context.Context, status string, page, limit int) ([]api.Transfer, int, error) {
