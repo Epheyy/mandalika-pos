@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppSettings } from '@mandalika/api'
-import { Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Trash2, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { Button, Input, Select, Field, Card, IconButton, PageHeader, Tabs } from '../ui'
+import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
+import { Button, Input, Select, Field, Card, IconButton, PageHeader, Tabs, Textarea } from '../ui'
 
 const DEFAULT: AppSettings = {
   taxEnabled: true,
@@ -67,7 +68,9 @@ export default function SettingsScreen() {
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver'>('tax')
+  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents'>('tax')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (q.data && !loaded) {
@@ -93,12 +96,31 @@ export default function SettingsScreen() {
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
 
+  const setDoc = (k: string, v: string | undefined) =>
+    setS((p) => ({ ...p, documents: { ...p.documents, [k]: v } }))
+
+  const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const url = await uploadImage(file, 'mandalika-pos/settings')
+      setDoc('logoUrl', url)
+    } catch {
+      setMsg('Gagal upload logo.')
+    } finally {
+      setLogoUploading(false)
+      e.target.value = ''
+    }
+  }
+
   const sections = [
     { id: 'tax', label: 'Pajak & Pembulatan' },
     { id: 'payment', label: 'Metode Pembayaran' },
     { id: 'receipt', label: 'Struk' },
     { id: 'shift', label: 'Shift' },
     { id: 'approver', label: 'Persetujuan Transfer' },
+    { id: 'documents', label: 'Dokumen' },
   ] as const
 
   return (
@@ -301,6 +323,95 @@ export default function SettingsScreen() {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {section === 'documents' && (
+          <>
+            <h3 className="font-black text-gray-900">Dokumen Pengiriman</h3>
+            <p className="text-xs text-gray-400">
+              Identitas merek yang muncul di surat jalan dan tanda terima. Bisa ditimpa per gudang/outlet (di halaman masing-masing).
+            </p>
+
+            {/* Brand name */}
+            <Input
+              label="Nama Merek"
+              type="text"
+              value={s.documents?.brandName ?? ''}
+              onChange={(e) => setDoc('brandName', e.target.value || undefined)}
+              placeholder="mis. Mandalika Perfume"
+            />
+            <p className="text-xs text-gray-400 -mt-3">Muncul di kepala surat jalan &amp; tanda terima.</p>
+
+            {/* Logo upload */}
+            <Field label="Logo">
+              <div className="flex items-center gap-3">
+                {s.documents?.logoUrl ? (
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                    <img
+                      src={getThumbnailUrl(s.documents.logoUrl, 160, 160)}
+                      alt="Logo"
+                      className="w-full h-full object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDoc('logoUrl', undefined)}
+                      className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow hover:bg-red-50 transition"
+                    >
+                      <X className="w-3 h-3 text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    <Upload className="w-6 h-6 text-gray-300" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Button
+                    onClick={() => logoFileRef.current?.click()}
+                    loading={logoUploading}
+                  >
+                    {logoUploading ? 'Mengupload...' : 'Pilih Gambar'}
+                  </Button>
+                  <p className="text-xs text-gray-400">PNG/JPG, maks 5 MB. Disarankan ukuran persegi.</p>
+                </div>
+              </div>
+              <input
+                ref={logoFileRef}
+                type="file"
+                accept="image/*"
+                onChange={onLogoFile}
+                className="hidden"
+              />
+            </Field>
+
+            {/* Address */}
+            <Textarea
+              label="Alamat"
+              value={s.documents?.addressLines ?? ''}
+              rows={3}
+              onChange={(e) => setDoc('addressLines', e.target.value || undefined)}
+              placeholder="Jl. Contoh No. 1&#10;Kota, Provinsi&#10;Kode Pos"
+            />
+            <p className="text-xs text-gray-400 -mt-3">Pisahkan setiap baris dengan Enter.</p>
+
+            {/* Phone */}
+            <Input
+              label="Telepon"
+              type="text"
+              value={s.documents?.phone ?? ''}
+              onChange={(e) => setDoc('phone', e.target.value || undefined)}
+              placeholder="mis. +62 812 3456 7890"
+            />
+
+            {/* NPWP */}
+            <Input
+              label="NPWP (opsional)"
+              type="text"
+              value={s.documents?.npwp ?? ''}
+              onChange={(e) => setDoc('npwp', e.target.value || undefined)}
+              placeholder="mis. 00.000.000.0-000.000"
+            />
           </>
         )}
       </Card>
