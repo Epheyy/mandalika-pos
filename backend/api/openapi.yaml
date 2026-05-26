@@ -153,6 +153,7 @@ components:
         code: { type: string, nullable: true }
         address: { type: string, nullable: true }
         phone: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
     WarehouseListResponse:
       type: object
@@ -1101,6 +1102,7 @@ components:
         code: { type: string }
         address: { type: string }
         phone: { type: string }
+        logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
     ReceiveApprover:
       type: object

@@ -1146,6 +1146,7 @@ export interface components {
             code?: string | null;
             address?: string | null;
             phone?: string | null;
+            logoUrl?: string | null;
             isActive: boolean;
         };
         WarehouseListResponse: {
@@ -1949,6 +1950,7 @@ export interface components {
             code?: string;
             address?: string;
             phone?: string;
+            logoUrl?: string | null;
             isActive: boolean;
         };
         ReceiveApprover: {
