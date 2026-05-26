@@ -369,6 +369,20 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 			return e
 		}
 	}
+
+	// SP4: stamp the tanda terima number now that the transfer is completed.
+	// The idempotent-replay early-return above bypasses this block, so a replay
+	// never reassigns TT. (integration verified at A10 — no DB-coupled unit
+	// test exists in this package.)
+	ttNo, e := nextDocNo(ctx, tx, "TT", time.Now().Year())
+	if e != nil {
+		return e
+	}
+	if _, e := tx.Exec(ctx,
+		`UPDATE transfers SET tanda_terima_no=$1 WHERE id=$2`, ttNo, id); e != nil {
+		return e
+	}
+
 	return tx.Commit(ctx)
 }
 
