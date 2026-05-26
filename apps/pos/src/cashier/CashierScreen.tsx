@@ -6,7 +6,8 @@
 import { useContext, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import type { ReceiptData } from '@mandalika/printer'
-import { SyncContext, SyncReceiveRejectedRefContext } from './SyncProvider'
+import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
+import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
@@ -42,6 +43,7 @@ type FontSize = 'sm' | 'md' | 'lg'
 type GridCols = 2 | 3 | 4 | 6
 type Order = components['schemas']['Order']
 type Customer = components['schemas']['Customer']
+type Transfer = components['schemas']['Transfer']
 
 const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
   taxEnabled: true, taxRate: 11, roundingEnabled: false, roundingType: 'none',
@@ -67,6 +69,10 @@ export default function CashierScreen() {
   const { user, logout } = useAuth()
   const engine = useContext(SyncContext)!
   const receiveRejectedRef = useContext(SyncReceiveRejectedRefContext)
+  const receiveAcceptedRef = useContext(SyncReceiveAcceptedRefContext)
+  const [pendingTT, setPendingTT] = useState<Transfer | null>(null)
+  // Track recently-received transfers so the receive panel can offer reprint.
+  const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([])
   const offlineData = useOfflineData()
   const shift = useShift()
   const [state, dispatch] = useReducer(cashierReducer, CASHIER_INITIAL_STATE)
@@ -124,6 +130,23 @@ export default function CashierScreen() {
   // showToast is stable (defined in render body but stable via setToast/setTimeout)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiveRejectedRef])
+
+  // Register the receive-accepted callback so the TandaTerimaPrompt is shown
+  // automatically whenever a transfer_receive ack is processed by the engine.
+  // Also push to completedTransfers so the reprint button in ReceiveTransferPanel
+  // can surface the same slip after the prompt is dismissed.
+  useEffect(() => {
+    if (!receiveAcceptedRef) return
+    receiveAcceptedRef.current = (t: Transfer) => {
+      setPendingTT(t)
+      setCompletedTransfers((prev) => {
+        // Keep last 10 to avoid unbounded growth.
+        const next = [t, ...prev.filter((x) => x.id !== t.id)]
+        return next.slice(0, 10)
+      })
+    }
+    return () => { receiveAcceptedRef.current = undefined }
+  }, [receiveAcceptedRef])
 
   useEffect(() => {
     const fs = localStorage.getItem('pos_fontSize') as FontSize | null
@@ -725,11 +748,13 @@ export default function CashierScreen() {
       {showReceive && (
         <ReceiveTransferPanel
           transfers={inbound}
+          completedTransfers={completedTransfers}
           onClose={() => setShowReceive(false)}
           onConfirm={(transferId, items, reason) => {
             setShowReceive(false)
             setPendingReceive({ transferId, items, reason })
           }}
+          onReprintTandaTerima={(t) => { setShowReceive(false); setPendingTT(t) }}
         />
       )}
 
@@ -748,6 +773,15 @@ export default function CashierScreen() {
             setPendingReceive(null)
             showToast('Diterima — akan disinkronkan')
           }}
+        />
+      )}
+
+      {pendingTT && (
+        <TandaTerimaPrompt
+          transfer={pendingTT}
+          receivedByName={user?.displayName ?? ''}
+          receiptSettings={settings.receipt}
+          onClose={() => setPendingTT(null)}
         />
       )}
 

@@ -14,10 +14,13 @@ import {
 } from 'react'
 import { SyncEngine, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
+import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
+
+type Transfer = components['schemas']['Transfer']
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncContext = createContext<SyncEngine | null>(null)
@@ -26,6 +29,11 @@ export const SyncContext = createContext<SyncEngine | null>(null)
 // callback without the prop needing to be threaded through App.tsx.
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncReceiveRejectedRefContext = createContext<MutableRefObject<((msg: string) => void) | undefined> | null>(null)
+
+// Exposes the onReceiveAccepted ref so CashierScreen can trigger the
+// TandaTerimaPrompt without prop-drilling through App.tsx.
+// eslint-disable-next-line react-refresh/only-export-components
+export const SyncReceiveAcceptedRefContext = createContext<MutableRefObject<((transfer: Transfer) => void) | undefined> | null>(null)
 
 interface SyncProviderProps {
   children: ReactNode
@@ -43,6 +51,7 @@ export function SyncProvider({
   const onPendingRef = useRef(onPendingChange)
   onPendingRef.current = onPendingChange
   const onReceiveRejectedRef = useRef<((msg: string) => void) | undefined>(undefined)
+  const onReceiveAcceptedRef = useRef<((transfer: Transfer) => void) | undefined>(undefined)
 
   const [ready, setReady] = useState(false)
   const engineRef = useRef<SyncEngine | null>(null)
@@ -76,6 +85,7 @@ export function SyncProvider({
             }
           },
           onReceiveRejected: (msg) => onReceiveRejectedRef.current?.(msg),
+          onReceiveAccepted: (transfer) => onReceiveAcceptedRef.current?.(transfer),
         },
         getKV(),
       )
@@ -111,7 +121,9 @@ export function SyncProvider({
   return (
     <SyncContext.Provider value={engine}>
       <SyncReceiveRejectedRefContext.Provider value={onReceiveRejectedRef}>
-        {children}
+        <SyncReceiveAcceptedRefContext.Provider value={onReceiveAcceptedRef}>
+          {children}
+        </SyncReceiveAcceptedRefContext.Provider>
       </SyncReceiveRejectedRefContext.Provider>
     </SyncContext.Provider>
   )

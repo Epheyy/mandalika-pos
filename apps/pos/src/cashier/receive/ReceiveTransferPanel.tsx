@@ -21,8 +21,12 @@ interface ConfirmItem {
 
 interface Props {
   transfers: Transfer[]
+  /** Recently-completed transfers eligible for tanda terima reprint. */
+  completedTransfers?: Transfer[]
   onClose: () => void
   onConfirm: (transferId: string, items: ConfirmItem[], discrepancyReason: string) => void
+  /** Called when the cashier taps "Cetak Ulang Tanda Terima" on a completed transfer. */
+  onReprintTandaTerima?: (transfer: Transfer) => void
 }
 
 /** Stable key for a line item within a transfer. */
@@ -34,15 +38,23 @@ function lineKey(productId: string, variantSize: string): string {
 // Public panel — switches between list and form views
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ReceiveTransferPanel({ transfers, onClose, onConfirm }: Props) {
+export function ReceiveTransferPanel({
+  transfers,
+  completedTransfers = [],
+  onClose,
+  onConfirm,
+  onReprintTandaTerima,
+}: Props) {
   const [selected, setSelected] = useState<Transfer | null>(null)
 
   if (!selected) {
     return (
       <InboundList
         transfers={transfers}
+        completedTransfers={completedTransfers}
         onClose={onClose}
         onSelect={setSelected}
+        onReprintTandaTerima={onReprintTandaTerima}
       />
     )
   }
@@ -62,11 +74,18 @@ export function ReceiveTransferPanel({ transfers, onClose, onConfirm }: Props) {
 
 interface InboundListProps {
   transfers: Transfer[]
+  completedTransfers: Transfer[]
   onClose: () => void
   onSelect: (t: Transfer) => void
+  onReprintTandaTerima?: (transfer: Transfer) => void
 }
 
-function InboundList({ transfers, onClose, onSelect }: InboundListProps) {
+function InboundList({ transfers, completedTransfers, onClose, onSelect, onReprintTandaTerima }: InboundListProps) {
+  // Only show completed transfers that have a tanda terima number to reprint.
+  const reprints = completedTransfers.filter(
+    (t) => t.status === 'completed' && t.tandaTerimaNo,
+  )
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
@@ -83,14 +102,15 @@ function InboundList({ transfers, onClose, onSelect }: InboundListProps) {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {transfers.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">
-              Tidak ada transfer masuk.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {transfers.map((t) => (
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {/* In-transit transfers */}
+          <div className="space-y-2">
+            {transfers.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">
+                Tidak ada transfer masuk.
+              </p>
+            ) : (
+              transfers.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => onSelect(t)}
@@ -108,7 +128,39 @@ function InboundList({ transfers, onClose, onSelect }: InboundListProps) {
                     <span className="text-gray-400 group-hover:text-indigo-400 flex-shrink-0 text-lg leading-none">›</span>
                   </div>
                 </button>
-              ))}
+              ))
+            )}
+          </div>
+
+          {/* Recently-completed transfers — reprint section */}
+          {reprints.length > 0 && onReprintTandaTerima && (
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
+                Baru diterima
+              </p>
+              <div className="space-y-2">
+                {reprints.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between gap-2 px-4 py-3 border border-gray-200 rounded-xl"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-gray-900 truncate">
+                        {t.transferNo}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                        {t.tandaTerimaNo} · Dari {t.source.name ?? t.source.id}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => onReprintTandaTerima(t)}
+                      className="flex-shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400 rounded-lg transition-all"
+                    >
+                      Cetak Ulang Tanda Terima
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
