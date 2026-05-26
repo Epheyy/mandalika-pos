@@ -29,6 +29,17 @@ Spec `docs/superpowers/specs/2026-05-25-inventory-sp3-pos-receiving-pin-design.m
 
 **USER-PENDING re-test:** install latest APK; verify FU-1 (transfer sent → badge appears on POS within ~20s WITHOUT manual sync / no sales block) and FU-2 (offline receive → backoffice force-receive same → reconnect → quiet rollback toast, NO failed-sync alarm). Plus the original E2E: informed count w/ discrepancy; PIN accept/reject+lockout; offline receive→reconnect→credit-once.
 
+## ▶️ NEXT DEV — SP4: Transfer documents & sharing (brainstorm first, NOT started)
+The last Inventory-module slice. **Locked scope (from the SP1 decomposition):** printable **delivery note / surat jalan** — thermal print via the existing BLE `@mandalika/printer` + an **in-device view** — generated **at send**; plus **PDF/image export + WhatsApp/OS-share** via the OS **share-sheet** (NOT the WhatsApp Business API). Brainstorm → spec → plan → subagent-driven build, same as SP1–SP3.
+
+**Context for the SP4 brainstorm (verify in code during brainstorm):**
+- Thermal print infra already exists and is reused: `@mandalika/printer` (BLE) — see `buildRecap`/`printer.printRecap` (shift recap) and the receipt print path; SP4 adds a `buildDeliveryNote`-style builder.
+- Transfer data available: `transferNo`, `source`/`dest` `{kind,name}`, items (`productName`, `variantSize`, `sku`, `sentQty`). Backoffice has the transfer detail (`apps/backoffice/src/screens/transfers/`); a send-time doc is primarily a **backoffice** surface (admin sends). Decide in brainstorm whether the POS also gets a received-copy/proof-of-receipt doc.
+- Share-sheet on Android = Capacitor Share plugin (OS share), not a WhatsApp API. PDF/image generation approach (client-side render vs server) is a brainstorm decision.
+- Open questions for brainstorm: print-at-send vs also at-receive; PDF vs image vs both; numbering/branding of the surat jalan (3-brand template); who can generate/share (permission).
+
+**Kickoff (paste into a fresh session):** see "▶️ COPY-READY: start SP4 in a new session" at the very bottom of this file.
+
 ---
 
 ### (Superseded) prior SP2 next-action
@@ -177,3 +188,17 @@ APK is inspectable during polish:
 - `error_logs` capture is **forward-only**; `discount_label`/`discount_breakdown` are denormalized per-order going forward (old orders show the single collapsed line).
 - gofmt aligns structs; run `gofmt -w internal/` before committing backend.
 - CI backend gate (`make gen-check`) fails if `api.gen.go` drifts — always commit the regenerated file.
+
+---
+
+## ▶️ COPY-READY: start SP4 in a new session
+
+Paste this as the first message in a fresh session:
+
+```
+continue Mandalika POS / brainstorm SP4 — read SESSION_HANDOFF.md (⭐ LATEST SESSION at top) + memory first, then kick off superpowers:brainstorming for SP4.
+
+SP4 = Transfer documents & sharing (final Inventory slice): printable delivery note / surat jalan via the existing BLE @mandalika/printer + in-device view, generated at send; plus PDF/image export + WhatsApp/OS share-sheet (NOT the WhatsApp API). Scope + context + open questions are under "▶️ NEXT DEV — SP4" in SESSION_HANDOFF.md. SP1–SP3 (warehouses, transfers, POS receiving+PIN) are DONE & deployed (backend rev 00027-5cd); follow the same brainstorm → spec → plan → subagent-driven build loop. Confirm the 6 working rules at the start.
+```
+
+(SP4 specs/plans go in `docs/superpowers/{specs,plans}/2026-..-inventory-sp4-*`. After SP4: the Recipe/Formula-per-product module — see `product-module-roadmap` memory.)
