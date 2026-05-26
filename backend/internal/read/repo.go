@@ -312,7 +312,13 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 		   'roundingAmount',rounding_amount,'roundingDirection',rounding_direction,
 		   'roundingApplyToTax',rounding_apply_to_tax,'autoOpenShift',auto_open_shift,
 		   'paymentMethods',payment_methods,'receipt',receipt,
-		   'receiveApproverRoles',receive_approver_roles)
+		   'receiveApproverRoles',receive_approver_roles,
+		   'documents',json_build_object(
+		     'logoUrl',documents_logo_url,
+		     'brandName',documents_brand_name,
+		     'addressLines',documents_address_lines,
+		     'phone',documents_phone,
+		     'npwp',documents_npwp))
 		   FROM app_settings WHERE id=1`)
 }
 

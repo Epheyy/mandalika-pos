@@ -632,17 +632,18 @@ func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 
 func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error {
 	var s struct {
-		TaxEnabled           bool            `json:"taxEnabled"`
-		TaxRate              float64         `json:"taxRate"`
-		RoundingEnabled      bool            `json:"roundingEnabled"`
-		RoundingType         string          `json:"roundingType"`
-		RoundingAmount       *float64        `json:"roundingAmount"`
-		RoundingDirection    *string         `json:"roundingDirection"`
-		RoundingApplyToTax   *bool           `json:"roundingApplyToTax"`
-		AutoOpenShift        bool            `json:"autoOpenShift"`
-		PaymentMethods       json.RawMessage `json:"paymentMethods"`
-		Receipt              json.RawMessage `json:"receipt"`
-		ReceiveApproverRoles []string        `json:"receiveApproverRoles"`
+		TaxEnabled           bool                  `json:"taxEnabled"`
+		TaxRate              float64               `json:"taxRate"`
+		RoundingEnabled      bool                  `json:"roundingEnabled"`
+		RoundingType         string                `json:"roundingType"`
+		RoundingAmount       *float64              `json:"roundingAmount"`
+		RoundingDirection    *string               `json:"roundingDirection"`
+		RoundingApplyToTax   *bool                 `json:"roundingApplyToTax"`
+		AutoOpenShift        bool                  `json:"autoOpenShift"`
+		PaymentMethods       json.RawMessage       `json:"paymentMethods"`
+		Receipt              json.RawMessage       `json:"receipt"`
+		ReceiveApproverRoles []string              `json:"receiveApproverRoles"`
+		Documents            *api.DocumentSettings `json:"documents"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
@@ -656,6 +657,7 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 	if s.ReceiveApproverRoles == nil {
 		s.ReceiveApproverRoles = []string{}
 	}
+
 	return r.tx(ctx, "appSettings", func(t pgx.Tx) error {
 		_, e := t.Exec(ctx, `
 			UPDATE app_settings SET tax_enabled=$1, tax_rate=$2,
@@ -666,6 +668,38 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 			s.RoundingAmount, s.RoundingDirection, s.RoundingApplyToTax,
 			s.AutoOpenShift, []byte(s.PaymentMethods), []byte(s.Receipt),
 			s.ReceiveApproverRoles)
+		if e != nil {
+			return e
+		}
+		// Only write documents columns when the block is present in the request.
+		// Absent documents block → leave existing DB values untouched.
+		// Present but null/unspecified individual fields → set to SQL NULL (clear).
+		if d := s.Documents; d != nil {
+			var docLogoURL, docBrandName, docAddressLines, docPhone, docNPWP *string
+			if v, err := d.LogoUrl.Get(); err == nil {
+				docLogoURL = &v
+			}
+			if v, err := d.BrandName.Get(); err == nil {
+				docBrandName = &v
+			}
+			if v, err := d.AddressLines.Get(); err == nil {
+				docAddressLines = &v
+			}
+			if v, err := d.Phone.Get(); err == nil {
+				docPhone = &v
+			}
+			if v, err := d.Npwp.Get(); err == nil {
+				docNPWP = &v
+			}
+			if _, e := t.Exec(ctx, `
+				UPDATE app_settings SET
+				  documents_logo_url=$1, documents_brand_name=$2,
+				  documents_address_lines=$3, documents_phone=$4,
+				  documents_npwp=$5 WHERE id=1`,
+				docLogoURL, docBrandName, docAddressLines, docPhone, docNPWP); e != nil {
+				return fmt.Errorf("update documents: %w", e)
+			}
+		}
 		return e
 	})
 }
