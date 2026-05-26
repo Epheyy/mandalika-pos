@@ -215,7 +215,7 @@ func (r *Repo) Bundles(ctx context.Context) ([]api.Bundle, int, error) {
 func (r *Repo) Outlets(ctx context.Context) ([]api.Outlet, int, error) {
 	return listJSON[api.Outlet](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'name',name,'code',code,'address',address,
-		   'phone',phone,'isActive',is_active,'createdAt',created_at)
+		   'phone',phone,'logoUrl',logo_url,'isActive',is_active,'createdAt',created_at)
 		   FROM outlets ORDER BY name`)
 }
 
@@ -225,7 +225,7 @@ func (r *Repo) Warehouses(ctx context.Context) ([]api.Warehouse, error) {
 	rows, _, err := listJSON[api.Warehouse](ctx, r.Pool, `
 		SELECT json_build_object(
 		  'id', w.id, 'name', w.name, 'code', w.code, 'address', w.address,
-		  'phone', w.phone, 'isActive', w.is_active, 'createdAt', w.created_at)
+		  'phone', w.phone, 'logoUrl', w.logo_url, 'isActive', w.is_active, 'createdAt', w.created_at)
 		FROM warehouses w ORDER BY w.name`)
 	return rows, err
 }

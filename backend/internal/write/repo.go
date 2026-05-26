@@ -594,6 +594,7 @@ type Outlet struct {
 	Code     string `json:"code"`
 	Address  string `json:"address"`
 	Phone    string `json:"phone"`
+	LogoURL  string `json:"logoUrl"`
 	IsActive bool   `json:"isActive"`
 }
 
@@ -601,9 +602,9 @@ func (r *Repo) CreateOutlet(ctx context.Context, o Outlet) (string, error) {
 	var id string
 	err := r.tx(ctx, "outlets", func(t pgx.Tx) error {
 		if e := t.QueryRow(ctx,
-			`INSERT INTO outlets (name, code, address, phone, is_active)
-			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), o.IsActive).
+			`INSERT INTO outlets (name, code, address, phone, logo_url, is_active)
+			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), nullStr(o.LogoURL), o.IsActive).
 			Scan(&id); e != nil {
 			return e
 		}
@@ -619,8 +620,8 @@ func (r *Repo) CreateOutlet(ctx context.Context, o Outlet) (string, error) {
 func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 	return r.tx(ctx, "outlets", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx,
-			`UPDATE outlets SET name=$1, code=$2, address=$3, phone=$4, is_active=$5 WHERE id=$6`,
-			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), o.IsActive, id)
+			`UPDATE outlets SET name=$1, code=$2, address=$3, phone=$4, logo_url=$5, is_active=$6 WHERE id=$7`,
+			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), nullStr(o.LogoURL), o.IsActive, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}

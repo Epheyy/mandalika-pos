@@ -12,6 +12,7 @@ type Warehouse struct {
 	Code     string `json:"code"`
 	Address  string `json:"address"`
 	Phone    string `json:"phone"`
+	LogoURL  string `json:"logoUrl"`
 	IsActive bool   `json:"isActive"`
 }
 
@@ -33,9 +34,9 @@ func (r *Repo) CreateWarehouse(ctx context.Context, w Warehouse) (string, error)
 	var id string
 	err := r.noBumpTx(ctx, func(t pgx.Tx) error {
 		return t.QueryRow(ctx,
-			`INSERT INTO warehouses (name, code, address, phone, is_active)
-			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-			w.Name, nullStr(w.Code), nullStr(w.Address), nullStr(w.Phone), w.IsActive).Scan(&id)
+			`INSERT INTO warehouses (name, code, address, phone, logo_url, is_active)
+			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			w.Name, nullStr(w.Code), nullStr(w.Address), nullStr(w.Phone), nullStr(w.LogoURL), w.IsActive).Scan(&id)
 	})
 	return id, err
 }
@@ -43,8 +44,8 @@ func (r *Repo) CreateWarehouse(ctx context.Context, w Warehouse) (string, error)
 func (r *Repo) UpdateWarehouse(ctx context.Context, id string, w Warehouse) error {
 	return r.noBumpTx(ctx, func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx,
-			`UPDATE warehouses SET name=$1, code=$2, address=$3, phone=$4, is_active=$5 WHERE id=$6`,
-			w.Name, nullStr(w.Code), nullStr(w.Address), nullStr(w.Phone), w.IsActive, id)
+			`UPDATE warehouses SET name=$1, code=$2, address=$3, phone=$4, logo_url=$5, is_active=$6 WHERE id=$7`,
+			w.Name, nullStr(w.Code), nullStr(w.Address), nullStr(w.Phone), nullStr(w.LogoURL), w.IsActive, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
