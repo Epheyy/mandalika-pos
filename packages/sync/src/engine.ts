@@ -55,6 +55,11 @@ export interface SyncEvents {
   /** Fired when a transfer_receive is terminally rejected by the server and rolled
    *  back (handled — NOT a failed sync the cashier must retry). */
   onReceiveRejected?: (msg: string) => void
+  /** Fired when a transfer_receive is accepted by the server. Carries the full
+   *  completed Transfer snapshot (with the freshly-assigned tandaTerimaNo and
+   *  resolved receiver letterhead) so the UI can render the post-receive slip
+   *  without a second roundtrip. */
+  onReceiveAccepted?: (transfer: Transfer) => void
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -284,6 +289,16 @@ export class SyncEngine {
         if (res.status === 'ok' || res.status === 'duplicate') {
           this.outbox.ack(res.idempotencyKey)
           this.pending.stampAck(res.idempotencyKey, r.data.version ?? 0)
+          // SP4: surface the completed transfer to the UI so the tanda-terima
+          // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
+          // the cashier already saw the prompt — skip the second modal).
+          if (
+            typeByKey.get(res.idempotencyKey) === 'transfer_receive' &&
+            res.status === 'ok' &&
+            res.transfer
+          ) {
+            this.events.onReceiveAccepted?.(res.transfer)
+          }
         } else if (typeByKey.get(res.idempotencyKey) === 'transfer_receive') {
           // Deterministic rejection (e.g. already received elsewhere): roll back the
           // optimistic credit and resolve the item cleanly — not a failed sync.

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
@@ -139,11 +140,13 @@ type BatchItem struct {
 }
 
 type ItemResult struct {
-	IdempotencyKey string `json:"idempotencyKey"`
-	Status         string `json:"status"` // ok|duplicate|error
-	OrderID        string `json:"orderId,omitempty"`
-	StockWarning   bool   `json:"stockWarning,omitempty"`
-	Error          string `json:"error,omitempty"`
+	IdempotencyKey string        `json:"idempotencyKey"`
+	Status         string        `json:"status"` // ok|duplicate|error
+	OrderID        string        `json:"orderId,omitempty"`
+	StockWarning   bool          `json:"stockWarning,omitempty"`
+	Error          string        `json:"error,omitempty"`
+	TandaTerimaNo  string        `json:"tandaTerimaNo,omitempty"`
+	Transfer       *api.Transfer `json:"transfer,omitempty"`
 }
 
 type BatchResult struct {
@@ -355,6 +358,18 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 			return fail(err)
 		}
 		r.Status, r.OrderID = "ok", p.TransferID
+		// Soft-fail: receive succeeded; we just couldn't read it back.
+		// The POS onReceiveAccepted prompt won't appear for this transfer —
+		// acceptable (the reprint button still works if the cashier opens the
+		// completed detail manually).
+		tr, terr := e.Read.Transfer(ctx, p.TransferID)
+		if terr == nil {
+			r.Transfer = &tr
+			if tr.TandaTerimaNo.IsSpecified() && !tr.TandaTerimaNo.IsNull() {
+				v, _ := tr.TandaTerimaNo.Get()
+				r.TandaTerimaNo = v
+			}
+		}
 		return r
 	}
 	return fail(errors.New("unknown batch item type: " + it.Type))
