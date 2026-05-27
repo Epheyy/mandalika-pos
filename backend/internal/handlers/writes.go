@@ -410,6 +410,65 @@ func (h *Handlers) IngredientStock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.IngredientStockResponse{Data: rows})
 }
 
+// ── Ingredient transfers ───────────────────────────────────
+
+func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	status := r.URL.Query().Get("status")
+	rows, total, err := h.Repo.IngredientTransfers(r.Context(), p, l, status)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientTransferListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) IngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	t, err := h.Repo.IngredientTransfer(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientTransferResponse{Data: t})
+}
+
+func (h *Handlers) CreateIngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientTransferCreate](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.CreateIngredientTransfer(r.Context(), c.userID, in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) SendIngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.SendIngredientTransfer(r.Context(), c.userID, chi.URLParam(r, "id")))
+}
+
+func (h *Handlers) ReceiveIngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientTransferReceive](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.ReceiveIngredientTransfer(r.Context(), c.userID, chi.URLParam(r, "id"), in))
+}
+
+type ingredientTransferCancelBody struct {
+	Reason string `json:"reason"`
+}
+
+func (h *Handlers) CancelIngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[ingredientTransferCancelBody](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.CancelIngredientTransfer(r.Context(), c.userID, chi.URLParam(r, "id"), in.Reason))
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
