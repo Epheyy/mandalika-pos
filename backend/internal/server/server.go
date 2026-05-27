@@ -199,6 +199,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 					r.Post("/ingredient-transfers/{id}/send", h.SendIngredientTransfer)
 					r.Post("/ingredient-transfers/{id}/receive", h.ReceiveIngredientTransfer)
 					r.Post("/ingredient-transfers/{id}/cancel", h.CancelIngredientTransfer)
+					r.Get("/ingredient-stock-counts", h.IngredientStockCounts)
+					r.Get("/ingredient-stock-counts/{id}", h.IngredientStockCount)
+					r.Post("/ingredient-stock-counts", h.CreateIngredientStockCount)
+					r.Post("/ingredient-stock-counts/{id}/start", h.StartIngredientStockCount)
+					r.Put("/ingredient-stock-counts/{id}/save", h.SaveIngredientStockCount)
+					r.Post("/ingredient-stock-counts/{id}/complete", h.CompleteIngredientStockCount)
 				})
 			})
 			r.Group(func(r chi.Router) {

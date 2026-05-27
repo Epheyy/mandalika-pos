@@ -469,6 +469,57 @@ func (h *Handlers) CancelIngredientTransfer(w http.ResponseWriter, r *http.Reque
 	h.mutated(w, r, h.Write.CancelIngredientTransfer(r.Context(), c.userID, chi.URLParam(r, "id"), in.Reason))
 }
 
+// ── Ingredient stock-counts ─────────────────────────────────
+
+func (h *Handlers) IngredientStockCounts(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	rows, total, err := h.Repo.IngredientStockCounts(r.Context(), p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientStockCountListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) IngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	sc, err := h.Repo.IngredientStockCount(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientStockCountResponse{Data: sc})
+}
+
+func (h *Handlers) CreateIngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientStockCount](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.CreateIngredientStockCount(r.Context(), c.userID, in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) StartIngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.StartIngredientStockCount(r.Context(), chi.URLParam(r, "id")))
+}
+
+type ingredientStockCountSaveBody struct {
+	Items []write.IngredientStockCountSaveItem `json:"items"`
+}
+
+func (h *Handlers) SaveIngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[ingredientStockCountSaveBody](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.SaveIngredientStockCount(r.Context(), chi.URLParam(r, "id"), in.Items))
+}
+
+func (h *Handlers) CompleteIngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.CompleteIngredientStockCount(r.Context(), chi.URLParam(r, "id")))
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {

@@ -378,6 +378,51 @@ func (r *Repo) IngredientTransfer(ctx context.Context, id string) (api.Ingredien
 	return oneJSON[api.IngredientTransfer](ctx, r.Pool, sql, id)
 }
 
+// ── Ingredient stock-counts ────────────────────────────────
+
+func (r *Repo) IngredientStockCounts(ctx context.Context, page, limit int) ([]api.IngredientStockCount, int, error) {
+	const sql = `
+      SELECT jsonb_build_object(
+        'id', sc.id, 'name', sc.name, 'status', sc.status,
+        'warehouseId', sc.warehouse_id, 'warehouseName', w.name,
+        'plannedDate', sc.planned_date, 'notes', sc.notes,
+        'createdAt',   to_char(sc.created_at   AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'startedAt',   CASE WHEN sc.started_at   IS NULL THEN NULL ELSE to_char(sc.started_at   AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'completedAt', CASE WHEN sc.completed_at IS NULL THEN NULL ELSE to_char(sc.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'items', '[]'::jsonb
+      ),
+      count(*) OVER ()
+      FROM ingredient_stock_counts sc
+      JOIN warehouses w ON w.id = sc.warehouse_id
+      ORDER BY sc.created_at DESC
+      OFFSET $1 LIMIT $2`
+	return listJSON[api.IngredientStockCount](ctx, r.Pool, sql, off(page, limit), limit)
+}
+
+func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.IngredientStockCount, error) {
+	const sql = `
+      SELECT jsonb_build_object(
+        'id', sc.id, 'name', sc.name, 'status', sc.status,
+        'warehouseId', sc.warehouse_id, 'warehouseName', w.name,
+        'plannedDate', sc.planned_date, 'notes', sc.notes,
+        'createdAt',   to_char(sc.created_at   AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'startedAt',   CASE WHEN sc.started_at   IS NULL THEN NULL ELSE to_char(sc.started_at   AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'completedAt', CASE WHEN sc.completed_at IS NULL THEN NULL ELSE to_char(sc.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'items', (
+          SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'id', i.id, 'ingredientId', i.ingredient_id,
+            'ingredientName', i.ingredient_name, 'ingredientUnit', i.ingredient_unit,
+            'counted', i.counted, 'difference', i.difference
+          ) ORDER BY i.ingredient_name), '[]'::jsonb)
+            FROM ingredient_stock_count_items i WHERE i.stock_count_id = sc.id
+        )
+      )
+      FROM ingredient_stock_counts sc
+      JOIN warehouses w ON w.id = sc.warehouse_id
+      WHERE sc.id = $1`
+	return oneJSON[api.IngredientStockCount](ctx, r.Pool, sql, id)
+}
+
 // ── Customers ─────────────────────────────────────────────
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
