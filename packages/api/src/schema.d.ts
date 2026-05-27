@@ -444,6 +444,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ingredients */
+        get: operations["listIngredients"];
+        put?: never;
+        /** Create ingredient */
+        post: operations["createIngredient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateIngredient"];
+        post?: never;
+        delete: operations["deleteIngredient"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-warehouse ingredient stock */
+        get: operations["getIngredientStock"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1182,6 +1233,39 @@ export interface components {
             newQty: number;
             reason: string;
         };
+        Ingredient: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            unit: string;
+            defaultUnitCost?: number | null;
+            notes?: string | null;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        IngredientInput: {
+            name: string;
+            unit: string;
+            defaultUnitCost?: number | null;
+            notes?: string | null;
+            isActive: boolean;
+        };
+        IngredientListResponse: {
+            data: components["schemas"]["Ingredient"][];
+            meta: components["schemas"]["Meta"];
+        };
+        IngredientStockRow: {
+            /** Format: uuid */
+            ingredientId: string;
+            name: string;
+            unit: string;
+            defaultUnitCost?: number | null;
+            qty: number;
+        };
+        IngredientStockResponse: {
+            data: components["schemas"]["IngredientStockRow"][];
+        };
         TransferLocation: {
             /** @enum {string} */
             kind: "outlet" | "warehouse";
@@ -1665,6 +1749,7 @@ export interface components {
             /** @description Roles whose users may approve a POS transfer receive. */
             receiveApproverRoles?: string[];
             documents?: components["schemas"]["DocumentSettings"];
+            recipesEnabled?: boolean;
         };
         AppSettingsResponse: {
             data: components["schemas"]["AppSettings"];
@@ -2969,6 +3054,118 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listIngredients: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ingredients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientListResponse"];
+                };
+            };
+        };
+    };
+    createIngredient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateIngredient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIngredient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getIngredientStock: {
+        parameters: {
+            query: {
+                warehouseId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description stock matrix */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientStockResponse"];
+                };
+            };
         };
     };
     listTransfers: {

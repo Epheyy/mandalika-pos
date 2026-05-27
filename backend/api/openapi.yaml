@@ -197,6 +197,46 @@ components:
         variantSize: { type: string }
         newQty: { type: integer }
         reason: { type: string }
+    Ingredient:
+      type: object
+      required: [id, name, unit, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        unit: { type: string }
+        defaultUnitCost: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    IngredientInput:
+      type: object
+      required: [name, unit, isActive]
+      properties:
+        name: { type: string }
+        unit: { type: string }
+        defaultUnitCost: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        isActive: { type: boolean }
+    IngredientListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Ingredient' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    IngredientStockRow:
+      type: object
+      required: [ingredientId, name, unit, qty]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        name: { type: string }
+        unit: { type: string }
+        defaultUnitCost: { type: number, nullable: true }
+        qty: { type: number }
+    IngredientStockResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/IngredientStockRow' } }
     TransferLocation:
       type: object
       required: [kind, id]
@@ -746,6 +786,7 @@ components:
           description: Roles whose users may approve a POS transfer receive.
         documents:
           $ref: '#/components/schemas/DocumentSettings'
+        recipesEnabled: { type: boolean }
     AppSettingsResponse:
       type: object
       required: [data]
@@ -1734,6 +1775,63 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/ingredients:
+    get:
+      operationId: listIngredients
+      tags: [catalog]
+      summary: List ingredients
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: ingredients
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientListResponse' }
+    post:
+      operationId: createIngredient
+      tags: [catalog]
+      summary: Create ingredient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientInput' }
+      responses:
+        '201': { description: created }
+  /api/v1/ingredients/{id}:
+    put:
+      operationId: updateIngredient
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientInput' }
+      responses: { '200': { description: ok } }
+    delete:
+      operationId: deleteIngredient
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredients/stock:
+    get:
+      operationId: getIngredientStock
+      tags: [catalog]
+      summary: Per-warehouse ingredient stock
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: stock matrix
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientStockResponse' }
   /api/v1/transfers:
     get:
       operationId: listTransfers
