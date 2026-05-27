@@ -377,6 +377,25 @@ func (h *Handlers) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteIngredient(r.Context(), chi.URLParam(r, "id")))
 }
 
+func (h *Handlers) CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientGoodsReceipt](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.CreateIngredientGoodsReceipt(r.Context(), c.userID, in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) AdjustIngredientStock(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientAdjust](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	h.mutated(w, r, h.Write.AdjustIngredientStock(r.Context(), c.userID, in))
+}
+
 func (h *Handlers) IngredientStock(w http.ResponseWriter, r *http.Request) {
 	whID := r.URL.Query().Get("warehouseId")
 	if whID == "" {
