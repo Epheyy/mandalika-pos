@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { Warehouse, WarehouseInput, WarehouseStockRow } from '@mandalika/api'
 import {
@@ -35,28 +35,47 @@ import {
 import { GoodsInModal } from './warehouses/GoodsInModal'
 import { AdjustModal } from './warehouses/AdjustModal'
 import { Transfers } from './transfers/Transfers'
+import Ingredients from './ingredients/Ingredients'
 
 const EMPTY_WAREHOUSE = { name: '', code: '', address: '', phone: '', isActive: true, logoUrl: undefined as string | undefined }
 const rowKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
-const GUDANG_TABS = [
-  { id: 'gudang', label: 'Gudang' },
-  { id: 'transfer', label: 'Transfer' },
-] as const
-type GudangTab = (typeof GUDANG_TABS)[number]['id']
+type GudangTab = 'gudang' | 'transfer' | 'bahan'
+
+const BASE_TABS = [
+  { id: 'gudang' as GudangTab, label: 'Gudang' },
+  { id: 'transfer' as GudangTab, label: 'Transfer' },
+]
+const BAHAN_TAB = { id: 'bahan' as GudangTab, label: 'Bahan' }
 
 export default function Gudang() {
   const [tab, setTab] = useState<GudangTab>('gudang')
+  const [recipesEnabled, setRecipesEnabled] = useState(false)
+
+  useEffect(() => {
+    api.getAppSettings().then((settings) => {
+      setRecipesEnabled(settings.recipesEnabled === true)
+    }).catch(() => {
+      // silently ignore — flag stays false
+    })
+  }, [])
+
+  const tabs = recipesEnabled ? [...BASE_TABS, BAHAN_TAB] : BASE_TABS
+
   return (
     <div>
       <div className="px-6 pt-6">
-        <Tabs value={tab} onChange={setTab} tabs={GUDANG_TABS} />
+        <Tabs value={tab} onChange={setTab} tabs={tabs} />
       </div>
-      {tab === 'gudang' ? (
-        <WarehouseList />
-      ) : (
+      {tab === 'gudang' && <WarehouseList />}
+      {tab === 'transfer' && (
         <div className="px-6 pb-6 pt-2">
           <Transfers />
+        </div>
+      )}
+      {tab === 'bahan' && recipesEnabled && (
+        <div className="px-6 pb-6 pt-2">
+          <Ingredients />
         </div>
       )}
     </div>
