@@ -1,3 +1,321 @@
+import { useState } from 'react'
+import type { IngredientTransfer } from '@mandalika/api'
+import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
+import { api } from '../../api'
+import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { TableSkeleton } from '../../components/Skeleton'
+import { Button, Card, Badge, EmptyState } from '../../ui'
+import { IngredientTransferForm } from './IngredientTransferForm'
+import { IngredientReceiveModal } from './IngredientReceiveModal'
+import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
+
+const STATUS: Record<string, { label: string; tone: 'neutral' | 'warning' | 'success' }> = {
+  draft: { label: 'Draf', tone: 'neutral' },
+  in_transit: { label: 'Dikirim', tone: 'warning' },
+  completed: { label: 'Selesai', tone: 'success' },
+  cancelled: { label: 'Dibatalkan', tone: 'neutral' },
+}
+
+const fmtDate = (s?: string | null) =>
+  s
+    ? new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—'
+
+type FilterStatus = 'all' | 'draft' | 'in_transit' | 'completed' | 'cancelled'
+
+const FILTER_LABELS: { value: FilterStatus; label: string }[] = [
+  { value: 'all', label: 'Semua' },
+  { value: 'draft', label: 'Draf' },
+  { value: 'in_transit', label: 'Dikirim' },
+  { value: 'completed', label: 'Selesai' },
+  { value: 'cancelled', label: 'Dibatalkan' },
+]
+
 export default function TransferTab() {
-  return <div className="p-6 text-gray-500">Coming in next task</div>
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [showCreate, setShowCreate] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const q = usePolledQuery(
+    () =>
+      api.listIngredientTransfers(
+        filterStatus !== 'all' ? { status: filterStatus } : undefined,
+      ),
+    [filterStatus],
+  )
+  const rows = q.data?.data ?? []
+  const total = q.data?.meta?.total ?? rows.length
+
+  const selected = rows.find((t) => t.id === selectedId) ?? null
+
+  return (
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-wrap gap-1">
+          {FILTER_LABELS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => { setFilterStatus(f.value); setSelectedId(null) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                filterStatus === f.value
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{total} transfer</span>
+          <Button
+            onClick={() => setShowCreate(true)}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Buat Transfer
+          </Button>
+        </div>
+      </div>
+
+      {/* List */}
+      <Card className="overflow-hidden">
+        {q.loading ? (
+          <TableSkeleton />
+        ) : rows.length === 0 ? (
+          <EmptyState icon={<PackageCheck />} title="Belum ada transfer bahan" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  {['No', 'Sumber', 'Tujuan', 'Status', 'Dibuat'].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map((t) => {
+                  const s = STATUS[t.status] ?? STATUS.draft
+                  return (
+                    <tr
+                      key={t.id}
+                      onClick={() => setSelectedId(t.id === selectedId ? null : t.id)}
+                      className={`cursor-pointer transition-colors ${
+                        t.id === selectedId ? 'bg-amber-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-5 py-3 font-mono text-sm text-gray-900">{t.transferNo}</td>
+                      <td className="px-5 py-3 text-sm text-gray-500">
+                        {t.sourceWarehouseName ?? '—'}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-gray-500">
+                        {t.destWarehouseName ?? '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        <Badge tone={s.tone}>{s.label}</Badge>
+                      </td>
+                      <td className="px-5 py-3 text-sm text-gray-500">{fmtDate(t.createdAt)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Detail panel */}
+      {selected && (
+        <TransferDetail
+          transfer={selected}
+          onDismiss={() => setSelectedId(null)}
+          onRefresh={() => q.refetch()}
+        />
+      )}
+
+      {/* Create modal */}
+      {showCreate && (
+        <IngredientTransferForm
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false)
+            void q.refetch()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface TransferDetailProps {
+  transfer: IngredientTransfer
+  onDismiss: () => void
+  onRefresh: () => void | Promise<void>
+}
+
+function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailProps) {
+  const [receiving, setReceiving] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Re-fetch the full transfer to get up-to-date items after an action.
+  const detailQ = usePolledQuery<IngredientTransfer>(
+    () => api.getIngredientTransfer(t.id),
+    [t.id],
+  )
+  const transfer = detailQ.data ?? t
+
+  const act = async (fn: () => Promise<void>) => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await fn()
+      await detailQ.refetch()
+      await onRefresh()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Aksi gagal.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const s = STATUS[transfer.status] ?? STATUS.draft
+  const sourceName = transfer.sourceWarehouseName ?? transfer.sourceWarehouseId
+  const destName = transfer.destWarehouseName ?? transfer.destWarehouseId
+
+  return (
+    <Card className="p-5 space-y-4">
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div className="font-mono font-bold text-gray-900">{transfer.transferNo}</div>
+          <div className="text-sm text-gray-500">
+            {sourceName} → {destName}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Badge tone={s.tone}>{s.label}</Badge>
+          {transfer.status === 'draft' && (
+            <Button
+              size="sm"
+              icon={<Send className="w-3.5 h-3.5" />}
+              loading={busy}
+              onClick={() => act(() => api.sendIngredientTransfer(transfer.id))}
+            >
+              Kirim
+            </Button>
+          )}
+          {transfer.status === 'in_transit' && (
+            <Button
+              size="sm"
+              icon={<PackageCheck className="w-3.5 h-3.5" />}
+              onClick={() => setReceiving(true)}
+            >
+              Terima
+            </Button>
+          )}
+          {(transfer.status === 'draft' || transfer.status === 'in_transit') && (
+            <Button
+              size="sm"
+              variant="danger"
+              icon={<Ban className="w-3.5 h-3.5" />}
+              loading={busy}
+              onClick={() => {
+                const reason = window.prompt('Alasan pembatalan:')
+                if (reason == null) return
+                void act(() => api.cancelIngredientTransfer(transfer.id, reason || 'Dibatalkan'))
+              }}
+            >
+              Batalkan
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-xs text-gray-400 hover:text-gray-600 ml-1"
+          >
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      {transfer.note && (
+        <p className="text-sm text-gray-500">{transfer.note}</p>
+      )}
+      {transfer.discrepancyReason && (
+        <p className="text-sm text-amber-700">Selisih: {transfer.discrepancyReason}</p>
+      )}
+
+      {/* Items table */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              {['Bahan', 'Satuan', 'Dikirim', 'Diterima', 'Selisih'].map((h) => (
+                <th
+                  key={h}
+                  className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase tracking-wider"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {transfer.items.map((it) => (
+              <tr key={it.id}>
+                <td className="px-4 py-2 text-sm font-bold text-gray-900">{it.ingredientName}</td>
+                <td className="px-4 py-2 text-sm text-gray-500">{it.ingredientUnit}</td>
+                <td className="px-4 py-2 text-sm text-gray-500">{it.sentQty}</td>
+                <td className="px-4 py-2 text-sm text-gray-500">{it.receivedQty ?? '—'}</td>
+                <td className="px-4 py-2 text-sm">
+                  {it.difference == null ? (
+                    '—'
+                  ) : (
+                    <span
+                      className={
+                        it.difference < 0
+                          ? 'text-red-600'
+                          : it.difference > 0
+                          ? 'text-green-600'
+                          : 'text-gray-400'
+                      }
+                    >
+                      {it.difference > 0 ? `+${it.difference}` : it.difference}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {err && <p className="text-sm text-red-600">{err}</p>}
+
+      {/* Surat Jalan panel — mounted when SJ number is available */}
+      {(transfer.status === 'in_transit' || transfer.status === 'completed') && (
+        <SuratJalanIngredientPanel transfer={transfer} />
+      )}
+
+      {/* Receive modal */}
+      {receiving && (
+        <IngredientReceiveModal
+          transfer={transfer}
+          onClose={() => setReceiving(false)}
+          onDone={async () => {
+            await detailQ.refetch()
+            await onRefresh()
+          }}
+        />
+      )}
+    </Card>
+  )
 }
