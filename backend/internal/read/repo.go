@@ -279,6 +279,105 @@ func (r *Repo) IngredientStock(ctx context.Context, warehouseID string) ([]api.I
 	return rows, err
 }
 
+// IngredientTransfers lists ingredient transfers with optional status filter + pagination.
+func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status string) ([]api.IngredientTransfer, int, error) {
+	const sql = `
+      WITH t AS (
+        SELECT it.*,
+               ws.name AS src_name,
+               wd.name AS dst_name
+          FROM ingredient_transfers it
+          JOIN warehouses ws ON ws.id = it.source_warehouse_id
+          JOIN warehouses wd ON wd.id = it.dest_warehouse_id
+         WHERE ($3 = '' OR it.status = $3)
+      )
+      SELECT jsonb_build_object(
+        'id', t.id, 'transferNo', t.transfer_no, 'status', t.status,
+        'sourceWarehouseId', t.source_warehouse_id, 'sourceWarehouseName', t.src_name,
+        'destWarehouseId',   t.dest_warehouse_id,   'destWarehouseName',   t.dst_name,
+        'suratJalanNo', t.surat_jalan_no, 'tandaTerimaNo', t.tanda_terima_no,
+        'note', t.note, 'discrepancyReason', t.discrepancy_reason,
+        'createdAt', to_char(t.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'sentAt',     CASE WHEN t.sent_at      IS NULL THEN NULL ELSE to_char(t.sent_at      AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'receivedAt', CASE WHEN t.received_at  IS NULL THEN NULL ELSE to_char(t.received_at  AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'cancelledAt',CASE WHEN t.cancelled_at IS NULL THEN NULL ELSE to_char(t.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'cancelReason', t.cancel_reason,
+        'items', (
+          SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'id', i.id, 'ingredientId', i.ingredient_id,
+            'ingredientName', ing.name, 'ingredientUnit', ing.unit,
+            'sentQty', i.sent_qty, 'receivedQty', i.received_qty, 'difference', i.difference
+          ) ORDER BY ing.name), '[]'::jsonb)
+            FROM ingredient_transfer_items i JOIN ingredients ing ON ing.id = i.ingredient_id
+           WHERE i.transfer_id = t.id
+        )
+      ),
+      count(*) OVER ()
+      FROM t
+      ORDER BY t.created_at DESC
+      OFFSET $1 LIMIT $2`
+	return listJSON[api.IngredientTransfer](ctx, r.Pool, sql, off(page, limit), limit, status)
+}
+
+// IngredientTransfer returns a single ingredient transfer with sender/receiver
+// letterheads resolved from warehouse address/phone/logo_url with
+// app_settings.documents_* fallback. Mirrors the SP4 transferObj letterhead
+// shape exactly (locationName/brandName/addressLines/phone/npwp/logoUrl).
+func (r *Repo) IngredientTransfer(ctx context.Context, id string) (api.IngredientTransfer, error) {
+	const sql = `
+      WITH s AS (SELECT * FROM app_settings LIMIT 1),
+           t AS (
+             SELECT it.*,
+                    ws.name AS src_name, ws.address AS src_addr, ws.phone AS src_phone, ws.logo_url AS src_logo,
+                    wd.name AS dst_name, wd.address AS dst_addr, wd.phone AS dst_phone, wd.logo_url AS dst_logo
+               FROM ingredient_transfers it
+               JOIN warehouses ws ON ws.id = it.source_warehouse_id
+               JOIN warehouses wd ON wd.id = it.dest_warehouse_id
+              WHERE it.id = $1
+           )
+      SELECT jsonb_build_object(
+        'id', t.id, 'transferNo', t.transfer_no, 'status', t.status,
+        'sourceWarehouseId', t.source_warehouse_id, 'sourceWarehouseName', t.src_name,
+        'destWarehouseId',   t.dest_warehouse_id,   'destWarehouseName',   t.dst_name,
+        'suratJalanNo', t.surat_jalan_no, 'tandaTerimaNo', t.tanda_terima_no,
+        'note', t.note, 'discrepancyReason', t.discrepancy_reason,
+        'createdAt', to_char(t.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'sentAt',     CASE WHEN t.sent_at      IS NULL THEN NULL ELSE to_char(t.sent_at      AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'receivedAt', CASE WHEN t.received_at  IS NULL THEN NULL ELSE to_char(t.received_at  AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'cancelledAt',CASE WHEN t.cancelled_at IS NULL THEN NULL ELSE to_char(t.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') END,
+        'cancelReason', t.cancel_reason,
+        'senderLetterhead', jsonb_build_object(
+          'locationName', t.src_name,
+          'brandName',    s.documents_brand_name,
+          'logoUrl',      COALESCE(NULLIF(t.src_logo,''), s.documents_logo_url),
+          'addressLines', string_to_array(
+                            COALESCE(NULLIF(t.src_addr,''), s.documents_address_lines, ''), E'\n'),
+          'phone',        COALESCE(NULLIF(t.src_phone,''), s.documents_phone),
+          'npwp',         s.documents_npwp
+        ),
+        'receiverLetterhead', jsonb_build_object(
+          'locationName', t.dst_name,
+          'brandName',    s.documents_brand_name,
+          'logoUrl',      COALESCE(NULLIF(t.dst_logo,''), s.documents_logo_url),
+          'addressLines', string_to_array(
+                            COALESCE(NULLIF(t.dst_addr,''), s.documents_address_lines, ''), E'\n'),
+          'phone',        COALESCE(NULLIF(t.dst_phone,''), s.documents_phone),
+          'npwp',         s.documents_npwp
+        ),
+        'items', (
+          SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'id', i.id, 'ingredientId', i.ingredient_id,
+            'ingredientName', ing.name, 'ingredientUnit', ing.unit,
+            'sentQty', i.sent_qty, 'receivedQty', i.received_qty, 'difference', i.difference
+          ) ORDER BY ing.name), '[]'::jsonb)
+            FROM ingredient_transfer_items i JOIN ingredients ing ON ing.id = i.ingredient_id
+           WHERE i.transfer_id = t.id
+        )
+      )
+      FROM t, s`
+	return oneJSON[api.IngredientTransfer](ctx, r.Pool, sql, id)
+}
+
 // ── Customers ─────────────────────────────────────────────
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
