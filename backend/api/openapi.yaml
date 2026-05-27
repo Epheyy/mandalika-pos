@@ -237,6 +237,29 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/IngredientStockRow' } }
+    IngredientGoodsReceiptItemInput:
+      type: object
+      required: [ingredientId, qty]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        qty: { type: number }
+        unitCost: { type: number, nullable: true }
+    IngredientGoodsReceiptInput:
+      type: object
+      required: [warehouseId, items]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        supplier: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientGoodsReceiptItemInput' } }
+    IngredientAdjustInput:
+      type: object
+      required: [warehouseId, ingredientId, newQty, reason]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        ingredientId: { type: string, format: uuid }
+        newQty: { type: number }
+        reason: { type: string }
     TransferLocation:
       type: object
       required: [kind, id]
@@ -1832,6 +1855,26 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IngredientStockResponse' }
+  /api/v1/ingredients/goods-receipt:
+    post:
+      operationId: createIngredientGoodsReceipt
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientGoodsReceiptInput' }
+      responses: { '201': { description: created } }
+  /api/v1/ingredients/adjust:
+    post:
+      operationId: adjustIngredientStock
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientAdjustInput' }
+      responses: { '200': { description: ok } }
   /api/v1/transfers:
     get:
       operationId: listTransfers

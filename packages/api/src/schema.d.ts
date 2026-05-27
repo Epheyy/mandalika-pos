@@ -495,6 +495,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredients/goods-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createIngredientGoodsReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adjustIngredientStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1265,6 +1297,27 @@ export interface components {
         };
         IngredientStockResponse: {
             data: components["schemas"]["IngredientStockRow"][];
+        };
+        IngredientGoodsReceiptItemInput: {
+            /** Format: uuid */
+            ingredientId: string;
+            qty: number;
+            unitCost?: number | null;
+        };
+        IngredientGoodsReceiptInput: {
+            /** Format: uuid */
+            warehouseId: string;
+            supplier?: string | null;
+            note?: string | null;
+            items: components["schemas"]["IngredientGoodsReceiptItemInput"][];
+        };
+        IngredientAdjustInput: {
+            /** Format: uuid */
+            warehouseId: string;
+            /** Format: uuid */
+            ingredientId: string;
+            newQty: number;
+            reason: string;
         };
         TransferLocation: {
             /** @enum {string} */
@@ -3165,6 +3218,50 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["IngredientStockResponse"];
                 };
+            };
+        };
+    };
+    createIngredientGoodsReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientGoodsReceiptInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adjustIngredientStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientAdjustInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
