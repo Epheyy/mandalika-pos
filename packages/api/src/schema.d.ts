@@ -527,6 +527,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredient-transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listIngredientTransfers"];
+        put?: never;
+        post: operations["createIngredientTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-transfers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getIngredientTransfer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-transfers/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sendIngredientTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-transfers/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["receiveIngredientTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-transfers/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelIngredientTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1317,6 +1397,78 @@ export interface components {
             /** Format: uuid */
             ingredientId: string;
             newQty: number;
+            reason: string;
+        };
+        IngredientTransferItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            ingredientUnit: string;
+            sentQty: number;
+            receivedQty?: number | null;
+            difference?: number | null;
+        };
+        IngredientTransfer: {
+            /** Format: uuid */
+            id: string;
+            transferNo: string;
+            /** @enum {string} */
+            status: "draft" | "in_transit" | "completed" | "cancelled";
+            /** Format: uuid */
+            sourceWarehouseId: string;
+            sourceWarehouseName?: string;
+            /** Format: uuid */
+            destWarehouseId: string;
+            destWarehouseName?: string;
+            suratJalanNo?: string | null;
+            tandaTerimaNo?: string | null;
+            note?: string | null;
+            discrepancyReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            sentAt?: string | null;
+            /** Format: date-time */
+            receivedAt?: string | null;
+            /** Format: date-time */
+            cancelledAt?: string | null;
+            cancelReason?: string | null;
+            senderLetterhead?: components["schemas"]["Letterhead"];
+            receiverLetterhead?: components["schemas"]["Letterhead"];
+            items: components["schemas"]["IngredientTransferItem"][];
+        };
+        IngredientTransferListResponse: {
+            data: components["schemas"]["IngredientTransfer"][];
+            meta: components["schemas"]["Meta"];
+        };
+        IngredientTransferResponse: {
+            data: components["schemas"]["IngredientTransfer"];
+        };
+        IngredientTransferItemInput: {
+            /** Format: uuid */
+            ingredientId: string;
+            qty: number;
+        };
+        IngredientTransferCreateInput: {
+            /** Format: uuid */
+            sourceWarehouseId: string;
+            /** Format: uuid */
+            destWarehouseId: string;
+            note?: string | null;
+            items: components["schemas"]["IngredientTransferItemInput"][];
+        };
+        IngredientTransferReceiveItemInput: {
+            /** Format: uuid */
+            itemId: string;
+            receivedQty: number;
+        };
+        IngredientTransferReceiveInput: {
+            items: components["schemas"]["IngredientTransferReceiveItemInput"][];
+            discrepancyReason?: string | null;
+        };
+        IngredientTransferCancelInput: {
             reason: string;
         };
         TransferLocation: {
@@ -3253,6 +3405,142 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["IngredientAdjustInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIngredientTransfers: {
+        parameters: {
+            query?: {
+                status?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ingredient transfers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientTransferListResponse"];
+                };
+            };
+        };
+    };
+    createIngredientTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientTransferCreateInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getIngredientTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ingredient transfer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientTransferResponse"];
+                };
+            };
+        };
+    };
+    sendIngredientTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    receiveIngredientTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientTransferReceiveInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cancelIngredientTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientTransferCancelInput"];
             };
         };
         responses: {

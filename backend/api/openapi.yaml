@@ -260,6 +260,82 @@ components:
         ingredientId: { type: string, format: uuid }
         newQty: { type: number }
         reason: { type: string }
+    IngredientTransferItem:
+      type: object
+      required: [id, ingredientId, ingredientName, ingredientUnit, sentQty]
+      properties:
+        id: { type: string, format: uuid }
+        ingredientId: { type: string, format: uuid }
+        ingredientName: { type: string }
+        ingredientUnit: { type: string }
+        sentQty: { type: number }
+        receivedQty: { type: number, nullable: true }
+        difference: { type: number, nullable: true }
+    IngredientTransfer:
+      type: object
+      required: [id, transferNo, status, sourceWarehouseId, destWarehouseId, createdAt, items]
+      properties:
+        id: { type: string, format: uuid }
+        transferNo: { type: string }
+        status: { type: string, enum: [draft, in_transit, completed, cancelled] }
+        sourceWarehouseId: { type: string, format: uuid }
+        sourceWarehouseName: { type: string }
+        destWarehouseId: { type: string, format: uuid }
+        destWarehouseName: { type: string }
+        suratJalanNo: { type: string, nullable: true }
+        tandaTerimaNo: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        discrepancyReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+        receivedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        cancelReason: { type: string, nullable: true }
+        senderLetterhead: { $ref: '#/components/schemas/Letterhead', nullable: true }
+        receiverLetterhead: { $ref: '#/components/schemas/Letterhead', nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientTransferItem' } }
+    IngredientTransferListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/IngredientTransfer' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    IngredientTransferResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/IngredientTransfer' }
+    IngredientTransferItemInput:
+      type: object
+      required: [ingredientId, qty]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        qty: { type: number }
+    IngredientTransferCreateInput:
+      type: object
+      required: [sourceWarehouseId, destWarehouseId, items]
+      properties:
+        sourceWarehouseId: { type: string, format: uuid }
+        destWarehouseId: { type: string, format: uuid }
+        note: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientTransferItemInput' } }
+    IngredientTransferReceiveItemInput:
+      type: object
+      required: [itemId, receivedQty]
+      properties:
+        itemId: { type: string, format: uuid }
+        receivedQty: { type: number }
+    IngredientTransferReceiveInput:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientTransferReceiveItemInput' } }
+        discrepancyReason: { type: string, nullable: true }
+    IngredientTransferCancelInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
     TransferLocation:
       type: object
       required: [kind, id]
@@ -1874,6 +1950,72 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/IngredientAdjustInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-transfers:
+    get:
+      operationId: listIngredientTransfers
+      tags: [catalog]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: page, in: query, required: false, schema: { type: integer } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200':
+          description: ingredient transfers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientTransferListResponse' }
+    post:
+      operationId: createIngredientTransfer
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientTransferCreateInput' }
+      responses: { '201': { description: created } }
+  /api/v1/ingredient-transfers/{id}:
+    get:
+      operationId: getIngredientTransfer
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: ingredient transfer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientTransferResponse' }
+  /api/v1/ingredient-transfers/{id}/send:
+    post:
+      operationId: sendIngredientTransfer
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-transfers/{id}/receive:
+    post:
+      operationId: receiveIngredientTransfer
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientTransferReceiveInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-transfers/{id}/cancel:
+    post:
+      operationId: cancelIngredientTransfer
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientTransferCancelInput' }
       responses: { '200': { description: ok } }
   /api/v1/transfers:
     get:
