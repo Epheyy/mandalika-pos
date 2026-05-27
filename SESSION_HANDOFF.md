@@ -4,7 +4,46 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-26 (READ THIS FIRST; supersedes everything below)
+# ⭐ LATEST SESSION — 2026-05-28 (READ THIS FIRST; supersedes everything below)
+
+Branch `prod-hardening` · **SP-Recipe-1 (Ingredient Inventory Subsystem) CODE COMPLETE, deployed & pushed.** Backend **rev 00033-5vs** (migration 0019 applied; `/readyz` ok). 26 commits on `prod-hardening` (`2e2c81b`→`8f2b552`). Backoffice auto-deploys via Cloudflare from this branch. **No APK needed** — SP-Recipe-1 is backoffice-only (POS untouched).
+
+**▶️ USER-PENDING UI verify** (any browser, admin login):
+1. Open `https://mandalika-pos.pages.dev` → login as admin → **Pengaturan** → confirm new "Resep & Bahan" section appears with the toggle (currently ON from live verify).
+2. Open **Gudang** → confirm a 3rd tab **Bahan** appears (visible only because flag is ON). Toggle flag OFF in Settings, reload, confirm Bahan tab + section disappear; toggle back ON.
+3. Walk the 6 inner tabs: **Daftar** (create + edit + search), **Stok** (warehouse picker → stock table), **Stok Masuk** (goods-in modal w/ multi-line items), **Penyesuaian** (set absolute qty + required reason), **Transfer** (create draft → Kirim → Terima w/ optional shortfall + reason → completed; verify ISJ-2026-NNNNN + ITT-2026-NNNNN + `SuratJalanIngredientPanel` Bagikan/Unduh PDF/Unduh PNG/Lihat), **Opname** (create → Mulai → Simpan counted → Selesai → difference shown).
+
+After UI verify: the next module is **SP-Recipe-2 (Recipes & versioning)** — per-variant recipes inside the product modal with full version history. Own brainstorm→spec→plan cycle. See `product-module-roadmap` memory.
+
+## ⭐ SP-Recipe-1 — Ingredient Inventory Subsystem: CODE COMPLETE (2026-05-28)
+Spec `docs/superpowers/specs/2026-05-27-recipe-sp1-ingredients-design.md` · plan `docs/superpowers/plans/2026-05-27-recipe-sp1-ingredients.md` (5 phases A–E, 27 tasks, subagent-driven on `prod-hardening` directly). Commits `2e2c81b`→`8f2b552`, **pushed**.
+
+**Module-wide locked decisions:** scope = reference-only formula + live ingredient-stock view (no auto-deduct on "produce") · ingredient model = separate `ingredients` table with `numeric(14,3)` qty (warehouse-only, never POS-synced) · recipes per-variant w/ full versioning (SP-Recipe-2) · POS exposure = none (`@mandalika/sync` untouched) · reuse `manage_inventory` perm · module gate `app_settings.recipes_enabled boolean` DEFAULT false (Mandalika stays quiet; Flamboyan / Performance flip it on) · cost = informational only.
+
+**Built & live-verified (backend rev 00033-5vs):**
+- **Migration 0019** (7 new tables — `ingredients`, `ingredient_warehouse_stock` (numeric qty!), `ingredient_goods_receipts(_items)`, `ingredient_stock_adjustments`, `ingredient_transfers` w/ ITRF- sequence + ISJ/ITT doc fields, `ingredient_transfer_items`, `ingredient_stock_counts(_items)`; one ALTER adding `app_settings.recipes_enabled`).
+- **Backend (Go):** `write/ingredient.go` (CRUD + goods-in + adjust), `write/ingredient_transfer.go` (send/receive/cancel w/ idempotent replay + cancel-in-transit stock restore — caught & fixed pgx "conn busy" bug in commit `93c17e6` by collecting rows before exec), `write/ingredient_stockcount.go` (create/start/save/complete; snapshot ingredient_name+unit at start), `nextDocNo` extended via new kind literals `"ISJ"` + `"ITT"` (no schema change — `doc_sequences` already polymorphic). Read: `Ingredients`/`IngredientStock`/`IngredientTransfers`/`IngredientTransfer` (letterhead via SP4 `string_to_array` pattern verbatim), `IngredientStockCounts`/`IngredientStockCount`. Middleware: new `RequireRecipesEnabled` factory + `Repo.RecipesEnabled` helper — 404s every ingredient endpoint when flag is off. AppSettings round-trip extended for `recipesEnabled` (read JSON + write `*bool`). Go tests: `formatDocNo` ISJ/ITT cases pass; `validateIngTransfer` table-driven 4 cases pass.
+- **OpenAPI:** 27 new schemas + 13 new paths under `/api/v1/ingredients`, `/api/v1/ingredient-transfers`, `/api/v1/ingredient-stock-counts`. `AppSettings.recipesEnabled?: boolean`. Existing `Letterhead` schema (SP4) reused for ingredient transfer letterheads.
+- **TS client (`packages/api`):** 14 new type re-exports + 20 new Api methods + impls. `getAppSettings()` exposes `recipesEnabled`.
+- **Backoffice (Cloudflare auto-deploys):** New `screens/ingredients/` folder with Bahan tab inside Gudang (flag-gated via app-settings fetch on mount), 6 inner tabs (Daftar / Stok / Stok Masuk / Penyesuaian / Transfer / Opname) + their modals (IngredientFormModal, IngredientGoodsInModal, IngredientAdjustModal, IngredientTransferForm, IngredientReceiveModal), cloned **SuratJalanIngredientPanel** + **IngredientSuratJalanDoc** (reuses SP4 `render.ts` unchanged for HTML→PNG→PDF→Web Share with anchor fallback). Settings → new "Resep & Bahan" toggle section. All gold-palette consistent; `npx tsc -b` clean.
+
+**Live-verify highlights (test artifacts left in DB):**
+- Flag-gate: `recipesEnabled=false` → 404 on every ingredient endpoint ✓; `recipesEnabled=true` → 200.
+- CRUD: create Rose Oil (g, Rp 15000 cost) → list returns 1 row → update cost to 16500 → delete returns 200 (FK from goods-receipt-items blocks if stock exists — matches SP1 pattern).
+- Goods-in 1000g → stock=1000 ✓; adjust to 945.5 (fractional!) ✓; no-reason adjust 400 ✓; negative qty 400 ✓.
+- Transfer W1→W2 200g: send → `ISJ-2026-00001` + W1 stock 500→300 ✓; receive 190g w/ reason "susut perjalanan" → `ITT-2026-00001` + W2 stock=190 + difference=-10 ✓; receive without reason → 400 ✓.
+- Self-transfer 400 ✓; oversend (9999>300) 400 ✓.
+- Cancel-in-transit (after bug fix `93c17e6`): W1 300→250 after send, → 300 after cancel-in-transit ✓.
+- Letterhead resolution: `sender.locationName=Gudang Pusat (contoh)` + `addressLines=['Jl. Override SP4', 'Line 2']` (string_to_array(\\n) parsed correctly); receiver similar; `brandName=Mandalika POS` from app_settings fallback ✓.
+- Opname: create → start (snapshotted 2 active ingredients) → save counted=295.5 on item 1 → complete → status=completed + difference=-650 computed + W1 stock=295.5 ✓.
+
+**Backend revs deployed this session:** 00029-f6m (A) → 00030-89p (B) → 00031-wql (C) → 00032-xvk (cancel fix) → 00033-5vs (D).
+
+**SP-Recipe-2 (NEXT, separate brainstorm+spec):** `recipes`, `recipe_versions`, `recipe_ingredients` tables + per-variant slide-over editor inside the product modal + full version history (Versi 3 of 5 dropdown, "Pulihkan ke versi ini" creates new version from snapshot) + cost estimation UI. All decisions in spec front-matter under "Module-wide locked decisions".
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-26 (kept for context)
 
 Branch `prod-hardening` · Inventory **SP4 (transfer documents & sharing) CODE COMPLETE, reviewed, deployed & PUSHED** — the final Inventory slice. Backend **rev 00028-gw6** (migration 0018 applied; `/readyz` ok; `SJ-2026-NNNNN` + `TT-2026-NNNNN` assigned + resolved letterheads verified via live API). Backoffice pushed (Cloudflare auto-deploys). Signed APK built (run **26441658450** on commit `40481bc`, artifact `mandalika-pos-release-apk`). **▶️ TWO USER-PENDING re-tests** (both need a physical device + an admin/cashier login the agent can't self-auth):
 1. **SP3 on-device re-test** (still pending from prior session) — FU-1 non-blocking inbound poll + FU-2 clean rejected-receive + original informed-count/PIN/lockout/offline E2E.
