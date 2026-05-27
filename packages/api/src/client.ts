@@ -32,6 +32,19 @@ export type TransferItem = S['TransferItem']
 export type TransferLocation = S['TransferLocation']
 export type TransferCreateInput = S['TransferCreateInput']
 export type TransferReceiveInput = S['TransferReceiveInput']
+export type Ingredient = S['Ingredient']
+export type IngredientInput = S['IngredientInput']
+export type IngredientStockRow = S['IngredientStockRow']
+export type IngredientGoodsReceiptInput = S['IngredientGoodsReceiptInput']
+export type IngredientAdjustInput = S['IngredientAdjustInput']
+export type IngredientTransfer = S['IngredientTransfer']
+export type IngredientTransferItem = S['IngredientTransferItem']
+export type IngredientTransferCreateInput = S['IngredientTransferCreateInput']
+export type IngredientTransferReceiveInput = S['IngredientTransferReceiveInput']
+export type IngredientStockCount = S['IngredientStockCount']
+export type IngredientStockCountItem = S['IngredientStockCountItem']
+export type IngredientStockCountInput = S['IngredientStockCountInput']
+export type IngredientStockCountSaveInput = S['IngredientStockCountSaveInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -174,6 +187,27 @@ export interface Api {
   sendTransfer: (id: string) => Promise<void>
   receiveTransfer: (id: string, input: TransferReceiveInput) => Promise<void>
   cancelTransfer: (id: string) => Promise<void>
+
+  // ingredients / recipe inventory (SP-Recipe-1)
+  listIngredients: (opts?: { page?: number; limit?: number; q?: string }) => Promise<ListResult<Ingredient>>
+  createIngredient: (input: IngredientInput) => Promise<void>
+  updateIngredient: (id: string, input: IngredientInput) => Promise<void>
+  deleteIngredient: (id: string) => Promise<void>
+  getIngredientStock: (warehouseId: string) => Promise<IngredientStockRow[]>
+  createIngredientGoodsReceipt: (input: IngredientGoodsReceiptInput) => Promise<void>
+  adjustIngredientStock: (input: IngredientAdjustInput) => Promise<void>
+  listIngredientTransfers: (opts?: { status?: string; page?: number; limit?: number }) => Promise<ListResult<IngredientTransfer>>
+  getIngredientTransfer: (id: string) => Promise<IngredientTransfer>
+  createIngredientTransfer: (input: IngredientTransferCreateInput) => Promise<void>
+  sendIngredientTransfer: (id: string) => Promise<void>
+  receiveIngredientTransfer: (id: string, input: IngredientTransferReceiveInput) => Promise<void>
+  cancelIngredientTransfer: (id: string, reason: string) => Promise<void>
+  listIngredientStockCounts: (opts?: { page?: number; limit?: number }) => Promise<ListResult<IngredientStockCount>>
+  getIngredientStockCount: (id: string) => Promise<IngredientStockCount>
+  createIngredientStockCount: (input: IngredientStockCountInput) => Promise<void>
+  startIngredientStockCount: (id: string) => Promise<void>
+  saveIngredientStockCount: (id: string, input: IngredientStockCountSaveInput) => Promise<void>
+  completeIngredientStockCount: (id: string) => Promise<void>
 
   // users / roles
   listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
@@ -398,6 +432,58 @@ export function createClient(opts: ClientOptions): Api {
     },
     cancelTransfer: async (id) => {
       await request('POST', `${API}/transfers/${id}/cancel`)
+    },
+
+    listIngredients: (opts) =>
+      list<Ingredient>(`${API}/ingredients`, opts as Record<string, string | number> | undefined),
+    createIngredient: async (input) => {
+      await request('POST', `${API}/ingredients`, input)
+    },
+    updateIngredient: async (id, input) => {
+      await request('PUT', `${API}/ingredients/${id}`, input)
+    },
+    deleteIngredient: async (id) => {
+      await request('DELETE', `${API}/ingredients/${id}`)
+    },
+    getIngredientStock: (warehouseId) =>
+      data<IngredientStockRow[]>('GET', `${API}/ingredients/stock${qs({ warehouseId })}`),
+    createIngredientGoodsReceipt: async (input) => {
+      await request('POST', `${API}/ingredients/goods-receipt`, input)
+    },
+    adjustIngredientStock: async (input) => {
+      await request('POST', `${API}/ingredients/adjust`, input)
+    },
+    listIngredientTransfers: (opts) =>
+      list<IngredientTransfer>(`${API}/ingredient-transfers`, opts as Record<string, string | number> | undefined),
+    getIngredientTransfer: (id) =>
+      data<IngredientTransfer>('GET', `${API}/ingredient-transfers/${id}`),
+    createIngredientTransfer: async (input) => {
+      await request('POST', `${API}/ingredient-transfers`, input)
+    },
+    sendIngredientTransfer: async (id) => {
+      await request('POST', `${API}/ingredient-transfers/${id}/send`)
+    },
+    receiveIngredientTransfer: async (id, input) => {
+      await request('POST', `${API}/ingredient-transfers/${id}/receive`, input)
+    },
+    cancelIngredientTransfer: async (id, reason) => {
+      await request('POST', `${API}/ingredient-transfers/${id}/cancel`, { reason })
+    },
+    listIngredientStockCounts: (opts) =>
+      list<IngredientStockCount>(`${API}/ingredient-stock-counts`, opts as Record<string, string | number> | undefined),
+    getIngredientStockCount: (id) =>
+      data<IngredientStockCount>('GET', `${API}/ingredient-stock-counts/${id}`),
+    createIngredientStockCount: async (input) => {
+      await request('POST', `${API}/ingredient-stock-counts`, input)
+    },
+    startIngredientStockCount: async (id) => {
+      await request('POST', `${API}/ingredient-stock-counts/${id}/start`)
+    },
+    saveIngredientStockCount: async (id, input) => {
+      await request('PUT', `${API}/ingredient-stock-counts/${id}/save`, input)
+    },
+    completeIngredientStockCount: async (id) => {
+      await request('POST', `${API}/ingredient-stock-counts/${id}/complete`)
     },
 
     listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
