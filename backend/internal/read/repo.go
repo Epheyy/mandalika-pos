@@ -244,6 +244,41 @@ func (r *Repo) WarehouseStock(ctx context.Context, warehouseID string) ([]api.Wa
 	return rows, err
 }
 
+// Ingredients lists ingredients with simple name filter + pagination.
+func (r *Repo) Ingredients(ctx context.Context, page, limit int, q string) ([]api.Ingredient, int, error) {
+	const sql = `
+      SELECT jsonb_build_object(
+        'id', id, 'name', name, 'unit', unit,
+        'defaultUnitCost', default_unit_cost,
+        'notes', notes, 'isActive', is_active,
+        'createdAt', to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
+      ),
+      count(*) OVER ()
+      FROM ingredients
+      WHERE ($3 = '' OR name ILIKE '%' || $3 || '%')
+      ORDER BY is_active DESC, name ASC
+      OFFSET $1 LIMIT $2`
+	return listJSON[api.Ingredient](ctx, r.Pool, sql, off(page, limit), limit, q)
+}
+
+// IngredientStock returns per-warehouse on-hand qty for every ingredient (left join
+// so 0-qty rows are present), filtered to active ingredients.
+func (r *Repo) IngredientStock(ctx context.Context, warehouseID string) ([]api.IngredientStockRow, error) {
+	const sql = `
+      SELECT jsonb_build_object(
+        'ingredientId', i.id, 'name', i.name, 'unit', i.unit,
+        'defaultUnitCost', i.default_unit_cost,
+        'qty', COALESCE(s.qty, 0)
+      )
+      FROM ingredients i
+      LEFT JOIN ingredient_warehouse_stock s
+             ON s.ingredient_id = i.id AND s.warehouse_id = $1
+     WHERE i.is_active
+     ORDER BY i.name ASC`
+	rows, _, err := listJSON[api.IngredientStockRow](ctx, r.Pool, sql, warehouseID)
+	return rows, err
+}
+
 // ── Customers ─────────────────────────────────────────────
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
