@@ -182,6 +182,16 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/transfers/{id}/send", h.SendTransfer)
 				r.Post("/transfers/{id}/receive", h.ReceiveTransfer)
 				r.Post("/transfers/{id}/cancel", h.CancelTransfer)
+				// ingredients (recipe module; flag-gated)
+				r.Group(func(r chi.Router) {
+					r.Use(mw.RequireRecipesEnabled(rd))
+					r.Get("/ingredients", h.Ingredients)
+					r.Post("/ingredients", h.CreateIngredient)
+					// static path before parameterised to avoid chi shadowing
+					r.Get("/ingredients/stock", h.IngredientStock)
+					r.Put("/ingredients/{id}", h.UpdateIngredient)
+					r.Delete("/ingredients/{id}", h.DeleteIngredient)
+				})
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_settings"))

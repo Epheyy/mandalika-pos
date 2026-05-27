@@ -343,6 +343,54 @@ func (h *Handlers) CancelTransfer(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.CancelTransfer(r.Context(), chi.URLParam(r, "id")))
 }
 
+// ── Ingredients ────────────────────────────────────────────
+
+func (h *Handlers) Ingredients(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query().Get("q")
+	rows, total, err := h.Repo.Ingredients(r.Context(), p, l, q)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) CreateIngredient(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Ingredient](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateIngredient(r.Context(), in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateIngredient(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Ingredient](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateIngredient(r.Context(), chi.URLParam(r, "id"), in))
+}
+
+func (h *Handlers) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteIngredient(r.Context(), chi.URLParam(r, "id")))
+}
+
+func (h *Handlers) IngredientStock(w http.ResponseWriter, r *http.Request) {
+	whID := r.URL.Query().Get("warehouseId")
+	if whID == "" {
+		httpx.Err(w, http.StatusBadRequest, "warehouseId wajib")
+		return
+	}
+	rows, err := h.Repo.IngredientStock(r.Context(), whID)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientStockResponse{Data: rows})
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
