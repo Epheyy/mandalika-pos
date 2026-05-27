@@ -313,6 +313,7 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 		   'roundingApplyToTax',rounding_apply_to_tax,'autoOpenShift',auto_open_shift,
 		   'paymentMethods',payment_methods,'receipt',receipt,
 		   'receiveApproverRoles',receive_approver_roles,
+		   'recipesEnabled',recipes_enabled,
 		   'documents',json_build_object(
 		     'logoUrl',documents_logo_url,
 		     'brandName',documents_brand_name,

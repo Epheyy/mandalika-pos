@@ -644,6 +644,7 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 		PaymentMethods       json.RawMessage       `json:"paymentMethods"`
 		Receipt              json.RawMessage       `json:"receipt"`
 		ReceiveApproverRoles []string              `json:"receiveApproverRoles"`
+		RecipesEnabled       *bool                 `json:"recipesEnabled"`
 		Documents            *api.DocumentSettings `json:"documents"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
@@ -699,6 +700,13 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 				  documents_npwp=$5 WHERE id=1`,
 				docLogoURL, docBrandName, docAddressLines, docPhone, docNPWP); e != nil {
 				return fmt.Errorf("update documents: %w", e)
+			}
+		}
+		if s.RecipesEnabled != nil {
+			if _, e := t.Exec(ctx,
+				`UPDATE app_settings SET recipes_enabled=$1 WHERE id=1`,
+				*s.RecipesEnabled); e != nil {
+				return fmt.Errorf("update recipes_enabled: %w", e)
 			}
 		}
 		return e
