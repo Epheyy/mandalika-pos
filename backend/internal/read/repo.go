@@ -733,3 +733,20 @@ func (r *Repo) ReceiveApproverRoles(ctx context.Context) ([]string, error) {
 		`SELECT receive_approver_roles FROM app_settings WHERE id=1`).Scan(&roles)
 	return roles, e
 }
+
+// RecipesEnabled returns true when the Recipe/Formula module is turned on
+// for this deployment. Reads the singleton app_settings row.
+// A missing row (fresh DB) is treated as disabled — returns false, nil.
+func (r *Repo) RecipesEnabled(ctx context.Context) (bool, error) {
+	var enabled bool
+	err := r.Pool.QueryRow(ctx,
+		`SELECT COALESCE(recipes_enabled, false) FROM app_settings LIMIT 1`,
+	).Scan(&enabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read recipes_enabled: %w", err)
+	}
+	return enabled, nil
+}

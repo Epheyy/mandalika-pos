@@ -78,3 +78,25 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// RequireRecipesEnabled returns 404 when the Recipe/Formula module is
+// turned off in app_settings. We return 404 (not 403) so deployments
+// without the module look like the routes don't exist.
+func RequireRecipesEnabled(rd interface {
+	RecipesEnabled(ctx context.Context) (bool, error)
+}) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			on, err := rd.RecipesEnabled(r.Context())
+			if err != nil {
+				httpx.Err(w, http.StatusInternalServerError, "settings read failed")
+				return
+			}
+			if !on {
+				httpx.Err(w, http.StatusNotFound, "not found")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
