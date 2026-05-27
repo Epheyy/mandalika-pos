@@ -336,6 +336,61 @@ components:
       required: [reason]
       properties:
         reason: { type: string }
+    IngredientStockCountItem:
+      type: object
+      required: [id, ingredientId, ingredientName, ingredientUnit]
+      properties:
+        id: { type: string, format: uuid }
+        ingredientId: { type: string, format: uuid }
+        ingredientName: { type: string }
+        ingredientUnit: { type: string }
+        counted: { type: number, nullable: true }
+        difference: { type: number, nullable: true }
+    IngredientStockCount:
+      type: object
+      required: [id, name, status, warehouseId, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [planned, in_progress, completed, cancelled] }
+        warehouseId: { type: string, format: uuid }
+        warehouseName: { type: string }
+        plannedDate: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientStockCountItem' } }
+    IngredientStockCountInput:
+      type: object
+      required: [name, warehouseId]
+      properties:
+        name: { type: string }
+        warehouseId: { type: string, format: uuid }
+        plannedDate: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
+    IngredientStockCountSaveItemInput:
+      type: object
+      required: [itemId, counted]
+      properties:
+        itemId: { type: string, format: uuid }
+        counted: { type: number }
+    IngredientStockCountSaveInput:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IngredientStockCountSaveItemInput' } }
+    IngredientStockCountListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/IngredientStockCount' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    IngredientStockCountResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/IngredientStockCount' }
     TransferLocation:
       type: object
       required: [kind, id]
@@ -2016,6 +2071,66 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/IngredientTransferCancelInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-stock-counts:
+    get:
+      operationId: listIngredientStockCounts
+      tags: [catalog]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientStockCountListResponse' }
+    post:
+      operationId: createIngredientStockCount
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientStockCountInput' }
+      responses: { '201': { description: created } }
+  /api/v1/ingredient-stock-counts/{id}:
+    get:
+      operationId: getIngredientStockCount
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: stock count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientStockCountResponse' }
+  /api/v1/ingredient-stock-counts/{id}/start:
+    post:
+      operationId: startIngredientStockCount
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-stock-counts/{id}/save:
+    put:
+      operationId: saveIngredientStockCount
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientStockCountSaveInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/ingredient-stock-counts/{id}/complete:
+    post:
+      operationId: completeIngredientStockCount
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
   /api/v1/transfers:
     get:

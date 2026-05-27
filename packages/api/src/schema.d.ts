@@ -607,6 +607,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredient-stock-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listIngredientStockCounts"];
+        put?: never;
+        post: operations["createIngredientStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-stock-counts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getIngredientStockCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-stock-counts/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startIngredientStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-stock-counts/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["saveIngredientStockCount"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-stock-counts/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completeIngredientStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1470,6 +1550,59 @@ export interface components {
         };
         IngredientTransferCancelInput: {
             reason: string;
+        };
+        IngredientStockCountItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            ingredientUnit: string;
+            counted?: number | null;
+            difference?: number | null;
+        };
+        IngredientStockCount: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            status: "planned" | "in_progress" | "completed" | "cancelled";
+            /** Format: uuid */
+            warehouseId: string;
+            warehouseName?: string;
+            /** Format: date */
+            plannedDate?: string | null;
+            notes?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            completedAt?: string | null;
+            items?: components["schemas"]["IngredientStockCountItem"][];
+        };
+        IngredientStockCountInput: {
+            name: string;
+            /** Format: uuid */
+            warehouseId: string;
+            /** Format: date */
+            plannedDate?: string | null;
+            notes?: string | null;
+        };
+        IngredientStockCountSaveItemInput: {
+            /** Format: uuid */
+            itemId: string;
+            counted: number;
+        };
+        IngredientStockCountSaveInput: {
+            items: components["schemas"]["IngredientStockCountSaveItemInput"][];
+        };
+        IngredientStockCountListResponse: {
+            data: components["schemas"]["IngredientStockCount"][];
+            meta: components["schemas"]["Meta"];
+        };
+        IngredientStockCountResponse: {
+            data: components["schemas"]["IngredientStockCount"];
         };
         TransferLocation: {
             /** @enum {string} */
@@ -3543,6 +3676,137 @@ export interface operations {
                 "application/json": components["schemas"]["IngredientTransferCancelInput"];
             };
         };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIngredientStockCounts: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientStockCountListResponse"];
+                };
+            };
+        };
+    };
+    createIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientStockCountInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description stock count */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientStockCountResponse"];
+                };
+            };
+        };
+    };
+    startIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    saveIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientStockCountSaveInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    completeIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description ok */
             200: {
