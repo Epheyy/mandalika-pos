@@ -274,32 +274,42 @@ func (r *Repo) CancelIngredientTransfer(ctx context.Context, caller, id, reason 
 	case "draft":
 		// pure void
 	case "in_transit":
-		// restore source stock
+		// restore source stock — collect all lines first (pgx forbids exec on a
+		// tx with open rows), then iterate.
 		rows, err := tx.Query(ctx,
 			`SELECT ingredient_id, sent_qty FROM ingredient_transfer_items WHERE transfer_id=$1`, id,
 		)
 		if err != nil {
 			return fmt.Errorf("load items: %w", err)
 		}
+		type line struct {
+			ing string
+			qty float64
+		}
+		var lines []line
 		for rows.Next() {
-			var ing string
-			var qty float64
-			if err := rows.Scan(&ing, &qty); err != nil {
+			var l line
+			if err := rows.Scan(&l.ing, &l.qty); err != nil {
 				rows.Close()
 				return fmt.Errorf("scan item: %w", err)
 			}
+			lines = append(lines, l)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate items: %w", err)
+		}
+		for _, l := range lines {
 			if _, err := tx.Exec(ctx,
 				`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
                       VALUES ($1, $2, $3)
                  ON CONFLICT (warehouse_id, ingredient_id)
                  DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
-				src, ing, qty,
+				src, l.ing, l.qty,
 			); err != nil {
-				rows.Close()
 				return fmt.Errorf("restore stock: %w", err)
 			}
 		}
-		rows.Close()
 	default:
 		return fmt.Errorf("status %q tidak bisa dibatalkan", status)
 	}
