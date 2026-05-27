@@ -16,8 +16,12 @@ import { api, authStore } from './api'
 const REFRESH_KEY = 'mandalika.pos.refresh'
 const tokenStore = getKV()
 
-// POS is Cashier only. Admin/Manager must use the Backoffice app.
-const ALLOWED_ROLES = new Set(['cashier'])
+// Any role may sign into the POS. The earlier cashier-only gate blocked
+// manager/admin accounts from operating a register, which broke the realistic
+// case of a single staff member who both sells and approves SP3 receives
+// (promoting their role to manager so their PIN works would otherwise lock
+// them out of the POS). The server still authenticates the credentials; the
+// SP3 manager step-up PIN flow handles approval-time authorization separately.
 
 interface AuthState {
   user: User | null
@@ -66,13 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     api
       .refresh(refresh)
-      .then((d) => {
-        if (!ALLOWED_ROLES.has(d.user.role)) {
-          clear()
-          return
-        }
-        apply(d)
-      })
+      .then((d) => apply(d))
       .catch(() => clear())
       .finally(() => setReady(true))
   }, [clear, apply])
@@ -80,9 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const d = await api.login(email, password)
-      if (!ALLOWED_ROLES.has(d.user.role)) {
-        throw new Error('This account is not a cashier. Use the Backoffice app.')
-      }
       apply(d)
     },
     [apply],
