@@ -68,7 +68,7 @@ export default function SettingsScreen() {
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents'>('tax')
+  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents' | 'recipes'>('tax')
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
@@ -121,6 +121,7 @@ export default function SettingsScreen() {
     { id: 'shift', label: 'Shift' },
     { id: 'approver', label: 'Persetujuan Transfer' },
     { id: 'documents', label: 'Dokumen' },
+    { id: 'recipes', label: 'Resep & Bahan' },
   ] as const
 
   return (
@@ -322,6 +323,25 @@ export default function SettingsScreen() {
                   />
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {section === 'recipes' && (
+          <>
+            <h3 className="font-black text-gray-900">Resep &amp; Bahan</h3>
+            <p className="text-xs text-gray-400">
+              Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
+              produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
+            </p>
+            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+              <div>
+                <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
+              </div>
+              <Toggle
+                checked={s.recipesEnabled ?? false}
+                onClick={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
+              />
             </div>
           </>
         )}
