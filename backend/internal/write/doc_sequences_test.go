@@ -15,6 +15,9 @@ func TestFormatDocNo(t *testing.T) {
 		{"5-digit padding", "SJ", 2026, 42, "SJ-2026-00042"},
 		{"year rollover", "SJ", 2027, 1, "SJ-2027-00001"},
 		{"5-digit cap not exceeded", "TT", 2026, 99999, "TT-2026-99999"},
+		{"first ISJ of the year", "ISJ", 2026, 1, "ISJ-2026-00001"},
+		{"ISJ with padding", "ITT", 2026, 42, "ITT-2026-00042"},
+		{"ISJ year rollover", "ISJ", 2027, 1, "ISJ-2027-00001"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
