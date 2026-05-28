@@ -4,7 +4,37 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-28 (READ THIS FIRST; supersedes everything below)
+# ⭐ LATEST SESSION — 2026-05-28 (SP-Recipe-2 + UI redesign + Neon fix) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Shipped **SP-Recipe-2 (Recipes & Versioning)** end-to-end, a recipe-editor **UI clarity redesign**, and a **Neon connection-pool hardening** fix. Backend **rev `00036-kqm`** (migration 0021 applied; `/readyz` ok — SP-Recipe-2 deployed at `00035-68t`, then the pgxpool-fix redeploy `00036-kqm`). Backoffice auto-deploys via Cloudflare. **No APK** (backoffice-only). Commits `cbb18af`→`fdc8fc0`, pushed. Built **subagent-driven** (fresh implementer per task + reviews/live-verify).
+
+## SP-Recipe-2 — Recipes & Versioning: CODE COMPLETE & deployed
+Spec `docs/superpowers/specs/2026-05-28-recipe-sp2-recipes-versioning-design.md` · plan `docs/superpowers/plans/2026-05-28-recipe-sp2-recipes-versioning.md` (phases A–E, 15 tasks).
+- **Migration 0021**: `recipes` (`variant_id` UNIQUE → product_variants ON DELETE CASCADE; `current_version_id` is a write-maintained pointer, intentionally NOT a hard FK — avoids a circular create-order dep on first save), `recipe_versions` (append-only, `version_no`, `total_cost_cached`), `recipe_ingredients` (frozen snapshot `name/unit/cost_at_save`, `qty` CHECK>0, FK → ingredients ON DELETE RESTRICT).
+- **Backend**: `write/recipe.go` — `SaveRecipe` + `RestoreRecipeVersion` + pure helpers (`versionMatches`/`computeTotalCost`/`newlyAddedInactive`, unit-tested). Optimistic lock via `expectedCurrentVersionId` → **409** on mismatch; snapshot uses TODAY's ingredient cost (restore recomputes); inactive ingredient = warn-but-allow existing / block-new-add → 400; zero-line save clears the recipe. pgx conn-busy discipline (drain reads before writes). Read `read/repo.go`: `VariantRecipe`/`RecipeVersions`/`RecipeVersion` hydrate current name/cost + `onHandTotal` (sum across warehouses); 404 when no recipe. 5 handlers + routes under `/api/v1/products/{productId}/variants/{variantId}/recipe*`, gated `manage_inventory` + `recipes_enabled`.
+- **OpenAPI/TS**: 8 schemas + 5 ops; `@mandalika/api` methods `getVariantRecipe`(→null on 404)/`listRecipeVersions`/`getRecipeVersion`/`saveVariantRecipe`/`restoreRecipeVersion`.
+- **Backoffice** `apps/backoffice/src/screens/recipes/`: `useRecipe` hook, `RecipeIngredientPicker`, `VersionHistoryDropdown`, `RecipeSlideOver`; **Resep flask button per SAVED variant row** in the Products edit modal (disabled on unsaved variants → "Simpan produk dulu"), flag-gated via `getAppSettings().recipesEnabled`. POS untouched.
+- **Live-verified via API (rev 00035-68t)**: 404 → v1 (`totalCost=500000`) → v2 → 409 (stale version) → restore (recomputes at today's cost) → inactive-add 400 → empty-clear 201; version list shows author. Go unit tests green.
+- **USER-VERIFIED UI**: Resep flask shows + opens; save/persist; version dropdown + restore flow exactly as designed; Settings ON/OFF hides both the flask and the Gudang **Bahan** tab. ✓
+- **MVP cuts (deferred)**: no production/auto-deduct; no recipe-exists ●/filled button indicator; stock hint only on server-loaded lines (not freshly-added); no per-warehouse stock breakdown.
+
+## SP-Recipe-2 recipe-editor UI clarity redesign (after user hands-on test)
+Spec `docs/superpowers/specs/2026-05-28-recipe-sp2-ui-redesign-design.md`. Commits `cfd0cb2`(spec) → `8160e6e`(impl) → `69589e7`(picker-width fix). Behavior unchanged; clarity only:
+- Add-ingredient is now a dashed gold **"+ Tambah Bahan"** button → reveals the picker (collapse via **Tutup** / Escape; stays open after a pick for rapid multi-add).
+- Column headers **Bahan / Jumlah / Satuan**; calm gray **"stok gudang N {unit}"** subtitle (escalates to amber ⚠ only when on-hand < the line's qty); the **nonaktif** badge stays prominent.
+- Footer cost row always renders: a Rupiah value, or **"belum tersedia ⓘ"** (title tooltip: "Ada bahan tanpa biaya satuan…").
+- **Picker-width bug fixed** (`69589e7`): `fieldClass` (in `apps/backoffice/src/ui/Field.tsx`) bakes in `w-full`, which collided with `flex-1`/`w-32` siblings in a flex row → the search input collapsed to a sliver and clipped typed text. Now a full-width search bar (Search icon + "Cari bahan (nama / SKU)…") on its own row, category filter below, results in-flow. **GOTCHA: never combine `fieldClass` with `flex-1`/`w-*` in a flex row — it already sets `w-full`.**
+
+## Neon connection-pool hardening (`fdc8fc0`)
+`backend/internal/db/db.go` `Connect()` now uses `pgxpool.ParseConfig` + `NewWithConfig` with `MaxConnIdleTime=1m`, `MaxConnLifetime=30m` (+5m jitter), `HealthCheckPeriod=30s`. **WHY:** Neon free-tier silently drops idle connections, so a stale pooled conn made the FIRST write after idle fail — surfaced as intermittent **400s** during SP-Recipe-2 live verify (a tx-step connection error wraps to 400 via `h.created`). Retiring idle/old conns before Neon does eliminates the stale-conn handoff with zero per-request overhead. If transients ever persist, the next lever is a `BeforeAcquire` ping (adds acquire-time latency). Memory: `neon-stale-connection-transient`. **App-wide fix — not recipe-specific.**
+
+## ▶️ USER-PENDING (this session)
+1. Re-confirm the **redesigned** recipe slide-over visually after login: full-width search bar; "+ Tambah Bahan" reveal; column headers; calm gray stock hint; cost "belum tersedia ⓘ". **NOTE: `recipes_enabled` is currently OFF** (toggled off during the ON/OFF test) — flip Settings → "Resep & Bahan" back ON first, or the Resep flask + Gudang Bahan tab won't show and `/api/v1/ingredients*` + `/recipe*` return 404.
+2. (Optional) Watch whether the first-write-after-idle 400 is gone now (Neon fix).
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-28 (SP-Recipe-1 ingredient inventory) — kept for context
 
 Branch `prod-hardening` · **SP-Recipe-1 (Ingredient Inventory Subsystem) CODE COMPLETE + SKU/Kategori/UOM follow-up DONE, deployed & pushed.** Backend **rev 00034-9jc** (migrations 0019 + 0020 applied; `/readyz` ok). 30 commits on `prod-hardening` (`2e2c81b`→`4f6ad6a`). Backoffice auto-deploys via Cloudflare from this branch. **No APK needed** — SP-Recipe-1 is backoffice-only (POS untouched).
 
@@ -251,7 +281,9 @@ APK is inspectable during polish:
 
 ---
 
-## ▶️ COPY-READY: start SP-Recipe-2 (Recipes & versioning) brainstorm in a new session
+## ✅ DONE 2026-05-28 — SP-Recipe-2 shipped (see ⭐ LATEST SESSION at top). The kickoff prompt below is kept only as a historical record.
+
+## (HISTORICAL) COPY-READY: start SP-Recipe-2 (Recipes & versioning) brainstorm in a new session
 
 SP-Recipe-1 (ingredient inventory) is DONE — including the SKU + Kategori + UOM-dropdown follow-up (backend rev `00034-9jc`, last commit `4f6ad6a`). The next module slice is **SP-Recipe-2: per-variant recipes with full version history + cost estimate**. Paste this as the first message in a fresh session:
 
