@@ -244,21 +244,36 @@ func (r *Repo) WarehouseStock(ctx context.Context, warehouseID string) ([]api.Wa
 	return rows, err
 }
 
-// Ingredients lists ingredients with simple name filter + pagination.
+// Ingredients lists ingredients with name/sku filter + pagination.
 func (r *Repo) Ingredients(ctx context.Context, page, limit int, q string) ([]api.Ingredient, int, error) {
 	const sql = `
       SELECT jsonb_build_object(
-        'id', id, 'name', name, 'unit', unit,
-        'defaultUnitCost', default_unit_cost,
-        'notes', notes, 'isActive', is_active,
-        'createdAt', to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        'id', i.id, 'name', i.name, 'unit', i.unit, 'sku', i.sku,
+        'categoryId', i.category_id, 'categoryName', c.name,
+        'defaultUnitCost', i.default_unit_cost,
+        'notes', i.notes, 'isActive', i.is_active,
+        'createdAt', to_char(i.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
       ),
       count(*) OVER ()
-      FROM ingredients
-      WHERE ($3 = '' OR name ILIKE '%' || $3 || '%')
-      ORDER BY is_active DESC, name ASC
+      FROM ingredients i
+      LEFT JOIN ingredient_categories c ON c.id = i.category_id
+      WHERE ($3 = '' OR i.name ILIKE '%' || $3 || '%' OR i.sku ILIKE '%' || $3 || '%')
+      ORDER BY i.is_active DESC, c.sort_order NULLS LAST, i.name ASC
       OFFSET $1 LIMIT $2`
 	return listJSON[api.Ingredient](ctx, r.Pool, sql, off(page, limit), limit, q)
+}
+
+// IngredientCategories lists all ingredient categories ordered by sort_order then name.
+func (r *Repo) IngredientCategories(ctx context.Context) ([]api.IngredientCategory, error) {
+	const sql = `
+      SELECT jsonb_build_object(
+        'id', id, 'name', name, 'sortOrder', sort_order,
+        'createdAt', to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
+      )
+      FROM ingredient_categories
+      ORDER BY sort_order NULLS LAST, name ASC`
+	rows, _, err := listJSON[api.IngredientCategory](ctx, r.Pool, sql)
+	return rows, err
 }
 
 // IngredientStock returns per-warehouse on-hand qty for every ingredient (left join

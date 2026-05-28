@@ -410,6 +410,38 @@ func (h *Handlers) IngredientStock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.IngredientStockResponse{Data: rows})
 }
 
+// ── Ingredient categories ──────────────────────────────────
+
+func (h *Handlers) IngredientCategories(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.IngredientCategories(r.Context())
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.IngredientCategoryListResponse{Data: rows})
+}
+
+func (h *Handlers) CreateIngredientCategory(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientCategory](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateIngredientCategory(r.Context(), in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateIngredientCategory(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.IngredientCategory](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateIngredientCategory(r.Context(), chi.URLParam(r, "id"), in))
+}
+
+func (h *Handlers) DeleteIngredientCategory(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteIngredientCategory(r.Context(), chi.URLParam(r, "id")))
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {
