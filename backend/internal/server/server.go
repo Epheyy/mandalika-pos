@@ -209,6 +209,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 					r.Post("/ingredient-stock-counts/{id}/start", h.StartIngredientStockCount)
 					r.Put("/ingredient-stock-counts/{id}/save", h.SaveIngredientStockCount)
 					r.Post("/ingredient-stock-counts/{id}/complete", h.CompleteIngredientStockCount)
+					// recipes (SP-Recipe-2; per-variant, reuse manage_inventory + recipes flag)
+					r.Get("/products/{productId}/variants/{variantId}/recipe", h.VariantRecipe)
+					r.Post("/products/{productId}/variants/{variantId}/recipe", h.SaveVariantRecipe)
+					r.Get("/products/{productId}/variants/{variantId}/recipe/versions", h.RecipeVersions)
+					r.Get("/products/{productId}/variants/{variantId}/recipe/versions/{versionId}", h.RecipeVersion)
+					r.Post("/products/{productId}/variants/{variantId}/recipe/versions/{versionId}/restore", h.RestoreRecipeVersion)
 				})
 			})
 			r.Group(func(r chi.Router) {

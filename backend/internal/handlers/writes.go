@@ -552,6 +552,63 @@ func (h *Handlers) CompleteIngredientStockCount(w http.ResponseWriter, r *http.R
 	h.mutated(w, r, h.Write.CompleteIngredientStockCount(r.Context(), chi.URLParam(r, "id")))
 }
 
+// ── Recipes (SP-Recipe-2) ──────────────────────────────────
+
+func (h *Handlers) VariantRecipe(w http.ResponseWriter, r *http.Request) {
+	rec, err := h.Repo.VariantRecipe(r.Context(), chi.URLParam(r, "variantId"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err) // read.ErrNotFound → 404
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RecipeResponse{Data: rec})
+}
+
+func (h *Handlers) RecipeVersions(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.RecipeVersions(r.Context(), chi.URLParam(r, "variantId"))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RecipeVersionListResponse{Data: rows})
+}
+
+func (h *Handlers) RecipeVersion(w http.ResponseWriter, r *http.Request) {
+	rec, err := h.Repo.RecipeVersion(r.Context(), chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RecipeResponse{Data: rec})
+}
+
+func (h *Handlers) SaveVariantRecipe(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.RecipeSave](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.SaveRecipe(r.Context(), c.userID, chi.URLParam(r, "variantId"), in)
+	if errors.Is(err, write.ErrVersionConflict) {
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
+	h.created(w, r, id, err) // validation / inactive-add → 400; success → 201
+}
+
+func (h *Handlers) RestoreRecipeVersion(w http.ResponseWriter, r *http.Request) {
+	// Body is optional; default to an empty struct when absent.
+	var in write.RecipeRestore
+	_ = httpx.DecodeLoose(r, &in) // tolerate empty body
+	c, _ := h.caller(r)
+	id, err := h.Write.RestoreRecipeVersion(r.Context(), c.userID,
+		chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"), in.ExpectedCurrentVersionID)
+	if errors.Is(err, write.ErrVersionConflict) {
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
+	h.created(w, r, id, err)
+}
+
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
