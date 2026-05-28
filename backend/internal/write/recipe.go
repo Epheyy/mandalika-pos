@@ -70,7 +70,9 @@ func newlyAddedInactive(ingredientID string, isActive bool, priorIDs map[string]
 
 // loadIngredientSnaps fetches name/unit/cost/is_active for the given ingredient
 // IDs in one query, fully drained before the caller issues any tx write
-// (pgx conn-busy discipline). Returns an error if any ID is unknown.
+// (pgx conn-busy discipline). Unknown IDs are simply absent from the returned
+// map; callers (insertRecipeVersion) treat a missing entry as "bahan tidak
+// ditemukan".
 func loadIngredientSnaps(ctx context.Context, tx pgx.Tx, ids []string) (map[string]ingredientSnap, error) {
 	out := make(map[string]ingredientSnap, len(ids))
 	rows, err := tx.Query(ctx,
