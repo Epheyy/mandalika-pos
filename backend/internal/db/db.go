@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,7 +19,23 @@ type DB struct {
 }
 
 func Connect(ctx context.Context, url string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("parse db url: %w", err)
+	}
+	// Neon (serverless Postgres) silently drops idle connections, so a stale
+	// pooled connection makes the FIRST query after an idle period fail (it
+	// surfaced as intermittent 400s on the first write after the app sat idle).
+	// Retire idle/old connections — and sweep for them frequently — well before
+	// Neon does, so the pool never hands out a dead connection. When the whole
+	// app has been idle, every connection is swept and the next request opens a
+	// fresh one. Zero per-request overhead (no acquire-time ping).
+	cfg.MaxConnIdleTime = time.Minute
+	cfg.MaxConnLifetime = 30 * time.Minute
+	cfg.MaxConnLifetimeJitter = 5 * time.Minute
+	cfg.HealthCheckPeriod = 30 * time.Second
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("pgx pool: %w", err)
 	}
