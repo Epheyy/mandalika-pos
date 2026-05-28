@@ -199,11 +199,14 @@ components:
         reason: { type: string }
     Ingredient:
       type: object
-      required: [id, name, unit, isActive, createdAt]
+      required: [id, name, unit, sku, isActive, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         unit: { type: string }
+        sku: { type: string }
+        categoryId: { type: string, format: uuid, nullable: true }
+        categoryName: { type: string, nullable: true }
         defaultUnitCost: { type: number, nullable: true }
         notes: { type: string, nullable: true }
         isActive: { type: boolean }
@@ -214,6 +217,8 @@ components:
       properties:
         name: { type: string }
         unit: { type: string }
+        sku: { type: string, nullable: true }
+        categoryId: { type: string, format: uuid, nullable: true }
         defaultUnitCost: { type: number, nullable: true }
         notes: { type: string, nullable: true }
         isActive: { type: boolean }
@@ -237,6 +242,25 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/IngredientStockRow' } }
+    IngredientCategory:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        sortOrder: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+    IngredientCategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        sortOrder: { type: integer, nullable: true }
+    IngredientCategoryListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/IngredientCategory' } }
     IngredientGoodsReceiptItemInput:
       type: object
       required: [ingredientId, qty]
@@ -1986,6 +2010,43 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IngredientStockResponse' }
+  /api/v1/ingredient-categories:
+    get:
+      operationId: listIngredientCategories
+      tags: [catalog]
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientCategoryListResponse' }
+    post:
+      operationId: createIngredientCategory
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientCategoryInput' }
+      responses: { '201': { description: created } }
+  /api/v1/ingredient-categories/{id}:
+    put:
+      operationId: updateIngredientCategory
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngredientCategoryInput' }
+      responses: { '200': { description: ok } }
+    delete:
+      operationId: deleteIngredientCategory
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
   /api/v1/ingredients/goods-receipt:
     post:
       operationId: createIngredientGoodsReceipt

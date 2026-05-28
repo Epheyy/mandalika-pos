@@ -495,6 +495,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredient-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listIngredientCategories"];
+        put?: never;
+        post: operations["createIngredientCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredient-categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateIngredientCategory"];
+        post?: never;
+        delete: operations["deleteIngredientCategory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ingredients/goods-receipt": {
         parameters: {
             query?: never;
@@ -1430,6 +1462,10 @@ export interface components {
             id: string;
             name: string;
             unit: string;
+            sku: string;
+            /** Format: uuid */
+            categoryId?: string | null;
+            categoryName?: string | null;
             defaultUnitCost?: number | null;
             notes?: string | null;
             isActive: boolean;
@@ -1439,6 +1475,9 @@ export interface components {
         IngredientInput: {
             name: string;
             unit: string;
+            sku?: string | null;
+            /** Format: uuid */
+            categoryId?: string | null;
             defaultUnitCost?: number | null;
             notes?: string | null;
             isActive: boolean;
@@ -1457,6 +1496,21 @@ export interface components {
         };
         IngredientStockResponse: {
             data: components["schemas"]["IngredientStockRow"][];
+        };
+        IngredientCategory: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            sortOrder?: number | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        IngredientCategoryInput: {
+            name: string;
+            sortOrder?: number | null;
+        };
+        IngredientCategoryListResponse: {
+            data: components["schemas"]["IngredientCategory"][];
         };
         IngredientGoodsReceiptItemInput: {
             /** Format: uuid */
@@ -3503,6 +3557,92 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["IngredientStockResponse"];
                 };
+            };
+        };
+    };
+    listIngredientCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientCategoryListResponse"];
+                };
+            };
+        };
+    };
+    createIngredientCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateIngredientCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIngredientCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
