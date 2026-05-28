@@ -47,6 +47,11 @@ export type IngredientStockCount = S['IngredientStockCount']
 export type IngredientStockCountItem = S['IngredientStockCountItem']
 export type IngredientStockCountInput = S['IngredientStockCountInput']
 export type IngredientStockCountSaveInput = S['IngredientStockCountSaveInput']
+export type Recipe = S['Recipe']
+export type RecipeIngredientLine = S['RecipeIngredientLine']
+export type RecipeVersionSummary = S['RecipeVersionSummary']
+export type RecipeSaveInput = S['RecipeSaveInput']
+export type RecipeRestoreInput = S['RecipeRestoreInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -214,6 +219,13 @@ export interface Api {
   startIngredientStockCount: (id: string) => Promise<void>
   saveIngredientStockCount: (id: string, input: IngredientStockCountSaveInput) => Promise<void>
   completeIngredientStockCount: (id: string) => Promise<void>
+
+  // recipes / formulas (SP-Recipe-2)
+  getVariantRecipe: (productId: string, variantId: string) => Promise<Recipe | null>
+  listRecipeVersions: (productId: string, variantId: string) => Promise<RecipeVersionSummary[]>
+  getRecipeVersion: (productId: string, variantId: string, versionId: string) => Promise<Recipe>
+  saveVariantRecipe: (productId: string, variantId: string, input: RecipeSaveInput) => Promise<{ id: string }>
+  restoreRecipeVersion: (productId: string, variantId: string, versionId: string, expectedCurrentVersionId: string | null) => Promise<{ id: string }>
 
   // users / roles
   listUsers: (page?: number, limit?: number) => Promise<ListResult<User>>
@@ -502,6 +514,23 @@ export function createClient(opts: ClientOptions): Api {
     completeIngredientStockCount: async (id) => {
       await request('POST', `${API}/ingredient-stock-counts/${id}/complete`)
     },
+
+    getVariantRecipe: async (productId, variantId) => {
+      try {
+        return await data<Recipe>('GET', `${API}/products/${productId}/variants/${variantId}/recipe`)
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }
+    },
+    listRecipeVersions: (productId, variantId) =>
+      data<RecipeVersionSummary[]>('GET', `${API}/products/${productId}/variants/${variantId}/recipe/versions`),
+    getRecipeVersion: (productId, variantId, versionId) =>
+      data<Recipe>('GET', `${API}/products/${productId}/variants/${variantId}/recipe/versions/${versionId}`),
+    saveVariantRecipe: (productId, variantId, input) =>
+      data<{ id: string }>('POST', `${API}/products/${productId}/variants/${variantId}/recipe`, input),
+    restoreRecipeVersion: (productId, variantId, versionId, expectedCurrentVersionId) =>
+      data<{ id: string }>('POST', `${API}/products/${productId}/variants/${variantId}/recipe/versions/${versionId}/restore`, { expectedCurrentVersionId }),
 
     listUsers: (page = 1, limit = 200) => list<User>(`${API}/users`, { page, limit }),
     createUser: (input) => data<User>('POST', `${API}/users`, input),
