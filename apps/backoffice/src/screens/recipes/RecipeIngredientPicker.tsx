@@ -6,9 +6,11 @@ import { fieldClass } from '../../ui'
 interface Props {
   excludeIds: string[]
   onPick: (ing: Ingredient) => void
+  /** Collapse the picker (Escape in the search input). Optional. */
+  onClose?: () => void
 }
 
-export function RecipeIngredientPicker({ excludeIds, onPick }: Props) {
+export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
   const [all, setAll] = useState<Ingredient[]>([])
   const [cats, setCats] = useState<IngredientCategory[]>([])
   const [q, setQ] = useState('')
@@ -37,10 +39,12 @@ export function RecipeIngredientPicker({ excludeIds, onPick }: Props) {
       <div className="flex gap-2">
         <input
           className={`${fieldClass} flex-1`}
-          placeholder="+ Tambah bahan (cari nama / SKU)"
+          placeholder="Cari nama / SKU…"
           value={q}
+          autoFocus
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose?.() } }}
         />
         <select className={`${fieldClass} w-32`} value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Semua</option>
@@ -53,7 +57,7 @@ export function RecipeIngredientPicker({ excludeIds, onPick }: Props) {
             <button
               key={i.id}
               type="button"
-              onClick={() => { onPick(i); setQ(''); setOpen(false) }}
+              onClick={() => { onPick(i); setQ('') }}
               className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between"
             >
               <span className="font-medium text-gray-800">{i.name}</span>

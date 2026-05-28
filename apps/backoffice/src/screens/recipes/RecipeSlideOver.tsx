@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '../../ui'
 import { useRecipe, type EditLine } from './useRecipe'
@@ -16,6 +17,7 @@ const idr = (n: number) => n.toLocaleString('id-ID', { style: 'currency', curren
 export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }: Props) {
   const r = useRecipe({ productId, variantId })
   const readOnly = r.isViewingHistory
+  const [adding, setAdding] = useState(false)
 
   const costEstimate = (() => {
     let total = 0
@@ -78,14 +80,28 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
           ) : (
             <>
               {r.lines.length === 0 && <p className="text-sm text-gray-400">Belum ada bahan.</p>}
+              {r.lines.length > 0 && (
+                <div className="grid grid-cols-12 gap-2 items-center text-[10px] font-black uppercase tracking-wider text-gray-400">
+                  <span className="col-span-6">Bahan</span>
+                  <span className="col-span-3 text-right">Jumlah</span>
+                  <span className="col-span-2">Satuan</span>
+                  <span className="col-span-1" />
+                </div>
+              )}
               {r.lines.map((l, i) => {
-                const lowStock = l.onHandTotal != null && Number(l.qty) > l.onHandTotal
+                const short = l.onHandTotal != null && l.onHandTotal < Number(l.qty)
                 return (
                   <div key={l.ingredientId} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-6 text-sm text-gray-800">
-                      {l.name}
-                      {!l.isActive && <span className="text-red-600 text-xs ml-1">⚠ nonaktif</span>}
-                      {l.isActive && lowStock && <span className="text-red-500 text-xs ml-1">⚠ stok {l.onHandTotal}</span>}
+                    <div className="col-span-6">
+                      <div className="text-sm text-gray-800">
+                        {l.name}
+                        {!l.isActive && <span className="text-red-600 text-xs ml-1">⚠ nonaktif</span>}
+                      </div>
+                      {l.onHandTotal != null && (
+                        <div className={short ? 'text-[10.5px] text-amber-600' : 'text-[10.5px] text-gray-400'}>
+                          {short && '⚠ '}stok gudang {l.onHandTotal} {l.unit}
+                        </div>
+                      )}
                     </div>
                     <input
                       type="number" inputMode="decimal" value={l.qty} disabled={readOnly}
@@ -100,7 +116,30 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
                 )
               })}
               {!readOnly && (
-                <RecipeIngredientPicker excludeIds={r.lines.map((l) => l.ingredientId)} onPick={addLine} />
+                adding ? (
+                  <div className="space-y-2">
+                    <RecipeIngredientPicker
+                      excludeIds={r.lines.map((l) => l.ingredientId)}
+                      onPick={addLine}
+                      onClose={() => setAdding(false)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAdding(false)}
+                      className="text-xs text-gray-400 hover:text-gray-600 font-medium"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAdding(true)}
+                    className="w-full rounded-lg border-2 border-dashed border-gold-300 bg-amber-50/60 px-3 py-2.5 text-sm font-bold text-gold-600 hover:bg-amber-50 hover:border-gold-400 transition-colors"
+                  >
+                    + Tambah Bahan
+                  </button>
+                )
               )}
             </>
           )}
@@ -110,12 +149,19 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
         {/* footer */}
         {!readOnly && (
           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50 space-y-3">
-            {costEstimate != null && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Estimasi biaya bahan</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Estimasi biaya bahan</span>
+              {costEstimate != null ? (
                 <span className="font-black text-gray-900">{idr(costEstimate)}</span>
-              </div>
-            )}
+              ) : (
+                <span
+                  className="text-gray-400 italic"
+                  title="Ada bahan tanpa biaya satuan, jadi estimasi tidak bisa dihitung."
+                >
+                  belum tersedia ⓘ
+                </span>
+              )}
+            </div>
             <textarea
               value={r.notes} onChange={(e) => r.setNotes(e.target.value)} rows={2}
               placeholder="Catatan versi…"
