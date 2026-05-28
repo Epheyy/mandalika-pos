@@ -6,14 +6,15 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 # ⭐ LATEST SESSION — 2026-05-28 (READ THIS FIRST; supersedes everything below)
 
-Branch `prod-hardening` · **SP-Recipe-1 (Ingredient Inventory Subsystem) CODE COMPLETE, deployed & pushed.** Backend **rev 00033-5vs** (migration 0019 applied; `/readyz` ok). 26 commits on `prod-hardening` (`2e2c81b`→`8f2b552`). Backoffice auto-deploys via Cloudflare from this branch. **No APK needed** — SP-Recipe-1 is backoffice-only (POS untouched).
+Branch `prod-hardening` · **SP-Recipe-1 (Ingredient Inventory Subsystem) CODE COMPLETE + SKU/Kategori/UOM follow-up DONE, deployed & pushed.** Backend **rev 00034-9jc** (migrations 0019 + 0020 applied; `/readyz` ok). 30 commits on `prod-hardening` (`2e2c81b`→`4f6ad6a`). Backoffice auto-deploys via Cloudflare from this branch. **No APK needed** — SP-Recipe-1 is backoffice-only (POS untouched).
 
-**▶️ USER-PENDING UI verify** (any browser, admin login):
+**▶️ USER-PENDING UI verify** (any browser, admin login). Hard-refresh first to pick up the latest bundle:
 1. Open `https://mandalika-pos.pages.dev` → login as admin → **Pengaturan** → confirm new "Resep & Bahan" section appears with the toggle (currently ON from live verify).
 2. Open **Gudang** → confirm a 3rd tab **Bahan** appears (visible only because flag is ON). Toggle flag OFF in Settings, reload, confirm Bahan tab + section disappear; toggle back ON.
-3. Walk the 6 inner tabs: **Daftar** (create + edit + search), **Stok** (warehouse picker → stock table), **Stok Masuk** (goods-in modal w/ multi-line items), **Penyesuaian** (set absolute qty + required reason), **Transfer** (create draft → Kirim → Terima w/ optional shortfall + reason → completed; verify ISJ-2026-NNNNN + ITT-2026-NNNNN + `SuratJalanIngredientPanel` Bagikan/Unduh PDF/Unduh PNG/Lihat), **Opname** (create → Mulai → Simpan counted → Selesai → difference shown).
+3. Walk the 6 inner tabs: **Daftar** (create + edit + search by name OR SKU, Kategori filter, UOM dropdown w/ Lainnya fallback, inline "+ Tambah kategori baru"), **Stok** (warehouse picker → stock table), **Stok Masuk** (goods-in modal w/ multi-line items), **Penyesuaian** (set absolute qty + required reason), **Transfer** (create draft → Kirim → Terima w/ optional shortfall + reason → completed; verify ISJ-2026-NNNNN + ITT-2026-NNNNN + `SuratJalanIngredientPanel` Bagikan/Unduh PDF/Unduh PNG/Lihat), **Opname** (create → Mulai → Simpan counted → Selesai → difference shown).
+4. Verify SKU uniqueness: create an ingredient with SKU `RO-001`; try a 2nd ingredient with the same SKU → friendly inline error "SKU bahan sudah dipakai".
 
-After UI verify: the next module is **SP-Recipe-2 (Recipes & versioning)** — per-variant recipes inside the product modal with full version history. Own brainstorm→spec→plan cycle. See `product-module-roadmap` memory.
+After UI verify: the next module is **SP-Recipe-2 (Recipes & versioning)** — per-variant recipes inside the product modal with full version history. See the COPY-READY block at the bottom of this file for the new-session kickoff prompt.
 
 ## ⭐ SP-Recipe-1 — Ingredient Inventory Subsystem: CODE COMPLETE (2026-05-28)
 Spec `docs/superpowers/specs/2026-05-27-recipe-sp1-ingredients-design.md` · plan `docs/superpowers/plans/2026-05-27-recipe-sp1-ingredients.md` (5 phases A–E, 27 tasks, subagent-driven on `prod-hardening` directly). Commits `2e2c81b`→`8f2b552`, **pushed**.
@@ -37,7 +38,16 @@ Spec `docs/superpowers/specs/2026-05-27-recipe-sp1-ingredients-design.md` · pla
 - Letterhead resolution: `sender.locationName=Gudang Pusat (contoh)` + `addressLines=['Jl. Override SP4', 'Line 2']` (string_to_array(\\n) parsed correctly); receiver similar; `brandName=Mandalika POS` from app_settings fallback ✓.
 - Opname: create → start (snapshotted 2 active ingredients) → save counted=295.5 on item 1 → complete → status=completed + difference=-650 computed + W1 stock=295.5 ✓.
 
-**Backend revs deployed this session:** 00029-f6m (A) → 00030-89p (B) → 00031-wql (C) → 00032-xvk (cancel fix) → 00033-5vs (D).
+**Backend revs deployed this session:** 00029-f6m (A) → 00030-89p (B) → 00031-wql (C) → 00032-xvk (cancel fix) → 00033-5vs (D) → 00034-9jc (SKU/Kategori/UOM follow-up).
+
+**Follow-up F1–F4 (2026-05-28, commits `76f1420`→`4f6ad6a`):** at user's request after live UI verify — ingredients gained:
+- **SKU** (unique catalog-wide via partial index `idx_ingredient_sku WHERE sku <> ''` — mirrors SP1.5 product-variant barcode pattern). Friendly 400 `"SKU bahan sudah dipakai"` on duplicate via `pgconn.PgError` 23505 mapping.
+- **Kategori** — new `ingredient_categories` table (id, name UNIQUE, sort_order, created_at), FK `ingredients.category_id ON DELETE SET NULL` (delete category → ingredients keep their rows, category_id nulled). Full CRUD endpoints under `/api/v1/ingredient-categories` (recipes-enabled gate).
+- **UOM dropdown** — common units (g/kg/mg/ml/L/drop/pcs) + "Lainnya" → free-text fallback. `apps/backoffice/src/screens/ingredients/units.ts` exports `COMMON_UNITS` const.
+- **Backend search** — `Ingredients` list now matches by name OR sku (`name ILIKE OR sku ILIKE`); ORDER BY `c.sort_order NULLS LAST, name`.
+- **`IngredientFormModal`** — added SKU input, Category dropdown w/ inline "+ Tambah kategori baru" creator (replaces dropdown row temporarily with name input + Simpan/Batal, auto-selects newly created category), UOM `<select>` w/ Lainnya reveals custom-text input. **`DaftarTab`** — added SKU + Kategori columns (between Nama/Satuan and Satuan/Biaya respectively), Kategori filter dropdown next to search.
+- **Migration 0020** applied live. Test artifacts left in DB: 3 categories (Fragrance Oil, Fixateur — Carrier was deleted to test SET NULL), 4 ingredients incl. `Rose Otto Premium` (SKU `RO-001`, cat Fragrance Oil).
+- **Live verified end-to-end:** 9 scenarios passed (category CRUD, duplicate-name 400, duplicate-SKU 400, empty-SKU permitted twice, JOIN resolves categoryName, search-by-SKU, SET NULL on category delete).
 
 **SP-Recipe-2 (NEXT, separate brainstorm+spec):** `recipes`, `recipe_versions`, `recipe_ingredients` tables + per-variant slide-over editor inside the product modal + full version history (Versi 3 of 5 dropdown, "Pulihkan ke versi ini" creates new version from snapshot) + cost estimation UI. All decisions in spec front-matter under "Module-wide locked decisions".
 
@@ -241,14 +251,65 @@ APK is inspectable during polish:
 
 ---
 
-## ▶️ COPY-READY: start the Recipe/Formula module in a new session
+## ▶️ COPY-READY: start SP-Recipe-2 (Recipes & versioning) brainstorm in a new session
 
-After both on-device re-tests (SP3 + SP4) are confirmed by the user, the next dev queue is the Recipe / Formula per product module. Paste this as the first message in a fresh session:
+SP-Recipe-1 (ingredient inventory) is DONE — including the SKU + Kategori + UOM-dropdown follow-up (backend rev `00034-9jc`, last commit `4f6ad6a`). The next module slice is **SP-Recipe-2: per-variant recipes with full version history + cost estimate**. Paste this as the first message in a fresh session:
 
 ```
-continue Mandalika POS / brainstorm Recipe (Resep) / Formula per product module — read SESSION_HANDOFF.md (⭐ LATEST SESSION at top) + memory first, then kick off superpowers:brainstorming for the Recipe module.
+continue Mandalika POS / brainstorm SP-Recipe-2 (Recipes & versioning, per-variant slide-over editor inside the product modal) — read SESSION_HANDOFF.md (⭐ LATEST SESSION at top) + product-module-roadmap memory first, then kick off superpowers:brainstorming for SP-Recipe-2.
 
-The full Inventory module (SP1–SP4 — warehouses, transfers, POS receiving+PIN, transfer documents) is DONE & deployed (backend rev 00028-gw6). The Recipe module ties a formula/recipe to each product for production tracking — wanted for the Flamboyan Perfume + Performance Perfume brands (this POS is a 3-brand template). See the `product-module-roadmap` memory for context. Same brainstorm → spec → plan → subagent-driven build loop as SP1–SP4. Confirm the 6 working rules at the start.
+SP-Recipe-1 (ingredient inventory subsystem) is DONE & deployed (backend rev 00034-9jc; ingredients have SKU, category, UOM dropdown). SP-Recipe-2 builds ON TOP of it: recipes attach to product variants and reference ingredients. Module-wide decisions are already locked in the SP-Recipe-1 spec front-matter ("Module-wide locked decisions" section at the top of docs/superpowers/specs/2026-05-27-recipe-sp1-ingredients-design.md). Confirm the 6 working rules. Same brainstorm → spec → plan → subagent-driven build loop. Spec/plan go in docs/superpowers/{specs,plans}/2026-..-recipe-sp2-*.
 ```
 
-(Recipe specs/plans will go in `docs/superpowers/{specs,plans}/2026-..-recipe-*`.)
+### Module-wide decisions already locked (carry into SP-Recipe-2 brainstorm — don't relitigate)
+
+- **Per-variant recipes** (not per-product) — each variant (30ml / 50ml / 100ml) has its own recipe row.
+- **Full version history** — every save creates a new `recipe_versions` row with full ingredient snapshot (`unit_at_save`, `cost_at_save` frozen so historical versions don't break if an ingredient is renamed/repriced).
+- **POS exposure = none** — backoffice-only; `@mandalika/sync` untouched.
+- **Permission = reuse `manage_inventory`** (admin implicit).
+- **Module gated** by the existing `app_settings.recipes_enabled` flag — currently ON in test deployment (Settings → Resep & Bahan toggle).
+- **Cost = informational** — recipe screen shows "Estimasi biaya bahan: Rp X" computed from `qty × default_unit_cost`; auto-hide if any ingredient lacks a cost.
+- **UI placement** — Resep button on each variant row in the product edit modal → opens a **right-side slide-over panel** (chose layout A during SP-Recipe-1 brainstorm).
+
+### Proposed SP-Recipe-2 scope (open the brainstorm with this — confirm or adjust)
+
+- **Tables (migration 0021):**
+  - `recipes (id, variant_id UNIQUE, current_version_id, created_at, created_by)` — one recipe per variant; `current_version_id` is the "live" version pointer.
+  - `recipe_versions (id, recipe_id, version_no int, notes, total_cost_cached numeric(14,2) nullable, created_at, created_by; UNIQUE(recipe_id, version_no))` — history rows.
+  - `recipe_ingredients (version_id, ingredient_id, qty numeric(14,3), unit_at_save text, cost_at_save numeric(14,2) nullable, sort_order int)` — snapshot at save time.
+
+- **Backend (Go + OpenAPI):**
+  - `POST /api/v1/products/:productId/variants/:variantId/recipe` — creates a NEW `recipe_versions` row; updates `recipes.current_version_id`. Snapshot ingredient unit + cost at save time. Recomputes `total_cost_cached`.
+  - `GET .../recipe` — returns the current version (with `name`/`unit`/`stock` hydrated for each ingredient).
+  - `GET .../recipe/versions` — list of all versions (no items).
+  - `GET .../recipe/versions/:id` — specific snapshot.
+  - `POST .../recipe/versions/:id/restore` — creates a new version from a historical snapshot's items (atomic).
+  - 400 if any referenced ingredient is inactive or unknown; 400 if qty ≤ 0.
+
+- **Backoffice UI:**
+  - Inside the existing Products edit modal: a "Resep" button on each variant row.
+  - Clicking opens a **slide-over panel** (~480px wide, right side). Header: variant identity ("Parfum Aurora — 50ml") + version selector dropdown ("Versi 3 (kini) ▾" → opens history list with date + author + notes; clicking a historical row loads it read-only; "Pulihkan ke versi ini" creates a new version from snapshot).
+  - Ingredients table: ingredient autocomplete (search by name OR SKU — SKU is now indexable from F1-F4) + qty input (numeric, fractional) + auto-fill unit from ingredient + stock-availability hint per warehouse with low-stock ⚠ icon. Optional Kategori filter on the autocomplete dropdown.
+  - Footer: cost estimate (sum of `qty × default_unit_cost`, hidden if any ingredient has null cost); "Catatan versi" textarea; "Simpan versi baru" button.
+
+- **Out of scope (deferred):**
+  - "Produksi" auto-deduct button — module-wide locked OUT in SP-Recipe-1.
+  - POS exposure of recipes — never.
+  - Recipe-level photos / instructions / steps — keep MVP focused on ingredient list + qty.
+
+### Files the brainstorm should reference first
+
+1. `docs/superpowers/specs/2026-05-27-recipe-sp1-ingredients-design.md` — the SP-Recipe-1 spec, especially the "Module context" section at the top (lists the SP-Recipe-2 scope) and the "Deferred to SP-Recipe-2" section.
+2. `docs/superpowers/plans/2026-05-27-recipe-sp1-ingredients.md` — patterns the SP-Recipe-2 plan should mirror.
+3. The existing product edit modal: `apps/backoffice/src/screens/Products.tsx` — the new "Resep" button will mount inside the variant rows here.
+4. `apps/backoffice/src/screens/ingredients/IngredientFormModal.tsx` — the existing UOM-dropdown + Category-dropdown patterns to reuse in the recipe ingredient picker.
+
+### Open brainstorm questions (queue these for the new session)
+
+1. **Cost recompute on edit-vs-restore:** should `total_cost_cached` be recomputed from CURRENT ingredient costs when a user clicks "Pulihkan ke versi ini" (creates a new version using restored snapshot ingredients) — or kept as the historical snapshot's cached cost? Default: recompute on restore (the new version reflects today's prices).
+2. **Concurrent edits:** if two users save the same recipe within seconds, both become consecutive `version_no` rows. Acceptable, or do we need optimistic locking via an `If-Match` header on the current version id?
+3. **Soft-delete an ingredient referenced by a recipe:** what happens? Ingredient `is_active = false` is already supported; the recipe view should warn but not break. The historical version stays intact because `recipe_ingredients.unit_at_save` + `cost_at_save` are snapshots.
+4. **Recipe deletion:** delete `recipes` row → cascade to all `recipe_versions` + `recipe_ingredients`? Or block delete if any version exists (force "archive" via `is_active`)? Default proposal: cascade-delete (with confirm modal), since per-variant recipes are tightly coupled to the variant itself which can also be deleted.
+5. **Recipe-level Kategori:** any need for a recipe-level metadata (e.g., perfumery base/middle/top notes) beyond just ingredient lines? Strongly recommend NO for MVP — keep recipe = list of ingredient + qty + notes.
+
+(Spec/plan will live at `docs/superpowers/{specs,plans}/2026-..-recipe-sp2-*`. Migration slot: 0021.)
