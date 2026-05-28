@@ -248,3 +248,92 @@ func (r *Repo) SaveRecipe(ctx context.Context, caller, variantID string, in Reci
 	}
 	return versionID, nil
 }
+
+// RecipeRestore is the (optional) body for a restore call.
+type RecipeRestore struct {
+	ExpectedCurrentVersionID *string `json:"expectedCurrentVersionId,omitempty"`
+}
+
+// RestoreRecipeVersion creates a NEW version from a historical snapshot's items,
+// re-snapshotting name/unit/cost at TODAY's prices (locked decision). Same
+// optimistic-lock guard as SaveRecipe. Inactive ingredients from the snapshot
+// are allowed (the user is deliberately restoring a known formula).
+func (r *Repo) RestoreRecipeVersion(ctx context.Context, caller, variantID, versionID string, expected *string) (string, error) {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	recipeID, currentVersionID, err := resolveRecipe(ctx, tx, variantID, caller)
+	if err != nil {
+		return "", err
+	}
+	if !versionMatches(expected, currentVersionID) {
+		return "", ErrVersionConflict
+	}
+
+	// Load the snapshot's lines (qty + sort_order), verifying the version belongs
+	// to this variant's recipe. Drain fully before any write.
+	rows, err := tx.Query(ctx,
+		`SELECT ri.ingredient_id::text, ri.qty, ri.sort_order
+		   FROM recipe_ingredients ri
+		   JOIN recipe_versions v ON v.id = ri.version_id
+		  WHERE ri.version_id = $1 AND v.recipe_id = $2`,
+		versionID, recipeID)
+	if err != nil {
+		return "", fmt.Errorf("load snapshot: %w", err)
+	}
+	var items []RecipeSaveItem
+	for rows.Next() {
+		var it RecipeSaveItem
+		if err := rows.Scan(&it.IngredientID, &it.Qty, &it.SortOrder); err != nil {
+			rows.Close()
+			return "", fmt.Errorf("scan snapshot line: %w", err)
+		}
+		items = append(items, it)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		// Could be an empty version (valid) or a wrong versionId for this variant.
+		var belongs bool
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM recipe_versions WHERE id=$1 AND recipe_id=$2)`,
+			versionID, recipeID).Scan(&belongs); err != nil {
+			return "", fmt.Errorf("verify version: %w", err)
+		}
+		if !belongs {
+			return "", fmt.Errorf("versi tidak ditemukan")
+		}
+	}
+
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, it.IngredientID)
+	}
+	snaps, err := loadIngredientSnaps(ctx, tx, ids)
+	if err != nil {
+		return "", err
+	}
+
+	// Carry the snapshot's notes onto the restored version for context.
+	var notes string
+	_ = tx.QueryRow(ctx, `SELECT COALESCE(notes,'') FROM recipe_versions WHERE id=$1`, versionID).Scan(&notes)
+	if notes != "" {
+		notes = "Pulihkan: " + notes
+	} else {
+		notes = "Pulihkan dari versi sebelumnya"
+	}
+
+	newID, err := r.insertRecipeVersion(ctx, tx, recipeID, caller, notes, items, snaps, nil, true /*allowInactive*/)
+	if err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("commit tx: %w", err)
+	}
+	return newID, nil
+}
