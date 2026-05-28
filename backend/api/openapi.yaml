@@ -242,6 +242,70 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/IngredientStockRow' } }
+    RecipeIngredientLine:
+      type: object
+      required: [ingredientId, nameAtSave, name, qty, unitAtSave, isActive, onHandTotal]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        nameAtSave: { type: string }
+        name: { type: string }
+        qty: { type: number }
+        unitAtSave: { type: string }
+        costAtSave: { type: number, nullable: true }
+        defaultUnitCost: { type: number, nullable: true }
+        isActive: { type: boolean }
+        onHandTotal: { type: number }
+    Recipe:
+      type: object
+      required: [variantId, versionNo, versionCount, items]
+      properties:
+        variantId: { type: string, format: uuid }
+        recipeId: { type: string, format: uuid, nullable: true }
+        currentVersionId: { type: string, format: uuid, nullable: true }
+        versionId: { type: string, format: uuid, nullable: true }
+        versionNo: { type: integer }
+        notes: { type: string, nullable: true }
+        totalCostCached: { type: number, nullable: true }
+        versionCount: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/RecipeIngredientLine' } }
+    RecipeResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Recipe' }
+    RecipeVersionSummary:
+      type: object
+      required: [id, versionNo, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        versionNo: { type: integer }
+        notes: { type: string, nullable: true }
+        totalCostCached: { type: number, nullable: true }
+        createdAt: { type: string, format: date-time }
+        createdByName: { type: string, nullable: true }
+    RecipeVersionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/RecipeVersionSummary' } }
+    RecipeSaveItem:
+      type: object
+      required: [ingredientId, qty, sortOrder]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        qty: { type: number }
+        sortOrder: { type: integer }
+    RecipeSaveInput:
+      type: object
+      required: [items]
+      properties:
+        expectedCurrentVersionId: { type: string, format: uuid, nullable: true }
+        notes: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/RecipeSaveItem' } }
+    RecipeRestoreInput:
+      type: object
+      properties:
+        expectedCurrentVersionId: { type: string, format: uuid, nullable: true }
     IngredientCategory:
       type: object
       required: [id, name, createdAt]
@@ -2193,6 +2257,77 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
+  /api/v1/products/{productId}/variants/{variantId}/recipe:
+    get:
+      operationId: getVariantRecipe
+      tags: [catalog]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: variantId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: current recipe version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipeResponse' }
+        '404': { description: no recipe yet }
+    post:
+      operationId: saveVariantRecipe
+      tags: [catalog]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: variantId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecipeSaveInput' }
+      responses:
+        '201': { description: created }
+        '409': { description: version conflict }
+  /api/v1/products/{productId}/variants/{variantId}/recipe/versions:
+    get:
+      operationId: listRecipeVersions
+      tags: [catalog]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: variantId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: version summaries
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipeVersionListResponse' }
+  /api/v1/products/{productId}/variants/{variantId}/recipe/versions/{versionId}:
+    get:
+      operationId: getRecipeVersion
+      tags: [catalog]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: variantId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: one historical version (read-only)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipeResponse' }
+  /api/v1/products/{productId}/variants/{variantId}/recipe/versions/{versionId}/restore:
+    post:
+      operationId: restoreRecipeVersion
+      tags: [catalog]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: variantId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecipeRestoreInput' }
+      responses:
+        '201': { description: restored as a new version }
+        '409': { description: version conflict }
   /api/v1/transfers:
     get:
       operationId: listTransfers

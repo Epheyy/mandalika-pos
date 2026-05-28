@@ -719,6 +719,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{productId}/variants/{variantId}/recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getVariantRecipe"];
+        put?: never;
+        post: operations["saveVariantRecipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{productId}/variants/{variantId}/recipe/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listRecipeVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{productId}/variants/{variantId}/recipe/versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getRecipeVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{productId}/variants/{variantId}/recipe/versions/{versionId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restoreRecipeVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1496,6 +1560,65 @@ export interface components {
         };
         IngredientStockResponse: {
             data: components["schemas"]["IngredientStockRow"][];
+        };
+        RecipeIngredientLine: {
+            /** Format: uuid */
+            ingredientId: string;
+            nameAtSave: string;
+            name: string;
+            qty: number;
+            unitAtSave: string;
+            costAtSave?: number | null;
+            defaultUnitCost?: number | null;
+            isActive: boolean;
+            onHandTotal: number;
+        };
+        Recipe: {
+            /** Format: uuid */
+            variantId: string;
+            /** Format: uuid */
+            recipeId?: string | null;
+            /** Format: uuid */
+            currentVersionId?: string | null;
+            /** Format: uuid */
+            versionId?: string | null;
+            versionNo: number;
+            notes?: string | null;
+            totalCostCached?: number | null;
+            versionCount: number;
+            items: components["schemas"]["RecipeIngredientLine"][];
+        };
+        RecipeResponse: {
+            data: components["schemas"]["Recipe"];
+        };
+        RecipeVersionSummary: {
+            /** Format: uuid */
+            id: string;
+            versionNo: number;
+            notes?: string | null;
+            totalCostCached?: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            createdByName?: string | null;
+        };
+        RecipeVersionListResponse: {
+            data: components["schemas"]["RecipeVersionSummary"][];
+        };
+        RecipeSaveItem: {
+            /** Format: uuid */
+            ingredientId: string;
+            qty: number;
+            sortOrder: number;
+        };
+        RecipeSaveInput: {
+            /** Format: uuid */
+            expectedCurrentVersionId?: string | null;
+            notes?: string | null;
+            items: components["schemas"]["RecipeSaveItem"][];
+        };
+        RecipeRestoreInput: {
+            /** Format: uuid */
+            expectedCurrentVersionId?: string | null;
         };
         IngredientCategory: {
             /** Format: uuid */
@@ -3950,6 +4073,148 @@ export interface operations {
         responses: {
             /** @description ok */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getVariantRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                variantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description current recipe version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeResponse"];
+                };
+            };
+            /** @description no recipe yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    saveVariantRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                variantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeSaveInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description version conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRecipeVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                variantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description version summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeVersionListResponse"];
+                };
+            };
+        };
+    };
+    getRecipeVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                variantId: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description one historical version (read-only) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeResponse"];
+                };
+            };
+        };
+    };
+    restoreRecipeVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                variantId: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RecipeRestoreInput"];
+            };
+        };
+        responses: {
+            /** @description restored as a new version */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description version conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
