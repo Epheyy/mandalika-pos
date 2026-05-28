@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
+import { Search } from 'lucide-react'
 import { api } from '../../api'
 import { fieldClass } from '../../ui'
 
@@ -15,7 +16,6 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
   const [cats, setCats] = useState<IngredientCategory[]>([])
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
-  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -35,37 +35,48 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
   }, [all, q, cat, excludeIds])
 
   return (
-    <div className="relative">
-      <div className="flex gap-2">
+    <div className="rounded-xl border border-gold-200 bg-amber-50/40 p-2.5 space-y-2">
+      {/* full-width search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input
-          className={`${fieldClass} flex-1`}
-          placeholder="Cari nama / SKU…"
+          className={`${fieldClass} pl-9 bg-white`}
+          placeholder="Cari bahan (nama / SKU)…"
           value={q}
           autoFocus
-          onChange={(e) => { setQ(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
+          onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose?.() } }}
         />
-        <select className={`${fieldClass} w-32`} value={cat} onChange={(e) => setCat(e.target.value)}>
-          <option value="">Semua</option>
-          {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
       </div>
-      {open && results.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-auto">
-          {results.map((i) => (
+
+      {/* category filter on its own row */}
+      <select
+        className={`${fieldClass} bg-white`}
+        value={cat}
+        onChange={(e) => setCat(e.target.value)}
+      >
+        <option value="">Semua kategori</option>
+        {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+
+      {/* in-flow results list (no overlay; pushes content down) */}
+      <div className="rounded-lg border border-gray-200 bg-white max-h-52 overflow-auto">
+        {results.length === 0 ? (
+          <p className="px-3 py-3 text-xs text-gray-400">Tidak ada bahan cocok.</p>
+        ) : (
+          results.map((i) => (
             <button
               key={i.id}
               type="button"
               onClick={() => { onPick(i); setQ('') }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between items-center border-b border-gray-50 last:border-0"
             >
               <span className="font-medium text-gray-800">{i.name}</span>
-              <span className="text-gray-400 text-xs">{i.sku || ''} · {i.unit}</span>
+              <span className="text-gray-400 text-xs">{[i.sku, i.unit].filter(Boolean).join(' · ')}</span>
             </button>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   )
 }
