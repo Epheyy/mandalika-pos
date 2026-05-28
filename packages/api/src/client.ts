@@ -34,6 +34,8 @@ export type TransferCreateInput = S['TransferCreateInput']
 export type TransferReceiveInput = S['TransferReceiveInput']
 export type Ingredient = S['Ingredient']
 export type IngredientInput = S['IngredientInput']
+export type IngredientCategory = S['IngredientCategory']
+export type IngredientCategoryInput = S['IngredientCategoryInput']
 export type IngredientStockRow = S['IngredientStockRow']
 export type IngredientGoodsReceiptInput = S['IngredientGoodsReceiptInput']
 export type IngredientAdjustInput = S['IngredientAdjustInput']
@@ -193,6 +195,10 @@ export interface Api {
   createIngredient: (input: IngredientInput) => Promise<void>
   updateIngredient: (id: string, input: IngredientInput) => Promise<void>
   deleteIngredient: (id: string) => Promise<void>
+  listIngredientCategories: () => Promise<IngredientCategory[]>
+  createIngredientCategory: (input: IngredientCategoryInput) => Promise<void>
+  updateIngredientCategory: (id: string, input: IngredientCategoryInput) => Promise<void>
+  deleteIngredientCategory: (id: string) => Promise<void>
   getIngredientStock: (warehouseId: string) => Promise<IngredientStockRow[]>
   createIngredientGoodsReceipt: (input: IngredientGoodsReceiptInput) => Promise<void>
   adjustIngredientStock: (input: IngredientAdjustInput) => Promise<void>
@@ -444,6 +450,17 @@ export function createClient(opts: ClientOptions): Api {
     },
     deleteIngredient: async (id) => {
       await request('DELETE', `${API}/ingredients/${id}`)
+    },
+    listIngredientCategories: () =>
+      data<IngredientCategory[]>('GET', `${API}/ingredient-categories`),
+    createIngredientCategory: async (input) => {
+      await request('POST', `${API}/ingredient-categories`, input)
+    },
+    updateIngredientCategory: async (id, input) => {
+      await request('PUT', `${API}/ingredient-categories/${id}`, input)
+    },
+    deleteIngredientCategory: async (id) => {
+      await request('DELETE', `${API}/ingredient-categories/${id}`)
     },
     getIngredientStock: (warehouseId) =>
       data<IngredientStockRow[]>('GET', `${API}/ingredients/stock${qs({ warehouseId })}`),

@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import type { Ingredient } from '@mandalika/api'
+import { useEffect, useState } from 'react'
+import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { Edit2, Search, FlaskConical } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Badge, EmptyState } from '../../ui'
+import { Button, Badge, EmptyState, fieldClass } from '../../ui'
 import { IngredientFormModal } from './IngredientFormModal'
 
 const formatIDR = (n: number | null | undefined) => {
@@ -14,8 +14,10 @@ const formatIDR = (n: number | null | undefined) => {
 
 export default function DaftarTab() {
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Ingredient | null>(null)
+  const [categories, setCategories] = useState<IngredientCategory[]>([])
 
   const q = usePolledQuery<Ingredient[]>(
     () => api.listIngredients({ limit: 100 }).then((r) => r.data),
@@ -23,11 +25,27 @@ export default function DaftarTab() {
   )
   const ingredients = q.data ?? []
 
-  const filtered = ingredients.filter(
-    (i) =>
-      search.trim() === '' ||
-      i.name.toLowerCase().includes(search.toLowerCase()),
-  )
+  // Fetch categories for the filter dropdown
+  useEffect(() => {
+    let alive = true
+    api
+      .listIngredientCategories()
+      .then((cats) => { if (alive) setCategories(cats) })
+      .catch(() => { /* non-fatal */ })
+    return () => { alive = false }
+  }, [])
+
+  const filtered = ingredients.filter((i) => {
+    const q = search.trim().toLowerCase()
+    const matchesSearch =
+      q === '' ||
+      i.name.toLowerCase().includes(q) ||
+      (i.sku ?? '').toLowerCase().includes(q)
+    const matchesCategory =
+      categoryFilter === '' ||
+      i.categoryId === categoryFilter
+    return matchesSearch && matchesCategory
+  })
 
   const openAdd = () => {
     setEditing(null)
@@ -44,17 +62,34 @@ export default function DaftarTab() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="relative max-w-xs w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari bahan..."
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
-          />
+      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative max-w-xs w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari nama atau SKU..."
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
+            />
+          </div>
+
+          {/* Category filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={fieldClass + ' w-auto py-2'}
+          >
+            <option value="">Semua kategori</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
+
         <Button onClick={openAdd}>+ Tambah Bahan</Button>
       </div>
 
@@ -66,8 +101,8 @@ export default function DaftarTab() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<FlaskConical />}
-          title={search ? 'Tidak ditemukan' : 'Belum ada bahan'}
-          subtitle={search ? 'Coba kata kunci lain.' : 'Tambah bahan pertama untuk memulai.'}
+          title={search || categoryFilter ? 'Tidak ditemukan' : 'Belum ada bahan'}
+          subtitle={search || categoryFilter ? 'Coba kata kunci atau filter lain.' : 'Tambah bahan pertama untuk memulai.'}
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-gray-100">
@@ -78,7 +113,13 @@ export default function DaftarTab() {
                   Nama
                 </th>
                 <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
+                  SKU
+                </th>
+                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
                   Satuan
+                </th>
+                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
+                  Kategori
                 </th>
                 <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest text-right">
                   Biaya Default
@@ -96,7 +137,9 @@ export default function DaftarTab() {
               {filtered.map((ing) => (
                 <tr key={ing.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900">{ing.name}</td>
+                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{ing.sku || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{ing.unit}</td>
+                  <td className="px-4 py-3 text-gray-500">{ing.categoryName ?? '—'}</td>
                   <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
                     {formatIDR(ing.defaultUnitCost)}
                   </td>
