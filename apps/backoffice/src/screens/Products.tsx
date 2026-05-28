@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import {
   Plus, Edit2, Trash2, X, Upload, Package, Search,
-  Download, Tag, ChevronDown, ChevronRight, Store,
+  Download, Tag, ChevronDown, ChevronRight, Store, FlaskConical,
 } from 'lucide-react'
 import { api } from '../api'
+import { RecipeSlideOver } from './recipes/RecipeSlideOver'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
@@ -81,6 +82,16 @@ export default function Products() {
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm, setCatForm] = useState({ name: '', description: '' })
   const [delCatId, setDelCatId] = useState<string | null>(null)
+
+  // Recipe module: the per-variant "Resep" button only shows when the module flag
+  // is ON, mirroring how Gudang gates its "Bahan" tab (api.getAppSettings).
+  const [recipesEnabled, setRecipesEnabled] = useState(false)
+  const [recipeFor, setRecipeFor] = useState<{ variantId: string; label: string } | null>(null)
+  useEffect(() => {
+    let alive = true
+    api.getAppSettings().then((s) => { if (alive) setRecipesEnabled(s.recipesEnabled === true) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   const filtered = products.filter((p) => {
     const m =
@@ -674,7 +685,19 @@ export default function Products() {
                     title="Kosongkan untuk memakai SKU sebagai barcode"
                     className={`${fieldClass} col-span-2`}
                   />
-                  <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))} disabled={form.variants.length === 1} className="col-span-1 flex justify-center text-gray-300 hover:text-red-500 disabled:opacity-0"><X className="w-4 h-4" /></button>
+                  <div className="col-span-1 flex items-center justify-center gap-1">
+                    {recipesEnabled && (
+                      <button type="button" title={v.id ? 'Edit resep' : 'Simpan produk dulu'} disabled={!v.id}
+                        onClick={() => v.id && setRecipeFor({ variantId: v.id, label: `${form.name || 'Produk'} — ${v.size}` })}
+                        className="text-gray-400 hover:text-gold-600 disabled:opacity-30">
+                        <FlaskConical className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))}
+                      disabled={form.variants.length === 1} className="text-gray-300 hover:text-red-500 disabled:opacity-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -785,6 +808,15 @@ export default function Products() {
           <p className="text-sm text-gray-400">Data tidak dapat dikembalikan.</p>
         </div>
       </Modal>
+
+      {recipeFor && (
+        <RecipeSlideOver
+          productId={editing?.id ?? ''}
+          variantId={recipeFor.variantId}
+          variantLabel={recipeFor.label}
+          onClose={() => setRecipeFor(null)}
+        />
+      )}
     </div>
   )
 }
