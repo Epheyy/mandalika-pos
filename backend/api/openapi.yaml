@@ -3136,6 +3136,26 @@ paths:
                 required: [data]
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
+  /api/v1/sync/outlet-transfers:
+    get:
+      operationId: getOutletTransfers
+      tags: [sync]
+      summary: Completed/cancelled transfers involving the caller's outlet (incoming + outgoing)
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema: { type: string, enum: [completed, cancelled] }
+      responses:
+        '200':
+          description: outlet transfer history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
   /api/v1/uploads/sign:
     post:
       operationId: signUpload

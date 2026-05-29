@@ -1372,6 +1372,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/outlet-transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Completed/cancelled transfers involving the caller's outlet (incoming + outgoing) */
+        get: operations["getOutletTransfers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/uploads/sign": {
         parameters: {
             query?: never;
@@ -5449,6 +5466,30 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description in-transit transfers destined for the caller's outlet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Transfer"][];
+                    };
+                };
+            };
+        };
+    };
+    getOutletTransfers: {
+        parameters: {
+            query: {
+                status: "completed" | "cancelled";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description outlet transfer history */
             200: {
                 headers: {
                     [name: string]: unknown;
