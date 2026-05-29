@@ -10,7 +10,6 @@ import {
   UserCog,
   Tag,
   BarChart3,
-  ClipboardList,
   Settings,
   Receipt,
   AlertTriangle,
@@ -27,7 +26,6 @@ import Customers from './screens/Customers'
 import Promotions from './screens/Promotions'
 import Orders from './screens/Orders'
 import Reports from './screens/Reports'
-import StockCount from './screens/StockCount'
 import Warehouses from './screens/Warehouses'
 import Outlets from './screens/Outlets'
 import Users from './screens/Users'
@@ -41,8 +39,7 @@ const NAV = [
   { id: 'promotions', label: 'Promosi', icon: Tag, perm: 'manage_promotions', C: Promotions },
   { id: 'orders', label: 'Transaksi', icon: Receipt, perm: 'view_transactions', C: Orders },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
-  { id: 'stock', label: 'Stock Count', icon: ClipboardList, perm: 'manage_stock_count', C: StockCount },
-  { id: 'warehouses', label: 'Gudang', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
+  { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
   { id: 'outlets', label: 'Outlet', icon: Store, perm: 'manage_outlets', C: Outlets },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
@@ -111,7 +108,11 @@ export default function App() {
     if (!user) return []
     const isAdmin = user.role === 'admin'
     const perms = user.permissions || []
-    return NAV.filter((n) => isAdmin || perms.includes(n.perm))
+    return NAV.filter((n) => {
+      if (isAdmin) return true
+      if (n.id === 'warehouses') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
+      return perms.includes(n.perm)
+    })
   }, [user])
 
   const [activeId, setActiveId] = useState<string>('dashboard')
