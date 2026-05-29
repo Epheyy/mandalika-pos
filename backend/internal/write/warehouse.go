@@ -274,6 +274,9 @@ func (r *Repo) AdjustLocationStock(ctx context.Context, kind, locID, createdBy s
 // any POS low-stock consumer). par == nil clears the threshold.
 func (r *Repo) SetOutletPar(ctx context.Context, outletID, productID, variantSize string, par *int) error {
 	return r.bumpOutletTx(ctx, outletID, func(t pgx.Tx) error {
+		// First-insert path omits stock/available on purpose — their NOT NULL
+		// DEFAULTs (stock 0, available true) seed a fresh row; the conflict path
+		// touches only par_level, preserving any existing stock/available.
 		_, e := t.Exec(ctx,
 			`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, par_level)
 			 VALUES ($1,$2,$3,$4)

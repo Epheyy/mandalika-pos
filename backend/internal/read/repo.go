@@ -1076,7 +1076,7 @@ func (r *Repo) InventoryOverview(ctx context.Context) (api.InventoryOverviewResp
 		SELECT id::text, 'outlet' AS kind, name FROM outlets WHERE is_active
 		UNION ALL
 		SELECT id::text, 'warehouse' AS kind, name FROM warehouses WHERE is_active
-		ORDER BY kind DESC, name`) // 'outlet' > 'warehouse' so outlets sort first
+		ORDER BY kind ASC, name`) // 'outlet' < 'warehouse' lexically, so ASC puts outlets first
 	if err != nil {
 		return resp, err
 	}
