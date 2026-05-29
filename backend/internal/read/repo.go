@@ -337,6 +337,28 @@ func (r *Repo) VariantRecipe(ctx context.Context, variantID string) (api.Recipe,
 	return oneJSON[api.Recipe](ctx, r.Pool, sql, variantID)
 }
 
+// RecipeVariantIDs returns the ids of variants under a product that have a recipe.
+func (r *Repo) RecipeVariantIDs(ctx context.Context, productID string) ([]string, error) {
+	rows, err := r.Pool.Query(ctx,
+		`SELECT r.variant_id::text
+		   FROM recipes r
+		   JOIN product_variants v ON v.id = r.variant_id
+		  WHERE v.product_id = $1`, productID)
+	if err != nil {
+		return nil, fmt.Errorf("recipe variant ids: %w", err)
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan recipe variant id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // RecipeVersions lists version summaries (newest first) for a variant's recipe.
 // Returns an empty slice when there is no recipe.
 func (r *Repo) RecipeVersions(ctx context.Context, variantID string) ([]api.RecipeVersionSummary, error) {

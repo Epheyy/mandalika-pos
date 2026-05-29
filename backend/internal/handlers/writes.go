@@ -563,6 +563,15 @@ func (h *Handlers) VariantRecipe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.RecipeResponse{Data: rec})
 }
 
+func (h *Handlers) RecipeVariantIDs(w http.ResponseWriter, r *http.Request) {
+	ids, err := h.Repo.RecipeVariantIDs(r.Context(), chi.URLParam(r, "productId"))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RecipeVariantIdsResponse{VariantIds: ids})
+}
+
 func (h *Handlers) RecipeVersions(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.RecipeVersions(r.Context(), chi.URLParam(r, "variantId"))
 	if err != nil {
