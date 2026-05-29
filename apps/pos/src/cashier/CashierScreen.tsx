@@ -466,6 +466,42 @@ export default function CashierScreen() {
       })
   }
 
+  // Reprint a sales receipt for a past order (from the history panel). Reuses
+  // the same ReceiptData shape as checkout, but stamps the REPRINT marker.
+  // Orders carry every field the slip needs (no phone is stored on the order).
+  const reprintOrder = (o: Order) => {
+    if (!printer.isPaired) { showToast('Pasangkan printer untuk cetak ulang struk'); return }
+    const receipt: ReceiptData = {
+      orderRef: o.orderNumber,
+      pending: false,
+      dateTime: new Date(o.createdAt),
+      lines: o.items.map((i) => ({
+        name: i.productName,
+        variant: i.variantSize || undefined,
+        qty: i.quantity,
+        unitPrice: i.price,
+        amount: i.subtotal,
+      })),
+      subtotal: o.subtotal,
+      discountAmount: o.discountAmount,
+      taxAmount: o.taxAmount,
+      total: o.total,
+      paymentLabel: PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod,
+      amountPaid: o.amountPaid,
+      change: o.change,
+      customerName: o.customerName ?? null,
+      customerPhone: null,
+      cashierName: o.cashierName,
+    }
+    printer
+      .print(receipt, settings.receipt, true)
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Gagal mencetak struk'
+        showToast(msg)
+        void reportErrors([{ source: 'print', kind: 'receipt', action: `Cetak ulang struk ${o.orderNumber}`, message: msg, outletName: snapshot.outletName }])
+      })
+  }
+
   const handleRefundConfirm = (orderId: string, reason: string) => {
     setIsRefunding(true)
     try {
@@ -759,6 +795,8 @@ export default function CashierScreen() {
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
+        onReprint={reprintOrder}
+        canReprint={printer.isPaired}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding}

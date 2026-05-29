@@ -16,6 +16,10 @@ interface OrderHistoryPanelProps {
   isOpen: boolean
   onClose: () => void
   onRefund: (order: Order) => void
+  /** Reprint this order's sales receipt with the REPRINT marker. */
+  onReprint: (order: Order) => void
+  /** A printer is paired — gates the reprint button. */
+  canReprint: boolean
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -35,7 +39,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const [search, setSearch] = useState('')
@@ -259,10 +263,18 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund }: OrderHistoryPan
                           Refund: {o.refundReason}
                         </p>
                       )}
+                      <button
+                        onClick={() => onReprint(o)}
+                        disabled={!canReprint}
+                        title={canReprint ? undefined : 'Pasangkan printer untuk cetak ulang'}
+                        className="mt-3 w-full py-2 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                      >
+                        🖨 Cetak Ulang
+                      </button>
                       {o.status === 'completed' && (
                         <button
                           onClick={() => onRefund(o)}
-                          className="mt-3 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
+                          className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
                         >
                           Refund Transaksi Ini
                         </button>
