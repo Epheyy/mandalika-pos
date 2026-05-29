@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oapi-codegen/nullable"
 
 	"github.com/mandalika/pos-backend/internal/api"
 )
@@ -967,7 +969,9 @@ func (r *Repo) LocationStock(ctx context.Context, kind, id string) ([]api.Wareho
 		  'productId', v.product_id, 'productName', p.name, 'variantSize', v.size,
 		  'sku', v.sku,
 		  'stock', COALESCE((SELECT s.stock FROM outlet_variant_stock s
-		     WHERE s.outlet_id=$1 AND s.product_id=v.product_id AND s.variant_size=v.size),0))
+		     WHERE s.outlet_id=$1 AND s.product_id=v.product_id AND s.variant_size=v.size),0),
+		  'parLevel', (SELECT s.par_level FROM outlet_variant_stock s
+		     WHERE s.outlet_id=$1 AND s.product_id=v.product_id AND s.variant_size=v.size))
 		FROM product_variants v JOIN products p ON p.id=v.product_id
 		ORDER BY p.name, v.size`, id)
 	return rows, err
@@ -1059,4 +1063,136 @@ func (r *Repo) RecipesEnabled(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("read recipes_enabled: %w", err)
 	}
 	return enabled, nil
+}
+
+// InventoryOverview returns the read-only product-stock matrix: every active
+// location (outlets then warehouses) × every active product variant, with a
+// per-row total and a per-outlet-cell belowPar flag for low-stock highlighting.
+func (r *Repo) InventoryOverview(ctx context.Context) (api.InventoryOverviewResponse, error) {
+	var resp api.InventoryOverviewResponse
+
+	// 1) Locations (outlets first, then warehouses), active only.
+	lrows, err := r.Pool.Query(ctx, `
+		SELECT id::text, 'outlet' AS kind, name FROM outlets WHERE is_active
+		UNION ALL
+		SELECT id::text, 'warehouse' AS kind, name FROM warehouses WHERE is_active
+		ORDER BY kind DESC, name`) // 'outlet' > 'warehouse' so outlets sort first
+	if err != nil {
+		return resp, err
+	}
+	defer lrows.Close()
+	for lrows.Next() {
+		var idStr string
+		var kindStr string
+		var name string
+		if err := lrows.Scan(&idStr, &kindStr, &name); err != nil {
+			return resp, err
+		}
+		locID, err := uuid.Parse(idStr)
+		if err != nil {
+			return resp, fmt.Errorf("parse location id %q: %w", idStr, err)
+		}
+		resp.Locations = append(resp.Locations, api.InventoryOverviewLocation{
+			Id:   locID,
+			Kind: api.InventoryOverviewLocationKind(kindStr),
+			Name: name,
+		})
+	}
+	if err := lrows.Err(); err != nil {
+		return resp, err
+	}
+
+	// 2) Per-(variant, location) stock + outlet par_level, assembled in memory.
+	type cellKey struct{ pid, size, loc string }
+	stockByCell := map[cellKey]int{}
+	parByCell := map[cellKey]*int{}
+
+	orows, err := r.Pool.Query(ctx,
+		`SELECT product_id::text, variant_size, outlet_id::text, stock, par_level FROM outlet_variant_stock`)
+	if err != nil {
+		return resp, err
+	}
+	for orows.Next() {
+		var pid, size, loc string
+		var stock int
+		var par *int
+		if err := orows.Scan(&pid, &size, &loc, &stock, &par); err != nil {
+			orows.Close()
+			return resp, err
+		}
+		k := cellKey{pid, size, loc}
+		stockByCell[k] = stock
+		parByCell[k] = par
+	}
+	orows.Close()
+	if err := orows.Err(); err != nil {
+		return resp, err
+	}
+
+	wrows, err := r.Pool.Query(ctx,
+		`SELECT product_id::text, variant_size, warehouse_id::text, stock FROM warehouse_variant_stock`)
+	if err != nil {
+		return resp, err
+	}
+	for wrows.Next() {
+		var pid, size, loc string
+		var stock int
+		if err := wrows.Scan(&pid, &size, &loc, &stock); err != nil {
+			wrows.Close()
+			return resp, err
+		}
+		stockByCell[cellKey{pid, size, loc}] = stock
+	}
+	wrows.Close()
+	if err := wrows.Err(); err != nil {
+		return resp, err
+	}
+
+	// 3) Rows = active product variants (full catalog).
+	vrows, err := r.Pool.Query(ctx, `
+		SELECT v.product_id::text, p.name, v.size, v.sku
+		FROM product_variants v JOIN products p ON p.id=v.product_id
+		WHERE p.is_active
+		ORDER BY p.name, v.size`)
+	if err != nil {
+		return resp, err
+	}
+	defer vrows.Close()
+	for vrows.Next() {
+		var pid, name, size string
+		var sku *string
+		if err := vrows.Scan(&pid, &name, &size, &sku); err != nil {
+			return resp, err
+		}
+		prodID, err := uuid.Parse(pid)
+		if err != nil {
+			return resp, fmt.Errorf("parse product id %q: %w", pid, err)
+		}
+		row := api.InventoryOverviewRow{
+			ProductId:   prodID,
+			ProductName: name,
+			VariantSize: size,
+			Sku:         sku,
+		}
+		total := 0
+		for _, l := range resp.Locations {
+			locStr := l.Id.String()
+			k := cellKey{pid, size, locStr}
+			stock := stockByCell[k]
+			total += stock
+			cell := api.InventoryOverviewCell{LocationId: l.Id, Stock: stock}
+			if l.Kind == api.InventoryOverviewLocationKindOutlet {
+				if par := parByCell[k]; par != nil && stock <= *par {
+					cell.BelowPar = nullable.NewNullableWithValue(true)
+				}
+			}
+			row.Cells = append(row.Cells, cell)
+		}
+		row.Total = total
+		resp.Rows = append(resp.Rows, row)
+	}
+	if err := vrows.Err(); err != nil {
+		return resp, err
+	}
+	return resp, nil
 }
