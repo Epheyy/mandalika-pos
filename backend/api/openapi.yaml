@@ -294,7 +294,7 @@ components:
       properties:
         variantIds:
           type: array
-          items: { type: string, format: uuid }
+          items: { type: string }
     RecipeSaveItem:
       type: object
       required: [ingredientId, qty, sortOrder]
