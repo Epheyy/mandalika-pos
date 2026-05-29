@@ -248,24 +248,6 @@ func (h *Handlers) WarehouseStock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
 }
 
-func (h *Handlers) CreateGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-	g, ok := decodeWrite[write.GoodsReceipt](w, r)
-	if !ok {
-		return
-	}
-	c, _ := h.caller(r)
-	h.mutated(w, r, h.Write.CreateGoodsReceipt(r.Context(), chi.URLParam(r, "id"), c.userID, g))
-}
-
-func (h *Handlers) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request) {
-	a, ok := decodeWrite[write.WarehouseAdjust](w, r)
-	if !ok {
-		return
-	}
-	c, _ := h.caller(r)
-	h.mutated(w, r, h.Write.AdjustWarehouseStock(r.Context(), chi.URLParam(r, "id"), c.userID, a))
-}
-
 // ── Transfers (Backoffice; mesh warehouse/outlet) ─────────
 
 func (h *Handlers) Transfers(w http.ResponseWriter, r *http.Request) {

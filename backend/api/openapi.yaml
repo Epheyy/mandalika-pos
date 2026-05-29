@@ -2082,50 +2082,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InventoryOverviewResponse' }
-  /api/v1/warehouses/{id}/goods-receipt:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: createGoodsReceipt
-      tags: [catalog]
-      summary: Receive goods into warehouse (Backoffice)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/GoodsReceiptInput' }
-      responses:
-        '200':
-          description: ok
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/OkResponse' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /api/v1/warehouses/{id}/adjust:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: adjustWarehouseStock
-      tags: [catalog]
-      summary: Adjust warehouse stock to a new quantity (Backoffice)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
-      responses:
-        '200':
-          description: ok
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/OkResponse' }
-        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/ingredients:
     get:
       operationId: listIngredients

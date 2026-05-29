@@ -187,8 +187,6 @@ export interface Api {
   updateWarehouse: (id: string, input: WarehouseInput) => Promise<void>
   deleteWarehouse: (id: string) => Promise<void>
   getWarehouseStock: (id: string) => Promise<WarehouseStockRow[]>
-  createGoodsReceipt: (id: string, input: GoodsReceiptInput) => Promise<void>
-  adjustWarehouseStock: (id: string, input: WarehouseAdjustInput) => Promise<void>
   createLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: GoodsReceiptInput) => Promise<void>
   adjustLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: WarehouseAdjustInput) => Promise<void>
   setOutletPar: (outletId: string, input: OutletParInput) => Promise<void>
@@ -438,12 +436,6 @@ export function createClient(opts: ClientOptions): Api {
     },
     getWarehouseStock: (id) =>
       data<WarehouseStockRow[]>('GET', `${API}/warehouses/${id}/stock`),
-    createGoodsReceipt: async (id, input) => {
-      await request('POST', `${API}/warehouses/${id}/goods-receipt`, input)
-    },
-    adjustWarehouseStock: async (id, input) => {
-      await request('POST', `${API}/warehouses/${id}/adjust`, input)
-    },
     createLocationGoodsReceipt: async (loc, input) => {
       await request('POST', `${API}/inventory/goods-receipt?kind=${loc.kind}&id=${loc.id}`, input)
     },

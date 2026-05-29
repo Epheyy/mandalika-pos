@@ -474,44 +474,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/warehouses/{id}/goods-receipt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Receive goods into warehouse (Backoffice) */
-        post: operations["createGoodsReceipt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/warehouses/{id}/adjust": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Adjust warehouse stock to a new quantity (Backoffice) */
-        post: operations["adjustWarehouseStock"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/ingredients": {
         parameters: {
             query?: never;
@@ -3760,60 +3722,6 @@ export interface operations {
                     "application/json": components["schemas"]["InventoryOverviewResponse"];
                 };
             };
-        };
-    };
-    createGoodsReceipt: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GoodsReceiptInput"];
-            };
-        };
-        responses: {
-            /** @description ok */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OkResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    adjustWarehouseStock: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WarehouseAdjustInput"];
-            };
-        };
-        responses: {
-            /** @description ok */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OkResponse"];
-                };
-            };
-            404: components["responses"]["NotFound"];
         };
     };
     listIngredients: {

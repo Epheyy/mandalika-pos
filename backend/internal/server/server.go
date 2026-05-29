@@ -172,8 +172,6 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/warehouses", h.CreateWarehouse)
 				r.Put("/warehouses/{id}", h.UpdateWarehouse)
 				r.Delete("/warehouses/{id}", h.DeleteWarehouse)
-				r.Post("/warehouses/{id}/goods-receipt", h.CreateGoodsReceipt)
-				r.Post("/warehouses/{id}/adjust", h.AdjustWarehouseStock)
 				// inventory location stock ops (polymorphic: outlet OR warehouse)
 				r.Post("/inventory/goods-receipt", h.CreateLocationGoodsReceipt)
 				r.Post("/inventory/adjust", h.AdjustLocationStock)

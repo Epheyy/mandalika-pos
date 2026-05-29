@@ -2144,12 +2144,6 @@ type CreateWarehouseJSONRequestBody = WarehouseInput
 // UpdateWarehouseJSONRequestBody defines body for UpdateWarehouse for application/json ContentType.
 type UpdateWarehouseJSONRequestBody = WarehouseInput
 
-// AdjustWarehouseStockJSONRequestBody defines body for AdjustWarehouseStock for application/json ContentType.
-type AdjustWarehouseStockJSONRequestBody = WarehouseAdjustInput
-
-// CreateGoodsReceiptJSONRequestBody defines body for CreateGoodsReceipt for application/json ContentType.
-type CreateGoodsReceiptJSONRequestBody = GoodsReceiptInput
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Email/password login → JWT access + refresh
@@ -2506,12 +2500,6 @@ type ServerInterface interface {
 	// Update warehouse (Backoffice)
 	// (PUT /api/v1/warehouses/{id})
 	UpdateWarehouse(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Adjust warehouse stock to a new quantity (Backoffice)
-	// (POST /api/v1/warehouses/{id}/adjust)
-	AdjustWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Receive goods into warehouse (Backoffice)
-	// (POST /api/v1/warehouses/{id}/goods-receipt)
-	CreateGoodsReceipt(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Warehouse stock rows (Backoffice)
 	// (GET /api/v1/warehouses/{id}/stock)
 	GetWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -3203,18 +3191,6 @@ func (_ Unimplemented) DeleteWarehouse(w http.ResponseWriter, r *http.Request, i
 // Update warehouse (Backoffice)
 // (PUT /api/v1/warehouses/{id})
 func (_ Unimplemented) UpdateWarehouse(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Adjust warehouse stock to a new quantity (Backoffice)
-// (POST /api/v1/warehouses/{id}/adjust)
-func (_ Unimplemented) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Receive goods into warehouse (Backoffice)
-// (POST /api/v1/warehouses/{id}/goods-receipt)
-func (_ Unimplemented) CreateGoodsReceipt(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -7364,68 +7340,6 @@ func (siw *ServerInterfaceWrapper) UpdateWarehouse(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
-// AdjustWarehouseStock operation middleware
-func (siw *ServerInterfaceWrapper) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AdjustWarehouseStock(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreateGoodsReceipt operation middleware
-func (siw *ServerInterfaceWrapper) CreateGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateGoodsReceipt(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 // GetWarehouseStock operation middleware
 func (siw *ServerInterfaceWrapper) GetWarehouseStock(w http.ResponseWriter, r *http.Request) {
 
@@ -7937,12 +7851,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/warehouses/{id}", wrapper.UpdateWarehouse)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/warehouses/{id}/adjust", wrapper.AdjustWarehouseStock)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/warehouses/{id}/goods-receipt", wrapper.CreateGoodsReceipt)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/warehouses/{id}/stock", wrapper.GetWarehouseStock)
@@ -10465,60 +10373,6 @@ func (response UpdateWarehouse404JSONResponse) VisitUpdateWarehouseResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type AdjustWarehouseStockRequestObject struct {
-	Id   openapi_types.UUID `json:"id"`
-	Body *AdjustWarehouseStockJSONRequestBody
-}
-
-type AdjustWarehouseStockResponseObject interface {
-	VisitAdjustWarehouseStockResponse(w http.ResponseWriter) error
-}
-
-type AdjustWarehouseStock200JSONResponse OkResponse
-
-func (response AdjustWarehouseStock200JSONResponse) VisitAdjustWarehouseStockResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type AdjustWarehouseStock404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response AdjustWarehouseStock404JSONResponse) VisitAdjustWarehouseStockResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type CreateGoodsReceiptRequestObject struct {
-	Id   openapi_types.UUID `json:"id"`
-	Body *CreateGoodsReceiptJSONRequestBody
-}
-
-type CreateGoodsReceiptResponseObject interface {
-	VisitCreateGoodsReceiptResponse(w http.ResponseWriter) error
-}
-
-type CreateGoodsReceipt200JSONResponse OkResponse
-
-func (response CreateGoodsReceipt200JSONResponse) VisitCreateGoodsReceiptResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type CreateGoodsReceipt404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response CreateGoodsReceipt404JSONResponse) VisitCreateGoodsReceiptResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
 type GetWarehouseStockRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -10924,12 +10778,6 @@ type StrictServerInterface interface {
 	// Update warehouse (Backoffice)
 	// (PUT /api/v1/warehouses/{id})
 	UpdateWarehouse(ctx context.Context, request UpdateWarehouseRequestObject) (UpdateWarehouseResponseObject, error)
-	// Adjust warehouse stock to a new quantity (Backoffice)
-	// (POST /api/v1/warehouses/{id}/adjust)
-	AdjustWarehouseStock(ctx context.Context, request AdjustWarehouseStockRequestObject) (AdjustWarehouseStockResponseObject, error)
-	// Receive goods into warehouse (Backoffice)
-	// (POST /api/v1/warehouses/{id}/goods-receipt)
-	CreateGoodsReceipt(ctx context.Context, request CreateGoodsReceiptRequestObject) (CreateGoodsReceiptResponseObject, error)
 	// Warehouse stock rows (Backoffice)
 	// (GET /api/v1/warehouses/{id}/stock)
 	GetWarehouseStock(ctx context.Context, request GetWarehouseStockRequestObject) (GetWarehouseStockResponseObject, error)
@@ -14371,72 +14219,6 @@ func (sh *strictHandler) UpdateWarehouse(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-// AdjustWarehouseStock operation middleware
-func (sh *strictHandler) AdjustWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	var request AdjustWarehouseStockRequestObject
-
-	request.Id = id
-
-	var body AdjustWarehouseStockJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.AdjustWarehouseStock(ctx, request.(AdjustWarehouseStockRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AdjustWarehouseStock")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(AdjustWarehouseStockResponseObject); ok {
-		if err := validResponse.VisitAdjustWarehouseStockResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// CreateGoodsReceipt operation middleware
-func (sh *strictHandler) CreateGoodsReceipt(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	var request CreateGoodsReceiptRequestObject
-
-	request.Id = id
-
-	var body CreateGoodsReceiptJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateGoodsReceipt(ctx, request.(CreateGoodsReceiptRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateGoodsReceipt")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(CreateGoodsReceiptResponseObject); ok {
-		if err := validResponse.VisitCreateGoodsReceiptResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // GetWarehouseStock operation middleware
 func (sh *strictHandler) GetWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request GetWarehouseStockRequestObject
@@ -14659,11 +14441,10 @@ var swaggerSpec = []string{
 	"1786VKuhwBmMN7iSDk5P0XaSlsDOpkz8LSc4UhZdPfXBgkYkwhvoUBeCwLeLBYEqSHKkJ9HDxCM9M2xZ",
 	"jD9pnhveJwcjqoRwjFiTVgQc+Zg3oeCWExzpOrWVxgrAeKTQkD5ym58bzlNMmgoU6ZWopleYPOBidzcq",
 	"ZYlZx4RsUb17o+8tR/ctpQmCWvm2X5tVi+o5iFk4EpvNkZ/LZodwA7YZDhbUDlvgzga2q1O9gGE2cZG9",
-	"h+ZQ71fLrKRF4E5fxf/DzlLQAWVH30lPke8fXHzlKDJiFzc9mstFF9as3svM/p3Ljg7jD1OndNzSpHW+",
-	"2S9Qejw/u9ozDlBF/AFUDB3Hl2uVGB1Hy7ReaDuE/+jXvzUBGorcn2vyqK6NT2KvloRbI5iI9e9eGn2v",
-	"vs9Cq2t7HKMxShGJEYl2IKZ3xquDooxhsZtd/PKual5vEUFcYhbGWP4Fzp4/A1+AaxRjbmMLZmIt+a86",
-	"2B+zWwQZYk/l14tf3kkFol2oGpEZS2YXs7UQ6cVChV4ka8rFxddPvn6ivJVm9D9yLKtZ7ufF/zmN7J9M",
-	"LUZu/2gnPyt/1XFT9g9Ffofyt9xnWfyQ54a5f3f//wMAAP//BDtXpSmHAQA=",
+	"h+ZQ71fLrKRF4E5fxf/DzlLQAWVH30lPke8fXHzlKDLSXpC4el0yO4mLmVrVzaEI/blWxFNd6JyEFEnC",
+	"rRFMxPp3L42+V99noXVvPS6LGKWIxIhEOxDTO3PeQlHGsNjNLn55V934toggLjELYyz/AmfPn4EvwDWK",
+	"MbexBTOxlvxXHeyP2S2CDLGn8uvFL++kttDODY3IjCWzi9laiPRioS5FkzXl4uLrJ18/UX4EM/ofOZbV",
+	"LPfz4v+cRvZPpkoat3+00xKVv+qIBvuH4uV1+VvuTSh+yLM23L+7//8BAAD///VHAC/DggEA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
