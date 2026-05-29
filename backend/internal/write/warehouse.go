@@ -7,6 +7,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// OutletPar is the write-side input for setting a per-variant PAR (low-stock
+// threshold) on an outlet. ParLevel nil clears the threshold.
+type OutletPar struct {
+	ProductID   string `json:"productId"`
+	VariantSize string `json:"variantSize"`
+	ParLevel    *int   `json:"parLevel"`
+}
+
 type Warehouse struct {
 	Name     string `json:"name"`
 	Code     string `json:"code"`
