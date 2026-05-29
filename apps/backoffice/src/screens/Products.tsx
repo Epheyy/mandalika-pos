@@ -28,7 +28,7 @@ import {
   fieldClass,
 } from '../ui'
 
-const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '', barcode: '' }
+const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '', barcode: '' } // stock kept at 0; UI no longer shows it (managed in Inventori)
 const MAX_IMAGES = 5
 type Form = {
   name: string; brand: string; categoryId: string; description: string
@@ -42,8 +42,9 @@ const EMPTY: Form = {
 }
 
 // Per-outlet editable row for one (outlet, variant): null price = use base.
-type OcRow = { stock: number; price: number | null; available: boolean; parLevel: number | null }
-const EMPTY_OC: OcRow = { stock: 0, price: null, available: true, parLevel: null }
+// Stock + PAR are managed in the Inventori module; only price + availability here.
+type OcRow = { price: number | null; available: boolean }
+const EMPTY_OC: OcRow = { price: null, available: true }
 
 export default function Products() {
   const { outletId } = useOutlet()
@@ -143,7 +144,7 @@ export default function Products() {
       const m: Record<string, OcRow> = {}
       for (const r of cfg) {
         oMap.set(r.outletId, r.outletName)
-        m[`${r.outletId}|${r.variantSize}`] = { stock: r.stock, price: r.price ?? null, available: r.available, parLevel: r.parLevel ?? null }
+        m[`${r.outletId}|${r.variantSize}`] = { price: r.price ?? null, available: r.available }
       }
       setOcfgOutlets([...oMap].map(([id, name]) => ({ id, name })))
       setOcfgMap(m)
@@ -217,7 +218,7 @@ export default function Products() {
     }
     setForm((f) => {
       const v = [...f.variants]
-      v[i] = { ...v[i], [k]: k === 'price' || k === 'stock' ? Number(val) : val }
+      v[i] = { ...v[i], [k]: k === 'price' ? Number(val) : val }
       return { ...f, variants: v }
     })
   }
@@ -244,7 +245,8 @@ export default function Products() {
         isFeatured: form.isFeatured,
         variants: form.variants.map((v) => ({
           id: v.id, size: v.size.trim(), price: Number(v.price),
-          stock: Number(v.stock), sku: v.sku.trim(),
+          stock: 0, // stock managed in Inventori; kept as 0 to satisfy ProductVariant type
+          sku: v.sku.trim(),
           barcode: (v.barcode ?? '').trim() || v.sku.trim(),
         })),
       }
@@ -256,14 +258,16 @@ export default function Products() {
               .filter((v) => v.size.trim())
               .map((v) => {
                 const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
+                // price + available only; stock/PAR owned by Inventori.
+                // stock:0 + outletName satisfy the current OutletVariantConfig
+                // type until the client type is regenerated (B1).
                 return {
                   outletId: o.id,
                   outletName: o.name,
                   variantSize: v.size.trim(),
-                  stock: c.stock,
+                  stock: 0,
                   price: c.price,
                   available: c.available,
-                  parLevel: c.parLevel,
                 }
               }),
           )
@@ -292,7 +296,7 @@ export default function Products() {
       p.variants.map((v) => ({
         Nama: p.name, Brand: p.brand, Kategori: catName(p.categoryId),
         Deskripsi: p.description || '', Ukuran: v.size, Harga: v.price,
-        Stok: v.stock, SKU: v.sku, Barcode: v.barcode || v.sku,
+        SKU: v.sku, Barcode: v.barcode || v.sku,
         Jual: p.sellable === false ? 'Tidak' : 'Ya',
         Aktif: p.isActive ? 'Ya' : 'Tidak',
         Unggulan: p.isFeatured ? 'Ya' : 'Tidak',
@@ -309,8 +313,8 @@ export default function Products() {
   // First row leaves Barcode blank to show it defaults to the SKU.
   const downloadTemplate = () => {
     const example = [
-      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, Stok: 10, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
-      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, Stok: 5, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
     ]
     exportToCSV(example, 'template_produk_mandalika')
   }
@@ -334,7 +338,8 @@ export default function Products() {
       if (!grouped[key]) grouped[key] = { row, variants: [] }
       grouped[key].variants.push({
         size: row['Ukuran'] || '', price: parseFloat(row['Harga']) || 0,
-        stock: parseInt(row['Stok']) || 0, sku: row['SKU'].trim(),
+        stock: 0, // stock managed in Inventori; not imported via CSV
+        sku: row['SKU'].trim(),
         barcode: (row['Barcode'] || '').trim() || row['SKU'].trim(),
       })
     }
@@ -664,8 +669,7 @@ export default function Products() {
             </div>
             {!editing && (
               <p className="text-[11px] text-gray-400 mb-2 -mt-1 flex items-center gap-1">
-                <Store className="w-3 h-3" /> Harga dasar di sini. Stok diatur per outlet
-                setelah produk dibuat (Edit → Stok &amp; Harga per Outlet).
+                <Store className="w-3 h-3" /> Harga dasar di sini. Stok diatur di menu Inventori.
               </p>
             )}
             <div className="grid grid-cols-12 gap-2 px-1 mb-1">
@@ -716,7 +720,7 @@ export default function Products() {
           {editing && (
             <div>
               <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                Stok &amp; Harga per Outlet
+                Harga &amp; Ketersediaan per Outlet
               </label>
               {ocfgLoading ? (
                 <p className="text-sm text-gray-400 py-3">Memuat data outlet…</p>
@@ -748,9 +752,7 @@ export default function Products() {
                               <>
                                 <div className="grid grid-cols-12 gap-2 px-1">
                                   <span className="col-span-5" />
-                                  <span className="col-span-2 text-[10px] font-bold text-gray-400">Stok</span>
-                                  <span className="col-span-3 text-[10px] font-bold text-gray-400">Harga</span>
-                                  <span className="col-span-2 text-[10px] font-bold text-gray-400">PAR</span>
+                                  <span className="col-span-7 text-[10px] font-bold text-gray-400">Harga</span>
                                 </div>
                                 {sizes.map((v) => {
                                   const c = ocGet(o.id, v.size)
@@ -760,9 +762,7 @@ export default function Products() {
                                         <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
                                       </label>
                                       <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
-                                      <input type="number" value={c.stock === 0 ? '' : c.stock} onChange={(e) => ocSet(o.id, v.size, { stock: e.target.value === '' ? 0 : Number(e.target.value) })} placeholder="0" disabled={!c.available} className={`${fieldClass} col-span-2 py-1.5 disabled:opacity-40`} />
-                                      <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-3 py-1.5 disabled:opacity-40`} />
-                                      <input type="number" value={c.parLevel ?? ''} onChange={(e) => ocSet(o.id, v.size, { parLevel: e.target.value === '' ? null : Number(e.target.value) })} placeholder="—" disabled={!c.available} title="Batas stok menipis (low-stock)" className={`${fieldClass} col-span-2 py-1.5 disabled:opacity-40`} />
+                                      <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
                                     </div>
                                   )
                                 })}
