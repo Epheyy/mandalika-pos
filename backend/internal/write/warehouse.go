@@ -143,3 +143,134 @@ func (r *Repo) AdjustWarehouseStock(ctx context.Context, warehouseID, createdBy 
 		return e
 	})
 }
+
+// bumpOutletTx runs fn in a tx and, on success, bumps ONLY the given outlet's
+// content_version under "products" so the POS re-syncs the new on-hand.
+func (r *Repo) bumpOutletTx(ctx context.Context, outletID string, fn func(pgx.Tx) error) error {
+	t, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer t.Rollback(ctx)
+	if err := fn(t); err != nil {
+		return err
+	}
+	if err := bumpVersionOutlets(ctx, t, "products", []string{outletID}); err != nil {
+		return fmt.Errorf("bump version: %w", err)
+	}
+	return t.Commit(ctx)
+}
+
+// CreateLocationGoodsReceipt records a goods-in for an outlet OR warehouse and
+// INCREMENTS that location's stock per line. Outlet writes bump the outlet's
+// content_version; warehouse writes do not.
+func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, createdBy string, g GoodsReceipt) error {
+	if err := validateGoodsReceipt(kind, g.Items); err != nil {
+		return err
+	}
+	var whID, outID any
+	if kind == "warehouse" {
+		whID = locID
+	} else {
+		outID = locID
+	}
+	work := func(t pgx.Tx) error {
+		var rid string
+		if e := t.QueryRow(ctx,
+			`INSERT INTO goods_receipts (warehouse_id, outlet_id, supplier, note, created_by)
+			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+			whID, outID, nullStr(g.Supplier), nullStr(g.Note), nullUUID(createdBy)).Scan(&rid); e != nil {
+			return e
+		}
+		for _, it := range g.Items {
+			if _, e := t.Exec(ctx,
+				`INSERT INTO goods_receipt_items (receipt_id, product_id, variant_size, qty, unit_cost)
+				 VALUES ($1,$2,$3,$4,$5)`,
+				rid, it.ProductID, it.VariantSize, it.Qty, it.UnitCost); e != nil {
+				return e
+			}
+			if kind == "warehouse" {
+				if _, e := t.Exec(ctx,
+					`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
+					 VALUES ($1,$2,$3,$4)
+					 ON CONFLICT (warehouse_id, product_id, variant_size)
+					   DO UPDATE SET stock = warehouse_variant_stock.stock + EXCLUDED.stock`,
+					locID, it.ProductID, it.VariantSize, it.Qty); e != nil {
+					return e
+				}
+			} else {
+				// outlet: touch ONLY stock — preserve available + par_level.
+				if _, e := t.Exec(ctx,
+					`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+					 VALUES ($1,$2,$3,$4)
+					 ON CONFLICT (outlet_id, product_id, variant_size)
+					   DO UPDATE SET stock = outlet_variant_stock.stock + EXCLUDED.stock`,
+					locID, it.ProductID, it.VariantSize, it.Qty); e != nil {
+					return e
+				}
+			}
+		}
+		return nil
+	}
+	if kind == "warehouse" {
+		return r.noBumpTx(ctx, work)
+	}
+	return r.bumpOutletTx(ctx, locID, work)
+}
+
+// AdjustLocationStock SETS the absolute on-hand qty for an outlet OR warehouse +
+// logs the correction. Outlet writes touch ONLY stock (preserve available +
+// par_level) and bump the outlet's content_version.
+func (r *Repo) AdjustLocationStock(ctx context.Context, kind, locID, createdBy string, a WarehouseAdjust) error {
+	if err := validateLocationAdjust(kind, a.NewQty, a.Reason); err != nil {
+		return err
+	}
+	var whID, outID any
+	if kind == "warehouse" {
+		whID = locID
+	} else {
+		outID = locID
+	}
+	work := func(t pgx.Tx) error {
+		if kind == "warehouse" {
+			if _, e := t.Exec(ctx,
+				`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
+				 VALUES ($1,$2,$3,$4)
+				 ON CONFLICT (warehouse_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+				locID, a.ProductID, a.VariantSize, a.NewQty); e != nil {
+				return e
+			}
+		} else {
+			if _, e := t.Exec(ctx,
+				`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+				 VALUES ($1,$2,$3,$4)
+				 ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+				locID, a.ProductID, a.VariantSize, a.NewQty); e != nil {
+				return e
+			}
+		}
+		_, e := t.Exec(ctx,
+			`INSERT INTO warehouse_stock_adjustments (warehouse_id, outlet_id, product_id, variant_size, new_qty, reason, created_by)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			whID, outID, a.ProductID, a.VariantSize, a.NewQty, a.Reason, nullUUID(createdBy))
+		return e
+	}
+	if kind == "warehouse" {
+		return r.noBumpTx(ctx, work)
+	}
+	return r.bumpOutletTx(ctx, locID, work)
+}
+
+// SetOutletPar upserts ONLY par_level for one (outlet, product, variant),
+// preserving stock + available. Bumps the outlet version (cheap; future-proofs
+// any POS low-stock consumer). par == nil clears the threshold.
+func (r *Repo) SetOutletPar(ctx context.Context, outletID, productID, variantSize string, par *int) error {
+	return r.bumpOutletTx(ctx, outletID, func(t pgx.Tx) error {
+		_, e := t.Exec(ctx,
+			`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, par_level)
+			 VALUES ($1,$2,$3,$4)
+			 ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET par_level=EXCLUDED.par_level`,
+			outletID, productID, variantSize, par)
+		return e
+	})
+}
