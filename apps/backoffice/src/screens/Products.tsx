@@ -258,14 +258,10 @@ export default function Products() {
               .filter((v) => v.size.trim())
               .map((v) => {
                 const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
-                // price + available only; stock/PAR owned by Inventori.
-                // stock:0 + outletName satisfy the current OutletVariantConfig
-                // type until the client type is regenerated (B1).
+                // price + available only; stock/PAR are owned by Inventori.
                 return {
                   outletId: o.id,
-                  outletName: o.name,
                   variantSize: v.size.trim(),
-                  stock: 0,
                   price: c.price,
                   available: c.available,
                 }

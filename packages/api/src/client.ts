@@ -60,6 +60,7 @@ export type PromotionInput = S['PromotionInput']
 export type DiscountCodeInput = S['DiscountCodeInput']
 export type OutletInput = S['OutletInput']
 export type OutletVariantConfig = S['OutletVariantConfig']
+export type OutletConfigItemInput = S['OutletConfigItemInput']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
 export type SetReceivePinRequest = S['SetReceivePinRequest']
@@ -128,7 +129,7 @@ export interface Api {
   /** Single product at base/all-outlet scope (base price, summed stock). */
   getProduct: (id: string) => Promise<Product>
   getProductOutletConfig: (id: string) => Promise<OutletVariantConfig[]>
-  updateProductOutletConfig: (id: string, items: OutletVariantConfig[]) => Promise<void>
+  updateProductOutletConfig: (id: string, items: OutletConfigItemInput[]) => Promise<void>
   listCategories: () => Promise<Category[]>
   createCategory: (input: CategoryInput) => Promise<Category>
   updateCategory: (id: string, input: CategoryInput) => Promise<Category>
