@@ -783,6 +783,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{productId}/recipe-variant-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Variant ids under a product that have a recipe */
+        get: operations["getRecipeVariantIds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transfers": {
         parameters: {
             query?: never;
@@ -1603,6 +1620,9 @@ export interface components {
         };
         RecipeVersionListResponse: {
             data: components["schemas"]["RecipeVersionSummary"][];
+        };
+        RecipeVariantIdsResponse: {
+            variantIds: string[];
         };
         RecipeSaveItem: {
             /** Format: uuid */
@@ -4219,6 +4239,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getRecipeVariantIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description variant ids with a recipe */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeVariantIdsResponse"];
+                };
             };
         };
     };

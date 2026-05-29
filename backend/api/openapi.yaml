@@ -288,6 +288,13 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/RecipeVersionSummary' } }
+    RecipeVariantIdsResponse:
+      type: object
+      required: [variantIds]
+      properties:
+        variantIds:
+          type: array
+          items: { type: string, format: uuid }
     RecipeSaveItem:
       type: object
       required: [ingredientId, qty, sortOrder]
@@ -2328,6 +2335,19 @@ paths:
       responses:
         '201': { description: restored as a new version }
         '409': { description: version conflict }
+  /api/v1/products/{productId}/recipe-variant-ids:
+    get:
+      operationId: getRecipeVariantIds
+      tags: [catalog]
+      summary: Variant ids under a product that have a recipe
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: variant ids with a recipe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipeVariantIdsResponse' }
   /api/v1/transfers:
     get:
       operationId: listTransfers
