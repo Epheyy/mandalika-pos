@@ -87,6 +87,7 @@ export default function Products() {
   // is ON, mirroring how Gudang gates its "Bahan" tab (api.getAppSettings).
   const [recipesEnabled, setRecipesEnabled] = useState(false)
   const [recipeFor, setRecipeFor] = useState<{ variantId: string; label: string } | null>(null)
+  const [recipeVariantIds, setRecipeVariantIds] = useState<Set<string>>(new Set())
   useEffect(() => {
     let alive = true
     api.getAppSettings().then((s) => { if (alive) setRecipesEnabled(s.recipesEnabled === true) }).catch(() => {})
@@ -115,6 +116,13 @@ export default function Products() {
     setOcfgMap({})
     setOcCollapsed({})
     setOpen(true)
+    if (recipesEnabled) {
+      api.getRecipeVariantIds(p.id)
+        .then((ids) => setRecipeVariantIds(new Set(ids)))
+        .catch(() => setRecipeVariantIds(new Set()))
+    } else {
+      setRecipeVariantIds(new Set())
+    }
     setOcfgLoading(true)
     try {
       // Base product (all-outlet scope) gives the true base price/size/sku for the
@@ -687,9 +695,11 @@ export default function Products() {
                   />
                   <div className="col-span-1 flex items-center justify-center gap-1">
                     {recipesEnabled && (
-                      <button type="button" title={v.id ? 'Edit resep' : 'Simpan produk dulu'} disabled={!v.id}
+                      <button type="button"
+                        title={!v.id ? 'Simpan produk dulu' : (recipeVariantIds.has(v.id) ? 'Resep tersedia' : 'Belum ada resep')}
+                        disabled={!v.id}
                         onClick={() => v.id && setRecipeFor({ variantId: v.id, label: `${form.name || 'Produk'} — ${v.size}` })}
-                        className="text-gray-400 hover:text-gold-600 disabled:opacity-30">
+                        className={`${v.id && recipeVariantIds.has(v.id) ? 'text-gold-600 bg-gold-50 rounded' : 'text-gray-400'} hover:text-gold-600 disabled:opacity-30`}>
                         <FlaskConical className="w-4 h-4" />
                       </button>
                     )}
@@ -814,7 +824,14 @@ export default function Products() {
           productId={editing?.id ?? ''}
           variantId={recipeFor.variantId}
           variantLabel={recipeFor.label}
-          onClose={() => setRecipeFor(null)}
+          onClose={() => {
+            setRecipeFor(null)
+            if (editing?.id && recipesEnabled) {
+              api.getRecipeVariantIds(editing.id)
+                .then((ids) => setRecipeVariantIds(new Set(ids)))
+                .catch(() => {})
+            }
+          }}
         />
       )}
     </div>
