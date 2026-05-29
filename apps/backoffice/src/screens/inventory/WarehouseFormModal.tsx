@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { Warehouse, WarehouseInput } from '@mandalika/api'
 import { Upload, X } from 'lucide-react'
@@ -29,27 +29,23 @@ export function WarehouseFormModal({ open, editing, onClose, onDone }: Props) {
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
-  // Sync form when `editing` / `open` changes from outside.
-  // We use a ref-based pattern: reset on open.
-  const prevOpenRef = useRef(false)
-  if (open !== prevOpenRef.current) {
-    prevOpenRef.current = open
-    if (open) {
-      if (editing) {
-        setForm({
-          name: editing.name,
-          code: editing.code || '',
-          address: editing.address || '',
-          phone: editing.phone || '',
-          isActive: editing.isActive,
-          logoUrl: editing.logoUrl ?? undefined,
-        })
-      } else {
-        setForm(EMPTY_FORM)
-      }
-      setErr(null)
-    }
-  }
+  // Reset the form whenever the modal opens (or the edited warehouse changes).
+  useEffect(() => {
+    if (!open) return
+    setForm(
+      editing
+        ? {
+            name: editing.name,
+            code: editing.code || '',
+            address: editing.address || '',
+            phone: editing.phone || '',
+            isActive: editing.isActive,
+            logoUrl: editing.logoUrl ?? undefined,
+          }
+        : EMPTY_FORM,
+    )
+    setErr(null)
+  }, [open, editing])
 
   const onLogoFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

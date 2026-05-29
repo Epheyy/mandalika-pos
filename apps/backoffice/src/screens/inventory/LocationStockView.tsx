@@ -36,6 +36,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
 
   const [giOpen, setGiOpen] = useState(false)
   const [adjRow, setAdjRow] = useState<WarehouseStockRow | null>(null)
+  const [parErr, setParErr] = useState<string | null>(null)
 
   const isOutlet = location.kind === 'outlet'
 
@@ -81,6 +82,8 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
         />
       </div>
 
+      {parErr && <p className="text-sm text-red-600">{parErr}</p>}
+
       <Card className="overflow-hidden">
         {sq.loading ? (
           <TableSkeleton />
@@ -122,12 +125,17 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
                           title="Batas stok menipis (PAR)"
                           onBlur={async (e) => {
                             const v = e.target.value === '' ? null : Number(e.target.value)
-                            await api.setOutletPar(location.id, {
-                              productId: r.productId,
-                              variantSize: r.variantSize,
-                              parLevel: v,
-                            })
-                            await sq.refetch()
+                            try {
+                              setParErr(null)
+                              await api.setOutletPar(location.id, {
+                                productId: r.productId,
+                                variantSize: r.variantSize,
+                                parLevel: v,
+                              })
+                              await sq.refetch()
+                            } catch (err) {
+                              setParErr(err instanceof Error ? err.message : 'Gagal menyimpan PAR.')
+                            }
                           }}
                           className={`${fieldClass} w-20 py-1.5`}
                         />
