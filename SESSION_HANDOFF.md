@@ -4,7 +4,27 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-28 (SP-Recipe-2 + UI redesign + Neon fix) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-05-29 (Recipe gold-tint indicator + POS transfer-history/reprints) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Two follow-up features shipped, both **subagent-driven** (fresh implementer per task + live/controller verify). Backend **rev `00038-85j`** (`/readyz` ok; **no new migration** — both use read-only queries over existing tables). Commits `1af3cb0`→`eef564e`, pushed. Specs/plans: `docs/superpowers/{specs,plans}/2026-05-29-recipe-variant-indicator*` + `2026-05-29-pos-transfer-history-reprints*`.
+
+## 1) Recipe gold-tint indicator (backoffice) — DONE & UI-VERIFIED LIVE
+The Resep flask in the product edit modal is now **gold-tinted** on variants that already have a recipe (was the SP-Recipe-2 deferred ●/filled cut). New endpoint `GET /api/v1/products/{productId}/recipe-variant-ids` (gated `manage_inventory` + `recipes_enabled`) returns the variant ids with a recipe; `Products.tsx` fetches the set on modal-open and re-fetches on slide-over close. **GOTCHA:** this endpoint returns a **BARE** `{variantIds:[]}` (handler `writeJSON(... api.RecipeVariantIdsResponse{...})`, no `{data}` envelope) — so its TS client method uses the raw `request` helper, NOT `data<T>` (which unwraps `.data`). Verified live: HOLY SWEET shows 2 gold "Resep tersedia" + 1 neutral "Belum ada resep", matching the endpoint. Screenshot `recipe-gold-tint.png`.
+
+## 2) POS transfer-history + reprints — CODE COMPLETE; APK built; ON-DEVICE VERIFY USER-PENDING
+Bundled (one APK): **APK run 26623193405 success → artifact `mandalika-pos-release-apk`**.
+- **Hamburger combined dot** (`CashierScreen.tsx`): the header menu dot now lights when `pendingCount > 0` **OR** an inbound transfer awaits receipt (`inbound.length > 0`).
+- **Outlet transfer history**: new cashier-scoped `GET /api/v1/sync/outlet-transfers?status=completed|cancelled` (`read.OutletTransferHistory` — `WHERE (source_outlet_id=$1 OR dest_outlet_id=$1) AND status=$2`, i.e. incoming + outgoing; handler scopes to JWT outletId, mirrors `GetInboundTransfers`; route in the cashier `sync` group). New `apps/pos/src/cashier/TransferHistoryPanel.tsx` (tabs **Selesai/Dibatalkan** + detail) reached via a new **"Riwayat Transfer"** MenuDrawer item; completed rows offer **"Cetak Ulang Tanda Terima"**. Endpoint live-verified (per-outlet scoping: BSD=2/PMS=3 completed; bad status → 400; DTO hydrates source/dest/items).
+- **Order-history receipt reprint** (`OrderHistoryPanel.tsx`): **"Cetak Ulang"** in the order detail reprints the sales receipt, reusing the checkout `ReceiptData` mapping (`Order` list carries full data; customer phone not stored → omitted on reprint). Currently shown for orders of ANY status.
+- **Shared REPRINT marker** (`@mandalika/printer` `escpos.ts`): `buildReceipt`/`buildTandaTerima` gained an optional `reprint` param → stamps a centered bold `*** CETAK ULANG (REPRINT) ***` at **top AND bottom**; threaded via `print.ts` `PrintJob`/`TandaTerimaJob.reprint`. The POS `printer.tsx` wrapper (`print(...)` and `printTandaTerima(...)`) was extended with a `reprint` passthrough. Only history-triggered reprints set it; original prints (checkout, auto post-receive prompt) stay unmarked. Vitest 7/7 (marker present×2 when reprint, absent by default).
+
+### ▶️ USER-PENDING (this session)
+1. **Install APK `mandalika-pos-release-apk`** (run 26623193405) + pair a BLE printer, then verify on device: (a) hamburger dot lights on an inbound transfer; (b) Menu → Riwayat Transfer tabs + detail; (c) "Cetak Ulang Tanda Terima" and order "Cetak Ulang" print with the REPRINT marker top+bottom; (d) original checkout receipt + auto post-receive tanda terima print WITHOUT the marker.
+2. Decide whether order "Cetak Ulang" should be restricted (e.g. hide on refunded orders) and whether to include the customer phone (not currently stored on the order).
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-28 (SP-Recipe-2 + UI redesign + Neon fix) — kept for context
 
 Branch `prod-hardening`. Shipped **SP-Recipe-2 (Recipes & Versioning)** end-to-end, a recipe-editor **UI clarity redesign**, and a **Neon connection-pool hardening** fix. Backend **rev `00036-kqm`** (migration 0021 applied; `/readyz` ok — SP-Recipe-2 deployed at `00035-68t`, then the pgxpool-fix redeploy `00036-kqm`). Backoffice auto-deploys via Cloudflare. **No APK** (backoffice-only). Commits `cbb18af`→`fdc8fc0`, pushed. Built **subagent-driven** (fresh implementer per task + reviews/live-verify).
 
