@@ -169,6 +169,7 @@ components:
         variantSize: { type: string }
         sku: { type: string }
         stock: { type: integer }
+        parLevel: { type: integer, nullable: true }
     WarehouseStockResponse:
       type: object
       required: [data]
@@ -1406,6 +1407,43 @@ components:
       properties:
         pin: { type: string, minLength: 4, maxLength: 8, nullable: true }
         clear: { type: boolean, nullable: true }
+    OutletParInput:
+      type: object
+      required: [productId, variantSize]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        parLevel: { type: integer, nullable: true }
+    InventoryOverviewLocation:
+      type: object
+      required: [id, kind, name]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [outlet, warehouse] }
+        name: { type: string }
+    InventoryOverviewCell:
+      type: object
+      required: [locationId, stock]
+      properties:
+        locationId: { type: string, format: uuid }
+        stock: { type: integer }
+        belowPar: { type: boolean, nullable: true }
+    InventoryOverviewRow:
+      type: object
+      required: [productId, productName, variantSize, total, cells]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        total: { type: integer }
+        cells: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewCell' } }
+    InventoryOverviewResponse:
+      type: object
+      required: [locations, rows]
+      properties:
+        locations: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewLocation' } }
+        rows: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewRow' } }
   responses:
     Unauthorized:
       description: unauthenticated
@@ -1980,6 +2018,61 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/WarehouseStockResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory/goods-receipt:
+    post:
+      operationId: createLocationGoodsReceipt
+      tags: [catalog]
+      summary: Receive goods into an outlet OR warehouse (Backoffice)
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoodsReceiptInput' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
+  /api/v1/inventory/adjust:
+    post:
+      operationId: adjustLocationStock
+      tags: [catalog]
+      summary: Adjust an outlet OR warehouse stock to a new quantity (Backoffice)
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
+  /api/v1/inventory/outlet-par:
+    put:
+      operationId: setOutletPar
+      tags: [catalog]
+      summary: Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice)
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutletParInput' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
+  /api/v1/inventory/overview:
+    get:
+      operationId: getInventoryOverview
+      tags: [catalog]
+      summary: Read-only product-stock matrix across all locations (Backoffice)
+      responses:
+        '200':
+          description: overview matrix
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryOverviewResponse' }
   /api/v1/warehouses/{id}/goods-receipt:
     parameters:
       - name: id

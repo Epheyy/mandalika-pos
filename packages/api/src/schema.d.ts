@@ -406,6 +406,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/goods-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive goods into an outlet OR warehouse (Backoffice) */
+        post: operations["createLocationGoodsReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust an outlet OR warehouse stock to a new quantity (Backoffice) */
+        post: operations["adjustLocationStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/outlet-par": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice) */
+        put: operations["setOutletPar"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read-only product-stock matrix across all locations (Backoffice) */
+        get: operations["getInventoryOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/warehouses/{id}/goods-receipt": {
         parameters: {
             query?: never;
@@ -1532,6 +1600,7 @@ export interface components {
             variantSize: string;
             sku?: string;
             stock: number;
+            parLevel?: number | null;
         };
         WarehouseStockResponse: {
             data: components["schemas"]["WarehouseStockRow"][];
@@ -2600,6 +2669,38 @@ export interface components {
             pin?: string | null;
             clear?: boolean | null;
         };
+        OutletParInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            parLevel?: number | null;
+        };
+        InventoryOverviewLocation: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "outlet" | "warehouse";
+            name: string;
+        };
+        InventoryOverviewCell: {
+            /** Format: uuid */
+            locationId: string;
+            stock: number;
+            belowPar?: boolean | null;
+        };
+        InventoryOverviewRow: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku?: string;
+            total: number;
+            cells: components["schemas"]["InventoryOverviewCell"][];
+        };
+        InventoryOverviewResponse: {
+            locations: components["schemas"]["InventoryOverviewLocation"][];
+            rows: components["schemas"]["InventoryOverviewRow"][];
+        };
     };
     responses: {
         /** @description unauthenticated */
@@ -3552,6 +3653,106 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    createLocationGoodsReceipt: {
+        parameters: {
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoodsReceiptInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adjustLocationStock: {
+        parameters: {
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarehouseAdjustInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    setOutletPar: {
+        parameters: {
+            query: {
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutletParInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    getInventoryOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description overview matrix */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryOverviewResponse"];
+                };
+            };
         };
     };
     createGoodsReceipt: {

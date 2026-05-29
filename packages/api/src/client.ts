@@ -67,6 +67,10 @@ export type UploadSignature = S['UploadSignature']
 export type WarehouseInput = S['WarehouseInput']
 export type GoodsReceiptInput = S['GoodsReceiptInput']
 export type WarehouseAdjustInput = S['WarehouseAdjustInput']
+export type OutletParInput = S['OutletParInput']
+export type InventoryOverviewResponse = S['InventoryOverviewResponse']
+export type InventoryOverviewRow = S['InventoryOverviewRow']
+export type InventoryOverviewLocation = S['InventoryOverviewLocation']
 
 export interface ClientOptions {
   baseUrl: string
@@ -184,6 +188,10 @@ export interface Api {
   getWarehouseStock: (id: string) => Promise<WarehouseStockRow[]>
   createGoodsReceipt: (id: string, input: GoodsReceiptInput) => Promise<void>
   adjustWarehouseStock: (id: string, input: WarehouseAdjustInput) => Promise<void>
+  createLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: GoodsReceiptInput) => Promise<void>
+  adjustLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: WarehouseAdjustInput) => Promise<void>
+  setOutletPar: (outletId: string, input: OutletParInput) => Promise<void>
+  getInventoryOverview: () => Promise<InventoryOverviewResponse>
 
   // transfers (SP2)
   listTransfers: (status?: string, page?: number, limit?: number) => Promise<ListResult<Transfer>>
@@ -435,6 +443,17 @@ export function createClient(opts: ClientOptions): Api {
     adjustWarehouseStock: async (id, input) => {
       await request('POST', `${API}/warehouses/${id}/adjust`, input)
     },
+    createLocationGoodsReceipt: async (loc, input) => {
+      await request('POST', `${API}/inventory/goods-receipt?kind=${loc.kind}&id=${loc.id}`, input)
+    },
+    adjustLocationStock: async (loc, input) => {
+      await request('POST', `${API}/inventory/adjust?kind=${loc.kind}&id=${loc.id}`, input)
+    },
+    setOutletPar: async (outletId, input) => {
+      await request('PUT', `${API}/inventory/outlet-par?id=${outletId}`, input)
+    },
+    getInventoryOverview: () =>
+      request<InventoryOverviewResponse>('GET', `${API}/inventory/overview`),
     listTransfers: (status, page = 1, limit = 50) =>
       list<Transfer>(`${API}/transfers`, { ...(status ? { status } : {}), page, limit }),
     getTransfer: (id) => data<Transfer>('GET', `${API}/transfers/${id}`),
