@@ -946,6 +946,15 @@ func (r *Repo) TransfersForOutlet(ctx context.Context, outletID, status string) 
 	return rows, err
 }
 
+// OutletTransferHistory returns transfers (incoming OR outgoing) for an outlet
+// at a given status, newest first. Used by the cashier-scoped history view.
+func (r *Repo) OutletTransferHistory(ctx context.Context, outletID, status string) ([]api.Transfer, error) {
+	sql := `SELECT ` + transferObj + `, count(*) OVER() AS total ` + transferFrom +
+		` WHERE (t.source_outlet_id=$1 OR t.dest_outlet_id=$1) AND t.status=$2 ORDER BY t.created_at DESC`
+	rows, _, err := listJSON[api.Transfer](ctx, r.Pool, sql, outletID, status)
+	return rows, err
+}
+
 // LocationStock returns on-hand rows for a polymorphic location, so the
 // create-transfer UI can show the source's live stock. Warehouse reuses the
 // existing matrix; outlet reads outlet_variant_stock.

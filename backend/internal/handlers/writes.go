@@ -978,6 +978,25 @@ func (h *Handlers) GetInboundTransfers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
 }
 
+func (h *Handlers) GetOutletTransfers(w http.ResponseWriter, r *http.Request) {
+	c, _ := h.caller(r)
+	status := r.URL.Query().Get("status")
+	if status != "completed" && status != "cancelled" {
+		httpx.Err(w, http.StatusBadRequest, "status harus completed atau cancelled")
+		return
+	}
+	if c.outletID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
+		return
+	}
+	rows, err := h.Repo.OutletTransferHistory(r.Context(), c.outletID, status)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
+}
+
 func (h *Handlers) SignUpload(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Folder string `json:"folder"`
