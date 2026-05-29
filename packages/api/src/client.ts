@@ -517,7 +517,9 @@ export function createClient(opts: ClientOptions): Api {
     },
 
     getRecipeVariantIds: (productId) =>
-      data<{ variantIds: string[] }>('GET', `${API}/products/${productId}/recipe-variant-ids`).then((r) => r.variantIds),
+      // This endpoint returns the bare object `{variantIds:[...]}` (no `{data}` envelope),
+      // so use the raw `request` helper rather than `data` (which unwraps `.data`).
+      request<{ variantIds: string[] }>('GET', `${API}/products/${productId}/recipe-variant-ids`).then((r) => r.variantIds),
     getVariantRecipe: async (productId, variantId) => {
       try {
         return await data<Recipe>('GET', `${API}/products/${productId}/variants/${variantId}/recipe`)
