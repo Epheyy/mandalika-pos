@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import type { Warehouse, WarehouseStockRow } from '@mandalika/api'
+import type { WarehouseStockRow } from '@mandalika/api'
 import { api } from '../../api'
 import { Button, Modal, Input } from '../../ui'
 
 interface AdjustModalProps {
-  warehouse: Warehouse
+  location: { kind: 'outlet' | 'warehouse'; id: string; name: string }
   /** The stock row being corrected. The modal is shown while this is set. */
   row: WarehouseStockRow
   onClose: () => void
@@ -14,7 +14,7 @@ interface AdjustModalProps {
 
 /** Koreksi Stok: sets an absolute new on-hand qty (not additive) and requires a
  *  reason. Mounted only while a row is selected so its form starts fresh. */
-export function AdjustModal({ warehouse, row, onClose, onDone }: AdjustModalProps) {
+export function AdjustModal({ location, row, onClose, onDone }: AdjustModalProps) {
   const [newQty, setNewQty] = useState(String(row.stock))
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -35,7 +35,7 @@ export function AdjustModal({ warehouse, row, onClose, onDone }: AdjustModalProp
     setBusy(true)
     setErr(null)
     try {
-      await api.adjustWarehouseStock(warehouse.id, {
+      await api.adjustLocationStock({ kind: location.kind, id: location.id }, {
         productId: row.productId,
         variantSize: row.variantSize,
         newQty: qty,

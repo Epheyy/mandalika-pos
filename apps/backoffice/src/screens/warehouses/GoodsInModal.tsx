@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Warehouse, WarehouseStockRow, GoodsReceiptInput } from '@mandalika/api'
+import type { WarehouseStockRow, GoodsReceiptInput } from '@mandalika/api'
 import { api } from '../../api'
 import { Button, Modal, Input, fieldClass } from '../../ui'
 
@@ -9,7 +9,7 @@ const lineKey = (productId: string, variantSize: string) => `${productId}|${vari
 
 interface GoodsInModalProps {
   open: boolean
-  warehouse: Warehouse
+  location: { kind: 'outlet' | 'warehouse'; id: string; name: string }
   rows: WarehouseStockRow[]
   onClose: () => void
   /** Called after a successful goods receipt so the parent can refetch stock. */
@@ -18,7 +18,7 @@ interface GoodsInModalProps {
 
 /** Goods-in (Barang Masuk): additive receipt of one or more variants. Only
  *  lines with qty > 0 are submitted; unit cost is optional/informational. */
-export function GoodsInModal({ open, warehouse, rows, onClose, onDone }: GoodsInModalProps) {
+export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInModalProps) {
   const [supplier, setSupplier] = useState('')
   const [note, setNote] = useState('')
   const [lines, setLines] = useState<Record<string, GoodsLine>>({})
@@ -53,7 +53,7 @@ export function GoodsInModal({ open, warehouse, rows, onClose, onDone }: GoodsIn
         note: note.trim() || null,
         items,
       }
-      await api.createGoodsReceipt(warehouse.id, body)
+      await api.createLocationGoodsReceipt({ kind: location.kind, id: location.id }, body)
       onClose()
       await onDone()
     } catch (e: unknown) {
@@ -69,7 +69,7 @@ export function GoodsInModal({ open, warehouse, rows, onClose, onDone }: GoodsIn
       onClose={onClose}
       size="xl"
       title="Barang Masuk"
-      subtitle={warehouse.name}
+      subtitle={location.name}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>

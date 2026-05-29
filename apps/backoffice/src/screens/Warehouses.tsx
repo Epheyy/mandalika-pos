@@ -477,7 +477,7 @@ function StockView({ warehouse, onBack }: { warehouse: Warehouse; onBack: () => 
 
       <GoodsInModal
         open={giOpen}
-        warehouse={warehouse}
+        location={{ kind: 'warehouse', id: warehouse.id, name: warehouse.name }}
         rows={rows}
         onClose={() => setGiOpen(false)}
         onDone={() => sq.refetch()}
@@ -485,7 +485,7 @@ function StockView({ warehouse, onBack }: { warehouse: Warehouse; onBack: () => 
 
       {adjRow && (
         <AdjustModal
-          warehouse={warehouse}
+          location={{ kind: 'warehouse', id: warehouse.id, name: warehouse.name }}
           row={adjRow}
           onClose={() => setAdjRow(null)}
           onDone={() => sq.refetch()}
