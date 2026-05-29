@@ -221,6 +221,7 @@ export interface Api {
   completeIngredientStockCount: (id: string) => Promise<void>
 
   // recipes / formulas (SP-Recipe-2)
+  getRecipeVariantIds: (productId: string) => Promise<string[]>
   getVariantRecipe: (productId: string, variantId: string) => Promise<Recipe | null>
   listRecipeVersions: (productId: string, variantId: string) => Promise<RecipeVersionSummary[]>
   getRecipeVersion: (productId: string, variantId: string, versionId: string) => Promise<Recipe>
@@ -515,6 +516,8 @@ export function createClient(opts: ClientOptions): Api {
       await request('POST', `${API}/ingredient-stock-counts/${id}/complete`)
     },
 
+    getRecipeVariantIds: (productId) =>
+      data<{ variantIds: string[] }>('GET', `${API}/products/${productId}/recipe-variant-ids`).then((r) => r.variantIds),
     getVariantRecipe: async (productId, variantId) => {
       try {
         return await data<Recipe>('GET', `${API}/products/${productId}/variants/${variantId}/recipe`)
