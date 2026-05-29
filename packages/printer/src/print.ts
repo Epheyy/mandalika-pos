@@ -23,6 +23,8 @@ export interface PrintJob {
   deviceId: string | null
   data: ReceiptData
   settings: ReceiptSettings
+  /** Stamp a "CETAK ULANG (REPRINT)" marker on the slip. Default false. */
+  reprint?: boolean
 }
 
 /**
@@ -33,7 +35,7 @@ export interface PrintJob {
 export async function printReceipt(job: PrintJob): Promise<void> {
   if (!job.deviceId) throw new Error('Printer belum dipilih')
   const copies = Math.min(5, Math.max(1, job.settings.copies ?? 1))
-  const payload = buildReceipt(job.data, job.settings)
+  const payload = buildReceipt(job.data, job.settings, job.reprint)
 
   await job.transport.connect(job.deviceId)
   try {
@@ -69,6 +71,8 @@ export interface TandaTerimaJob {
   deviceId: string | null
   data: TandaTerimaData
   settings: ReceiptSettings
+  /** Stamp a "CETAK ULANG (REPRINT)" marker on the slip. Default false. */
+  reprint?: boolean
 }
 
 /** Connect if needed and print a single tanda terima slip. Throws on failure
@@ -77,7 +81,7 @@ export interface TandaTerimaJob {
  */
 export async function printTandaTerima(job: TandaTerimaJob): Promise<void> {
   if (!job.deviceId) throw new Error('Printer belum dipilih')
-  const payload = buildTandaTerima(job.data, job.settings)
+  const payload = buildTandaTerima(job.data, job.settings, job.reprint)
   await job.transport.connect(job.deviceId)
   try {
     await job.transport.write(payload)

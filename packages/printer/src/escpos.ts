@@ -81,6 +81,13 @@ function center(text: string): string {
   return ' '.repeat(left) + text
 }
 
+/** Centered bold marker printed top + bottom on a reprinted copy so staff can
+ *  tell a duplicate apart from the original slip. */
+const REPRINT_MARK = '*** CETAK ULANG (REPRINT) ***'
+function reprintLine(b: Buf): void {
+  b.raw(ALIGN_CENTER).raw(BOLD_ON).line(REPRINT_MARK).raw(BOLD_OFF).raw(ALIGN_LEFT)
+}
+
 /** Latin-1 byte encoding — Indonesian receipt text is ASCII-safe. */
 function bytes(text: string): number[] {
   const out: number[] = []
@@ -116,6 +123,7 @@ class Buf {
 export function buildReceipt(
   data: ReceiptData,
   settings: ReceiptSettings,
+  reprint = false,
 ): Uint8Array {
   const b = new Buf().raw(INIT)
 
@@ -125,6 +133,8 @@ export function buildReceipt(
   }
   if (settings.footerText && settings.headerText) b.line()
   b.raw(ALIGN_LEFT)
+
+  if (reprint) reprintLine(b)
 
   // The receipt always shows the order id. Sync state is an app concern, not
   // something the customer's printed receipt should announce.
@@ -175,6 +185,8 @@ export function buildReceipt(
   if (settings.footerText) {
     b.line().raw(ALIGN_CENTER).line(settings.footerText).raw(ALIGN_LEFT)
   }
+
+  if (reprint) reprintLine(b)
 
   b.raw(FEED_3).raw(CUT)
   return b.done()
@@ -325,6 +337,7 @@ export interface TandaTerimaData {
 export function buildTandaTerima(
   data: TandaTerimaData,
   settings: ReceiptSettings,
+  reprint = false,
 ): Uint8Array {
   const b = new Buf().raw(INIT)
   const dt = (d: Date) =>
@@ -344,6 +357,8 @@ export function buildTandaTerima(
   b.raw(BOLD_ON).line(center('TANDA TERIMA')).raw(BOLD_OFF)
   b.divider()
   b.raw(ALIGN_LEFT)
+
+  if (reprint) reprintLine(b)
 
   b.line(pad('No', data.tandaTerimaNo))
   b.line(pad('Ref', data.transferNo))
@@ -387,6 +402,8 @@ export function buildTandaTerima(
 
   b.raw(ALIGN_CENTER).line('Dicetak ' + dt(new Date()))
   if (settings.footerText) b.line().line(settings.footerText.slice(0, COLS))
-  b.raw(ALIGN_LEFT).raw(FEED_3).raw(CUT)
+  b.raw(ALIGN_LEFT)
+  if (reprint) reprintLine(b)
+  b.raw(FEED_3).raw(CUT)
   return b.done()
 }
