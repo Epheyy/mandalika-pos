@@ -45,7 +45,7 @@ interface PrinterState {
   unpair: () => void
   print: (data: ReceiptData, settings: ReceiptSettings) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
-  printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings) => Promise<void>
+  printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
   testPrint: (settings: ReceiptSettings) => Promise<void>
 }
 
@@ -120,12 +120,13 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   )
 
   const doPrintTandaTerima = useCallback(
-    async (data: TandaTerimaData, settings: ReceiptSettings) => {
+    async (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => {
       await printTandaTerima({
         transport: transportRef.current,
         deviceId: pairedId,
         data,
         settings,
+        reprint,
       })
     },
     [pairedId],

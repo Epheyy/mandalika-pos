@@ -30,6 +30,7 @@ interface MenuDrawerProps {
   onBackOffice: () => void
   onLogout: () => void
   onReceiveTransfer: () => void
+  onOpenTransferHistory: () => void
   inboundCount: number
 }
 
@@ -65,6 +66,9 @@ const LogoutIcon = ({ className }: IconProps) => (
 const CloseIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
 )
+const TransferHistoryIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="m8 12 4 4 4-8" /></svg>
+)
 
 type Item = {
   Icon: (p: IconProps) => ReactElement
@@ -92,6 +96,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   onBackOffice,
   onLogout,
   onReceiveTransfer,
+  onOpenTransferHistory,
   inboundCount,
 }: MenuDrawerProps) {
   if (!open) return null
@@ -104,6 +109,7 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: RecapIcon, label: 'Rekapan', onClick: () => { onClose(); onRecap() } },
     { Icon: CashIcon, label: 'Uang Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
+    { Icon: TransferHistoryIcon, label: 'Riwayat Transfer', onClick: () => { onClose(); onOpenTransferHistory() } },
     { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Sinkronkan', badge: pendingSync, onClick: () => onSync() },
   ]
 

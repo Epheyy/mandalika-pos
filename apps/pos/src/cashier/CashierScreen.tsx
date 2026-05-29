@@ -8,6 +8,8 @@ import type { components } from '@mandalika/api'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
+import { buildTandaTerimaData } from './transfers/buildTandaTerimaData'
+import { TransferHistoryPanel } from './TransferHistoryPanel'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
@@ -106,6 +108,7 @@ export default function CashierScreen() {
   const [closeIntent, setCloseIntent] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showReceive, setShowReceive] = useState(false)
+  const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -449,6 +452,20 @@ export default function CashierScreen() {
       })
   }
 
+  // Reprint a tanda terima for an already-completed transfer (from the history
+  // panel). Same payload as the post-receive prompt, but stamps the REPRINT
+  // marker. Mirrors handleReprint's error-reporting; needs a paired printer.
+  const reprintTandaTerima = (t: Transfer) => {
+    if (!printer.isPaired) { showToast('Pasangkan printer untuk cetak tanda terima'); return }
+    printer
+      .printTandaTerima(buildTandaTerimaData(t, user?.displayName ?? ''), settings.receipt, true)
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Gagal mencetak tanda terima'
+        showToast(msg)
+        void reportErrors([{ source: 'print', kind: 'tanda_terima', action: `Cetak ulang tanda terima ${t.transferNo}`, message: msg, outletName: snapshot.outletName }])
+      })
+  }
+
   const handleRefundConfirm = (orderId: string, reason: string) => {
     setIsRefunding(true)
     try {
@@ -514,6 +531,7 @@ export default function CashierScreen() {
       if (showMenu) { setShowMenu(false); return true }
       if (showSettings) { setShowSettings(false); return true }
       if (showHistory) { setShowHistory(false); return true }
+      if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRecap) { setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -526,7 +544,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showMenu, showSettings, showHistory, showRecap, refundOrder,
+    showMenu, showSettings, showHistory, showTransferHistory, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
     state.activeTab,
   ])
@@ -733,6 +751,7 @@ export default function CashierScreen() {
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
         onLogout={logout}
         onReceiveTransfer={() => setShowReceive(true)}
+        onOpenTransferHistory={() => setShowTransferHistory(true)}
         inboundCount={inbound.length}
       />
 
@@ -755,6 +774,13 @@ export default function CashierScreen() {
             setPendingReceive({ transferId, items, reason })
           }}
           onReprintTandaTerima={(t) => { setShowReceive(false); setPendingTT(t) }}
+        />
+      )}
+
+      {showTransferHistory && (
+        <TransferHistoryPanel
+          onClose={() => setShowTransferHistory(false)}
+          onReprint={reprintTandaTerima}
         />
       )}
 
