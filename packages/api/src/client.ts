@@ -194,6 +194,7 @@ export interface Api {
   sendTransfer: (id: string) => Promise<void>
   receiveTransfer: (id: string, input: TransferReceiveInput) => Promise<void>
   cancelTransfer: (id: string) => Promise<void>
+  outletTransfers: (status: 'completed' | 'cancelled') => Promise<Transfer[]>
 
   // ingredients / recipe inventory (SP-Recipe-1)
   listIngredients: (opts?: { page?: number; limit?: number; q?: string }) => Promise<ListResult<Ingredient>>
@@ -452,6 +453,8 @@ export function createClient(opts: ClientOptions): Api {
     cancelTransfer: async (id) => {
       await request('POST', `${API}/transfers/${id}/cancel`)
     },
+    outletTransfers: (status) =>
+      data<Transfer[]>('GET', `${API}/sync/outlet-transfers?status=${status}`),
 
     listIngredients: (opts) =>
       list<Ingredient>(`${API}/ingredients`, opts as Record<string, string | number> | undefined),
