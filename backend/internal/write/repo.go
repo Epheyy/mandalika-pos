@@ -322,11 +322,11 @@ func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
 	return r.delete(ctx, "products", "products", id)
 }
 
-// SetProductOutletConfig applies the per-outlet stock/price/availability matrix
-// for one product in a single tx, then bumps only the affected outlets' content
-// version. A null price clears the override (falls back to base). Availability is
-// per-variant (stored on outlet_variant_stock).
-func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletVariantConfig) error {
+// SetProductOutletConfig applies the per-outlet price/availability matrix for one
+// product in a single tx, then bumps only the affected outlets' content version.
+// A null price clears the override (falls back to base). Stock + par_level are
+// owned by the Inventori module and are never touched here.
+func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput) error {
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -341,16 +341,13 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			seen[oid] = true
 			outletIDs = append(outletIDs, oid)
 		}
-		var par any
-		if v, e := it.ParLevel.Get(); e == nil {
-			par = v
-		}
+		// availability only — stock + par_level are owned by Inventori now.
 		if _, e := t.Exec(ctx, `
-			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock, available, par_level)
-			VALUES ($1,$2,$3,$4,$5,$6)
+			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, available)
+			VALUES ($1,$2,$3,$4)
 			ON CONFLICT (outlet_id, product_id, variant_size)
-			  DO UPDATE SET stock=EXCLUDED.stock, available=EXCLUDED.available, par_level=EXCLUDED.par_level`,
-			oid, productID, it.VariantSize, it.Stock, it.Available, par); e != nil {
+			  DO UPDATE SET available=EXCLUDED.available`,
+			oid, productID, it.VariantSize, it.Available); e != nil {
 			return e
 		}
 		if v, e := it.Price.Get(); e == nil {
@@ -369,7 +366,7 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 		}
 	}
 	// Clean up rows for variant sizes that no longer exist (renamed or removed),
-	// so a renamed variant doesn't leave orphaned stock behind.
+	// so a renamed variant doesn't leave orphaned stock + price rows behind.
 	sizes := make([]string, 0, len(items))
 	seenSize := map[string]bool{}
 	for _, it := range items {

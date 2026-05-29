@@ -2606,8 +2606,15 @@ export interface components {
         OutletConfigResponse: {
             data: components["schemas"]["OutletVariantConfig"][];
         };
+        OutletConfigItemInput: {
+            /** Format: uuid */
+            outletId: string;
+            variantSize: string;
+            price?: number | null;
+            available: boolean;
+        };
         OutletConfigInput: {
-            items: components["schemas"]["OutletVariantConfig"][];
+            items: components["schemas"]["OutletConfigItemInput"][];
         };
         CategoryInput: {
             name: string;

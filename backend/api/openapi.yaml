@@ -1332,11 +1332,20 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/OutletVariantConfig' } }
+    OutletConfigItemInput:
+      type: object
+      required: [outletId, variantSize, available]
+      properties:
+        outletId: { type: string, format: uuid }
+        variantSize: { type: string }
+        # null = use the variant's base price (no per-outlet override)
+        price: { type: number, nullable: true }
+        available: { type: boolean }
     OutletConfigInput:
       type: object
       required: [items]
       properties:
-        items: { type: array, items: { $ref: '#/components/schemas/OutletVariantConfig' } }
+        items: { type: array, items: { $ref: '#/components/schemas/OutletConfigItemInput' } }
     CategoryInput:
       type: object
       required: [name]
