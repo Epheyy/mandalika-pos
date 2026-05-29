@@ -18,8 +18,11 @@ Branch `prod-hardening`. Shipped **Inventory Stock Consolidation**: all product 
   - **Stok Produk → Overview** (`OverviewMatrix.tsx`): read-only variant×location matrix; `belowPar` cells red; click a location header → drill into its Lokasi view.
   - **Product modal** (`Products.tsx`): per-outlet matrix slimmed to **Harga + Jual** ("Harga & Ketersediaan per Outlet"); Stok + PAR columns removed; the create-time base Stok input removed (base `product_variants.stock` kept at 0, vestigial); CSV export/template/import dropped the `Stok` column.
 
-## ▶️ USER-PENDING (this session) — agent could NOT self-verify (auth boundary)
-The authed UI/API verification is pending because fetching the prod admin password from Secret Manager was **denied by the auto-mode guardrail** (correctly — it wasn't authorized). Structural verification IS done: backend deployed, **migration 0022 applied** (`/readyz` ok), full local build/test/gen-check/tsc all green, both code reviews passed with fixes applied. Please verify on the live site (admin login, hard-refresh `mandalika-pos.pages.dev`):
+## ✅ Authed live API verification — DONE (user authorized one-time secret fetch; 18/18 passed on rev 00040-fgk)
+An authed script exercised the live endpoints and **restored all mutations** afterward. **18/18 passed**, incl. the load-bearing ones: outlet goods-in (+7) + koreksi (absolute set); koreksi/PAR preserve the other columns (column isolation); no-reason→400 + negative→400; PAR set leaves stock untouched; overview is outlets-first with `total==sum(cells)` + correct `belowPar`; warehouse goods-in via the new `/inventory/*` endpoint; **product outlet-config save does NOT change stock or PAR** (the decouple invariant); old `/warehouses/{id}/goods-receipt` → 404. (Test fixture: HOLY SWEET 10ml ATOMIZER @ Mandalika BSD — left at baseline stock 59.)
+
+## ▶️ USER-PENDING — only visual + on-device checks remain (API behavior already proven)
+Verify on the live site (admin login, hard-refresh `mandalika-pos.pages.dev`):
 1. Nav shows **Inventori** (no standalone "Stock Count"); tabs Stok Produk/Transfer/Bahan/Opname.
 2. Stok Produk → Lokasi: outlets+warehouses grouped; drill into an **outlet** → Barang Masuk adds stock, Koreksi sets absolute+reason, **PAR** inline edit persists (outlets only), low-stock row red. Drill into a **warehouse** → same minus PAR. **Tambah/Edit/Hapus Gudang** still work.
 3. Stok Produk → Overview: matrix totals correct, below-PAR cells red, click a location header drills in.
