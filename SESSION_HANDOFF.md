@@ -4,7 +4,41 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-29 (Inventory Stock Consolidation → "Inventori" module) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-05-30 (Inventori polish + Ingredient Stock at Outlets) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Three follow-up batches on top of the previous day's Inventori work, all built subagent-driven (Go + TS reviews each phase, fixes applied). Backend **rev `00041-l6h`** (migration **0023** applied; `/readyz` ok). Backoffice auto-deploys via Cloudflare on push. POS untouched. Commits `08d0956`→`8a1f398`. Plan: `docs/superpowers/plans/2026-05-30-ingredient-stock-at-outlets.md`.
+
+## F1 — Outlet management moved into Inventori (`08d0956`, `9da846b`)
+- Removed the standalone **Outlet** top-level sidenav. Outlet CRUD now lives in **Inventori → Stok Produk → Lokasi → Outlet section** (Tambah Outlet + per-row Edit + Toggle aktif/nonaktif). `screens/Outlets.tsx` deleted; `screens/inventory/OutletFormModal.tsx` extracted. `useOutlet().refreshOutlets()` is called on both save and toggle so the topbar outlet switcher stays in sync.
+- Lokasi list rows became info-rich cards: per-location `{N} varian · {N} unit` summary, with a red "{N} stok rendah" badge on outlets that have variants below their PAR. Summary computed in ONE pass from `getInventoryOverview()` and memoized. Inactive locations dimmed + "Nonaktif" badge. Subtle hover state.
+- TS review found + fixed: `toggleOutlet` floating promise (now try/catch with user-visible error); summary map memoized.
+
+## F2 — Lokasi side-by-side, list pagination, Opname restructure (`30b444f`)
+- Stok Produk's Outlet + Gudang sections now sit **side-by-side** on `lg:` screens (grid-cols-1 lg:grid-cols-2), stacked on small.
+- Extracted a reusable `<Pagination/>` UI helper (`apps/backoffice/src/ui/Pagination.tsx`) from the existing ErrorLogs pattern (`Hal X/Y` footer + Prev/Next). PAGE_SIZE=25 wired into **5 lists**: product Transfers, ingredient Daftar, ingredient Transfers, product Stock Counts, ingredient Stock Counts.
+- **Opname** tab restructured: now has **Produk / Bahan** sub-tabs (Bahan only when `recipesEnabled`). `OpnameSection.tsx` wrapper renders `<StockCount/>` or `<OpnameTab/>` based on sub-tab. The standalone Opname sub-tab inside Bahan was removed (Bahan now has Daftar/Stok/Stok Masuk/Penyesuaian/Transfer only).
+
+## F3 — Ingredient Stock at Outlets (`5f0c3c3`→`8a1f398`)
+- **Migration 0023:** new `ingredient_outlet_stock(outlet_id, ingredient_id, qty numeric(14,3))` table + polymorphic `outlet_id`/`warehouse_id` columns (with `num_nonnulls=1` CHECKs) on `ingredient_goods_receipts`, `ingredient_stock_adjustments`, `ingredient_transfers` (mesh: source+dest each polymorphic), and `ingredient_stock_counts`. Mirrors migration 0022 for products.
+- **Backend:** ingredient goods-in + koreksi rewritten location-polymorphic (`CreateIngredientGoodsReceipt`/`AdjustIngredientStock` take `LocKind`+`LocID`); transfer logic rewritten as a mesh (mirror `transfer.go`); stock-count polymorphic (mirror `stockcount.go`); new `IngredientLocationStock` read; new endpoints `POST /inventory/ingredient-goods-receipt` / `POST /inventory/ingredient-adjust` / `GET /inventory/ingredient-location-stock` (gated `manage_inventory`); old `/ingredients/{id}/goods-receipt` + `/ingredient-adjust` + `/ingredients/{id}/stock` REMOVED. **CRITICAL invariant:** ingredients are NOT POS-synced, so NO `content_version` bump anywhere in the ingredient write path (different from product inventory). Pure validators table-tested.
+- **Go review found + fixed:** nil-deref guards in `addIngStockDelta` + `CompleteIngredientStockCount` outlet branch (convert corrupt-row case from panic to error); `IngredientTransfer` single-record query had a dead `WITH s AS (... LIMIT 1)` CTE shadowed by a re-joined `app_settings` table — restored CTE reference (`LEFT JOIN s ON true`) to prevent fan-out if `app_settings` ever has more than one row.
+- **Backoffice:** `Bahan → Stok` rewritten location-first (mirrors Stok Produk): outlet + gudang sections, drill into either → `IngredientLocationStockView` with Barang Masuk + Koreksi. Ingredient modals generalized to `location: {kind,id,name}` (optional — modal shows its own location picker when omitted, used by the global Stok Masuk / Penyesuaian history views). `IngredientTransferForm` source/dest pickers now span outlets + warehouses with kind tags. `OpnameTab` (under Inventori→Opname→Bahan) location picker extended to outlets too. History views + `IngredientReceiveModal` + `IngredientSuratJalanDoc` updated for polymorphic `source.name`/`dest.name`.
+
+## ✅ Authed live API verification — DONE (13/13 on rev 00041-l6h)
+The verification script logged in, exercised the new ingredient endpoints, and restored all mutations to baseline. **13/13 passed** incl. the load-bearing ones: outlet ingredient goods-in (+5), outlet koreksi (absolute set), no-reason→400, negative→400, warehouse goods-in via the new endpoint (+10), **mesh transfer warehouse→outlet** (create→send→receive: warehouse -2, outlet +2 — proves all four polymorphic legs deduct/credit correctly), old `/ingredients/{id}/goods-receipt` returns 404. Final stocks restored to 0 / 0.
+
+## ▶️ USER-PENDING — visual UI walkthrough on the live backoffice
+The API behavior is fully proven; what remains is eyes on the new UI. Hard-refresh `mandalika-pos.pages.dev` and confirm:
+1. Sidenav no longer has "Outlet" (consolidated into Inventori).
+2. **Stok Produk → Lokasi** side-by-side (Outlet + Gudang columns), each row has the variant/unit summary + low-stock badge for outlets; Tambah/Edit/Toggle for outlets, Tambah/Edit/Hapus for warehouses.
+3. **Bahan → Stok** is now location-first (Outlet + Gudang); drill into either → ingredient list with Barang Masuk + Koreksi.
+4. **Bahan → Transfer** form allows source/dest = any outlet or warehouse (mesh); creating + sending + receiving a warehouse→outlet transfer works end-to-end.
+5. **Inventori → Opname → Bahan** lets you create an ingredient opname targeting an outlet (not just warehouses).
+6. Pagination (25/page) on Transfers, Daftar, Bahan Transfer, both Opname lists.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-29 (Inventory Stock Consolidation → "Inventori" module)
 
 Branch `prod-hardening`. Shipped **Inventory Stock Consolidation**: all product stock (outlets + warehouses) is now managed in one renamed **Inventori** module; stock no longer lives in the Product module. Built **subagent-driven** (fresh implementer per task + go-reviewer on backend, typescript-reviewer on frontend). Backend **rev `00040-fgk`** (migration **0022** applied; `/readyz` ok). Backoffice auto-deploys via Cloudflare on push. **No APK** (backoffice-only; POS untouched except it resyncs outlet stock via the existing content_version path). Spec/plan: `docs/superpowers/{specs,plans}/2026-05-29-inventory-stock-consolidation*`. Commits `7b34f48`→`fa5b159`.
 
