@@ -97,7 +97,9 @@ func loadIngTransferLines(ctx context.Context, tx pgx.Tx, id string) ([]ingTrans
 }
 
 // addIngStockDelta applies a signed delta to the right ingredient stock table.
-// Exactly one of outletID/warehouseID must be non-nil.
+// Exactly one of outletID/warehouseID must be non-nil (DB CHECKs guarantee this
+// on persisted rows; the explicit nil guard converts a corrupt-row case from a
+// panic into a recoverable error).
 func addIngStockDelta(ctx context.Context, tx pgx.Tx, outletID, warehouseID *string, ingID string, delta float64) error {
 	if outletID != nil {
 		_, e := tx.Exec(ctx,
@@ -107,6 +109,9 @@ func addIngStockDelta(ctx context.Context, tx pgx.Tx, outletID, warehouseID *str
 			   DO UPDATE SET qty = ingredient_outlet_stock.qty + EXCLUDED.qty`,
 			*outletID, ingID, delta)
 		return e
+	}
+	if warehouseID == nil {
+		return fmt.Errorf("addIngStockDelta: both location pointers nil for ingredient %s", ingID)
 	}
 	_, e := tx.Exec(ctx,
 		`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)

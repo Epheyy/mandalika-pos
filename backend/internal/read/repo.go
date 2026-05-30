@@ -521,7 +521,7 @@ func (r *Repo) IngredientTransfer(ctx context.Context, id string) (api.Ingredien
       LEFT JOIN warehouses sw  ON sw.id  = t.source_warehouse_id
       LEFT JOIN outlets    do2 ON do2.id = t.dest_outlet_id
       LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id
-      LEFT JOIN app_settings s ON true`
+      LEFT JOIN s ON true`
 	return oneJSON[api.IngredientTransfer](ctx, r.Pool, sql, id)
 }
 

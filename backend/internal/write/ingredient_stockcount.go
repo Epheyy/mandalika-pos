@@ -171,6 +171,11 @@ func (r *Repo) CompleteIngredientStockCount(ctx context.Context, id string) erro
 		}
 	} else {
 		// Outlet count: apply counted qty to ingredient_outlet_stock.
+		// DB CHECK guarantees exactly one of (whID, outID) is non-nil; this
+		// explicit guard converts a corrupt-row case from a panic to an error.
+		if outID == nil {
+			return fmt.Errorf("stock count %s has no location id", id)
+		}
 		if _, err := tx.Exec(ctx,
 			`WITH lines AS (
 			    SELECT i.id, i.ingredient_id, i.counted,
