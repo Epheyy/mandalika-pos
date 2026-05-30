@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Outlet, Warehouse, InventoryOverviewResponse } from '@mandalika/api'
 import {
   Store,
@@ -90,7 +90,7 @@ export default function StokProduk() {
   const oq = usePolledQuery<InventoryOverviewResponse>(() => api.getInventoryOverview(), [])
   const outlets = ouq.data ?? []
   const warehouses = wq.data ?? []
-  const summaryMap = buildSummaryMap(oq.data ?? null)
+  const summaryMap = useMemo(() => buildSummaryMap(oq.data ?? null), [oq.data])
   const summaryLoading = oq.loading
 
   const [subTab, setSubTab] = useState<SubTab>('lokasi')
@@ -105,6 +105,7 @@ export default function StokProduk() {
   // Outlet CRUD state
   const [outletFormOpen, setOutletFormOpen] = useState(false)
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null)
+  const [toggleErr, setToggleErr] = useState<string | null>(null)
 
   const openAddWarehouse = () => {
     setEditingWarehouse(null)
@@ -147,17 +148,22 @@ export default function StokProduk() {
   }
 
   const toggleOutlet = async (o: Outlet) => {
-    await api.updateOutlet(o.id, {
-      name: o.name,
-      code: o.code || '',
-      address: o.address || '',
-      phone: o.phone || '',
-      logoUrl: o.logoUrl ?? null,
-      isActive: !o.isActive,
-    })
-    await ouq.refetch()
-    await oq.refetch()
-    refreshOutlets()
+    try {
+      setToggleErr(null)
+      await api.updateOutlet(o.id, {
+        name: o.name,
+        code: o.code || '',
+        address: o.address || '',
+        phone: o.phone || '',
+        logoUrl: o.logoUrl ?? null,
+        isActive: !o.isActive,
+      })
+      await ouq.refetch()
+      await oq.refetch()
+      refreshOutlets()
+    } catch (e: unknown) {
+      setToggleErr(e instanceof Error ? e.message : 'Gagal mengubah status outlet.')
+    }
   }
 
   const onOutletDone = async () => {
@@ -194,6 +200,8 @@ export default function StokProduk() {
                 Tambah Outlet
               </Button>
             </div>
+
+            {toggleErr && <p className="mb-2 text-sm text-red-600">{toggleErr}</p>}
 
             {!ouq.loading && outlets.length === 0 && (
               <EmptyState icon={<Store />} title="Belum ada outlet" />
