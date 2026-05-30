@@ -222,6 +222,24 @@ const (
 	CreateLocationGoodsReceiptParamsKindWarehouse CreateLocationGoodsReceiptParamsKind = "warehouse"
 )
 
+// Defines values for AdjustIngredientLocationStockParamsKind.
+const (
+	AdjustIngredientLocationStockParamsKindOutlet    AdjustIngredientLocationStockParamsKind = "outlet"
+	AdjustIngredientLocationStockParamsKindWarehouse AdjustIngredientLocationStockParamsKind = "warehouse"
+)
+
+// Defines values for CreateIngredientLocationGoodsReceiptParamsKind.
+const (
+	CreateIngredientLocationGoodsReceiptParamsKindOutlet    CreateIngredientLocationGoodsReceiptParamsKind = "outlet"
+	CreateIngredientLocationGoodsReceiptParamsKindWarehouse CreateIngredientLocationGoodsReceiptParamsKind = "warehouse"
+)
+
+// Defines values for GetIngredientLocationStockParamsKind.
+const (
+	GetIngredientLocationStockParamsKindOutlet    GetIngredientLocationStockParamsKind = "outlet"
+	GetIngredientLocationStockParamsKindWarehouse GetIngredientLocationStockParamsKind = "warehouse"
+)
+
 // Defines values for GetOutletTransfersParamsStatus.
 const (
 	Cancelled GetOutletTransfersParamsStatus = "cancelled"
@@ -617,7 +635,6 @@ type IngredientAdjustInput struct {
 	IngredientId openapi_types.UUID `json:"ingredientId"`
 	NewQty       float32            `json:"newQty"`
 	Reason       string             `json:"reason"`
-	WarehouseId  openapi_types.UUID `json:"warehouseId"`
 }
 
 // IngredientCategory defines model for IngredientCategory.
@@ -641,10 +658,9 @@ type IngredientCategoryListResponse struct {
 
 // IngredientGoodsReceiptInput defines model for IngredientGoodsReceiptInput.
 type IngredientGoodsReceiptInput struct {
-	Items       []IngredientGoodsReceiptItemInput `json:"items"`
-	Note        nullable.Nullable[string]         `json:"note,omitempty"`
-	Supplier    nullable.Nullable[string]         `json:"supplier,omitempty"`
-	WarehouseId openapi_types.UUID                `json:"warehouseId"`
+	Items    []IngredientGoodsReceiptItemInput `json:"items"`
+	Note     nullable.Nullable[string]         `json:"note,omitempty"`
+	Supplier nullable.Nullable[string]         `json:"supplier,omitempty"`
 }
 
 // IngredientGoodsReceiptItemInput defines model for IngredientGoodsReceiptItemInput.
@@ -673,17 +689,16 @@ type IngredientListResponse struct {
 
 // IngredientStockCount defines model for IngredientStockCount.
 type IngredientStockCount struct {
-	CompletedAt   nullable.Nullable[time.Time]          `json:"completedAt,omitempty"`
-	CreatedAt     time.Time                             `json:"createdAt"`
-	Id            openapi_types.UUID                    `json:"id"`
-	Items         *[]IngredientStockCountItem           `json:"items,omitempty"`
-	Name          string                                `json:"name"`
-	Notes         nullable.Nullable[string]             `json:"notes,omitempty"`
-	PlannedDate   nullable.Nullable[openapi_types.Date] `json:"plannedDate,omitempty"`
-	StartedAt     nullable.Nullable[time.Time]          `json:"startedAt,omitempty"`
-	Status        IngredientStockCountStatus            `json:"status"`
-	WarehouseId   openapi_types.UUID                    `json:"warehouseId"`
-	WarehouseName *string                               `json:"warehouseName,omitempty"`
+	CompletedAt nullable.Nullable[time.Time]          `json:"completedAt,omitempty"`
+	CreatedAt   time.Time                             `json:"createdAt"`
+	Id          openapi_types.UUID                    `json:"id"`
+	Items       *[]IngredientStockCountItem           `json:"items,omitempty"`
+	Location    TransferLocation                      `json:"location"`
+	Name        string                                `json:"name"`
+	Notes       nullable.Nullable[string]             `json:"notes,omitempty"`
+	PlannedDate nullable.Nullable[openapi_types.Date] `json:"plannedDate,omitempty"`
+	StartedAt   nullable.Nullable[time.Time]          `json:"startedAt,omitempty"`
+	Status      IngredientStockCountStatus            `json:"status"`
 }
 
 // IngredientStockCountStatus defines model for IngredientStockCount.Status.
@@ -691,10 +706,10 @@ type IngredientStockCountStatus string
 
 // IngredientStockCountInput defines model for IngredientStockCountInput.
 type IngredientStockCountInput struct {
+	Location    TransferLocationInput                 `json:"location"`
 	Name        string                                `json:"name"`
 	Notes       nullable.Nullable[string]             `json:"notes,omitempty"`
 	PlannedDate nullable.Nullable[openapi_types.Date] `json:"plannedDate,omitempty"`
-	WarehouseId openapi_types.UUID                    `json:"warehouseId"`
 }
 
 // IngredientStockCountItem defines model for IngredientStockCountItem.
@@ -745,25 +760,23 @@ type IngredientStockRow struct {
 
 // IngredientTransfer defines model for IngredientTransfer.
 type IngredientTransfer struct {
-	CancelReason        nullable.Nullable[string]    `json:"cancelReason,omitempty"`
-	CancelledAt         nullable.Nullable[time.Time] `json:"cancelledAt,omitempty"`
-	CreatedAt           time.Time                    `json:"createdAt"`
-	DestWarehouseId     openapi_types.UUID           `json:"destWarehouseId"`
-	DestWarehouseName   *string                      `json:"destWarehouseName,omitempty"`
-	DiscrepancyReason   nullable.Nullable[string]    `json:"discrepancyReason,omitempty"`
-	Id                  openapi_types.UUID           `json:"id"`
-	Items               []IngredientTransferItem     `json:"items"`
-	Note                nullable.Nullable[string]    `json:"note,omitempty"`
-	ReceivedAt          nullable.Nullable[time.Time] `json:"receivedAt,omitempty"`
-	ReceiverLetterhead  *Letterhead                  `json:"receiverLetterhead,omitempty"`
-	SenderLetterhead    *Letterhead                  `json:"senderLetterhead,omitempty"`
-	SentAt              nullable.Nullable[time.Time] `json:"sentAt,omitempty"`
-	SourceWarehouseId   openapi_types.UUID           `json:"sourceWarehouseId"`
-	SourceWarehouseName *string                      `json:"sourceWarehouseName,omitempty"`
-	Status              IngredientTransferStatus     `json:"status"`
-	SuratJalanNo        nullable.Nullable[string]    `json:"suratJalanNo,omitempty"`
-	TandaTerimaNo       nullable.Nullable[string]    `json:"tandaTerimaNo,omitempty"`
-	TransferNo          string                       `json:"transferNo"`
+	CancelReason       nullable.Nullable[string]    `json:"cancelReason,omitempty"`
+	CancelledAt        nullable.Nullable[time.Time] `json:"cancelledAt,omitempty"`
+	CreatedAt          time.Time                    `json:"createdAt"`
+	Dest               TransferLocation             `json:"dest"`
+	DiscrepancyReason  nullable.Nullable[string]    `json:"discrepancyReason,omitempty"`
+	Id                 openapi_types.UUID           `json:"id"`
+	Items              []IngredientTransferItem     `json:"items"`
+	Note               nullable.Nullable[string]    `json:"note,omitempty"`
+	ReceivedAt         nullable.Nullable[time.Time] `json:"receivedAt,omitempty"`
+	ReceiverLetterhead *Letterhead                  `json:"receiverLetterhead,omitempty"`
+	SenderLetterhead   *Letterhead                  `json:"senderLetterhead,omitempty"`
+	SentAt             nullable.Nullable[time.Time] `json:"sentAt,omitempty"`
+	Source             TransferLocation             `json:"source"`
+	Status             IngredientTransferStatus     `json:"status"`
+	SuratJalanNo       nullable.Nullable[string]    `json:"suratJalanNo,omitempty"`
+	TandaTerimaNo      nullable.Nullable[string]    `json:"tandaTerimaNo,omitempty"`
+	TransferNo         string                       `json:"transferNo"`
 }
 
 // IngredientTransferStatus defines model for IngredientTransfer.Status.
@@ -776,10 +789,10 @@ type IngredientTransferCancelInput struct {
 
 // IngredientTransferCreateInput defines model for IngredientTransferCreateInput.
 type IngredientTransferCreateInput struct {
-	DestWarehouseId   openapi_types.UUID            `json:"destWarehouseId"`
-	Items             []IngredientTransferItemInput `json:"items"`
-	Note              nullable.Nullable[string]     `json:"note,omitempty"`
-	SourceWarehouseId openapi_types.UUID            `json:"sourceWarehouseId"`
+	Dest   TransferLocationInput         `json:"dest"`
+	Items  []IngredientTransferItemInput `json:"items"`
+	Note   nullable.Nullable[string]     `json:"note,omitempty"`
+	Source TransferLocationInput         `json:"source"`
 }
 
 // IngredientTransferItem defines model for IngredientTransferItem.
@@ -1770,11 +1783,6 @@ type ListIngredientsParams struct {
 	Q     *string `form:"q,omitempty" json:"q,omitempty"`
 }
 
-// GetIngredientStockParams defines parameters for GetIngredientStock.
-type GetIngredientStockParams struct {
-	WarehouseId openapi_types.UUID `form:"warehouseId" json:"warehouseId"`
-}
-
 // AdjustLocationStockParams defines parameters for AdjustLocationStock.
 type AdjustLocationStockParams struct {
 	Kind AdjustLocationStockParamsKind `form:"kind" json:"kind"`
@@ -1792,6 +1800,33 @@ type CreateLocationGoodsReceiptParams struct {
 
 // CreateLocationGoodsReceiptParamsKind defines parameters for CreateLocationGoodsReceipt.
 type CreateLocationGoodsReceiptParamsKind string
+
+// AdjustIngredientLocationStockParams defines parameters for AdjustIngredientLocationStock.
+type AdjustIngredientLocationStockParams struct {
+	Kind AdjustIngredientLocationStockParamsKind `form:"kind" json:"kind"`
+	Id   openapi_types.UUID                      `form:"id" json:"id"`
+}
+
+// AdjustIngredientLocationStockParamsKind defines parameters for AdjustIngredientLocationStock.
+type AdjustIngredientLocationStockParamsKind string
+
+// CreateIngredientLocationGoodsReceiptParams defines parameters for CreateIngredientLocationGoodsReceipt.
+type CreateIngredientLocationGoodsReceiptParams struct {
+	Kind CreateIngredientLocationGoodsReceiptParamsKind `form:"kind" json:"kind"`
+	Id   openapi_types.UUID                             `form:"id" json:"id"`
+}
+
+// CreateIngredientLocationGoodsReceiptParamsKind defines parameters for CreateIngredientLocationGoodsReceipt.
+type CreateIngredientLocationGoodsReceiptParamsKind string
+
+// GetIngredientLocationStockParams defines parameters for GetIngredientLocationStock.
+type GetIngredientLocationStockParams struct {
+	Kind GetIngredientLocationStockParamsKind `form:"kind" json:"kind"`
+	Id   openapi_types.UUID                   `form:"id" json:"id"`
+}
+
+// GetIngredientLocationStockParamsKind defines parameters for GetIngredientLocationStock.
+type GetIngredientLocationStockParamsKind string
 
 // SetOutletParParams defines parameters for SetOutletPar.
 type SetOutletParParams struct {
@@ -2042,12 +2077,6 @@ type ReceiveIngredientTransferJSONRequestBody = IngredientTransferReceiveInput
 // CreateIngredientJSONRequestBody defines body for CreateIngredient for application/json ContentType.
 type CreateIngredientJSONRequestBody = IngredientInput
 
-// AdjustIngredientStockJSONRequestBody defines body for AdjustIngredientStock for application/json ContentType.
-type AdjustIngredientStockJSONRequestBody = IngredientAdjustInput
-
-// CreateIngredientGoodsReceiptJSONRequestBody defines body for CreateIngredientGoodsReceipt for application/json ContentType.
-type CreateIngredientGoodsReceiptJSONRequestBody = IngredientGoodsReceiptInput
-
 // UpdateIngredientJSONRequestBody defines body for UpdateIngredient for application/json ContentType.
 type UpdateIngredientJSONRequestBody = IngredientInput
 
@@ -2056,6 +2085,12 @@ type AdjustLocationStockJSONRequestBody = WarehouseAdjustInput
 
 // CreateLocationGoodsReceiptJSONRequestBody defines body for CreateLocationGoodsReceipt for application/json ContentType.
 type CreateLocationGoodsReceiptJSONRequestBody = GoodsReceiptInput
+
+// AdjustIngredientLocationStockJSONRequestBody defines body for AdjustIngredientLocationStock for application/json ContentType.
+type AdjustIngredientLocationStockJSONRequestBody = IngredientAdjustInput
+
+// CreateIngredientLocationGoodsReceiptJSONRequestBody defines body for CreateIngredientLocationGoodsReceipt for application/json ContentType.
+type CreateIngredientLocationGoodsReceiptJSONRequestBody = IngredientGoodsReceiptInput
 
 // SetOutletParJSONRequestBody defines body for SetOutletPar for application/json ContentType.
 type SetOutletParJSONRequestBody = OutletParInput
@@ -2282,15 +2317,6 @@ type ServerInterface interface {
 	// (POST /api/v1/ingredients)
 	CreateIngredient(w http.ResponseWriter, r *http.Request)
 
-	// (POST /api/v1/ingredients/adjust)
-	AdjustIngredientStock(w http.ResponseWriter, r *http.Request)
-
-	// (POST /api/v1/ingredients/goods-receipt)
-	CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request)
-	// Per-warehouse ingredient stock
-	// (GET /api/v1/ingredients/stock)
-	GetIngredientStock(w http.ResponseWriter, r *http.Request, params GetIngredientStockParams)
-
 	// (DELETE /api/v1/ingredients/{id})
 	DeleteIngredient(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
@@ -2302,6 +2328,15 @@ type ServerInterface interface {
 	// Receive goods into an outlet OR warehouse (Backoffice)
 	// (POST /api/v1/inventory/goods-receipt)
 	CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateLocationGoodsReceiptParams)
+	// Absolute stock correction for an outlet or warehouse ingredient
+	// (POST /api/v1/inventory/ingredient-adjust)
+	AdjustIngredientLocationStock(w http.ResponseWriter, r *http.Request, params AdjustIngredientLocationStockParams)
+	// Receive ingredients into an outlet or warehouse
+	// (POST /api/v1/inventory/ingredient-goods-receipt)
+	CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateIngredientLocationGoodsReceiptParams)
+	// On-hand ingredient stock for a polymorphic location (outlet or warehouse)
+	// (GET /api/v1/inventory/ingredient-location-stock)
+	GetIngredientLocationStock(w http.ResponseWriter, r *http.Request, params GetIngredientLocationStockParams)
 	// Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice)
 	// (PUT /api/v1/inventory/outlet-par)
 	SetOutletPar(w http.ResponseWriter, r *http.Request, params SetOutletParParams)
@@ -2766,22 +2801,6 @@ func (_ Unimplemented) CreateIngredient(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (POST /api/v1/ingredients/adjust)
-func (_ Unimplemented) AdjustIngredientStock(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (POST /api/v1/ingredients/goods-receipt)
-func (_ Unimplemented) CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Per-warehouse ingredient stock
-// (GET /api/v1/ingredients/stock)
-func (_ Unimplemented) GetIngredientStock(w http.ResponseWriter, r *http.Request, params GetIngredientStockParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 // (DELETE /api/v1/ingredients/{id})
 func (_ Unimplemented) DeleteIngredient(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -2801,6 +2820,24 @@ func (_ Unimplemented) AdjustLocationStock(w http.ResponseWriter, r *http.Reques
 // Receive goods into an outlet OR warehouse (Backoffice)
 // (POST /api/v1/inventory/goods-receipt)
 func (_ Unimplemented) CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateLocationGoodsReceiptParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Absolute stock correction for an outlet or warehouse ingredient
+// (POST /api/v1/inventory/ingredient-adjust)
+func (_ Unimplemented) AdjustIngredientLocationStock(w http.ResponseWriter, r *http.Request, params AdjustIngredientLocationStockParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Receive ingredients into an outlet or warehouse
+// (POST /api/v1/inventory/ingredient-goods-receipt)
+func (_ Unimplemented) CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateIngredientLocationGoodsReceiptParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// On-hand ingredient stock for a polymorphic location (outlet or warehouse)
+// (GET /api/v1/inventory/ingredient-location-stock)
+func (_ Unimplemented) GetIngredientLocationStock(w http.ResponseWriter, r *http.Request, params GetIngredientLocationStockParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4561,86 +4598,6 @@ func (siw *ServerInterfaceWrapper) CreateIngredient(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
-// AdjustIngredientStock operation middleware
-func (siw *ServerInterfaceWrapper) AdjustIngredientStock(w http.ResponseWriter, r *http.Request) {
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AdjustIngredientStock(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreateIngredientGoodsReceipt operation middleware
-func (siw *ServerInterfaceWrapper) CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateIngredientGoodsReceipt(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetIngredientStock operation middleware
-func (siw *ServerInterfaceWrapper) GetIngredientStock(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetIngredientStockParams
-
-	// ------------- Required query parameter "warehouseId" -------------
-
-	if paramValue := r.URL.Query().Get("warehouseId"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "warehouseId"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "warehouseId", r.URL.Query(), &params.WarehouseId)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "warehouseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetIngredientStock(w, r, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 // DeleteIngredient operation middleware
 func (siw *ServerInterfaceWrapper) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
 
@@ -4804,6 +4761,171 @@ func (siw *ServerInterfaceWrapper) CreateLocationGoodsReceipt(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateLocationGoodsReceipt(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdjustIngredientLocationStock operation middleware
+func (siw *ServerInterfaceWrapper) AdjustIngredientLocationStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdjustIngredientLocationStockParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	if paramValue := r.URL.Query().Get("kind"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "id" -------------
+
+	if paramValue := r.URL.Query().Get("id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "id", r.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdjustIngredientLocationStock(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateIngredientLocationGoodsReceipt operation middleware
+func (siw *ServerInterfaceWrapper) CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateIngredientLocationGoodsReceiptParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	if paramValue := r.URL.Query().Get("kind"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "id" -------------
+
+	if paramValue := r.URL.Query().Get("id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "id", r.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateIngredientLocationGoodsReceipt(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetIngredientLocationStock operation middleware
+func (siw *ServerInterfaceWrapper) GetIngredientLocationStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetIngredientLocationStockParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	if paramValue := r.URL.Query().Get("kind"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "id" -------------
+
+	if paramValue := r.URL.Query().Get("id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "id"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "id", r.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetIngredientLocationStock(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7634,15 +7756,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/ingredients", wrapper.CreateIngredient)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/ingredients/adjust", wrapper.AdjustIngredientStock)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/ingredients/goods-receipt", wrapper.CreateIngredientGoodsReceipt)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/ingredients/stock", wrapper.GetIngredientStock)
-	})
-	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/ingredients/{id}", wrapper.DeleteIngredient)
 	})
 	r.Group(func(r chi.Router) {
@@ -7653,6 +7766,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/inventory/goods-receipt", wrapper.CreateLocationGoodsReceipt)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/ingredient-adjust", wrapper.AdjustIngredientLocationStock)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/ingredient-goods-receipt", wrapper.CreateIngredientLocationGoodsReceipt)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/ingredient-location-stock", wrapper.GetIngredientLocationStock)
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/inventory/outlet-par", wrapper.SetOutletPar)
@@ -8767,55 +8889,6 @@ func (response CreateIngredient201Response) VisitCreateIngredientResponse(w http
 	return nil
 }
 
-type AdjustIngredientStockRequestObject struct {
-	Body *AdjustIngredientStockJSONRequestBody
-}
-
-type AdjustIngredientStockResponseObject interface {
-	VisitAdjustIngredientStockResponse(w http.ResponseWriter) error
-}
-
-type AdjustIngredientStock200Response struct {
-}
-
-func (response AdjustIngredientStock200Response) VisitAdjustIngredientStockResponse(w http.ResponseWriter) error {
-	w.WriteHeader(200)
-	return nil
-}
-
-type CreateIngredientGoodsReceiptRequestObject struct {
-	Body *CreateIngredientGoodsReceiptJSONRequestBody
-}
-
-type CreateIngredientGoodsReceiptResponseObject interface {
-	VisitCreateIngredientGoodsReceiptResponse(w http.ResponseWriter) error
-}
-
-type CreateIngredientGoodsReceipt201Response struct {
-}
-
-func (response CreateIngredientGoodsReceipt201Response) VisitCreateIngredientGoodsReceiptResponse(w http.ResponseWriter) error {
-	w.WriteHeader(201)
-	return nil
-}
-
-type GetIngredientStockRequestObject struct {
-	Params GetIngredientStockParams
-}
-
-type GetIngredientStockResponseObject interface {
-	VisitGetIngredientStockResponse(w http.ResponseWriter) error
-}
-
-type GetIngredientStock200JSONResponse IngredientStockResponse
-
-func (response GetIngredientStock200JSONResponse) VisitGetIngredientStockResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
 type DeleteIngredientRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -8879,6 +8952,57 @@ type CreateLocationGoodsReceiptResponseObject interface {
 type CreateLocationGoodsReceipt200JSONResponse OkResponse
 
 func (response CreateLocationGoodsReceipt200JSONResponse) VisitCreateLocationGoodsReceiptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AdjustIngredientLocationStockRequestObject struct {
+	Params AdjustIngredientLocationStockParams
+	Body   *AdjustIngredientLocationStockJSONRequestBody
+}
+
+type AdjustIngredientLocationStockResponseObject interface {
+	VisitAdjustIngredientLocationStockResponse(w http.ResponseWriter) error
+}
+
+type AdjustIngredientLocationStock200Response struct {
+}
+
+func (response AdjustIngredientLocationStock200Response) VisitAdjustIngredientLocationStockResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type CreateIngredientLocationGoodsReceiptRequestObject struct {
+	Params CreateIngredientLocationGoodsReceiptParams
+	Body   *CreateIngredientLocationGoodsReceiptJSONRequestBody
+}
+
+type CreateIngredientLocationGoodsReceiptResponseObject interface {
+	VisitCreateIngredientLocationGoodsReceiptResponse(w http.ResponseWriter) error
+}
+
+type CreateIngredientLocationGoodsReceipt201Response struct {
+}
+
+func (response CreateIngredientLocationGoodsReceipt201Response) VisitCreateIngredientLocationGoodsReceiptResponse(w http.ResponseWriter) error {
+	w.WriteHeader(201)
+	return nil
+}
+
+type GetIngredientLocationStockRequestObject struct {
+	Params GetIngredientLocationStockParams
+}
+
+type GetIngredientLocationStockResponseObject interface {
+	VisitGetIngredientLocationStockResponse(w http.ResponseWriter) error
+}
+
+type GetIngredientLocationStock200JSONResponse IngredientStockResponse
+
+func (response GetIngredientLocationStock200JSONResponse) VisitGetIngredientLocationStockResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
@@ -10560,15 +10684,6 @@ type StrictServerInterface interface {
 	// (POST /api/v1/ingredients)
 	CreateIngredient(ctx context.Context, request CreateIngredientRequestObject) (CreateIngredientResponseObject, error)
 
-	// (POST /api/v1/ingredients/adjust)
-	AdjustIngredientStock(ctx context.Context, request AdjustIngredientStockRequestObject) (AdjustIngredientStockResponseObject, error)
-
-	// (POST /api/v1/ingredients/goods-receipt)
-	CreateIngredientGoodsReceipt(ctx context.Context, request CreateIngredientGoodsReceiptRequestObject) (CreateIngredientGoodsReceiptResponseObject, error)
-	// Per-warehouse ingredient stock
-	// (GET /api/v1/ingredients/stock)
-	GetIngredientStock(ctx context.Context, request GetIngredientStockRequestObject) (GetIngredientStockResponseObject, error)
-
 	// (DELETE /api/v1/ingredients/{id})
 	DeleteIngredient(ctx context.Context, request DeleteIngredientRequestObject) (DeleteIngredientResponseObject, error)
 
@@ -10580,6 +10695,15 @@ type StrictServerInterface interface {
 	// Receive goods into an outlet OR warehouse (Backoffice)
 	// (POST /api/v1/inventory/goods-receipt)
 	CreateLocationGoodsReceipt(ctx context.Context, request CreateLocationGoodsReceiptRequestObject) (CreateLocationGoodsReceiptResponseObject, error)
+	// Absolute stock correction for an outlet or warehouse ingredient
+	// (POST /api/v1/inventory/ingredient-adjust)
+	AdjustIngredientLocationStock(ctx context.Context, request AdjustIngredientLocationStockRequestObject) (AdjustIngredientLocationStockResponseObject, error)
+	// Receive ingredients into an outlet or warehouse
+	// (POST /api/v1/inventory/ingredient-goods-receipt)
+	CreateIngredientLocationGoodsReceipt(ctx context.Context, request CreateIngredientLocationGoodsReceiptRequestObject) (CreateIngredientLocationGoodsReceiptResponseObject, error)
+	// On-hand ingredient stock for a polymorphic location (outlet or warehouse)
+	// (GET /api/v1/inventory/ingredient-location-stock)
+	GetIngredientLocationStock(ctx context.Context, request GetIngredientLocationStockRequestObject) (GetIngredientLocationStockResponseObject, error)
 	// Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice)
 	// (PUT /api/v1/inventory/outlet-par)
 	SetOutletPar(ctx context.Context, request SetOutletParRequestObject) (SetOutletParResponseObject, error)
@@ -12103,94 +12227,6 @@ func (sh *strictHandler) CreateIngredient(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// AdjustIngredientStock operation middleware
-func (sh *strictHandler) AdjustIngredientStock(w http.ResponseWriter, r *http.Request) {
-	var request AdjustIngredientStockRequestObject
-
-	var body AdjustIngredientStockJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.AdjustIngredientStock(ctx, request.(AdjustIngredientStockRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AdjustIngredientStock")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(AdjustIngredientStockResponseObject); ok {
-		if err := validResponse.VisitAdjustIngredientStockResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// CreateIngredientGoodsReceipt operation middleware
-func (sh *strictHandler) CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-	var request CreateIngredientGoodsReceiptRequestObject
-
-	var body CreateIngredientGoodsReceiptJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateIngredientGoodsReceipt(ctx, request.(CreateIngredientGoodsReceiptRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateIngredientGoodsReceipt")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(CreateIngredientGoodsReceiptResponseObject); ok {
-		if err := validResponse.VisitCreateIngredientGoodsReceiptResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetIngredientStock operation middleware
-func (sh *strictHandler) GetIngredientStock(w http.ResponseWriter, r *http.Request, params GetIngredientStockParams) {
-	var request GetIngredientStockRequestObject
-
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetIngredientStock(ctx, request.(GetIngredientStockRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetIngredientStock")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetIngredientStockResponseObject); ok {
-		if err := validResponse.VisitGetIngredientStockResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // DeleteIngredient operation middleware
 func (sh *strictHandler) DeleteIngredient(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request DeleteIngredientRequestObject
@@ -12309,6 +12345,98 @@ func (sh *strictHandler) CreateLocationGoodsReceipt(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateLocationGoodsReceiptResponseObject); ok {
 		if err := validResponse.VisitCreateLocationGoodsReceiptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdjustIngredientLocationStock operation middleware
+func (sh *strictHandler) AdjustIngredientLocationStock(w http.ResponseWriter, r *http.Request, params AdjustIngredientLocationStockParams) {
+	var request AdjustIngredientLocationStockRequestObject
+
+	request.Params = params
+
+	var body AdjustIngredientLocationStockJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdjustIngredientLocationStock(ctx, request.(AdjustIngredientLocationStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdjustIngredientLocationStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdjustIngredientLocationStockResponseObject); ok {
+		if err := validResponse.VisitAdjustIngredientLocationStockResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateIngredientLocationGoodsReceipt operation middleware
+func (sh *strictHandler) CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateIngredientLocationGoodsReceiptParams) {
+	var request CreateIngredientLocationGoodsReceiptRequestObject
+
+	request.Params = params
+
+	var body CreateIngredientLocationGoodsReceiptJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateIngredientLocationGoodsReceipt(ctx, request.(CreateIngredientLocationGoodsReceiptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateIngredientLocationGoodsReceipt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateIngredientLocationGoodsReceiptResponseObject); ok {
+		if err := validResponse.VisitCreateIngredientLocationGoodsReceiptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetIngredientLocationStock operation middleware
+func (sh *strictHandler) GetIngredientLocationStock(w http.ResponseWriter, r *http.Request, params GetIngredientLocationStockParams) {
+	var request GetIngredientLocationStockRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetIngredientLocationStock(ctx, request.(GetIngredientLocationStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetIngredientLocationStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetIngredientLocationStockResponseObject); ok {
+		if err := validResponse.VisitGetIngredientLocationStockResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -14272,179 +14400,179 @@ func (sh *strictHandler) Health(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

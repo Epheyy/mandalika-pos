@@ -116,26 +116,26 @@ type IngredientGoodsReceiptItem struct {
 	UnitCost     *float64 `json:"unitCost,omitempty"`
 }
 
-// IngredientGoodsReceipt is the write-model for receiving ingredients into a warehouse.
+// IngredientGoodsReceipt is the write-model for receiving ingredients into an outlet or warehouse.
 type IngredientGoodsReceipt struct {
-	WarehouseID string                       `json:"warehouseId"`
-	Supplier    string                       `json:"supplier,omitempty"`
-	Note        string                       `json:"note,omitempty"`
-	Items       []IngredientGoodsReceiptItem `json:"items"`
+	LocKind  string                       `json:"locKind"`
+	LocID    string                       `json:"locId"`
+	Supplier string                       `json:"supplier,omitempty"`
+	Note     string                       `json:"note,omitempty"`
+	Items    []IngredientGoodsReceiptItem `json:"items"`
 }
 
-// CreateIngredientGoodsReceipt records a goods receipt and bumps warehouse stock atomically.
+// CreateIngredientGoodsReceipt records a goods receipt and credits the location's stock atomically.
+// Ingredients are NOT POS-synced, so no content_version bump is needed regardless of location kind.
 func (r *Repo) CreateIngredientGoodsReceipt(ctx context.Context, caller string, in IngredientGoodsReceipt) (string, error) {
-	if in.WarehouseID == "" {
-		return "", fmt.Errorf("gudang wajib")
+	if err := validateIngredientGoodsReceipt(in.LocKind, in.Items); err != nil {
+		return "", err
 	}
-	if len(in.Items) == 0 {
-		return "", fmt.Errorf("minimal satu bahan")
-	}
-	for _, it := range in.Items {
-		if it.Qty <= 0 {
-			return "", fmt.Errorf("qty harus lebih dari 0")
-		}
+	var whID, outID any
+	if in.LocKind == "warehouse" {
+		whID = in.LocID
+	} else {
+		outID = in.LocID
 	}
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
@@ -145,10 +145,10 @@ func (r *Repo) CreateIngredientGoodsReceipt(ctx context.Context, caller string, 
 
 	var rid string
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO ingredient_goods_receipts (warehouse_id, supplier, note, created_by)
-         VALUES ($1, NULLIF($2,''), NULLIF($3,''), NULLIF($4,'')::uuid)
+		`INSERT INTO ingredient_goods_receipts (warehouse_id, outlet_id, supplier, note, created_by)
+         VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''), NULLIF($5,'')::uuid)
          RETURNING id`,
-		in.WarehouseID, in.Supplier, in.Note, caller,
+		whID, outID, in.Supplier, in.Note, caller,
 	).Scan(&rid); err != nil {
 		return "", fmt.Errorf("insert receipt: %w", err)
 	}
@@ -160,14 +160,26 @@ func (r *Repo) CreateIngredientGoodsReceipt(ctx context.Context, caller string, 
 		); err != nil {
 			return "", fmt.Errorf("insert receipt item: %w", err)
 		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
-                  VALUES ($1, $2, $3)
-             ON CONFLICT (warehouse_id, ingredient_id)
-             DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
-			in.WarehouseID, it.IngredientID, it.Qty,
-		); err != nil {
-			return "", fmt.Errorf("upsert stock: %w", err)
+		if in.LocKind == "warehouse" {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
+                      VALUES ($1, $2, $3)
+                 ON CONFLICT (warehouse_id, ingredient_id)
+                 DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
+				in.LocID, it.IngredientID, it.Qty,
+			); err != nil {
+				return "", fmt.Errorf("upsert warehouse stock: %w", err)
+			}
+		} else {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO ingredient_outlet_stock (outlet_id, ingredient_id, qty)
+                      VALUES ($1, $2, $3)
+                 ON CONFLICT (outlet_id, ingredient_id)
+                 DO UPDATE SET qty = ingredient_outlet_stock.qty + EXCLUDED.qty`,
+				in.LocID, it.IngredientID, it.Qty,
+			); err != nil {
+				return "", fmt.Errorf("upsert outlet stock: %w", err)
+			}
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -238,41 +250,58 @@ func (r *Repo) DeleteIngredientCategory(ctx context.Context, id string) error {
 
 // IngredientAdjust is the write-model for a manual stock adjustment.
 type IngredientAdjust struct {
-	WarehouseID  string  `json:"warehouseId"`
+	LocKind      string  `json:"locKind"`
+	LocID        string  `json:"locId"`
 	IngredientID string  `json:"ingredientId"`
 	NewQty       float64 `json:"newQty"`
 	Reason       string  `json:"reason"`
 }
 
-// AdjustIngredientStock sets the absolute stock qty and records the adjustment log atomically.
+// AdjustIngredientStock sets the absolute stock qty for an outlet or warehouse and logs the adjustment.
+// Ingredients are NOT POS-synced, so no content_version bump is needed.
 func (r *Repo) AdjustIngredientStock(ctx context.Context, caller string, in IngredientAdjust) error {
-	if in.WarehouseID == "" || in.IngredientID == "" {
-		return fmt.Errorf("gudang dan bahan wajib")
+	if err := validateIngredientLocationAdjust(in.LocKind, in.NewQty, in.Reason); err != nil {
+		return err
 	}
-	if in.NewQty < 0 {
-		return fmt.Errorf("qty tidak boleh negatif")
+	if in.IngredientID == "" {
+		return fmt.Errorf("bahan wajib")
 	}
-	if in.Reason == "" {
-		return fmt.Errorf("alasan wajib")
+	var whID, outID any
+	if in.LocKind == "warehouse" {
+		whID = in.LocID
+	} else {
+		outID = in.LocID
 	}
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
-              VALUES ($1, $2, $3)
-         ON CONFLICT (warehouse_id, ingredient_id)
-         DO UPDATE SET qty = EXCLUDED.qty`,
-		in.WarehouseID, in.IngredientID, in.NewQty,
-	); err != nil {
-		return fmt.Errorf("upsert stock: %w", err)
+	if in.LocKind == "warehouse" {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
+                  VALUES ($1, $2, $3)
+             ON CONFLICT (warehouse_id, ingredient_id)
+             DO UPDATE SET qty = EXCLUDED.qty`,
+			in.LocID, in.IngredientID, in.NewQty,
+		); err != nil {
+			return fmt.Errorf("upsert warehouse stock: %w", err)
+		}
+	} else {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO ingredient_outlet_stock (outlet_id, ingredient_id, qty)
+                  VALUES ($1, $2, $3)
+             ON CONFLICT (outlet_id, ingredient_id)
+             DO UPDATE SET qty = EXCLUDED.qty`,
+			in.LocID, in.IngredientID, in.NewQty,
+		); err != nil {
+			return fmt.Errorf("upsert outlet stock: %w", err)
+		}
 	}
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO ingredient_stock_adjustments (warehouse_id, ingredient_id, new_qty, reason, created_by)
-         VALUES ($1, $2, $3, $4, NULLIF($5,'')::uuid)`,
-		in.WarehouseID, in.IngredientID, in.NewQty, in.Reason, caller,
+		`INSERT INTO ingredient_stock_adjustments (warehouse_id, outlet_id, ingredient_id, new_qty, reason, created_by)
+         VALUES ($1, $2, $3, $4, $5, NULLIF($6,'')::uuid)`,
+		whID, outID, in.IngredientID, in.NewQty, in.Reason, caller,
 	); err != nil {
 		return fmt.Errorf("insert adjustment: %w", err)
 	}

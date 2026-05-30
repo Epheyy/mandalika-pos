@@ -508,15 +508,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ingredients/stock": {
+    "/api/v1/inventory/ingredient-location-stock": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Per-warehouse ingredient stock */
-        get: operations["getIngredientStock"];
+        /** On-hand ingredient stock for a polymorphic location (outlet or warehouse) */
+        get: operations["getIngredientLocationStock"];
         put?: never;
         post?: never;
         delete?: never;
@@ -557,7 +557,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ingredients/goods-receipt": {
+    "/api/v1/inventory/ingredient-goods-receipt": {
         parameters: {
             query?: never;
             header?: never;
@@ -566,14 +566,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["createIngredientGoodsReceipt"];
+        /** Receive ingredients into an outlet or warehouse */
+        post: operations["createIngredientLocationGoodsReceipt"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ingredients/adjust": {
+    "/api/v1/inventory/ingredient-adjust": {
         parameters: {
             query?: never;
             header?: never;
@@ -582,7 +583,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["adjustIngredientStock"];
+        /** Absolute stock correction for an outlet or warehouse ingredient */
+        post: operations["adjustIngredientLocationStock"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1710,15 +1712,11 @@ export interface components {
             unitCost?: number | null;
         };
         IngredientGoodsReceiptInput: {
-            /** Format: uuid */
-            warehouseId: string;
             supplier?: string | null;
             note?: string | null;
             items: components["schemas"]["IngredientGoodsReceiptItemInput"][];
         };
         IngredientAdjustInput: {
-            /** Format: uuid */
-            warehouseId: string;
             /** Format: uuid */
             ingredientId: string;
             newQty: number;
@@ -1741,12 +1739,8 @@ export interface components {
             transferNo: string;
             /** @enum {string} */
             status: "draft" | "in_transit" | "completed" | "cancelled";
-            /** Format: uuid */
-            sourceWarehouseId: string;
-            sourceWarehouseName?: string;
-            /** Format: uuid */
-            destWarehouseId: string;
-            destWarehouseName?: string;
+            source: components["schemas"]["TransferLocation"];
+            dest: components["schemas"]["TransferLocation"];
             suratJalanNo?: string | null;
             tandaTerimaNo?: string | null;
             note?: string | null;
@@ -1777,10 +1771,8 @@ export interface components {
             qty: number;
         };
         IngredientTransferCreateInput: {
-            /** Format: uuid */
-            sourceWarehouseId: string;
-            /** Format: uuid */
-            destWarehouseId: string;
+            source: components["schemas"]["TransferLocationInput"];
+            dest: components["schemas"]["TransferLocationInput"];
             note?: string | null;
             items: components["schemas"]["IngredientTransferItemInput"][];
         };
@@ -1812,9 +1804,7 @@ export interface components {
             name: string;
             /** @enum {string} */
             status: "planned" | "in_progress" | "completed" | "cancelled";
-            /** Format: uuid */
-            warehouseId: string;
-            warehouseName?: string;
+            location: components["schemas"]["TransferLocation"];
             /** Format: date */
             plannedDate?: string | null;
             notes?: string | null;
@@ -1828,8 +1818,7 @@ export interface components {
         };
         IngredientStockCountInput: {
             name: string;
-            /** Format: uuid */
-            warehouseId: string;
+            location: components["schemas"]["TransferLocationInput"];
             /** Format: date */
             plannedDate?: string | null;
             notes?: string | null;
@@ -3814,10 +3803,11 @@ export interface operations {
             };
         };
     };
-    getIngredientStock: {
+    getIngredientLocationStock: {
         parameters: {
             query: {
-                warehouseId: string;
+                kind: "outlet" | "warehouse";
+                id: string;
             };
             header?: never;
             path?: never;
@@ -3825,7 +3815,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description stock matrix */
+            /** @description stock rows */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3922,9 +3912,12 @@ export interface operations {
             };
         };
     };
-    createIngredientGoodsReceipt: {
+    createIngredientLocationGoodsReceipt: {
         parameters: {
-            query?: never;
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3944,9 +3937,12 @@ export interface operations {
             };
         };
     };
-    adjustIngredientStock: {
+    adjustIngredientLocationStock: {
         parameters: {
-            query?: never;
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

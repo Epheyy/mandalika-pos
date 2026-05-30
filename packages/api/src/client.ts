@@ -212,9 +212,9 @@ export interface Api {
   createIngredientCategory: (input: IngredientCategoryInput) => Promise<void>
   updateIngredientCategory: (id: string, input: IngredientCategoryInput) => Promise<void>
   deleteIngredientCategory: (id: string) => Promise<void>
-  getIngredientStock: (warehouseId: string) => Promise<IngredientStockRow[]>
-  createIngredientGoodsReceipt: (input: IngredientGoodsReceiptInput) => Promise<void>
-  adjustIngredientStock: (input: IngredientAdjustInput) => Promise<void>
+  getIngredientLocationStock: (kind: 'outlet' | 'warehouse', id: string) => Promise<IngredientStockRow[]>
+  createIngredientLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: IngredientGoodsReceiptInput) => Promise<void>
+  adjustIngredientLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: IngredientAdjustInput) => Promise<void>
   listIngredientTransfers: (opts?: { status?: string; page?: number; limit?: number }) => Promise<ListResult<IngredientTransfer>>
   getIngredientTransfer: (id: string) => Promise<IngredientTransfer>
   createIngredientTransfer: (input: IngredientTransferCreateInput) => Promise<void>
@@ -490,13 +490,13 @@ export function createClient(opts: ClientOptions): Api {
     deleteIngredientCategory: async (id) => {
       await request('DELETE', `${API}/ingredient-categories/${id}`)
     },
-    getIngredientStock: (warehouseId) =>
-      data<IngredientStockRow[]>('GET', `${API}/ingredients/stock${qs({ warehouseId })}`),
-    createIngredientGoodsReceipt: async (input) => {
-      await request('POST', `${API}/ingredients/goods-receipt`, input)
+    getIngredientLocationStock: (kind, id) =>
+      data<IngredientStockRow[]>('GET', `${API}/inventory/ingredient-location-stock${qs({ kind, id })}`),
+    createIngredientLocationGoodsReceipt: async (loc, input) => {
+      await request('POST', `${API}/inventory/ingredient-goods-receipt?kind=${loc.kind}&id=${loc.id}`, input)
     },
-    adjustIngredientStock: async (input) => {
-      await request('POST', `${API}/ingredients/adjust`, input)
+    adjustIngredientLocationStock: async (loc, input) => {
+      await request('POST', `${API}/inventory/ingredient-adjust?kind=${loc.kind}&id=${loc.id}`, input)
     },
     listIngredientTransfers: (opts) =>
       list<IngredientTransfer>(`${API}/ingredient-transfers`, opts as Record<string, string | number> | undefined),

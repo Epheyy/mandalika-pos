@@ -342,17 +342,15 @@ components:
         unitCost: { type: number, nullable: true }
     IngredientGoodsReceiptInput:
       type: object
-      required: [warehouseId, items]
+      required: [items]
       properties:
-        warehouseId: { type: string, format: uuid }
         supplier: { type: string, nullable: true }
         note: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/IngredientGoodsReceiptItemInput' } }
     IngredientAdjustInput:
       type: object
-      required: [warehouseId, ingredientId, newQty, reason]
+      required: [ingredientId, newQty, reason]
       properties:
-        warehouseId: { type: string, format: uuid }
         ingredientId: { type: string, format: uuid }
         newQty: { type: number }
         reason: { type: string }
@@ -369,15 +367,13 @@ components:
         difference: { type: number, nullable: true }
     IngredientTransfer:
       type: object
-      required: [id, transferNo, status, sourceWarehouseId, destWarehouseId, createdAt, items]
+      required: [id, transferNo, status, source, dest, createdAt, items]
       properties:
         id: { type: string, format: uuid }
         transferNo: { type: string }
         status: { type: string, enum: [draft, in_transit, completed, cancelled] }
-        sourceWarehouseId: { type: string, format: uuid }
-        sourceWarehouseName: { type: string }
-        destWarehouseId: { type: string, format: uuid }
-        destWarehouseName: { type: string }
+        source: { $ref: '#/components/schemas/TransferLocation' }
+        dest: { $ref: '#/components/schemas/TransferLocation' }
         suratJalanNo: { type: string, nullable: true }
         tandaTerimaNo: { type: string, nullable: true }
         note: { type: string, nullable: true }
@@ -409,10 +405,10 @@ components:
         qty: { type: number }
     IngredientTransferCreateInput:
       type: object
-      required: [sourceWarehouseId, destWarehouseId, items]
+      required: [source, dest, items]
       properties:
-        sourceWarehouseId: { type: string, format: uuid }
-        destWarehouseId: { type: string, format: uuid }
+        source: { $ref: '#/components/schemas/TransferLocationInput' }
+        dest: { $ref: '#/components/schemas/TransferLocationInput' }
         note: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/IngredientTransferItemInput' } }
     IngredientTransferReceiveItemInput:
@@ -444,13 +440,12 @@ components:
         difference: { type: number, nullable: true }
     IngredientStockCount:
       type: object
-      required: [id, name, status, warehouseId, createdAt]
+      required: [id, name, status, location, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         status: { type: string, enum: [planned, in_progress, completed, cancelled] }
-        warehouseId: { type: string, format: uuid }
-        warehouseName: { type: string }
+        location: { $ref: '#/components/schemas/TransferLocation' }
         plannedDate: { type: string, format: date, nullable: true }
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
@@ -459,10 +454,10 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/IngredientStockCountItem' } }
     IngredientStockCountInput:
       type: object
-      required: [name, warehouseId]
+      required: [name, location]
       properties:
         name: { type: string }
-        warehouseId: { type: string, format: uuid }
+        location: { $ref: '#/components/schemas/TransferLocationInput' }
         plannedDate: { type: string, format: date, nullable: true }
         notes: { type: string, nullable: true }
     IngredientStockCountSaveItemInput:
@@ -2126,16 +2121,17 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
-  /api/v1/ingredients/stock:
+  /api/v1/inventory/ingredient-location-stock:
     get:
-      operationId: getIngredientStock
+      operationId: getIngredientLocationStock
       tags: [catalog]
-      summary: Per-warehouse ingredient stock
+      summary: On-hand ingredient stock for a polymorphic location (outlet or warehouse)
       parameters:
-        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
-          description: stock matrix
+          description: stock rows
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IngredientStockResponse' }
@@ -2176,20 +2172,28 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
-  /api/v1/ingredients/goods-receipt:
+  /api/v1/inventory/ingredient-goods-receipt:
     post:
-      operationId: createIngredientGoodsReceipt
+      operationId: createIngredientLocationGoodsReceipt
       tags: [catalog]
+      summary: Receive ingredients into an outlet or warehouse
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/IngredientGoodsReceiptInput' }
       responses: { '201': { description: created } }
-  /api/v1/ingredients/adjust:
+  /api/v1/inventory/ingredient-adjust:
     post:
-      operationId: adjustIngredientStock
+      operationId: adjustIngredientLocationStock
       tags: [catalog]
+      summary: Absolute stock correction for an outlet or warehouse ingredient
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content:

@@ -8,31 +8,44 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// IngredientStockCount is the write-model for creating an ingredient stock count.
+// Exactly one of LocKind+LocID is used; the kind determines which stock table is
+// snapshotted (warehouse → ingredient_warehouse_stock; outlet → ingredient_outlet_stock).
 type IngredientStockCount struct {
 	Name        string `json:"name"`
-	WarehouseID string `json:"warehouseId"`
+	LocKind     string `json:"locKind"`
+	LocID       string `json:"locId"`
 	PlannedDate string `json:"plannedDate,omitempty"`
 	Notes       string `json:"notes,omitempty"`
 }
 
 func (r *Repo) CreateIngredientStockCount(ctx context.Context, caller string, in IngredientStockCount) (string, error) {
-	if in.Name == "" || in.WarehouseID == "" {
-		return "", fmt.Errorf("nama dan gudang wajib")
+	if in.Name == "" {
+		return "", fmt.Errorf("nama wajib")
+	}
+	if !validLocKind(in.LocKind) || in.LocID == "" {
+		return "", fmt.Errorf("lokasi tidak valid")
+	}
+	var whID, outID any
+	if in.LocKind == "warehouse" {
+		whID = in.LocID
+	} else {
+		outID = in.LocID
 	}
 	var id string
 	if err := r.Pool.QueryRow(ctx,
-		`INSERT INTO ingredient_stock_counts (name, status, warehouse_id, planned_date, notes, created_by)
-         VALUES ($1, 'planned', $2, NULLIF($3,'')::date, NULLIF($4,''), NULLIF($5,'')::uuid)
+		`INSERT INTO ingredient_stock_counts (name, status, warehouse_id, outlet_id, planned_date, notes, created_by)
+         VALUES ($1, 'planned', $2, $3, NULLIF($4,'')::date, NULLIF($5,''), NULLIF($6,'')::uuid)
          RETURNING id`,
-		in.Name, in.WarehouseID, in.PlannedDate, in.Notes, caller,
+		in.Name, whID, outID, in.PlannedDate, in.Notes, caller,
 	).Scan(&id); err != nil {
 		return "", fmt.Errorf("insert stock count: %w", err)
 	}
 	return id, nil
 }
 
-// StartIngredientStockCount transitions planned → in_progress and freezes the
-// ingredient lines (snapshot name + unit so rename later doesn't corrupt this row).
+// StartIngredientStockCount transitions planned → in_progress and snapshots the
+// active ingredient list with current name + unit.
 func (r *Repo) StartIngredientStockCount(ctx context.Context, id string) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
@@ -40,10 +53,11 @@ func (r *Repo) StartIngredientStockCount(ctx context.Context, id string) error {
 	}
 	defer tx.Rollback(ctx)
 
-	var status, whID string
+	var status string
+	var whID, outID *string
 	if err := tx.QueryRow(ctx,
-		`SELECT status, warehouse_id FROM ingredient_stock_counts WHERE id=$1 FOR UPDATE`, id,
-	).Scan(&status, &whID); err != nil {
+		`SELECT status, warehouse_id, outlet_id FROM ingredient_stock_counts WHERE id=$1 FOR UPDATE`, id,
+	).Scan(&status, &whID, &outID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -55,8 +69,8 @@ func (r *Repo) StartIngredientStockCount(ctx context.Context, id string) error {
 	// Snapshot every active ingredient with its current name + unit.
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO ingredient_stock_count_items
-             (stock_count_id, ingredient_id, ingredient_name, ingredient_unit)
-         SELECT $1, id, name, unit FROM ingredients WHERE is_active`,
+		     (stock_count_id, ingredient_id, ingredient_name, ingredient_unit)
+		 SELECT $1, id, name, unit FROM ingredients WHERE is_active`,
 		id,
 	); err != nil {
 		return fmt.Errorf("snapshot items: %w", err)
@@ -107,8 +121,9 @@ func (r *Repo) SaveIngredientStockCount(ctx context.Context, id string, items []
 	return tx.Commit(ctx)
 }
 
-// CompleteIngredientStockCount writes counted qty into ingredient_warehouse_stock,
-// records each line's `difference` (counted − previous qty), and marks completed.
+// CompleteIngredientStockCount writes counted qty into the appropriate stock table
+// (ingredient_warehouse_stock or ingredient_outlet_stock), records each line's
+// difference (counted − previous qty), and marks the count completed.
 // Lines with NULL counted are skipped (operator hasn't touched them).
 func (r *Repo) CompleteIngredientStockCount(ctx context.Context, id string) error {
 	tx, err := r.Pool.Begin(ctx)
@@ -116,10 +131,11 @@ func (r *Repo) CompleteIngredientStockCount(ctx context.Context, id string) erro
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	var status, whID string
+	var status string
+	var whID, outID *string
 	if err := tx.QueryRow(ctx,
-		`SELECT status, warehouse_id FROM ingredient_stock_counts WHERE id=$1 FOR UPDATE`, id,
-	).Scan(&status, &whID); err != nil {
+		`SELECT status, warehouse_id, outlet_id FROM ingredient_stock_counts WHERE id=$1 FOR UPDATE`, id,
+	).Scan(&status, &whID, &outID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -128,29 +144,55 @@ func (r *Repo) CompleteIngredientStockCount(ctx context.Context, id string) erro
 	if status != "in_progress" {
 		return fmt.Errorf("status %q tidak bisa diselesaikan", status)
 	}
-	// For each line with a counted value: compute difference and upsert the
-	// warehouse stock.
-	if _, err := tx.Exec(ctx,
-		`WITH lines AS (
-            SELECT i.id, i.ingredient_id, i.counted,
-                   i.counted - COALESCE(s.qty,0) AS diff
-              FROM ingredient_stock_count_items i
-              LEFT JOIN ingredient_warehouse_stock s
-                     ON s.warehouse_id = $2 AND s.ingredient_id = i.ingredient_id
-             WHERE i.stock_count_id = $1 AND i.counted IS NOT NULL
-         ),
-         upd AS (
-             UPDATE ingredient_stock_count_items i
-                SET difference = l.diff
-               FROM lines l WHERE l.id = i.id
-         )
-         INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
-              SELECT $2, ingredient_id, counted FROM lines
-         ON CONFLICT (warehouse_id, ingredient_id)
-         DO UPDATE SET qty = EXCLUDED.qty`,
-		id, whID,
-	); err != nil {
-		return fmt.Errorf("apply counted: %w", err)
+
+	if whID != nil {
+		// Warehouse count: apply counted qty to ingredient_warehouse_stock.
+		if _, err := tx.Exec(ctx,
+			`WITH lines AS (
+			    SELECT i.id, i.ingredient_id, i.counted,
+			           i.counted - COALESCE(s.qty,0) AS diff
+			      FROM ingredient_stock_count_items i
+			      LEFT JOIN ingredient_warehouse_stock s
+			             ON s.warehouse_id = $2 AND s.ingredient_id = i.ingredient_id
+			     WHERE i.stock_count_id = $1 AND i.counted IS NOT NULL
+			 ),
+			 upd AS (
+			     UPDATE ingredient_stock_count_items i
+			        SET difference = l.diff
+			       FROM lines l WHERE l.id = i.id
+			 )
+			 INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
+			      SELECT $2, ingredient_id, counted FROM lines
+			 ON CONFLICT (warehouse_id, ingredient_id)
+			 DO UPDATE SET qty = EXCLUDED.qty`,
+			id, *whID,
+		); err != nil {
+			return fmt.Errorf("apply counted (warehouse): %w", err)
+		}
+	} else {
+		// Outlet count: apply counted qty to ingredient_outlet_stock.
+		if _, err := tx.Exec(ctx,
+			`WITH lines AS (
+			    SELECT i.id, i.ingredient_id, i.counted,
+			           i.counted - COALESCE(s.qty,0) AS diff
+			      FROM ingredient_stock_count_items i
+			      LEFT JOIN ingredient_outlet_stock s
+			             ON s.outlet_id = $2 AND s.ingredient_id = i.ingredient_id
+			     WHERE i.stock_count_id = $1 AND i.counted IS NOT NULL
+			 ),
+			 upd AS (
+			     UPDATE ingredient_stock_count_items i
+			        SET difference = l.diff
+			       FROM lines l WHERE l.id = i.id
+			 )
+			 INSERT INTO ingredient_outlet_stock (outlet_id, ingredient_id, qty)
+			      SELECT $2, ingredient_id, counted FROM lines
+			 ON CONFLICT (outlet_id, ingredient_id)
+			 DO UPDATE SET qty = EXCLUDED.qty`,
+			id, *outID,
+		); err != nil {
+			return fmt.Errorf("apply counted (outlet): %w", err)
+		}
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE ingredient_stock_counts SET status='completed', completed_at=now() WHERE id=$1`,

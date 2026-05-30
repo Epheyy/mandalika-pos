@@ -359,32 +359,68 @@ func (h *Handlers) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteIngredient(r.Context(), chi.URLParam(r, "id")))
 }
 
-func (h *Handlers) CreateIngredientGoodsReceipt(w http.ResponseWriter, r *http.Request) {
-	in, ok := decodeWrite[write.IngredientGoodsReceipt](w, r)
+// ── Ingredient location stock ops ─────────────────────────
+
+func (h *Handlers) CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request) {
+	kind, locID, ok := locTarget(r)
+	if !ok {
+		httpx.Err(w, http.StatusBadRequest, "kind ('outlet'/'warehouse') dan id wajib")
+		return
+	}
+	type body struct {
+		Supplier string                             `json:"supplier"`
+		Note     string                             `json:"note"`
+		Items    []write.IngredientGoodsReceiptItem `json:"items"`
+	}
+	b, ok := decodeWrite[body](w, r)
 	if !ok {
 		return
 	}
 	c, _ := h.caller(r)
+	in := write.IngredientGoodsReceipt{
+		LocKind:  kind,
+		LocID:    locID,
+		Supplier: b.Supplier,
+		Note:     b.Note,
+		Items:    b.Items,
+	}
 	id, err := h.Write.CreateIngredientGoodsReceipt(r.Context(), c.userID, in)
 	h.created(w, r, id, err)
 }
 
-func (h *Handlers) AdjustIngredientStock(w http.ResponseWriter, r *http.Request) {
-	in, ok := decodeWrite[write.IngredientAdjust](w, r)
+func (h *Handlers) AdjustIngredientLocationStock(w http.ResponseWriter, r *http.Request) {
+	kind, locID, ok := locTarget(r)
+	if !ok {
+		httpx.Err(w, http.StatusBadRequest, "kind ('outlet'/'warehouse') dan id wajib")
+		return
+	}
+	type body struct {
+		IngredientID string  `json:"ingredientId"`
+		NewQty       float64 `json:"newQty"`
+		Reason       string  `json:"reason"`
+	}
+	b, ok := decodeWrite[body](w, r)
 	if !ok {
 		return
 	}
 	c, _ := h.caller(r)
+	in := write.IngredientAdjust{
+		LocKind:      kind,
+		LocID:        locID,
+		IngredientID: b.IngredientID,
+		NewQty:       b.NewQty,
+		Reason:       b.Reason,
+	}
 	h.mutated(w, r, h.Write.AdjustIngredientStock(r.Context(), c.userID, in))
 }
 
-func (h *Handlers) IngredientStock(w http.ResponseWriter, r *http.Request) {
-	whID := r.URL.Query().Get("warehouseId")
-	if whID == "" {
-		httpx.Err(w, http.StatusBadRequest, "warehouseId wajib")
+func (h *Handlers) IngredientLocationStock(w http.ResponseWriter, r *http.Request) {
+	kind, locID, ok := locTarget(r)
+	if !ok {
+		httpx.Err(w, http.StatusBadRequest, "kind ('outlet'/'warehouse') dan id wajib")
 		return
 	}
-	rows, err := h.Repo.IngredientStock(r.Context(), whID)
+	rows, err := h.Repo.IngredientLocationStock(r.Context(), kind, locID)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -447,6 +483,8 @@ func (h *Handlers) IngredientTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) CreateIngredientTransfer(w http.ResponseWriter, r *http.Request) {
+	// Body: {source:{kind,id}, dest:{kind,id}, note, items:[{ingredientId,qty}]}
+	// write.IngredientTransferCreate has Source/Dest as TransferLoc{Kind,ID} — matches JSON exactly.
 	in, ok := decodeWrite[write.IngredientTransferCreate](w, r)
 	if !ok {
 		return
@@ -505,11 +543,25 @@ func (h *Handlers) IngredientStockCount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handlers) CreateIngredientStockCount(w http.ResponseWriter, r *http.Request) {
-	in, ok := decodeWrite[write.IngredientStockCount](w, r)
+	// Body: {name, location:{kind,id}, plannedDate?, notes?}
+	type ingredientStockCountInput struct {
+		Name        string            `json:"name"`
+		Location    write.TransferLoc `json:"location"`
+		PlannedDate string            `json:"plannedDate"`
+		Notes       string            `json:"notes"`
+	}
+	b, ok := decodeWrite[ingredientStockCountInput](w, r)
 	if !ok {
 		return
 	}
 	c, _ := h.caller(r)
+	in := write.IngredientStockCount{
+		Name:        b.Name,
+		LocKind:     b.Location.Kind,
+		LocID:       b.Location.ID,
+		PlannedDate: b.PlannedDate,
+		Notes:       b.Notes,
+	}
 	id, err := h.Write.CreateIngredientStockCount(r.Context(), c.userID, in)
 	h.created(w, r, id, err)
 }

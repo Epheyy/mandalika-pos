@@ -13,11 +13,14 @@ type IngredientTransferItemInput struct {
 	IngredientID string  `json:"ingredientId"`
 	Qty          float64 `json:"qty"`
 }
+
+// IngredientTransferCreate uses polymorphic TransferLoc for source and dest,
+// matching the product transfer mesh pattern.
 type IngredientTransferCreate struct {
-	SourceWarehouseID string                        `json:"sourceWarehouseId"`
-	DestWarehouseID   string                        `json:"destWarehouseId"`
-	Note              string                        `json:"note"`
-	Items             []IngredientTransferItemInput `json:"items"`
+	Source TransferLoc                   `json:"source"`
+	Dest   TransferLoc                   `json:"dest"`
+	Note   string                        `json:"note"`
+	Items  []IngredientTransferItemInput `json:"items"`
 }
 
 type IngredientTransferReceiveItem struct {
@@ -29,12 +32,28 @@ type IngredientTransferReceive struct {
 	DiscrepancyReason string                          `json:"discrepancyReason"`
 }
 
+// ingTransferRow holds the status and the four nullable location columns loaded
+// from ingredient_transfers. Exactly one of (srcOutlet, srcWarehouse) and exactly
+// one of (dstOutlet, dstWarehouse) will be non-nil after the migration.
+type ingTransferRow struct {
+	status                                           string
+	srcOutlet, srcWarehouse, dstOutlet, dstWarehouse *string
+}
+
+type ingTransferLine struct {
+	ingID string
+	qty   float64
+}
+
 func validateIngTransfer(c IngredientTransferCreate) error {
-	if c.SourceWarehouseID == "" || c.DestWarehouseID == "" {
-		return fmt.Errorf("gudang sumber dan tujuan wajib")
+	if !validLocKind(c.Source.Kind) || c.Source.ID == "" {
+		return fmt.Errorf("lokasi sumber tidak valid")
 	}
-	if c.SourceWarehouseID == c.DestWarehouseID {
-		return fmt.Errorf("sumber dan tujuan tidak boleh sama")
+	if !validLocKind(c.Dest.Kind) || c.Dest.ID == "" {
+		return fmt.Errorf("lokasi tujuan tidak valid")
+	}
+	if sameLoc(c.Source, c.Dest) {
+		return fmt.Errorf("tidak boleh transfer ke lokasi yang sama")
 	}
 	if len(c.Items) == 0 {
 		return fmt.Errorf("minimal satu bahan")
@@ -47,10 +66,84 @@ func validateIngTransfer(c IngredientTransferCreate) error {
 	return nil
 }
 
+func loadIngTransfer(ctx context.Context, tx pgx.Tx, id string) (ingTransferRow, error) {
+	var t ingTransferRow
+	e := tx.QueryRow(ctx,
+		`SELECT status, source_outlet_id, source_warehouse_id, dest_outlet_id, dest_warehouse_id
+		   FROM ingredient_transfers WHERE id=$1 FOR UPDATE`, id).Scan(
+		&t.status, &t.srcOutlet, &t.srcWarehouse, &t.dstOutlet, &t.dstWarehouse)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return t, ErrNotFound
+	}
+	return t, e
+}
+
+func loadIngTransferLines(ctx context.Context, tx pgx.Tx, id string) ([]ingTransferLine, error) {
+	rows, e := tx.Query(ctx,
+		`SELECT ingredient_id, sent_qty FROM ingredient_transfer_items WHERE transfer_id=$1`, id)
+	if e != nil {
+		return nil, fmt.Errorf("load items: %w", e)
+	}
+	defer rows.Close()
+	var out []ingTransferLine
+	for rows.Next() {
+		var l ingTransferLine
+		if e := rows.Scan(&l.ingID, &l.qty); e != nil {
+			return nil, fmt.Errorf("scan item: %w", e)
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// addIngStockDelta applies a signed delta to the right ingredient stock table.
+// Exactly one of outletID/warehouseID must be non-nil.
+func addIngStockDelta(ctx context.Context, tx pgx.Tx, outletID, warehouseID *string, ingID string, delta float64) error {
+	if outletID != nil {
+		_, e := tx.Exec(ctx,
+			`INSERT INTO ingredient_outlet_stock (outlet_id, ingredient_id, qty)
+			 VALUES ($1,$2,$3)
+			 ON CONFLICT (outlet_id, ingredient_id)
+			   DO UPDATE SET qty = ingredient_outlet_stock.qty + EXCLUDED.qty`,
+			*outletID, ingID, delta)
+		return e
+	}
+	_, e := tx.Exec(ctx,
+		`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
+		 VALUES ($1,$2,$3)
+		 ON CONFLICT (warehouse_id, ingredient_id)
+		   DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
+		*warehouseID, ingID, delta)
+	return e
+}
+
+// currentIngStock reads on-hand qty for one leg (0 when no row yet).
+func currentIngStock(ctx context.Context, tx pgx.Tx, outletID, warehouseID *string, ingID string) (float64, error) {
+	var n float64
+	var e error
+	if outletID != nil {
+		e = tx.QueryRow(ctx,
+			`SELECT COALESCE(qty,0) FROM ingredient_outlet_stock
+			  WHERE outlet_id=$1 AND ingredient_id=$2 FOR UPDATE`,
+			*outletID, ingID).Scan(&n)
+	} else {
+		e = tx.QueryRow(ctx,
+			`SELECT COALESCE(qty,0) FROM ingredient_warehouse_stock
+			  WHERE warehouse_id=$1 AND ingredient_id=$2 FOR UPDATE`,
+			*warehouseID, ingID).Scan(&n)
+	}
+	if errors.Is(e, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return n, e
+}
+
 func (r *Repo) CreateIngredientTransfer(ctx context.Context, caller string, in IngredientTransferCreate) (string, error) {
 	if err := validateIngTransfer(in); err != nil {
 		return "", err
 	}
+	so, sw := locCols(in.Source)
+	do, dw := locCols(in.Dest)
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return "", fmt.Errorf("begin tx: %w", err)
@@ -59,10 +152,10 @@ func (r *Repo) CreateIngredientTransfer(ctx context.Context, caller string, in I
 	var id string
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO ingredient_transfers
-             (source_warehouse_id, dest_warehouse_id, note, created_by)
-         VALUES ($1, $2, NULLIF($3,''), NULLIF($4,'')::uuid)
-         RETURNING id`,
-		in.SourceWarehouseID, in.DestWarehouseID, in.Note, caller,
+		     (source_outlet_id, source_warehouse_id, dest_outlet_id, dest_warehouse_id, note, created_by)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,'')::uuid)
+		 RETURNING id`,
+		nullUUID(so), nullUUID(sw), nullUUID(do), nullUUID(dw), in.Note, caller,
 	).Scan(&id); err != nil {
 		return "", fmt.Errorf("insert transfer: %w", err)
 	}
@@ -88,78 +181,42 @@ func (r *Repo) SendIngredientTransfer(ctx context.Context, caller, id string) er
 	}
 	defer tx.Rollback(ctx)
 
-	var status, src string
-	if err := tx.QueryRow(ctx,
-		`SELECT status, source_warehouse_id FROM ingredient_transfers WHERE id=$1 FOR UPDATE`,
-		id,
-	).Scan(&status, &src); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("load transfer: %w", err)
+	t, e := loadIngTransfer(ctx, tx, id)
+	if e != nil {
+		return e
 	}
-	if status != "draft" {
+	if t.status != "draft" {
 		return fmt.Errorf("transfer tidak dalam status draft")
 	}
 
-	// Validate source on-hand >= each sent_qty; deduct in tx.
-	rows, err := tx.Query(ctx,
-		`SELECT ingredient_id, sent_qty FROM ingredient_transfer_items WHERE transfer_id=$1`, id,
-	)
-	if err != nil {
-		return fmt.Errorf("load items: %w", err)
-	}
-	type line struct {
-		ingID string
-		qty   float64
-	}
-	var items []line
-	for rows.Next() {
-		var l line
-		if err := rows.Scan(&l.ingID, &l.qty); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan item: %w", err)
-		}
-		items = append(items, l)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate items: %w", err)
+	lines, e := loadIngTransferLines(ctx, tx, id)
+	if e != nil {
+		return e
 	}
 
-	for _, l := range items {
-		var have float64
-		err := tx.QueryRow(ctx,
-			`SELECT COALESCE(qty,0) FROM ingredient_warehouse_stock
-              WHERE warehouse_id=$1 AND ingredient_id=$2 FOR UPDATE`,
-			src, l.ingID,
-		).Scan(&have)
-		if errors.Is(err, pgx.ErrNoRows) {
-			have = 0
-		} else if err != nil {
-			return fmt.Errorf("lock stock: %w", err)
+	// Validate source stock >= each sent_qty; deduct in tx.
+	for _, l := range lines {
+		have, e := currentIngStock(ctx, tx, t.srcOutlet, t.srcWarehouse, l.ingID)
+		if e != nil {
+			return fmt.Errorf("lock stock: %w", e)
 		}
 		if have < l.qty {
 			return fmt.Errorf("stok kurang untuk bahan %s (tersedia %.3f, butuh %.3f)", l.ingID, have, l.qty)
 		}
-		if _, err := tx.Exec(ctx,
-			`UPDATE ingredient_warehouse_stock SET qty = qty - $3
-              WHERE warehouse_id=$1 AND ingredient_id=$2`,
-			src, l.ingID, l.qty,
-		); err != nil {
-			return fmt.Errorf("deduct stock: %w", err)
+		if e := addIngStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.ingID, -l.qty); e != nil {
+			return fmt.Errorf("deduct stock: %w", e)
 		}
 	}
 
 	// Stamp surat jalan (per-year ISJ counter) + mark in_transit.
-	sj, err := nextDocNo(ctx, tx, "ISJ", time.Now().Year())
-	if err != nil {
-		return err
+	sj, e := nextDocNo(ctx, tx, "ISJ", time.Now().Year())
+	if e != nil {
+		return e
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE ingredient_transfers
-            SET status='in_transit', sent_at=now(), sent_by=NULLIF($2,'')::uuid, surat_jalan_no=$3
-          WHERE id=$1`,
+		    SET status='in_transit', sent_at=now(), sent_by=NULLIF($2,'')::uuid, surat_jalan_no=$3
+		  WHERE id=$1`,
 		id, caller, sj,
 	); err != nil {
 		return fmt.Errorf("stamp send: %w", err)
@@ -174,25 +231,18 @@ func (r *Repo) ReceiveIngredientTransfer(ctx context.Context, caller, id string,
 	}
 	defer tx.Rollback(ctx)
 
-	var status, dst string
-	if err := tx.QueryRow(ctx,
-		`SELECT status, dest_warehouse_id FROM ingredient_transfers WHERE id=$1 FOR UPDATE`,
-		id,
-	).Scan(&status, &dst); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("load transfer: %w", err)
+	t, e := loadIngTransfer(ctx, tx, id)
+	if e != nil {
+		return e
 	}
-	if status == "completed" {
-		// Idempotent replay: already done; treat as success.
+	// Idempotent replay: already completed → succeed as a no-op.
+	if t.status == "completed" {
 		return tx.Commit(ctx)
 	}
-	if status != "in_transit" {
+	if t.status != "in_transit" {
 		return fmt.Errorf("transfer tidak dalam status in_transit")
 	}
 
-	// Per-item: compute difference, credit dest with actual received_qty.
 	hasDiff := false
 	for _, it := range in.Items {
 		if it.ReceivedQty < 0 {
@@ -202,7 +252,7 @@ func (r *Repo) ReceiveIngredientTransfer(ctx context.Context, caller, id string,
 		var sent float64
 		if err := tx.QueryRow(ctx,
 			`SELECT ingredient_id, sent_qty FROM ingredient_transfer_items
-              WHERE id=$1 AND transfer_id=$2 FOR UPDATE`,
+			  WHERE id=$1 AND transfer_id=$2 FOR UPDATE`,
 			it.ItemID, id,
 		).Scan(&ingID, &sent); err != nil {
 			return fmt.Errorf("load item %s: %w", it.ItemID, err)
@@ -213,36 +263,30 @@ func (r *Repo) ReceiveIngredientTransfer(ctx context.Context, caller, id string,
 		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE ingredient_transfer_items
-                SET received_qty=$2, difference=$3 WHERE id=$1`,
+			    SET received_qty=$2, difference=$3 WHERE id=$1`,
 			it.ItemID, it.ReceivedQty, diff,
 		); err != nil {
 			return fmt.Errorf("update item: %w", err)
 		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
-                  VALUES ($1, $2, $3)
-             ON CONFLICT (warehouse_id, ingredient_id)
-             DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
-			dst, ingID, it.ReceivedQty,
-		); err != nil {
-			return fmt.Errorf("credit dest: %w", err)
+		if e := addIngStockDelta(ctx, tx, t.dstOutlet, t.dstWarehouse, ingID, it.ReceivedQty); e != nil {
+			return fmt.Errorf("credit dest: %w", e)
 		}
 	}
 	if hasDiff && in.DiscrepancyReason == "" {
 		return fmt.Errorf("alasan selisih wajib")
 	}
 
-	tt, err := nextDocNo(ctx, tx, "ITT", time.Now().Year())
-	if err != nil {
-		return err
+	tt, e := nextDocNo(ctx, tx, "ITT", time.Now().Year())
+	if e != nil {
+		return e
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE ingredient_transfers
-            SET status='completed', received_at=now(),
-                received_by=NULLIF($2,'')::uuid,
-                tanda_terima_no=$3,
-                discrepancy_reason=NULLIF($4,'')
-          WHERE id=$1`,
+		    SET status='completed', received_at=now(),
+		        received_by=NULLIF($2,'')::uuid,
+		        tanda_terima_no=$3,
+		        discrepancy_reason=NULLIF($4,'')
+		  WHERE id=$1`,
 		id, caller, tt, in.DiscrepancyReason,
 	); err != nil {
 		return fmt.Errorf("stamp receive: %w", err)
@@ -260,63 +304,31 @@ func (r *Repo) CancelIngredientTransfer(ctx context.Context, caller, id, reason 
 	}
 	defer tx.Rollback(ctx)
 
-	var status, src string
-	if err := tx.QueryRow(ctx,
-		`SELECT status, source_warehouse_id FROM ingredient_transfers WHERE id=$1 FOR UPDATE`,
-		id,
-	).Scan(&status, &src); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("load transfer: %w", err)
+	t, e := loadIngTransfer(ctx, tx, id)
+	if e != nil {
+		return e
 	}
-	switch status {
+	switch t.status {
 	case "draft":
-		// pure void
+		// pure void — no stock effect
 	case "in_transit":
-		// restore source stock — collect all lines first (pgx forbids exec on a
-		// tx with open rows), then iterate.
-		rows, err := tx.Query(ctx,
-			`SELECT ingredient_id, sent_qty FROM ingredient_transfer_items WHERE transfer_id=$1`, id,
-		)
-		if err != nil {
-			return fmt.Errorf("load items: %w", err)
-		}
-		type line struct {
-			ing string
-			qty float64
-		}
-		var lines []line
-		for rows.Next() {
-			var l line
-			if err := rows.Scan(&l.ing, &l.qty); err != nil {
-				rows.Close()
-				return fmt.Errorf("scan item: %w", err)
-			}
-			lines = append(lines, l)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("iterate items: %w", err)
+		// restore each line's sent qty to the source's correct table.
+		lines, e := loadIngTransferLines(ctx, tx, id)
+		if e != nil {
+			return e
 		}
 		for _, l := range lines {
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO ingredient_warehouse_stock (warehouse_id, ingredient_id, qty)
-                      VALUES ($1, $2, $3)
-                 ON CONFLICT (warehouse_id, ingredient_id)
-                 DO UPDATE SET qty = ingredient_warehouse_stock.qty + EXCLUDED.qty`,
-				src, l.ing, l.qty,
-			); err != nil {
-				return fmt.Errorf("restore stock: %w", err)
+			if e := addIngStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.ingID, l.qty); e != nil {
+				return fmt.Errorf("restore stock: %w", e)
 			}
 		}
 	default:
-		return fmt.Errorf("status %q tidak bisa dibatalkan", status)
+		return fmt.Errorf("status %q tidak bisa dibatalkan", t.status)
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE ingredient_transfers
-            SET status='cancelled', cancelled_at=now(), cancel_reason=$2
-          WHERE id=$1`,
+		    SET status='cancelled', cancelled_at=now(), cancel_reason=$2
+		  WHERE id=$1`,
 		id, reason,
 	); err != nil {
 		return fmt.Errorf("mark cancelled: %w", err)

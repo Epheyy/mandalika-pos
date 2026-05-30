@@ -10,33 +10,55 @@ func TestValidateIngTransfer(t *testing.T) {
 		ok   bool
 	}{
 		{
-			"happy",
+			"happy warehouse→warehouse",
 			IngredientTransferCreate{
-				SourceWarehouseID: "src", DestWarehouseID: "dst",
-				Items: []IngredientTransferItemInput{{IngredientID: "i1", Qty: 1.5}},
+				Source: TransferLoc{Kind: "warehouse", ID: "src"},
+				Dest:   TransferLoc{Kind: "warehouse", ID: "dst"},
+				Items:  []IngredientTransferItemInput{{IngredientID: "i1", Qty: 1.5}},
+			},
+			true,
+		},
+		{
+			"happy outlet→warehouse",
+			IngredientTransferCreate{
+				Source: TransferLoc{Kind: "outlet", ID: "outlet1"},
+				Dest:   TransferLoc{Kind: "warehouse", ID: "wh1"},
+				Items:  []IngredientTransferItemInput{{IngredientID: "i1", Qty: 2}},
 			},
 			true,
 		},
 		{
 			"same src/dst",
 			IngredientTransferCreate{
-				SourceWarehouseID: "a", DestWarehouseID: "a",
-				Items: []IngredientTransferItemInput{{IngredientID: "i1", Qty: 1}},
+				Source: TransferLoc{Kind: "warehouse", ID: "a"},
+				Dest:   TransferLoc{Kind: "warehouse", ID: "a"},
+				Items:  []IngredientTransferItemInput{{IngredientID: "i1", Qty: 1}},
 			},
 			false,
 		},
 		{
 			"empty items",
 			IngredientTransferCreate{
-				SourceWarehouseID: "src", DestWarehouseID: "dst",
+				Source: TransferLoc{Kind: "warehouse", ID: "src"},
+				Dest:   TransferLoc{Kind: "outlet", ID: "dst"},
 			},
 			false,
 		},
 		{
 			"zero qty",
 			IngredientTransferCreate{
-				SourceWarehouseID: "src", DestWarehouseID: "dst",
-				Items: []IngredientTransferItemInput{{IngredientID: "i1", Qty: 0}},
+				Source: TransferLoc{Kind: "warehouse", ID: "src"},
+				Dest:   TransferLoc{Kind: "outlet", ID: "dst"},
+				Items:  []IngredientTransferItemInput{{IngredientID: "i1", Qty: 0}},
+			},
+			false,
+		},
+		{
+			"bad source kind",
+			IngredientTransferCreate{
+				Source: TransferLoc{Kind: "shelf", ID: "s1"},
+				Dest:   TransferLoc{Kind: "warehouse", ID: "d1"},
+				Items:  []IngredientTransferItemInput{{IngredientID: "i1", Qty: 1}},
 			},
 			false,
 		},
