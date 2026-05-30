@@ -6,7 +6,7 @@ import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from '
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, fieldClass } from '../../ui'
+import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../../ui'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -95,15 +95,20 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
   )
 }
 
+const PAGE_SIZE = 25
+
 // ---- main component ----
 
 export default function OpnameTab() {
-  const scq = usePolledQuery<IngredientStockCount[]>(
-    () => api.listIngredientStockCounts({ limit: 100 }).then((r) => r.data),
-    [],
+  const [page, setPage] = useState(1)
+  const scq = usePolledQuery(
+    () => api.listIngredientStockCounts({ page, limit: PAGE_SIZE }),
+    [page],
   )
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
-  const stockCounts = scq.data ?? []
+  const stockCounts = scq.data?.data ?? []
+  const scTotal = scq.data?.meta?.total ?? 0
+  const scTotalPages = Math.max(1, Math.ceil(scTotal / PAGE_SIZE))
   const warehouses = (wq.data ?? []).filter((w) => w.isActive)
 
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -324,6 +329,10 @@ export default function OpnameTab() {
           })
         )}
       </div>
+
+      {scTotalPages > 1 && (
+        <Pagination page={page} totalPages={scTotalPages} total={scTotal} onChange={setPage} />
+      )}
 
       {/* Create modal */}
       <Modal

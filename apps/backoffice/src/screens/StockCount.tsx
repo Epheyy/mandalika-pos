@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { StockCount, StockCountItem, Product, Outlet, Warehouse } from '@mandalika/api'
+import type { StockCount, StockCountItem, Product, Outlet, Warehouse, ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
@@ -7,15 +7,20 @@ import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, fieldClass } from '../ui'
+import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../ui'
+
+const PAGE_SIZE = 25
 
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
-  const scq = usePolledQuery<StockCount[]>(() => api.listStockCounts().then((r) => r.data), [outletId])
+  const [page, setPage] = useState(1)
+  const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, PAGE_SIZE), [outletId, page])
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
-  const stockCounts = scq.data ?? []
+  const stockCounts = scq.data?.data ?? []
+  const scTotal = scq.data?.meta?.total ?? 0
+  const scTotalPages = Math.max(1, Math.ceil(scTotal / PAGE_SIZE))
   const products = pq.data ?? []
   const outlets = ctxOutlets.length ? ctxOutlets : ouq.data ?? []
   const warehouses = wq.data ?? []
@@ -248,6 +253,10 @@ export default function StockCount() {
           })
         )}
       </div>
+
+      {scTotalPages > 1 && (
+        <Pagination page={page} totalPages={scTotalPages} total={scTotal} onChange={setPage} />
+      )}
 
       <Modal
         open={open}

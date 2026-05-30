@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { Ingredient, IngredientCategory } from '@mandalika/api'
+import type { Ingredient, IngredientCategory, ListResult } from '@mandalika/api'
 import { Edit2, Search, FlaskConical } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Badge, EmptyState, fieldClass } from '../../ui'
+import { Button, Badge, EmptyState, Pagination, fieldClass } from '../../ui'
 import { IngredientFormModal } from './IngredientFormModal'
+
+const PAGE_SIZE = 25
 
 const formatIDR = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -15,15 +17,18 @@ const formatIDR = (n: number | null | undefined) => {
 export default function DaftarTab() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
 
-  const q = usePolledQuery<Ingredient[]>(
-    () => api.listIngredients({ limit: 100 }).then((r) => r.data),
-    [],
+  const q = usePolledQuery<ListResult<Ingredient>>(
+    () => api.listIngredients({ page, limit: PAGE_SIZE, ...(search.trim() ? { q: search.trim() } : {}) }),
+    [page, search],
   )
-  const ingredients = q.data ?? []
+  const ingredients = q.data?.data ?? []
+  const total = q.data?.meta?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // Fetch categories for the filter dropdown
   useEffect(() => {
@@ -35,17 +40,10 @@ export default function DaftarTab() {
     return () => { alive = false }
   }, [])
 
-  const filtered = ingredients.filter((i) => {
-    const q = search.trim().toLowerCase()
-    const matchesSearch =
-      q === '' ||
-      i.name.toLowerCase().includes(q) ||
-      (i.sku ?? '').toLowerCase().includes(q)
-    const matchesCategory =
-      categoryFilter === '' ||
-      i.categoryId === categoryFilter
-    return matchesSearch && matchesCategory
-  })
+  // Client-side category filter (category is not a server-side filter param)
+  const filtered = categoryFilter
+    ? ingredients.filter((i) => i.categoryId === categoryFilter)
+    : ingredients
 
   const openAdd = () => {
     setEditing(null)
@@ -59,6 +57,16 @@ export default function DaftarTab() {
 
   const closeModal = () => setShowModal(false)
 
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryFilter(value)
+    setPage(1)
+  }
+
   return (
     <div>
       {/* Header */}
@@ -69,7 +77,7 @@ export default function DaftarTab() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Cari nama atau SKU..."
               className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
             />
@@ -78,7 +86,7 @@ export default function DaftarTab() {
           {/* Category filter */}
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className={fieldClass + ' w-auto py-2'}
           >
             <option value="">Semua kategori</option>
@@ -165,6 +173,16 @@ export default function DaftarTab() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onChange={setPage}
+          className="mt-4"
+        />
       )}
 
       {/* Modal */}

@@ -4,9 +4,8 @@ import StokTab from './StokTab'
 import StokMasukTab from './StokMasukTab'
 import PenyesuaianTab from './PenyesuaianTab'
 import TransferTab from './TransferTab'
-import OpnameTab from './OpnameTab'
 
-type Inner = 'daftar' | 'stok' | 'stok-masuk' | 'penyesuaian' | 'transfer' | 'opname'
+type Inner = 'daftar' | 'stok' | 'stok-masuk' | 'penyesuaian' | 'transfer'
 
 const INNER_TABS: { id: Inner; label: string }[] = [
   { id: 'daftar', label: 'Daftar' },
@@ -14,7 +13,6 @@ const INNER_TABS: { id: Inner; label: string }[] = [
   { id: 'stok-masuk', label: 'Stok Masuk' },
   { id: 'penyesuaian', label: 'Penyesuaian' },
   { id: 'transfer', label: 'Transfer' },
-  { id: 'opname', label: 'Opname' },
 ]
 
 export default function Ingredients() {
@@ -46,7 +44,6 @@ export default function Ingredients() {
       {inner === 'stok-masuk' && <StokMasukTab />}
       {inner === 'penyesuaian' && <PenyesuaianTab />}
       {inner === 'transfer' && <TransferTab />}
-      {inner === 'opname' && <OpnameTab />}
     </div>
   )
 }

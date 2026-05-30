@@ -4,7 +4,7 @@ import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Card, Badge, EmptyState } from '../../ui'
+import { Button, Card, Badge, EmptyState, Pagination } from '../../ui'
 import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
@@ -21,6 +21,8 @@ const fmtDate = (s?: string | null) =>
     ? new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—'
 
+const PAGE_SIZE = 25
+
 type FilterStatus = 'all' | 'draft' | 'in_transit' | 'completed' | 'cancelled'
 
 const FILTER_LABELS: { value: FilterStatus; label: string }[] = [
@@ -33,18 +35,22 @@ const FILTER_LABELS: { value: FilterStatus; label: string }[] = [
 
 export default function TransferTab() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const q = usePolledQuery(
     () =>
-      api.listIngredientTransfers(
-        filterStatus !== 'all' ? { status: filterStatus } : undefined,
-      ),
-    [filterStatus],
+      api.listIngredientTransfers({
+        ...(filterStatus !== 'all' ? { status: filterStatus } : {}),
+        page,
+        limit: PAGE_SIZE,
+      }),
+    [filterStatus, page],
   )
   const rows = q.data?.data ?? []
-  const total = q.data?.meta?.total ?? rows.length
+  const total = q.data?.meta?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const selected = rows.find((t) => t.id === selectedId) ?? null
 
@@ -57,7 +63,7 @@ export default function TransferTab() {
             <button
               key={f.value}
               type="button"
-              onClick={() => { setFilterStatus(f.value); setSelectedId(null) }}
+              onClick={() => { setFilterStatus(f.value); setPage(1); setSelectedId(null) }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 filterStatus === f.value
                   ? 'bg-gray-900 text-white'
@@ -130,6 +136,10 @@ export default function TransferTab() {
           </div>
         )}
       </Card>
+
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+      )}
 
       {/* Detail panel */}
       {selected && (

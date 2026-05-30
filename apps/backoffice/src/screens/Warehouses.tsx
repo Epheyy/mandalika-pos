@@ -5,7 +5,7 @@ import { Tabs } from '../ui'
 import { Transfers } from './transfers/Transfers'
 import Ingredients from './ingredients/Ingredients'
 import StokProduk from './inventory/StokProduk'
-import StockCount from './StockCount'
+import OpnameSection from './inventory/OpnameSection'
 
 type InventoriTab = 'stok' | 'transfer' | 'bahan' | 'opname'
 
@@ -70,7 +70,7 @@ export default function Inventori() {
           <Ingredients />
         </div>
       )}
-      {activeTab === 'opname' && canOpname && <StockCount />}
+      {activeTab === 'opname' && canOpname && <OpnameSection recipesEnabled={recipesEnabled} />}
     </div>
   )
 }

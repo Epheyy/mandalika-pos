@@ -8,6 +8,7 @@ export { IconButton } from './IconButton'
 export { EmptyState } from './EmptyState'
 export { PageHeader } from './PageHeader'
 export { Tabs } from './Tabs'
+export { Pagination } from './Pagination'
 export {
   CHART_SERIES,
   CHART_PRIMARY,

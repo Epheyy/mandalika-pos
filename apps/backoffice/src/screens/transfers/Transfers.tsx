@@ -4,10 +4,12 @@ import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Card, Badge, EmptyState, PageHeader } from '../../ui'
+import { Button, Card, Badge, EmptyState, PageHeader, Pagination } from '../../ui'
 import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
+
+const PAGE_SIZE = 25
 
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'detail'; id: string }
 
@@ -44,9 +46,14 @@ export function Transfers() {
 }
 
 function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id: string) => void }) {
-  const q = usePolledQuery(() => api.listTransfers(), [])
+  const [page, setPage] = useState(1)
+  const q = usePolledQuery(
+    () => api.listTransfers(undefined, page, PAGE_SIZE),
+    [page],
+  )
   const rows = q.data?.data ?? []
-  const total = q.data?.meta?.total ?? rows.length
+  const total = q.data?.meta?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   return (
     <div className="space-y-5">
       <PageHeader
@@ -102,6 +109,9 @@ function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id:
           </div>
         )}
       </Card>
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+      )}
     </div>
   )
 }
