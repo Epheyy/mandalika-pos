@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { IngredientStockCount, IngredientStockCountItem, Warehouse } from '@mandalika/api'
+import type { IngredientStockCount, IngredientStockCountItem, Outlet, Warehouse } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
@@ -105,11 +105,19 @@ export default function OpnameTab() {
     () => api.listIngredientStockCounts({ page, limit: PAGE_SIZE }),
     [page],
   )
+  const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
   const scTotalPages = Math.max(1, Math.ceil(scTotal / PAGE_SIZE))
+  const outlets = ouq.data ?? []
   const warehouses = (wq.data ?? []).filter((w) => w.isActive)
+
+  // All location options encoded as "kind:id"
+  const locationOptions = [
+    ...warehouses.map((w) => ({ value: `warehouse:${w.id}`, label: `Gudang · ${w.name}` })),
+    ...outlets.map((o) => ({ value: `outlet:${o.id}`, label: `Outlet · ${o.name}` })),
+  ]
 
   const [expanded, setExpanded] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -120,27 +128,34 @@ export default function OpnameTab() {
   const [draft, setDraft] = useState<Record<string, Record<string, number>>>({})
   const [form, setForm] = useState({
     name: '',
-    warehouseId: '',
+    locationKey: '',
     plannedDate: new Date().toISOString().slice(0, 10),
     notes: '',
   })
 
   const countedFor = (sc: IngredientStockCount) => draft[sc.id] ?? {}
 
+  const parseLocationKey = (key: string): { kind: 'outlet' | 'warehouse'; id: string } | null => {
+    if (!key) return null
+    const idx = key.indexOf(':')
+    return { kind: key.slice(0, idx) as 'outlet' | 'warehouse', id: key.slice(idx + 1) }
+  }
+
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
-    if (!form.warehouseId) return setErr('Pilih gudang')
+    const loc = parseLocationKey(form.locationKey)
+    if (!loc) return setErr('Pilih lokasi')
     setBusy(true)
     setErr(null)
     try {
       await api.createIngredientStockCount({
         name: form.name.trim(),
-        warehouseId: form.warehouseId,
+        location: { kind: loc.kind, id: loc.id },
         plannedDate: form.plannedDate || null,
         notes: form.notes.trim() || null,
       })
       setOpen(false)
-      setForm({ name: '', warehouseId: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
+      setForm({ name: '', locationKey: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal membuat opname.')
@@ -185,8 +200,9 @@ export default function OpnameTab() {
   }
 
   const completeSC = async (sc: IngredientStockCount) => {
+    const locationLabel = sc.location.name ?? sc.location.id
     const ok = window.confirm(
-      'Selesaikan opname? Qty bahan di gudang akan diperbarui sesuai jumlah yang dihitung.',
+      `Selesaikan opname? Qty bahan di ${locationLabel} akan diperbarui sesuai jumlah yang dihitung.`,
     )
     if (!ok) return
     setActiveId(sc.id)
@@ -215,13 +231,14 @@ export default function OpnameTab() {
           ? 'Selesai'
           : 'Dibatalkan'
 
-  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? id
+  const locationKindLabel = (kind: 'outlet' | 'warehouse') =>
+    kind === 'outlet' ? 'Outlet' : 'Gudang'
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Opname Bahan"
-        subtitle="Hitung stok bahan baku per gudang."
+        subtitle="Hitung stok bahan baku per lokasi (outlet atau gudang)."
         actions={
           <Button
             icon={<Plus className="w-4 h-4" />}
@@ -260,8 +277,10 @@ export default function OpnameTab() {
                     <div>
                       <p className="font-bold text-gray-900">{sc.name}</p>
                       <p className="text-xs text-gray-400">
-                        <span className="font-bold text-gray-500">Gudang</span>{' '}
-                        {sc.warehouseName ?? whName(sc.warehouseId)} ·{' '}
+                        <span className="font-bold text-gray-500">
+                          {locationKindLabel(sc.location.kind)}
+                        </span>{' '}
+                        {sc.location.name ?? sc.location.id} ·{' '}
                         {sc.plannedDate
                           ? format(parseISO(sc.plannedDate), 'dd MMM yyyy', { locale: idLocale })
                           : format(parseISO(sc.createdAt), 'dd MMM yyyy', { locale: idLocale })}{' '}
@@ -359,14 +378,14 @@ export default function OpnameTab() {
             placeholder="mis. Opname Mei 2026"
           />
           <Select
-            label="Gudang *"
-            value={form.warehouseId}
-            onChange={(e) => setForm((f) => ({ ...f, warehouseId: e.target.value }))}
+            label="Lokasi *"
+            value={form.locationKey}
+            onChange={(e) => setForm((f) => ({ ...f, locationKey: e.target.value }))}
           >
-            <option value="">Pilih gudang...</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
+            <option value="">Pilih lokasi...</option>
+            {locationOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </Select>
@@ -383,7 +402,7 @@ export default function OpnameTab() {
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           />
           <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">
-            Item bahan baku di gudang terpilih akan diambil otomatis saat opname dimulai.
+            Item bahan baku di lokasi terpilih akan diambil otomatis saat opname dimulai.
           </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>

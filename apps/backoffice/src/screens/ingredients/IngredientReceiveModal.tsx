@@ -58,8 +58,8 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
     }
   }
 
-  const sourceName = transfer.sourceWarehouseName ?? transfer.sourceWarehouseId
-  const destName = transfer.destWarehouseName ?? transfer.destWarehouseId
+  const sourceName = transfer.source.name ?? transfer.source.id
+  const destName = transfer.dest.name ?? transfer.dest.id
 
   return (
     <Modal

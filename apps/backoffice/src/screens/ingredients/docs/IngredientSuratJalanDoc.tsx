@@ -31,8 +31,8 @@ export function IngredientSuratJalanDoc({ transfer: t }: IngredientSuratJalanDoc
     : ''
   const totalQty = t.items.reduce((s, x) => s + x.sentQty, 0)
 
-  const sourceName = t.sourceWarehouseName ?? t.sourceWarehouseId
-  const destName = t.destWarehouseName ?? t.destWarehouseId
+  const sourceName = t.source.name ?? t.source.id
+  const destName = t.dest.name ?? t.dest.id
 
   return (
     <div style={pageStyle}>

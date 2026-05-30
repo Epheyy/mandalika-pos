@@ -119,10 +119,10 @@ export default function TransferTab() {
                     >
                       <td className="px-5 py-3 font-mono text-sm text-gray-900">{t.transferNo}</td>
                       <td className="px-5 py-3 text-sm text-gray-500">
-                        {t.sourceWarehouseName ?? '—'}
+                        {t.source.name ?? t.source.id}
                       </td>
                       <td className="px-5 py-3 text-sm text-gray-500">
-                        {t.destWarehouseName ?? '—'}
+                        {t.dest.name ?? t.dest.id}
                       </td>
                       <td className="px-5 py-3">
                         <Badge tone={s.tone}>{s.label}</Badge>
@@ -197,8 +197,8 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
   }
 
   const s = STATUS[transfer.status] ?? STATUS.draft
-  const sourceName = transfer.sourceWarehouseName ?? transfer.sourceWarehouseId
-  const destName = transfer.destWarehouseName ?? transfer.destWarehouseId
+  const sourceName = transfer.source.name ?? transfer.source.id
+  const destName = transfer.dest.name ?? transfer.dest.id
 
   return (
     <Card className="p-5 space-y-4">

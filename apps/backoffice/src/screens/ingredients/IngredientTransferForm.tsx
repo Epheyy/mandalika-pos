@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { Ingredient, Warehouse, IngredientTransferCreateInput } from '@mandalika/api'
+import { useEffect, useMemo, useState } from 'react'
+import type { Ingredient, Outlet, Warehouse, IngredientTransferCreateInput } from '@mandalika/api'
 import { Save } from 'lucide-react'
 import { api } from '../../api'
 import { Button, Modal, Field, Textarea, fieldClass } from '../../ui'
@@ -11,18 +11,25 @@ interface FormItem {
 
 const EMPTY_ITEM: FormItem = { ingredientId: '', qty: '' }
 
+type LocKind = 'outlet' | 'warehouse'
+interface LocPick {
+  kind: LocKind
+  id: string
+}
+
 interface IngredientTransferFormProps {
   onClose: () => void
   onCreated: () => void
 }
 
-/** Create a draft ingredient transfer: pick source + dest warehouses, then add items. */
+/** Create a draft ingredient transfer: pick source + dest (mesh: outlet or warehouse), then add items. */
 export function IngredientTransferForm({ onClose, onCreated }: IngredientTransferFormProps) {
   const [loading, setLoading] = useState(true)
+  const [outlets, setOutlets] = useState<Outlet[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
-  const [sourceId, setSourceId] = useState('')
-  const [destId, setDestId] = useState('')
+  const [source, setSource] = useState<LocPick | null>(null)
+  const [dest, setDest] = useState<LocPick | null>(null)
   const [note, setNote] = useState('')
   const [items, setItems] = useState<FormItem[]>([{ ...EMPTY_ITEM }])
   const [busy, setBusy] = useState(false)
@@ -30,19 +37,33 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
 
   useEffect(() => {
     Promise.all([
+      api.listOutlets(),
       api.listWarehouses(),
       api.listIngredients({ limit: 200 }).then((r) => r.data.filter((i) => i.isActive)),
     ])
-      .then(([whs, ings]) => {
-        const active = whs.filter((w) => w.isActive)
-        setWarehouses(active)
+      .then(([outs, whs, ings]) => {
+        setOutlets(outs)
+        setWarehouses(whs.filter((w) => w.isActive))
         setIngredients(ings)
       })
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : 'Gagal memuat data.'))
       .finally(() => setLoading(false))
   }, [])
 
-  const destOptions = warehouses.filter((w) => w.id !== sourceId)
+  // Options as "kind:id" so a single <select> spans both warehouses + outlets.
+  const options = useMemo(
+    () => [
+      ...warehouses.map((w) => ({ value: `warehouse:${w.id}`, label: `Gudang · ${w.name}` })),
+      ...outlets.map((o) => ({ value: `outlet:${o.id}`, label: `Outlet · ${o.name}` })),
+    ],
+    [warehouses, outlets],
+  )
+
+  const parse = (v: string): LocPick | null => {
+    if (!v) return null
+    const idx = v.indexOf(':')
+    return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
+  }
 
   const setItem = (index: number, patch: Partial<FormItem>) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
@@ -53,9 +74,12 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
 
   const submit = async () => {
-    if (!sourceId) { setErr('Pilih gudang sumber.'); return }
-    if (!destId) { setErr('Pilih gudang tujuan.'); return }
-    if (sourceId === destId) { setErr('Sumber dan tujuan tidak boleh sama.'); return }
+    if (!source) { setErr('Pilih sumber.'); return }
+    if (!dest) { setErr('Pilih tujuan.'); return }
+    if (source.kind === dest.kind && source.id === dest.id) {
+      setErr('Sumber dan tujuan tidak boleh sama.')
+      return
+    }
 
     const validItems = items.filter((it) => it.ingredientId && it.qty.trim())
     if (validItems.length === 0) {
@@ -74,8 +98,8 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
     setErr(null)
     try {
       const body: IngredientTransferCreateInput = {
-        sourceWarehouseId: sourceId,
-        destWarehouseId: destId,
+        source: { kind: source.kind, id: source.id },
+        dest: { kind: dest.kind, id: dest.id },
         note: note.trim() || null,
         items: validItems.map((it) => ({
           ingredientId: it.ingredientId,
@@ -120,28 +144,28 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Gudang Sumber *">
+            <Field label="Sumber *">
               <select
-                value={sourceId}
-                onChange={(e) => { setSourceId(e.target.value); setDestId('') }}
+                value={source ? `${source.kind}:${source.id}` : ''}
+                onChange={(e) => { setSource(parse(e.target.value)); setDest(null) }}
                 className={fieldClass}
               >
-                <option value="">Pilih gudang…</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                <option value="">Pilih sumber…</option>
+                {options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Gudang Tujuan *">
+            <Field label="Tujuan *">
               <select
-                value={destId}
-                onChange={(e) => setDestId(e.target.value)}
+                value={dest ? `${dest.kind}:${dest.id}` : ''}
+                onChange={(e) => setDest(parse(e.target.value))}
                 className={fieldClass}
-                disabled={!sourceId}
+                disabled={!source}
               >
-                <option value="">Pilih gudang…</option>
-                {destOptions.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                <option value="">Pilih tujuan…</option>
+                {options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </Field>
