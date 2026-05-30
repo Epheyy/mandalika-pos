@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Package,
   Users as UsersIcon,
-  Store,
   LogOut,
   Menu,
   X,
@@ -27,7 +26,6 @@ import Promotions from './screens/Promotions'
 import Orders from './screens/Orders'
 import Reports from './screens/Reports'
 import Warehouses from './screens/Warehouses'
-import Outlets from './screens/Outlets'
 import Users from './screens/Users'
 import SettingsScreen from './screens/SettingsScreen'
 import ErrorLogs from './screens/ErrorLogs'
@@ -40,7 +38,6 @@ const NAV = [
   { id: 'orders', label: 'Transaksi', icon: Receipt, perm: 'view_transactions', C: Orders },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
-  { id: 'outlets', label: 'Outlet', icon: Store, perm: 'manage_outlets', C: Outlets },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
   // Admin-only: 'view_error_logs' isn't granted to any role, so it shows only
