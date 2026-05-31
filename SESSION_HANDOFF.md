@@ -4,7 +4,47 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-31 (Pagination dropdown + Movement Summary report) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-05-31 / 06-01 (Inventori restructure: CRUD → Settings, Overview UX, Transfer filters, Bahan Overview) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Five batches across two days. Backend **rev `00044-dhp`** (`/readyz` ok, **no migration this session**). Backoffice auto-deploys via Cloudflare on push. Plans: `docs/superpowers/plans/2026-05-31-inventory-movement-summary.md`. Commits `cc21d53`→`e406a11`.
+
+## F4 — Pagination rows-per-page dropdown (`cc21d53`)
+Shared `<Pagination/>` got `pageSize` + `onPageSizeChange` + `pageSizes` (default `[25, 50, 100]`). Wired across 6 paginated lists: product Transfers, ingredient Daftar / Transfer, both Opnames, and `ErrorLogs` (migrated off its inline footer). Each caller resets `page=1` on size change. Footer reads: `[Baris: 25 ▾] · Hal 1/4 · 87 catatan · [Sebelumnya] [Berikutnya]`.
+
+## F5 — Inventory Movement Summary (`a8bba83`→`328ab79`)
+New `GET /api/v1/inventory/movement-summary?kind=&id=&from=&to=&page=&limit=`. 8-CTE-per-movement-type aggregation in `read/repo.go` (current stock, goods-in, sold, refund/cancel, transfer in, transfer out, koreksi count, opname diff). Outlet branch full; warehouse branch drops sold+refunded CTEs and zeros those fields. New `MovementSummary.tsx` rendered as a "Pergerakan" sub-tab in Stok Produk: location picker + Dari/Sampai date pickers (default last 30d) + paginated table (25/50/100). Bundles excluded; refund timestamp = `COALESCE(refunded_at, created_at)`; date range half-open `[from, to)`. **9/9 authed checks passed.**
+
+## F6 — Outlet/Gudang CRUD moves to Settings; Overview becomes primary (`63af60d`)
+- **Settings → Outlet & Gudang** (new section, placed first): hosts ALL outlet + warehouse CRUD — Tambah Outlet (Edit / Toggle aktif-nonaktif), Tambah Gudang (Edit / Hapus). Pure CRUD; no stock affordances. Reuses the existing `OutletFormModal` / `WarehouseFormModal`. `refreshOutlets()` still wired on outlet save/toggle so the topbar switcher stays in sync.
+- **Stok Produk** lost its Lokasi sub-tab. Now just **Overview · Pergerakan**, defaulting to Overview. `StokProduk.tsx` slimmed from 413 → 30 lines.
+- **OverviewMatrix** rewritten self-contained:
+  - Owns its drill-in state — clicking a location column header opens `LocationStockView` for that location (Barang Masuk + Koreksi + PAR). No more separate Lokasi list as a pre-step.
+  - **Location-type toggle** `[Outlet | Gudang | Semua]` (default Outlet) to cut the column count on multi-location deployments.
+  - **Product search** input (filters productName / sku / variantSize substring).
+  - **Row pagination** using the F4 `<Pagination/>` with 25/50/100 dropdown — client-side after the search/type filters apply.
+  - **Sticky first column (Varian) + sticky Total column** with left border so they remain visible while horizontally scrolling.
+
+## F7 — Transfer list filters: status, date range, location (`a17ed6d`)
+Backend: `read/repo.go` `Transfers()` and `IngredientTransfers()` accept `from`, `to`, `locKind`, `locID` query params. Location filter matches "any side" — `(t.source_outlet_id = $X OR t.dest_outlet_id = $X)` for outlets, same shape for warehouses. Handlers validate `locKind ∈ {outlet, warehouse, ''}`. OpenAPI updated, regen + TS client signatures switched to opts bag. **Gotcha:** the URL param name is `locID` (capital), the TS client opt is `locId` — the impl maps `locId` → `locID` in the query string (`client.ts:468`). Anyone hand-curling the API directly must use `locID`.
+Frontend: both `Transfers.tsx` and `ingredients/TransferTab.tsx` render the same compact filter row above the table — Status dropdown, Lokasi picker (Outlet/Gudang optgroups), Dari/Sampai date inputs. Page resets on any filter change.
+
+## F8 — Bahan Overview matrix (`e406a11`)
+New `GET /api/v1/inventory/ingredient-overview` mirroring `getInventoryOverview` but for ingredients. Outlets first, all active ingredients as rows, `qty` is fractional (numeric). Reuses the generic `InventoryOverviewLocation` schema. No `belowPar` (ingredients have no PAR). Schemas use `number` which oapi-codegen maps to `float32` in Go — fine for typical qtys (precision ~7 sig digits); flag for review only if someone needs very high-precision ingredient totals.
+Frontend `IngredientOverviewMatrix.tsx` mirrors the post-F6 product Overview exactly: location-type toggle, search (ingredientName / sku), row pagination 25/50/100, sticky Bahan + Total columns, click column header → drills into `IngredientLocationStockView` for Barang Masuk + Koreksi at that location. Wired into Bahan tab as the **new first sub-tab** "Overview" (order: Overview / Daftar / Stok / Stok Masuk / Penyesuaian / Transfer; default Overview).
+
+## ✅ Authed live API verification — DONE (14/14 on rev 00044-dhp)
+F7: status filter returns only completed, 2020 date range returns empty, location filter actually narrows to source-OR-dest matches (sample dest=Mandalika BSD), bad locKind → 400, ingredient transfers symmetric. F8: ingredient overview returns `{locations, rows}` envelope, outlets-first (sample first = Mandalika BSD), row has expected keys, cells have NO `belowPar`, `row.total === sum(cells.qty)` within 0.001 tolerance, auth gate → 401.
+
+## ▶️ USER-PENDING — visual UI walkthrough on the live backoffice
+Hard-refresh `mandalika-pos.pages.dev` (Cloudflare deploying frontend) and confirm:
+1. **Pengaturan → Outlet & Gudang** (new first section): outlet Tambah/Edit/Toggle + warehouse Tambah/Edit/Hapus; no stock affordances.
+2. **Inventori → Stok Produk** has only Overview + Pergerakan; clicking a location column header in Overview drills into that location's stock view; the type toggle + search + pagination + sticky Total column all work on a many-location matrix.
+3. **Inventori → Transfer** filter row (Status / Lokasi / Dari / Sampai) narrows the list. Same in **Bahan → Transfer**.
+4. **Bahan → Overview** (new first sub-tab) renders the ingredient × location matrix; outlets-first; sticky Bahan + Total; clicking a location header opens that location's ingredient stock view.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-31 (Pagination dropdown + Movement Summary report)
 
 Branch `prod-hardening`. Two follow-ups on the Inventori work: every paginated list got a rows-per-page dropdown, and Inventori → Stok Produk gained a new **Pergerakan** (Movement) sub-tab — per-location, date-range product movement summary. Backend **rev `00042-247`** (`/readyz` ok, **no migration**). Backoffice auto-deploys via Cloudflare. Commits `cc21d53`→`328ab79`. Plan: `docs/superpowers/plans/2026-05-31-inventory-movement-summary.md`.
 
