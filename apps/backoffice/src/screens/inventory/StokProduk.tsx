@@ -15,6 +15,7 @@ import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button, Modal, PageHeader, Tabs, IconButton, Badge, EmptyState } from '../../ui'
 import { LocationStockView } from './LocationStockView'
+import { MovementSummary } from './MovementSummary'
 import { OverviewMatrix } from './OverviewMatrix'
 import { WarehouseFormModal } from './WarehouseFormModal'
 import { OutletFormModal } from './OutletFormModal'
@@ -25,11 +26,12 @@ interface LocationTarget {
   name: string
 }
 
-type SubTab = 'lokasi' | 'overview'
+type SubTab = 'lokasi' | 'overview' | 'pergerakan'
 
 const SUB_TABS: ReadonlyArray<{ id: SubTab; label: string }> = [
   { id: 'lokasi', label: 'Lokasi' },
   { id: 'overview', label: 'Overview' },
+  { id: 'pergerakan', label: 'Pergerakan' },
 ]
 
 interface LocationSummary {
@@ -354,6 +356,8 @@ export default function StokProduk() {
           }}
         />
       )}
+
+      {subTab === 'pergerakan' && <MovementSummary />}
 
       <OutletFormModal
         open={outletFormOpen}
