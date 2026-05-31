@@ -4,7 +4,30 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-30 (Inventori polish + Ingredient Stock at Outlets) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-05-31 (Pagination dropdown + Movement Summary report) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Two follow-ups on the Inventori work: every paginated list got a rows-per-page dropdown, and Inventori → Stok Produk gained a new **Pergerakan** (Movement) sub-tab — per-location, date-range product movement summary. Backend **rev `00042-247`** (`/readyz` ok, **no migration**). Backoffice auto-deploys via Cloudflare. Commits `cc21d53`→`328ab79`. Plan: `docs/superpowers/plans/2026-05-31-inventory-movement-summary.md`.
+
+## F4 — Pagination rows-per-page dropdown (`cc21d53`)
+- Extended the shared `<Pagination/>` UI helper with `pageSize`+`onPageSizeChange`+`pageSizes` props (default `[25, 50, 100]`). Footer now reads: `[Baris: 25 ▾] · Hal 1/4 · 87 catatan · [Sebelumnya] [Berikutnya]`.
+- Wired the dropdown into ALL 6 paginated screens: product Transfers, ingredient Daftar, ingredient Transfers, product Stock Counts, ingredient Stock Counts, plus `ErrorLogs` (which was migrated off its inline footer onto the shared helper). Each caller resets `page` to 1 on size change.
+
+## F5 — Inventory Movement Summary (`a8bba83`→`328ab79`)
+- **Backend** (`2b619eb`): new `MovementSummary(ctx, kind, id, from, to, page, limit)` read in `read/repo.go` using an 8-CTE-per-movement-type pattern (current stock, goods-in, sold, refund/cancel, transfer in, transfer out, koreksi count, opname diff). Outlet and warehouse get separate SQL strings (warehouse branch drops the `sold`/`refunded` CTEs and hardcodes them to 0). Pagination via `COUNT(*) OVER ()` mirror of `IngredientTransfers`. New endpoint `GET /api/v1/inventory/movement-summary?kind=&id=&from=&to=&page=&limit=` gated `manage_inventory`. New `MovementSummaryRow` + `MovementSummaryResponse` schemas + TS client `getMovementSummary`.
+- **Frontend** (`328ab79`): new `apps/backoffice/src/screens/inventory/MovementSummary.tsx` rendering a header (location picker with Outlet/Gudang optgroups, Dari/Sampai date pickers defaulted to last-30-days) + a wide table with columns **Produk · Ukuran · SKU · Stok Saat Ini · Stok Masuk · Terjual · Refund/Batal · Transfer Masuk · Transfer Keluar · Koreksi · Selisih Opname**. Warehouses render `—` in Terjual + Refund/Batal. Pagination uses the F4-upgraded helper (with 25/50/100 dropdown). Wired into `StokProduk.tsx` as a third sub-tab "Pergerakan" alongside Lokasi + Overview.
+- **Locked behaviors:** bundles (`oi.is_bundle=true`) EXCLUDED from sold/refund counts; refund timestamp = `COALESCE(refunded_at, created_at)` because `orders` has no `cancelled_at`; date range is half-open `[from, to)`.
+
+## ✅ Authed live API verification — DONE (9/9 on rev 00042-247)
+The verification script tested the new endpoint: noauth→401, missing params→400, outlet summary returns the full 12-column envelope with correct `meta.total`, warehouse correctly returns 0 in `sold`/`refunded` for every row, pagination meta echoes `page=2, limit=5`. Read-only — no mutations to restore.
+
+## ▶️ USER-PENDING — visual UI walkthrough on the live backoffice
+Hard-refresh `mandalika-pos.pages.dev` and confirm:
+1. Every paginated list shows the **Baris: 25 ▾** dropdown next to "Hal X/Y" (try Transfers, Bahan Daftar / Transfer, both Opnames, Error Log). Changing the size resets to page 1.
+2. **Inventori → Stok Produk → Pergerakan** (new third sub-tab): pick a location, set a date range, see per-variant movement table. Switch between outlet and warehouse — warehouse should show "—" for Terjual + Refund/Batal. Pagination behaves correctly with the new dropdown.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-30 (Inventori polish + Ingredient Stock at Outlets)
 
 Branch `prod-hardening`. Three follow-up batches on top of the previous day's Inventori work, all built subagent-driven (Go + TS reviews each phase, fixes applied). Backend **rev `00041-l6h`** (migration **0023** applied; `/readyz` ok). Backoffice auto-deploys via Cloudflare on push. POS untouched. Commits `08d0956`→`8a1f398`. Plan: `docs/superpowers/plans/2026-05-30-ingredient-stock-at-outlets.md`.
 
