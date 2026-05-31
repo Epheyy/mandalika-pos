@@ -8,7 +8,7 @@ import { cn } from './cn'
 
 /** Shared control styling so every input/select/textarea matches. */
 export const fieldClass =
-  'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 ' +
+  'w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 ' +
   'placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 ' +
   'focus:border-gold-400 transition'
 

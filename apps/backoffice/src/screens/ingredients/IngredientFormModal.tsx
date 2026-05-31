@@ -3,6 +3,7 @@ import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { api } from '../../api'
 import { Button, Modal, Input, Select, Textarea, Field, fieldClass } from '../../ui'
 import { COMMON_UNITS, isCommonUnit } from './units'
+import { CategoryManager } from './CategoryManager'
 
 interface IngredientFormModalProps {
   /** When provided, the modal is in edit mode. */
@@ -45,6 +46,9 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
   const [newCatName, setNewCatName] = useState('')
   const [newCatBusy, setNewCatBusy] = useState(false)
   const [newCatErr, setNewCatErr] = useState<string | null>(null)
+
+  // Manage-categories panel (delete affordance)
+  const [showManageCats, setShowManageCats] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -175,8 +179,30 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
             ))}
           </Select>
 
+          {/* Action row: add new + manage (delete) */}
+          {!showNewCat && (
+            <div className="mt-1 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowNewCat(true); setShowManageCats(false) }}
+                className="text-xs text-gold-600 hover:text-gold-700 font-medium"
+              >
+                + Tambah kategori baru
+              </button>
+              {categories.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowManageCats((v) => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-600 font-medium"
+                >
+                  {showManageCats ? 'Tutup kelola' : 'Kelola kategori'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Inline add-category form */}
-          {showNewCat ? (
+          {showNewCat && (
             <div className="mt-2 flex items-center gap-2">
               <input
                 type="text"
@@ -206,17 +232,19 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
                 Batal
               </Button>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowNewCat(true)}
-              className="mt-1 text-xs text-gold-600 hover:text-gold-700 font-medium"
-            >
-              + Tambah kategori baru
-            </button>
           )}
           {newCatErr && (
             <p className="text-[11px] text-red-600 mt-1">{newCatErr}</p>
+          )}
+
+          {/* Manage (delete) panel */}
+          {showManageCats && !showNewCat && (
+            <CategoryManager
+              categories={categories}
+              selectedCategoryId={form.categoryId}
+              onCategoriesChange={setCategories}
+              onCategoryDeleted={() => setField('categoryId', '')}
+            />
           )}
         </div>
 

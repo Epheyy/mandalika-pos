@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import DaftarTab from './DaftarTab'
-import StokTab from './StokTab'
 import StokMasukTab from './StokMasukTab'
 import PenyesuaianTab from './PenyesuaianTab'
 import TransferTab from './TransferTab'
 import { IngredientOverviewMatrix } from './IngredientOverviewMatrix'
 
-type Inner = 'overview' | 'daftar' | 'stok' | 'stok-masuk' | 'penyesuaian' | 'transfer'
+type Inner = 'overview' | 'daftar' | 'stok-masuk' | 'penyesuaian' | 'transfer'
 
 const INNER_TABS: { id: Inner; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'daftar', label: 'Daftar' },
-  { id: 'stok', label: 'Stok' },
   { id: 'stok-masuk', label: 'Stok Masuk' },
   { id: 'penyesuaian', label: 'Penyesuaian' },
   { id: 'transfer', label: 'Transfer' },
@@ -43,7 +41,6 @@ export default function Ingredients() {
       </div>
       {inner === 'overview' && <IngredientOverviewMatrix />}
       {inner === 'daftar' && <DaftarTab />}
-      {inner === 'stok' && <StokTab />}
       {inner === 'stok-masuk' && <StokMasukTab />}
       {inner === 'penyesuaian' && <PenyesuaianTab />}
       {inner === 'transfer' && <TransferTab />}
