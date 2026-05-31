@@ -177,6 +177,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/inventory/adjust", h.AdjustLocationStock)
 				r.Put("/inventory/outlet-par", h.SetOutletPar)
 				r.Get("/inventory/overview", h.InventoryOverview)
+				r.Get("/inventory/movement-summary", h.MovementSummary)
 				// transfers (mesh; static path registered before /{id})
 				r.Get("/transfers", h.Transfers)
 				r.Get("/transfers/location-stock", h.TransferLocationStock)

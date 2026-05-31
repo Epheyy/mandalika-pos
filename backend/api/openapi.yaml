@@ -1448,6 +1448,28 @@ components:
       properties:
         locations: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewLocation' } }
         rows: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewRow' } }
+    MovementSummaryRow:
+      type: object
+      required: [productId, productName, variantSize, sku, currentStock, goodsIn, sold, refunded, transferIn, transferOut, adjustmentCount, opnameDiff]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        currentStock: { type: integer }
+        goodsIn: { type: integer }
+        sold: { type: integer }
+        refunded: { type: integer }
+        transferIn: { type: integer }
+        transferOut: { type: integer }
+        adjustmentCount: { type: integer }
+        opnameDiff: { type: integer }
+    MovementSummaryResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/MovementSummaryRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
   responses:
     Unauthorized:
       description: unauthenticated
@@ -2077,6 +2099,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InventoryOverviewResponse' }
+  /api/v1/inventory/movement-summary:
+    get:
+      operationId: getMovementSummary
+      tags: [catalog]
+      summary: Per-location product movement summary (Backoffice)
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time }, description: "Inclusive ISO start (UTC)" }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time }, description: "Exclusive ISO end (UTC)" }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+      responses:
+        '200':
+          description: movement summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovementSummaryResponse' }
   /api/v1/ingredients:
     get:
       operationId: listIngredients

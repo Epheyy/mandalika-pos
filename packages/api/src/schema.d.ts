@@ -474,6 +474,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/movement-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-location product movement summary (Backoffice) */
+        get: operations["getMovementSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ingredients": {
         parameters: {
             query?: never;
@@ -2659,6 +2676,25 @@ export interface components {
             locations: components["schemas"]["InventoryOverviewLocation"][];
             rows: components["schemas"]["InventoryOverviewRow"][];
         };
+        MovementSummaryRow: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku: string;
+            currentStock: number;
+            goodsIn: number;
+            sold: number;
+            refunded: number;
+            transferIn: number;
+            transferOut: number;
+            adjustmentCount: number;
+            opnameDiff: number;
+        };
+        MovementSummaryResponse: {
+            data: components["schemas"]["MovementSummaryRow"][];
+            meta: components["schemas"]["Meta"];
+        };
     };
     responses: {
         /** @description unauthenticated */
@@ -3709,6 +3745,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryOverviewResponse"];
+                };
+            };
+        };
+    };
+    getMovementSummary: {
+        parameters: {
+            query: {
+                kind: "outlet" | "warehouse";
+                id: string;
+                /** @description Inclusive ISO start (UTC) */
+                from: string;
+                /** @description Exclusive ISO end (UTC) */
+                to: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description movement summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementSummaryResponse"];
                 };
             };
         };

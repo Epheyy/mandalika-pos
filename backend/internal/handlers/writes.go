@@ -1103,3 +1103,21 @@ func (h *Handlers) InventoryOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+func (h *Handlers) MovementSummary(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	id := r.URL.Query().Get("id")
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	if (kind != "outlet" && kind != "warehouse") || id == "" || from == "" || to == "" {
+		httpx.Err(w, http.StatusBadRequest, "kind, id, from, to wajib")
+		return
+	}
+	p, l := pageLimit(r)
+	rows, total, err := h.Repo.MovementSummary(r.Context(), kind, id, from, to, p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.MovementSummaryResponse{Data: rows, Meta: *meta(total, p, l)})
+}

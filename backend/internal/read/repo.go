@@ -1229,3 +1229,168 @@ func (r *Repo) InventoryOverview(ctx context.Context) (api.InventoryOverviewResp
 	}
 	return resp, nil
 }
+
+// MovementSummary returns a per-variant stock-movement summary for a single
+// location (outlet or warehouse) over a half-open date range [from, to).
+// For warehouses, sold/refunded are always 0 (warehouses don't sell).
+func (r *Repo) MovementSummary(ctx context.Context, kind, id, from, to string, page, limit int) ([]api.MovementSummaryRow, int, error) {
+	var sql string
+	if kind == "outlet" {
+		sql = `
+WITH variant_base AS (
+  SELECT v.product_id, v.size, p.name AS product_name, COALESCE(v.sku,'') AS sku
+  FROM product_variants v JOIN products p ON p.id = v.product_id
+  WHERE p.is_active
+),
+cur AS (
+  SELECT product_id, variant_size, stock FROM outlet_variant_stock WHERE outlet_id = $1
+),
+gin AS (
+  SELECT gri.product_id, gri.variant_size, SUM(gri.qty) AS qty
+  FROM goods_receipt_items gri
+  JOIN goods_receipts gr ON gr.id = gri.receipt_id
+  WHERE gr.outlet_id = $1 AND gr.created_at >= $2 AND gr.created_at < $3
+  GROUP BY 1,2
+),
+sold AS (
+  SELECT oi.product_id, oi.variant_size, SUM(oi.quantity) AS qty
+  FROM order_items oi
+  JOIN orders o ON o.id = oi.order_id
+  WHERE o.outlet_id = $1 AND o.status = 'completed' AND oi.is_bundle = false
+    AND o.created_at >= $2 AND o.created_at < $3
+  GROUP BY 1,2
+),
+refunded AS (
+  SELECT oi.product_id, oi.variant_size, SUM(oi.quantity) AS qty
+  FROM order_items oi
+  JOIN orders o ON o.id = oi.order_id
+  WHERE o.outlet_id = $1 AND o.status IN ('refunded','cancelled') AND oi.is_bundle = false
+    AND COALESCE(o.refunded_at, o.created_at) >= $2
+    AND COALESCE(o.refunded_at, o.created_at) < $3
+  GROUP BY 1,2
+),
+tin AS (
+  SELECT ti.product_id, ti.variant_size, SUM(ti.received_qty) AS qty
+  FROM transfer_items ti
+  JOIN transfers t ON t.id = ti.transfer_id
+  WHERE t.dest_outlet_id = $1 AND t.status = 'completed'
+    AND t.received_at >= $2 AND t.received_at < $3
+  GROUP BY 1,2
+),
+tout AS (
+  SELECT ti.product_id, ti.variant_size, SUM(ti.sent_qty) AS qty
+  FROM transfer_items ti
+  JOIN transfers t ON t.id = ti.transfer_id
+  WHERE t.source_outlet_id = $1 AND t.status = 'completed'
+    AND t.sent_at >= $2 AND t.sent_at < $3
+  GROUP BY 1,2
+),
+adj AS (
+  SELECT wsa.product_id, wsa.variant_size, COUNT(*) AS cnt
+  FROM warehouse_stock_adjustments wsa
+  WHERE wsa.outlet_id = $1
+    AND wsa.created_at >= $2 AND wsa.created_at < $3
+  GROUP BY 1,2
+),
+opn AS (
+  SELECT sci.product_id, sci.variant_size, SUM(COALESCE(sci.difference, 0)) AS diff
+  FROM stock_count_items sci
+  JOIN stock_counts sc ON sc.id = sci.stock_count_id
+  WHERE sc.outlet_id = $1 AND sc.status = 'completed'
+    AND sc.completed_at >= $2 AND sc.completed_at < $3
+  GROUP BY 1,2
+)
+SELECT json_build_object(
+  'productId', vb.product_id, 'productName', vb.product_name, 'variantSize', vb.size, 'sku', vb.sku,
+  'currentStock', COALESCE(cur.stock, 0),
+  'goodsIn', COALESCE(gin.qty, 0),
+  'sold', COALESCE(sold.qty, 0),
+  'refunded', COALESCE(refunded.qty, 0),
+  'transferIn', COALESCE(tin.qty, 0),
+  'transferOut', COALESCE(tout.qty, 0),
+  'adjustmentCount', COALESCE(adj.cnt, 0),
+  'opnameDiff', COALESCE(opn.diff, 0)
+), COUNT(*) OVER ()
+FROM variant_base vb
+LEFT JOIN cur      ON cur.product_id = vb.product_id      AND cur.variant_size = vb.size
+LEFT JOIN gin      ON gin.product_id = vb.product_id      AND gin.variant_size = vb.size
+LEFT JOIN sold     ON sold.product_id = vb.product_id     AND sold.variant_size = vb.size
+LEFT JOIN refunded ON refunded.product_id = vb.product_id AND refunded.variant_size = vb.size
+LEFT JOIN tin      ON tin.product_id = vb.product_id      AND tin.variant_size = vb.size
+LEFT JOIN tout     ON tout.product_id = vb.product_id     AND tout.variant_size = vb.size
+LEFT JOIN adj      ON adj.product_id = vb.product_id      AND adj.variant_size = vb.size
+LEFT JOIN opn      ON opn.product_id = vb.product_id      AND opn.variant_size = vb.size
+ORDER BY vb.product_name, vb.size
+LIMIT $5 OFFSET $4`
+	} else {
+		// warehouse: no sold/refunded CTEs; set those fields to 0 in output
+		sql = `
+WITH variant_base AS (
+  SELECT v.product_id, v.size, p.name AS product_name, COALESCE(v.sku,'') AS sku
+  FROM product_variants v JOIN products p ON p.id = v.product_id
+  WHERE p.is_active
+),
+cur AS (
+  SELECT product_id, variant_size, stock FROM warehouse_variant_stock WHERE warehouse_id = $1
+),
+gin AS (
+  SELECT gri.product_id, gri.variant_size, SUM(gri.qty) AS qty
+  FROM goods_receipt_items gri
+  JOIN goods_receipts gr ON gr.id = gri.receipt_id
+  WHERE gr.warehouse_id = $1 AND gr.created_at >= $2 AND gr.created_at < $3
+  GROUP BY 1,2
+),
+tin AS (
+  SELECT ti.product_id, ti.variant_size, SUM(ti.received_qty) AS qty
+  FROM transfer_items ti
+  JOIN transfers t ON t.id = ti.transfer_id
+  WHERE t.dest_warehouse_id = $1 AND t.status = 'completed'
+    AND t.received_at >= $2 AND t.received_at < $3
+  GROUP BY 1,2
+),
+tout AS (
+  SELECT ti.product_id, ti.variant_size, SUM(ti.sent_qty) AS qty
+  FROM transfer_items ti
+  JOIN transfers t ON t.id = ti.transfer_id
+  WHERE t.source_warehouse_id = $1 AND t.status = 'completed'
+    AND t.sent_at >= $2 AND t.sent_at < $3
+  GROUP BY 1,2
+),
+adj AS (
+  SELECT wsa.product_id, wsa.variant_size, COUNT(*) AS cnt
+  FROM warehouse_stock_adjustments wsa
+  WHERE wsa.warehouse_id = $1
+    AND wsa.created_at >= $2 AND wsa.created_at < $3
+  GROUP BY 1,2
+),
+opn AS (
+  SELECT sci.product_id, sci.variant_size, SUM(COALESCE(sci.difference, 0)) AS diff
+  FROM stock_count_items sci
+  JOIN stock_counts sc ON sc.id = sci.stock_count_id
+  WHERE sc.warehouse_id = $1 AND sc.status = 'completed'
+    AND sc.completed_at >= $2 AND sc.completed_at < $3
+  GROUP BY 1,2
+)
+SELECT json_build_object(
+  'productId', vb.product_id, 'productName', vb.product_name, 'variantSize', vb.size, 'sku', vb.sku,
+  'currentStock', COALESCE(cur.stock, 0),
+  'goodsIn', COALESCE(gin.qty, 0),
+  'sold', 0,
+  'refunded', 0,
+  'transferIn', COALESCE(tin.qty, 0),
+  'transferOut', COALESCE(tout.qty, 0),
+  'adjustmentCount', COALESCE(adj.cnt, 0),
+  'opnameDiff', COALESCE(opn.diff, 0)
+), COUNT(*) OVER ()
+FROM variant_base vb
+LEFT JOIN cur  ON cur.product_id = vb.product_id  AND cur.variant_size = vb.size
+LEFT JOIN gin  ON gin.product_id = vb.product_id  AND gin.variant_size = vb.size
+LEFT JOIN tin  ON tin.product_id = vb.product_id  AND tin.variant_size = vb.size
+LEFT JOIN tout ON tout.product_id = vb.product_id AND tout.variant_size = vb.size
+LEFT JOIN adj  ON adj.product_id = vb.product_id  AND adj.variant_size = vb.size
+LEFT JOIN opn  ON opn.product_id = vb.product_id  AND opn.variant_size = vb.size
+ORDER BY vb.product_name, vb.size
+LIMIT $5 OFFSET $4`
+	}
+	return listJSON[api.MovementSummaryRow](ctx, r.Pool, sql, id, from, to, off(page, limit), limit)
+}
