@@ -4,7 +4,7 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-31 / 06-01 (Inventori restructure: CRUD → Settings, Overview UX, Transfer filters, Bahan Overview) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-05-31 / 06-01 (Inventori restructure + Bahan tidy + global white-bg fields) — READ THIS FIRST; supersedes everything below
 
 Branch `prod-hardening`. Five batches across two days. Backend **rev `00044-dhp`** (`/readyz` ok, **no migration this session**). Backoffice auto-deploys via Cloudflare on push. Plans: `docs/superpowers/plans/2026-05-31-inventory-movement-summary.md`. Commits `cc21d53`→`e406a11`.
 
@@ -35,12 +35,20 @@ Frontend `IngredientOverviewMatrix.tsx` mirrors the post-F6 product Overview exa
 ## ✅ Authed live API verification — DONE (14/14 on rev 00044-dhp)
 F7: status filter returns only completed, 2020 date range returns empty, location filter actually narrows to source-OR-dest matches (sample dest=Mandalika BSD), bad locKind → 400, ingredient transfers symmetric. F8: ingredient overview returns `{locations, rows}` envelope, outlets-first (sample first = Mandalika BSD), row has expected keys, cells have NO `belowPar`, `row.total === sum(cells.qty)` within 0.001 tolerance, auth gate → 401.
 
+## F9 — Bahan tidy + global white-bg fields + category delete (`7701fd4`)
+- **Bahan tab tidy**: removed the **Stok** sub-tab (Overview already covers it via column-header drill-in). Bahan tabs are now: Overview / Daftar / Stok Masuk / Penyesuaian / Transfer (default Overview). `StokTab.tsx` is now orphaned — left in place out of scope.
+- **Ingredient category delete UI** finally wired up (backend `deleteIngredientCategory` had existed all along but had no caller). Extracted `apps/backoffice/src/screens/ingredients/CategoryManager.tsx`. Inside `IngredientFormModal`, a "Kelola kategori" toggle expands the existing categories with hover-reveal trash icons; clicking opens an inline confirm panel ("Bahan yang memakai kategori ini tetap ada — FK SET NULL"). Deletes refetch the list and clear the selected category if it was the deleted one.
+- **Global white-bg inputs**: `apps/backoffice/src/ui/Field.tsx` `fieldClass` changed from `bg-gray-50` → `bg-white`. Single-token edit affects every `<Input>`/`<Select>`/`<Textarea>` site-wide. Filter/search bars now read as clearly interactive against the cream theme; modal forms (already on white card backgrounds) remain visible via `border-gray-200`.
+
 ## ▶️ USER-PENDING — visual UI walkthrough on the live backoffice
 Hard-refresh `mandalika-pos.pages.dev` (Cloudflare deploying frontend) and confirm:
 1. **Pengaturan → Outlet & Gudang** (new first section): outlet Tambah/Edit/Toggle + warehouse Tambah/Edit/Hapus; no stock affordances.
 2. **Inventori → Stok Produk** has only Overview + Pergerakan; clicking a location column header in Overview drills into that location's stock view; the type toggle + search + pagination + sticky Total column all work on a many-location matrix.
 3. **Inventori → Transfer** filter row (Status / Lokasi / Dari / Sampai) narrows the list. Same in **Bahan → Transfer**.
 4. **Bahan → Overview** (new first sub-tab) renders the ingredient × location matrix; outlets-first; sticky Bahan + Total; clicking a location header opens that location's ingredient stock view.
+5. **Bahan tab** has no Stok sub-tab; Overview / Daftar / Stok Masuk / Penyesuaian / Transfer only.
+6. **Bahan → Daftar → Tambah/Edit Bahan modal**: under the Kategori dropdown, the "Kelola kategori" link expands a list of categories with delete trash icons (with inline confirm).
+7. **Every search + filter bar** (Transfer filters, Movement Summary, Daftar search, etc.) renders on **white** background, clearly interactive against the cream page bg.
 
 ---
 
