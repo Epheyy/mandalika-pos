@@ -5,6 +5,7 @@ import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { Button, Input, Select, Field, Card, IconButton, PageHeader, Tabs, Textarea } from '../ui'
+import { LocationsSection } from './settings/LocationsSection'
 
 const DEFAULT: AppSettings = {
   taxEnabled: true,
@@ -68,7 +69,7 @@ export default function SettingsScreen() {
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents' | 'recipes'>('tax')
+  const [section, setSection] = useState<'locations' | 'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents' | 'recipes'>('tax')
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
@@ -115,6 +116,7 @@ export default function SettingsScreen() {
   }
 
   const sections = [
+    { id: 'locations', label: 'Outlet & Gudang' },
     { id: 'tax', label: 'Pajak & Pembulatan' },
     { id: 'payment', label: 'Metode Pembayaran' },
     { id: 'receipt', label: 'Struk' },
@@ -130,9 +132,11 @@ export default function SettingsScreen() {
         title="Pengaturan"
         subtitle="Konfigurasi sistem POS"
         actions={
-          <Button onClick={save} loading={saving}>
-            {saving ? 'Menyimpan...' : 'Simpan Semua'}
-          </Button>
+          section !== 'locations' ? (
+            <Button onClick={save} loading={saving}>
+              {saving ? 'Menyimpan...' : 'Simpan Semua'}
+            </Button>
+          ) : undefined
         }
       />
       {msg && (
@@ -141,6 +145,9 @@ export default function SettingsScreen() {
 
       <Tabs value={section} onChange={setSection} tabs={sections} />
 
+      {section === 'locations' && <LocationsSection />}
+
+      {section !== 'locations' && (
       <Card className="p-6 max-w-2xl space-y-5">
         {section === 'tax' && (
           <>
@@ -435,6 +442,7 @@ export default function SettingsScreen() {
           </>
         )}
       </Card>
+      )}
     </div>
   )
 }
