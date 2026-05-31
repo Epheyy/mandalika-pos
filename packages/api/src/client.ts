@@ -196,7 +196,7 @@ export interface Api {
   getMovementSummary: (params: { kind: 'outlet' | 'warehouse'; id: string; from: string; to: string; page?: number; limit?: number }) => Promise<MovementSummaryResponse>
 
   // transfers (SP2)
-  listTransfers: (status?: string, page?: number, limit?: number) => Promise<ListResult<Transfer>>
+  listTransfers: (opts?: { status?: string; from?: string; to?: string; locKind?: 'outlet' | 'warehouse'; locId?: string; page?: number; limit?: number }) => Promise<ListResult<Transfer>>
   getTransfer: (id: string) => Promise<Transfer>
   getTransferLocationStock: (kind: string, id: string) => Promise<WarehouseStockRow[]>
   createTransfer: (input: TransferCreateInput) => Promise<{ id: string }>
@@ -218,7 +218,7 @@ export interface Api {
   getIngredientLocationStock: (kind: 'outlet' | 'warehouse', id: string) => Promise<IngredientStockRow[]>
   createIngredientLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: IngredientGoodsReceiptInput) => Promise<void>
   adjustIngredientLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: IngredientAdjustInput) => Promise<void>
-  listIngredientTransfers: (opts?: { status?: string; page?: number; limit?: number }) => Promise<ListResult<IngredientTransfer>>
+  listIngredientTransfers: (opts?: { status?: string; from?: string; to?: string; locKind?: 'outlet' | 'warehouse'; locId?: string; page?: number; limit?: number }) => Promise<ListResult<IngredientTransfer>>
   getIngredientTransfer: (id: string) => Promise<IngredientTransfer>
   createIngredientTransfer: (input: IngredientTransferCreateInput) => Promise<void>
   sendIngredientTransfer: (id: string) => Promise<void>
@@ -452,8 +452,16 @@ export function createClient(opts: ClientOptions): Api {
       request<InventoryOverviewResponse>('GET', `${API}/inventory/overview`),
     getMovementSummary: (params) =>
       request<MovementSummaryResponse>('GET', `${API}/inventory/movement-summary${qs(params as Record<string, string | number>)}`),
-    listTransfers: (status, page = 1, limit = 50) =>
-      list<Transfer>(`${API}/transfers`, { ...(status ? { status } : {}), page, limit }),
+    listTransfers: (opts) => {
+      const { status, from, to, locKind, locId, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (status) params.status = status
+      if (from) params.from = from
+      if (to) params.to = to
+      if (locKind) params.locKind = locKind
+      if (locId) params.locID = locId
+      return list<Transfer>(`${API}/transfers`, params)
+    },
     getTransfer: (id) => data<Transfer>('GET', `${API}/transfers/${id}`),
     getTransferLocationStock: (kind, id) =>
       data<WarehouseStockRow[]>('GET', `${API}/transfers/location-stock${qs({ kind, id })}`),
@@ -503,8 +511,16 @@ export function createClient(opts: ClientOptions): Api {
     adjustIngredientLocationStock: async (loc, input) => {
       await request('POST', `${API}/inventory/ingredient-adjust?kind=${loc.kind}&id=${loc.id}`, input)
     },
-    listIngredientTransfers: (opts) =>
-      list<IngredientTransfer>(`${API}/ingredient-transfers`, opts as Record<string, string | number> | undefined),
+    listIngredientTransfers: (opts) => {
+      const { status, from, to, locKind, locId, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (status) params.status = status
+      if (from) params.from = from
+      if (to) params.to = to
+      if (locKind) params.locKind = locKind
+      if (locId) params.locID = locId
+      return list<IngredientTransfer>(`${API}/ingredient-transfers`, params)
+    },
     getIngredientTransfer: (id) =>
       data<IngredientTransfer>('GET', `${API}/ingredient-transfers/${id}`),
     createIngredientTransfer: async (input) => {

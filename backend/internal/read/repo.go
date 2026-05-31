@@ -458,17 +458,35 @@ const ingTransferFrom = `FROM ingredient_transfers t
   LEFT JOIN outlets    do2 ON do2.id = t.dest_outlet_id
   LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id`
 
-// IngredientTransfers lists ingredient transfers with optional status filter + pagination.
-func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status string) ([]api.IngredientTransfer, int, error) {
-	where := ""
-	args := []any{off(page, limit), limit}
+// IngredientTransfers lists ingredient transfers newest-first with optional filters:
+// status, date range, and location (any side — source OR dest).
+func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status, from, to, locKind, locID string) ([]api.IngredientTransfer, int, error) {
+	where := "WHERE 1=1"
+	args := []any{}
 	if status != "" {
 		args = append(args, status)
-		where = fmt.Sprintf("WHERE t.status=$%d", len(args))
+		where += fmt.Sprintf(" AND t.status=$%d", len(args))
 	}
+	if from != "" {
+		args = append(args, from)
+		where += fmt.Sprintf(" AND t.created_at >= $%d", len(args))
+	}
+	if to != "" {
+		args = append(args, to)
+		where += fmt.Sprintf(" AND t.created_at < $%d", len(args))
+	}
+	if locKind != "" && locID != "" {
+		args = append(args, locID)
+		if locKind == "warehouse" {
+			where += fmt.Sprintf(" AND (t.source_warehouse_id=$%d OR t.dest_warehouse_id=$%d)", len(args), len(args))
+		} else {
+			where += fmt.Sprintf(" AND (t.source_outlet_id=$%d OR t.dest_outlet_id=$%d)", len(args), len(args))
+		}
+	}
+	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s %s
-	  ORDER BY t.created_at DESC LIMIT $2 OFFSET $1`,
-		ingTransferObj, ingTransferFrom, where)
+	  ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d`,
+		ingTransferObj, ingTransferFrom, where, len(args)-1, len(args))
 	return listJSON[api.IngredientTransfer](ctx, r.Pool, sql, args...)
 }
 
@@ -950,13 +968,30 @@ const transferFrom = `FROM transfers t
   LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id
   LEFT JOIN app_settings s ON true`
 
-// Transfers lists transfers newest-first, optionally filtered by status.
-func (r *Repo) Transfers(ctx context.Context, status string, page, limit int) ([]api.Transfer, int, error) {
-	where := ""
+// Transfers lists transfers newest-first with optional filters: status, date range,
+// and location (any side — source OR dest).
+func (r *Repo) Transfers(ctx context.Context, status, from, to, locKind, locID string, page, limit int) ([]api.Transfer, int, error) {
+	where := "WHERE 1=1"
 	args := []any{}
 	if status != "" {
 		args = append(args, status)
-		where = "WHERE t.status=$1"
+		where += fmt.Sprintf(" AND t.status=$%d", len(args))
+	}
+	if from != "" {
+		args = append(args, from)
+		where += fmt.Sprintf(" AND t.created_at >= $%d", len(args))
+	}
+	if to != "" {
+		args = append(args, to)
+		where += fmt.Sprintf(" AND t.created_at < $%d", len(args))
+	}
+	if locKind != "" && locID != "" {
+		args = append(args, locID)
+		if locKind == "warehouse" {
+			where += fmt.Sprintf(" AND (t.source_warehouse_id=$%d OR t.dest_warehouse_id=$%d)", len(args), len(args))
+		} else {
+			where += fmt.Sprintf(" AND (t.source_outlet_id=$%d OR t.dest_outlet_id=$%d)", len(args), len(args))
+		}
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s %s

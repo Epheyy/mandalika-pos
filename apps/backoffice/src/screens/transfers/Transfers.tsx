@@ -4,10 +4,22 @@ import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Card, Badge, EmptyState, PageHeader, Pagination } from '../../ui'
+import { Button, Card, Badge, EmptyState, PageHeader, Pagination, Select, fieldClass } from '../../ui'
 import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
+
+// ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
+function toFromIso(date: string): string {
+  return `${date}T00:00:00Z`
+}
+
+// ISO date string "YYYY-MM-DD" → next day at midnight UTC (exclusive end)
+function toToIso(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
 
 
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'detail'; id: string }
@@ -41,19 +53,55 @@ export function Transfers() {
   if (view.kind === 'detail') {
     return <TransferDetail id={view.id} onBack={() => setView({ kind: 'list' })} />
   }
-  return <TransferList onCreate={() => setView({ kind: 'create' })} onOpen={(id) => setView({ kind: 'detail', id })} />
+  return (
+    <TransferList
+      outlets={oq.data ?? []}
+      warehouses={wq.data ?? []}
+      onCreate={() => setView({ kind: 'create' })}
+      onOpen={(id) => setView({ kind: 'detail', id })}
+    />
+  )
 }
 
-function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id: string) => void }) {
+interface TransferListProps {
+  outlets: Outlet[]
+  warehouses: Warehouse[]
+  onCreate: () => void
+  onOpen: (id: string) => void
+}
+
+function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListProps) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [locationKey, setLocationKey] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+
+  const locParts = locationKey ? locationKey.split(':') : null
+  const locKind = locParts ? (locParts[0] as 'outlet' | 'warehouse') : undefined
+  const locId = locParts ? locParts[1] : undefined
+
   const q = usePolledQuery(
-    () => api.listTransfers(undefined, page, pageSize),
-    [page, pageSize],
+    () => api.listTransfers({
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(fromDate ? { from: toFromIso(fromDate) } : {}),
+      ...(toDate ? { to: toToIso(toDate) } : {}),
+      ...(locKind && locId ? { locKind, locId } : {}),
+      page,
+      limit: pageSize,
+    }),
+    [filterStatus, locationKey, fromDate, toDate, page, pageSize],
   )
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  function onFilterChange(fn: () => void) {
+    fn()
+    setPage(1)
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -65,6 +113,67 @@ function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id:
           </Button>
         }
       />
+
+      {/* Filter row */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-[180px]">
+          <Select
+            label="Status"
+            value={filterStatus}
+            onChange={(e) => onFilterChange(() => setFilterStatus(e.target.value))}
+          >
+            <option value="">Semua status</option>
+            <option value="draft">Draft</option>
+            <option value="in_transit">Dalam pengiriman</option>
+            <option value="completed">Selesai</option>
+            <option value="cancelled">Dibatalkan</option>
+          </Select>
+        </div>
+        <div className="min-w-[200px]">
+          <Select
+            label="Lokasi"
+            value={locationKey}
+            onChange={(e) => onFilterChange(() => setLocationKey(e.target.value))}
+          >
+            <option value="">Semua lokasi</option>
+            {outlets.length > 0 && (
+              <optgroup label="Outlet">
+                {outlets.map((o) => (
+                  <option key={o.id} value={`outlet:${o.id}`}>{o.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {warehouses.length > 0 && (
+              <optgroup label="Gudang">
+                {warehouses.map((w) => (
+                  <option key={w.id} value={`warehouse:${w.id}`}>{w.name}</option>
+                ))}
+              </optgroup>
+            )}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
+            className={fieldClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
+            className={fieldClass}
+          />
+        </div>
+      </div>
+
       <Card className="overflow-hidden">
         {q.loading ? (
           <TableSkeleton />

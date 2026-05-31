@@ -4031,6 +4031,10 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string;
+                from?: string;
+                to?: string;
+                locKind?: "outlet" | "warehouse";
+                locID?: string;
                 page?: number;
                 limit?: number;
             };
@@ -4462,6 +4466,10 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string;
+                from?: string;
+                to?: string;
+                locKind?: "outlet" | "warehouse";
+                locID?: string;
                 page?: number;
                 limit?: number;
             };

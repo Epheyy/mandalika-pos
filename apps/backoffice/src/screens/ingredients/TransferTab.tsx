@@ -1,13 +1,25 @@
 import { useState } from 'react'
-import type { IngredientTransfer } from '@mandalika/api'
+import type { IngredientTransfer, Outlet, Warehouse } from '@mandalika/api'
 import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Card, Badge, EmptyState, Pagination } from '../../ui'
+import { Button, Card, Badge, EmptyState, Pagination, Select, fieldClass } from '../../ui'
 import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
+
+// ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
+function toFromIso(date: string): string {
+  return `${date}T00:00:00Z`
+}
+
+// ISO date string "YYYY-MM-DD" → next day at midnight UTC (exclusive end)
+function toToIso(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
 
 const STATUS: Record<string, { label: string; tone: 'neutral' | 'warning' | 'success' }> = {
   draft: { label: 'Draf', tone: 'neutral' },
@@ -22,31 +34,36 @@ const fmtDate = (s?: string | null) =>
     : '—'
 
 
-type FilterStatus = 'all' | 'draft' | 'in_transit' | 'completed' | 'cancelled'
-
-const FILTER_LABELS: { value: FilterStatus; label: string }[] = [
-  { value: 'all', label: 'Semua' },
-  { value: 'draft', label: 'Draf' },
-  { value: 'in_transit', label: 'Dikirim' },
-  { value: 'completed', label: 'Selesai' },
-  { value: 'cancelled', label: 'Dibatalkan' },
-]
-
 export default function TransferTab() {
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [locationKey, setLocationKey] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
+  const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
+  const outlets = ouq.data ?? []
+  const warehouses = wq.data ?? []
+
+  const locParts = locationKey ? locationKey.split(':') : null
+  const locKind = locParts ? (locParts[0] as 'outlet' | 'warehouse') : undefined
+  const locId = locParts ? locParts[1] : undefined
+
   const q = usePolledQuery(
     () =>
       api.listIngredientTransfers({
-        ...(filterStatus !== 'all' ? { status: filterStatus } : {}),
+        ...(filterStatus ? { status: filterStatus } : {}),
+        ...(fromDate ? { from: toFromIso(fromDate) } : {}),
+        ...(toDate ? { to: toToIso(toDate) } : {}),
+        ...(locKind && locId ? { locKind, locId } : {}),
         page,
         limit: pageSize,
       }),
-    [filterStatus, page, pageSize],
+    [filterStatus, locationKey, fromDate, toDate, page, pageSize],
   )
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
@@ -54,28 +71,74 @@ export default function TransferTab() {
 
   const selected = rows.find((t) => t.id === selectedId) ?? null
 
+  function onFilterChange(fn: () => void) {
+    fn()
+    setPage(1)
+    setSelectedId(null)
+  }
+
   return (
     <div className="space-y-5">
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex flex-wrap gap-1">
-          {FILTER_LABELS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => { setFilterStatus(f.value); setPage(1); setSelectedId(null) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                filterStatus === f.value
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+      {/* Filter row */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-[180px]">
+          <Select
+            label="Status"
+            value={filterStatus}
+            onChange={(e) => onFilterChange(() => setFilterStatus(e.target.value))}
+          >
+            <option value="">Semua status</option>
+            <option value="draft">Draft</option>
+            <option value="in_transit">Dalam pengiriman</option>
+            <option value="completed">Selesai</option>
+            <option value="cancelled">Dibatalkan</option>
+          </Select>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">{total} transfer</span>
+        <div className="min-w-[200px]">
+          <Select
+            label="Lokasi"
+            value={locationKey}
+            onChange={(e) => onFilterChange(() => setLocationKey(e.target.value))}
+          >
+            <option value="">Semua lokasi</option>
+            {outlets.length > 0 && (
+              <optgroup label="Outlet">
+                {outlets.map((o) => (
+                  <option key={o.id} value={`outlet:${o.id}`}>{o.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {warehouses.length > 0 && (
+              <optgroup label="Gudang">
+                {warehouses.map((w) => (
+                  <option key={w.id} value={`warehouse:${w.id}`}>{w.name}</option>
+                ))}
+              </optgroup>
+            )}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
+            className={fieldClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
+            className={fieldClass}
+          />
+        </div>
+        <div className="flex items-end gap-2 ml-auto">
+          <span className="text-xs text-gray-500 pb-2.5">{total} transfer</span>
           <Button
             onClick={() => setShowCreate(true)}
             icon={<Plus className="w-4 h-4" />}

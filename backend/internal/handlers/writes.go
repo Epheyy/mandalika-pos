@@ -252,7 +252,17 @@ func (h *Handlers) WarehouseStock(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Transfers(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
-	rows, total, err := h.Repo.Transfers(r.Context(), r.URL.Query().Get("status"), p, l)
+	q := r.URL.Query()
+	status := q.Get("status")
+	from := q.Get("from")
+	to := q.Get("to")
+	locKind := q.Get("locKind")
+	locID := q.Get("locID")
+	if locKind != "" && locKind != "outlet" && locKind != "warehouse" {
+		httpx.Err(w, http.StatusBadRequest, "locKind harus outlet atau warehouse")
+		return
+	}
+	rows, total, err := h.Repo.Transfers(r.Context(), status, from, to, locKind, locID, p, l)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -464,8 +474,17 @@ func (h *Handlers) DeleteIngredientCategory(w http.ResponseWriter, r *http.Reque
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
-	status := r.URL.Query().Get("status")
-	rows, total, err := h.Repo.IngredientTransfers(r.Context(), p, l, status)
+	q := r.URL.Query()
+	status := q.Get("status")
+	from := q.Get("from")
+	to := q.Get("to")
+	locKind := q.Get("locKind")
+	locID := q.Get("locID")
+	if locKind != "" && locKind != "outlet" && locKind != "warehouse" {
+		httpx.Err(w, http.StatusBadRequest, "locKind harus outlet atau warehouse")
+		return
+	}
+	rows, total, err := h.Repo.IngredientTransfers(r.Context(), p, l, status, from, to, locKind, locID)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

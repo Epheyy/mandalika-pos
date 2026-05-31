@@ -2246,6 +2246,10 @@ paths:
       tags: [catalog]
       parameters:
         - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: locKind, in: query, required: false, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: locID, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: page, in: query, required: false, schema: { type: integer } }
         - { name: limit, in: query, required: false, schema: { type: integer } }
       responses:
@@ -2457,6 +2461,10 @@ paths:
       summary: List transfers (Backoffice)
       parameters:
         - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: locKind, in: query, required: false, schema: { type: string, enum: [outlet, warehouse] } }
+        - { name: locID, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: page, in: query, required: false, schema: { type: integer } }
         - { name: limit, in: query, required: false, schema: { type: integer } }
       responses:
