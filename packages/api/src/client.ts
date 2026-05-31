@@ -72,6 +72,9 @@ export type OutletParInput = S['OutletParInput']
 export type InventoryOverviewResponse = S['InventoryOverviewResponse']
 export type InventoryOverviewRow = S['InventoryOverviewRow']
 export type InventoryOverviewLocation = S['InventoryOverviewLocation']
+export type IngredientOverviewResponse = S['IngredientOverviewResponse']
+export type IngredientOverviewRow = S['IngredientOverviewRow']
+export type IngredientOverviewCell = S['IngredientOverviewCell']
 export type MovementSummaryRow = S['MovementSummaryRow']
 export type MovementSummaryResponse = S['MovementSummaryResponse']
 
@@ -193,6 +196,7 @@ export interface Api {
   adjustLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: WarehouseAdjustInput) => Promise<void>
   setOutletPar: (outletId: string, input: OutletParInput) => Promise<void>
   getInventoryOverview: () => Promise<InventoryOverviewResponse>
+  getIngredientOverview: () => Promise<IngredientOverviewResponse>
   getMovementSummary: (params: { kind: 'outlet' | 'warehouse'; id: string; from: string; to: string; page?: number; limit?: number }) => Promise<MovementSummaryResponse>
 
   // transfers (SP2)
@@ -450,6 +454,8 @@ export function createClient(opts: ClientOptions): Api {
     },
     getInventoryOverview: () =>
       request<InventoryOverviewResponse>('GET', `${API}/inventory/overview`),
+    getIngredientOverview: () =>
+      request<IngredientOverviewResponse>('GET', `${API}/inventory/ingredient-overview`),
     getMovementSummary: (params) =>
       request<MovementSummaryResponse>('GET', `${API}/inventory/movement-summary${qs(params as Record<string, string | number>)}`),
     listTransfers: (opts) => {

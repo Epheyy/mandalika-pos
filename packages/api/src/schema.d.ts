@@ -474,6 +474,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/ingredient-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read-only ingredient stock matrix across all locations (Backoffice) */
+        get: operations["getIngredientOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/movement-summary": {
         parameters: {
             query?: never;
@@ -2676,6 +2693,24 @@ export interface components {
             locations: components["schemas"]["InventoryOverviewLocation"][];
             rows: components["schemas"]["InventoryOverviewRow"][];
         };
+        IngredientOverviewCell: {
+            /** Format: uuid */
+            locationId: string;
+            qty: number;
+        };
+        IngredientOverviewRow: {
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            sku?: string;
+            unit: string;
+            total: number;
+            cells: components["schemas"]["IngredientOverviewCell"][];
+        };
+        IngredientOverviewResponse: {
+            locations: components["schemas"]["InventoryOverviewLocation"][];
+            rows: components["schemas"]["IngredientOverviewRow"][];
+        };
         MovementSummaryRow: {
             /** Format: uuid */
             productId: string;
@@ -3745,6 +3780,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryOverviewResponse"];
+                };
+            };
+        };
+    };
+    getIngredientOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ingredient overview matrix */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientOverviewResponse"];
                 };
             };
         };

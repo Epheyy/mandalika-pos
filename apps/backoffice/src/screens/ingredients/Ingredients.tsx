@@ -4,10 +4,12 @@ import StokTab from './StokTab'
 import StokMasukTab from './StokMasukTab'
 import PenyesuaianTab from './PenyesuaianTab'
 import TransferTab from './TransferTab'
+import { IngredientOverviewMatrix } from './IngredientOverviewMatrix'
 
-type Inner = 'daftar' | 'stok' | 'stok-masuk' | 'penyesuaian' | 'transfer'
+type Inner = 'overview' | 'daftar' | 'stok' | 'stok-masuk' | 'penyesuaian' | 'transfer'
 
 const INNER_TABS: { id: Inner; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'daftar', label: 'Daftar' },
   { id: 'stok', label: 'Stok' },
   { id: 'stok-masuk', label: 'Stok Masuk' },
@@ -16,7 +18,7 @@ const INNER_TABS: { id: Inner; label: string }[] = [
 ]
 
 export default function Ingredients() {
-  const [inner, setInner] = useState<Inner>('daftar')
+  const [inner, setInner] = useState<Inner>('overview')
 
   const cls = (k: Inner) =>
     `px-3 py-1.5 text-sm transition-colors ${
@@ -39,6 +41,7 @@ export default function Ingredients() {
           </button>
         ))}
       </div>
+      {inner === 'overview' && <IngredientOverviewMatrix />}
       {inner === 'daftar' && <DaftarTab />}
       {inner === 'stok' && <StokTab />}
       {inner === 'stok-masuk' && <StokMasukTab />}

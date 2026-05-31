@@ -1265,6 +1265,128 @@ func (r *Repo) InventoryOverview(ctx context.Context) (api.InventoryOverviewResp
 	return resp, nil
 }
 
+// IngredientOverview returns the read-only ingredient-stock matrix: every
+// active location (outlets then warehouses) × every active ingredient, with a
+// per-row total (float). No PAR threshold or belowPar flag.
+func (r *Repo) IngredientOverview(ctx context.Context) (api.IngredientOverviewResponse, error) {
+	var resp api.IngredientOverviewResponse
+
+	// 1) Locations (outlets first, then warehouses), active only.
+	lrows, err := r.Pool.Query(ctx, `
+		SELECT id::text, 'outlet' AS kind, name FROM outlets WHERE is_active
+		UNION ALL
+		SELECT id::text, 'warehouse' AS kind, name FROM warehouses WHERE is_active
+		ORDER BY kind ASC, name`) // 'outlet' < 'warehouse' lexically
+	if err != nil {
+		return resp, err
+	}
+	defer lrows.Close()
+	for lrows.Next() {
+		var idStr, kindStr, name string
+		if err := lrows.Scan(&idStr, &kindStr, &name); err != nil {
+			return resp, err
+		}
+		locID, err := uuid.Parse(idStr)
+		if err != nil {
+			return resp, fmt.Errorf("parse location id %q: %w", idStr, err)
+		}
+		resp.Locations = append(resp.Locations, api.InventoryOverviewLocation{
+			Id:   locID,
+			Kind: api.InventoryOverviewLocationKind(kindStr),
+			Name: name,
+		})
+	}
+	if err := lrows.Err(); err != nil {
+		return resp, err
+	}
+
+	// 2) Per-(ingredient, location) qty assembled in memory.
+	type cellKey struct{ ing, loc string }
+	qtyByCell := map[cellKey]float64{}
+
+	orows, err := r.Pool.Query(ctx,
+		`SELECT ingredient_id::text, outlet_id::text, qty FROM ingredient_outlet_stock`)
+	if err != nil {
+		return resp, err
+	}
+	for orows.Next() {
+		var ing, loc string
+		var qty float64
+		if err := orows.Scan(&ing, &loc, &qty); err != nil {
+			orows.Close()
+			return resp, err
+		}
+		qtyByCell[cellKey{ing, loc}] = qty
+	}
+	orows.Close()
+	if err := orows.Err(); err != nil {
+		return resp, err
+	}
+
+	wrows, err := r.Pool.Query(ctx,
+		`SELECT ingredient_id::text, warehouse_id::text, qty FROM ingredient_warehouse_stock`)
+	if err != nil {
+		return resp, err
+	}
+	for wrows.Next() {
+		var ing, loc string
+		var qty float64
+		if err := wrows.Scan(&ing, &loc, &qty); err != nil {
+			wrows.Close()
+			return resp, err
+		}
+		qtyByCell[cellKey{ing, loc}] = qty
+	}
+	wrows.Close()
+	if err := wrows.Err(); err != nil {
+		return resp, err
+	}
+
+	// 3) Rows = active ingredients.
+	irows, err := r.Pool.Query(ctx, `
+		SELECT i.id::text, i.name, i.sku, i.unit
+		FROM ingredients i
+		WHERE i.is_active
+		ORDER BY i.name ASC`)
+	if err != nil {
+		return resp, err
+	}
+	defer irows.Close()
+	for irows.Next() {
+		var id, name, unit string
+		var sku *string
+		if err := irows.Scan(&id, &name, &sku, &unit); err != nil {
+			return resp, err
+		}
+		ingID, err := uuid.Parse(id)
+		if err != nil {
+			return resp, fmt.Errorf("parse ingredient id %q: %w", id, err)
+		}
+		row := api.IngredientOverviewRow{
+			IngredientId:   ingID,
+			IngredientName: name,
+			Sku:            sku,
+			Unit:           unit,
+		}
+		var total float64
+		for _, l := range resp.Locations {
+			locStr := l.Id.String()
+			qty := qtyByCell[cellKey{id, locStr}]
+			total += qty
+			row.Cells = append(row.Cells, api.IngredientOverviewCell{
+				LocationId: l.Id,
+				Qty:        float32(qty),
+			})
+		}
+		row.Total = float32(total)
+		resp.Rows = append(resp.Rows, row)
+	}
+	if err := irows.Err(); err != nil {
+		return resp, err
+	}
+	return resp, nil
+}
+
 // MovementSummary returns a per-variant stock-movement summary for a single
 // location (outlet or warehouse) over a half-open date range [from, to).
 // For warehouses, sold/refunded are always 0 (warehouses don't sell).

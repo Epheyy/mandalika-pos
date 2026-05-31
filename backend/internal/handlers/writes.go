@@ -1123,6 +1123,15 @@ func (h *Handlers) InventoryOverview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *Handlers) IngredientOverview(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.Repo.IngredientOverview(r.Context())
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func (h *Handlers) MovementSummary(w http.ResponseWriter, r *http.Request) {
 	kind := r.URL.Query().Get("kind")
 	id := r.URL.Query().Get("id")

@@ -1448,6 +1448,34 @@ components:
       properties:
         locations: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewLocation' } }
         rows: { type: array, items: { $ref: '#/components/schemas/InventoryOverviewRow' } }
+    IngredientOverviewCell:
+      type: object
+      required: [locationId, qty]
+      properties:
+        locationId: { type: string, format: uuid }
+        qty: { type: number }
+    IngredientOverviewRow:
+      type: object
+      required: [ingredientId, ingredientName, unit, total, cells]
+      properties:
+        ingredientId: { type: string, format: uuid }
+        ingredientName: { type: string }
+        sku: { type: string }
+        unit: { type: string }
+        total: { type: number }
+        cells:
+          type: array
+          items: { $ref: '#/components/schemas/IngredientOverviewCell' }
+    IngredientOverviewResponse:
+      type: object
+      required: [locations, rows]
+      properties:
+        locations:
+          type: array
+          items: { $ref: '#/components/schemas/InventoryOverviewLocation' }
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/IngredientOverviewRow' }
     MovementSummaryRow:
       type: object
       required: [productId, productName, variantSize, sku, currentStock, goodsIn, sold, refunded, transferIn, transferOut, adjustmentCount, opnameDiff]
@@ -2099,6 +2127,17 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InventoryOverviewResponse' }
+  /api/v1/inventory/ingredient-overview:
+    get:
+      operationId: getIngredientOverview
+      tags: [catalog]
+      summary: Read-only ingredient stock matrix across all locations (Backoffice)
+      responses:
+        '200':
+          description: ingredient overview matrix
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientOverviewResponse' }
   /api/v1/inventory/movement-summary:
     get:
       operationId: getMovementSummary
