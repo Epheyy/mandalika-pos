@@ -9,7 +9,6 @@ import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
 
-const PAGE_SIZE = 25
 
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'detail'; id: string }
 
@@ -47,13 +46,14 @@ export function Transfers() {
 
 function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id: string) => void }) {
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const q = usePolledQuery(
-    () => api.listTransfers(undefined, page, PAGE_SIZE),
-    [page],
+    () => api.listTransfers(undefined, page, pageSize),
+    [page, pageSize],
   )
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   return (
     <div className="space-y-5">
       <PageHeader
@@ -109,9 +109,14 @@ function TransferList({ onCreate, onOpen }: { onCreate: () => void; onOpen: (id:
           </div>
         )}
       </Card>
-      {totalPages > 1 && (
-        <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      />
     </div>
   )
 }

@@ -9,18 +9,18 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../ui'
 
-const PAGE_SIZE = 25
 
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
   const [page, setPage] = useState(1)
-  const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, PAGE_SIZE), [outletId, page])
+  const [pageSize, setPageSize] = useState(25)
+  const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, pageSize), [outletId, page, pageSize])
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
-  const scTotalPages = Math.max(1, Math.ceil(scTotal / PAGE_SIZE))
+  const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
   const products = pq.data ?? []
   const outlets = ctxOutlets.length ? ctxOutlets : ouq.data ?? []
   const warehouses = wq.data ?? []
@@ -254,9 +254,14 @@ export default function StockCount() {
         )}
       </div>
 
-      {scTotalPages > 1 && (
-        <Pagination page={page} totalPages={scTotalPages} total={scTotal} onChange={setPage} />
-      )}
+      <Pagination
+        page={page}
+        totalPages={scTotalPages}
+        total={scTotal}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      />
 
       <Modal
         open={open}

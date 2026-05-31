@@ -95,21 +95,21 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
   )
 }
 
-const PAGE_SIZE = 25
 
 // ---- main component ----
 
 export default function OpnameTab() {
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const scq = usePolledQuery(
-    () => api.listIngredientStockCounts({ page, limit: PAGE_SIZE }),
-    [page],
+    () => api.listIngredientStockCounts({ page, limit: pageSize }),
+    [page, pageSize],
   )
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
-  const scTotalPages = Math.max(1, Math.ceil(scTotal / PAGE_SIZE))
+  const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
   const outlets = ouq.data ?? []
   const warehouses = (wq.data ?? []).filter((w) => w.isActive)
 
@@ -349,9 +349,14 @@ export default function OpnameTab() {
         )}
       </div>
 
-      {scTotalPages > 1 && (
-        <Pagination page={page} totalPages={scTotalPages} total={scTotal} onChange={setPage} />
-      )}
+      <Pagination
+        page={page}
+        totalPages={scTotalPages}
+        total={scTotal}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      />
 
       {/* Create modal */}
       <Modal

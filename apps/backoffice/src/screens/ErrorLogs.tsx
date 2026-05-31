@@ -6,9 +6,8 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { Badge, Button, Card, EmptyState, PageHeader, Tabs } from '../ui'
+import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Tabs } from '../ui'
 
-const PAGE_SIZE = 50
 
 const SOURCES: ReadonlyArray<{ id: string; label: string }> = [
   { id: '', label: 'Semua Sumber' },
@@ -44,20 +43,21 @@ function fmtTime(s?: string | null): string {
 export default function ErrorLogs() {
   const [source, setSource] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<ErrorLog>>(
     () =>
       api.listErrorLogs({
         page,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         ...(source ? { source } : {}),
       }),
-    [page, source],
+    [page, pageSize, source],
   )
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <div className="p-6 space-y-5">
@@ -73,7 +73,7 @@ export default function ErrorLogs() {
 
       <Tabs
         value={source}
-        onChange={(v) => { setSource(v); setPage(1) }}
+        onChange={(v) => { setSource(v); setPage(1); }}
         tabs={SOURCES}
       />
 
@@ -164,29 +164,14 @@ export default function ErrorLogs() {
         )}
       </Card>
 
-      {total > 0 && (
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">Hal {page}/{totalPages}</span>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-            >
-              ‹ Sebelumnya
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-            >
-              Berikutnya ›
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      />
     </div>
   )
 }

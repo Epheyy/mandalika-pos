@@ -21,7 +21,6 @@ const fmtDate = (s?: string | null) =>
     ? new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—'
 
-const PAGE_SIZE = 25
 
 type FilterStatus = 'all' | 'draft' | 'in_transit' | 'completed' | 'cancelled'
 
@@ -36,6 +35,7 @@ const FILTER_LABELS: { value: FilterStatus; label: string }[] = [
 export default function TransferTab() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -44,13 +44,13 @@ export default function TransferTab() {
       api.listIngredientTransfers({
         ...(filterStatus !== 'all' ? { status: filterStatus } : {}),
         page,
-        limit: PAGE_SIZE,
+        limit: pageSize,
       }),
-    [filterStatus, page],
+    [filterStatus, page, pageSize],
   )
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const selected = rows.find((t) => t.id === selectedId) ?? null
 
@@ -137,9 +137,14 @@ export default function TransferTab() {
         )}
       </Card>
 
-      {totalPages > 1 && (
-        <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      />
 
       {/* Detail panel */}
       {selected && (

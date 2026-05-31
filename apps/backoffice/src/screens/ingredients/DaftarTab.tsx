@@ -7,7 +7,6 @@ import { TableSkeleton } from '../../components/Skeleton'
 import { Button, Badge, EmptyState, Pagination, fieldClass } from '../../ui'
 import { IngredientFormModal } from './IngredientFormModal'
 
-const PAGE_SIZE = 25
 
 const formatIDR = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -18,17 +17,18 @@ export default function DaftarTab() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
 
   const q = usePolledQuery<ListResult<Ingredient>>(
-    () => api.listIngredients({ page, limit: PAGE_SIZE, ...(search.trim() ? { q: search.trim() } : {}) }),
-    [page, search],
+    () => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) }),
+    [page, pageSize, search],
   )
   const ingredients = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   // Fetch categories for the filter dropdown
   useEffect(() => {
@@ -175,15 +175,15 @@ export default function DaftarTab() {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          onChange={setPage}
-          className="mt-4"
-        />
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+        className="mt-4"
+      />
 
       {/* Modal */}
       {showModal && (
