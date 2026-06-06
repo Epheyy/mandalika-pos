@@ -16,3 +16,7 @@ ALTER TABLE recipe_ingredients ADD CONSTRAINT recipe_ingredients_ingredient_id_f
 
 CREATE UNIQUE INDEX idx_recipe_ingredients_version_ing
   ON recipe_ingredients (version_id, ingredient_id) WHERE ingredient_id IS NOT NULL;
+
+-- The dropped composite PK used to index version_id lookups (the recipe read
+-- filters `WHERE ri.version_id = $1`); restore a plain index for that path.
+CREATE INDEX idx_recipe_ingredients_version ON recipe_ingredients (version_id);
