@@ -47,6 +47,8 @@ export type IngredientStockCount = S['IngredientStockCount']
 export type IngredientStockCountItem = S['IngredientStockCountItem']
 export type IngredientStockCountInput = S['IngredientStockCountInput']
 export type IngredientStockCountSaveInput = S['IngredientStockCountSaveInput']
+export type IngredientUsageVariant = S['IngredientUsageVariant']
+export type IngredientUsageResponse = S['IngredientUsageResponse']
 export type Recipe = S['Recipe']
 export type RecipeIngredientLine = S['RecipeIngredientLine']
 export type RecipeVersionSummary = S['RecipeVersionSummary']
@@ -215,6 +217,7 @@ export interface Api {
   createIngredient: (input: IngredientInput) => Promise<void>
   updateIngredient: (id: string, input: IngredientInput) => Promise<void>
   deleteIngredient: (id: string) => Promise<void>
+  getIngredientUsage: (id: string) => Promise<IngredientUsageResponse>
   listIngredientCategories: () => Promise<IngredientCategory[]>
   createIngredientCategory: (input: IngredientCategoryInput) => Promise<void>
   updateIngredientCategory: (id: string, input: IngredientCategoryInput) => Promise<void>
@@ -498,6 +501,8 @@ export function createClient(opts: ClientOptions): Api {
     deleteIngredient: async (id) => {
       await request('DELETE', `${API}/ingredients/${id}`)
     },
+    getIngredientUsage: (id) =>
+      request<IngredientUsageResponse>('GET', `${API}/ingredients/${id}/usage`),
     listIngredientCategories: () =>
       data<IngredientCategory[]>('GET', `${API}/ingredient-categories`),
     createIngredientCategory: async (input) => {

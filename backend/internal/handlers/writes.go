@@ -369,6 +369,15 @@ func (h *Handlers) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteIngredient(r.Context(), chi.URLParam(r, "id")))
 }
 
+func (h *Handlers) IngredientUsage(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.Repo.IngredientUsage(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // ── Ingredient location stock ops ─────────────────────────
 
 func (h *Handlers) CreateIngredientLocationGoodsReceipt(w http.ResponseWriter, r *http.Request) {

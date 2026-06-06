@@ -542,6 +542,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredients/{id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Product variants whose recipes reference this ingredient (Backoffice) */
+        get: operations["getIngredientUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/ingredient-location-stock": {
         parameters: {
             query?: never;
@@ -1738,6 +1755,13 @@ export interface components {
         };
         IngredientCategoryListResponse: {
             data: components["schemas"]["IngredientCategory"][];
+        };
+        IngredientUsageVariant: {
+            productName: string;
+            variantSize: string;
+        };
+        IngredientUsageResponse: {
+            variants: components["schemas"]["IngredientUsageVariant"][];
         };
         IngredientGoodsReceiptItemInput: {
             /** Format: uuid */
@@ -3920,6 +3944,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getIngredientUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientUsageResponse"];
+                };
             };
         };
     };

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { Ingredient, IngredientCategory, ListResult } from '@mandalika/api'
-import { Edit2, Search, FlaskConical } from 'lucide-react'
+import { Edit2, Search, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Button, Badge, EmptyState, Pagination, fieldClass } from '../../ui'
 import { IngredientFormModal } from './IngredientFormModal'
+import { DeleteIngredientModal } from './DeleteIngredientModal'
 
 
 const formatIDR = (n: number | null | undefined) => {
@@ -20,6 +21,7 @@ export default function DaftarTab() {
   const [pageSize, setPageSize] = useState(25)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Ingredient | null>(null)
+  const [deleting, setDeleting] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
 
   const q = usePolledQuery<ListResult<Ingredient>>(
@@ -79,7 +81,7 @@ export default function DaftarTab() {
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Cari nama atau SKU..."
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
+              className={`${fieldClass} pl-9`}
             />
           </div>
 
@@ -160,13 +162,22 @@ export default function DaftarTab() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => openEdit(ing)}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
-                      title="Edit"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(ing)}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleting(ing)}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -185,11 +196,20 @@ export default function DaftarTab() {
         className="mt-4"
       />
 
-      {/* Modal */}
+      {/* Edit modal */}
       {showModal && (
         <IngredientFormModal
           editing={editing}
           onClose={closeModal}
+          onDone={q.refetch}
+        />
+      )}
+
+      {/* Delete modal */}
+      {deleting && (
+        <DeleteIngredientModal
+          ingredient={deleting}
+          onClose={() => setDeleting(null)}
           onDone={q.refetch}
         />
       )}

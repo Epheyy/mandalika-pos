@@ -333,6 +333,19 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/IngredientCategory' } }
+    IngredientUsageVariant:
+      type: object
+      required: [productName, variantSize]
+      properties:
+        productName: { type: string }
+        variantSize: { type: string }
+    IngredientUsageResponse:
+      type: object
+      required: [variants]
+      properties:
+        variants:
+          type: array
+          items: { $ref: '#/components/schemas/IngredientUsageVariant' }
     IngredientGoodsReceiptItemInput:
       type: object
       required: [ingredientId, qty]
@@ -2200,6 +2213,19 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
+  /api/v1/ingredients/{id}/usage:
+    get:
+      operationId: getIngredientUsage
+      tags: [catalog]
+      summary: Product variants whose recipes reference this ingredient (Backoffice)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: usage
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngredientUsageResponse' }
   /api/v1/inventory/ingredient-location-stock:
     get:
       operationId: getIngredientLocationStock

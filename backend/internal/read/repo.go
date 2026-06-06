@@ -278,6 +278,37 @@ func (r *Repo) IngredientCategories(ctx context.Context) ([]api.IngredientCatego
 	return rows, err
 }
 
+// IngredientUsage returns the distinct product variants whose recipes reference
+// this ingredient (across ALL recipe versions, matching the ON DELETE RESTRICT
+// FK semantics). Used to warn before an ingredient delete.
+func (r *Repo) IngredientUsage(ctx context.Context, ingredientID string) (api.IngredientUsageResponse, error) {
+	var resp api.IngredientUsageResponse
+	rows, err := r.Pool.Query(ctx, `
+		SELECT DISTINCT p.name, v.size
+		FROM recipe_ingredients ri
+		JOIN recipe_versions rv ON rv.id = ri.version_id
+		JOIN recipes rec        ON rec.id = rv.recipe_id
+		JOIN product_variants v ON v.id  = rec.variant_id
+		JOIN products p         ON p.id  = v.product_id
+		WHERE ri.ingredient_id = $1
+		ORDER BY p.name, v.size`, ingredientID)
+	if err != nil {
+		return resp, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u api.IngredientUsageVariant
+		if err := rows.Scan(&u.ProductName, &u.VariantSize); err != nil {
+			return resp, err
+		}
+		resp.Variants = append(resp.Variants, u)
+	}
+	if err := rows.Err(); err != nil {
+		return resp, err
+	}
+	return resp, nil
+}
+
 // IngredientLocationStock returns per-ingredient on-hand qty for a polymorphic location
 // (outlet or warehouse). Returns active ingredients only; qty defaults to 0 when not stocked.
 func (r *Repo) IngredientLocationStock(ctx context.Context, kind, id string) ([]api.IngredientStockRow, error) {

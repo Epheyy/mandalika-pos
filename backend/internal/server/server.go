@@ -195,6 +195,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 					r.Post("/ingredients", h.CreateIngredient)
 					r.Put("/ingredients/{id}", h.UpdateIngredient)
 					r.Delete("/ingredients/{id}", h.DeleteIngredient)
+					r.Get("/ingredients/{id}/usage", h.IngredientUsage)
 					// polymorphic ingredient stock ops (outlet OR warehouse)
 					r.Get("/inventory/ingredient-location-stock", h.IngredientLocationStock)
 					r.Post("/inventory/ingredient-goods-receipt", h.CreateIngredientLocationGoodsReceipt)

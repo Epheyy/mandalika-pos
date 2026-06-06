@@ -101,6 +101,10 @@ func (r *Repo) DeleteIngredient(ctx context.Context, id string) error {
 	}
 	tag, err := r.Pool.Exec(ctx, `DELETE FROM ingredients WHERE id=$1`, id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return fmt.Errorf("bahan masih dipakai di resep produk — hapus dari resep dulu")
+		}
 		return fmt.Errorf("delete ingredient: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
