@@ -12,7 +12,7 @@ import { Download, ShoppingBag, TrendingUp, RotateCcw, ChevronDown, ChevronUp } 
 import { api } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { exportToCSV } from '../lib/csvUtils'
+import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import {
   Button,
@@ -85,7 +85,13 @@ export default function Reports() {
         'Alasan Refund': o.refundReason || '',
         Outlet: outletName(o.outletId),
       })),
-      'laporan_transaksi',
+      buildExportName('laporan-transaksi', [
+        outletId ? outletName(outletId) : 'semua-outlet',
+        fStatus || undefined,
+        fPay || undefined,
+        `dari-${dateFrom}`,
+        `sd-${dateTo}`,
+      ]),
     )
 
   const exportSh = () =>
@@ -106,7 +112,11 @@ export default function Reports() {
         Transfer: s.transferSales,
         QRIS: s.qrisSales,
       })),
-      'laporan_shift',
+      buildExportName('laporan-shift', [
+        outletId ? outletName(outletId) : 'semua-outlet',
+        `dari-${dateFrom}`,
+        `sd-${dateTo}`,
+      ]),
     )
 
   const statusBadge = (st: string) =>

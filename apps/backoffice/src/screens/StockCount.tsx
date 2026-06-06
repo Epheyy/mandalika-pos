@@ -7,7 +7,7 @@ import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../ui'
 
@@ -153,8 +153,10 @@ export default function StockCount() {
       Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
       'Jumlah Item': sc.items.length,
     }))
-    if (fmt === 'csv') exportToCSV(exportRows, 'stock-count')
-    else exportToXLSX(exportRows, 'stock-count')
+    const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
+    const name = buildExportName('opname-produk', [scope])
+    if (fmt === 'csv') exportToCSV(exportRows, name)
+    else exportToXLSX(exportRows, name)
   }
 
   const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>

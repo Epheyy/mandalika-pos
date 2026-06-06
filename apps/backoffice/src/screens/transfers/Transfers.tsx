@@ -5,7 +5,7 @@ import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
+import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button, Card, Badge, EmptyState, PageHeader, Pagination, Select, fieldClass } from '../../ui'
 import { TransferForm } from './TransferForm'
@@ -121,8 +121,18 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
       Status: STATUS[t.status]?.label ?? t.status,
       Dibuat: fmtDate(t.createdAt),
     }))
-    if (fmt === 'csv') exportToCSV(exportRows, 'transfer-stok')
-    else exportToXLSX(exportRows, 'transfer-stok')
+    const locName =
+      locKind && locId
+        ? (locKind === 'outlet' ? outlets : warehouses).find((l) => l.id === locId)?.name
+        : undefined
+    const name = buildExportName('transfer-produk', [
+      filterStatus ? (STATUS[filterStatus]?.label ?? filterStatus) : undefined,
+      locName,
+      fromDate ? `dari-${fromDate}` : undefined,
+      toDate ? `sd-${toDate}` : undefined,
+    ])
+    if (fmt === 'csv') exportToCSV(exportRows, name)
+    else exportToXLSX(exportRows, name)
   }
 
   return (

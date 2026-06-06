@@ -10,7 +10,7 @@ import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
-import { exportToXLSX } from '../lib/csvUtils'
+import { exportToXLSX, buildExportName } from '../lib/csvUtils'
 import {
   Badge,
   Button,
@@ -24,7 +24,7 @@ import {
 
 export default function Orders() {
   const { user } = useAuth()
-  const { outletId } = useOutlet()
+  const { outletId, outlets: ctxOutlets } = useOutlet()
   const [query, setQuery] = useState('')
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
@@ -99,7 +99,9 @@ export default function Orders() {
       Pajak: o.taxAmount,
       Total: o.total,
     }))
-    exportToXLSX(rows, 'transaksi')
+    const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
+    const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query || undefined])
+    exportToXLSX(rows, name)
   }
 
   return (

@@ -12,7 +12,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { uploadImage } from '../lib/uploadImage'
-import { exportToCSV, exportToXLSX, parseCSV } from '../lib/csvUtils'
+import { exportToCSV, exportToXLSX, parseCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import {
   Button,
@@ -49,7 +49,7 @@ type OcRow = { price: number | null; available: boolean }
 const EMPTY_OC: OcRow = { price: null, available: true }
 
 export default function Products() {
-  const { outletId } = useOutlet()
+  const { outletId, outlets: ctxOutlets } = useOutlet()
   // Refetch the list when the admin switches outlet so stock/price/availability
   // reflect that outlet (the API client sends X-Outlet-Id from the switcher).
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data), [outletId])
@@ -315,8 +315,11 @@ export default function Products() {
       })),
     )
     if (!rows.length) return
-    if (fmt === 'xlsx') exportToXLSX(rows, 'produk_mandalika')
-    else exportToCSV(rows, 'produk_mandalika')
+    // The product list is outlet-scoped (X-Outlet-Id); name the file by that scope.
+    const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
+    const name = buildExportName('produk', [scope])
+    if (fmt === 'xlsx') exportToXLSX(rows, name)
+    else exportToCSV(rows, name)
   }
 
   // Downloadable CSV template: the exact importer columns + two example rows

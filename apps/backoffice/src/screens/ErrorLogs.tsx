@@ -6,7 +6,7 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Tabs } from '../ui'
 
@@ -78,8 +78,9 @@ export default function ErrorLogs() {
       Versi: e.appVersion ?? '',
       Waktu: fmtTime(e.createdAt),
     }))
-    if (fmt === 'csv') exportToCSV(exportRows, 'error-logs')
-    else exportToXLSX(exportRows, 'error-logs')
+    const name = buildExportName('log-error', [source || undefined])
+    if (fmt === 'csv') exportToCSV(exportRows, name)
+    else exportToXLSX(exportRows, name)
   }
 
   return (

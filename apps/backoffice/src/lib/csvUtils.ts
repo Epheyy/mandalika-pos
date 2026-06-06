@@ -90,6 +90,30 @@ export function parseCSV(text: string): Record<string, string>[] {
     })
 }
 
+/**
+ * Build an export base filename from a module name + context parts (active
+ * filters/scope). Empty/nullish parts are dropped; each part is slugified.
+ * exportToCSV/exportToXLSX still append `_YYYY-MM-DD` (the generation date),
+ * so the result is e.g. `transfer-produk_selesai_mandalika-bsd_2026-06-06.csv`.
+ */
+export function buildExportName(
+  base: string,
+  parts: Array<string | number | null | undefined> = [],
+): string {
+  const slug = (s: string) =>
+    String(s)
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32)
+  const tail = parts
+    .map((p) => (p === null || p === undefined || p === '' ? '' : slug(String(p))))
+    .filter(Boolean)
+  const b = slug(base)
+  return tail.length ? `${b}_${tail.join('_')}` : b
+}
+
 export function generateCode(length = 8): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   return Array.from({ length }, () =>

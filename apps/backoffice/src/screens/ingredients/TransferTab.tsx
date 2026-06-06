@@ -4,7 +4,7 @@ import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
+import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button, Card, Badge, EmptyState, Pagination, Select, fieldClass } from '../../ui'
 import { IngredientTransferForm } from './IngredientTransferForm'
@@ -95,8 +95,18 @@ export default function TransferTab() {
       Status: STATUS[t.status]?.label ?? t.status,
       Dibuat: fmtDate(t.createdAt),
     }))
-    if (fmt === 'csv') exportToCSV(exportRows, 'transfer-bahan')
-    else exportToXLSX(exportRows, 'transfer-bahan')
+    const locName =
+      locKind && locId
+        ? (locKind === 'outlet' ? outlets : warehouses).find((l) => l.id === locId)?.name
+        : undefined
+    const name = buildExportName('transfer-bahan', [
+      filterStatus ? (STATUS[filterStatus]?.label ?? filterStatus) : undefined,
+      locName,
+      fromDate ? `dari-${fromDate}` : undefined,
+      toDate ? `sd-${toDate}` : undefined,
+    ])
+    if (fmt === 'csv') exportToCSV(exportRows, name)
+    else exportToXLSX(exportRows, name)
   }
 
   return (
