@@ -40,8 +40,16 @@ F7: status filter returns only completed, 2020 date range returns empty, locatio
 - **Ingredient category delete UI** finally wired up (backend `deleteIngredientCategory` had existed all along but had no caller). Extracted `apps/backoffice/src/screens/ingredients/CategoryManager.tsx`. Inside `IngredientFormModal`, a "Kelola kategori" toggle expands the existing categories with hover-reveal trash icons; clicking opens an inline confirm panel ("Bahan yang memakai kategori ini tetap ada — FK SET NULL"). Deletes refetch the list and clear the selected category if it was the deleted one.
 - **Global white-bg inputs**: `apps/backoffice/src/ui/Field.tsx` `fieldClass` changed from `bg-gray-50` → `bg-white`. Single-token edit affects every `<Input>`/`<Select>`/`<Textarea>` site-wide. Filter/search bars now read as clearly interactive against the cream theme; modal forms (already on white card backgrounds) remain visible via `border-gray-200`.
 
+## F10 — Ingredient delete + linked-recipe warning + Daftar search fix (`3208d09`, `bf2f362`)
+- **Daftar search bar** had a hardcoded `bg-gray-50` className (missed by the F9 global change) — now uses the shared `fieldClass` (white). 
+- **Delete ingredient** finally wired in the Daftar list: a Trash2 button per row → `DeleteIngredientModal` (new component). On open it calls the **new** `GET /api/v1/ingredients/{id}/usage` (recipes-gated) which returns the product variants whose recipes reference the ingredient (across ALL recipe versions, matching the `ON DELETE RESTRICT` FK). If linked → amber warning + variant list + **Hapus disabled** ("hapus dari resep dulu"). If unlinked → normal confirm + enabled red Hapus → `deleteIngredient`.
+- **Backend FK safety net**: `DeleteIngredient` now maps pg `23503` to a friendly Indonesian message ("bahan masih dipakai di resep produk — hapus dari resep dulu") in case of a race.
+- **Gotcha fixed (`bf2f362`)**: `IngredientUsage` originally returned a nil Go slice → JSON `null` for unused ingredients; now initialized to `[]`. (Frontend was already defensive with `resp.variants ?? []`, so no crash — but the contract is now correct.)
+- **Verified 7/7 on rev 00045-jfx → bf2f362 deploy**: create temp ingredient → usage `[]` → delete 200; a recipe-linked ingredient (No-SKU One, used in 2 HOLY SWEET variants) → delete blocked 400 with the friendly message.
+
 ## ▶️ USER-PENDING — visual UI walkthrough on the live backoffice
 Hard-refresh `mandalika-pos.pages.dev` (Cloudflare deploying frontend) and confirm:
+0. **Bahan → Daftar**: search bar is white (not cream); each row has a delete (trash) button; deleting an ingredient used in a recipe shows the amber warning + disabled Hapus; deleting an unused ingredient works.
 1. **Pengaturan → Outlet & Gudang** (new first section): outlet Tambah/Edit/Toggle + warehouse Tambah/Edit/Hapus; no stock affordances.
 2. **Inventori → Stok Produk** has only Overview + Pergerakan; clicking a location column header in Overview drills into that location's stock view; the type toggle + search + pagination + sticky Total column all work on a many-location matrix.
 3. **Inventori → Transfer** filter row (Status / Lokasi / Dari / Sampai) narrows the list. Same in **Bahan → Transfer**.
