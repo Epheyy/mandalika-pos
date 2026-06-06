@@ -282,7 +282,9 @@ func (r *Repo) IngredientCategories(ctx context.Context) ([]api.IngredientCatego
 // this ingredient (across ALL recipe versions, matching the ON DELETE RESTRICT
 // FK semantics). Used to warn before an ingredient delete.
 func (r *Repo) IngredientUsage(ctx context.Context, ingredientID string) (api.IngredientUsageResponse, error) {
-	var resp api.IngredientUsageResponse
+	// Non-nil so an unused ingredient serializes as [] (not null) — the client
+	// reads `variants.length` directly.
+	resp := api.IngredientUsageResponse{Variants: []api.IngredientUsageVariant{}}
 	rows, err := r.Pool.Query(ctx, `
 		SELECT DISTINCT p.name, v.size
 		FROM recipe_ingredients ri
