@@ -128,6 +128,11 @@ export default function DaftarTab() {
     let created = 0
     let updated = 0
     let skipped = 0
+    let errors = 0
+
+    // Fetch the catalog ONCE for upsert matching (avoid a per-row N+1).
+    const known = (await api.listIngredients({ page: 1, limit: 10000 })).data
+    const seen = new Set<string>() // dedupe rows within a single import file
 
     for (const row of rows) {
       const name = (row['Nama'] || '').trim()
@@ -136,9 +141,16 @@ export default function DaftarTab() {
         skipped++
         continue
       }
+      const sku = (row['SKU'] || '').trim() || null
+      const dedupeKey = (sku ?? name).toLowerCase()
+      if (seen.has(dedupeKey)) {
+        skipped++ // same SKU/name appears twice in this file
+        continue
+      }
+      seen.add(dedupeKey)
+
       const catLower = (row['Kategori'] || '').trim().toLowerCase()
       const categoryId = catLower ? (resolvedCatIds[catLower] ?? null) : null
-      const sku = (row['SKU'] || '').trim() || null
       const body: IngredientInput = {
         name,
         unit,
@@ -149,11 +161,10 @@ export default function DaftarTab() {
         isActive: row['Status'] !== 'Nonaktif',
       }
 
-      // Upsert: match by SKU first, then by name
-      const allIngredients = (await api.listIngredients({ page: 1, limit: 10000 })).data
+      // Upsert: match by SKU first, then by exact name (case-insensitive).
       const match = sku
-        ? allIngredients.find((i) => i.sku && i.sku.toLowerCase() === sku.toLowerCase())
-        : allIngredients.find((i) => i.name.toLowerCase() === name.toLowerCase())
+        ? known.find((i) => i.sku && i.sku.toLowerCase() === sku.toLowerCase())
+        : known.find((i) => i.name.toLowerCase() === name.toLowerCase())
 
       try {
         if (match) {
@@ -163,9 +174,8 @@ export default function DaftarTab() {
           await api.createIngredient(body)
           created++
         }
-      } catch (e: unknown) {
-        setImportMessage(`Error: ${e instanceof Error ? e.message : 'Gagal mengimpor baris'}`)
-        return
+      } catch {
+        errors++ // keep going — report the total at the end
       }
     }
 
@@ -174,7 +184,8 @@ export default function DaftarTab() {
     setImportMessage(
       `${created} bahan dibuat, ${updated} diperbarui` +
         (skipped ? `, ${skipped} baris dilewati` : '') +
-        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru dibuat` : ''),
+        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru` : '') +
+        (errors ? `, ${errors} gagal` : ''),
     )
   }
 
