@@ -5,8 +5,9 @@ import { id as idLocale } from 'date-fns/locale'
 import { Plus, Edit2, Trash2, Tag, Copy, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { generateCode } from '../lib/csvUtils'
+import { generateCode, exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
+import { ImportExportBar } from '../components/ImportExportBar'
 import { Button, Input, Select, Textarea, Field, fieldClass, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs } from '../ui'
 
 const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
@@ -135,6 +136,36 @@ export default function Promotions() {
         : [...(f.activeDays || []), d],
     }))
 
+  const exportPromotions = async (fmt: 'csv' | 'xlsx') => {
+    const data = await api.listPromotions()
+    const rows = data.map((p) => ({
+      Nama: p.name,
+      Tipe: p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO',
+      Nilai: p.value,
+      'Min. Belanja': p.minPurchase ?? 0,
+      Mulai: p.startDate ?? '',
+      Selesai: p.endDate ?? '',
+      Aktif: p.isActive ? 'Ya' : 'Tidak',
+    }))
+    if (fmt === 'csv') exportToCSV(rows, 'promosi')
+    else exportToXLSX(rows, 'promosi')
+  }
+
+  const exportDiscountCodes = async (fmt: 'csv' | 'xlsx') => {
+    const data = await api.listDiscountCodes()
+    const rows = data.map((c) => ({
+      Kode: c.code,
+      Tipe: c.type === 'percentage' ? 'Persentase' : 'Nominal',
+      Nilai: c.value,
+      'Min. Belanja': c.minPurchase ?? 0,
+      Kuota: c.usageLimit ?? 0,
+      Terpakai: c.usageCount,
+      Aktif: c.isActive ? 'Ya' : 'Tidak',
+    }))
+    if (fmt === 'csv') exportToCSV(rows, 'kode-diskon')
+    else exportToXLSX(rows, 'kode-diskon')
+  }
+
   const today = new Date().toISOString().slice(0, 10)
   const promoStatus = (p: Promotion) => {
     if (!p.isActive) return { label: 'Nonaktif', color: 'bg-gray-100 text-gray-600' }
@@ -157,6 +188,14 @@ export default function Promotions() {
                 { id: 'promotions', label: 'Promosi' },
                 { id: 'codes', label: 'Kode Diskon' },
               ]}
+            />
+            <ImportExportBar
+              onExport={(fmt) =>
+                tab === 'promotions'
+                  ? void exportPromotions(fmt)
+                  : void exportDiscountCodes(fmt)
+              }
+              exportDisabled={tab === 'promotions' ? promotions.length === 0 : codes.length === 0}
             />
             <Button
               icon={<Plus className="w-4 h-4" />}

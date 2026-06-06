@@ -6,6 +6,8 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
+import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { ImportExportBar } from '../components/ImportExportBar'
 import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Tabs } from '../ui'
 
 
@@ -59,15 +61,42 @@ export default function ErrorLogs() {
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  const exportErrorLogs = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listErrorLogs({
+      page: 1,
+      limit: 10000,
+      ...(source ? { source } : {}),
+    })
+    const exportRows = result.data.map((e) => ({
+      Sumber: e.source,
+      Jenis: e.kind ?? '',
+      Pesan: e.message,
+      Aksi: e.action ?? '',
+      Outlet: e.outletName ?? e.outletId ?? '',
+      Pengguna: e.userName ?? e.userId ?? '',
+      Perangkat: e.deviceId ?? '',
+      Versi: e.appVersion ?? '',
+      Waktu: fmtTime(e.createdAt),
+    }))
+    if (fmt === 'csv') exportToCSV(exportRows, 'error-logs')
+    else exportToXLSX(exportRows, 'error-logs')
+  }
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader
         title="Log Error"
         subtitle={`${total} error · sync / runtime / cetak / backend — termasuk aktivitas pengguna, outlet & perangkat.`}
         actions={
-          <Button variant="secondary" onClick={() => void q.refetch()}>
-            Muat ulang
-          </Button>
+          <>
+            <ImportExportBar
+              onExport={(fmt) => void exportErrorLogs(fmt)}
+              exportDisabled={total === 0}
+            />
+            <Button variant="secondary" onClick={() => void q.refetch()}>
+              Muat ulang
+            </Button>
+          </>
         }
       />
 

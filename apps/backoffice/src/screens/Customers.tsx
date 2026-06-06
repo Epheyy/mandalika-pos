@@ -16,6 +16,8 @@ import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
+import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { ImportExportBar } from '../components/ImportExportBar'
 import {
   Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs,
 } from '../ui'
@@ -71,6 +73,20 @@ export default function Customers() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [delId, setDelId] = useState<string | null>(null)
+
+  const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listCustomers(1, 10000)
+    const rows = result.data.map((c) => ({
+      Nama: c.name,
+      Telepon: c.phone,
+      Email: c.email ?? '',
+      Poin: c.points,
+      'Total Belanja': c.totalSpent,
+      'Jumlah Kunjungan': c.visitCount,
+    }))
+    if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
+    else exportToXLSX(rows, 'pelanggan')
+  }
 
   const [histCust, setHistCust] = useState<Customer | null>(null)
   const [histExpanded, setHistExpanded] = useState<string | null>(null)
@@ -186,9 +202,15 @@ export default function Customers() {
               ]}
             />
             {tab === 'customers' && (
-              <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '' }); setErr(null); setOpen(true) }}>
-                Tambah
-              </Button>
+              <>
+                <ImportExportBar
+                  onExport={(fmt) => void exportCustomers(fmt)}
+                  exportDisabled={customers.length === 0}
+                />
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '' }); setErr(null); setOpen(true) }}>
+                  Tambah
+                </Button>
+              </>
             )}
             {tab === 'settings' && subTab === 'conditions' && (
               <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingCond(null); setCondForm({ ...EMPTY_COND }); setCondOpen(true) }}>

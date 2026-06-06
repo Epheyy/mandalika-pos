@@ -6,6 +6,8 @@ import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from '
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
+import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
+import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../../ui'
 
 const fmtQty = (n: number | null | undefined) => {
@@ -219,6 +221,24 @@ export default function OpnameTab() {
     }
   }
 
+  const exportIngredientStockCounts = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listIngredientStockCounts({ page: 1, limit: 10000 })
+    const exportRows = result.data.map((sc) => ({
+      Nama: sc.name,
+      Lokasi: sc.location.name ?? sc.location.id,
+      'Tipe Lokasi': sc.location.kind === 'outlet' ? 'Outlet' : 'Gudang',
+      Status:
+        sc.status === 'planned' ? 'Direncanakan'
+        : sc.status === 'in_progress' ? 'Sedang Berjalan'
+        : sc.status === 'completed' ? 'Selesai'
+        : 'Dibatalkan',
+      'Tanggal Rencana': sc.plannedDate ?? '',
+      Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
+    }))
+    if (fmt === 'csv') exportToCSV(exportRows, 'opname-bahan')
+    else exportToXLSX(exportRows, 'opname-bahan')
+  }
+
   const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
     s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
 
@@ -240,15 +260,21 @@ export default function OpnameTab() {
         title="Opname Bahan"
         subtitle="Hitung stok bahan baku per lokasi (outlet atau gudang)."
         actions={
-          <Button
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => {
-              setErr(null)
-              setOpen(true)
-            }}
-          >
-            Buat Opname Baru
-          </Button>
+          <>
+            <ImportExportBar
+              onExport={(fmt) => void exportIngredientStockCounts(fmt)}
+              exportDisabled={scTotal === 0}
+            />
+            <Button
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setErr(null)
+                setOpen(true)
+              }}
+            >
+              Buat Opname Baru
+            </Button>
+          </>
         }
       />
 

@@ -4,6 +4,8 @@ import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
+import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
+import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button, Card, Badge, EmptyState, Pagination, Select, fieldClass } from '../../ui'
 import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
@@ -77,6 +79,26 @@ export default function TransferTab() {
     setSelectedId(null)
   }
 
+  const exportIngredientTransfers = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listIngredientTransfers({
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(fromDate ? { from: toFromIso(fromDate) } : {}),
+      ...(toDate ? { to: toToIso(toDate) } : {}),
+      ...(locKind && locId ? { locKind, locId } : {}),
+      page: 1,
+      limit: 10000,
+    })
+    const exportRows = result.data.map((t) => ({
+      No: t.transferNo,
+      Sumber: t.source.name ?? t.source.id,
+      Tujuan: t.dest.name ?? t.dest.id,
+      Status: STATUS[t.status]?.label ?? t.status,
+      Dibuat: fmtDate(t.createdAt),
+    }))
+    if (fmt === 'csv') exportToCSV(exportRows, 'transfer-bahan')
+    else exportToXLSX(exportRows, 'transfer-bahan')
+  }
+
   return (
     <div className="space-y-5">
       {/* Filter row */}
@@ -139,6 +161,10 @@ export default function TransferTab() {
         </div>
         <div className="flex items-end gap-2 ml-auto">
           <span className="text-xs text-gray-500 pb-2.5">{total} transfer</span>
+          <ImportExportBar
+            onExport={(fmt) => void exportIngredientTransfers(fmt)}
+            exportDisabled={total === 0}
+          />
           <Button
             onClick={() => setShowCreate(true)}
             icon={<Plus className="w-4 h-4" />}

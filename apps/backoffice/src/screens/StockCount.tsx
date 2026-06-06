@@ -7,6 +7,8 @@ import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
+import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { ImportExportBar } from '../components/ImportExportBar'
 import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../ui'
 
 
@@ -136,6 +138,25 @@ export default function StockCount() {
     }
   }
 
+  const exportStockCounts = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listStockCounts(1, 10000)
+    const exportRows = result.data.map((sc) => ({
+      Nama: sc.name,
+      Lokasi: locName(sc),
+      'Tipe Lokasi': locKind(sc),
+      Status:
+        sc.status === 'planned' ? 'Direncanakan'
+        : sc.status === 'in_progress' ? 'Sedang Berjalan'
+        : sc.status === 'completed' ? 'Selesai'
+        : 'Dibatalkan',
+      'Tanggal Rencana': sc.plannedDate ?? '',
+      Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
+      'Jumlah Item': sc.items.length,
+    }))
+    if (fmt === 'csv') exportToCSV(exportRows, 'stock-count')
+    else exportToXLSX(exportRows, 'stock-count')
+  }
+
   const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
     s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
   const label = (s: string) =>
@@ -153,9 +174,15 @@ export default function StockCount() {
         title="Stock Count"
         subtitle="Stok dibekukan saat penghitungan. Transaksi tetap berjalan."
         actions={
-          <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setErr(null); setOpen(true) }}>
-            Buat Stock Count
-          </Button>
+          <>
+            <ImportExportBar
+              onExport={(fmt) => void exportStockCounts(fmt)}
+              exportDisabled={scTotal === 0}
+            />
+            <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setErr(null); setOpen(true) }}>
+              Buat Stock Count
+            </Button>
+          </>
         }
       />
 

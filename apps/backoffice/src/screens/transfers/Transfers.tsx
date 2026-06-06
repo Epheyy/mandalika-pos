@@ -4,6 +4,8 @@ import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
+import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
+import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button, Card, Badge, EmptyState, PageHeader, Pagination, Select, fieldClass } from '../../ui'
 import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
@@ -102,15 +104,41 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
     setPage(1)
   }
 
+  const exportTransfers = async (fmt: 'csv' | 'xlsx') => {
+    const result = await api.listTransfers({
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(fromDate ? { from: toFromIso(fromDate) } : {}),
+      ...(toDate ? { to: toToIso(toDate) } : {}),
+      ...(locKind && locId ? { locKind, locId } : {}),
+      page: 1,
+      limit: 10000,
+    })
+    const exportRows = result.data.map((t) => ({
+      No: t.transferNo,
+      Sumber: t.source.name,
+      Tujuan: t.dest.name,
+      Status: STATUS[t.status]?.label ?? t.status,
+      Dibuat: fmtDate(t.createdAt),
+    }))
+    if (fmt === 'csv') exportToCSV(exportRows, 'transfer-stok')
+    else exportToXLSX(exportRows, 'transfer-stok')
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Transfer Stok"
         subtitle={`${total} transfer`}
         actions={
-          <Button onClick={onCreate} icon={<Plus className="w-4 h-4" />}>
-            Transfer Baru
-          </Button>
+          <>
+            <ImportExportBar
+              onExport={(fmt) => void exportTransfers(fmt)}
+              exportDisabled={total === 0}
+            />
+            <Button onClick={onCreate} icon={<Plus className="w-4 h-4" />}>
+              Transfer Baru
+            </Button>
+          </>
         }
       />
 
