@@ -6,7 +6,17 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 # ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + single-unit products + hide variant label) — READ THIS FIRST; supersedes everything below
 
-Branch `prod-hardening`. **Frontend-only** (no backend change, no migration). Backend still rev `00047-5tl`. Commits `7e6d329`→`155d28e`. Backoffice auto-deploys via Cloudflare on push; the **POS variant-label change (F14) needs an APK rebuild to reach devices** (NOT built this session — the workflow_dispatch was guardrail-blocked as an unrequested release; build it when ready via the documented `android-release.yml` dispatch).
+Branch `prod-hardening`. **Frontend-only** (no backend change, no migration). Backend still rev `00047-5tl`. Commits `7e6d329`→`2752665`. Backoffice auto-deploys via Cloudflare on push; the **POS variant-label change (F14) needs an APK rebuild to reach devices** (NOT built this session — the workflow_dispatch was guardrail-blocked as an unrequested release; build it when ready via the documented `android-release.yml` dispatch).
+
+## F15 — Self-describing export filenames (`2752665`)
+Exports were named just `{module}` + the util's auto-appended `_YYYY-MM-DD`, so filtered exports were indistinguishable. Added `buildExportName(base, parts[])` to `lib/csvUtils.ts` (slugifies + joins non-empty parts; the export fns still append the generation date). Each filtered/scoped export now encodes its active context:
+- **Transfers** (`transfer-produk` / `transfer-bahan`): status label + location name + `dari-`/`sd-` dates.
+- **Error logs** (`log-error`): active source filter.
+- **Orders** (`transaksi`): outlet scope + status + payment + search.
+- **Reports** (`laporan-transaksi` / `laporan-shift`): outlet scope + status/payment + date range.
+- **Products** (`produk`): outlet scope (the list is X-Outlet-Id scoped).
+- **Opname produk** (`opname-produk`): outlet scope.
+Left as-is (no active filter → module+date already differentiates): Customers, Bahan Daftar (+template), Promotions/Discount, Users, product Categories, ingredient Opname. Empty filters are omitted so an unfiltered export stays short; a filtered one gains tokens, e.g. `transfer-produk_selesai_mandalika-bsd_dari-2026-05-01_sd-2026-05-31_2026-06-06.csv`.
 
 ## F14 — Hide the single-unit variant label ("Satuan" sentinel) (`155d28e`)
 - New shared helper in `@mandalika/types`: `SINGLE_UNIT_SIZE = 'Satuan'` + `variantLabel(size)` → returns `''` for the sentinel (trims). Backoffice `Products.tsx` save() uses `SINGLE_UNIT_SIZE` (no more magic string).
