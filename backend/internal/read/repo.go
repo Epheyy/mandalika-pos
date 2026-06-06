@@ -278,9 +278,9 @@ func (r *Repo) IngredientCategories(ctx context.Context) ([]api.IngredientCatego
 	return rows, err
 }
 
-// IngredientUsage returns the distinct product variants whose recipes reference
-// this ingredient (across ALL recipe versions, matching the ON DELETE RESTRICT
-// FK semantics). Used to warn before an ingredient delete.
+// IngredientUsage returns the distinct product variants whose CURRENT recipe version
+// references this ingredient. Used to warn before an ingredient delete; historical
+// versions are excluded because the FK is now SET NULL (history survives via snapshots).
 func (r *Repo) IngredientUsage(ctx context.Context, ingredientID string) (api.IngredientUsageResponse, error) {
 	// Non-nil so an unused ingredient serializes as [] (not null) — the client
 	// reads `variants.length` directly.
@@ -288,8 +288,7 @@ func (r *Repo) IngredientUsage(ctx context.Context, ingredientID string) (api.In
 	rows, err := r.Pool.Query(ctx, `
 		SELECT DISTINCT p.name, v.size
 		FROM recipe_ingredients ri
-		JOIN recipe_versions rv ON rv.id = ri.version_id
-		JOIN recipes rec        ON rec.id = rv.recipe_id
+		JOIN recipes rec        ON rec.current_version_id = ri.version_id
 		JOIN product_variants v ON v.id  = rec.variant_id
 		JOIN products p         ON p.id  = v.product_id
 		WHERE ri.ingredient_id = $1
@@ -388,12 +387,17 @@ func (r *Repo) VariantRecipe(ctx context.Context, variantID string) (api.Recipe,
 }
 
 // RecipeVariantIDs returns the ids of variants under a product that have a recipe.
+// A variant is included only if its current version has at least one ingredient;
+// an empty current version (e.g. freshly reset) does NOT light up the gold flask.
 func (r *Repo) RecipeVariantIDs(ctx context.Context, productID string) ([]string, error) {
 	rows, err := r.Pool.Query(ctx,
 		`SELECT r.variant_id::text
 		   FROM recipes r
 		   JOIN product_variants v ON v.id = r.variant_id
-		  WHERE v.product_id = $1`, productID)
+		  WHERE v.product_id = $1
+		    AND r.current_version_id IS NOT NULL
+		    AND EXISTS (SELECT 1 FROM recipe_ingredients ri
+		                 WHERE ri.version_id = r.current_version_id)`, productID)
 	if err != nil {
 		return nil, fmt.Errorf("recipe variant ids: %w", err)
 	}

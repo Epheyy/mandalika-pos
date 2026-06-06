@@ -99,6 +99,18 @@ func (r *Repo) DeleteIngredient(ctx context.Context, id string) error {
 	if inTransit > 0 {
 		return fmt.Errorf("bahan sedang dalam transfer berjalan (%d)", inTransit)
 	}
+	var inCurrentRecipe int
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM recipe_ingredients ri
+		   JOIN recipes rec ON rec.current_version_id = ri.version_id
+		  WHERE ri.ingredient_id = $1`,
+		id,
+	).Scan(&inCurrentRecipe); err != nil {
+		return fmt.Errorf("check recipe usage: %w", err)
+	}
+	if inCurrentRecipe > 0 {
+		return fmt.Errorf("bahan masih dipakai di resep aktif — hapus dari resep dulu")
+	}
 	tag, err := r.Pool.Exec(ctx, `DELETE FROM ingredients WHERE id=$1`, id)
 	if err != nil {
 		var pgErr *pgconn.PgError
