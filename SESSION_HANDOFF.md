@@ -4,9 +4,19 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + shared toolbar + 2 import/product fixes) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + single-unit products + hide variant label) — READ THIS FIRST; supersedes everything below
 
-Branch `prod-hardening`. **Frontend-only** (no backend change, no migration, no deploy needed — Cloudflare auto-deploys backoffice on push). Backend still rev `00047-5tl`. Commits `7e6d329`→`ce4494a`.
+Branch `prod-hardening`. **Frontend-only** (no backend change, no migration). Backend still rev `00047-5tl`. Commits `7e6d329`→`155d28e`. Backoffice auto-deploys via Cloudflare on push; the **POS variant-label change (F14) needs an APK rebuild to reach devices** (NOT built this session — the workflow_dispatch was guardrail-blocked as an unrequested release; build it when ready via the documented `android-release.yml` dispatch).
+
+## F14 — Hide the single-unit variant label ("Satuan" sentinel) (`155d28e`)
+- New shared helper in `@mandalika/types`: `SINGLE_UNIT_SIZE = 'Satuan'` + `variantLabel(size)` → returns `''` for the sentinel (trims). Backoffice `Products.tsx` save() uses `SINGLE_UNIT_SIZE` (no more magic string).
+- `variantLabel()` applied at all **customer/transaction-facing** variant displays so a single-unit product shows NO size label: POS `Cart`, `ProductGrid` (card + variant popup), `ReceiptPreview`, `OrderHistoryPanel`, `RefundDialog`, `CashierScreen` (toast + checkout/reprint `variant:` mapping → printer already skips falsy), `receive/ReceiveTransferPanel`; backoffice `Orders.tsx` order lines, `transfers/Transfers.tsx`, `transfers/docs/SuratJalanDoc.tsx`, `transfers/ReceiveModal.tsx`.
+- **Left RAW on purpose** (management/edit context must show the real stored value): the Products edit-modal Ukuran input, the product-list "Varian & Stok" badges (so they read "Satuan: 0"), and all Inventori stock/overview/opname tables. Keys/filters (`${productId}-${variantSize}`, `lineKey`, add-to-cart on `v.size`) all still use the RAW value — only display text changed.
+
+## ✅ Live verification on the backoffice (rev backoffice bundle from `155d28e`)
+Confirmed via Playwright + the user's own real data: 8 products / 6 categories now exist. **CANVAS BAG** and **KARTU GARANSI** saved as single-unit products (list shows "Satuan: 0"); CANVAS BAG edit modal round-trips with one variant, Ukuran="Satuan" (editable), SKU KEM-CAN — proves the **no-size save (F13)**. Imported products (THE ONLY ONE, UNSTOPPABLE, NO1, ONLY THE BRAVE) + auto-created categories (GIFT-SET, HAMPERS, KEMASAN) prove the **`;`-delimiter + auto-create-category import (F13/F12)** work end-to-end. The F14 label-hide on transaction surfaces is verified by build/logic; the POS side awaits an APK device test (no Satuan-product order exists yet to show the hidden label in backoffice Orders).
+
+## F13 — Two follow-up fixes (`ce4494a`)
 
 ## F13 — Two follow-up fixes (`ce4494a`)
 - **CSV import delimiter auto-detect** (`lib/csvUtils.ts`): `parseCSV` now detects the field delimiter from the header line (`,` vs `;` vs tab) instead of hardcoding `,`. Excel in comma-decimal locales (Indonesia/Europe) exports CSV with `;`, which previously imported as one giant column → "0 dibuat, 0 diperbarui". Also normalizes `\r\n`/`\r`. Benefits every importer (products, ingredients, users). Export stays `,` (canonical); round-trips fine since import auto-detects.
