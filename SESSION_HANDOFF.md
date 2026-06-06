@@ -4,7 +4,28 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-01 (Recipe/ingredient consistency: empty-version flask + deletable historical refs) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + shared toolbar) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. **Frontend-only** (no backend change, no migration, no deploy needed — Cloudflare auto-deploys backoffice on push). Backend still rev `00047-5tl`. Commits `7e6d329`→`68264d4`.
+
+## F12 — Import/Export across the backoffice (QoL)
+- **Shared `<ImportExportBar>`** (`apps/backoffice/src/components/ImportExportBar.tsx`): one toolbar for everything — Export ▾ (CSV / XLSX menu) always; Template + Import buttons only when `onImport` is passed. Handles the hidden file input + `parseCSV` + busy state + an `importMessage` line. Built on the existing `lib/csvUtils.ts` (`exportToCSV`/`exportToXLSX`/`parseCSV`).
+- **Products** (`Products.tsx`): refactored toolbar onto the bar; the CSV importer now **auto-creates missing product categories** (`api.createCategory`, deduped per import) instead of dropping them. Product CSV was already consistent with the current model (Stok excluded everywhere; Barcode defaults to SKU; Jual/Aktif/Unggulan round-trip).
+- **Ingredients / Bahan → Daftar** (`DaftarTab.tsx`): full **Export + Import + Template** (cols: Nama, SKU, Satuan, Kategori, Biaya Default, Catatan, Status). Import **auto-creates missing ingredient categories**, upserts by SKU→name, dedupes rows within a file, continues on per-row error (reports `{n} dibuat, {m} diperbarui, {k} dilewati, {e} gagal`). Catalog is fetched ONCE for matching (no per-row N+1). **Category auto-create on import is the agreed substitute for a separate category import/export UI** — importing products/ingredients with a new Kategori makes it appear in the Kategori tab automatically.
+- **Export-only** (CSV/XLSX via the bar, fetches the FULL filtered dataset with `limit:10000`, not just the current page):
+  - **Customers** (`Customers.tsx`) — Nama, Telepon, Email, Poin, Total Belanja, Jumlah Kunjungan.
+  - **Promotions** (`Promotions.tsx`) — one bar whose export target switches with the active tab: **Promosi** (Nama, Tipe, Nilai, Min. Belanja, Mulai, Selesai, Aktif) / **Kode Diskon** (Kode, Tipe, Nilai, Min. Belanja, Kuota, Terpakai, Aktif).
+  - **Product Transfers** (`transfers/Transfers.tsx`) + **Ingredient Transfers** (`ingredients/TransferTab.tsx`) — No, Sumber, Tujuan, Status, Dibuat (respects the active F7 filters).
+  - **Product Opname** (`StockCount.tsx`) + **Ingredient Opname** (`ingredients/OpnameTab.tsx`) — Nama, Lokasi, Tipe Lokasi, Status, Tanggal Rencana, Selesai.
+  - **Error logs** (`ErrorLogs.tsx`) — Sumber, Jenis, Pesan, Aksi, Outlet, Pengguna, Perangkat, Versi, Waktu (respects the source filter).
+- Already had import/export before this session and left as-is: **Users** (full), **Orders/Transaksi** + **Reports** (export-only, read-only).
+
+## ▶️ USER-PENDING — visual walkthrough
+Hard-refresh `mandalika-pos.pages.dev`. Confirm: the Export ▾ (CSV/XLSX) appears on Customers, Promosi/Kode Diskon, Transfer (Produk + Bahan), Opname (Produk + Bahan), Log Error; Bahan → Daftar has Export/Import/Template; importing a product or ingredient CSV with a brand-new Kategori value auto-creates that category. (Build + tsc verified locally; no API/behavioral script run — these are client-side using existing endpoints.)
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-01 (Recipe/ingredient consistency: empty-version flask + deletable historical refs)
 
 Branch `prod-hardening`. Backend **rev `00047-5tl`** (migration **0024** applied; `/readyz` ok). Commits `6ff6c03`→`4b93edd`. Builds backend-only (no frontend change — the existing UI consumes the changed endpoint responses automatically).
 
