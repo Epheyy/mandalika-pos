@@ -9,6 +9,7 @@ import { RecipeSlideOver } from './recipes/RecipeSlideOver'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
+import { ImportExportBar } from '../components/ImportExportBar'
 import { uploadImage } from '../lib/uploadImage'
 import { exportToCSV, exportToXLSX, parseCSV } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
@@ -68,9 +69,8 @@ export default function Products() {
   const [uploading, setUploading] = useState(false)
   const [delId, setDelId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const csvRef = useRef<HTMLInputElement>(null)
   const catCsvRef = useRef<HTMLInputElement>(null)
-  const [exportMenu, setExportMenu] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   // Per-outlet stock/price/availability for the product being edited. Keyed
   // `${outletId}|${variantSize}` and rendered as outlets × current form.variants
   // so newly added variants appear (with defaults) before saving.
@@ -301,7 +301,6 @@ export default function Products() {
     if (!rows.length) return
     if (fmt === 'xlsx') exportToXLSX(rows, 'produk_mandalika')
     else exportToCSV(rows, 'produk_mandalika')
-    setExportMenu(false)
   }
 
   // Downloadable CSV template: the exact importer columns + two example rows
@@ -315,13 +314,11 @@ export default function Products() {
     exportToCSV(example, 'template_produk_mandalika')
   }
 
-  const importProducts = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const importProductRows = async (rows: Record<string, string>[]) => {
     // Upsert: a product is matched by Nama+Brand; within it, variants are matched
     // by SKU (keep SKU, change Ukuran = rename → stock preserved server-side).
     // Rows without a SKU can't be correlated, so they're skipped.
-    const rows = parseCSV(await file.text())
+    // Auto-creates missing product categories (deduplicated per import run).
     const grouped: Record<string, { row: Record<string, string>; variants: ProductVariant[] }> = {}
     let skipped = 0
     for (const row of rows) {
@@ -339,11 +336,33 @@ export default function Products() {
         barcode: (row['Barcode'] || '').trim() || row['SKU'].trim(),
       })
     }
+
+    // Resolve categories — auto-create any new ones (dedupe by lowercased name)
+    let currentCategories = [...(cq.data ?? [])]
+    const createdCatNames = new Set<string>()
+    const resolvedCatIds: Record<string, string> = {}
+    for (const { row } of Object.values(grouped)) {
+      const catName = (row['Kategori'] || '').trim()
+      if (!catName) continue
+      const lower = catName.toLowerCase()
+      if (resolvedCatIds[lower]) continue
+      const existing = currentCategories.find((c) => c.name.toLowerCase() === lower)
+      if (existing) {
+        resolvedCatIds[lower] = existing.id
+      } else if (!createdCatNames.has(lower)) {
+        createdCatNames.add(lower)
+        const newCat = await api.createCategory({ name: catName })
+        resolvedCatIds[lower] = newCat.id
+        currentCategories = [...currentCategories, newCat]
+      }
+    }
+
     let created = 0
     let updated = 0
     for (const { row, variants } of Object.values(grouped)) {
       if (variants.length === 0) continue
-      const cat = categories.find((c) => c.name.toLowerCase() === (row['Kategori'] || '').toLowerCase())
+      const catLower = (row['Kategori'] || '').trim().toLowerCase()
+      const catId = resolvedCatIds[catLower] || ''
       const existing = products.find(
         (p) =>
           p.name.trim().toLowerCase() === row['Nama'].trim().toLowerCase() &&
@@ -352,7 +371,7 @@ export default function Products() {
       const body: ProductInput = {
         name: row['Nama'].trim(),
         brand: row['Brand'] || 'Mandalika',
-        categoryId: cat?.id || existing?.categoryId || '',
+        categoryId: catId || existing?.categoryId || '',
         description: row['Deskripsi'] || '',
         imageUrl: existing?.imageUrl || '',
         images: existing?.images ?? [],
@@ -369,11 +388,11 @@ export default function Products() {
         created++
       }
     }
-    e.target.value = ''
-    await pq.refetch()
-    setErr(
+    await Promise.all([pq.refetch(), cq.refetch()])
+    setImportMessage(
       `${created} produk dibuat, ${updated} diperbarui` +
-        (skipped ? `, ${skipped} baris dilewati (tanpa SKU)` : ''),
+        (skipped ? `, ${skipped} baris dilewati (tanpa SKU)` : '') +
+        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru dibuat` : ''),
     )
   }
 
@@ -418,24 +437,13 @@ export default function Products() {
             />
             {tab === 'products' && (
               <>
-                <div className="relative">
-                  <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => setExportMenu((v) => !v)}>
-                    Export <ChevronDown className="w-3 h-3" />
-                  </Button>
-                  {exportMenu && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
-                      <button onClick={() => exportProducts('csv')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">CSV (.csv)</button>
-                      <button onClick={() => exportProducts('xlsx')} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700">Excel (.xlsx)</button>
-                    </div>
-                  )}
-                </div>
-                <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={downloadTemplate}>
-                  Template
-                </Button>
-                <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => csvRef.current?.click()}>
-                  Import
-                </Button>
-                <input ref={csvRef} type="file" accept=".csv" onChange={importProducts} className="hidden" />
+                <ImportExportBar
+                  onExport={exportProducts}
+                  exportDisabled={products.length === 0}
+                  onImport={importProductRows}
+                  onTemplate={downloadTemplate}
+                  importMessage={importMessage}
+                />
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); setErr(null); setOcfgOutlets([]); setOcfgMap({}); setOpen(true) }}>
                   Tambah
                 </Button>

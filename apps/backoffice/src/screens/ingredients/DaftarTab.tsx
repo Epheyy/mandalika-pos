@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { Ingredient, IngredientCategory, ListResult } from '@mandalika/api'
+import type { Ingredient, IngredientCategory, IngredientInput, ListResult } from '@mandalika/api'
 import { Edit2, Search, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
+import { ImportExportBar } from '../../components/ImportExportBar'
+import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
 import { Button, Badge, EmptyState, Pagination, fieldClass } from '../../ui'
 import { IngredientFormModal } from './IngredientFormModal'
 import { DeleteIngredientModal } from './DeleteIngredientModal'
@@ -23,6 +25,7 @@ export default function DaftarTab() {
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [deleting, setDeleting] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
+  const [importMessage, setImportMessage] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<Ingredient>>(
     () => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) }),
@@ -69,6 +72,112 @@ export default function DaftarTab() {
     setPage(1)
   }
 
+  const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
+    // Fetch ALL ingredients for export (not just the current page)
+    const all = await api.listIngredients({ page: 1, limit: 10000 })
+    const rows = all.data.map((i) => ({
+      Nama: i.name,
+      SKU: i.sku || '',
+      Satuan: i.unit,
+      Kategori: i.categoryName ?? '',
+      'Biaya Default': i.defaultUnitCost ?? '',
+      Catatan: i.notes ?? '',
+      Status: i.isActive ? 'Aktif' : 'Nonaktif',
+    }))
+    if (!rows.length) return
+    if (fmt === 'xlsx') exportToXLSX(rows, 'bahan_mandalika')
+    else exportToCSV(rows, 'bahan_mandalika')
+  }
+
+  const downloadIngredientTemplate = () => {
+    const example = [
+      { Nama: 'Rose Oil', SKU: 'RO-001', Satuan: 'g', Kategori: 'Fragrance Oil', 'Biaya Default': 15000, Catatan: '', Status: 'Aktif' },
+      { Nama: 'Contoh Bahan', SKU: '', Satuan: 'ml', Kategori: '', 'Biaya Default': '', Catatan: 'Bahan tanpa SKU dan kategori', Status: 'Aktif' },
+    ]
+    exportToCSV(example, 'template_bahan_mandalika')
+  }
+
+  const importIngredientRows = async (rows: Record<string, string>[]) => {
+    // Auto-creates missing ingredient categories (deduplicated per import run).
+    // Upsert: match by SKU (if present) or by exact name (case-insensitive).
+    let currentCategories = [...categories]
+    const createdCatNames = new Set<string>()
+    const resolvedCatIds: Record<string, string> = {}
+
+    // Pre-resolve all distinct category names in this import
+    for (const row of rows) {
+      const catName = (row['Kategori'] || '').trim()
+      if (!catName) continue
+      const lower = catName.toLowerCase()
+      if (resolvedCatIds[lower]) continue
+      const existing = currentCategories.find((c) => c.name.toLowerCase() === lower)
+      if (existing) {
+        resolvedCatIds[lower] = existing.id
+      } else if (!createdCatNames.has(lower)) {
+        createdCatNames.add(lower)
+        await api.createIngredientCategory({ name: catName })
+        // Refetch so we can get the new id
+        const updated = await api.listIngredientCategories()
+        currentCategories = updated
+        setCategories(updated)
+        const found = updated.find((c) => c.name.toLowerCase() === lower)
+        if (found) resolvedCatIds[lower] = found.id
+      }
+    }
+
+    let created = 0
+    let updated = 0
+    let skipped = 0
+
+    for (const row of rows) {
+      const name = (row['Nama'] || '').trim()
+      const unit = (row['Satuan'] || '').trim()
+      if (!name || !unit) {
+        skipped++
+        continue
+      }
+      const catLower = (row['Kategori'] || '').trim().toLowerCase()
+      const categoryId = catLower ? (resolvedCatIds[catLower] ?? null) : null
+      const sku = (row['SKU'] || '').trim() || null
+      const body: IngredientInput = {
+        name,
+        unit,
+        sku,
+        categoryId,
+        defaultUnitCost: row['Biaya Default'] ? Number(row['Biaya Default']) : null,
+        notes: (row['Catatan'] || '').trim() || null,
+        isActive: row['Status'] !== 'Nonaktif',
+      }
+
+      // Upsert: match by SKU first, then by name
+      const allIngredients = (await api.listIngredients({ page: 1, limit: 10000 })).data
+      const match = sku
+        ? allIngredients.find((i) => i.sku && i.sku.toLowerCase() === sku.toLowerCase())
+        : allIngredients.find((i) => i.name.toLowerCase() === name.toLowerCase())
+
+      try {
+        if (match) {
+          await api.updateIngredient(match.id, body)
+          updated++
+        } else {
+          await api.createIngredient(body)
+          created++
+        }
+      } catch (e: unknown) {
+        setImportMessage(`Error: ${e instanceof Error ? e.message : 'Gagal mengimpor baris'}`)
+        return
+      }
+    }
+
+    // Refetch list + categories
+    await Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
+    setImportMessage(
+      `${created} bahan dibuat, ${updated} diperbarui` +
+        (skipped ? `, ${skipped} baris dilewati` : '') +
+        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru dibuat` : ''),
+    )
+  }
+
   return (
     <div>
       {/* Header */}
@@ -100,7 +209,15 @@ export default function DaftarTab() {
           </select>
         </div>
 
-        <Button onClick={openAdd}>+ Tambah Bahan</Button>
+        <div className="flex items-center gap-2">
+          <ImportExportBar
+            onExport={exportIngredients}
+            onImport={importIngredientRows}
+            onTemplate={downloadIngredientTemplate}
+            importMessage={importMessage}
+          />
+          <Button onClick={openAdd}>+ Tambah Bahan</Button>
+        </div>
       </div>
 
       {/* Table */}
