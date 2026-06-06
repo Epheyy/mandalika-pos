@@ -4,9 +4,13 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + shared toolbar) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + shared toolbar + 2 import/product fixes) — READ THIS FIRST; supersedes everything below
 
-Branch `prod-hardening`. **Frontend-only** (no backend change, no migration, no deploy needed — Cloudflare auto-deploys backoffice on push). Backend still rev `00047-5tl`. Commits `7e6d329`→`68264d4`.
+Branch `prod-hardening`. **Frontend-only** (no backend change, no migration, no deploy needed — Cloudflare auto-deploys backoffice on push). Backend still rev `00047-5tl`. Commits `7e6d329`→`ce4494a`.
+
+## F13 — Two follow-up fixes (`ce4494a`)
+- **CSV import delimiter auto-detect** (`lib/csvUtils.ts`): `parseCSV` now detects the field delimiter from the header line (`,` vs `;` vs tab) instead of hardcoding `,`. Excel in comma-decimal locales (Indonesia/Europe) exports CSV with `;`, which previously imported as one giant column → "0 dibuat, 0 diperbarui". Also normalizes `\r\n`/`\r`. Benefits every importer (products, ingredients, users). Export stays `,` (canonical); round-trips fine since import auto-detects.
+- **Single no-size products** (`Products.tsx` `save()`): a product can now be saved with **one variant and a blank Ukuran** (e.g. merch like a Canvas Bag) — the blank size defaults to **"Satuan"**. Previously `save()` hard-rejected any empty size. Backend `validateVariants` never required size (only SKU+unique barcode), so this was a pure frontend-guard relaxation. Multi-variant products still require a **non-empty, distinct** size per row (added a dup-size guard too). The outlet-config write now uses the normalized variant list. Form hint added for the single-variant case. NOTE: a "Satuan" variant shows as "Produk · Satuan" in POS/exports (no "Name — Name" duplication); fully hiding the label in the POS would be a separate APK-side change.
 
 ## F12 — Import/Export across the backoffice (QoL)
 - **Shared `<ImportExportBar>`** (`apps/backoffice/src/components/ImportExportBar.tsx`): one toolbar for everything — Export ▾ (CSV / XLSX menu) always; Template + Import buttons only when `onImport` is passed. Handles the hidden file input + `parseCSV` + busy state + an `importMessage` line. Built on the existing `lib/csvUtils.ts` (`exportToCSV`/`exportToXLSX`/`parseCSV`).
