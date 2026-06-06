@@ -30,28 +30,59 @@ export function exportToCSV(data: Row[], filename: string) {
   a.click()
 }
 
+/**
+ * Pick the field delimiter by counting candidates in the header line (outside
+ * quotes). Excel exports CSV with ';' in locales where ',' is the decimal
+ * separator (Indonesia/Europe), and tab-separated files also turn up — so we
+ * auto-detect instead of assuming ','.
+ */
+function detectDelimiter(headerLine: string): string {
+  const candidates = [',', ';', '\t']
+  let best = ','
+  let bestCount = -1
+  for (const d of candidates) {
+    let count = 0
+    let inQuote = false
+    for (const ch of headerLine) {
+      if (ch === '"') inQuote = !inQuote
+      else if (ch === d && !inQuote) count++
+    }
+    if (count > bestCount) {
+      bestCount = count
+      best = d
+    }
+  }
+  return best
+}
+
 export function parseCSV(text: string): Record<string, string>[] {
   const lines = text
+    .replace(/\r\n?/g, '\n')
     .trim()
     .split('\n')
     .map((l) => l.trim())
   if (lines.length < 2) return []
-  const headers = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim())
+  const delim = detectDelimiter(lines[0])
+  const splitLine = (line: string): string[] => {
+    const values: string[] = []
+    let cur = ''
+    let inQuote = false
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') inQuote = !inQuote
+      else if (line[i] === delim && !inQuote) {
+        values.push(cur.trim())
+        cur = ''
+      } else cur += line[i]
+    }
+    values.push(cur.trim())
+    return values
+  }
+  const headers = splitLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim())
   return lines
     .slice(1)
     .filter(Boolean)
     .map((line) => {
-      const values: string[] = []
-      let cur = ''
-      let inQuote = false
-      for (let i = 0; i < line.length; i++) {
-        if (line[i] === '"') inQuote = !inQuote
-        else if (line[i] === ',' && !inQuote) {
-          values.push(cur.trim())
-          cur = ''
-        } else cur += line[i]
-      }
-      values.push(cur.trim())
+      const values = splitLine(line)
       return headers.reduce(
         (obj, h, i) => ({ ...obj, [h]: values[i] || '' }),
         {} as Record<string, string>,

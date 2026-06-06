@@ -226,10 +226,25 @@ export default function Products() {
   const save = async () => {
     if (!form.name.trim()) return setErr('Nama produk wajib diisi')
     if (!form.categoryId) return setErr('Pilih kategori')
-    if (form.variants.some((v) => !v.size || v.price <= 0))
-      return setErr('Semua varian harus punya ukuran dan harga')
-    if (form.variants.some((v) => !v.sku.trim()))
+    // A single-variant product (e.g. merch like a bag) may leave Ukuran blank →
+    // it defaults to "Satuan". Multi-variant products need a distinct, non-empty
+    // size on each row.
+    const single = form.variants.length === 1
+    const variants = form.variants.map((v) => ({
+      ...v,
+      size: v.size.trim() || (single ? 'Satuan' : ''),
+    }))
+    if (variants.some((v) => v.price <= 0))
+      return setErr('Setiap varian harus punya harga')
+    if (variants.some((v) => !v.sku.trim()))
       return setErr('Setiap varian wajib punya SKU')
+    if (!single && variants.some((v) => !v.size))
+      return setErr('Produk dengan beberapa varian: setiap varian wajib punya ukuran')
+    if (!single) {
+      const sizes = variants.map((v) => v.size.toLowerCase())
+      if (new Set(sizes).size !== sizes.length)
+        return setErr('Ukuran varian tidak boleh sama')
+    }
     setBusy(true)
     setErr(null)
     try {
@@ -243,8 +258,8 @@ export default function Products() {
         sellable: form.sellable,
         isActive: form.isActive,
         isFeatured: form.isFeatured,
-        variants: form.variants.map((v) => ({
-          id: v.id, size: v.size.trim(), price: Number(v.price),
+        variants: variants.map((v) => ({
+          id: v.id, size: v.size, price: Number(v.price),
           stock: 0, // stock managed in Inventori; kept as 0 to satisfy ProductVariant type
           sku: v.sku.trim(),
           barcode: (v.barcode ?? '').trim() || v.sku.trim(),
@@ -254,14 +269,14 @@ export default function Products() {
         await api.updateProduct(editing.id, body)
         if (ocfgOutlets.length > 0) {
           const items = ocfgOutlets.flatMap((o) =>
-            form.variants
-              .filter((v) => v.size.trim())
+            variants
+              .filter((v) => v.size)
               .map((v) => {
                 const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
                 // price + available only; stock/PAR are owned by Inventori.
                 return {
                   outletId: o.id,
-                  variantSize: v.size.trim(),
+                  variantSize: v.size,
                   price: c.price,
                   available: c.available,
                 }
@@ -674,6 +689,11 @@ export default function Products() {
             {!editing && (
               <p className="text-[11px] text-gray-400 mb-2 -mt-1 flex items-center gap-1">
                 <Store className="w-3 h-3" /> Harga dasar di sini. Stok diatur di menu Inventori.
+              </p>
+            )}
+            {form.variants.length === 1 && (
+              <p className="text-[11px] text-gray-400 mb-2 -mt-1">
+                Produk tanpa varian (mis. tas, merchandise): kosongkan Ukuran → otomatis jadi "Satuan".
               </p>
             )}
             <div className="grid grid-cols-12 gap-2 px-1 mb-1">
