@@ -4,7 +4,30 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# ⭐ LATEST SESSION — 2026-05-31 / 06-01 (Inventori restructure + Bahan tidy + global white-bg fields) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-01 (Recipe/ingredient consistency: empty-version flask + deletable historical refs) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Backend **rev `00047-5tl`** (migration **0024** applied; `/readyz` ok). Commits `6ff6c03`→`4b93edd`. Builds backend-only (no frontend change — the existing UI consumes the changed endpoint responses automatically).
+
+## F11 — Recipe/ingredient consistency fix
+**Problem the user hit:** removed an ingredient from a variant's recipe (saved a new empty version) but (a) the gold "Resep" flask still showed the variant had a recipe, and (b) the ingredient still couldn't be deleted (the F10 delete-guard from the prior session, compounded by the DB FK).
+
+**Two root causes + the coherent fix:**
+1. **Gold flask** (`RecipeVariantIDs`, `read/repo.go`) returned any variant with a `recipes` row, ignoring whether the CURRENT version had ingredients. → Added `AND r.current_version_id IS NOT NULL AND EXISTS (SELECT 1 FROM recipe_ingredients ri WHERE ri.version_id = r.current_version_id)`. Empty current version ⇒ neutral flask.
+2. **`recipe_ingredients.ingredient_id`** was `NOT NULL … ON DELETE RESTRICT` AND part of the composite PK `(version_id, ingredient_id)` — so HISTORICAL version snapshots blocked ingredient deletion forever. The frozen `name_at_save`/`unit_at_save`/`cost_at_save` snapshot columns exist precisely so history survives ingredient changes, so the FK should be `SET NULL`. **Migration 0024**: drop composite PK → surrogate `id uuid` PK; `ingredient_id` nullable + `ON DELETE SET NULL`; partial unique index `(version_id, ingredient_id) WHERE ingredient_id IS NOT NULL` (preserves live-ingredient dedup); plain `(version_id)` index (restores the lookup index the dropped PK provided).
+3. **`IngredientUsage`** (the F10 delete-warning read) now joins `recipes.current_version_id = ri.version_id` → only ACTIVE recipe usage surfaces in the warning (historical refs excluded).
+4. **`DeleteIngredient`** gained an authoritative current-version guard: if the ingredient is in any recipe's CURRENT version → friendly 400 "bahan masih dipakai di resep aktif — hapus dari resep dulu". Historical-only refs no longer block (FK SET NULL nulls them on delete; the snapshot columns keep old versions intact via the existing `COALESCE(ing.name, ri.name_at_save)` reads).
+
+**Net behavior:** empty current recipe version ⇒ flask neutral + ingredient deletable; ingredient still in an active recipe ⇒ flask gold + delete blocked with a clear message.
+
+## ▶️ USER-PENDING — behavioral live verify (structural verify DONE)
+Migration 0024 (the PK swap — the risky part) applied cleanly on Neon (`/readyz` ok on rev 00047-5tl); backend build/test/gen-check all green. The **authed behavioral check was NOT run this session** — the prod `SEED_ADMIN_PASSWORD` fetch was guardrail-blocked (the earlier "i authorize you" was treated as one-time). To confirm on the live UI (hard-refresh `mandalika-pos.pages.dev`):
+1. The variant you emptied (HOLY SWEET 10ml ATOMIZER, Versi 4 empty) should now show a **neutral** (not gold) Resep flask.
+2. **Bahan → Daftar → delete that ingredient** ("No-SKU One") should now succeed if it's no longer in any CURRENT recipe version (historical-only refs get SET NULL; old versions keep their frozen snapshot lines). If it's still in some variant's current recipe, the warning lists those variants and Hapus stays disabled.
+(If you want me to run the scripted API verification, re-authorize the one-time secret fetch.)
+
+---
+
+# ⭐ PRIOR SESSION — 2026-05-31 / 06-01 (Inventori restructure + Bahan tidy + global white-bg fields)
 
 Branch `prod-hardening`. Five batches across two days. Backend **rev `00044-dhp`** (`/readyz` ok, **no migration this session**). Backoffice auto-deploys via Cloudflare on push. Plans: `docs/superpowers/plans/2026-05-31-inventory-movement-summary.md`. Commits `cc21d53`→`e406a11`.
 
