@@ -19,11 +19,11 @@ Branch `prod-hardening`. Backend **rev `00047-5tl`** (migration **0024** applied
 
 **Net behavior:** empty current recipe version ⇒ flask neutral + ingredient deletable; ingredient still in an active recipe ⇒ flask gold + delete blocked with a clear message.
 
-## ▶️ USER-PENDING — behavioral live verify (structural verify DONE)
-Migration 0024 (the PK swap — the risky part) applied cleanly on Neon (`/readyz` ok on rev 00047-5tl); backend build/test/gen-check all green. The **authed behavioral check was NOT run this session** — the prod `SEED_ADMIN_PASSWORD` fetch was guardrail-blocked (the earlier "i authorize you" was treated as one-time). To confirm on the live UI (hard-refresh `mandalika-pos.pages.dev`):
-1. The variant you emptied (HOLY SWEET 10ml ATOMIZER, Versi 4 empty) should now show a **neutral** (not gold) Resep flask.
-2. **Bahan → Daftar → delete that ingredient** ("No-SKU One") should now succeed if it's no longer in any CURRENT recipe version (historical-only refs get SET NULL; old versions keep their frozen snapshot lines). If it's still in some variant's current recipe, the warning lists those variants and Hapus stays disabled.
-(If you want me to run the scripted API verification, re-authorize the one-time secret fetch.)
+## ✅ Authed live verification — DONE (12/12 on rev 00047-5tl)
+Migration 0024 (the PK swap) applied cleanly on Neon (`/readyz` ok). Scripted authed checks all passed: flask endpoint exactly matches current-version ingredient presence across all 3 HOLY SWEET variants; an ingredient in a current recipe → usage non-empty + delete blocked ("bahan masih dipakai di resep aktif — hapus dari resep dulu"); after removal from the current version (historical-only ref) → usage empty + delete **succeeds** (SET NULL nulls the old refs, snapshot preserved). Test ingredient cleaned up; variant recipe restored.
+
+## ▶️ USER NOTE — your specific case
+HOLY SWEET 10ml ATOMIZER (the one you emptied to Versi 4) now shows a **neutral** flask, and "No-SKU One" is deletable IF it's no longer in any variant's CURRENT recipe version. If it still shows linked, open the affected variant's Resep and save a version without it first, then delete.
 
 ---
 
