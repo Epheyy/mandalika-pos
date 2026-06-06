@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Order } from '@mandalika/api'
+import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
 import { ShoppingBag, Search, ChevronDown, ChevronUp, RotateCcw, Download } from 'lucide-react'
@@ -184,7 +185,7 @@ export default function Orders() {
                         <div className="space-y-1.5">
                           {o.items.map((it, i) => (
                             <div key={i} className="flex justify-between text-sm">
-                              <span className="text-gray-600">{it.productName} {it.variantSize} ×{it.quantity}</span>
+                              <span className="text-gray-600">{it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}</span>
                               <span className="font-bold text-gray-900">{BRAND.currency.format(it.subtotal)}</span>
                             </div>
                           ))}

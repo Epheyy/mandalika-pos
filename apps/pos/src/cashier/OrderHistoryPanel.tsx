@@ -8,6 +8,7 @@ import { api } from '../api'
 import { formatRupiah } from './pricing'
 import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { ListSkeleton } from '../components/Skeleton'
+import { variantLabel } from '@mandalika/types'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -207,7 +208,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                             key={`${it.productId}-${it.variantSize}`}
                             className="flex justify-between text-xs text-gray-700"
                           >
-                            <span>{it.productName} {it.variantSize} ×{it.quantity}</span>
+                            <span>{it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}</span>
                             <span>{formatRupiah(it.subtotal)}</span>
                           </div>
                         ))}

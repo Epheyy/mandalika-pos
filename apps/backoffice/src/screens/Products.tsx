@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
+import { SINGLE_UNIT_SIZE } from '@mandalika/types'
 import {
   Plus, Edit2, Trash2, X, Upload, Package, Search,
   Download, Tag, ChevronDown, ChevronRight, Store, FlaskConical,
@@ -232,7 +233,7 @@ export default function Products() {
     const single = form.variants.length === 1
     const variants = form.variants.map((v) => ({
       ...v,
-      size: v.size.trim() || (single ? 'Satuan' : ''),
+      size: v.size.trim() || (single ? SINGLE_UNIT_SIZE : ''),
     }))
     if (variants.some((v) => v.price <= 0))
       return setErr('Setiap varian harus punya harga')

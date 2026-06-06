@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Transfer, TransferReceiveInput } from '@mandalika/api'
+import { variantLabel } from '@mandalika/types'
 import { api } from '../../api'
 import { Button, Modal, Textarea, fieldClass } from '../../ui'
 
@@ -101,7 +102,7 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
             return (
               <div key={key} className="grid grid-cols-12 gap-2 items-center">
                 <span className="col-span-5 text-xs text-gray-600 truncate">{it.productName}</span>
-                <span className="col-span-2 text-xs text-gray-500">{it.variantSize}</span>
+                <span className="col-span-2 text-xs text-gray-500">{variantLabel(it.variantSize)}</span>
                 <span className="col-span-2 text-xs text-gray-500">{it.sentQty}</span>
                 <div className="col-span-3 flex items-center gap-2">
                   <input

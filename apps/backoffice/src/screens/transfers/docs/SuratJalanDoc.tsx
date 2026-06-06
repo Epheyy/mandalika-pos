@@ -13,6 +13,7 @@
 
 import type { components } from '@mandalika/api'
 import type { CSSProperties, ReactNode } from 'react'
+import { variantLabel } from '@mandalika/types'
 
 type Transfer = components['schemas']['Transfer']
 type Letterhead = components['schemas']['Letterhead']
@@ -83,7 +84,7 @@ export function SuratJalanDoc({ transfer: t }: SuratJalanDocProps) {
           {t.items.map((it) => (
             <tr key={`${it.productId}|${it.variantSize}`}>
               <Td>{it.productName}</Td>
-              <Td>{it.variantSize}</Td>
+              <Td>{variantLabel(it.variantSize)}</Td>
               <Td right>{it.sentQty}</Td>
             </tr>
           ))}

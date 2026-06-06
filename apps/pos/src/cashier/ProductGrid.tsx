@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
+import { variantLabel } from '@mandalika/types'
 
 type Product = components['schemas']['Product']
 type Category = components['schemas']['Category']
@@ -143,7 +144,7 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
           <div className="mt-1 space-y-0.5">
             {product.variants.map((v) => (
               <div key={v.size} className="flex items-baseline justify-between gap-1.5 text-[10px]">
-                <span className="text-gray-600 truncate">{v.size}</span>
+                {variantLabel(v.size) && <span className="text-gray-600 truncate">{variantLabel(v.size)}</span>}
                 {(showPrice || showStock) && (
                   <span className="flex-shrink-0 flex items-center gap-1.5">
                     {showPrice && <span className="font-bold text-indigo-600">{formatRupiah(v.price)}</span>}
@@ -365,7 +366,7 @@ export const ProductGrid = memo(function ProductGrid({
               {variantPopup.variants.map((v) => (
                 <div key={v.size} className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-gray-700">{v.size}</p>
+                    {variantLabel(v.size) && <p className="text-sm font-semibold text-gray-700">{variantLabel(v.size)}</p>}
                     <p className="text-xs text-indigo-600">{formatRupiah(v.price)}</p>
                     <p className="text-xs text-gray-400">Stok: {v.stock}</p>
                   </div>

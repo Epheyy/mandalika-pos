@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
+import { variantLabel } from '@mandalika/types'
 
 type Order = components['schemas']['Order']
 
@@ -47,7 +48,7 @@ export const RefundDialog = memo(function RefundDialog({
               className="flex justify-between text-xs text-gray-700"
             >
               <span>
-                {item.productName} {item.variantSize} ×{item.quantity}
+                {item.productName}{variantLabel(item.variantSize) ? ` ${variantLabel(item.variantSize)}` : ''} ×{item.quantity}
               </span>
               <span>{formatRupiah(item.subtotal)}</span>
             </div>

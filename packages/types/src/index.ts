@@ -1,3 +1,12 @@
+/** Variant size stored for a single-unit product (no real variant). Internal sentinel — never shown to a human. */
+export const SINGLE_UNIT_SIZE = 'Satuan'
+
+/** Human display label for a variant size: empty string for the single-unit sentinel (trims input). */
+export function variantLabel(size: string | null | undefined): string {
+  const s = (size ?? '').trim()
+  return s === SINGLE_UNIT_SIZE ? '' : s
+}
+
 export const UserRole = {
   ADMIN: 'admin',
   MANAGER: 'manager',

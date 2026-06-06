@@ -5,6 +5,7 @@
 
 import { useContext, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
+import { variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
@@ -232,7 +233,7 @@ export default function CashierScreen() {
       return
     }
     handleProductTap(product, { [variant.size]: 1 })
-    showToast(`Ditambah: ${product.name} ${variant.size}`)
+    showToast(`Ditambah: ${product.name}${variantLabel(variant.size) ? ' ' + variantLabel(variant.size) : ''}`)
   }
 
   // Wedge path: Enter in the search box. If it exactly matches a barcode, scan
@@ -407,7 +408,7 @@ export default function CashierScreen() {
         dateTime: new Date(),
         lines: state.cart.map((i) => ({
           name: i.productName,
-          variant: i.variantSize || undefined,
+          variant: variantLabel(i.variantSize) || undefined,
           qty: i.quantity,
           unitPrice: i.price,
           amount: i.subtotal,
@@ -477,7 +478,7 @@ export default function CashierScreen() {
       dateTime: new Date(o.createdAt),
       lines: o.items.map((i) => ({
         name: i.productName,
-        variant: i.variantSize || undefined,
+        variant: variantLabel(i.variantSize) || undefined,
         qty: i.quantity,
         unitPrice: i.price,
         amount: i.subtotal,

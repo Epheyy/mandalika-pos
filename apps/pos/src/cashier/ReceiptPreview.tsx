@@ -3,6 +3,7 @@ import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { localOrderRef } from './orderRef'
 import logoGold from '../assets/logo-gold.png'
+import { variantLabel } from '@mandalika/types'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -114,7 +115,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
                 <span className="text-gray-700 flex-1 mr-2">
                   {item.productName}
                   <span className="text-gray-400 ml-1">
-                    {item.variantSize} ×{item.quantity}
+                    {variantLabel(item.variantSize) ? `${variantLabel(item.variantSize)} ×${item.quantity}` : `×${item.quantity}`}
                   </span>
                 </span>
                 <span className="text-gray-800 font-medium flex-shrink-0">

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Outlet, Transfer, Warehouse } from '@mandalika/api'
+import { variantLabel } from '@mandalika/types'
 import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -341,7 +342,7 @@ function TransferDetail({ id, onBack }: { id: string; onBack: () => void }) {
             {t.items.map((it) => (
               <tr key={`${it.productId}|${it.variantSize}`}>
                 <td className="px-4 py-2 text-sm font-bold text-gray-900">{it.productName}</td>
-                <td className="px-4 py-2 text-sm text-gray-500">{it.variantSize}</td>
+                <td className="px-4 py-2 text-sm text-gray-500">{variantLabel(it.variantSize)}</td>
                 <td className="px-4 py-2 text-sm text-gray-500">{it.sentQty}</td>
                 <td className="px-4 py-2 text-sm text-gray-500">{it.receivedQty ?? '—'}</td>
                 <td className="px-4 py-2 text-sm">

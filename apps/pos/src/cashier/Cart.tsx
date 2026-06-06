@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
+import { variantLabel } from '@mandalika/types'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
@@ -103,7 +104,7 @@ export const Cart = memo(function Cart({
                 <p className="text-xs font-semibold text-gray-800 truncate">
                   {item.productName}
                 </p>
-                <p className="text-xs text-gray-500">{item.variantSize}</p>
+                {variantLabel(item.variantSize) && <p className="text-xs text-gray-500">{variantLabel(item.variantSize)}</p>}
                 <p className="text-xs text-indigo-600 font-bold">
                   {formatRupiah(item.subtotal)}
                 </p>

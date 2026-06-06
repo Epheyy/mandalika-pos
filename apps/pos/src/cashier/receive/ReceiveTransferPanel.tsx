@@ -12,6 +12,7 @@
  */
 import { useMemo, useState } from 'react'
 import type { Transfer } from './receiveTypes'
+import { variantLabel } from '@mandalika/types'
 
 interface ConfirmItem {
   productId: string
@@ -262,8 +263,8 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
                       {it.productName}
                     </p>
                     <p className="text-[11px] text-gray-500">
-                      {it.variantSize}
-                      {it.sku ? ` · ${it.sku}` : ''}
+                      {variantLabel(it.variantSize) || null}
+                      {it.sku ? `${variantLabel(it.variantSize) ? ' · ' : ''}${it.sku}` : ''}
                       {' · '}dikirim <span className="font-bold">{it.sentQty}</span>
                     </p>
                   </div>
