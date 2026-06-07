@@ -257,17 +257,27 @@ func (h *Handlers) Customers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CustomersByPhone is the pre-create duplicate check. It is intentionally
+// NOT cached: serving a stale "no match" from the read cache could let a
+// duplicate slip past the warning. It also reads phone directly, so we guard
+// against an empty value here (bypasses the generated OpenAPI validation).
 func (h *Handlers) CustomersByPhone(w http.ResponseWriter, r *http.Request) {
-	h.cached(w, r, ckey(r), func() (any, int, error) {
-		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-		rows, err := h.Repo.CustomerByPhone(r.Context(), phone)
-		if err != nil {
-			return nil, 500, err
-		}
-		return api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))}, 200, nil
-	})
+	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	if phone == "" {
+		httpx.Err(w, http.StatusBadRequest, "phone wajib diisi")
+		return
+	}
+	rows, err := h.Repo.CustomerByPhone(r.Context(), phone)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
 }
 
+// CustomersLookup is the search-as-you-type helper for the customer picker.
+// Unlike the by-phone dup-check it stays cached: brief staleness on a typeahead
+// list is acceptable, whereas the dup-check requires freshness.
 func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		q := strings.TrimSpace(r.URL.Query().Get("q"))

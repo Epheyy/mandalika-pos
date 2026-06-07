@@ -671,7 +671,7 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 	}
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
-		  WHERE phone = $1 OR name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'
+		  WHERE name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'
 		  ORDER BY (phone = $1) DESC, name
 		  LIMIT $2`, q, limit)
 	return rows, err
