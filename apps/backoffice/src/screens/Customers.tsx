@@ -90,8 +90,8 @@ export default function Customers() {
   const [delId, setDelId] = useState<string | null>(null)
 
   const allForDupe = usePolledQuery<Customer[]>(
-    () => api.listCustomers(1, 10000).then((r) => r.data),
-    [],
+    () => open ? api.listCustomers(1, 10000).then((r) => r.data) : Promise.resolve([]),
+    [open],
   )
   const phoneDupe = isDuplicatePhone(allForDupe.data ?? [], form.phone, editing?.id ?? null)
 
@@ -144,9 +144,15 @@ export default function Customers() {
   }
 
   const del = async (cid: string) => {
-    await api.deleteCustomer(cid)
-    setDelId(null)
-    await cq.refetch()
+    try {
+      await api.deleteCustomer(cid)
+      setDelId(null)
+      setSelectedId(null)
+      await cq.refetch()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Gagal menghapus pelanggan.')
+      setDelId(null)
+    }
   }
 
   const saveLoyalty = async () => {
@@ -197,23 +203,21 @@ export default function Customers() {
     return { label: 'Member', color: 'text-gold-700 bg-gold-50' }
   }
 
-  if (selectedId) {
-    return (
-      <CustomerDetail
-        customerId={selectedId}
-        loyaltyEnabled={loyalty.enabled}
-        tierEnabled={loyalty.tierEnabled}
-        tier={tier}
-        onBack={() => { setSelectedId(null); void cq.refetch() }}
-        onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
-        onDelete={(cid) => setDelId(cid)}
-      />
-    )
-  }
-
   return (
-    <div className="p-6 space-y-5">
-      <PageHeader
+    <>
+      {selectedId ? (
+        <CustomerDetail
+          customerId={selectedId}
+          loyaltyEnabled={loyalty.enabled}
+          tierEnabled={loyalty.tierEnabled}
+          tier={tier}
+          onBack={() => { setSelectedId(null); void cq.refetch() }}
+          onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
+          onDelete={(cid) => setDelId(cid)}
+        />
+      ) : (
+        <div className="p-6 space-y-5">
+          <PageHeader
         title="Pelanggan"
         subtitle={`${total} pelanggan terdaftar`}
         actions={
@@ -423,7 +427,9 @@ export default function Customers() {
               onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
             />
           )}
-        </>
+          </>
+        )}
+        </div>
       )}
 
       <Modal
@@ -550,6 +556,6 @@ export default function Customers() {
           <p className="text-sm text-gray-400">Data poin dan riwayat akan terhapus permanen.</p>
         </div>
       </Modal>
-    </div>
+    </>
   )
 }
