@@ -1,16 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type {
   Customer,
-  Order,
   LoyaltySettings,
   LoyaltyCondition,
   Product,
 } from '@mandalika/api'
-import { format, parseISO } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
-  ChevronDown, ChevronUp, ShoppingBag, ToggleLeft, ToggleRight, Gift,
+  ToggleLeft, ToggleRight, Gift,
 } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -19,8 +16,10 @@ import { BRAND } from '../lib/brand'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
 import {
-  Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs,
+  Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
 } from '../ui'
+import CustomerDetail from './customers/CustomerDetail'
+import { isDuplicatePhone } from './customers/phone'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -51,28 +50,50 @@ const EMPTY_COND: CondForm = {
 }
 
 export default function Customers() {
-  const cq = usePolledQuery<Customer[]>(() => api.listCustomers().then((r) => r.data), [])
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const cq = usePolledQuery(
+    () => api.listCustomers(page, pageSize, debouncedSearch),
+    [page, pageSize, debouncedSearch],
+  )
+  const customers = cq.data?.data ?? []
+  const total = cq.data?.meta?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
   const pq = usePolledQuery<Product[]>(
     () => api.listProducts().then((r) => r.data.filter((p) => p.isActive)),
     [],
   )
-  const customers = [...(cq.data ?? [])].sort((a, b) => b.totalSpent - a.totalSpent)
   const loyalty = lq.data ?? DEFAULT_LOYALTY
   const conditions = condQ.data ?? []
   const products = pq.data ?? []
 
-  const [search, setSearch] = useState('')
   const [tab, setTab] = useState<'customers' | 'settings'>('customers')
   const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Customer | null>(null)
-  const [form, setForm] = useState({ name: '', phone: '', email: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [delId, setDelId] = useState<string | null>(null)
+
+  const allForDupe = usePolledQuery<Customer[]>(
+    () => api.listCustomers(1, 10000).then((r) => r.data),
+    [],
+  )
+  const phoneDupe = isDuplicatePhone(allForDupe.data ?? [], form.phone, editing?.id ?? null)
 
   const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
     const result = await api.listCustomers(1, 10000)
@@ -88,29 +109,12 @@ export default function Customers() {
     else exportToXLSX(rows, 'pelanggan')
   }
 
-  const [histCust, setHistCust] = useState<Customer | null>(null)
-  const [histExpanded, setHistExpanded] = useState<string | null>(null)
-  const histQ = usePolledQuery<Order[]>(
-    () =>
-      histCust
-        ? api.listOrders({ customerId: histCust.id, limit: 200 }).then((r) => r.data)
-        : Promise.resolve([]),
-    [histCust?.id],
-  )
-
   const [loyaltyForm, setLoyaltyForm] = useState<LoyaltySettings>(DEFAULT_LOYALTY)
   const [savingLoyalty, setSavingLoyalty] = useState(false)
 
   const [condOpen, setCondOpen] = useState(false)
   const [editingCond, setEditingCond] = useState<LoyaltyCondition | null>(null)
   const [condForm, setCondForm] = useState<CondForm>(EMPTY_COND)
-
-  const filtered = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      (c.email || '').toLowerCase().includes(search.toLowerCase()),
-  )
 
   const saveCustomer = async () => {
     if (!form.name.trim() || !form.phone.trim()) {
@@ -120,7 +124,14 @@ export default function Customers() {
     setBusy(true)
     setErr(null)
     try {
-      const body = { name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() }
+      const body = {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        birthday: form.birthday,
+        anniversary: form.anniversary,
+        notes: form.notes.trim(),
+      }
       if (editing) await api.updateCustomer(editing.id, body)
       else await api.createCustomer(body)
       setOpen(false)
@@ -186,11 +197,25 @@ export default function Customers() {
     return { label: 'Member', color: 'text-gold-700 bg-gold-50' }
   }
 
+  if (selectedId) {
+    return (
+      <CustomerDetail
+        customerId={selectedId}
+        loyaltyEnabled={loyalty.enabled}
+        tierEnabled={loyalty.tierEnabled}
+        tier={tier}
+        onBack={() => { setSelectedId(null); void cq.refetch() }}
+        onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
+        onDelete={(cid) => setDelId(cid)}
+      />
+    )
+  }
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader
         title="Pelanggan"
-        subtitle={`${customers.length} pelanggan terdaftar`}
+        subtitle={`${total} pelanggan terdaftar`}
         actions={
           <>
             <Tabs
@@ -207,7 +232,7 @@ export default function Customers() {
                   onExport={(fmt) => void exportCustomers(fmt)}
                   exportDisabled={customers.length === 0}
                 />
-                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '' }); setErr(null); setOpen(true) }}>
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
                   Tambah
                 </Button>
               </>
@@ -322,7 +347,7 @@ export default function Customers() {
           <Card className="overflow-hidden">
             {cq.loading ? (
               <TableSkeleton />
-            ) : filtered.length === 0 ? (
+            ) : customers.length === 0 ? (
               <EmptyState icon={<Users />} title="Tidak ada pelanggan" />
             ) : (
               <div className="overflow-x-auto">
@@ -338,10 +363,14 @@ export default function Customers() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filtered.map((c) => {
+                    {customers.map((c) => {
                       const t = tier(c.totalSpent)
                       return (
-                        <tr key={c.id} className="hover:bg-gray-50">
+                        <tr
+                          key={c.id}
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => setSelectedId(c.id)}
+                        >
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
@@ -371,9 +400,8 @@ export default function Customers() {
                             </td>
                           )}
                           <td className="px-5 py-3">
-                            <div className="flex items-center justify-end gap-1">
-                              <IconButton onClick={() => setHistCust(c)} title="Riwayat"><ShoppingBag className="w-4 h-4" /></IconButton>
-                              <IconButton onClick={() => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '' }); setErr(null); setOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <IconButton onClick={() => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
                               <IconButton tone="danger" onClick={() => setDelId(c.id)}><Trash2 className="w-4 h-4" /></IconButton>
                             </div>
                           </td>
@@ -385,56 +413,18 @@ export default function Customers() {
               </div>
             )}
           </Card>
+          {!cq.loading && total > 0 && (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+            />
+          )}
         </>
       )}
-
-      <Modal
-        open={!!histCust}
-        onClose={() => setHistCust(null)}
-        size="lg"
-        padded={false}
-        title={histCust ? `Riwayat ${histCust.name}` : ''}
-        subtitle={histCust ? `Total: ${BRAND.currency.format(histCust.totalSpent)} · ${histCust.visitCount} kunjungan` : undefined}
-      >
-        {histQ.loading ? (
-          <TableSkeleton />
-        ) : (histQ.data ?? []).length === 0 ? (
-          <EmptyState icon={<ShoppingBag />} title="Belum ada transaksi" />
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {(histQ.data ?? []).map((o) => (
-              <div key={o.id}>
-                <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" onClick={() => setHistExpanded(histExpanded === o.id ? null : o.id)}>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
-                    <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
-                    <p className="text-xs text-gray-400">{format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · <span className="capitalize">{o.paymentMethod}</span></p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Badge tone={o.status === 'refunded' ? 'danger' : 'success'}>{o.status === 'refunded' ? 'Refund' : 'Selesai'}</Badge>
-                    <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
-                    {histExpanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                  </div>
-                </div>
-                {histExpanded === o.id && (
-                  <div className="px-5 pb-3 bg-gray-50 border-t border-gray-100">
-                    <div className="pt-3 space-y-1">
-                      {o.items.map((it, i) => (
-                        <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{it.productName} {it.variantSize} ×{it.quantity}</span>
-                          <span className="font-bold text-gray-900">{BRAND.currency.format(it.subtotal)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
 
       <Modal
         open={open}
@@ -455,6 +445,21 @@ export default function Customers() {
           ].map(({ label, field, type }) => (
             <Input key={field} label={label} type={type} value={form[field]} onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))} />
           ))}
+          {phoneDupe && (
+            <p className="text-xs text-amber-600">⚠ Nomor telepon ini sudah dipakai pelanggan lain. Tetap bisa disimpan.</p>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Ulang Tahun" type="date" value={form.birthday} onChange={(e) => setForm((f) => ({ ...f, birthday: e.target.value }))} />
+            <Input label="Hari Jadi" type="date" value={form.anniversary} onChange={(e) => setForm((f) => ({ ...f, anniversary: e.target.value }))} />
+          </div>
+          <Field label="Catatan">
+            <textarea
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400"
+              rows={3}
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </Field>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>
       </Modal>
