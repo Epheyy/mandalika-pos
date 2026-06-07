@@ -680,6 +680,9 @@ components:
         totalSpent: { type: number }
         visitCount: { type: integer }
         lastVisit: { type: string, format: date-time, nullable: true }
+        birthday: { type: string, format: date, nullable: true }
+        anniversary: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
     CustomerListResponse:
       type: object
@@ -1368,6 +1371,9 @@ components:
         name: { type: string }
         phone: { type: string }
         email: { type: string }
+        birthday: { type: string }
+        anniversary: { type: string }
+        notes: { type: string }
     PromotionInput:
       type: object
       required: [name, type, value, isActive]
@@ -1868,6 +1874,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: q
+          in: query
+          schema: { type: string }
       responses:
         '200':
           description: customers
