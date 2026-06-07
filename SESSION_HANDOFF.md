@@ -4,42 +4,69 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# 📋 COPY-READY: start SP-CRM-2 (Segments & Tags) in a fresh session
+# 📋 COPY-READY: start SP-CRM-3 (POS on-demand customer attach) in a fresh session
 
 Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
 
 ```
-continue Mandalika POS / next = SP-CRM-2 (Segments & Tags), the 2nd slice of the Customers→CRM module. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-1) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-2 before any code.
+continue Mandalika POS / next = SP-CRM-3 (POS on-demand customer attach + remove the bulk customer sync), the 3rd slice of the Customers→CRM module. This one is POS-side + APK + has a real OFFLINE design decision. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-2) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-3 before any code.
 
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
 PROJECT STATE (as of 2026-06-07):
-- Branch `prod-hardening`. Backend Cloud Run rev 00048-f2p (migrations →0025, next slot = 0026). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Test-data deployment (not real sales) — basic hygiene, not kid-gloves.
-- DONE & deployed: Inventory module, Recipe/Formula module, "Inventori" restructure, Movement Summary, pagination (25/50/100), Import/Export rollout, single-unit products, self-describing export filenames, and **SP-CRM-1 (Customer hub foundation): server pagination+search, birthday/anniversary/notes (migration 0025), full-page Customer Detail hub**. Commits through 07a81e9.
-- ⚠️ PENDING: the POS single-unit "no variant label" (F14) is committed but needs an APK rebuild to reach devices — NOT built yet (ask before dispatching a release build).
+- Branch `prod-hardening`. Backend Cloud Run rev 00049-kv7 (migrations →0026, next slot = 0027). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Real-data deployment now (the brand runs 30+ outlets, thousands trx/day, 50k–500k identified customers) — scale matters.
+- DONE & deployed: Inventory, Recipe/Formula, "Inventori" restructure, Movement Summary, pagination, Import/Export, single-unit products, self-describing exports; **SP-CRM-1 (customer hub: pagination+search, birthday/anniversary/notes mig 0025, full-page detail)**; **SP-CRM-2 (scale foundation: pg_trgm + sort indexes mig 0026, sort toggle, server-side by-phone dup-check, on-demand lookup endpoint)**. Commits through f56f982.
+- ⚠️ PENDING: POS single-unit "no variant label" (F14) committed but needs an APK rebuild — NOT built (ask before dispatching a release build).
 
-THE CRM MODULE (in progress) — SP-CRM-1 DONE; remaining sub-projects (each own spec→plan→build):
-- SP-CRM-2 — Segments & tags (NEXT): tags table + customer_tags join (migration 0026) + manual tags + computed auto-segments (VIP/at-risk/new) + filter list by tag/segment.
-- SP-CRM-3 — Lifecycle, retention & interaction log: computed new/active/at-risk/churned; dated interaction timeline; birthday/anniversary reminders; wire the existing birthday/anniversary loyalty triggers to fire.
-- SP-CRM-4 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
-- (Later) SP-CRM-POS — expose chosen CRM bits to the cashier (APK + sync).
-MODULE-WIDE LOCKED: backoffice now / POS later (data model additive-nullable, POS-ready — `customers` is in the POS sync payload + there's a `customer_create` offline outbox); customer detail = full-page IN-SCREEN VIEW SWAP (no router in the backoffice — adding one is its own sprint), mirrors the Inventori drill-in — SP-CRM-2's tag UI should slot into the reserved "Tag & Segmen — segera" placeholder in `screens/customers/CustomerDetail.tsx`; phone uniqueness = soft warn, no DB constraint.
+THE CRM MODULE (in progress) — SP-CRM-1 & SP-CRM-2 DONE; remaining (each own spec→plan→build):
+- SP-CRM-3 — POS on-demand customer attach (NEXT, POS + APK): the POS currently bulk-syncs the ENTIRE customer table to EVERY outlet (`sync.go` `Customers(1,100000)`) — unviable at 50k–500k. Switch the cashier customer-attach to the on-demand endpoint `GET /api/v1/sync/customers/lookup?q=&limit=` (BUILT in SP-CRM-2, no consumer yet) and a `GET /api/v1/customers/by-phone` exact check, then REMOVE customers from the sync bootstrap. ⚠️ KEY OPEN DESIGN ISSUE = OFFLINE: the POS has a `customer_create` offline outbox today + attaches from the synced list; on-demand lookup needs connectivity. Decide pure-online attach vs a small local cache (recent/frequent) + on-demand. Coordinate removal with the APK so deployed devices don't lose attach. Brainstorm this first.
+- SP-CRM-4 — Manual tags (already brainstormed): managed `tags` table + `customer_tags` join, name+color, assign on the detail hub (reserved "Tag & Segmen — segera" placeholder in CustomerDetail.tsx), chips on rows, single-tag server-side filter, tag manager (mirror ingredient CategoryManager). Backoffice-only.
+- SP-CRM-5 — Configurable segment engine: RFM-style, each segment = optional min/max on Recency/Frequency/Monetary, ordered, first-match-wins, catch-all; add/remove/reorder + editable names+colors; rules STORED + managed (user wants runtime-configurable, not hardcoded); computed read-time; filterable. (Note: the example tuning was Baru/Juara/Setia/Berisiko/Hilang/Biasa.)
+- SP-CRM-6 — Lifecycle + interaction log (dated timeline; birthday/anniversary reminders; wire the existing loyalty birthday/anniversary triggers to fire). SP-CRM-7 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
+MODULE-WIDE LOCKED: backoffice now / POS later (data model additive-nullable, POS-ready); customer detail = full-page IN-SCREEN VIEW SWAP (no router in the backoffice — adding one is its own sprint); phone uniqueness = soft warn (now server-side via /customers/by-phone), no DB constraint; phone NORMALIZATION (08xx vs +62) still deferred; list pagination stays OFFSET + exact count (keyset deferred until millions).
 
-CURRENT CUSTOMERS MODULE (post SP-CRM-1):
-- `apps/backoffice/src/screens/Customers.tsx` — list (server pagination + debounced server search) + Loyalitas tab; row click → `screens/customers/CustomerDetail.tsx` (full-page hub with reserved Tag/Ledger/Timeline placeholders); `screens/customers/phone.ts` pure helper.
-- Customer model now: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt }. CustomerInput (editable) = { name, phone, email?, birthday?, anniversary?, notes? }; points/totalSpent/visitCount/lastVisit are server-computed, NOT user-editable.
-- TS client: api.listCustomers(page,limit,q), api.getCustomer(id), create/update/deleteCustomer.
-- Loyalty subsystem on the same screen (settings + conditions) unchanged. The existing birthday/anniversary loyalty TRIGGERS now have backing date fields (since SP-CRM-1) but are not yet wired to fire — that's SP-CRM-3.
+CURRENT CUSTOMERS MODULE (post SP-CRM-2):
+- `apps/backoffice/src/screens/Customers.tsx` — list with server pagination + debounced search + a **sort toggle (Belanja Tertinggi / Terbaru)** + Loyalitas tab; row click → `screens/customers/CustomerDetail.tsx` (full-page hub, reserved Tag/Ledger/Timeline placeholders). `screens/customers/phone.ts` was DELETED (dup-check is now server-side).
+- Customer model: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt }. CustomerInput (editable) = { name, phone, email?, birthday?, anniversary?, notes? }.
+- TS client: api.listCustomers(page,limit,q,sort), api.getCustomer(id), api.getCustomersByPhone(phone), api.lookupCustomers(q,limit), create/update/deleteCustomer.
+- Backend customers: `customers` table has pg_trgm GIN indexes on name/phone/email + sort indexes on (total_spent DESC, created_at DESC) and (created_at DESC) [migration 0026]. Endpoints: `GET /customers?q=&sort=` (sort: belanja|terbaru), `GET /customers/by-phone?phone=` (manage_customers, exact, non-cached, 400 on empty), `GET /sync/customers/lookup?q=&limit=` (cashier, ≤20, exact-phone-first, cached). The bulk-sync `Customers(1,100000)` is STILL in place — removing it is SP-CRM-3.
 
-PROCESS: brainstorm → spec (docs/superpowers/specs/) → plan (docs/superpowers/plans/) → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (needs a one-time user OK to read SEED_ADMIN_PASSWORD from Secret Manager; never print it). NOTE: the deployed admin login email is admin@mandalika.test (NOT .local).
+PROCESS: brainstorm → spec (docs/superpowers/specs/) → plan (docs/superpowers/plans/) → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (needs a one-time user OK to read SEED_ADMIN_PASSWORD; never print it). NOTE: deployed admin login email is admin@mandalika.test (NOT .local).
 
-GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle can throw a transient (retry warm); on a tethered/mobile connection git pushes + tool calls may drop ("socket closed") — just retry, work isn't lost.
+GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle can throw a transient (retry warm); on a tethered/mobile connection git pushes + tool calls drop ("Connection was reset") — just retry, work isn't lost.
 ```
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-07 (SP-CRM-1: Customer Hub Foundation) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-07 (SP-CRM-2: Customer Scale Foundation) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Backend/backoffice only (no APK). Backend **rev `00049-kv7`** (migration **0026** applied; `/readyz` ok). Commits `a60836f`(spec)→`f56f982`. Built brainstorm→spec→plan→subagent-driven (go-reviewer + typescript-reviewer two-stage review per batch). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-07-crm-sp2-customer-scale-foundation*`.
+
+## Why this sprint exists (the scale reframe)
+Mid-brainstorm the user corrected a load-bearing assumption: this is a **30+ outlet brand, thousands trx/day, 50k–500k identified customers** — NOT the "few hundred" the earlier work assumed. Code check found real gaps: (1) the POS bulk-syncs the ENTIRE customer table to every outlet (`sync.go:103` `Customers(1,100000)`); (2) SP-CRM-1's list search/sort had NO supporting indexes (seq scan + full sort at scale); (3) SP-CRM-1's phone dup-check fetched 10k rows client-side. SP-CRM-2 fixes the **backend/backoffice** foundation; the POS bulk-sync removal is **SP-CRM-3** (APK + offline design). This also re-decomposed the roadmap (tags → SP-CRM-4, segments → SP-CRM-5, etc. — see the COPY-READY block).
+
+## What SP-CRM-2 shipped
+- **Migration 0026:** `CREATE EXTENSION pg_trgm` + 3 GIN trigram indexes (name/phone/email, for `ILIKE '%q%'` substring search) + sort indexes `idx_customers_spent (total_spent DESC, created_at DESC)` and `idx_customers_created (created_at DESC)`.
+- **Sort toggle:** `Customers(ctx,page,limit,q,sort)` — `sort=terbaru` → `ORDER BY created_at DESC`, else `total_spent DESC, created_at DESC` (`sort` mapped to a constant ORDER BY, never interpolated). Backoffice list got a **Belanja Tertinggi / Terbaru** toggle; default belanja. `listCustomers(page,limit,q,sort)`.
+- **Server-side phone dup-check:** new `GET /customers/by-phone?phone=` (manage_customers, exact via `idx_customers_phone`, **NOT cached** — freshness matters for a pre-create check — **400 on empty phone**). SP-CRM-1's 10k-row `allForDupe` fetch + the `phone.ts` helper were REMOVED; the edit-modal warning now calls `api.getCustomersByPhone` debounced (with an `ignore` flag against stale async).
+- **On-demand cashier lookup (SP-CRM-3 seam):** new `GET /sync/customers/lookup?q=&limit=` (cashier authed group, ≤20 rows, exact-phone ranked first, cached — typeahead staleness OK). `api.lookupCustomers(q,limit)`. No consumer yet — intentional.
+- **sync.go:** signature updated to `Customers(ctx,1,100000,"","")` — bulk payload **intentionally preserved** (removed in SP-CRM-3).
+
+## Review-caught issues (all fixed + re-verified)
+- go-reviewer: `by-phone` was cached (wrong for a dup-check) → made direct/non-cached + empty-phone 400 guard; redundant `phone = $1` OR in the lookup WHERE removed (kept in ORDER BY). Commit `bf5df11`.
+- typescript-reviewer: async race in the debounced dup-check effect → added an `ignore` flag in cleanup; minor toolbar spacing. Commit `f56f982`.
+
+## ✅ Authed live verification — DONE (14/14 on rev 00049-kv7)
+sort=belanja sorted by totalSpent DESC; sort=terbaru by createdAt DESC; the two orderings differ; by-phone finds an existing customer, empty-result on no match, **400 on empty phone**; lookup returns ≤3, exact-phone ranked first, clamps to ≤20, **401 without token**; q search still matches. (Live DB already has 10+ real customers.) Admin login email = **`admin@mandalika.test`**.
+
+## ▶️ NOT fully verified (rule 6 — honest gaps)
+- **Index existence/usage not directly confirmed** via `pg_indexes`/`EXPLAIN` — that needs the `DATABASE_URL` secret (deferred; ask before reading). Migration provably applied (deploy + `/readyz` would fail on a bad migration at boot) and the sort/search live checks exercise the indexed paths correctly, but at-scale plans can't be shown on the small live DB (planner prefers seq scans on tiny tables). If wanted: `SET enable_seqscan=off; EXPLAIN ...` proves usability.
+- **Frontend visual USER-PENDING:** hard-refresh `mandalika-pos.pages.dev` → Pelanggan; confirm the **Belanja Tertinggi / Terbaru** toggle reorders the list, search still works, and entering an existing phone in the add/edit modal still shows the amber dup warning (now server-backed).
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-07 (SP-CRM-1: Customer Hub Foundation)
 
 Branch `prod-hardening`. **First slice of the new CRM module.** Backend **rev `00048-f2p`** (migration **0025** applied; `/readyz` ok). Backoffice auto-deploys via Cloudflare on push (done). No APK (backoffice-only). Commits `59d9a40`(spec)→`07a81e9`. Built brainstorm→spec→plan→subagent-driven (fresh implementer per batch + go-reviewer/typescript-reviewer two-stage review each). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-07-crm-sp1-customer-hub-foundation*`.
 
