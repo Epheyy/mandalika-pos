@@ -641,13 +641,40 @@ const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
   'notes',notes,'createdAt',created_at)`
 
-func (r *Repo) Customers(ctx context.Context, page, limit int, q string) ([]api.Customer, int, error) {
-	const sql = `SELECT ` + customerObj + `, count(*) OVER() AS total
+func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort string) ([]api.Customer, int, error) {
+	// `order` is a fixed internal string (never user input) — safe to concatenate.
+	order := `ORDER BY total_spent DESC, created_at DESC`
+	if sort == "terbaru" {
+		order = `ORDER BY created_at DESC`
+	}
+	sql := `SELECT ` + customerObj + `, count(*) OVER() AS total
 		   FROM customers
 		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
-		  ORDER BY total_spent DESC, created_at DESC
+		  ` + order + `
 		  OFFSET $1 LIMIT $2`
 	return listJSON[api.Customer](ctx, r.Pool, sql, off(page, limit), limit, q)
+}
+
+// CustomerByPhone returns 0+ customers with this exact (trimmed) phone — backs
+// the backoffice soft dup-check via idx_customers_phone.
+func (r *Repo) CustomerByPhone(ctx context.Context, phone string) ([]api.Customer, error) {
+	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
+		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers WHERE phone = $1`, phone)
+	return rows, err
+}
+
+// CustomerLookup is the on-demand cashier search (SP-CRM-3 seam): capped,
+// exact-phone matches ranked first.
+func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.Customer, error) {
+	if limit < 1 || limit > 20 {
+		limit = 20
+	}
+	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
+		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
+		  WHERE phone = $1 OR name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'
+		  ORDER BY (phone = $1) DESC, name
+		  LIMIT $2`, q, limit)
+	return rows, err
 }
 
 func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {

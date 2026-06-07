@@ -248,11 +248,35 @@ func (h *Handlers) Customers(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
-		rows, total, err := h.Repo.Customers(r.Context(), p, l, q)
+		sort := r.URL.Query().Get("sort")
+		rows, total, err := h.Repo.Customers(r.Context(), p, l, q, sort)
 		if err != nil {
 			return nil, 500, err
 		}
 		return api.CustomerListResponse{Data: rows, Meta: meta(total, p, l)}, 200, nil
+	})
+}
+
+func (h *Handlers) CustomersByPhone(w http.ResponseWriter, r *http.Request) {
+	h.cached(w, r, ckey(r), func() (any, int, error) {
+		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		rows, err := h.Repo.CustomerByPhone(r.Context(), phone)
+		if err != nil {
+			return nil, 500, err
+		}
+		return api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))}, 200, nil
+	})
+}
+
+func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
+	h.cached(w, r, ckey(r), func() (any, int, error) {
+		q := strings.TrimSpace(r.URL.Query().Get("q"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		rows, err := h.Repo.CustomerLookup(r.Context(), q, limit)
+		if err != nil {
+			return nil, 500, err
+		}
+		return api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))}, 200, nil
 	})
 }
 

@@ -132,6 +132,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/sync/batch", h.SyncBatch)
 			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
+			r.Get("/sync/customers/lookup", h.CustomersLookup)
 
 			// ── Reference-data writes (Backoffice; permission-gated, bump
 			// content_version → POS sync wall) ──
@@ -149,6 +150,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_customers"))
+				r.Get("/customers/by-phone", h.CustomersByPhone)
 				r.Post("/customers", h.CreateCustomer)
 				r.Put("/customers/{id}", h.UpdateCustomer)
 				r.Delete("/customers/{id}", h.DeleteCustomer)

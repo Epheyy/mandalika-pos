@@ -100,7 +100,7 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	if b.Bundles, _, err = e.Read.Bundles(ctx); err != nil {
 		return b, err
 	}
-	if b.Customers, _, err = e.Read.Customers(ctx, 1, 100000, ""); err != nil {
+	if b.Customers, _, err = e.Read.Customers(ctx, 1, 100000, "", ""); err != nil {
 		return b, err
 	}
 	if b.Promotions, _, err = e.Read.Promotions(ctx); err != nil {
