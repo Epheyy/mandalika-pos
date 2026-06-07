@@ -1877,6 +1877,20 @@ paths:
         - name: q
           in: query
           schema: { type: string }
+        - { in: query, name: sort, schema: { type: string } }
+      responses:
+        '200':
+          description: customers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerListResponse' }
+  /api/v1/customers/by-phone:
+    get:
+      operationId: getCustomersByPhone
+      tags: [customers]
+      summary: Find customers by exact phone (dup-check)
+      parameters:
+        - { in: query, name: phone, required: true, schema: { type: string } }
       responses:
         '200':
           description: customers
@@ -3340,6 +3354,20 @@ paths:
                 required: [data]
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
+  /api/v1/sync/customers/lookup:
+    get:
+      operationId: lookupCustomers
+      tags: [sync]
+      summary: On-demand customer lookup (cashier)
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses:
+        '200':
+          description: customers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerListResponse' }
   /api/v1/uploads/sign:
     post:
       operationId: signUpload
