@@ -2057,6 +2057,11 @@ export interface components {
             visitCount: number;
             /** Format: date-time */
             lastVisit?: string | null;
+            /** Format: date */
+            birthday?: string | null;
+            /** Format: date */
+            anniversary?: string | null;
+            notes?: string | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -2634,6 +2639,9 @@ export interface components {
             name: string;
             phone: string;
             email?: string;
+            birthday?: string;
+            anniversary?: string;
+            notes?: string;
         };
         PromotionInput: {
             name: string;
@@ -3321,6 +3329,7 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
+                q?: string;
             };
             header?: never;
             path?: never;
