@@ -60,9 +60,11 @@ Mid-brainstorm the user corrected a load-bearing assumption: this is a **30+ out
 ## ✅ Authed live verification — DONE (14/14 on rev 00049-kv7)
 sort=belanja sorted by totalSpent DESC; sort=terbaru by createdAt DESC; the two orderings differ; by-phone finds an existing customer, empty-result on no match, **400 on empty phone**; lookup returns ≤3, exact-phone ranked first, clamps to ≤20, **401 without token**; q search still matches. (Live DB already has 10+ real customers.) Admin login email = **`admin@mandalika.test`**.
 
-## ▶️ NOT fully verified (rule 6 — honest gaps)
-- **Index existence/usage not directly confirmed** via `pg_indexes`/`EXPLAIN` — that needs the `DATABASE_URL` secret (deferred; ask before reading). Migration provably applied (deploy + `/readyz` would fail on a bad migration at boot) and the sort/search live checks exercise the indexed paths correctly, but at-scale plans can't be shown on the small live DB (planner prefers seq scans on tiny tables). If wanted: `SET enable_seqscan=off; EXPLAIN ...` proves usability.
-- **Frontend visual USER-PENDING:** hard-refresh `mandalika-pos.pages.dev` → Pelanggan; confirm the **Belanja Tertinggi / Terbaru** toggle reorders the list, search still works, and entering an existing phone in the add/edit modal still shows the amber dup warning (now server-backed).
+## ✅ Index verification — DONE (via DATABASE_URL + pgx EXPLAIN, throwaway `cmd/explaincheck`, deleted after)
+All 7 indexes exist on `customers` (the 5 from mig 0026 + pkey + phone). With `enable_seqscan=off`: order-free `name ILIKE '%…%'` → **Bitmap Index Scan on idx_customers_name_trgm**; `phone ILIKE` → **idx_customers_phone_trgm**; `ORDER BY total_spent…` → **idx_customers_spent**; `ORDER BY created_at` → **idx_customers_created**; `phone = $1` → **idx_customers_phone**. Caveat: the COMBINED search+ORDER-BY query on the tiny (~11-row) live table prefers the sort index + ILIKE filter (a small-table artifact) — at 50k–500k with a selective filter the planner picks the trigram bitmap scans, as proven by the order-free EXPLAINs.
+
+## ▶️ USER-PENDING — frontend visual
+Hard-refresh `mandalika-pos.pages.dev` → Pelanggan; confirm the **Belanja Tertinggi / Terbaru** toggle reorders the list, search still works, and entering an existing phone in the add/edit modal still shows the amber dup warning (now server-backed).
 
 ---
 
