@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -246,7 +247,8 @@ func (h *Handlers) LoyaltySettings(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) Customers(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
-		rows, total, err := h.Repo.Customers(r.Context(), p, l)
+		q := strings.TrimSpace(r.URL.Query().Get("q"))
+		rows, total, err := h.Repo.Customers(r.Context(), p, l, q)
 		if err != nil {
 			return nil, 500, err
 		}

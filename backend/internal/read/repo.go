@@ -638,12 +638,22 @@ func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.Ingredi
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
-  'lastVisit',last_visit,'createdAt',created_at)`
+  'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
+  'notes',notes,'createdAt',created_at)`
 
-func (r *Repo) Customers(ctx context.Context, page, limit int) ([]api.Customer, int, error) {
+func (r *Repo) Customers(ctx context.Context, page, limit int, q string) ([]api.Customer, int, error) {
+	if q != "" {
+		like := "%" + q + "%"
+		return listJSON[api.Customer](ctx, r.Pool,
+			`SELECT `+customerObj+`, count(*) OVER() AS total
+			   FROM customers
+			  WHERE name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1
+			  ORDER BY total_spent DESC LIMIT $2 OFFSET $3`,
+			like, limit, off(page, limit))
+	}
 	return listJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObj+`, count(*) OVER() AS total
-		   FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		   FROM customers ORDER BY total_spent DESC LIMIT $1 OFFSET $2`,
 		limit, off(page, limit))
 }
 
