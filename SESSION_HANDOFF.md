@@ -4,6 +4,35 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
+# 📋 COPY-READY: start the CUSTOMERS module in a fresh session
+
+Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
+
+```
+continue Mandalika POS / next module = CUSTOMERS (Pelanggan). Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top) + the product-module-roadmap memory FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for the Customers module before any code.
+
+THE 6 WORKING RULES (confirm these — the user expects them every session):
+1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
+
+PROJECT STATE (as of 2026-06-07):
+- Branch `prod-hardening`. Backend Cloud Run rev 00047-5tl (migrations →0024). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Test-data deployment (not real sales) — basic hygiene, not kid-gloves.
+- DONE & deployed: Inventory module (warehouses/transfers/opname), Recipe/Formula module (ingredients + per-variant recipes), the "Inventori" restructure (outlet+warehouse CRUD moved to Pengaturan; Stok Produk = Overview + Pergerakan; mesh transfers; Bahan overview), Movement Summary, pagination (25/50/100 dropdown), Import/Export rollout, single-unit products ("Satuan" sentinel, hidden label), self-describing export filenames. Commits through 1991e91.
+- ⚠️ ONE PENDING: the POS single-unit "no variant label" (F14) is committed but needs an APK rebuild to reach devices — NOT built yet (ask before dispatching a release build).
+
+CURRENT CUSTOMERS MODULE (apps/backoffice/src/screens/Customers.tsx) — what already exists:
+- Customer CRUD: api.listCustomers / createCustomer / updateCustomer / deleteCustomer.
+- Customer model: { id, name, phone, email?, points, totalSpent, visitCount, lastVisit?, createdAt }. CustomerInput (editable) = ONLY { name, phone, email? } — points/totalSpent/visitCount/lastVisit are server-computed from orders/loyalty, NOT user-editable.
+- Loyalty subsystem on the same screen: LoyaltySettings (pointsPerThousand, tierEnabled) + LoyaltyConditions (reward types set_points / multiply_points) via api.getLoyaltySettings/updateLoyaltySettings + listLoyaltyConditions/create/update/deleteLoyaltyCondition.
+- Export-only (CSV/XLSX) via the shared <ImportExportBar> (no import yet). Search box. The list loads ALL customers (no UI pagination yet — unlike the F4 paginated lists).
+- Known gaps / likely candidates (let the brainstorm decide, don't assume): bulk customer IMPORT, UI pagination + server-side search, a customer detail / purchase-history view, customer notes field (would need a backend column + migration), tiers config if tierEnabled, phone uniqueness/dedupe. Anything touching the Customer schema needs a backend migration (next slot = 0025) + OpenAPI regen.
+
+PROCESS: brainstorm → spec (docs/superpowers/specs/) → plan (docs/superpowers/plans/) → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (needs a one-time user OK to read SEED_ADMIN_PASSWORD from Secret Manager; never print it).
+
+GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle can throw a transient (retry warm); on a tethered/mobile connection git pushes + tool calls may drop ("socket closed") — just retry, work isn't lost.
+```
+
+---
+
 # ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + single-unit products + hide variant label) — READ THIS FIRST; supersedes everything below
 
 Branch `prod-hardening`. **Frontend-only** (no backend change, no migration). Backend still rev `00047-5tl`. Commits `7e6d329`→`2752665`. Backoffice auto-deploys via Cloudflare on push; the **POS variant-label change (F14) needs an APK rebuild to reach devices** (NOT built this session — the workflow_dispatch was guardrail-blocked as an unrequested release; build it when ready via the documented `android-release.yml` dispatch).
