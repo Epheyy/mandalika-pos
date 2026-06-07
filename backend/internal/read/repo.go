@@ -642,19 +642,12 @@ const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'notes',notes,'createdAt',created_at)`
 
 func (r *Repo) Customers(ctx context.Context, page, limit int, q string) ([]api.Customer, int, error) {
-	if q != "" {
-		like := "%" + q + "%"
-		return listJSON[api.Customer](ctx, r.Pool,
-			`SELECT `+customerObj+`, count(*) OVER() AS total
-			   FROM customers
-			  WHERE name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1
-			  ORDER BY total_spent DESC LIMIT $2 OFFSET $3`,
-			like, limit, off(page, limit))
-	}
-	return listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total
-		   FROM customers ORDER BY total_spent DESC LIMIT $1 OFFSET $2`,
-		limit, off(page, limit))
+	const sql = `SELECT ` + customerObj + `, count(*) OVER() AS total
+		   FROM customers
+		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+		  ORDER BY total_spent DESC, created_at DESC
+		  OFFSET $1 LIMIT $2`
+	return listJSON[api.Customer](ctx, r.Pool, sql, off(page, limit), limit, q)
 }
 
 func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {
