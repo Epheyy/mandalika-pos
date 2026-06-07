@@ -19,7 +19,6 @@ import {
   Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
 } from '../ui'
 import CustomerDetail from './customers/CustomerDetail'
-import { isDuplicatePhone } from './customers/phone'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -53,6 +52,7 @@ export default function Customers() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [sort, setSort] = useState<'belanja' | 'terbaru'>('belanja')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -62,8 +62,8 @@ export default function Customers() {
   }, [search])
 
   const cq = usePolledQuery(
-    () => api.listCustomers(page, pageSize, debouncedSearch),
-    [page, pageSize, debouncedSearch],
+    () => api.listCustomers(page, pageSize, debouncedSearch, sort),
+    [page, pageSize, debouncedSearch, sort],
   )
   const customers = cq.data?.data ?? []
   const total = cq.data?.meta?.total ?? 0
@@ -89,11 +89,21 @@ export default function Customers() {
   const [err, setErr] = useState<string | null>(null)
   const [delId, setDelId] = useState<string | null>(null)
 
-  const allForDupe = usePolledQuery<Customer[]>(
-    () => open ? api.listCustomers(1, 10000).then((r) => r.data) : Promise.resolve([]),
-    [open],
-  )
-  const phoneDupe = isDuplicatePhone(allForDupe.data ?? [], form.phone, editing?.id ?? null)
+  const [phoneDupe, setPhoneDupe] = useState(false)
+  useEffect(() => {
+    if (!open) { setPhoneDupe(false); return }
+    const phone = form.phone.trim()
+    if (!phone) { setPhoneDupe(false); return }
+    const t = setTimeout(async () => {
+      try {
+        const matches = await api.getCustomersByPhone(phone)
+        setPhoneDupe(matches.some((m) => m.id !== (editing?.id ?? null)))
+      } catch {
+        setPhoneDupe(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [open, form.phone, editing?.id])
 
   const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
     const result = await api.listCustomers(1, 10000)
@@ -344,9 +354,25 @@ export default function Customers() {
         </div>
       ) : (
         <>
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-            <Input type="text" placeholder="Cari nama / telepon / email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <div className="flex items-center flex-wrap gap-2">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+              <Input type="text" placeholder="Cari nama / telepon / email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <div className="flex items-center gap-1 ml-3">
+              {([['belanja', 'Belanja Tertinggi'], ['terbaru', 'Terbaru']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => { setSort(val); setPage(1) }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition ${
+                    sort === val ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <Card className="overflow-hidden">
             {cq.loading ? (
