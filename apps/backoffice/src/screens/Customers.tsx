@@ -94,15 +94,16 @@ export default function Customers() {
     if (!open) { setPhoneDupe(false); return }
     const phone = form.phone.trim()
     if (!phone) { setPhoneDupe(false); return }
+    let ignore = false
     const t = setTimeout(async () => {
       try {
         const matches = await api.getCustomersByPhone(phone)
-        setPhoneDupe(matches.some((m) => m.id !== (editing?.id ?? null)))
+        if (!ignore) setPhoneDupe(matches.some((m) => m.id !== (editing?.id ?? null)))
       } catch {
-        setPhoneDupe(false)
+        if (!ignore) setPhoneDupe(false)
       }
     }, 300)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); ignore = true }
   }, [open, form.phone, editing?.id])
 
   const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
@@ -359,7 +360,7 @@ export default function Customers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
               <Input type="text" placeholder="Cari nama / telepon / email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
-            <div className="flex items-center gap-1 ml-3">
+            <div className="flex items-center gap-1">
               {([['belanja', 'Belanja Tertinggi'], ['terbaru', 'Terbaru']] as const).map(([val, label]) => (
                 <button
                   key={val}
