@@ -257,6 +257,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/by-phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find customers by exact phone (dup-check) */
+        get: operations["getCustomersByPhone"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers/{id}": {
         parameters: {
             query?: never;
@@ -1464,6 +1481,23 @@ export interface paths {
         };
         /** Completed/cancelled transfers involving the caller's outlet (incoming + outgoing) */
         get: operations["getOutletTransfers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/customers/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** On-demand customer lookup (cashier) */
+        get: operations["lookupCustomers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3330,6 +3364,7 @@ export interface operations {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
                 q?: string;
+                sort?: string;
             };
             header?: never;
             path?: never;
@@ -3368,6 +3403,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    getCustomersByPhone: {
+        parameters: {
+            query: {
+                phone: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description customers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerListResponse"];
                 };
             };
         };
@@ -5793,6 +5850,29 @@ export interface operations {
                     "application/json": {
                         data: components["schemas"]["Transfer"][];
                     };
+                };
+            };
+        };
+    };
+    lookupCustomers: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description customers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerListResponse"];
                 };
             };
         };

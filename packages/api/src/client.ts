@@ -144,8 +144,10 @@ export interface Api {
   listBundles: () => Promise<Bundle[]>
 
   // customers
-  listCustomers: (page?: number, limit?: number, q?: string) => Promise<ListResult<Customer>>
+  listCustomers: (page?: number, limit?: number, q?: string, sort?: string) => Promise<ListResult<Customer>>
   getCustomer: (id: string) => Promise<Customer>
+  getCustomersByPhone: (phone: string) => Promise<Customer[]>
+  lookupCustomers: (q: string, limit?: number) => Promise<Customer[]>
   createCustomer: (input: CustomerInput) => Promise<Customer>
   updateCustomer: (id: string, input: CustomerInput) => Promise<Customer>
   deleteCustomer: (id: string) => Promise<void>
@@ -386,9 +388,18 @@ export function createClient(opts: ClientOptions): Api {
     },
     listBundles: () => data<Bundle[]>('GET', `${API}/bundles`),
 
-    listCustomers: (page = 1, limit = 50, q = '') =>
-      list<Customer>(`${API}/customers`, q ? { page, limit, q } : { page, limit }),
+    listCustomers: (page = 1, limit = 50, q = '', sort = '') =>
+      list<Customer>(`${API}/customers`, {
+        page,
+        limit,
+        ...(q ? { q } : {}),
+        ...(sort ? { sort } : {}),
+      }),
     getCustomer: (id) => data<Customer>('GET', `${API}/customers/${id}`),
+    getCustomersByPhone: (phone) =>
+      list<Customer>(`${API}/customers/by-phone`, { phone }).then((r) => r.data),
+    lookupCustomers: (q, limit = 20) =>
+      list<Customer>(`${API}/sync/customers/lookup`, { q, limit }).then((r) => r.data),
     createCustomer: (input) => data<Customer>('POST', `${API}/customers`, input),
     updateCustomer: (id, input) => data<Customer>('PUT', `${API}/customers/${id}`, input),
     deleteCustomer: async (id) => {
