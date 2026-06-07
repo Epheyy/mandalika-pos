@@ -4,36 +4,73 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# 📋 COPY-READY: start the CUSTOMERS module in a fresh session
+# 📋 COPY-READY: start SP-CRM-2 (Segments & Tags) in a fresh session
 
 Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
 
 ```
-continue Mandalika POS / next module = CUSTOMERS (Pelanggan). Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top) + the product-module-roadmap memory FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for the Customers module before any code.
+continue Mandalika POS / next = SP-CRM-2 (Segments & Tags), the 2nd slice of the Customers→CRM module. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-1) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-2 before any code.
 
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
 PROJECT STATE (as of 2026-06-07):
-- Branch `prod-hardening`. Backend Cloud Run rev 00047-5tl (migrations →0024). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Test-data deployment (not real sales) — basic hygiene, not kid-gloves.
-- DONE & deployed: Inventory module (warehouses/transfers/opname), Recipe/Formula module (ingredients + per-variant recipes), the "Inventori" restructure (outlet+warehouse CRUD moved to Pengaturan; Stok Produk = Overview + Pergerakan; mesh transfers; Bahan overview), Movement Summary, pagination (25/50/100 dropdown), Import/Export rollout, single-unit products ("Satuan" sentinel, hidden label), self-describing export filenames. Commits through 1991e91.
-- ⚠️ ONE PENDING: the POS single-unit "no variant label" (F14) is committed but needs an APK rebuild to reach devices — NOT built yet (ask before dispatching a release build).
+- Branch `prod-hardening`. Backend Cloud Run rev 00048-f2p (migrations →0025, next slot = 0026). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Test-data deployment (not real sales) — basic hygiene, not kid-gloves.
+- DONE & deployed: Inventory module, Recipe/Formula module, "Inventori" restructure, Movement Summary, pagination (25/50/100), Import/Export rollout, single-unit products, self-describing export filenames, and **SP-CRM-1 (Customer hub foundation): server pagination+search, birthday/anniversary/notes (migration 0025), full-page Customer Detail hub**. Commits through 07a81e9.
+- ⚠️ PENDING: the POS single-unit "no variant label" (F14) is committed but needs an APK rebuild to reach devices — NOT built yet (ask before dispatching a release build).
 
-CURRENT CUSTOMERS MODULE (apps/backoffice/src/screens/Customers.tsx) — what already exists:
-- Customer CRUD: api.listCustomers / createCustomer / updateCustomer / deleteCustomer.
-- Customer model: { id, name, phone, email?, points, totalSpent, visitCount, lastVisit?, createdAt }. CustomerInput (editable) = ONLY { name, phone, email? } — points/totalSpent/visitCount/lastVisit are server-computed from orders/loyalty, NOT user-editable.
-- Loyalty subsystem on the same screen: LoyaltySettings (pointsPerThousand, tierEnabled) + LoyaltyConditions (reward types set_points / multiply_points) via api.getLoyaltySettings/updateLoyaltySettings + listLoyaltyConditions/create/update/deleteLoyaltyCondition.
-- Export-only (CSV/XLSX) via the shared <ImportExportBar> (no import yet). Search box. The list loads ALL customers (no UI pagination yet — unlike the F4 paginated lists).
-- Known gaps / likely candidates (let the brainstorm decide, don't assume): bulk customer IMPORT, UI pagination + server-side search, a customer detail / purchase-history view, customer notes field (would need a backend column + migration), tiers config if tierEnabled, phone uniqueness/dedupe. Anything touching the Customer schema needs a backend migration (next slot = 0025) + OpenAPI regen.
+THE CRM MODULE (in progress) — SP-CRM-1 DONE; remaining sub-projects (each own spec→plan→build):
+- SP-CRM-2 — Segments & tags (NEXT): tags table + customer_tags join (migration 0026) + manual tags + computed auto-segments (VIP/at-risk/new) + filter list by tag/segment.
+- SP-CRM-3 — Lifecycle, retention & interaction log: computed new/active/at-risk/churned; dated interaction timeline; birthday/anniversary reminders; wire the existing birthday/anniversary loyalty triggers to fire.
+- SP-CRM-4 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
+- (Later) SP-CRM-POS — expose chosen CRM bits to the cashier (APK + sync).
+MODULE-WIDE LOCKED: backoffice now / POS later (data model additive-nullable, POS-ready — `customers` is in the POS sync payload + there's a `customer_create` offline outbox); customer detail = full-page IN-SCREEN VIEW SWAP (no router in the backoffice — adding one is its own sprint), mirrors the Inventori drill-in — SP-CRM-2's tag UI should slot into the reserved "Tag & Segmen — segera" placeholder in `screens/customers/CustomerDetail.tsx`; phone uniqueness = soft warn, no DB constraint.
 
-PROCESS: brainstorm → spec (docs/superpowers/specs/) → plan (docs/superpowers/plans/) → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (needs a one-time user OK to read SEED_ADMIN_PASSWORD from Secret Manager; never print it).
+CURRENT CUSTOMERS MODULE (post SP-CRM-1):
+- `apps/backoffice/src/screens/Customers.tsx` — list (server pagination + debounced server search) + Loyalitas tab; row click → `screens/customers/CustomerDetail.tsx` (full-page hub with reserved Tag/Ledger/Timeline placeholders); `screens/customers/phone.ts` pure helper.
+- Customer model now: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt }. CustomerInput (editable) = { name, phone, email?, birthday?, anniversary?, notes? }; points/totalSpent/visitCount/lastVisit are server-computed, NOT user-editable.
+- TS client: api.listCustomers(page,limit,q), api.getCustomer(id), create/update/deleteCustomer.
+- Loyalty subsystem on the same screen (settings + conditions) unchanged. The existing birthday/anniversary loyalty TRIGGERS now have backing date fields (since SP-CRM-1) but are not yet wired to fire — that's SP-CRM-3.
+
+PROCESS: brainstorm → spec (docs/superpowers/specs/) → plan (docs/superpowers/plans/) → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (needs a one-time user OK to read SEED_ADMIN_PASSWORD from Secret Manager; never print it). NOTE: the deployed admin login email is admin@mandalika.test (NOT .local).
 
 GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle can throw a transient (retry warm); on a tethered/mobile connection git pushes + tool calls may drop ("socket closed") — just retry, work isn't lost.
 ```
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-06 (Import/Export rollout + single-unit products + hide variant label) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-07 (SP-CRM-1: Customer Hub Foundation) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. **First slice of the new CRM module.** Backend **rev `00048-f2p`** (migration **0025** applied; `/readyz` ok). Backoffice auto-deploys via Cloudflare on push (done). No APK (backoffice-only). Commits `59d9a40`(spec)→`07a81e9`. Built brainstorm→spec→plan→subagent-driven (fresh implementer per batch + go-reviewer/typescript-reviewer two-stage review each). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-07-crm-sp1-customer-hub-foundation*`.
+
+## The CRM decomposition (agreed with user)
+The Customers module is being grown into a full CRM, decomposed into sequenced sub-projects (each its own spec→plan→build):
+- **SP-CRM-1 — Customer hub foundation** ✅ DONE (this session)
+- **SP-CRM-2 — Segments & tags** (tags table + customer_tags join; manual tags + computed auto-segments; filter by tag) — NEXT
+- **SP-CRM-3 — Lifecycle, retention & interaction log** (computed new/active/at-risk/churned; dated interaction timeline; birthday/anniversary reminders; wire the existing birthday/anniversary loyalty triggers to actually fire)
+- **SP-CRM-4 — Points ledger & manual adjustment** (riskiest — touches the order/earning path; last)
+- *(Later)* **SP-CRM-POS** — expose chosen CRM bits to the cashier (APK + sync)
+**Module-wide locked decisions:** backoffice now / POS later (data model designed POS-ready = additive nullable, since `customers` is in the POS sync payload + there's a `customer_create` offline outbox); detail surface = **full-page in-screen view swap** (the backoffice has NO router — adding one is its own sprint), mirroring the Inventori drill-in; phone uniqueness = **soft warn, no DB constraint**.
+
+## What SP-CRM-1 shipped
+- **Migration 0025** (`0025_customer_crm_fields.sql`): additive nullable `birthday DATE`, `anniversary DATE`, `notes TEXT` on `customers`.
+- **Backend**: `customerObj` emits the 3 fields; `Customers(ctx,page,limit,q)` collapsed to ONE parameterized query (mirrors `Ingredients()`) with `WHERE ($3='' OR name/phone/email ILIKE '%'||$3||'%')` + **`ORDER BY total_spent DESC, created_at DESC`** (the tiebreaker is load-bearing — without it LIMIT/OFFSET produced ghost/skipped rows). Write Create/Update persist the 3 fields via `nullStr`/`nullDate`. **GOTCHA found**: `sync.go` (POS bootstrap) also calls `Customers()` — now passes `""`. OpenAPI: 3 fields on `Customer` (nullable) + `CustomerInput` (plain strings, consistent with the sibling `email` field — intentionally NOT marked nullable), `q` param on `listCustomers`; regen + `make gen-check` clean.
+- **TS client**: `listCustomers(page,limit,q)` (default limit now 50) + new `getCustomer(id)`.
+- **Backoffice** (`screens/Customers.tsx` + new `screens/customers/CustomerDetail.tsx` + `screens/customers/phone.ts`): server pagination (shared `<Pagination/>` 25/50/100) + 300ms debounced server search (replaces the old client-side filter); row click → full-page **Customer Detail hub** (profile incl. birthday/anniversary/notes, stats, relocated purchase history, reserved "segera" placeholders for tags/ledger/timeline, ← Kembali); edit modal gained Ulang Tahun/Hari Jadi/Catatan + a **soft non-blocking phone-dupe warning** (`isDuplicatePhone` over a full-list fetch gated on modal-open). The old per-row "Riwayat" modal was removed (history now lives in the detail page).
+
+## Review-caught bugs (both fixed + re-verified)
+1. **Unstable pagination** (go-reviewer): `total_spent DESC` with no tiebreaker → duplicated/skipped rows across pages. Fixed with `, created_at DESC` (+ collapsed to single query).
+2. **Edit/Delete silently no-op from the detail view** (typescript-reviewer): the `if (selectedId) return <CustomerDetail/>` early-return rendered BEFORE the shared edit/delete `<Modal>`s, so they never mounted. Fixed by restructuring the render so all modals stay mounted outside the `selectedId` conditional; `del()` also gained try/catch + exits the detail view on success.
+
+## ✅ Authed live verification — DONE (20/20 on rev 00048-f2p)
+Scripted authed check passed all 20: create with birthday/anniversary/notes → GET round-trips all 3; update persists; `?q=` narrows by name AND phone AND email (meta.total=1); no-match → empty; pagination meta echoes page/limit; **page 2 ≠ page 1 (proves the tiebreaker)**; delete → 404. Temp customer cleaned up. **Diagnosis note for future live checks:** the deployed admin email is **`admin@mandalika.test`** (NOT `.local`); password = Secret Manager `SEED_ADMIN_PASSWORD` (24 chars, no trailing newline). The default-email 401 cost a detour — remember `.test`.
+
+## ▶️ USER-PENDING — visual walkthrough
+Hard-refresh `mandalika-pos.pages.dev` → Pelanggan. Confirm: rows-per-page dropdown + page nav; typing in search narrows server-side (debounced); click a row → full-page detail with ← Kembali, profile (birthday/anniversary/notes), stats, purchase history, and the greyed "segera" tag/ledger/timeline placeholders; **Edit and Delete work FROM the detail page** (the bug that was fixed); add/edit modal has the 3 new fields; saving a customer whose phone matches another shows the amber warning but still saves.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-06 (Import/Export rollout + single-unit products + hide variant label)
 
 Branch `prod-hardening`. **Frontend-only** (no backend change, no migration). Backend still rev `00047-5tl`. Commits `7e6d329`→`2752665`. Backoffice auto-deploys via Cloudflare on push; the **POS variant-label change (F14) needs an APK rebuild to reach devices** (NOT built this session — the workflow_dispatch was guardrail-blocked as an unrequested release; build it when ready via the documented `android-release.yml` dispatch).
 
