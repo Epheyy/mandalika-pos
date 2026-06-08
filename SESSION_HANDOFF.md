@@ -15,7 +15,7 @@ THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
 ⚠️ TWO SP-CRM-3 OPERATIONAL GATES STILL OPEN (handle/decide before or alongside SP-CRM-4):
-- (a) APK NOT built yet — SP-CRM-3's POS on-demand-lookup change only reaches devices via an APK (GH Actions android-release.yml, workflow_dispatch). ASK the user before dispatching. Until built + fleet-updated, the POS still uses today's behavior.
+- (a) APK BUILT 2026-06-08 (Actions run #43, artifact `mandalika-pos-release-apk`, 13.7MB, success) carrying SP-CRM-3's POS on-demand lookup + F14. PENDING: install + on-device test, then roll out to the fleet. Until the fleet updates, deployed devices keep today's behavior. (To rebuild later: dispatch `android-release.yml` via the Actions UI, or REST `POST /actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` — gh CLI is not installed locally.)
 - (b) Phase 2 cutover NOT deployed (user-gated) — the bulk-sync `Customers(1,100000)` in `sync.go:103` is STILL in place by design. The one-line flip to `RecentCustomersForOutlet(ctx, sc.OutletID, 90, 1000)` (already BUILT in `read/repo.go`) must be deployed ONLY after the user confirms the new APK fleet is updated. See plan Task D1.
 - Also still pending from earlier: POS single-unit "no variant label" (F14) needs an APK rebuild too — would ride the same build.
 
@@ -68,7 +68,7 @@ go-reviewer: dup-flag wasn't idempotent (replay would double-insert) → unique 
 9 backend DB checks via a tx-rolled-back pgx throwaway (one-time DATABASE_URL): mig-0027 table + all 3 indexes exist; `RecentCustomersForOutlet` returns a bounded 11-row set for a real outlet; dup-detection SELECT finds the same-phone customer, first candidate insert writes 1, **replay is idempotent (0)** — all rolled back, no live data touched. 3 authed checks (SEED_ADMIN_PASSWORD): `/sync/customers/lookup` 401 without token, returns ≤3 with token. Admin login email = `admin@mandalika.test`.
 
 ## ▶️ PENDING (rule 6 — honest gaps)
-- **APK NOT built** — the POS change reaches devices only via `android-release.yml` (workflow_dispatch). **User-gated** — ask before dispatching. On-device check then: online search finds non-cached customers; offline falls back to cache; create still works offline.
+- **APK BUILT** (Actions run #43, artifact `mandalika-pos-release-apk`, 13.7MB, success — carries SP-CRM-3 POS lookup + F14). PENDING: install + on-device check (online search finds non-cached customers; offline falls back to cache; create still works offline), then fleet rollout.
 - **Phase 2 cutover NOT deployed** — gated on fleet update (Task D1). The bulk sync stays until then (by design). Can't be fully verified until the fleet runs the new APK.
 - The POS dup-detection Go glue wasn't exercised over HTTP (the exact SQL it runs + idempotency WAS verified via the pgx tx test); it'll fire for real when an offline-miss duplicate customer is created on a device.
 
