@@ -682,6 +682,12 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 // replaces the global bulk customer sync (SP-CRM-3 Phase 2). Reuses customerObj.
 // (`limit`, not `cap`, to avoid shadowing the Go builtin.)
 func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, days, limit int) ([]api.Customer, error) {
+	if days < 1 {
+		days = 90
+	}
+	if limit < 1 || limit > 5000 {
+		limit = 1000
+	}
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObj+`, count(*) OVER() AS total
 		   FROM customers c

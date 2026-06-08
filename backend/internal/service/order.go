@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -440,11 +441,14 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 	// created with the client id, so the order's customerId stays consistent.
 	var existingID string
 	if derr := s.Pool.QueryRow(ctx,
-		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at LIMIT 1`,
+		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at ASC, id ASC LIMIT 1`,
 		in.Phone, id).Scan(&existingID); derr == nil && existingID != "" {
-		_, _ = s.Pool.Exec(ctx,
+		if _, execErr := s.Pool.Exec(ctx,
 			`INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
-			 VALUES ($1, $2, $3)`, id, existingID, in.Phone)
+			 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, id, existingID, in.Phone); execErr != nil {
+			slog.Warn("dup candidate insert failed (best-effort)",
+				"new_id", id, "existing_id", existingID, "err", execErr)
+		}
 	}
 	return id, nil
 }
