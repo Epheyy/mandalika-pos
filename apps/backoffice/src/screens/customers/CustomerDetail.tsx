@@ -6,11 +6,14 @@ import {
   ArrowLeft, Edit2, Trash2, Phone, Mail, Star, ShoppingBag,
   ChevronDown, ChevronUp, Gift, Cake, CalendarHeart, Tag, History,
 } from 'lucide-react'
+import type { Tag as TagType } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { BRAND } from '../../lib/brand'
-import { Button, Card, Badge, IconButton, EmptyState } from '../../ui'
+import { Button, Card, Badge, IconButton, EmptyState, Modal } from '../../ui'
+import { tagChipClasses } from './tagColors'
+import { TagManager } from './TagManager'
 
 interface CustomerDetailProps {
   customerId: string
@@ -36,8 +39,21 @@ export default function CustomerDetail({
     () => api.listOrders({ customerId, limit: 200 }).then((r) => r.data),
     [customerId],
   )
+  const tagsQ = usePolledQuery<TagType[]>(() => api.listTags(), [])
+  const allTags = tagsQ.data ?? []
+  const [tagModalOpen, setTagModalOpen] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const c = cq.data
+
+  const toggleTag = async (tagId: string) => {
+    if (!c) return
+    const current = (c.tags ?? []).map((t) => t.id)
+    const next = current.includes(tagId) ? current.filter((x) => x !== tagId) : [...current, tagId]
+    try {
+      await api.setCustomerTags(c.id, next)
+      await cq.refetch()
+    } catch { /* surfaced on next load; non-blocking */ }
+  }
 
   if (cq.loading && !c) {
     return (
@@ -99,9 +115,27 @@ export default function CustomerDetail({
             <p className="text-xs font-bold text-gray-400 mb-1">Catatan</p>
             <p className="text-sm text-gray-600 whitespace-pre-wrap">{c.notes || '—'}</p>
           </div>
-          {/* Reserved for SP-CRM-2 */}
-          <div className="pt-2 border-t border-gray-100">
-            <p className="flex items-center gap-1.5 text-xs font-bold text-gray-300"><Tag className="w-3.5 h-3.5" /> Tag &amp; Segmen — segera</p>
+          {/* Tags (SP-CRM-4) */}
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-gray-400"><Tag className="w-3.5 h-3.5" /> Tag</p>
+              <button type="button" className="text-xs font-bold text-gold-600 hover:text-gold-700" onClick={() => setTagModalOpen(true)}>Kelola</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(c.tags ?? []).map((t) => (
+                <span key={t.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${tagChipClasses(t.color)}`}>
+                  {t.name}
+                  <button type="button" aria-label={`Lepas ${t.name}`} onClick={() => void toggleTag(t.id)} className="hover:opacity-70">×</button>
+                </span>
+              ))}
+              {allTags.filter((t) => !(c.tags ?? []).some((ct) => ct.id === t.id)).map((t) => (
+                <button key={t.id} type="button" onClick={() => void toggleTag(t.id)}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-dashed ${tagChipClasses(t.color)} opacity-50 hover:opacity-100`}>
+                  + {t.name}
+                </button>
+              ))}
+              {allTags.length === 0 && <span className="text-xs text-gray-300 italic">Belum ada tag — klik Kelola</span>}
+            </div>
           </div>
         </Card>
 
@@ -179,6 +213,10 @@ export default function CustomerDetail({
           </Card>
         </div>
       </div>
+
+      <Modal open={tagModalOpen} onClose={() => setTagModalOpen(false)} title="Kelola Tag">
+        <TagManager tags={allTags} onChange={() => void tagsQ.refetch()} />
+      </Modal>
     </div>
   )
 }
