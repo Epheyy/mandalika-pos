@@ -10,7 +10,7 @@ interface SegmentManagerProps {
   onChange: () => void // refetch after any mutation
 }
 
-const EMPTY: SegmentInput = { name: '', color: 'blue' }
+const EMPTY: SegmentInput = { name: '', color: 'blue', isActive: true }
 
 function ColorPicker({ value, onPick }: { value: string; onPick: (c: string) => void }) {
   return (
@@ -23,14 +23,18 @@ function ColorPicker({ value, onPick }: { value: string; onPick: (c: string) => 
   )
 }
 
+type BoundKey = 'rMin' | 'rMax' | 'fMin' | 'fMax' | 'mMin' | 'mMax'
+function numPatch(key: BoundKey, v: string): Partial<SegmentInput> {
+  return { [key]: v === '' ? null : Number(v) }
+}
+
 // Bounds editor: six optional number inputs (R/F/M min/max).
 function Bounds({ form, set }: { form: SegmentInput; set: (patch: Partial<SegmentInput>) => void }) {
-  const num = (v: string): number | null => (v === '' ? null : Number(v))
-  const row = (label: string, minKey: keyof SegmentInput, maxKey: keyof SegmentInput) => (
+  const row = (label: string, minKey: BoundKey, maxKey: BoundKey) => (
     <div className="flex items-center gap-2">
       <span className="text-xs font-bold text-gray-500 w-28">{label}</span>
-      <Input type="number" placeholder="min" value={(form[minKey] as number | null) ?? ''} onChange={(e) => set({ [minKey]: num(e.target.value) } as Partial<SegmentInput>)} />
-      <Input type="number" placeholder="max" value={(form[maxKey] as number | null) ?? ''} onChange={(e) => set({ [maxKey]: num(e.target.value) } as Partial<SegmentInput>)} />
+      <Input type="number" placeholder="min" value={(form[minKey] as number | null) ?? ''} onChange={(e) => set(numPatch(minKey, e.target.value))} />
+      <Input type="number" placeholder="max" value={(form[maxKey] as number | null) ?? ''} onChange={(e) => set(numPatch(maxKey, e.target.value))} />
     </div>
   )
   return (
@@ -75,9 +79,15 @@ export function SegmentManager({ segments, onChange }: SegmentManagerProps) {
     const j = idx + dir
     if (j < 0 || j >= next.length) return
     ;[next[idx], next[j]] = [next[j], next[idx]]
-    setBusy(true)
-    try { await api.reorderSegments(next.map((s) => s.id)); onChange() }
-    finally { setBusy(false) }
+    setBusy(true); setErr(null)
+    try {
+      await api.reorderSegments(next.map((s) => s.id))
+      onChange()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Gagal mengubah urutan.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
