@@ -94,6 +94,9 @@ func (r *Repo) SetCustomerTags(ctx context.Context, customerID string, tagIDs []
 		if _, err := t.Exec(ctx, `DELETE FROM customer_tags WHERE customer_id=$1`, customerID); err != nil {
 			return err
 		}
+		// tagIDs must reference existing tags (enforced by the FK); the caller
+		// (backoffice UI) only sends ids from the /tags list. A non-existent id
+		// aborts the tx with a FK violation → surfaced as 400.
 		for _, tagID := range tagIDs {
 			if _, err := t.Exec(ctx,
 				`INSERT INTO customer_tags (customer_id, tag_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,

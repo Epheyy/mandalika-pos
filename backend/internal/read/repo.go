@@ -643,8 +643,12 @@ const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
 
 // customerObjWithTags = customerObj + the customer's tags. Used ONLY by the
 // backoffice list + detail reads; the shared customerObj stays tag-free so the
-// POS sync / lookup / by-phone payloads don't carry tags. Correlates via the
-// unaliased `customers.id` (callers keep `FROM customers` unaliased).
+// POS sync / lookup / by-phone payloads don't carry tags.
+//
+// customerObjWithTags must be used ONLY in queries whose outer FROM is
+// "FROM customers" (unaliased): the tags sub-select correlates via the bare
+// `customers.id`. Aliasing the outer table (e.g. `FROM customers c`) would
+// silently return empty tags.
 const customerObjWithTags = `json_build_object('id',id,'name',name,'phone',phone,
   'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
@@ -662,9 +666,9 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId st
 	args := []any{off(page, limit), limit, q} // $1 offset, $2 limit, $3 q
 	tagFilter := ""
 	if tagId != "" {
-		args = append(args, tagId) // $4
-		tagFilter = ` AND EXISTS (SELECT 1 FROM customer_tags ct
-			WHERE ct.customer_id = customers.id AND ct.tag_id = $4::uuid)`
+		args = append(args, tagId)
+		tagFilter = fmt.Sprintf(` AND EXISTS (SELECT 1 FROM customer_tags ct
+			WHERE ct.customer_id = customers.id AND ct.tag_id = $%d::uuid)`, len(args))
 	}
 	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
 		   FROM customers

@@ -484,7 +484,7 @@ func (h *Handlers) DeleteIngredientCategory(w http.ResponseWriter, r *http.Reque
 func (h *Handlers) Tags(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.Tags(r.Context())
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.TagListResponse{Data: rows})
@@ -512,15 +512,11 @@ func (h *Handlers) DeleteTag(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) SetCustomerTags(w http.ResponseWriter, r *http.Request) {
-	in, ok := decodeWrite[setCustomerTagsBody](w, r)
+	in, ok := decodeWrite[api.SetCustomerTagsInput](w, r)
 	if !ok {
 		return
 	}
 	h.mutated(w, r, h.Write.SetCustomerTags(r.Context(), chi.URLParam(r, "id"), in.TagIds))
-}
-
-type setCustomerTagsBody struct {
-	TagIds []string `json:"tagIds"`
 }
 
 // ── Ingredient transfers ───────────────────────────────────
