@@ -5,6 +5,7 @@ import type {
   LoyaltyCondition,
   Product,
   Tag,
+  Segment,
 } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
@@ -20,6 +21,7 @@ import {
   Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
 } from '../ui'
 import CustomerDetail from './customers/CustomerDetail'
+import { SegmentManager } from './customers/SegmentManager'
 import { tagChipClasses } from './customers/tagColors'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
@@ -56,9 +58,13 @@ export default function Customers() {
   const [pageSize, setPageSize] = useState(25)
   const [sort, setSort] = useState<'belanja' | 'terbaru'>('belanja')
   const [tagId, setTagId] = useState('')
+  const [segmentId, setSegmentId] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const tagsQ = usePolledQuery<Tag[]>(() => api.listTags(), [])
   const allTags = tagsQ.data ?? []
+  const segmentsQ = usePolledQuery<Segment[]>(() => api.listSegments(), [])
+  const allSegments = segmentsQ.data ?? []
+  const [segModalOpen, setSegModalOpen] = useState(false)
 
   const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {
@@ -67,8 +73,8 @@ export default function Customers() {
   }, [search])
 
   const cq = usePolledQuery(
-    () => api.listCustomers(page, pageSize, debouncedSearch, sort, tagId),
-    [page, pageSize, debouncedSearch, sort, tagId],
+    () => api.listCustomers(page, pageSize, debouncedSearch, sort, tagId, segmentId),
+    [page, pageSize, debouncedSearch, sort, tagId, segmentId],
   )
   const customers = cq.data?.data ?? []
   const total = cq.data?.meta?.total ?? 0
@@ -121,6 +127,7 @@ export default function Customers() {
       'Total Belanja': c.totalSpent,
       'Jumlah Kunjungan': c.visitCount,
       Tag: (c.tags ?? []).map((t) => t.name).join(', '),
+      Segmen: c.segment?.name ?? '',
     }))
     if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
     else exportToXLSX(rows, 'pelanggan')
@@ -213,21 +220,12 @@ export default function Customers() {
     await condQ.refetch()
   }
 
-  const tier = (spent: number) => {
-    if (spent >= 5_000_000) return { label: 'Platinum', color: 'text-purple-600 bg-purple-50' }
-    if (spent >= 2_000_000) return { label: 'Gold', color: 'text-yellow-600 bg-yellow-50' }
-    if (spent >= 500_000) return { label: 'Silver', color: 'text-gray-600 bg-gray-100' }
-    return { label: 'Member', color: 'text-gold-700 bg-gold-50' }
-  }
-
   return (
     <>
       {selectedId ? (
         <CustomerDetail
           customerId={selectedId}
           loyaltyEnabled={loyalty.enabled}
-          tierEnabled={loyalty.tierEnabled}
-          tier={tier}
           onBack={() => { setSelectedId(null); void cq.refetch() }}
           onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
           onDelete={(cid) => setDelId(cid)}
@@ -388,6 +386,15 @@ export default function Customers() {
               <option value="">Semua tag</option>
               {allTags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+            <select
+              value={segmentId}
+              onChange={(e) => { setSegmentId(e.target.value); setPage(1) }}
+              className="text-xs font-bold rounded-lg border border-gray-200 px-2 py-1.5 bg-white text-gray-700"
+            >
+              <option value="">Semua segmen</option>
+              {allSegments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <Button variant="secondary" size="sm" onClick={() => setSegModalOpen(true)}>Kelola Segmen</Button>
           </div>
           <Card className="overflow-hidden">
             {cq.loading ? (
@@ -403,13 +410,12 @@ export default function Customers() {
                       <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden md:table-cell">Kontak</th>
                       <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Total Belanja</th>
                       {loyalty.enabled && <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden sm:table-cell">Poin</th>}
-                      {loyalty.tierEnabled && <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden sm:table-cell">Tier</th>}
+                      <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden sm:table-cell">Segmen</th>
                       <th className="text-right px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {customers.map((c) => {
-                      const t = tier(c.totalSpent)
                       return (
                         <tr
                           key={c.id}
@@ -447,11 +453,11 @@ export default function Customers() {
                               <div className="flex items-center gap-1 text-sm font-bold text-gold-600"><Star className="w-3.5 h-3.5" />{c.points.toLocaleString('id-ID')}</div>
                             </td>
                           )}
-                          {loyalty.tierEnabled && (
-                            <td className="px-5 py-3 hidden sm:table-cell">
-                              <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${t.color}`}>{t.label}</span>
-                            </td>
-                          )}
+                          <td className="px-5 py-3 hidden sm:table-cell">
+                            {c.segment
+                              ? <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${tagChipClasses(c.segment.color)}`}>{c.segment.name}</span>
+                              : <span className="text-xs text-gray-300">—</span>}
+                          </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                               <IconButton onClick={() => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
@@ -480,6 +486,10 @@ export default function Customers() {
         )}
         </div>
       )}
+
+      <Modal open={segModalOpen} onClose={() => setSegModalOpen(false)} title="Kelola Segmen">
+        <SegmentManager segments={allSegments} onChange={() => void segmentsQ.refetch()} />
+      </Modal>
 
       <Modal
         open={open}
