@@ -14,13 +14,10 @@ continue Mandalika POS / next = SP-CRM-4 (Manual Tags), the 4th slice of the Cus
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
-⚠️ TWO SP-CRM-3 OPERATIONAL GATES STILL OPEN (handle/decide before or alongside SP-CRM-4):
-- (a) APK BUILT 2026-06-08 (Actions run #43, artifact `mandalika-pos-release-apk`, 13.7MB, success) carrying SP-CRM-3's POS on-demand lookup + F14. PENDING: install + on-device test, then roll out to the fleet. Until the fleet updates, deployed devices keep today's behavior. (To rebuild later: dispatch `android-release.yml` via the Actions UI, or REST `POST /actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` — gh CLI is not installed locally.)
-- (b) Phase 2 cutover NOT deployed (user-gated) — the bulk-sync `Customers(1,100000)` in `sync.go:103` is STILL in place by design. The one-line flip to `RecentCustomersForOutlet(ctx, sc.OutletID, 90, 1000)` (already BUILT in `read/repo.go`) must be deployed ONLY after the user confirms the new APK fleet is updated. See plan Task D1.
-- Also still pending from earlier: POS single-unit "no variant label" (F14) needs an APK rebuild too — would ride the same build.
+✅ SP-CRM-3 FULLY DONE (both gates resolved 2026-06-08): APK built (Actions run #43, artifact `mandalika-pos-release-apk`) + fleet updated; Phase-2 cutover DEPLOYED (rev 00051-qgs) — the sync bootstrap now sends the bounded per-outlet recent set, not the 100k bulk. F14 (single-unit no-variant-label) rode the same APK → resolved. (To rebuild the APK later: dispatch `android-release.yml` via the Actions UI, or REST `POST /actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` — gh CLI is not installed locally; the git credential-manager token works for the REST call.)
 
 PROJECT STATE (as of 2026-06-08):
-- Branch `prod-hardening`. Backend Cloud Run rev 00050-2h5 (migrations →0027, next slot = 0028). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
+- Branch `prod-hardening`. Backend Cloud Run rev 00051-qgs (migrations →0027, next slot = 0028). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
 - DONE & deployed: Inventory, Recipe/Formula, "Inventori" restructure, Movement Summary, pagination, Import/Export, single-unit products, self-describing exports; **SP-CRM-1 (customer hub)**; **SP-CRM-2 (scale foundation)**; **SP-CRM-3 Phase 1 (POS on-demand lookup code + dup-flag mig 0027 + bounded read built)** — backend deployed; APK + Phase-2 cutover GATED (see above). Commits through 76e04de.
 
 THE CRM MODULE (in progress) — SP-CRM-1, SP-CRM-2 DONE; SP-CRM-3 Phase-1 DONE (APK/cutover gated); remaining (each own spec→plan→build):
@@ -51,7 +48,7 @@ Branch `prod-hardening`. First **POS-touching** CRM sprint. Backend **rev `00050
 ## What this sprint does + the two-phase rollout
 Replaces the unviable global bulk customer sync (POS pulls the WHOLE customer table to every outlet) with on-demand lookup + a bounded per-outlet offline cache — rolled out **APK-first so no deployed device degrades**:
 - **Phase 1 (DONE, deployed):** POS picker gains on-demand `api.lookupCustomers(q)` (online, debounced, merged with the local cache; offline → cache only); backend adds dup-detection + the bounded read, with the sync bootstrap **UNCHANGED** (still sends the full list → nothing degrades).
-- **Phase 2 (GATED, NOT deployed):** a one-line flip in `sync.go:103` `Customers(1,100000)` → `RecentCustomersForOutlet(ctx, sc.OutletID, 90, 1000)` (read already BUILT). Deploy ONLY after the user confirms the new APK fleet is updated. This is when the heavy-load win lands. See plan Task D1.
+- **Phase 2 (DONE 2026-06-08, rev `00051-qgs`, commit `8b907b0`):** the one-line flip in `sync.go:103` `Customers(1,100000)` → `RecentCustomersForOutlet(ctx, sc.OutletID, 90, 1000)` is deployed after the user confirmed the fleet updated. The sync bootstrap now sends the bounded per-outlet recent set — the heavy-load win is live.
 
 ## Decisions (locked with user)
 Connectivity varies a lot by outlet → hybrid: on-demand online + bounded offline cache. Cache = **per-outlet recent customers, 90 days / cap 1000**. Offline-miss duplicates = **accept + flag** (never auto-prevent); the merge tool is a deferred **SP-CRM-Merge** sprint (backoffice approval review queue, human-in-the-loop, never auto-merge). Rollout = APK first → confirm fleet → backend flip.
@@ -67,10 +64,10 @@ go-reviewer: dup-flag wasn't idempotent (replay would double-insert) → unique 
 ## ✅ Verification — DONE (12/12 on rev 00050-2h5)
 9 backend DB checks via a tx-rolled-back pgx throwaway (one-time DATABASE_URL): mig-0027 table + all 3 indexes exist; `RecentCustomersForOutlet` returns a bounded 11-row set for a real outlet; dup-detection SELECT finds the same-phone customer, first candidate insert writes 1, **replay is idempotent (0)** — all rolled back, no live data touched. 3 authed checks (SEED_ADMIN_PASSWORD): `/sync/customers/lookup` 401 without token, returns ≤3 with token. Admin login email = `admin@mandalika.test`.
 
-## ▶️ PENDING (rule 6 — honest gaps)
-- **APK BUILT** (Actions run #43, artifact `mandalika-pos-release-apk`, 13.7MB, success — carries SP-CRM-3 POS lookup + F14). PENDING: install + on-device check (online search finds non-cached customers; offline falls back to cache; create still works offline), then fleet rollout.
-- **Phase 2 cutover NOT deployed** — gated on fleet update (Task D1). The bulk sync stays until then (by design). Can't be fully verified until the fleet runs the new APK.
-- The POS dup-detection Go glue wasn't exercised over HTTP (the exact SQL it runs + idempotency WAS verified via the pgx tx test); it'll fire for real when an offline-miss duplicate customer is created on a device.
+## ✅ Fully shipped + honest gaps (rule 6)
+- **APK built + fleet updated** (run #43, `mandalika-pos-release-apk`); **Phase-2 cutover deployed** (rev `00051-qgs`) — sync now sends the bounded per-outlet set. SP-CRM-3 complete.
+- **Not exercised over HTTP from here** (verified by construction + on the live DB instead): `/sync/pull` is cashier-outlet-scoped and the seed admin has no outlet (→403), so the `sync.Pull → RecentCustomersForOutlet` path wasn't hit over HTTP this session. It's a verified one-line swap to a pgx-proven bounded read; the definitive proof is a POS device resync (the fleet now does this). On the ~11-row test DB the payload-shrink isn't observable anyway — it only shows at production scale.
+- The POS dup-detection Go glue wasn't exercised over HTTP (the exact SQL it runs + idempotency WAS proven via the pgx tx test); it fires for real when an offline-miss duplicate customer is created on a device.
 
 ---
 
