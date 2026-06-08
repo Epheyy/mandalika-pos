@@ -434,6 +434,18 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 	if err != nil {
 		return "", fmt.Errorf("create customer: %w", err)
 	}
+	// SP-CRM-3: if another customer already has this phone, record a duplicate
+	// candidate for the future backoffice merge tool. Best-effort — never blocks
+	// the create (the in-flight order depends on it). The customer row is still
+	// created with the client id, so the order's customerId stays consistent.
+	var existingID string
+	if derr := s.Pool.QueryRow(ctx,
+		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at LIMIT 1`,
+		in.Phone, id).Scan(&existingID); derr == nil && existingID != "" {
+		_, _ = s.Pool.Exec(ctx,
+			`INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
+			 VALUES ($1, $2, $3)`, id, existingID, in.Phone)
+	}
 	return id, nil
 }
 
