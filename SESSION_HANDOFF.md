@@ -4,44 +4,64 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# 📋 COPY-READY: start SP-CRM-4 (Manual Tags) in a fresh session
+# 📋 COPY-READY: start SP-CRM-5 (Configurable Segment Engine) in a fresh session
 
 Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
 
 ```
-continue Mandalika POS / next = SP-CRM-4 (Manual Tags), the 4th slice of the Customers→CRM module. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-3) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-4 before any code.
+continue Mandalika POS / next = SP-CRM-5 (Configurable Segment Engine), the 5th slice of the Customers→CRM module. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-4) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-5 before any code.
 
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
-✅ SP-CRM-3 FULLY DONE (both gates resolved 2026-06-08): APK built (Actions run #43, artifact `mandalika-pos-release-apk`) + fleet updated; Phase-2 cutover DEPLOYED (rev 00051-qgs) — the sync bootstrap now sends the bounded per-outlet recent set, not the 100k bulk. F14 (single-unit no-variant-label) rode the same APK → resolved. (To rebuild the APK later: dispatch `android-release.yml` via the Actions UI, or REST `POST /actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` — gh CLI is not installed locally; the git credential-manager token works for the REST call.)
-
 PROJECT STATE (as of 2026-06-08):
-- Branch `prod-hardening`. Backend Cloud Run rev 00051-qgs (migrations →0027, next slot = 0028). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
-- DONE & deployed: Inventory, Recipe/Formula, "Inventori" restructure, Movement Summary, pagination, Import/Export, single-unit products, self-describing exports; **SP-CRM-1 (customer hub)**; **SP-CRM-2 (scale foundation)**; **SP-CRM-3 Phase 1 (POS on-demand lookup code + dup-flag mig 0027 + bounded read built)** — backend deployed; APK + Phase-2 cutover GATED (see above). Commits through 76e04de.
+- Branch `prod-hardening`. Backend Cloud Run rev 00052-8wv (migrations →0028, next slot = 0029). Backoffice auto-deploys via Cloudflare on push to this branch; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch). Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
+- DONE & deployed: Inventory, Recipe/Formula, "Inventori" restructure, Movement Summary, pagination, Import/Export, single-unit products, self-describing exports; **SP-CRM-1 (customer hub)**; **SP-CRM-2 (scale foundation)**; **SP-CRM-3 (POS on-demand attach + bounded per-outlet sync; APK shipped + fleet updated)**; **SP-CRM-4 (manual tags: mig 0028 tags+customer_tags, CRUD, set-assignment, detail chips + list filter + manager)**. Commits through 6c943d6.
 
-THE CRM MODULE (in progress) — SP-CRM-1, SP-CRM-2 DONE; SP-CRM-3 Phase-1 DONE (APK/cutover gated); remaining (each own spec→plan→build):
-- SP-CRM-4 — Manual tags (NEXT, already brainstormed): managed `tags` table + `customer_tags` join (migration 0028), name+color (preset palette), assign on the detail hub (slot into the reserved "Tag & Segmen — segera" placeholder in `screens/customers/CustomerDetail.tsx`), colored chips on list rows, single-tag server-side filter (compose with the existing q+sort+pagination), tag manager (mirror the ingredient CategoryManager). Assignment via `PUT /customers/{id}/tags {tagIds:[]}` (set-the-whole-set). Backoffice-only, gated `manage_customers`. Emitting `tags` on Customer flows into the POS sync payload (additive — decide keep vs exclude).
-- SP-CRM-5 — Configurable segment engine: RFM-style, each segment = optional min/max on Recency/Frequency/Monetary, ordered, first-match-wins, catch-all; add/remove/reorder + editable names+colors; rules STORED + runtime-configurable (NOT hardcoded); computed read-time; filterable. Example tuning: Baru/Juara/Setia/Berisiko/Hilang/Biasa.
-- SP-CRM-6 — Lifecycle + interaction log (dated timeline; birthday/anniversary reminders; wire the existing loyalty birthday/anniversary triggers to fire). SP-CRM-7 — Points ledger & manual adjustment (riskiest, last).
+THE CRM MODULE (in progress) — SP-CRM-1..4 DONE; remaining (each own spec→plan→build):
+- SP-CRM-5 — Configurable segment engine (NEXT): RFM-style; each segment = optional min/max on Recency (days since last visit) / Frequency (visitCount) / Monetary (totalSpent), ordered, first-match-wins, with a catch-all; add/remove/reorder + editable names+colors; rules STORED + runtime-configurable (NOT hardcoded — user was explicit); computed read-time (NO storage on customers — derived from existing fields); filterable like tags. Example tuning the user gave: Baru/Juara/Setia/Berisiko/Hilang/Biasa. KEY IMPL NOTE: segment is a fn of (totalSpent, visitCount, lastVisit); to filter+paginate server-side the segment rule must be computable in SQL (or compute the segment in SQL via the stored rules). Goes in the reserved "Segmen" slot on the detail hub (SP-CRM-4 only filled the "Tag" half). Backoffice-only.
+- SP-CRM-6 — Lifecycle + interaction log (dated timeline; birthday/anniversary reminders; wire the existing loyalty birthday/anniversary triggers to fire). SP-CRM-7 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
 - SP-CRM-Merge — backoffice approval review queue for the `customer_dup_candidates` flagged by SP-CRM-3 (staff confirm/dismiss each pair side-by-side; merge re-points orders, recomputes aggregates, tombstones the dup). NEVER auto-merge. Deferred.
-MODULE-WIDE LOCKED: backoffice now / POS later (data model additive-nullable, POS-ready); customer detail = full-page IN-SCREEN VIEW SWAP (no router in the backoffice); phone uniqueness = soft warn (server-side via /customers/by-phone), no DB constraint; phone NORMALIZATION deferred; list pagination stays OFFSET + exact count.
+MODULE-WIDE LOCKED: backoffice now / POS later (data model additive-nullable, POS-ready); customer detail = full-page IN-SCREEN VIEW SWAP (no router in the backoffice); phone uniqueness = soft warn (server-side via /customers/by-phone), no DB constraint; phone NORMALIZATION deferred; list pagination stays OFFSET + exact count; tags hydrate BACKOFFICE-ONLY (shared customerObj stays tag-free so the POS sync/lookup/by-phone stay lean) — apply the same lean-sync discipline to segments.
 
-CURRENT CUSTOMERS MODULE (post SP-CRM-3 Phase 1):
-- Backoffice `apps/backoffice/src/screens/Customers.tsx` — list (server pagination + debounced search + sort toggle Belanja/Terbaru) + Loyalitas tab; row click → `screens/customers/CustomerDetail.tsx` (full-page hub, reserved Tag/Ledger/Timeline placeholders). `phone.ts` deleted.
-- POS `apps/pos/src/cashier/CashierScreen.tsx` — the cashier picker now merges on-demand `api.lookupCustomers(q)` results (online, debounced, ignore-guard) with the local cache; offline → cache only; offline `customer_create` unchanged. (Reaches devices only after the APK build.)
-- Customer model: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt }.
-- TS client: api.listCustomers(page,limit,q,sort), getCustomer(id), getCustomersByPhone(phone), lookupCustomers(q,limit), create/update/deleteCustomer.
-- Backend customers: pg_trgm GIN (name/phone/email) + sort indexes [mig 0026]; `customer_dup_candidates` table + `idx_orders_outlet_created` [mig 0027]; `RecentCustomersForOutlet(outletID,days,limit)` read BUILT but UNWIRED (Phase-2 flip pending). Endpoints: `GET /customers?q=&sort=`, `GET /customers/by-phone?phone=`, `GET /sync/customers/lookup?q=&limit=`. Dup-detection on the POS `customer_create` path records a `customer_dup_candidates` row (best-effort, idempotent) when a phone collides.
+CURRENT CUSTOMERS MODULE (post SP-CRM-4):
+- Backoffice `screens/Customers.tsx` — list (server pagination + debounced search + sort toggle + TAG filter dropdown) + Loyalitas tab; colored tag chips on rows; row click → `screens/customers/CustomerDetail.tsx` (full-page hub: profile, stats, purchase history, TAG section with assign + "Kelola" manager modal, reserved "Poin (ledger) & Timeline — segera" placeholder). Tag UI: `screens/customers/{TagManager.tsx, tagColors.ts}`.
+- POS `apps/pos/src/cashier/CashierScreen.tsx` — cashier picker merges on-demand lookup + local cache (SP-CRM-3).
+- Customer model: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt, tags? } (tags only on backoffice list+detail reads).
+- TS client: listCustomers(page,limit,q,sort,tagId), getCustomer, getCustomersByPhone, lookupCustomers, create/update/deleteCustomer, listTags, createTag→{id}, updateTag, deleteTag, setCustomerTags(id,tagIds).
+- Backend customers: pg_trgm GIN + sort indexes [0026]; customer_dup_candidates [0027]; `tags`+`customer_tags` [0028]. `customerObjWithTags` (backoffice list+detail only) vs shared tag-free `customerObj` (sync/lookup/by-phone). Endpoints: `GET/POST /tags`, `PUT/DELETE /tags/{id}`, `PUT /customers/{id}/tags`, `GET /customers?q=&sort=&tagId=`, `GET /customers/by-phone`, `GET /sync/customers/lookup`. `RecentCustomersForOutlet` IS wired into the sync bootstrap (SP-CRM-3 Phase 2 cutover done).
 
-PROCESS: brainstorm → spec → plan → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (one-time user OK for SEED_ADMIN_PASSWORD; never print). For DB-level checks (pgx throwaway, tx-rollback) needs one-time DATABASE_URL OK. NOTE: deployed admin login email is admin@mandalika.test (NOT .local).
+PROCESS: brainstorm → spec → plan → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (one-time user OK for SEED_ADMIN_PASSWORD; never print). DB-level checks via a pgx throwaway with a tx that ROLLS BACK (one-time DATABASE_URL OK). NOTE: deployed admin login email is admin@mandalika.test (NOT .local).
 
 GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle transient (retry warm); on a tethered/mobile connection git pushes drop ("Connection was reset") — just retry, work isn't lost.
 ```
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-08 (SP-CRM-3 Phase 1: POS On-Demand Customer Attach) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-08 (SP-CRM-4: Manual Tags) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Backoffice-only (no APK). Backend **rev `00052-8wv`** (migration **0028** applied; `/readyz` ok). Commits `a61361d`(spec)→`6c943d6`. Built brainstorm→spec→plan→subagent-driven (go-reviewer + typescript-reviewer per batch). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-08-crm-sp4-manual-tags*`.
+
+## What shipped
+Managed customer tags (colored labels staff apply to customers, organize + filter the base).
+- **Migration 0028:** `tags (id, name UNIQUE, color, sort_order, created_at)` + `customer_tags` join (composite PK, both FKs ON DELETE CASCADE) + `idx_customer_tags_tag`.
+- **Backend:** tag CRUD (`write/tag.go`, mirrors ingredient-category; preset color palette amber/blue/green/red/purple/gray/pink/teal validated on write; 23505→friendly dup-name); `SetCustomerTags(id, tagIds)` (tx: verify customer → DELETE → bulk INSERT ON CONFLICT DO NOTHING). **Tag hydration is BACKOFFICE-ONLY:** a new `customerObjWithTags` (correlated tags sub-select) is used ONLY by the `Customers` list + `Customer` detail reads; the shared `customerObj` is byte-unchanged so `CustomerByPhone`/`CustomerLookup`/`RecentCustomersForOutlet` (POS sync) stay tag-free. `Customers(...,tagId)` adds an EXISTS tag filter composing with q+sort+pagination. `tags` is an OPTIONAL field on `Customer`.
+- **Endpoints** (gated `manage_customers`): `GET/POST /tags`, `PUT/DELETE /tags/{id}`, `PUT /customers/{id}/tags`. `tagId` query param on `listCustomers`.
+- **TS client:** `listTags`, `createTag`→`{id}`, `updateTag`→void, `deleteTag`, `setCustomerTags(id,tagIds)`, `listCustomers(...,tagId)`.
+- **Backoffice:** `screens/customers/tagColors.ts` (palette→chip classes), `TagManager.tsx` (create/rename/recolor/delete), CustomerDetail tag section (chips + assign/unassign + "Kelola" modal → set-the-whole-set), Customers list tag-filter dropdown + colored row chips (3 + "+N") + a `Tag` export column. (The "Segmen" half of the old placeholder is gone — segments are SP-CRM-5.)
+
+## Review-caught (all fixed + re-verified)
+go-reviewer: redundant local `setCustomerTagsBody` → use generated `api.SetCustomerTagsInput`; hardcoded `$4` → `fmt.Sprintf("$%d",len(args))`; documented the `customerObjWithTags` unaliased-FROM constraint + the SetCustomerTags FK assumption (`914fa62`). Client self-caught: `createTag`/`updateTag` typed `Promise<Tag>` but the server returns `{data:{id}}`/`{ok}` → corrected to `Promise<{id}>`/`Promise<void>` (`9ae8434`). typescript-reviewer: `ColorPicker` defined in render body (remount bug) → lifted to module scope; **rapid tag-toggle race that silently dropped changes** → `tagBusy` in-flight guard + disabled chips; palette `Record<TagColor,string>`; hoisted `cTags` (`6c943d6`).
+
+## ✅ Authed live verification — DONE (16/16 on rev 00052-8wv)
+tag create + **dup-name 400 + invalid-color 400**; rename+recolor persists; `setCustomerTags` assign → `GET /customers/{id}` includes the tag; **`?tagId` returns ONLY tagged customers**; clear → empty; **regression: `/sync/customers/lookup` + `/customers/by-phone` customers have NO `tags` field** (lean-sync invariant holds); delete tag → gone (cascade). Test tag + assignment cleaned up. Admin login email = `admin@mandalika.test`.
+
+## ▶️ USER-PENDING — visual walkthrough
+Hard-refresh `mandalika-pos.pages.dev` → Pelanggan: tag filter dropdown narrows the list; colored chips on rows; open a customer → Tag section assign/unassign chips + "Kelola" manager (create/rename/recolor/delete); the Tag export column.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-08 (SP-CRM-3 Phase 1: POS On-Demand Customer Attach)
 
 Branch `prod-hardening`. First **POS-touching** CRM sprint. Backend **rev `00050-2h5`** (migration **0027** applied; `/readyz` ok). Commits `932b04c`(spec)→`76e04de`. Built brainstorm→spec→plan→subagent-driven (go-reviewer + typescript-reviewer per batch). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-07-crm-sp3-pos-ondemand-customer-attach*`.
 
