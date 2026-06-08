@@ -54,6 +54,8 @@ export type RecipeIngredientLine = S['RecipeIngredientLine']
 export type RecipeVersionSummary = S['RecipeVersionSummary']
 export type RecipeSaveInput = S['RecipeSaveInput']
 export type RecipeRestoreInput = S['RecipeRestoreInput']
+export type Tag = S['Tag']
+export type TagInput = S['TagInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -144,13 +146,20 @@ export interface Api {
   listBundles: () => Promise<Bundle[]>
 
   // customers
-  listCustomers: (page?: number, limit?: number, q?: string, sort?: string) => Promise<ListResult<Customer>>
+  listCustomers: (page?: number, limit?: number, q?: string, sort?: string, tagId?: string) => Promise<ListResult<Customer>>
   getCustomer: (id: string) => Promise<Customer>
   getCustomersByPhone: (phone: string) => Promise<Customer[]>
   lookupCustomers: (q: string, limit?: number) => Promise<Customer[]>
   createCustomer: (input: CustomerInput) => Promise<Customer>
   updateCustomer: (id: string, input: CustomerInput) => Promise<Customer>
   deleteCustomer: (id: string) => Promise<void>
+
+  // tags (SP-CRM-4)
+  listTags: () => Promise<Tag[]>
+  createTag: (input: TagInput) => Promise<Tag>
+  updateTag: (id: string, input: TagInput) => Promise<Tag>
+  deleteTag: (id: string) => Promise<void>
+  setCustomerTags: (id: string, tagIds: string[]) => Promise<void>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -388,12 +397,13 @@ export function createClient(opts: ClientOptions): Api {
     },
     listBundles: () => data<Bundle[]>('GET', `${API}/bundles`),
 
-    listCustomers: (page = 1, limit = 50, q = '', sort = '') =>
+    listCustomers: (page = 1, limit = 50, q = '', sort = '', tagId = '') =>
       list<Customer>(`${API}/customers`, {
         page,
         limit,
         ...(q ? { q } : {}),
         ...(sort ? { sort } : {}),
+        ...(tagId ? { tagId } : {}),
       }),
     getCustomer: (id) => data<Customer>('GET', `${API}/customers/${id}`),
     getCustomersByPhone: (phone) =>
@@ -405,6 +415,13 @@ export function createClient(opts: ClientOptions): Api {
     deleteCustomer: async (id) => {
       await request('DELETE', `${API}/customers/${id}`)
     },
+
+    listTags: () => list<Tag>(`${API}/tags`).then((r) => r.data),
+    createTag: (input) => data<Tag>('POST', `${API}/tags`, input),
+    updateTag: (id, input) => data<Tag>('PUT', `${API}/tags/${id}`, input),
+    deleteTag: (id) => request<void>('DELETE', `${API}/tags/${id}`),
+    setCustomerTags: (id, tagIds) =>
+      request<void>('PUT', `${API}/customers/${id}/tags`, { tagIds }),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>

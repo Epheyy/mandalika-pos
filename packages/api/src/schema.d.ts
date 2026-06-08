@@ -625,6 +625,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTags"];
+        put?: never;
+        post: operations["createTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tags/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateTag"];
+        post?: never;
+        delete: operations["deleteTag"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setCustomerTags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/ingredient-goods-receipt": {
         parameters: {
             query?: never;
@@ -1790,6 +1838,26 @@ export interface components {
         IngredientCategoryListResponse: {
             data: components["schemas"]["IngredientCategory"][];
         };
+        Tag: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+            sortOrder?: number | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        TagInput: {
+            name: string;
+            color: string;
+            sortOrder?: number | null;
+        };
+        TagListResponse: {
+            data: components["schemas"]["Tag"][];
+        };
+        SetCustomerTagsInput: {
+            tagIds: string[];
+        };
         IngredientUsageVariant: {
             productName: string;
             variantSize: string;
@@ -2098,6 +2166,7 @@ export interface components {
             notes?: string | null;
             /** Format: date-time */
             createdAt: string;
+            tags?: components["schemas"]["Tag"][] | null;
         };
         CustomerListResponse: {
             data: components["schemas"]["Customer"][];
@@ -3365,6 +3434,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 q?: string;
                 sort?: string;
+                tagId?: string;
             };
             header?: never;
             path?: never;
@@ -4134,6 +4204,116 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagListResponse"];
+                };
+            };
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setCustomerTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCustomerTagsInput"];
+            };
+        };
         responses: {
             /** @description ok */
             200: {
