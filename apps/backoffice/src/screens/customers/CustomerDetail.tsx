@@ -42,17 +42,21 @@ export default function CustomerDetail({
   const tagsQ = usePolledQuery<TagType[]>(() => api.listTags(), [])
   const allTags = tagsQ.data ?? []
   const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [tagBusy, setTagBusy] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const c = cq.data
 
   const toggleTag = async (tagId: string) => {
-    if (!c) return
+    if (!c || tagBusy) return
+    setTagBusy(true)
     const current = (c.tags ?? []).map((t) => t.id)
     const next = current.includes(tagId) ? current.filter((x) => x !== tagId) : [...current, tagId]
     try {
       await api.setCustomerTags(c.id, next)
       await cq.refetch()
-    } catch { /* surfaced on next load; non-blocking */ }
+    } catch { /* surfaced on next load; non-blocking */ } finally {
+      setTagBusy(false)
+    }
   }
 
   if (cq.loading && !c) {
@@ -78,6 +82,7 @@ export default function CustomerDetail({
 
   const t = tier(c.totalSpent)
   const orders = oq.data ?? []
+  const cTags = c.tags ?? []
 
   return (
     <div className="p-6 space-y-5">
@@ -122,15 +127,15 @@ export default function CustomerDetail({
               <button type="button" className="text-xs font-bold text-gold-600 hover:text-gold-700" onClick={() => setTagModalOpen(true)}>Kelola</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {(c.tags ?? []).map((t) => (
+              {cTags.map((t) => (
                 <span key={t.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${tagChipClasses(t.color)}`}>
                   {t.name}
-                  <button type="button" aria-label={`Lepas ${t.name}`} onClick={() => void toggleTag(t.id)} className="hover:opacity-70">×</button>
+                  <button type="button" aria-label={`Lepas ${t.name}`} disabled={tagBusy} onClick={() => void toggleTag(t.id)} className="hover:opacity-70 disabled:opacity-40">×</button>
                 </span>
               ))}
-              {allTags.filter((t) => !(c.tags ?? []).some((ct) => ct.id === t.id)).map((t) => (
-                <button key={t.id} type="button" onClick={() => void toggleTag(t.id)}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-dashed ${tagChipClasses(t.color)} opacity-50 hover:opacity-100`}>
+              {allTags.filter((t) => !cTags.some((ct) => ct.id === t.id)).map((t) => (
+                <button key={t.id} type="button" disabled={tagBusy} onClick={() => void toggleTag(t.id)}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-dashed ${tagChipClasses(t.color)} opacity-50 hover:opacity-100 disabled:opacity-30`}>
                   + {t.name}
                 </button>
               ))}

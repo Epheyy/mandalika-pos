@@ -10,17 +10,8 @@ interface TagManagerProps {
   onChange: () => void // refetch tags after any mutation
 }
 
-export function TagManager({ tags, onChange }: TagManagerProps) {
-  const [name, setName] = useState('')
-  const [color, setColor] = useState<string>('amber')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editColor, setEditColor] = useState('amber')
-  const [confirmDelete, setConfirmDelete] = useState<Tag | null>(null)
-
-  const ColorPicker = ({ value, onPick }: { value: string; onPick: (c: string) => void }) => (
+function ColorPicker({ value, onPick }: { value: string; onPick: (c: string) => void }) {
+  return (
     <div className="flex gap-1 flex-wrap">
       {TAG_COLORS.map((c) => (
         <button
@@ -33,6 +24,17 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
       ))}
     </div>
   )
+}
+
+export function TagManager({ tags, onChange }: TagManagerProps) {
+  const [name, setName] = useState('')
+  const [color, setColor] = useState<string>('amber')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editColor, setEditColor] = useState('amber')
+  const [confirmDelete, setConfirmDelete] = useState<Tag | null>(null)
 
   const create = async () => {
     if (!name.trim()) { setErr('Nama tag wajib'); return }

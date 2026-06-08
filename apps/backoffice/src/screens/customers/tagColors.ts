@@ -3,7 +3,7 @@
 export const TAG_COLORS = ['amber', 'blue', 'green', 'red', 'purple', 'gray', 'pink', 'teal'] as const
 export type TagColor = (typeof TAG_COLORS)[number]
 
-const CLASSES: Record<string, string> = {
+const CLASSES: Record<TagColor, string> = {
   amber: 'bg-amber-100 text-amber-800 border-amber-200',
   blue: 'bg-blue-100 text-blue-800 border-blue-200',
   green: 'bg-green-100 text-green-800 border-green-200',
@@ -16,5 +16,5 @@ const CLASSES: Record<string, string> = {
 
 /** Chip classes for a color token; falls back to gray for unknown tokens. */
 export function tagChipClasses(color: string): string {
-  return CLASSES[color] ?? CLASSES.gray
+  return CLASSES[color as TagColor] ?? CLASSES.gray
 }
