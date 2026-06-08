@@ -359,6 +359,52 @@ components:
       required: [tagIds]
       properties:
         tagIds: { type: array, items: { type: string } }
+    Segment:
+      type: object
+      required: [id, name, color, sortOrder, isActive, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
+        sortOrder: { type: integer }
+        rMin: { type: integer, nullable: true }
+        rMax: { type: integer, nullable: true }
+        fMin: { type: integer, nullable: true }
+        fMax: { type: integer, nullable: true }
+        mMin: { type: number, nullable: true }
+        mMax: { type: number, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    SegmentInput:
+      type: object
+      required: [name, color]
+      properties:
+        name: { type: string }
+        color: { type: string }
+        rMin: { type: integer, nullable: true }
+        rMax: { type: integer, nullable: true }
+        fMin: { type: integer, nullable: true }
+        fMax: { type: integer, nullable: true }
+        mMin: { type: number, nullable: true }
+        mMax: { type: number, nullable: true }
+        isActive: { type: boolean, nullable: true }
+    SegmentListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Segment' } }
+    ReorderSegmentsInput:
+      type: object
+      required: [orderedIds]
+      properties:
+        orderedIds: { type: array, items: { type: string } }
+    CustomerSegment:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
     IngredientUsageVariant:
       type: object
       required: [productName, variantSize]
@@ -711,6 +757,7 @@ components:
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         tags: { type: array, items: { $ref: '#/components/schemas/Tag' }, nullable: true }
+        segment: { allOf: [ { $ref: '#/components/schemas/CustomerSegment' } ], nullable: true }
     CustomerListResponse:
       type: object
       required: [data]
@@ -1906,6 +1953,7 @@ paths:
           schema: { type: string }
         - { in: query, name: sort, schema: { type: string } }
         - { in: query, name: tagId, schema: { type: string } }
+        - { in: query, name: segmentId, schema: { type: string } }
       responses:
         '200':
           description: customers
@@ -2376,6 +2424,53 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/SetCustomerTagsInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/segments:
+    get:
+      operationId: listSegments
+      tags: [customers]
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SegmentListResponse' }
+    post:
+      operationId: createSegment
+      tags: [customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SegmentInput' }
+      responses: { '201': { description: created } }
+  /api/v1/segments/reorder:
+    put:
+      operationId: reorderSegments
+      tags: [customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderSegmentsInput' }
+      responses: { '200': { description: ok } }
+  /api/v1/segments/{id}:
+    put:
+      operationId: updateSegment
+      tags: [customers]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SegmentInput' }
+      responses: { '200': { description: ok } }
+    delete:
+      operationId: deleteSegment
+      tags: [customers]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
   /api/v1/inventory/ingredient-goods-receipt:
     post:

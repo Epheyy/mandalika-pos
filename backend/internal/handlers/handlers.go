@@ -250,7 +250,8 @@ func (h *Handlers) Customers(w http.ResponseWriter, r *http.Request) {
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
 		sort := r.URL.Query().Get("sort")
 		tagId := r.URL.Query().Get("tagId")
-		rows, total, err := h.Repo.Customers(r.Context(), p, l, q, sort, tagId)
+		segmentId := r.URL.Query().Get("segmentId")
+		rows, total, err := h.Repo.Customers(r.Context(), p, l, q, sort, tagId, segmentId)
 		if err != nil {
 			return nil, 500, err
 		}

@@ -519,6 +519,46 @@ func (h *Handlers) SetCustomerTags(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.SetCustomerTags(r.Context(), chi.URLParam(r, "id"), in.TagIds))
 }
 
+// ── Customer segments ──────────────────────────────────────
+
+func (h *Handlers) Segments(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.Segments(r.Context())
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.SegmentListResponse{Data: rows})
+}
+
+func (h *Handlers) CreateSegment(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Segment](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateSegment(r.Context(), in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateSegment(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Segment](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateSegment(r.Context(), chi.URLParam(r, "id"), in))
+}
+
+func (h *Handlers) DeleteSegment(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteSegment(r.Context(), chi.URLParam(r, "id")))
+}
+
+func (h *Handlers) ReorderSegments(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[api.ReorderSegmentsInput](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.ReorderSegments(r.Context(), in.OrderedIds))
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {

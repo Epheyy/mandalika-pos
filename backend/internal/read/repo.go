@@ -636,10 +636,30 @@ func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.Ingredi
 
 // ── Customers ─────────────────────────────────────────────
 
+// segmentMatch: the RFM rule predicate. Correlates via BARE columns (last_visit,
+// visit_count, total_spent) NOT customers.<col> — because customerObj is also used
+// by RecentCustomersForOutlet which aliases `customers c`. Bare cols resolve to the
+// outer customers row whatever its alias.
+const segmentMatch = `s.is_active
+  AND (s.r_min IS NULL OR (last_visit IS NOT NULL AND (now()::date - last_visit::date) >= s.r_min))
+  AND (s.r_max IS NULL OR (last_visit IS NOT NULL AND (now()::date - last_visit::date) <= s.r_max))
+  AND (s.f_min IS NULL OR visit_count >= s.f_min)
+  AND (s.f_max IS NULL OR visit_count <= s.f_max)
+  AND (s.m_min IS NULL OR total_spent >= s.m_min)
+  AND (s.m_max IS NULL OR total_spent <= s.m_max)`
+
+// segmentSel: the computed segment object (or NULL when no rule matches).
+const segmentSel = `(SELECT json_build_object('id',s.id,'name',s.name,'color',s.color)
+  FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order LIMIT 1)`
+
+// segmentIdSel: just the matched segment id (for the list filter).
+const segmentIdSel = `(SELECT s.id FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order LIMIT 1)`
+
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
-  'notes',notes,'createdAt',created_at)`
+  'notes',notes,'createdAt',created_at,
+  'segment', ` + segmentSel + `)`
 
 // customerObjWithTags = customerObj + the customer's tags. Used ONLY by the
 // backoffice list + detail reads; the shared customerObj stays tag-free so the
@@ -653,11 +673,12 @@ const customerObjWithTags = `json_build_object('id',id,'name',name,'phone',phone
   'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
   'notes',notes,'createdAt',created_at,
+  'segment', ` + segmentSel + `,
   'tags', COALESCE((SELECT json_agg(json_build_object('id',t.id,'name',t.name,'color',t.color) ORDER BY t.name)
                     FROM customer_tags ct JOIN tags t ON t.id = ct.tag_id
                     WHERE ct.customer_id = customers.id), '[]'::json))`
 
-func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId string) ([]api.Customer, int, error) {
+func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, segmentId string) ([]api.Customer, int, error) {
 	// `order` is a fixed internal string (never user input) — safe to concatenate.
 	order := `ORDER BY total_spent DESC, created_at DESC`
 	if sort == "terbaru" {
@@ -670,10 +691,15 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId st
 		tagFilter = fmt.Sprintf(` AND EXISTS (SELECT 1 FROM customer_tags ct
 			WHERE ct.customer_id = customers.id AND ct.tag_id = $%d::uuid)`, len(args))
 	}
+	segFilter := ""
+	if segmentId != "" {
+		args = append(args, segmentId)
+		segFilter = fmt.Sprintf(` AND `+segmentIdSel+` = $%d::uuid`, len(args))
+	}
 	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
 		   FROM customers
 		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')` +
-		tagFilter + `
+		tagFilter + segFilter + `
 		  ` + order + `
 		  OFFSET $1 LIMIT $2`
 	return listJSON[api.Customer](ctx, r.Pool, sql, args...)
@@ -740,6 +766,16 @@ func (r *Repo) Tags(ctx context.Context) ([]api.Tag, error) {
 		'sortOrder',sort_order,'createdAt',created_at)
 		FROM tags ORDER BY sort_order NULLS LAST, name ASC`
 	rows, _, err := listJSON[api.Tag](ctx, r.Pool, sql)
+	return rows, err
+}
+
+// Segments lists all segment rules ordered by priority.
+func (r *Repo) Segments(ctx context.Context) ([]api.Segment, error) {
+	const sql = `SELECT json_build_object('id',id,'name',name,'color',color,
+		'sortOrder',sort_order,'rMin',r_min,'rMax',r_max,'fMin',f_min,'fMax',f_max,
+		'mMin',m_min,'mMax',m_max,'isActive',is_active,'createdAt',created_at)
+		FROM customer_segments ORDER BY sort_order`
+	rows, _, err := listJSON[api.Segment](ctx, r.Pool, sql)
 	return rows, err
 }
 

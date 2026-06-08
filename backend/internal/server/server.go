@@ -159,6 +159,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/tags/{id}", h.UpdateTag)
 				r.Delete("/tags/{id}", h.DeleteTag)
 				r.Put("/customers/{id}/tags", h.SetCustomerTags)
+				r.Get("/segments", h.Segments)
+				r.Post("/segments", h.CreateSegment)
+				r.Put("/segments/reorder", h.ReorderSegments)
+				r.Put("/segments/{id}", h.UpdateSegment)
+				r.Delete("/segments/{id}", h.DeleteSegment)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_promotions"))
