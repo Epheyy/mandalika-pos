@@ -18,8 +18,6 @@ import { TagManager } from './TagManager'
 interface CustomerDetailProps {
   customerId: string
   loyaltyEnabled: boolean
-  tierEnabled: boolean
-  tier: (spent: number) => { label: string; color: string }
   onBack: () => void
   onEdit: (c: Customer) => void
   onDelete: (id: string) => void
@@ -29,7 +27,7 @@ const fmtDate = (d?: string | null) =>
   d ? format(parseISO(d), 'dd MMM yyyy', { locale: idLocale }) : '—'
 
 export default function CustomerDetail({
-  customerId, loyaltyEnabled, tierEnabled, tier, onBack, onEdit, onDelete,
+  customerId, loyaltyEnabled, onBack, onEdit, onDelete,
 }: CustomerDetailProps) {
   const cq = usePolledQuery<Customer | null>(
     () => api.getCustomer(customerId).catch(() => null),
@@ -80,7 +78,6 @@ export default function CustomerDetail({
     )
   }
 
-  const t = tier(c.totalSpent)
   const orders = oq.data ?? []
   const cTags = c.tags ?? []
 
@@ -97,8 +94,8 @@ export default function CustomerDetail({
           </div>
           <div>
             <h1 className="text-2xl font-black text-gray-900">{c.name}</h1>
-            {tierEnabled && (
-              <span className={`inline-block mt-1 px-2.5 py-1 text-xs font-bold rounded-lg ${t.color}`}>{t.label}</span>
+            {c.segment && (
+              <span className={`inline-block mt-1 px-2.5 py-1 text-xs font-bold rounded-full border ${tagChipClasses(c.segment.color)}`}>{c.segment.name}</span>
             )}
           </div>
         </div>
