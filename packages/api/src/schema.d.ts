@@ -673,6 +673,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listSegments"];
+        put?: never;
+        post: operations["createSegment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/segments/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["reorderSegments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/segments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateSegment"];
+        post?: never;
+        delete: operations["deleteSegment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/ingredient-goods-receipt": {
         parameters: {
             query?: never;
@@ -1858,6 +1906,45 @@ export interface components {
         SetCustomerTagsInput: {
             tagIds: string[];
         };
+        Segment: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+            sortOrder: number;
+            rMin?: number | null;
+            rMax?: number | null;
+            fMin?: number | null;
+            fMax?: number | null;
+            mMin?: number | null;
+            mMax?: number | null;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SegmentInput: {
+            name: string;
+            color: string;
+            rMin?: number | null;
+            rMax?: number | null;
+            fMin?: number | null;
+            fMax?: number | null;
+            mMin?: number | null;
+            mMax?: number | null;
+            isActive?: boolean | null;
+        };
+        SegmentListResponse: {
+            data: components["schemas"]["Segment"][];
+        };
+        ReorderSegmentsInput: {
+            orderedIds: string[];
+        };
+        CustomerSegment: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+        };
         IngredientUsageVariant: {
             productName: string;
             variantSize: string;
@@ -2167,6 +2254,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             tags?: components["schemas"]["Tag"][] | null;
+            segment?: components["schemas"]["CustomerSegment"] | null;
         };
         CustomerListResponse: {
             data: components["schemas"]["Customer"][];
@@ -3435,6 +3523,7 @@ export interface operations {
                 q?: string;
                 sort?: string;
                 tagId?: string;
+                segmentId?: string;
             };
             header?: never;
             path?: never;
@@ -4314,6 +4403,114 @@ export interface operations {
                 "application/json": components["schemas"]["SetCustomerTagsInput"];
             };
         };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSegments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentListResponse"];
+                };
+            };
+        };
+    };
+    createSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reorderSegments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderSegmentsInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description ok */
             200: {

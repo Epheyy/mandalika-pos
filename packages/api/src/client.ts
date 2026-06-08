@@ -56,6 +56,8 @@ export type RecipeSaveInput = S['RecipeSaveInput']
 export type RecipeRestoreInput = S['RecipeRestoreInput']
 export type Tag = S['Tag']
 export type TagInput = S['TagInput']
+export type Segment = S['Segment']
+export type SegmentInput = S['SegmentInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -146,7 +148,7 @@ export interface Api {
   listBundles: () => Promise<Bundle[]>
 
   // customers
-  listCustomers: (page?: number, limit?: number, q?: string, sort?: string, tagId?: string) => Promise<ListResult<Customer>>
+  listCustomers: (page?: number, limit?: number, q?: string, sort?: string, tagId?: string, segmentId?: string) => Promise<ListResult<Customer>>
   getCustomer: (id: string) => Promise<Customer>
   getCustomersByPhone: (phone: string) => Promise<Customer[]>
   lookupCustomers: (q: string, limit?: number) => Promise<Customer[]>
@@ -160,6 +162,13 @@ export interface Api {
   updateTag: (id: string, input: TagInput) => Promise<void>
   deleteTag: (id: string) => Promise<void>
   setCustomerTags: (id: string, tagIds: string[]) => Promise<void>
+
+  // segments (SP-CRM-5a)
+  listSegments: () => Promise<Segment[]>
+  createSegment: (input: SegmentInput) => Promise<{ id: string }>
+  updateSegment: (id: string, input: SegmentInput) => Promise<void>
+  deleteSegment: (id: string) => Promise<void>
+  reorderSegments: (orderedIds: string[]) => Promise<void>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -397,13 +406,14 @@ export function createClient(opts: ClientOptions): Api {
     },
     listBundles: () => data<Bundle[]>('GET', `${API}/bundles`),
 
-    listCustomers: (page = 1, limit = 50, q = '', sort = '', tagId = '') =>
+    listCustomers: (page = 1, limit = 50, q = '', sort = '', tagId = '', segmentId = '') =>
       list<Customer>(`${API}/customers`, {
         page,
         limit,
         ...(q ? { q } : {}),
         ...(sort ? { sort } : {}),
         ...(tagId ? { tagId } : {}),
+        ...(segmentId ? { segmentId } : {}),
       }),
     getCustomer: (id) => data<Customer>('GET', `${API}/customers/${id}`),
     getCustomersByPhone: (phone) =>
@@ -422,6 +432,12 @@ export function createClient(opts: ClientOptions): Api {
     deleteTag: (id) => request<void>('DELETE', `${API}/tags/${id}`),
     setCustomerTags: (id, tagIds) =>
       request<void>('PUT', `${API}/customers/${id}/tags`, { tagIds }),
+
+    listSegments: () => list<Segment>(`${API}/segments`).then((r) => r.data),
+    createSegment: (input) => data<{ id: string }>('POST', `${API}/segments`, input),
+    updateSegment: (id, input) => request<void>('PUT', `${API}/segments/${id}`, input),
+    deleteSegment: (id) => request<void>('DELETE', `${API}/segments/${id}`),
+    reorderSegments: (orderedIds) => request<void>('PUT', `${API}/segments/reorder`, { orderedIds }),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>
