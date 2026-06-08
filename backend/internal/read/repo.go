@@ -641,18 +641,38 @@ const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
   'notes',notes,'createdAt',created_at)`
 
-func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort string) ([]api.Customer, int, error) {
+// customerObjWithTags = customerObj + the customer's tags. Used ONLY by the
+// backoffice list + detail reads; the shared customerObj stays tag-free so the
+// POS sync / lookup / by-phone payloads don't carry tags. Correlates via the
+// unaliased `customers.id` (callers keep `FROM customers` unaliased).
+const customerObjWithTags = `json_build_object('id',id,'name',name,'phone',phone,
+  'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
+  'notes',notes,'createdAt',created_at,
+  'tags', COALESCE((SELECT json_agg(json_build_object('id',t.id,'name',t.name,'color',t.color) ORDER BY t.name)
+                    FROM customer_tags ct JOIN tags t ON t.id = ct.tag_id
+                    WHERE ct.customer_id = customers.id), '[]'::json))`
+
+func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId string) ([]api.Customer, int, error) {
 	// `order` is a fixed internal string (never user input) — safe to concatenate.
 	order := `ORDER BY total_spent DESC, created_at DESC`
 	if sort == "terbaru" {
 		order = `ORDER BY created_at DESC`
 	}
-	sql := `SELECT ` + customerObj + `, count(*) OVER() AS total
+	args := []any{off(page, limit), limit, q} // $1 offset, $2 limit, $3 q
+	tagFilter := ""
+	if tagId != "" {
+		args = append(args, tagId) // $4
+		tagFilter = ` AND EXISTS (SELECT 1 FROM customer_tags ct
+			WHERE ct.customer_id = customers.id AND ct.tag_id = $4::uuid)`
+	}
+	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
 		   FROM customers
-		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')` +
+		tagFilter + `
 		  ` + order + `
 		  OFFSET $1 LIMIT $2`
-	return listJSON[api.Customer](ctx, r.Pool, sql, off(page, limit), limit, q)
+	return listJSON[api.Customer](ctx, r.Pool, sql, args...)
 }
 
 // CustomerByPhone returns 0+ customers with this exact (trimmed) phone — backs
@@ -707,7 +727,16 @@ func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, da
 
 func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {
 	return oneJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+` FROM customers WHERE id=$1`, id)
+		`SELECT `+customerObjWithTags+` FROM customers WHERE id=$1`, id)
+}
+
+// Tags lists all customer tags ordered by sort_order then name.
+func (r *Repo) Tags(ctx context.Context) ([]api.Tag, error) {
+	const sql = `SELECT json_build_object('id',id,'name',name,'color',color,
+		'sortOrder',sort_order,'createdAt',created_at)
+		FROM tags ORDER BY sort_order NULLS LAST, name ASC`
+	rows, _, err := listJSON[api.Tag](ctx, r.Pool, sql)
+	return rows, err
 }
 
 // ── Promotions / loyalty ──────────────────────────────────

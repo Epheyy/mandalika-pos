@@ -479,6 +479,50 @@ func (h *Handlers) DeleteIngredientCategory(w http.ResponseWriter, r *http.Reque
 	h.mutated(w, r, h.Write.DeleteIngredientCategory(r.Context(), chi.URLParam(r, "id")))
 }
 
+// ── Customer tags ──────────────────────────────────────────
+
+func (h *Handlers) Tags(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.Tags(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.TagListResponse{Data: rows})
+}
+
+func (h *Handlers) CreateTag(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Tag](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateTag(r.Context(), in)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateTag(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Tag](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateTag(r.Context(), chi.URLParam(r, "id"), in))
+}
+
+func (h *Handlers) DeleteTag(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteTag(r.Context(), chi.URLParam(r, "id")))
+}
+
+func (h *Handlers) SetCustomerTags(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[setCustomerTagsBody](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.SetCustomerTags(r.Context(), chi.URLParam(r, "id"), in.TagIds))
+}
+
+type setCustomerTagsBody struct {
+	TagIds []string `json:"tagIds"`
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {

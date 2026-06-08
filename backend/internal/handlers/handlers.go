@@ -249,7 +249,8 @@ func (h *Handlers) Customers(w http.ResponseWriter, r *http.Request) {
 		p, l := pageLimit(r)
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
 		sort := r.URL.Query().Get("sort")
-		rows, total, err := h.Repo.Customers(r.Context(), p, l, q, sort)
+		tagId := r.URL.Query().Get("tagId")
+		rows, total, err := h.Repo.Customers(r.Context(), p, l, q, sort, tagId)
 		if err != nil {
 			return nil, 500, err
 		}
