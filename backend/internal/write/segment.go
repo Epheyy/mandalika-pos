@@ -41,6 +41,11 @@ func validateSegment(in Segment) error {
 	if in.MMin != nil && in.MMax != nil && *in.MMin > *in.MMax {
 		return fmt.Errorf("M: minimum melebihi maksimum")
 	}
+	if (in.RMin != nil && *in.RMin < 0) || (in.RMax != nil && *in.RMax < 0) ||
+		(in.FMin != nil && *in.FMin < 0) || (in.FMax != nil && *in.FMax < 0) ||
+		(in.MMin != nil && *in.MMin < 0) || (in.MMax != nil && *in.MMax < 0) {
+		return fmt.Errorf("batas R/F/M tidak boleh negatif")
+	}
 	return nil
 }
 
@@ -99,10 +104,17 @@ func (r *Repo) DeleteSegment(ctx context.Context, id string) error {
 // ReorderSegments sets each segment's sort_order to its index in orderedIds.
 func (r *Repo) ReorderSegments(ctx context.Context, orderedIds []string) error {
 	return r.tx(ctx, "customer_segments", func(t pgx.Tx) error {
+		var total int
+		if err := t.QueryRow(ctx, `SELECT count(*) FROM customer_segments`).Scan(&total); err != nil {
+			return err
+		}
+		if total != len(orderedIds) {
+			return fmt.Errorf("daftar urutan segmen tidak lengkap (%d dari %d)", len(orderedIds), total)
+		}
 		for i, id := range orderedIds {
 			ct, err := t.Exec(ctx, `UPDATE customer_segments SET sort_order=$2 WHERE id=$1`, id, i+1)
 			if err != nil {
-				return err
+				return fmt.Errorf("reorder segment %s: %w", id, err)
 			}
 			if ct.RowsAffected() == 0 {
 				return ErrNotFound

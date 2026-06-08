@@ -650,10 +650,10 @@ const segmentMatch = `s.is_active
 
 // segmentSel: the computed segment object (or NULL when no rule matches).
 const segmentSel = `(SELECT json_build_object('id',s.id,'name',s.name,'color',s.color)
-  FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order LIMIT 1)`
+  FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order, s.created_at LIMIT 1)`
 
 // segmentIdSel: just the matched segment id (for the list filter).
-const segmentIdSel = `(SELECT s.id FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order LIMIT 1)`
+const segmentIdSel = `(SELECT s.id FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order, s.created_at LIMIT 1)`
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
   'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
