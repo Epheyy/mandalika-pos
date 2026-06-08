@@ -38,6 +38,7 @@ import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
+import { api } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
 import logoGold from '../assets/logo-gold.png'
@@ -97,6 +98,29 @@ export default function CashierScreen() {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
   const [localCustomers, setLocalCustomers] = useState<Customer[]>([])
+  // SP-CRM-3: on-demand online lookup. Customers are no longer bulk-synced;
+  // search hits come from the server (online only) and merge with the cache.
+  const [lookupResults, setLookupResults] = useState<Customer[]>([])
+  useEffect(() => {
+    const q = state.customerSearch.trim()
+    if (!offlineData.isOnline || q.length < 2) {
+      setLookupResults([])
+      return
+    }
+    let ignore = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await api.lookupCustomers(q)
+        if (!ignore) setLookupResults(res)
+      } catch {
+        if (!ignore) setLookupResults([])
+      }
+    }, 300)
+    return () => {
+      clearTimeout(t)
+      ignore = true
+    }
+  }, [state.customerSearch, offlineData.isOnline])
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
@@ -171,13 +195,17 @@ export default function CashierScreen() {
   // Customers created on this device this session aren't in the synced
   // snapshot yet (snapshot only refreshes on resync). Merge them in so the
   // cashier can immediately find/select them.
+  // Local session creates first, then the offline cache, then online lookup
+  // hits (online only). Dedup by id; the picker filters/slices this list.
   const snapCustomers = snapshot.customers ?? []
-  const customers = [
-    ...localCustomers.filter(
-      (lc) => !snapCustomers.some((sc) => sc.id === lc.id),
-    ),
-    ...snapCustomers,
-  ]
+  const seenCustomerIds = new Set<string>()
+  const customers: Customer[] = []
+  for (const c of [...localCustomers, ...snapCustomers, ...lookupResults]) {
+    if (!seenCustomerIds.has(c.id)) {
+      seenCustomerIds.add(c.id)
+      customers.push(c)
+    }
+  }
   const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
   const discountCodes = snapshot.discountCodes ?? []
