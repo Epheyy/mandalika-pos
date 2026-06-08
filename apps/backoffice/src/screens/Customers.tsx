@@ -289,15 +289,6 @@ export default function Customers() {
                   {loyaltyForm.enabled ? <ToggleRight className="w-7 h-7 text-gold-600" /> : <ToggleLeft className="w-7 h-7 text-gray-400" />}
                 </button>
               </div>
-              <div className="flex items-center justify-between py-3 border-b border-gray-100">
-                <div>
-                  <p className="font-bold text-gray-900 text-sm">Sistem Tier</p>
-                  <p className="text-xs text-gray-400">Member / Silver / Gold / Platinum</p>
-                </div>
-                <button onClick={() => setLoyaltyForm((f) => ({ ...f, tierEnabled: !f.tierEnabled }))}>
-                  {loyaltyForm.tierEnabled ? <ToggleRight className="w-7 h-7 text-gold-600" /> : <ToggleLeft className="w-7 h-7 text-gray-400" />}
-                </button>
-              </div>
               {loyaltyForm.enabled && (
                 <>
                   <Input
@@ -314,7 +305,7 @@ export default function Customers() {
                   />
                 </>
               )}
-              <p className="text-xs text-gray-400">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'} · tier {loyalty.tierEnabled ? 'ON' : 'OFF'}</p>
+              <p className="text-xs text-gray-400">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'}</p>
               <Button className="w-full" loading={savingLoyalty} onClick={saveLoyalty}>
                 {savingLoyalty ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </Button>
