@@ -156,8 +156,8 @@ export interface Api {
 
   // tags (SP-CRM-4)
   listTags: () => Promise<Tag[]>
-  createTag: (input: TagInput) => Promise<Tag>
-  updateTag: (id: string, input: TagInput) => Promise<Tag>
+  createTag: (input: TagInput) => Promise<{ id: string }>
+  updateTag: (id: string, input: TagInput) => Promise<void>
   deleteTag: (id: string) => Promise<void>
   setCustomerTags: (id: string, tagIds: string[]) => Promise<void>
 
@@ -417,8 +417,8 @@ export function createClient(opts: ClientOptions): Api {
     },
 
     listTags: () => list<Tag>(`${API}/tags`).then((r) => r.data),
-    createTag: (input) => data<Tag>('POST', `${API}/tags`, input),
-    updateTag: (id, input) => data<Tag>('PUT', `${API}/tags/${id}`, input),
+    createTag: (input) => data<{ id: string }>('POST', `${API}/tags`, input),
+    updateTag: (id, input) => request<void>('PUT', `${API}/tags/${id}`, input),
     deleteTag: (id) => request<void>('DELETE', `${API}/tags/${id}`),
     setCustomerTags: (id, tagIds) =>
       request<void>('PUT', `${API}/customers/${id}/tags`, { tagIds }),
