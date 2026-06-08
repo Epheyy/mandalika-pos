@@ -4,41 +4,67 @@ Date: 2026-05-23 · Branch: `prod-hardening` · HEAD: `0ea78ec` · Backend rev *
 
 ---
 
-# 📋 COPY-READY: start SP-CRM-5b (POS segment display + APK) in a fresh session
+# 📋 COPY-READY: start SP-CRM-6 (Lifecycle + Interaction Log) in a fresh session
 
 Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
 
 ```
-continue Mandalika POS / next = SP-CRM-5b (POS cashier shows the segment + retire getCustomerTier + settle tierEnabled), the POS half of the segment work. POS-side + APK. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-5a) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-5b before any code.
+continue Mandalika POS / next = SP-CRM-6 (Lifecycle + Interaction Log), the 6th slice of the Customers→CRM module. Read SESSION_HANDOFF.md (⭐ LATEST SESSION at top, = SP-CRM-5b) + the crm-customers-module + product-module-roadmap memories FIRST, confirm the 6 working rules, then kick off superpowers:brainstorming for SP-CRM-6 before any code.
 
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
+⚠️ TWO SP-CRM-5b TAIL ITEMS — CHECK FIRST (may already be done):
+- (a) PUSH: SP-CRM-5b commits (through `f5e9632`, incl. spec/plan/handoff) may be UNPUSHED — the tethered network was dropping pushes at session end. Run `git push origin prod-hardening`; if it lands, the backoffice "Sistem Tier" removal goes live via Cloudflare.
+- (b) APK NOT built: SP-CRM-5b's POS change (cashier shows `customer.segment` instead of getCustomerTier) reaches devices only via an APK. After the push lands, dispatch `android-release.yml` (Actions UI, or REST `POST /repos/Epheyy/mandalika-pos/actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` with the git credential-manager token — gh CLI not installed). ASK the user before dispatching. Then on-device check (cashier picker shows the segment chip; no tier text).
+
 PROJECT STATE (as of 2026-06-08):
-- Branch `prod-hardening`. Backend Cloud Run rev 00053-ckl (migrations →0029, next slot = 0030). Backoffice auto-deploys via Cloudflare on push; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml (workflow_dispatch — gh CLI NOT installed locally; dispatch via Actions UI or REST with the git credential-manager token). Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
-- DONE & deployed: Inventory, Recipe/Formula, "Inventori" restructure, Movement Summary, pagination, Import/Export, single-unit products, self-describing exports; **SP-CRM-1..4** (customer hub / scale foundation / POS on-demand attach / manual tags); **SP-CRM-5a (configurable segment engine, backend+backoffice: mig 0029 customer_segments+seed 6, server-computed segment on customer reads incl. POS-facing, backoffice tier→segment, filter, manager)**. Commits through a29c284.
+- Branch `prod-hardening`. Backend Cloud Run rev 00053-ckl (migrations →0029, next slot = 0030) — UNCHANGED by 5b (5b is frontend+APK only, no backend). Backoffice auto-deploys via Cloudflare on push; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml. Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
+- DONE: SP-CRM-1..4, SP-CRM-5a (deployed rev 00053-ckl), and **SP-CRM-5b (POS cashier shows customer.segment chip + retired getCustomerTier; backoffice "Sistem Tier" toggle removed; saveLoyalty preserves server tierEnabled)** — code complete + reviewed, commits through `f5e9632`; push + APK = the tail items above.
 
-THE CRM MODULE (in progress) — SP-CRM-1..4 + SP-CRM-5a DONE; remaining (each own spec→plan→build):
-- SP-CRM-5b — POS segment display (NEXT, POS + APK): the segment is ALREADY emitted server-side on the POS-facing reads (`customer.segment` {id,name,color} is on `/sync/customers/lookup` + the sync bootstrap). 5b = swap the cashier `CustomerPicker` from `getCustomerTier(totalSpent)` (`apps/pos/src/cashier/pricing.ts`) to display `customer.segment`; retire `getCustomerTier`; **settle `tierEnabled`** (the loyalty toggle still gates the POS spend-tier + the backoffice Loyalitas "Sistem Tier" toggle — decide: repurpose as segment-display gate, or drop). Then APK build (ask first) + on-device check. No backend change expected (segment already on the reads).
-- SP-CRM-6 — Lifecycle + interaction log (dated timeline; birthday/anniversary reminders; wire the existing loyalty birthday/anniversary triggers to fire). SP-CRM-7 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
-- SP-CRM-Merge — backoffice approval review queue for the `customer_dup_candidates` flagged by SP-CRM-3 (staff confirm/dismiss each pair; merge re-points orders, recomputes aggregates, tombstones the dup). NEVER auto-merge. Deferred.
-MODULE-WIDE LOCKED: backoffice now / POS later (additive-nullable, POS-ready); customer detail = full-page IN-SCREEN VIEW SWAP (no router); phone uniqueness = soft warn, no DB constraint; phone NORMALIZATION deferred; list pagination OFFSET + exact count. LEAN-SYNC: tags hydrate BACKOFFICE-ONLY (shared customerObj stays tag-free); EXCEPTION: `segment` IS on the shared customerObj (one tiny computed field) BY DESIGN so the POS can show it in 5b.
+THE CRM MODULE — SP-CRM-1..5(a+b) DONE; remaining (each own spec→plan→build):
+- SP-CRM-6 — Lifecycle + interaction log (NEXT): a per-customer dated INTERACTION TIMELINE (staff log calls/visits/notes-with-dates beyond the single freeform notes field) + birthday/anniversary REMINDERS (the customer now has birthday/anniversary dates from SP-CRM-1) + **wire the existing loyalty birthday/anniversary TRIGGERS to actually fire** (they've had backing date fields since SP-CRM-1 but nothing fires them). NOTE: "lifecycle" (new/active/at-risk/churned) was largely SUBSUMED by the SP-CRM-5 RFM segment engine (Baru/Berisiko/Hilang etc.) — so SP-CRM-6 is mostly interaction-log + reminders + trigger-wiring; confirm scope in the brainstorm (don't rebuild lifecycle). Goes in the reserved "Timeline interaksi — segera" slot on the detail hub.
+- SP-CRM-7 — Points ledger & manual adjustment (riskiest, last; touches the order/earning path).
+- SP-CRM-Merge — backoffice approval review queue for the `customer_dup_candidates` flagged by SP-CRM-3. NEVER auto-merge. Deferred.
+MODULE-WIDE LOCKED: backoffice now / POS later (additive-nullable, POS-ready); customer detail = full-page IN-SCREEN VIEW SWAP (no router); phone uniqueness = soft warn, no DB constraint; phone NORMALIZATION deferred; OFFSET pagination. LEAN-SYNC: tags hydrate BACKOFFICE-ONLY; EXCEPTION: `segment` IS on the shared customerObj (computed server-side, one tiny field) so the POS shows it.
+⚠️ KNOWN PRE-EXISTING BUG (out of scope, flagged in 5b — fix when convenient): the backoffice Loyalitas settings `loyaltyForm` is initialized from DEFAULT_LOYALTY and NEVER synced from the fetched `lq.data`, so "Simpan Pengaturan" clobbers untouched fields (enabled/pointsPerThousand/redemptionRate) with defaults. Pre-dates the CRM work; affects the loyalty-settings save. (5b worked around it for tierEnabled only.)
 
-CURRENT CUSTOMERS MODULE (post SP-CRM-5a):
-- Backoffice `screens/Customers.tsx` — list (server pagination + debounced search + sort toggle + TAG filter + SEGMENT filter) + Loyalitas tab; tag chips + SEGMENT chip on rows (replaced the tier column); "Kelola Segmen" + "Kelola Tag" managers; row click → `CustomerDetail.tsx` (profile, stats, history, TAG section, SEGMENT badge in header, reserved "Poin (ledger) & Timeline — segera"). UI: `screens/customers/{TagManager.tsx, SegmentManager.tsx, tagColors.ts}`. The backoffice `tier()` helper is GONE (replaced by segments); the Loyalitas-tab "Sistem Tier" toggle (`loyaltyForm.tierEnabled`) is UNTOUCHED.
-- POS `apps/pos/src/cashier/CashierScreen.tsx` — picker merges on-demand lookup + local cache (SP-CRM-3); still shows `getCustomerTier(totalSpent)` (`pricing.ts`) — 5b swaps this to `customer.segment`.
-- Customer model: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt, tags?, segment? } (tags backoffice-only; segment on ALL reads incl. POS).
-- TS client: listCustomers(page,limit,q,sort,tagId,segmentId), getCustomer, getCustomersByPhone, lookupCustomers, create/update/deleteCustomer, listTags/createTag→{id}/updateTag/deleteTag/setCustomerTags, listSegments/createSegment→{id}/updateSegment/deleteSegment/reorderSegments(orderedIds).
-- Backend customers: indexes [0026], customer_dup_candidates [0027], tags+customer_tags [0028], customer_segments+seed6 [0029]. `customerObj` (shared) now includes the computed `segment` via `segmentSel`/`segmentMatch` (BARE-column correlation — survives RecentCustomersForOutlet's `customers c` alias); `customerObjWithTags` = customerObj + tags (backoffice only). `Customers(...,tagId,segmentId)`. Endpoints add `GET/POST /segments`, `PUT/DELETE /segments/{id}`, `PUT /segments/reorder`, `GET /customers?...&segmentId=`.
+CURRENT CUSTOMERS MODULE (post SP-CRM-5b):
+- Backoffice `screens/Customers.tsx` — list (pagination + search + sort toggle + TAG filter + SEGMENT filter); tag + segment chips on rows; "Kelola Tag"/"Kelola Segmen" managers; row → `CustomerDetail.tsx` (profile, stats, history, TAG section, SEGMENT badge, reserved "Poin (ledger) & Timeline interaksi — segera"). UI: `screens/customers/{TagManager, SegmentManager, tagColors}.ts(x)`. No "Sistem Tier" toggle (removed). `tier()` gone.
+- POS `apps/pos/src/cashier/CustomerPicker.tsx` — shows `customer.segment` as a colored chip (via `cashier/segmentColors.ts`), decoupled from loyaltyEnabled; points still loyalty-gated; `getCustomerTier` removed from `pricing.ts`. (Reaches devices only after the 5b APK — tail item (b).)
+- Customer model: { id, name, phone, email?, birthday?, anniversary?, notes?, points, totalSpent, visitCount, lastVisit?, createdAt, tags?, segment? }.
+- TS client: listCustomers(page,limit,q,sort,tagId,segmentId), getCustomer, getCustomersByPhone, lookupCustomers, CRUD; listTags/.../setCustomerTags; listSegments/createSegment→{id}/updateSegment/deleteSegment/reorderSegments.
+- Backend customers: mig 0026 indexes, 0027 customer_dup_candidates, 0028 tags+customer_tags, 0029 customer_segments+seed6. `customerObj` (shared) includes computed `segment` (BARE-column correlation); `customerObjWithTags` = +tags (backoffice only). Endpoints: customers (q/sort/tagId/segmentId), /tags*, /segments* (+/reorder), /customers/by-phone, /sync/customers/lookup.
 
-PROCESS: brainstorm → spec → plan → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (one-time user OK for SEED_ADMIN_PASSWORD; never print). DB-level checks via a pgx throwaway with a tx that ROLLS BACK (one-time DATABASE_URL OK). NOTE: deployed admin login email is admin@mandalika.test (NOT .local).
+PROCESS: brainstorm → spec → plan → subagent-driven build (fresh implementer per task + go-reviewer/typescript-reviewer). Backend pattern: edit openapi.yaml → `cd backend && go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` → `corepack pnpm --filter @mandalika/api gen` → build/test → `make gen-check` (commit api.gen.go). Verify: deploy → /readyz → authed live check (one-time SEED_ADMIN_PASSWORD; never print). DB checks via a pgx throwaway with a tx that ROLLS BACK (one-time DATABASE_URL OK). NOTE: deployed admin login email is admin@mandalika.test (NOT .local).
 
-GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon free-tier first-write-after-idle transient (retry warm); on a tethered/mobile connection git pushes drop ("Connection was reset") — just retry, work isn't lost.
+GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add then commit separately; never --no-verify); CI make gen-check fails if api.gen.go drifts; Neon first-write-after-idle transient (retry warm); tethered-network git pushes drop ("Connection was reset") — just retry.
 ```
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-08 (SP-CRM-5a: Configurable Segment Engine — backend + backoffice) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-08 (SP-CRM-5b: POS Segment Display) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. Frontend + POS only — **NO backend change** (segment already on the reads from 5a), so backend stays rev `00053-ckl`. Commits `9d0b39d`(spec)→`f5e9632`. Built brainstorm→spec→plan→subagent-driven (typescript-reviewer per batch; no go-reviewer — no Go). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-08-crm-sp5b-pos-segment-display*`.
+
+## What shipped (code complete; push + APK pending — see below)
+- **POS** (`apps/pos/src/cashier/`): the cashier `CustomerPicker` now shows the customer's **segment as a small colored chip** (selected-customer line + dropdown rows), via a new POS-local `segmentColors.ts` (8-token map mirroring the backoffice palette). The chip is **decoupled from `loyaltyEnabled`** (segment is RFM, not loyalty); `· {points} poin` stays loyalty-gated. **`getCustomerTier` retired** from `pricing.ts` (the spend-ladder is fully gone POS-side).
+- **Backoffice** (`Customers.tsx`): removed the now-orphaned **"Sistem Tier"** toggle from the Loyalitas settings + its status mention. `saveLoyalty` now passes through the **server's** `tierEnabled` (`{...loyaltyForm, tierEnabled: loyalty.tierEnabled}`) so it isn't clobbered by the stale form default. The `tierEnabled` schema field is left vestigial (no migration).
+
+## Review-caught (fixed + re-verified)
+typescript-reviewer (HIGH): removing the toggle would have frozen `tierEnabled=true` in the save payload because `loyaltyForm` is never synced from the server → fixed in-scope by passing the server value through in `saveLoyalty`. Minors: POS dropdown chip `flex-wrap` consistency; tightened `segmentColors` to a `SegmentColor` union (mirrors backoffice tagColors). Commit `f5e9632`. **Surfaced a pre-existing out-of-scope bug** (NOT fixed): `loyaltyForm` is never seeded from `lq.data`, so saving loyalty settings clobbers untouched fields with defaults — predates the CRM work; see the ⚠️ note in the COPY-READY block.
+
+## ✅ Verification — builds green (both apps); live/on-device PENDING
+`apps/pos` + `apps/backoffice` `tsc -b` + `vite build` both clean. No backend live-check (nothing backend changed; segment-on-POS-reads already proven 18/18 in 5a).
+
+## ▶️ PENDING (tail items — the network dropped at session end)
+- **PUSH:** commits through `f5e9632` (incl. spec/plan/handoff/memory) may be UNPUSHED (tethered "Connection was reset"). Run `git push origin prod-hardening` — that lands the backoffice "Sistem Tier" removal via Cloudflare.
+- **APK NOT built (user-gated):** after the push, dispatch `android-release.yml` to get the POS segment chip onto devices; then on-device check (cashier picker shows the segment chip; no tier text; points still loyalty-gated). Old devices keep the old spend-tier until updated — cosmetic, no degradation.
+- **Backoffice visual:** the Loyalitas settings no longer show "Sistem Tier".
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-08 (SP-CRM-5a: Configurable Segment Engine — backend + backoffice)
 
 Branch `prod-hardening`. Backend/backoffice only (no APK). Backend **rev `00053-ckl`** (migration **0029** applied + seeded; `/readyz` ok). Commits `fa08789`(spec)→`a29c284`. Built brainstorm→spec→plan→subagent-driven (go-reviewer + typescript-reviewer per batch). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-08-crm-sp5a-configurable-segment-engine*`.
 
