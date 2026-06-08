@@ -163,13 +163,6 @@ export function computePricing(input: PricingInput): PricingResult {
   }
 }
 
-export function getCustomerTier(spent: number): string {
-  if (spent >= 5_000_000) return 'Platinum'
-  if (spent >= 2_000_000) return 'Gold'
-  if (spent >= 500_000) return 'Silver'
-  return 'Member'
-}
-
 export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react'
 import type { components } from '@mandalika/api'
-import { getCustomerTier } from './pricing'
+import { segmentChipClasses } from './segmentColors'
 
 type Customer = components['schemas']['Customer']
 
@@ -82,16 +82,14 @@ export const CustomerPicker = memo(function CustomerPicker({
             <p className="text-xs font-bold text-indigo-800">
               {selectedCustomer.name}
             </p>
-            <p className="text-[10px] text-indigo-600">
-              {selectedCustomer.phone}
-              {loyaltyEnabled && (
-                <>
-                  {' · '}
-                  {getCustomerTier(selectedCustomer.totalSpent)}
-                  {' · '}
-                  {selectedCustomer.points} poin
-                </>
+            <p className="text-[10px] text-indigo-600 flex items-center gap-1 flex-wrap">
+              <span>{selectedCustomer.phone}</span>
+              {selectedCustomer.segment && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${segmentChipClasses(selectedCustomer.segment.color)}`}>
+                  {selectedCustomer.segment.name}
+                </span>
               )}
+              {loyaltyEnabled && <span>· {selectedCustomer.points} poin</span>}
             </p>
             {loyaltyEnabled && earnedPoints > 0 && (
               <p className="text-[10px] text-green-600">
@@ -200,9 +198,13 @@ export const CustomerPicker = memo(function CustomerPicker({
                   <p className="text-xs font-semibold text-gray-800">
                     {c.name}
                   </p>
-                  <p className="text-[10px] text-gray-500">
-                    {c.phone}
-                    {loyaltyEnabled && ` · ${getCustomerTier(c.totalSpent)}`}
+                  <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                    <span>{c.phone}</span>
+                    {c.segment && (
+                      <span className={`px-1 py-0.5 rounded-full text-[9px] font-bold ${segmentChipClasses(c.segment.color)}`}>
+                        {c.segment.name}
+                      </span>
+                    )}
                   </p>
                 </button>
               ))}
