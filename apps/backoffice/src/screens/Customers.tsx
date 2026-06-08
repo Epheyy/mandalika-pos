@@ -4,6 +4,7 @@ import type {
   LoyaltySettings,
   LoyaltyCondition,
   Product,
+  Tag,
 } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
@@ -19,6 +20,7 @@ import {
   Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
 } from '../ui'
 import CustomerDetail from './customers/CustomerDetail'
+import { tagChipClasses } from './customers/tagColors'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -53,7 +55,10 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [sort, setSort] = useState<'belanja' | 'terbaru'>('belanja')
+  const [tagId, setTagId] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const tagsQ = usePolledQuery<Tag[]>(() => api.listTags(), [])
+  const allTags = tagsQ.data ?? []
 
   const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {
@@ -62,8 +67,8 @@ export default function Customers() {
   }, [search])
 
   const cq = usePolledQuery(
-    () => api.listCustomers(page, pageSize, debouncedSearch, sort),
-    [page, pageSize, debouncedSearch, sort],
+    () => api.listCustomers(page, pageSize, debouncedSearch, sort, tagId),
+    [page, pageSize, debouncedSearch, sort, tagId],
   )
   const customers = cq.data?.data ?? []
   const total = cq.data?.meta?.total ?? 0
@@ -115,6 +120,7 @@ export default function Customers() {
       Poin: c.points,
       'Total Belanja': c.totalSpent,
       'Jumlah Kunjungan': c.visitCount,
+      Tag: (c.tags ?? []).map((t) => t.name).join(', '),
     }))
     if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
     else exportToXLSX(rows, 'pelanggan')
@@ -374,6 +380,14 @@ export default function Customers() {
                 </button>
               ))}
             </div>
+            <select
+              value={tagId}
+              onChange={(e) => { setTagId(e.target.value); setPage(1) }}
+              className="text-xs font-bold rounded-lg border border-gray-200 px-2 py-1.5 bg-white text-gray-700"
+            >
+              <option value="">Semua tag</option>
+              {allTags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           </div>
           <Card className="overflow-hidden">
             {cq.loading ? (
@@ -410,6 +424,14 @@ export default function Customers() {
                               <div>
                                 <p className="font-bold text-gray-900 text-sm">{c.name}</p>
                                 <p className="text-xs text-gray-400">{c.visitCount} kunjungan</p>
+                                {(c.tags ?? []).length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {(c.tags ?? []).slice(0, 3).map((t) => (
+                                      <span key={t.id} className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${tagChipClasses(t.color)}`}>{t.name}</span>
+                                    ))}
+                                    {(c.tags ?? []).length > 3 && <span className="text-[10px] text-gray-400">+{(c.tags ?? []).length - 3}</span>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
