@@ -198,7 +198,7 @@ export const CustomerPicker = memo(function CustomerPicker({
                   <p className="text-xs font-semibold text-gray-800">
                     {c.name}
                   </p>
-                  <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                  <p className="text-[10px] text-gray-500 flex items-center gap-1 flex-wrap">
                     <span>{c.phone}</span>
                     {c.segment && (
                       <span className={`px-1 py-0.5 rounded-full text-[9px] font-bold ${segmentChipClasses(c.segment.color)}`}>

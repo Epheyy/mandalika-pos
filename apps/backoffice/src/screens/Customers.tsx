@@ -182,7 +182,7 @@ export default function Customers() {
   const saveLoyalty = async () => {
     setSavingLoyalty(true)
     try {
-      await api.updateLoyaltySettings(loyaltyForm)
+      await api.updateLoyaltySettings({ ...loyaltyForm, tierEnabled: loyalty.tierEnabled })
       await lq.refetch()
     } finally {
       setSavingLoyalty(false)
