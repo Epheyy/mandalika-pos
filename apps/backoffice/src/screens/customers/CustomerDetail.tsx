@@ -6,8 +6,9 @@ import {
   ArrowLeft, Edit2, Trash2, Phone, Mail, Star, ShoppingBag,
   ChevronDown, ChevronUp, Gift, Cake, CalendarHeart, Tag, History, Plus,
 } from 'lucide-react'
-import type { Tag as TagType, Interaction } from '@mandalika/api'
+import type { Tag as TagType, Interaction, PointTransaction } from '@mandalika/api'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { BRAND } from '../../lib/brand'
@@ -17,6 +18,7 @@ import {
   INTERACTION_TYPES, interactionLabel, interactionChipClasses, daysUntilRecurrence,
   type InteractionType,
 } from './interactionTypes'
+import { pointTypeLabel, pointTypeChipClasses } from './pointTypes'
 import { TagManager } from './TagManager'
 
 interface CustomerDetailProps {
@@ -99,6 +101,41 @@ export default function CustomerDetail({
     setIBusy(true)
     try { await api.deleteInteraction(customerId, iid); await iq.refetch() }
     catch { /* non-blocking */ } finally { setIBusy(false) }
+  }
+
+  // Points ledger (SP-CRM-7)
+  const { user } = useAuth()
+  const canAdjust = user?.role === 'admin' || (user?.permissions ?? []).includes('manage_settings')
+  const [ptPage, setPtPage] = useState(1)
+  const ptLimit = 25
+  const ptq = usePolledQuery(
+    () => api.listPointTransactions(customerId, ptPage, ptLimit),
+    [customerId, ptPage],
+  )
+  const ptx = ptq.data?.data ?? []
+  const ptTotal = ptq.data?.meta?.total ?? 0
+
+  const [adjOpen, setAdjOpen] = useState(false)
+  const [adjAmount, setAdjAmount] = useState('')   // signed integer string
+  const [adjReason, setAdjReason] = useState('')
+  const [adjBusy, setAdjBusy] = useState(false)
+  const [adjErr, setAdjErr] = useState<string | null>(null)
+
+  const submitAdjust = async () => {
+    const n = parseInt(adjAmount, 10)
+    if (!Number.isFinite(n) || n === 0) { setAdjErr('Jumlah harus angka bukan nol'); return }
+    if (!adjReason.trim()) { setAdjErr('Alasan wajib diisi'); return }
+    if (adjBusy) return
+    setAdjBusy(true); setAdjErr(null)
+    try {
+      await api.adjustPoints(customerId, { points: n, reason: adjReason.trim() })
+      setAdjOpen(false); setAdjAmount(''); setAdjReason(''); setPtPage(1)
+      await Promise.all([ptq.refetch(), cq.refetch()])  // refresh ledger + balance
+    } catch (e) {
+      setAdjErr(e instanceof Error ? e.message : 'Gagal menyesuaikan poin')
+    } finally {
+      setAdjBusy(false)
+    }
   }
 
   if (cq.loading && !c) {
@@ -316,9 +353,65 @@ export default function CustomerDetail({
             )}
           </Card>
 
-          {/* Poin (ledger) — future sprint */}
-          <Card className="p-5">
-            <p className="flex items-center gap-1.5 text-xs font-bold text-gray-300"><Star className="w-3.5 h-3.5" /> Poin (ledger) — segera</p>
+          {/* Poin ledger (SP-CRM-7) */}
+          <Card className="overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-gold-500" />
+                <h3 className="font-black text-gray-900 text-sm">Poin</h3>
+                <span className="text-sm font-bold text-gold-600">{c.points.toLocaleString('id-ID')}</span>
+              </div>
+              {canAdjust && (
+                <Button variant="secondary" onClick={() => { setAdjOpen(true); setAdjErr(null) }}>Sesuaikan Poin</Button>
+              )}
+            </div>
+            {adjOpen && (
+              <div className="p-4 space-y-2 border-b border-gray-100 bg-gray-50">
+                <div className="flex flex-wrap gap-2">
+                  <input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)}
+                    placeholder="+50 atau -20" className="w-32 px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                  <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)}
+                    placeholder="Alasan (mis. hadiah, koreksi)" className="flex-1 min-w-[12rem] px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                </div>
+                {adjErr && <p className="text-xs text-red-600">{adjErr}</p>}
+                <div className="flex gap-2">
+                  <Button loading={adjBusy} disabled={adjBusy} onClick={() => void submitAdjust()}>Simpan</Button>
+                  <Button variant="secondary" onClick={() => { setAdjOpen(false); setAdjErr(null) }}>Batal</Button>
+                </div>
+              </div>
+            )}
+            {ptq.loading && ptx.length === 0 ? (
+              <TableSkeleton />
+            ) : ptx.length === 0 ? (
+              <EmptyState icon={<Star />} title="Belum ada transaksi poin" />
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {ptx.map((t: PointTransaction) => (
+                  <div key={t.id} className="px-5 py-3 flex items-center gap-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${pointTypeChipClasses(t.type)}`}>
+                      {pointTypeLabel(t.type)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400">{fmtDate(t.createdAt)}{t.orderNumber ? ` · ${t.orderNumber}` : ''}{t.createdByName ? ` · ${t.createdByName}` : ''}</p>
+                      {t.reason && <p className="text-sm text-gray-700">{t.reason}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className={`text-sm font-black ${t.points >= 0 ? 'text-green-600' : 'text-red-600'}`}>{t.points >= 0 ? '+' : ''}{t.points.toLocaleString('id-ID')}</p>
+                      <p className="text-xs text-gray-400">{t.balanceAfter.toLocaleString('id-ID')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ptTotal > ptLimit && (
+              <div className="px-4 py-2 border-t border-gray-100">
+                <Pagination
+                  page={ptPage} totalPages={Math.ceil(ptTotal / ptLimit)} total={ptTotal}
+                  onChange={setPtPage} pageSize={ptLimit}
+                  onPageSizeChange={() => { /* fixed 25 */ }}
+                />
+              </div>
+            )}
           </Card>
         </div>
       </div>
