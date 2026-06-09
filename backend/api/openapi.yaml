@@ -769,6 +769,46 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/Customer' }
+    Interaction:
+      type: object
+      required: [id, type, interactionDate, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [telepon, kunjungan, pesan, catatan] }
+        interactionDate: { type: string, format: date }
+        note: { type: string, nullable: true }
+        createdBy: { type: string, format: uuid, nullable: true }
+        createdByName: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    InteractionInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [telepon, kunjungan, pesan, catatan] }
+        interactionDate: { type: string }
+        note: { type: string }
+    InteractionListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Interaction' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    Reminder:
+      type: object
+      required: [id, name, phone, kind, date, daysUntil]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        kind: { type: string, enum: [birthday, anniversary] }
+        date: { type: string, format: date, nullable: true }
+        daysUntil: { type: integer }
+    ReminderListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Reminder' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     LoyaltySettings:
       type: object
       required: [enabled, tierEnabled, pointsPerThousand, redemptionRate]
@@ -2016,6 +2056,65 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/customers/reminders:
+    get:
+      operationId: listReminders
+      tags: [customers]
+      summary: Upcoming birthday/anniversary reminders (Backoffice)
+      parameters:
+        - { name: window, in: query, schema: { type: integer } }
+        - { name: type, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: upcoming birthdays/anniversaries
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReminderListResponse' }
+  /api/v1/customers/{id}/interactions:
+    get:
+      operationId: listInteractions
+      tags: [customers]
+      summary: Customer interaction log (Backoffice)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: interaction log
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InteractionListResponse' }
+    post:
+      operationId: createInteraction
+      tags: [customers]
+      summary: Add a customer interaction (Backoffice)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InteractionInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+  /api/v1/customers/{id}/interactions/{iid}:
+    delete:
+      operationId: deleteInteraction
+      tags: [customers]
+      summary: Delete a customer interaction (Backoffice)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: iid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: deleted }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/promotions:
     post:

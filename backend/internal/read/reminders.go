@@ -1,6 +1,11 @@
 package read
 
-import "time"
+import (
+	"context"
+	"time"
+
+	"github.com/mandalika/pos-backend/internal/api"
+)
 
 // dayKey pairs an MMDD value (month*100+day) with how many days from "today"
 // it is — used by Reminders to sort soonest-first and label "dalam N hari".
@@ -33,4 +38,37 @@ func mmddWindow(today time.Time, days int) []dayKey {
 		}
 	}
 	return out
+}
+
+// Reminders returns customers whose birthday or anniversary falls within the
+// [today, today+days] window, soonest-first, paginated. typ ∈ {all,birthday,
+// anniversary}. A customer with both dates in-window yields two rows (one per
+// kind). The MMDD lists drive index-eligible equality lookups on the partial
+// idx_customers_*_mmdd indexes.
+func (r *Repo) Reminders(ctx context.Context, today time.Time, days int, typ string, page, limit int) ([]api.Reminder, int, error) {
+	keys := mmddWindow(today, days)
+	mmdds := make([]int, len(keys))
+	dus := make([]int, len(keys))
+	for i, k := range keys {
+		mmdds[i] = k.mmdd
+		dus[i] = k.daysUntil
+	}
+	const sql = `
+		WITH win AS (SELECT * FROM unnest($1::int[], $2::int[]) AS w(mmdd, du)),
+		rem AS (
+		  SELECT c.id, c.name, c.phone, 'birthday'::text AS kind, c.birthday AS dt, w.du
+		    FROM customers c JOIN win w ON c.birthday_mmdd = w.mmdd
+		   WHERE $3 IN ('all','birthday')
+		  UNION ALL
+		  SELECT c.id, c.name, c.phone, 'anniversary'::text, c.anniversary, w.du
+		    FROM customers c JOIN win w ON c.anniversary_mmdd = w.mmdd
+		   WHERE $3 IN ('all','anniversary')
+		)
+		SELECT json_build_object(
+		  'id', id, 'name', name, 'phone', phone,
+		  'kind', kind, 'date', dt, 'daysUntil', du), count(*) OVER() AS total
+		FROM rem
+		ORDER BY du, name
+		OFFSET $4 LIMIT $5`
+	return listJSON[api.Reminder](ctx, r.Pool, sql, mmdds, dus, typ, off(page, limit), limit)
 }

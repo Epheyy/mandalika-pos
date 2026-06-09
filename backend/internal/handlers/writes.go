@@ -559,6 +559,32 @@ func (h *Handlers) ReorderSegments(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.ReorderSegments(r.Context(), in.OrderedIds))
 }
 
+// ── Customer interactions (SP-CRM-6) ───────────────────────
+
+func (h *Handlers) Interactions(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	rows, total, err := h.Repo.Interactions(r.Context(), chi.URLParam(r, "id"), p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.InteractionListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) CreateInteraction(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[write.Interaction](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	id, err := h.Write.CreateInteraction(r.Context(), chi.URLParam(r, "id"), in, c.userID, c.name)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) DeleteInteraction(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteInteraction(r.Context(), chi.URLParam(r, "id"), chi.URLParam(r, "iid")))
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {

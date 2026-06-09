@@ -760,6 +760,19 @@ func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {
 		`SELECT `+customerObjWithTags+` FROM customers WHERE id=$1`, id)
 }
 
+// Interactions returns a customer's interaction log, newest-first, paginated.
+func (r *Repo) Interactions(ctx context.Context, customerID string, page, limit int) ([]api.Interaction, int, error) {
+	const sql = `SELECT json_build_object(
+		  'id', id, 'type', type, 'interactionDate', interaction_date,
+		  'note', note, 'createdBy', created_by, 'createdByName', created_by_name,
+		  'createdAt', created_at), count(*) OVER() AS total
+		FROM customer_interactions
+		WHERE customer_id = $3
+		ORDER BY interaction_date DESC, created_at DESC
+		OFFSET $1 LIMIT $2`
+	return listJSON[api.Interaction](ctx, r.Pool, sql, off(page, limit), limit, customerID)
+}
+
 // Tags lists all customer tags ordered by sort_order then name.
 func (r *Repo) Tags(ctx context.Context) ([]api.Tag, error) {
 	const sql = `SELECT json_build_object('id',id,'name',name,'color',color,

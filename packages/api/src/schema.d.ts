@@ -295,6 +295,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Upcoming birthday/anniversary reminders (Backoffice) */
+        get: operations["listReminders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customer interaction log (Backoffice) */
+        get: operations["listInteractions"];
+        put?: never;
+        /** Add a customer interaction (Backoffice) */
+        post: operations["createInteraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}/interactions/{iid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a customer interaction (Backoffice) */
+        delete: operations["deleteInteraction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promotions": {
         parameters: {
             query?: never;
@@ -2263,6 +2315,45 @@ export interface components {
         CustomerResponse: {
             data: components["schemas"]["Customer"];
         };
+        Interaction: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "telepon" | "kunjungan" | "pesan" | "catatan";
+            /** Format: date */
+            interactionDate: string;
+            note?: string | null;
+            /** Format: uuid */
+            createdBy?: string | null;
+            createdByName?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        InteractionInput: {
+            /** @enum {string} */
+            type: "telepon" | "kunjungan" | "pesan" | "catatan";
+            interactionDate?: string;
+            note?: string;
+        };
+        InteractionListResponse: {
+            data: components["schemas"]["Interaction"][];
+            meta: components["schemas"]["Meta"];
+        };
+        Reminder: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            phone: string;
+            /** @enum {string} */
+            kind: "birthday" | "anniversary";
+            /** Format: date */
+            date: string | null;
+            daysUntil: number;
+        };
+        ReminderListResponse: {
+            data: components["schemas"]["Reminder"][];
+            meta: components["schemas"]["Meta"];
+        };
         LoyaltySettings: {
             enabled: boolean;
             tierEnabled: boolean;
@@ -3657,6 +3748,104 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OkResponse"];
                 };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listReminders: {
+        parameters: {
+            query?: {
+                window?: number;
+                type?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description upcoming birthdays/anniversaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderListResponse"];
+                };
+            };
+        };
+    };
+    listInteractions: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description interaction log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionListResponse"];
+                };
+            };
+        };
+    };
+    createInteraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InteractionInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    deleteInteraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                iid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: components["responses"]["NotFound"];
         };
