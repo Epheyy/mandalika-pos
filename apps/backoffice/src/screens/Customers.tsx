@@ -6,10 +6,11 @@ import type {
   Product,
   Tag,
   Segment,
+  Reminder,
 } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
-  ToggleLeft, ToggleRight, Gift,
+  ToggleLeft, ToggleRight, Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -92,6 +93,20 @@ export default function Customers() {
 
   const [tab, setTab] = useState<'customers' | 'settings'>('customers')
   const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
+
+  // Customers sub-view + reminders (SP-CRM-6)
+  const [custView, setCustView] = useState<'daftar' | 'pengingat'>('daftar')
+  const [remWindow, setRemWindow] = useState<7 | 30>(7)
+  const [remType, setRemType] = useState<'all' | 'birthday' | 'anniversary'>('all')
+  const [remPage, setRemPage] = useState(1)
+  const remLimit = 25
+  const remQ = usePolledQuery(
+    () => api.listReminders({ window: remWindow, type: remType, page: remPage, limit: remLimit }),
+    [remWindow, remType, remPage],
+  )
+  const reminders = remQ.data?.data ?? []
+  const remTotal = remQ.data?.meta?.total ?? 0
+  const remTotalPages = Math.max(1, Math.ceil(remTotal / remLimit))
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Customer | null>(null)
@@ -247,13 +262,25 @@ export default function Customers() {
             />
             {tab === 'customers' && (
               <>
-                <ImportExportBar
-                  onExport={(fmt) => void exportCustomers(fmt)}
-                  exportDisabled={customers.length === 0}
+                <Tabs
+                  value={custView}
+                  onChange={setCustView}
+                  tabs={[
+                    { id: 'daftar', label: 'Daftar' },
+                    { id: 'pengingat', label: 'Pengingat' },
+                  ]}
                 />
-                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
-                  Tambah
-                </Button>
+                {custView === 'daftar' && (
+                  <>
+                    <ImportExportBar
+                      onExport={(fmt) => void exportCustomers(fmt)}
+                      exportDisabled={customers.length === 0}
+                    />
+                    <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
+                      Tambah
+                    </Button>
+                  </>
+                )}
               </>
             )}
             {tab === 'settings' && subTab === 'conditions' && (
@@ -348,6 +375,55 @@ export default function Customers() {
             </div>
           )}
         </div>
+      ) : custView === 'pengingat' ? (
+        <Card className="overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {([7, 30] as const).map((wdw) => (
+                <button key={wdw} type="button" onClick={() => { setRemWindow(wdw); setRemPage(1) }}
+                  className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remWindow === wdw ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                  {wdw} hari
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              {(['all', 'birthday', 'anniversary'] as const).map((tp) => (
+                <button key={tp} type="button" onClick={() => { setRemType(tp); setRemPage(1) }}
+                  className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remType === tp ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                  {tp === 'all' ? 'Semua' : tp === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {remQ.loading && reminders.length === 0 ? (
+            <TableSkeleton />
+          ) : reminders.length === 0 ? (
+            <EmptyState icon={<Cake />} title="Tidak ada pengingat dalam rentang ini" />
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {reminders.map((rm: Reminder, i: number) => (
+                <div key={`${rm.id}-${rm.kind}-${i}`} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setSelectedId(rm.id)}>
+                  <span className="text-lg flex-shrink-0">{rm.kind === 'birthday' ? '🎂' : '💍'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 text-sm">{rm.name}</p>
+                    <p className="text-xs text-gray-400">{rm.phone} · {rm.kind === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}</p>
+                  </div>
+                  <span className="text-xs font-bold text-gold-700 flex-shrink-0">
+                    {rm.daysUntil === 0 ? 'Hari ini' : `Dalam ${rm.daysUntil} hari`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {remTotal > remLimit && (
+            <div className="px-4 py-2 border-t border-gray-100">
+              <Pagination page={remPage} totalPages={remTotalPages} total={remTotal}
+                onChange={setRemPage} pageSize={remLimit}
+                onPageSizeChange={() => { /* fixed 25 */ }} pageSizes={[remLimit]} />
+            </div>
+          )}
+        </Card>
       ) : (
         <>
           <div className="flex items-center flex-wrap gap-2">
