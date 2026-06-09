@@ -14,9 +14,9 @@ continue Mandalika POS / next = SP-CRM-6 (Lifecycle + Interaction Log), the 6th 
 THE 6 WORKING RULES (confirm these — the user expects them every session):
 1. Ask, don't assume  2. Don't touch unrelated  3. Flag uncertainty  4. Verify on failure  5. Show changes  6. Admit gaps
 
-⚠️ TWO SP-CRM-5b TAIL ITEMS — CHECK FIRST (may already be done):
-- (a) PUSH: SP-CRM-5b commits (through `f5e9632`, incl. spec/plan/handoff) may be UNPUSHED — the tethered network was dropping pushes at session end. Run `git push origin prod-hardening`; if it lands, the backoffice "Sistem Tier" removal goes live via Cloudflare.
-- (b) APK NOT built: SP-CRM-5b's POS change (cashier shows `customer.segment` instead of getCustomerTier) reaches devices only via an APK. After the push lands, dispatch `android-release.yml` (Actions UI, or REST `POST /repos/Epheyy/mandalika-pos/actions/workflows/android-release.yml/dispatches {ref:prod-hardening, inputs:{api_url:<prod>}}` with the git credential-manager token — gh CLI not installed). ASK the user before dispatching. Then on-device check (cashier picker shows the segment chip; no tier text).
+✅ SP-CRM-5b TAIL ITEMS — BOTH RESOLVED 2026-06-09:
+- (a) PUSH: landed (`prod-hardening` through `f5e9632` is on the remote; backoffice "Sistem Tier" removal live via Cloudflare).
+- (b) APK BUILT: dispatched `android-release.yml` (run #27181965221, conclusion=success 2026-06-09) → artifact **`mandalika-pos-release-apk`** (13.7 MB, expires 2026-09-07). STILL USER-PENDING: install + on-device check (cashier picker shows the segment chip; no tier text; points still loyalty-gated) + fleet rollout.
 
 PROJECT STATE (as of 2026-06-08):
 - Branch `prod-hardening`. Backend Cloud Run rev 00053-ckl (migrations →0029, next slot = 0030) — UNCHANGED by 5b (5b is frontend+APK only, no backend). Backoffice auto-deploys via Cloudflare on push; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml. Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
@@ -57,10 +57,11 @@ typescript-reviewer (HIGH): removing the toggle would have frozen `tierEnabled=t
 ## ✅ Verification — builds green (both apps); live/on-device PENDING
 `apps/pos` + `apps/backoffice` `tsc -b` + `vite build` both clean. No backend live-check (nothing backend changed; segment-on-POS-reads already proven 18/18 in 5a).
 
-## ▶️ PENDING (tail items — the network dropped at session end)
-- **PUSH:** commits through `f5e9632` (incl. spec/plan/handoff/memory) may be UNPUSHED (tethered "Connection was reset"). Run `git push origin prod-hardening` — that lands the backoffice "Sistem Tier" removal via Cloudflare.
-- **APK NOT built (user-gated):** after the push, dispatch `android-release.yml` to get the POS segment chip onto devices; then on-device check (cashier picker shows the segment chip; no tier text; points still loyalty-gated). Old devices keep the old spend-tier until updated — cosmetic, no degradation.
-- **Backoffice visual:** the Loyalitas settings no longer show "Sistem Tier".
+## ✅ ROLLOUT (resolved 2026-06-09)
+- **PUSH:** landed — `prod-hardening` through `f5e9632` is on the remote; backoffice "Sistem Tier" removal live via Cloudflare.
+- **APK BUILT:** `android-release.yml` run #27181965221 → success → artifact **`mandalika-pos-release-apk`** (13.7 MB, expires 2026-09-07).
+- **STILL USER-PENDING:** install the APK + on-device check (cashier picker shows the segment chip; no tier text; points still loyalty-gated) + fleet rollout. Old devices keep the old spend-tier until updated — cosmetic, no degradation.
+- **Backoffice visual (user-pending):** confirm the Loyalitas settings no longer show "Sistem Tier".
 
 ---
 
