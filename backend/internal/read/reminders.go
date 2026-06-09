@@ -33,6 +33,8 @@ func mmddWindow(today time.Time, days int) []dayKey {
 	for i := 0; i <= days; i++ {
 		d := today.AddDate(0, 0, i)
 		out = append(out, dayKey{mmdd: int(d.Month())*100 + d.Day(), daysUntil: i})
+		// d.Year() is the WINDOW year (does February have 29 days this year),
+		// not the customer's birth year.
 		if d.Month() == time.March && d.Day() == 1 && !isLeap(d.Year()) {
 			out = append(out, dayKey{mmdd: 229, daysUntil: i})
 		}

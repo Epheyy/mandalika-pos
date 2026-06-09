@@ -767,10 +767,10 @@ func (r *Repo) Interactions(ctx context.Context, customerID string, page, limit 
 		  'note', note, 'createdBy', created_by, 'createdByName', created_by_name,
 		  'createdAt', created_at), count(*) OVER() AS total
 		FROM customer_interactions
-		WHERE customer_id = $3
+		WHERE customer_id = $1
 		ORDER BY interaction_date DESC, created_at DESC
-		OFFSET $1 LIMIT $2`
-	return listJSON[api.Interaction](ctx, r.Pool, sql, off(page, limit), limit, customerID)
+		OFFSET $2 LIMIT $3`
+	return listJSON[api.Interaction](ctx, r.Pool, sql, customerID, off(page, limit), limit)
 }
 
 // Tags lists all customer tags ordered by sort_order then name.

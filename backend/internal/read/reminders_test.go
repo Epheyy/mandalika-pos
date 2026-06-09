@@ -64,3 +64,17 @@ func TestMMDDWindow_LeapDayNaturalInLeapYear(t *testing.T) {
 		t.Fatalf("expected natural 0229 at du=3, got %+v ok=%v", k, ok)
 	}
 }
+
+func TestMMDDWindow_ZeroDays(t *testing.T) {
+	keys := mmddWindow(time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC), 0)
+	if len(keys) != 1 || keys[0].mmdd != 609 {
+		t.Fatalf("days=0 should return exactly today: %+v", keys)
+	}
+}
+
+func TestMMDDWindow_NegativeDaysClampedToZero(t *testing.T) {
+	keys := mmddWindow(time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC), -5)
+	if len(keys) != 1 {
+		t.Fatalf("negative days should clamp to 0: len=%d", len(keys))
+	}
+}

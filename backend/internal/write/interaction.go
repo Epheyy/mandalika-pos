@@ -2,8 +2,11 @@ package write
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var validInteractionTypes = map[string]bool{
@@ -36,6 +39,12 @@ func (r *Repo) CreateInteraction(ctx context.Context, customerID string, in Inte
 		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
 		customerID, in.Type, date, nullStr(in.Note), nullStr(byID), nullStr(byName)).Scan(&id)
 	if err != nil {
+		// FK violation (unknown customer) or malformed UUID → treat as 404,
+		// so a bad {id} never leaks a raw Postgres message via a 400.
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && (pg.Code == "23503" || pg.Code == "22P02") {
+			return "", ErrNotFound
+		}
 		return "", fmt.Errorf("create interaction: %w", err)
 	}
 	return id, nil

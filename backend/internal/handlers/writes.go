@@ -578,6 +578,10 @@ func (h *Handlers) CreateInteraction(w http.ResponseWriter, r *http.Request) {
 	}
 	c, _ := h.caller(r)
 	id, err := h.Write.CreateInteraction(r.Context(), chi.URLParam(r, "id"), in, c.userID, c.name)
+	if errors.Is(err, write.ErrNotFound) {
+		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
+		return
+	}
 	h.created(w, r, id, err)
 }
 
