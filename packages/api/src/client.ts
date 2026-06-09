@@ -61,6 +61,8 @@ export type SegmentInput = S['SegmentInput']
 export type Interaction = S['Interaction']
 export type InteractionInput = S['InteractionInput']
 export type Reminder = S['Reminder']
+export type PointTransaction = S['PointTransaction']
+export type AdjustPointsInput = S['AdjustPointsInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -178,6 +180,10 @@ export interface Api {
   createInteraction: (customerId: string, input: InteractionInput) => Promise<{ id: string }>
   deleteInteraction: (customerId: string, interactionId: string) => Promise<void>
   listReminders: (opts?: { window?: number; type?: string; page?: number; limit?: number }) => Promise<ListResult<Reminder>>
+
+  // points ledger (SP-CRM-7)
+  listPointTransactions: (customerId: string, page?: number, limit?: number) => Promise<ListResult<PointTransaction>>
+  adjustPoints: (customerId: string, input: AdjustPointsInput) => Promise<{ balanceAfter: number }>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -461,6 +467,11 @@ export function createClient(opts: ClientOptions): Api {
         page: opts.page ?? 1,
         limit: opts.limit ?? 25,
       }),
+
+    listPointTransactions: (customerId, page = 1, limit = 25) =>
+      list<PointTransaction>(`${API}/customers/${customerId}/points`, { page, limit }),
+    adjustPoints: (customerId, input) =>
+      data<{ balanceAfter: number }>('POST', `${API}/customers/${customerId}/points/adjust`, input),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>
