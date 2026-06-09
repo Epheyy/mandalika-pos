@@ -4,15 +4,19 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
   ArrowLeft, Edit2, Trash2, Phone, Mail, Star, ShoppingBag,
-  ChevronDown, ChevronUp, Gift, Cake, CalendarHeart, Tag, History,
+  ChevronDown, ChevronUp, Gift, Cake, CalendarHeart, Tag, History, Plus,
 } from 'lucide-react'
-import type { Tag as TagType } from '@mandalika/api'
+import type { Tag as TagType, Interaction } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { BRAND } from '../../lib/brand'
-import { Button, Card, Badge, IconButton, EmptyState, Modal } from '../../ui'
+import { Button, Card, Badge, IconButton, EmptyState, Modal, Pagination } from '../../ui'
 import { tagChipClasses } from './tagColors'
+import {
+  INTERACTION_TYPES, interactionLabel, interactionChipClasses, daysUntilRecurrence,
+  type InteractionType,
+} from './interactionTypes'
 import { TagManager } from './TagManager'
 
 interface CustomerDetailProps {
@@ -57,6 +61,40 @@ export default function CustomerDetail({
     }
   }
 
+  // Interaction timeline (SP-CRM-6)
+  const [iPage, setIPage] = useState(1)
+  const [iLimit, setILimit] = useState(25)
+  const iq = usePolledQuery(
+    () => api.listInteractions(customerId, iPage, iLimit),
+    [customerId, iPage, iLimit],
+  )
+  const interactions = iq.data?.data ?? []
+  const iTotal = iq.data?.meta?.total ?? 0
+  const iTotalPages = Math.max(1, Math.ceil(iTotal / iLimit))
+
+  const [iType, setIType] = useState<InteractionType>('catatan')
+  const [iDate, setIDate] = useState('')
+  const [iNote, setINote] = useState('')
+  const [iBusy, setIBusy] = useState(false)
+
+  const addInteraction = async () => {
+    if (iBusy) return
+    setIBusy(true)
+    try {
+      await api.createInteraction(customerId, { type: iType, interactionDate: iDate, note: iNote })
+      setIType('catatan'); setIDate(''); setINote(''); setIPage(1)
+      await iq.refetch()
+    } catch { /* surfaced on next load */ } finally {
+      setIBusy(false)
+    }
+  }
+  const removeInteraction = async (iid: string) => {
+    if (iBusy) return
+    setIBusy(true)
+    try { await api.deleteInteraction(customerId, iid); await iq.refetch() }
+    catch { /* non-blocking */ } finally { setIBusy(false) }
+  }
+
   if (cq.loading && !c) {
     return (
       <div className="p-6">
@@ -97,6 +135,16 @@ export default function CustomerDetail({
             {c.segment && (
               <span className={`inline-block mt-1 px-2.5 py-1 text-xs font-bold rounded-full border ${tagChipClasses(c.segment.color)}`}>{c.segment.name}</span>
             )}
+            {(() => {
+              const db = daysUntilRecurrence(c.birthday)
+              const da = daysUntilRecurrence(c.anniversary)
+              const soon: string[] = []
+              if (db !== null && db <= 30) soon.push(`🎂 Ulang tahun ${db === 0 ? 'hari ini' : `dalam ${db} hari`}`)
+              if (da !== null && da <= 30) soon.push(`💍 Hari jadi ${da === 0 ? 'hari ini' : `dalam ${da} hari`}`)
+              return soon.map((s) => (
+                <span key={s} className="inline-block mt-1 ml-1 px-2.5 py-1 text-xs font-bold rounded-full border bg-amber-100 text-amber-800 border-amber-200">{s}</span>
+              ))
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -209,9 +257,62 @@ export default function CustomerDetail({
             )}
           </Card>
 
-          {/* Reserved for SP-CRM-3 / SP-CRM-4 */}
+          {/* Timeline Interaksi (SP-CRM-6) */}
+          <Card className="overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+              <History className="w-4 h-4 text-gray-400" />
+              <h3 className="font-black text-gray-900 text-sm">Timeline Interaksi</h3>
+            </div>
+            <div className="p-4 space-y-3 border-b border-gray-100 bg-gray-50">
+              <div className="flex flex-wrap gap-2">
+                <select value={iType} onChange={(e) => setIType(e.target.value as InteractionType)}
+                  className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white">
+                  {INTERACTION_TYPES.map((t) => <option key={t} value={t}>{interactionLabel(t)}</option>)}
+                </select>
+                <input type="date" value={iDate} onChange={(e) => setIDate(e.target.value)}
+                  className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+              </div>
+              <textarea value={iNote} onChange={(e) => setINote(e.target.value)} rows={2}
+                placeholder="Catatan interaksi…"
+                className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+              <Button icon={<Plus className="w-4 h-4" />} disabled={iBusy} onClick={() => void addInteraction()}>
+                Tambah Interaksi
+              </Button>
+            </div>
+            {iq.loading && interactions.length === 0 ? (
+              <TableSkeleton />
+            ) : interactions.length === 0 ? (
+              <EmptyState icon={<History />} title="Belum ada interaksi" />
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {interactions.map((it: Interaction) => (
+                  <div key={it.id} className="px-5 py-3 flex items-start gap-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${interactionChipClasses(it.type)}`}>
+                      {interactionLabel(it.type)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400">{fmtDate(it.interactionDate)} · {it.createdByName || '—'}</p>
+                      {it.note && <p className="text-sm text-gray-700 whitespace-pre-wrap">{it.note}</p>}
+                    </div>
+                    <IconButton tone="danger" onClick={() => void removeInteraction(it.id)}><Trash2 className="w-4 h-4" /></IconButton>
+                  </div>
+                ))}
+              </div>
+            )}
+            {iTotal > iLimit && (
+              <div className="px-4 py-2 border-t border-gray-100">
+                <Pagination
+                  page={iPage} totalPages={iTotalPages} total={iTotal}
+                  onChange={setIPage} pageSize={iLimit}
+                  onPageSizeChange={(s) => { setILimit(s); setIPage(1) }}
+                />
+              </div>
+            )}
+          </Card>
+
+          {/* Poin (ledger) — future sprint */}
           <Card className="p-5">
-            <p className="flex items-center gap-1.5 text-xs font-bold text-gray-300"><History className="w-3.5 h-3.5" /> Poin (ledger) &amp; Timeline interaksi — segera</p>
+            <p className="flex items-center gap-1.5 text-xs font-bold text-gray-300"><Star className="w-3.5 h-3.5" /> Poin (ledger) — segera</p>
           </Card>
         </div>
       </div>

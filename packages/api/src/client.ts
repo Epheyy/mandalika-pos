@@ -456,7 +456,7 @@ export function createClient(opts: ClientOptions): Api {
       request<void>('DELETE', `${API}/customers/${customerId}/interactions/${interactionId}`),
     listReminders: (opts = {}) =>
       list<Reminder>(`${API}/customers/reminders`, {
-        ...(opts.window ? { window: opts.window } : {}),
+        ...(opts.window !== undefined ? { window: opts.window } : {}),
         ...(opts.type ? { type: opts.type } : {}),
         page: opts.page ?? 1,
         limit: opts.limit ?? 25,
