@@ -168,6 +168,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/customers/{id}/interactions", h.Interactions)
 				r.Post("/customers/{id}/interactions", h.CreateInteraction)
 				r.Delete("/customers/{id}/interactions/{iid}", h.DeleteInteraction)
+				r.Get("/customers/{id}/points", h.PointTransactions)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_promotions"))
@@ -245,6 +246,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_settings"))
 				r.Put("/settings/app", h.UpdateAppSettings)
 				r.Put("/settings/loyalty", h.UpdateLoyaltySettings)
+				r.Post("/customers/{id}/points/adjust", h.AdjustPoints)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_stock_count"))

@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 var (
@@ -125,18 +127,23 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	// Loyalty redemption (P1-E): authoritative rupiah value from
 	// loyalty_settings.redemption_rate, clamped to the customer's available
 	// points and to the order total (can't pay a negative bill).
-	pointsRedeemed := 0
-	redeemAmount := 0.0
-	if in.PointsRedeemed > 0 && in.CustomerID != "" && loyEnabled && redemptionRate > 0 {
-		var avail int
+	// Read the cached balance once under row-lock for any loyalty customer — used
+	// both for the redemption clamp and as balance_before for the ledger entries.
+	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
+	balanceBefore := 0
+	if hasLoyaltyCustomer {
 		if e := tx.QueryRow(ctx,
 			`SELECT points FROM customers WHERE id=$1 FOR UPDATE`,
-			in.CustomerID).Scan(&avail); e != nil {
+			in.CustomerID).Scan(&balanceBefore); e != nil {
 			return "", false, false, fmt.Errorf("load customer points: %w", e)
 		}
+	}
+	pointsRedeemed := 0
+	redeemAmount := 0.0
+	if in.PointsRedeemed > 0 && hasLoyaltyCustomer && redemptionRate > 0 {
 		pointsRedeemed = in.PointsRedeemed
-		if pointsRedeemed > avail {
-			pointsRedeemed = avail
+		if pointsRedeemed > balanceBefore {
+			pointsRedeemed = balanceBefore
 		}
 		redeemAmount = float64(pointsRedeemed) * redemptionRate
 		if redeemAmount > res.Total {
@@ -217,9 +224,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label, discount_breakdown)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -230,6 +237,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
+		res.EarnedPoints,
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)
@@ -253,6 +261,30 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			  last_visit=now(), points=points+$2-$4 WHERE id=$3`,
 			finalTotal, res.EarnedPoints, in.CustomerID, pointsRedeemed); e != nil {
 			return "", false, false, fmt.Errorf("update customer: %w", e)
+		}
+
+		// Ledger: record what the loyalty UPDATE just applied (SP-CRM-7). Same tx →
+		// inherits the order's idempotency guard (a replayed order won't double-log).
+		earned := res.EarnedPoints
+		if earned > 0 {
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: in.CustomerID, Type: "earn", Points: earned,
+				BalanceAfter: balanceBefore + earned,
+				Reason:       fmt.Sprintf("Poin dari transaksi %s", orderNumber),
+				OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
+			}); e != nil {
+				return "", false, false, e
+			}
+		}
+		if pointsRedeemed > 0 {
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: in.CustomerID, Type: "redeem", Points: -pointsRedeemed,
+				BalanceAfter: balanceBefore + earned - pointsRedeemed,
+				Reason:       fmt.Sprintf("Penukaran poin di transaksi %s", orderNumber),
+				OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
+			}); e != nil {
+				return "", false, false, e
+			}
 		}
 	}
 
@@ -286,10 +318,13 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	}
 	defer tx.Rollback(ctx)
 
-	var status string
+	var status, orderNumber string
+	var custID *string
+	var oEarned, oRedeemed int
 	err = tx.QueryRow(ctx,
-		`SELECT status FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
-		orderID, outletID).Scan(&status)
+		`SELECT status, order_number, customer_id, points_earned, points_redeemed
+		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
+		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrOrderClosed
 	}
@@ -334,6 +369,47 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 			return err
 		}
 	}
+
+	// Points reversal (SP-CRM-7): claw back earned (floor 0, forgive remainder) and
+	// restore redeemed. Idempotent: the already-refunded short-circuit above means
+	// this runs at most once per order.
+	if custID != nil && *custID != "" {
+		var bal int
+		if e := tx.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1 FOR UPDATE`, *custID).Scan(&bal); e != nil {
+			return fmt.Errorf("load points for refund: %w", e)
+		}
+		clawback := write.PointsClawback(bal, oEarned)
+		afterClaw := bal - clawback
+		if clawback > 0 {
+			reason := fmt.Sprintf("Pembatalan poin dari refund %s", orderNumber)
+			if oEarned > clawback {
+				reason += fmt.Sprintf(" (%d poin dimaafkan)", oEarned-clawback)
+			}
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: *custID, Type: "refund", Points: -clawback,
+				BalanceAfter: afterClaw, Reason: reason, OrderID: orderID,
+			}); e != nil {
+				return e
+			}
+		}
+		newBal := afterClaw + oRedeemed
+		if oRedeemed > 0 {
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: *custID, Type: "refund", Points: oRedeemed,
+				BalanceAfter: newBal,
+				Reason:       fmt.Sprintf("Pengembalian poin tukar dari refund %s", orderNumber),
+				OrderID:      orderID,
+			}); e != nil {
+				return e
+			}
+		}
+		if clawback > 0 || oRedeemed > 0 {
+			if _, e := tx.Exec(ctx, `UPDATE customers SET points=$2 WHERE id=$1`, *custID, newBal); e != nil {
+				return fmt.Errorf("update points on refund: %w", e)
+			}
+		}
+	}
+
 	return tx.Commit(ctx)
 }
 

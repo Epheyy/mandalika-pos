@@ -589,6 +589,39 @@ func (h *Handlers) DeleteInteraction(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteInteraction(r.Context(), chi.URLParam(r, "id"), chi.URLParam(r, "iid")))
 }
 
+// ── Customer points ledger (SP-CRM-7) ──────────────────────
+
+func (h *Handlers) PointTransactions(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	rows, total, err := h.Repo.PointTransactions(r.Context(), chi.URLParam(r, "id"), p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.PointTransactionListResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeWrite[api.AdjustPointsInput](w, r)
+	if !ok {
+		return
+	}
+	c, _ := h.caller(r)
+	bal, err := h.Write.AdjustPoints(r.Context(), chi.URLParam(r, "id"), in.Points, in.Reason, c.userID, c.name)
+	if errors.Is(err, write.ErrNotFound) {
+		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	h.invalidate(r)
+	writeJSON(w, http.StatusOK, api.AdjustPointsResponse{Data: struct {
+		BalanceAfter int `json:"balanceAfter"`
+	}{BalanceAfter: bal}})
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {
