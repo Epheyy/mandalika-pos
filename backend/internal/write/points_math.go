@@ -1,6 +1,14 @@
 package write
 
-import "fmt"
+import "errors"
+
+// Sentinel errors for manual point adjustments. Handlers map these to HTTP 400
+// (client/validation faults); any other error from AdjustPoints is a 500.
+var (
+	ErrZeroDelta          = errors.New("jumlah penyesuaian tidak boleh nol")
+	ErrInsufficientPoints = errors.New("poin tidak cukup untuk pengurangan")
+	ErrReasonRequired     = errors.New("alasan penyesuaian wajib")
+)
 
 // PointsClawback returns how many points to remove from balance to claw back up to
 // `earned`, never driving the balance below zero (the remainder is forgiven).
@@ -19,10 +27,10 @@ func PointsClawback(balance, earned int) int {
 // would drive the balance below zero or a no-op zero delta.
 func adjustedBalance(balance, delta int) (int, error) {
 	if delta == 0 {
-		return 0, fmt.Errorf("jumlah penyesuaian tidak boleh nol")
+		return 0, ErrZeroDelta
 	}
 	if delta < 0 && -delta > balance {
-		return 0, fmt.Errorf("poin tidak cukup untuk pengurangan")
+		return 0, ErrInsufficientPoints
 	}
 	return balance + delta, nil
 }

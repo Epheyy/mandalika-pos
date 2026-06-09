@@ -263,27 +263,31 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			return "", false, false, fmt.Errorf("update customer: %w", e)
 		}
 
-		// Ledger: record what the loyalty UPDATE just applied (SP-CRM-7). Same tx →
-		// inherits the order's idempotency guard (a replayed order won't double-log).
-		earned := res.EarnedPoints
-		if earned > 0 {
-			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-				CustomerID: in.CustomerID, Type: "earn", Points: earned,
-				BalanceAfter: balanceBefore + earned,
-				Reason:       fmt.Sprintf("Poin dari transaksi %s", orderNumber),
-				OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
-			}); e != nil {
-				return "", false, false, e
+		// Ledger (SP-CRM-7): only for loyalty customers (balanceBefore was read under
+		// the same row lock). earned/pointsRedeemed are 0 when loyalty is off, but the
+		// explicit guard stops a future edit from firing these with a stale balanceBefore==0.
+		// Same tx → inherits the order's idempotency guard (a replayed order won't double-log).
+		if hasLoyaltyCustomer {
+			earned := res.EarnedPoints
+			if earned > 0 {
+				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+					CustomerID: in.CustomerID, Type: "earn", Points: earned,
+					BalanceAfter: balanceBefore + earned,
+					Reason:       fmt.Sprintf("Poin dari transaksi %s", orderNumber),
+					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
+				}); e != nil {
+					return "", false, false, fmt.Errorf("ledger earn: %w", e)
+				}
 			}
-		}
-		if pointsRedeemed > 0 {
-			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-				CustomerID: in.CustomerID, Type: "redeem", Points: -pointsRedeemed,
-				BalanceAfter: balanceBefore + earned - pointsRedeemed,
-				Reason:       fmt.Sprintf("Penukaran poin di transaksi %s", orderNumber),
-				OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
-			}); e != nil {
-				return "", false, false, e
+			if pointsRedeemed > 0 {
+				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+					CustomerID: in.CustomerID, Type: "redeem", Points: -pointsRedeemed,
+					BalanceAfter: balanceBefore + earned - pointsRedeemed,
+					Reason:       fmt.Sprintf("Penukaran poin di transaksi %s", orderNumber),
+					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
+				}); e != nil {
+					return "", false, false, fmt.Errorf("ledger redeem: %w", e)
+				}
 			}
 		}
 	}
@@ -374,6 +378,9 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	// restore redeemed. Idempotent: the already-refunded short-circuit above means
 	// this runs at most once per order.
 	if custID != nil && *custID != "" {
+		// Safe lock order: this tx already holds the orders row lock; acquiring the
+		// customers row lock here can't cycle with CreateOrder (which locks customers
+		// then inserts a NEW orders row — different rows, no shared cycle).
 		var bal int
 		if e := tx.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1 FOR UPDATE`, *custID).Scan(&bal); e != nil {
 			return fmt.Errorf("load points for refund: %w", e)
@@ -381,15 +388,15 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		clawback := write.PointsClawback(bal, oEarned)
 		afterClaw := bal - clawback
 		if clawback > 0 {
-			reason := fmt.Sprintf("Pembatalan poin dari refund %s", orderNumber)
+			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", orderNumber)
 			if oEarned > clawback {
-				reason += fmt.Sprintf(" (%d poin dimaafkan)", oEarned-clawback)
+				clawReason += fmt.Sprintf(" (%d poin dimaafkan)", oEarned-clawback)
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *custID, Type: "refund", Points: -clawback,
-				BalanceAfter: afterClaw, Reason: reason, OrderID: orderID,
+				BalanceAfter: afterClaw, Reason: clawReason, OrderID: orderID,
 			}); e != nil {
-				return e
+				return fmt.Errorf("ledger refund clawback: %w", e)
 			}
 		}
 		newBal := afterClaw + oRedeemed
@@ -400,7 +407,7 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 				Reason:       fmt.Sprintf("Pengembalian poin tukar dari refund %s", orderNumber),
 				OrderID:      orderID,
 			}); e != nil {
-				return e
+				return fmt.Errorf("ledger refund restore: %w", e)
 			}
 		}
 		if clawback > 0 || oRedeemed > 0 {

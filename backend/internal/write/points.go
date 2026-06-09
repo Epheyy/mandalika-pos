@@ -46,7 +46,7 @@ func InsertPointTx(ctx context.Context, tx pgx.Tx, e PointTxRow) error {
 // subtraction larger than the balance (floor at 0).
 func (r *Repo) AdjustPoints(ctx context.Context, customerID string, delta int, reason, byID, byName string) (int, error) {
 	if reason == "" {
-		return 0, fmt.Errorf("alasan penyesuaian wajib")
+		return 0, ErrReasonRequired
 	}
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {

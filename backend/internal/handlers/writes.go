@@ -612,8 +612,12 @@ func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
 		return
 	}
+	if errors.Is(err, write.ErrZeroDelta) || errors.Is(err, write.ErrInsufficientPoints) || errors.Is(err, write.ErrReasonRequired) {
+		httpx.Err(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	h.invalidate(r)
