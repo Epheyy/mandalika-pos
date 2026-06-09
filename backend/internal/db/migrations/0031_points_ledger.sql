@@ -7,8 +7,8 @@ CREATE TABLE point_transactions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id     uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   type            text NOT NULL CHECK (type IN ('earn','redeem','adjust','refund')),
-  points          integer NOT NULL,            -- signed delta (+earn, -redeem, ± adjust/refund)
-  balance_after   integer NOT NULL,            -- cached balance immediately after this entry
+  points          integer NOT NULL CHECK (points <> 0),            -- signed delta (+earn, -redeem, ± adjust/refund)
+  balance_after   integer NOT NULL CHECK (balance_after >= 0),     -- cached balance immediately after this entry
   reason          text,
   order_id        uuid REFERENCES orders(id) ON DELETE SET NULL,
   created_by      uuid REFERENCES users(id) ON DELETE SET NULL,
