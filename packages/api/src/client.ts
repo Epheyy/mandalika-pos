@@ -58,6 +58,9 @@ export type Tag = S['Tag']
 export type TagInput = S['TagInput']
 export type Segment = S['Segment']
 export type SegmentInput = S['SegmentInput']
+export type Interaction = S['Interaction']
+export type InteractionInput = S['InteractionInput']
+export type Reminder = S['Reminder']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -169,6 +172,12 @@ export interface Api {
   updateSegment: (id: string, input: SegmentInput) => Promise<void>
   deleteSegment: (id: string) => Promise<void>
   reorderSegments: (orderedIds: string[]) => Promise<void>
+
+  // interactions + reminders (SP-CRM-6)
+  listInteractions: (customerId: string, page?: number, limit?: number) => Promise<ListResult<Interaction>>
+  createInteraction: (customerId: string, input: InteractionInput) => Promise<{ id: string }>
+  deleteInteraction: (customerId: string, interactionId: string) => Promise<void>
+  listReminders: (opts?: { window?: number; type?: string; page?: number; limit?: number }) => Promise<ListResult<Reminder>>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -438,6 +447,20 @@ export function createClient(opts: ClientOptions): Api {
     updateSegment: (id, input) => request<void>('PUT', `${API}/segments/${id}`, input),
     deleteSegment: (id) => request<void>('DELETE', `${API}/segments/${id}`),
     reorderSegments: (orderedIds) => request<void>('PUT', `${API}/segments/reorder`, { orderedIds }),
+
+    listInteractions: (customerId, page = 1, limit = 25) =>
+      list<Interaction>(`${API}/customers/${customerId}/interactions`, { page, limit }),
+    createInteraction: (customerId, input) =>
+      data<{ id: string }>('POST', `${API}/customers/${customerId}/interactions`, input),
+    deleteInteraction: (customerId, interactionId) =>
+      request<void>('DELETE', `${API}/customers/${customerId}/interactions/${interactionId}`),
+    listReminders: (opts = {}) =>
+      list<Reminder>(`${API}/customers/reminders`, {
+        ...(opts.window ? { window: opts.window } : {}),
+        ...(opts.type ? { type: opts.type } : {}),
+        page: opts.page ?? 1,
+        limit: opts.limit ?? 25,
+      }),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>
