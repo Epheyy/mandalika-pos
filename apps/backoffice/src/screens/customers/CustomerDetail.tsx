@@ -30,6 +30,8 @@ interface CustomerDetailProps {
 const fmtDate = (d?: string | null) =>
   d ? format(parseISO(d), 'dd MMM yyyy', { locale: idLocale }) : '—'
 
+const todayISO = () => new Date().toISOString().slice(0, 10)
+
 export default function CustomerDetail({
   customerId, loyaltyEnabled, onBack, onEdit, onDelete,
 }: CustomerDetailProps) {
@@ -73,7 +75,7 @@ export default function CustomerDetail({
   const iTotalPages = Math.max(1, Math.ceil(iTotal / iLimit))
 
   const [iType, setIType] = useState<InteractionType>('catatan')
-  const [iDate, setIDate] = useState('')
+  const [iDate, setIDate] = useState(todayISO())
   const [iNote, setINote] = useState('')
   const [iBusy, setIBusy] = useState(false)
 
@@ -82,8 +84,12 @@ export default function CustomerDetail({
     setIBusy(true)
     try {
       await api.createInteraction(customerId, { type: iType, interactionDate: iDate, note: iNote })
-      setIType('catatan'); setIDate(''); setINote(''); setIPage(1)
-      await iq.refetch()
+      setIType('catatan'); setIDate(todayISO()); setINote('')
+      if (iPage !== 1) {
+        setIPage(1)          // deps change drives the page-1 refetch
+      } else {
+        await iq.refetch()   // already on page 1: deps won't change, so refetch explicitly
+      }
     } catch { /* surfaced on next load */ } finally {
       setIBusy(false)
     }
@@ -275,7 +281,7 @@ export default function CustomerDetail({
               <textarea value={iNote} onChange={(e) => setINote(e.target.value)} rows={2}
                 placeholder="Catatan interaksi…"
                 className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
-              <Button icon={<Plus className="w-4 h-4" />} disabled={iBusy} onClick={() => void addInteraction()}>
+              <Button icon={<Plus className="w-4 h-4" />} loading={iBusy} disabled={iBusy} onClick={() => void addInteraction()}>
                 Tambah Interaksi
               </Button>
             </div>
@@ -294,7 +300,7 @@ export default function CustomerDetail({
                       <p className="text-xs text-gray-400">{fmtDate(it.interactionDate)} · {it.createdByName || '—'}</p>
                       {it.note && <p className="text-sm text-gray-700 whitespace-pre-wrap">{it.note}</p>}
                     </div>
-                    <IconButton tone="danger" onClick={() => void removeInteraction(it.id)}><Trash2 className="w-4 h-4" /></IconButton>
+                    <IconButton tone="danger" disabled={iBusy} onClick={() => void removeInteraction(it.id)}><Trash2 className="w-4 h-4" /></IconButton>
                   </div>
                 ))}
               </div>
