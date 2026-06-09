@@ -6,7 +6,7 @@ import {
   ArrowLeft, Edit2, Trash2, Phone, Mail, Star, ShoppingBag,
   ChevronDown, ChevronUp, Gift, Cake, CalendarHeart, Tag, History, Plus,
 } from 'lucide-react'
-import type { Tag as TagType, Interaction, PointTransaction } from '@mandalika/api'
+import type { Tag as TagType, Interaction } from '@mandalika/api'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -122,15 +122,20 @@ export default function CustomerDetail({
   const [adjErr, setAdjErr] = useState<string | null>(null)
 
   const submitAdjust = async () => {
-    const n = parseInt(adjAmount, 10)
-    if (!Number.isFinite(n) || n === 0) { setAdjErr('Jumlah harus angka bukan nol'); return }
+    const n = Number(adjAmount.trim())
+    if (!Number.isInteger(n) || n === 0) {
+      setAdjErr('Jumlah harus bilangan bulat bukan nol')
+      return
+    }
     if (!adjReason.trim()) { setAdjErr('Alasan wajib diisi'); return }
     if (adjBusy) return
     setAdjBusy(true); setAdjErr(null)
     try {
       await api.adjustPoints(customerId, { points: n, reason: adjReason.trim() })
-      setAdjOpen(false); setAdjAmount(''); setAdjReason(''); setPtPage(1)
-      await Promise.all([ptq.refetch(), cq.refetch()])  // refresh ledger + balance
+      setAdjOpen(false); setAdjAmount(''); setAdjReason('')
+      const ledgerRefetch = ptPage === 1 ? ptq.refetch() : Promise.resolve()
+      setPtPage(1)
+      await Promise.all([ledgerRefetch, cq.refetch()])  // refresh ledger + balance
     } catch (e) {
       setAdjErr(e instanceof Error ? e.message : 'Gagal menyesuaikan poin')
     } finally {
@@ -362,7 +367,7 @@ export default function CustomerDetail({
                 <span className="text-sm font-bold text-gold-600">{c.points.toLocaleString('id-ID')}</span>
               </div>
               {canAdjust && (
-                <Button variant="secondary" onClick={() => { setAdjOpen(true); setAdjErr(null) }}>Sesuaikan Poin</Button>
+                <Button variant="secondary" onClick={() => { setAdjOpen(true); setAdjAmount(''); setAdjReason(''); setAdjErr(null) }}>Sesuaikan Poin</Button>
               )}
             </div>
             {adjOpen && (
@@ -376,7 +381,7 @@ export default function CustomerDetail({
                 {adjErr && <p className="text-xs text-red-600">{adjErr}</p>}
                 <div className="flex gap-2">
                   <Button loading={adjBusy} disabled={adjBusy} onClick={() => void submitAdjust()}>Simpan</Button>
-                  <Button variant="secondary" onClick={() => { setAdjOpen(false); setAdjErr(null) }}>Batal</Button>
+                  <Button variant="secondary" onClick={() => { setAdjOpen(false); setAdjAmount(''); setAdjReason(''); setAdjErr(null) }}>Batal</Button>
                 </div>
               </div>
             )}
@@ -386,7 +391,7 @@ export default function CustomerDetail({
               <EmptyState icon={<Star />} title="Belum ada transaksi poin" />
             ) : (
               <div className="divide-y divide-gray-50">
-                {ptx.map((t: PointTransaction) => (
+                {ptx.map((t) => (
                   <div key={t.id} className="px-5 py-3 flex items-center gap-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${pointTypeChipClasses(t.type)}`}>
                       {pointTypeLabel(t.type)}
@@ -403,7 +408,7 @@ export default function CustomerDetail({
                 ))}
               </div>
             )}
-            {ptTotal > ptLimit && (
+            {Math.ceil(ptTotal / ptLimit) > 1 && (
               <div className="px-4 py-2 border-t border-gray-100">
                 <Pagination
                   page={ptPage} totalPages={Math.ceil(ptTotal / ptLimit)} total={ptTotal}
