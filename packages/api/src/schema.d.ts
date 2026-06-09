@@ -347,6 +347,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/{id}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customer points ledger (Backoffice) */
+        get: operations["listPointTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}/points/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Manual points adjustment (Backoffice, manage_settings) */
+        post: operations["adjustPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promotions": {
         parameters: {
             query?: never;
@@ -2339,6 +2373,34 @@ export interface components {
             data: components["schemas"]["Interaction"][];
             meta: components["schemas"]["Meta"];
         };
+        PointTransaction: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "earn" | "redeem" | "adjust" | "refund";
+            points: number;
+            balanceAfter: number;
+            reason?: string | null;
+            /** Format: uuid */
+            orderId?: string | null;
+            orderNumber?: string | null;
+            createdByName?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PointTransactionListResponse: {
+            data: components["schemas"]["PointTransaction"][];
+            meta: components["schemas"]["Meta"];
+        };
+        AdjustPointsInput: {
+            points: number;
+            reason: string;
+        };
+        AdjustPointsResponse: {
+            data: {
+                balanceAfter: number;
+            };
+        };
         Reminder: {
             /** Format: uuid */
             id: string;
@@ -3848,6 +3910,57 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPointTransactions: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description points ledger */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointTransactionListResponse"];
+                };
+            };
+        };
+    };
+    adjustPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustPointsInput"];
+            };
+        };
+        responses: {
+            /** @description adjusted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustPointsResponse"];
+                };
+            };
         };
     };
     listPromotions: {

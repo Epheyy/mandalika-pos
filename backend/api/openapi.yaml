@@ -793,6 +793,40 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Interaction' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    PointTransaction:
+      type: object
+      required: [id, type, points, balanceAfter, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [earn, redeem, adjust, refund] }
+        points: { type: integer }
+        balanceAfter: { type: integer }
+        reason: { type: string, nullable: true }
+        orderId: { type: string, format: uuid, nullable: true }
+        orderNumber: { type: string, nullable: true }
+        createdByName: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    PointTransactionListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/PointTransaction' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AdjustPointsInput:
+      type: object
+      required: [points, reason]
+      properties:
+        points: { type: integer }
+        reason: { type: string }
+    AdjustPointsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [balanceAfter]
+          properties:
+            balanceAfter: { type: integer }
     Reminder:
       type: object
       required: [id, name, phone, kind, date, daysUntil]
@@ -2116,6 +2150,39 @@ paths:
       responses:
         '200': { description: deleted }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/customers/{id}/points:
+    get:
+      operationId: listPointTransactions
+      tags: [customers]
+      summary: Customer points ledger (Backoffice)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: points ledger
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PointTransactionListResponse' }
+  /api/v1/customers/{id}/points/adjust:
+    post:
+      operationId: adjustPoints
+      tags: [customers]
+      summary: Manual points adjustment (Backoffice, manage_settings)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdjustPointsInput' }
+      responses:
+        '200':
+          description: adjusted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustPointsResponse' }
   /api/v1/promotions:
     post:
       operationId: createPromotion

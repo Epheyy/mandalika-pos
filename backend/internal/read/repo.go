@@ -773,6 +773,20 @@ func (r *Repo) Interactions(ctx context.Context, customerID string, page, limit 
 	return listJSON[api.Interaction](ctx, r.Pool, sql, customerID, off(page, limit), limit)
 }
 
+// PointTransactions returns a customer's points ledger, newest-first, paginated.
+func (r *Repo) PointTransactions(ctx context.Context, customerID string, page, limit int) ([]api.PointTransaction, int, error) {
+	const sql = `SELECT json_build_object(
+		  'id', pt.id, 'type', pt.type, 'points', pt.points, 'balanceAfter', pt.balance_after,
+		  'reason', pt.reason, 'orderId', pt.order_id, 'orderNumber', o.order_number,
+		  'createdByName', pt.created_by_name, 'createdAt', pt.created_at), count(*) OVER() AS total
+		FROM point_transactions pt
+		LEFT JOIN orders o ON o.id = pt.order_id
+		WHERE pt.customer_id = $1
+		ORDER BY pt.created_at DESC, pt.id DESC
+		OFFSET $2 LIMIT $3`
+	return listJSON[api.PointTransaction](ctx, r.Pool, sql, customerID, off(page, limit), limit)
+}
+
 // Tags lists all customer tags ordered by sort_order then name.
 func (r *Repo) Tags(ctx context.Context) ([]api.Tag, error) {
 	const sql = `SELECT json_build_object('id',id,'name',name,'color',color,
