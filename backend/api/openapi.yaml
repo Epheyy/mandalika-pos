@@ -874,11 +874,27 @@ components:
         minimumSpend: { type: number, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
+        appliedCount: { type: integer, nullable: true }
     LoyaltyConditionListResponse:
       type: object
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
+    RewardGrant:
+      type: object
+      required: [id, conditionName, rewardProductIds, orderId, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        conditionName: { type: string }
+        rewardProductIds: { type: array, items: { type: string } }
+        orderId: { type: string, format: uuid, nullable: true }
+        orderNumber: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    RewardGrantListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/RewardGrant' } }
     Promotion:
       type: object
       required: [id, name, type, value, isActive, createdAt]
@@ -2183,6 +2199,19 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdjustPointsResponse' }
+  /api/v1/customers/{id}/reward-grants:
+    get:
+      operationId: listRewardGrants
+      tags: [customers]
+      summary: Customer product-reward grants (Backoffice, SP-CRM-8)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: reward grants
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RewardGrantListResponse' }
   /api/v1/promotions:
     post:
       operationId: createPromotion

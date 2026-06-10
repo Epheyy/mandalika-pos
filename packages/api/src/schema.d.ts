@@ -381,6 +381,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/{id}/reward-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customer product-reward grants (Backoffice, SP-CRM-8) */
+        get: operations["listRewardGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promotions": {
         parameters: {
             query?: never;
@@ -2444,9 +2461,24 @@ export interface components {
             isActive: boolean;
             /** Format: date-time */
             createdAt: string;
+            appliedCount?: number | null;
         };
         LoyaltyConditionListResponse: {
             data: components["schemas"]["LoyaltyCondition"][];
+        };
+        RewardGrant: {
+            /** Format: uuid */
+            id: string;
+            conditionName: string;
+            rewardProductIds: string[];
+            /** Format: uuid */
+            orderId: string | null;
+            orderNumber?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RewardGrantListResponse: {
+            data: components["schemas"]["RewardGrant"][];
         };
         Promotion: {
             /** Format: uuid */
@@ -3959,6 +3991,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdjustPointsResponse"];
+                };
+            };
+        };
+    };
+    listRewardGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description reward grants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RewardGrantListResponse"];
                 };
             };
         };
