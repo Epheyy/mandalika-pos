@@ -191,3 +191,61 @@ func TestLoyaltyEarnReason(t *testing.T) {
 		t.Fatalf("breakdown reason: want %q got %q", want, got)
 	}
 }
+
+// TestEvaluate_FractionalMultiplier verifies that a 0<v<1 multiplier is accepted
+// as the best (and only) multiplier, that FinalEarned rounds correctly, and that
+// the applied attribution PointsContributed can be negative.
+func TestEvaluate_FractionalMultiplier(t *testing.T) {
+	conds := []LoyaltyCondition{{
+		ID: "frac", Name: "Half", Type: "always_on", Trigger: "double_date",
+		RewardType: "multiply_points", RewardValue: 0.5, IsActive: true,
+	}}
+	o := EvaluateLoyalty(conds, baseCtx())
+	if o.BestMultiplier != 0.5 {
+		t.Fatalf("want BestMultiplier 0.5, got %v", o.BestMultiplier)
+	}
+	if got := o.FinalEarned(50); got != 25 { // round(50*0.5)+0 = 25
+		t.Fatalf("FinalEarned: want 25, got %d", got)
+	}
+	if len(o.Applied) != 1 || o.Applied[0].PointsContributed != -25 { // 25-50 = -25
+		t.Fatalf("PointsContributed: want -25, got %+v", o.Applied)
+	}
+}
+
+// TestLoyaltyEarnReason_FlatBonusOnly verifies that when BestMultiplier==1.0 (no
+// multiplier condition), the "×" segment is omitted from the reason string.
+func TestLoyaltyEarnReason_FlatBonusOnly(t *testing.T) {
+	o := LoyaltyOutcome{
+		BestMultiplier: 1.0,
+		FlatBonus:      100,
+		Applied: []AppliedCondition{
+			{Name: "Ulang Tahun", RewardType: "set_points", PointsContributed: 100},
+		},
+	}
+	want := "Poin transaksi MDK-1 (dasar 50 + Ulang Tahun +100)"
+	if got := LoyaltyEarnReason("MDK-1", 50, o); got != want {
+		t.Fatalf("flat-only reason: want %q, got %q", want, got)
+	}
+}
+
+// TestEvaluate_EarlyMorningWIBCampaignBoundary is a regression guard proving that
+// dateOnly correctly treats a 01:00 WIB order as June 6, keeping it inside a
+// June-6-only campaign window (false positive raised by reviewer was incorrect).
+func TestEvaluate_EarlyMorningWIBCampaignBoundary(t *testing.T) {
+	start := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
+	conds := []LoyaltyCondition{{
+		ID: "wib-cm", Name: "June 6 Campaign", Type: "campaign", Trigger: "double_date",
+		RewardType: "set_points", RewardValue: 10,
+		CampaignStartDate: &start, CampaignEndDate: &end,
+		IsActive: true,
+	}}
+	// 2026-06-05 18:00 UTC == 2026-06-06 01:00 WIB — should evaluate as June 6.
+	saleDate := time.Date(2026, 6, 5, 18, 0, 0, 0, time.UTC).In(time.FixedZone("WIB", 7*3600))
+	ctx := baseCtx()
+	ctx.SaleDate = saleDate
+	o := EvaluateLoyalty(conds, ctx)
+	if o.FlatBonus != 10 {
+		t.Fatalf("01:00 WIB on June 6 must be inside June-6 campaign, got %+v", o)
+	}
+}
