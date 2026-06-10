@@ -532,11 +532,17 @@ func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, float64, error)
 	return en, ppk, rate, err
 }
 
+// rowQuerier is satisfied by both *pgxpool.Pool and pgx.Tx, so loadActiveConditions
+// can run inside the order tx (commit) or directly on the pool (preview).
+type rowQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // loadActiveConditions reads the active loyalty_conditions inside the order tx into
 // the pure engine struct. Ordered (created_at, id) so multiply-tie attribution is
 // deterministic. jsonb arrays scan directly into Go slices (pgx v5), as in resolvePromo.
-func loadActiveConditions(ctx context.Context, tx pgx.Tx) ([]LoyaltyCondition, error) {
-	rows, err := tx.Query(ctx, `
+func loadActiveConditions(ctx context.Context, q rowQuerier) ([]LoyaltyCondition, error) {
+	rows, err := q.Query(ctx, `
 		SELECT id, name, type, trigger, reward_type, reward_value,
 		       COALESCE(reward_product_ids,'[]'::jsonb),
 		       campaign_start_date, campaign_end_date,
