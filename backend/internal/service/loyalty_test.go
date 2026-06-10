@@ -249,3 +249,32 @@ func TestEvaluate_EarlyMorningWIBCampaignBoundary(t *testing.T) {
 		t.Fatalf("01:00 WIB on June 6 must be inside June-6 campaign, got %+v", o)
 	}
 }
+
+func TestProductRewards(t *testing.T) {
+	conds := []LoyaltyCondition{
+		{ID: "c1", Name: "Ultah", Type: "always_on", Trigger: "birthday",
+			RewardType: "product_reward", RewardValue: 1,
+			RewardProductIDs: []string{"pA", "pB"}, IsActive: true},
+		{ID: "c2", Name: "Set", Type: "always_on", Trigger: "birthday",
+			RewardType: "set_points", RewardValue: 100, IsActive: true},
+		{ID: "c3", Name: "Beli Kopi", Type: "always_on", Trigger: "product_purchase",
+			RewardType: "product_reward", RewardValue: 1,
+			ApplicableProductIDs: []string{"pX"}, RewardProductIDs: []string{"pC"}, IsActive: true},
+	}
+	bday := time.Date(1990, 5, 20, 0, 0, 0, 0, time.UTC)
+	ctx := EvalContext{
+		Total: 50000, ProductIDs: map[string]bool{"pZ": true}, // no pX → c3 no match
+		SaleDate: time.Date(2026, 5, 20, 10, 0, 0, 0, wib),
+		Customer: EvalCustomer{Birthday: &bday},
+	}
+	got := ProductRewards(conds, ctx)
+	if len(got) != 1 {
+		t.Fatalf("want 1 product_reward match, got %d", len(got))
+	}
+	if got[0].ConditionID != "c1" {
+		t.Fatalf("want c1, got %s", got[0].ConditionID)
+	}
+	if len(got[0].RewardProductIDs) != 2 {
+		t.Fatalf("want 2 menu products, got %d", len(got[0].RewardProductIDs))
+	}
+}

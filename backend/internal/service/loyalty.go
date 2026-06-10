@@ -193,3 +193,17 @@ func LoyaltyEarnReason(orderNumber string, base int, o LoyaltyOutcome) string {
 
 func itoa(i int) string     { return strconv.Itoa(i) }
 func ftoa(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) } // 2.0 → "2", 0.5 → "0.5"
+
+// ProductRewards returns the product_reward conditions that match this order,
+// for the checkout fulfillment preview. Reuses the same matching the commit path
+// uses (EvaluateLoyalty), so the preview and the authoritative grant agree.
+func ProductRewards(conds []LoyaltyCondition, ctx EvalContext) []AppliedCondition {
+	out := EvaluateLoyalty(conds, ctx)
+	var rewards []AppliedCondition
+	for _, a := range out.Applied {
+		if a.RewardType == "product_reward" {
+			rewards = append(rewards, a)
+		}
+	}
+	return rewards
+}
