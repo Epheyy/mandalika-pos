@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // RewardPreviewVariant is one sellable size of a reward product (price is the
@@ -46,11 +49,14 @@ func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, it
 	if e := s.Pool.QueryRow(ctx,
 		`SELECT birthday, anniversary, visit_count FROM customers WHERE id=$1`,
 		customerID).Scan(&cust.Birthday, &cust.Anniversary, &cust.VisitCount); e != nil {
+		if errors.Is(e, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("load customer: %w", e)
 	}
 	conds, err := loadActiveConditions(ctx, s.Pool)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("preview load conditions: %w", err)
 	}
 	pidSet := make(map[string]bool, len(items))
 	for _, it := range items {
@@ -122,7 +128,7 @@ func (s *OrderService) rewardProductMenu(ctx context.Context, ids []string) ([]R
 		p.Variants = append(p.Variants, RewardPreviewVariant{Size: size, Price: price})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reward product rows: %w", err)
 	}
 	out := make([]RewardPreviewProduct, 0, len(order))
 	for _, id := range order {
