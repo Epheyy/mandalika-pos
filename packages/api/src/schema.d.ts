@@ -444,8 +444,29 @@ export interface paths {
         /** List loyalty conditions */
         get: operations["listLoyaltyConditions"];
         put?: never;
-        post?: never;
+        /** Create loyalty condition (Backoffice, manage_settings) */
+        post: operations["createLoyaltyCondition"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty-conditions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update loyalty condition (Backoffice, manage_settings) */
+        put: operations["updateLoyaltyCondition"];
+        post?: never;
+        /** Delete loyalty condition (Backoffice, manage_settings) */
+        delete: operations["deleteLoyaltyCondition"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2466,6 +2487,22 @@ export interface components {
         LoyaltyConditionListResponse: {
             data: components["schemas"]["LoyaltyCondition"][];
         };
+        LoyaltyConditionInput: {
+            name: string;
+            /** @enum {string} */
+            type: "always_on" | "campaign";
+            trigger: string;
+            /** @enum {string} */
+            rewardType: "set_points" | "multiply_points" | "product_reward";
+            rewardValue: number;
+            rewardProductIds?: string[];
+            campaignStartDate?: string;
+            campaignEndDate?: string;
+            activeDays?: number[];
+            applicableProductIds?: string[];
+            minimumSpend?: number | null;
+            isActive: boolean;
+        };
         RewardGrant: {
             /** Format: uuid */
             id: string;
@@ -4126,6 +4163,80 @@ export interface operations {
                     "application/json": components["schemas"]["LoyaltyConditionListResponse"];
                 };
             };
+        };
+    };
+    createLoyaltyCondition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyConditionInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    updateLoyaltyCondition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyConditionInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteLoyaltyCondition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     listOutlets: {

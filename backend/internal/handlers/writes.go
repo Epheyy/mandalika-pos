@@ -190,6 +190,27 @@ func (h *Handlers) DeleteDiscountCode(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteDiscountCode(r.Context(), chi.URLParam(r, "id")))
 }
 
+func (h *Handlers) CreateLoyaltyCondition(w http.ResponseWriter, r *http.Request) {
+	c, ok := decodeWrite[write.LoyaltyCondition](w, r)
+	if !ok {
+		return
+	}
+	id, err := h.Write.CreateLoyaltyCondition(r.Context(), c)
+	h.created(w, r, id, err)
+}
+
+func (h *Handlers) UpdateLoyaltyCondition(w http.ResponseWriter, r *http.Request) {
+	c, ok := decodeWrite[write.LoyaltyCondition](w, r)
+	if !ok {
+		return
+	}
+	h.mutated(w, r, h.Write.UpdateLoyaltyCondition(r.Context(), chi.URLParam(r, "id"), c))
+}
+
+func (h *Handlers) DeleteLoyaltyCondition(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeleteLoyaltyCondition(r.Context(), chi.URLParam(r, "id")))
+}
+
 func (h *Handlers) CreateOutlet(w http.ResponseWriter, r *http.Request) {
 	o, ok := decodeWrite[write.Outlet](w, r)
 	if !ok {

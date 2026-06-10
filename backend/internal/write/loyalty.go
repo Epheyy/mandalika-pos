@@ -41,3 +41,64 @@ func InsertConditionApplication(ctx context.Context, tx pgx.Tx, a ConditionAppli
 	}
 	return nil
 }
+
+// LoyaltyCondition is the backoffice create/update input for a loyalty_conditions
+// row (id/createdAt/appliedCount are server-owned and not part of the input).
+// type + reward_type are enforced by DB CHECK constraints; trigger is free text
+// (the engine simply ignores an unknown trigger).
+type LoyaltyCondition struct {
+	Name                 string   `json:"name"`
+	Type                 string   `json:"type"`
+	Trigger              string   `json:"trigger"`
+	RewardType           string   `json:"rewardType"`
+	RewardValue          float64  `json:"rewardValue"`
+	RewardProductIDs     []string `json:"rewardProductIds"`
+	CampaignStartDate    string   `json:"campaignStartDate"`
+	CampaignEndDate      string   `json:"campaignEndDate"`
+	ActiveDays           []int    `json:"activeDays"`
+	ApplicableProductIDs []string `json:"applicableProductIds"`
+	MinimumSpend         *float64 `json:"minimumSpend"`
+	IsActive             bool     `json:"isActive"`
+}
+
+func (r *Repo) CreateLoyaltyCondition(ctx context.Context, c LoyaltyCondition) (string, error) {
+	var id string
+	err := r.tx(ctx, "loyaltyConditions", func(t pgx.Tx) error {
+		rpid, _ := jsonb(c.RewardProductIDs)
+		apid, _ := jsonb(c.ApplicableProductIDs)
+		ad, _ := jsonb(c.ActiveDays)
+		return t.QueryRow(ctx, `
+			INSERT INTO loyalty_conditions (name, type, trigger, reward_type, reward_value,
+			  reward_product_ids, campaign_start_date, campaign_end_date, active_days,
+			  applicable_product_ids, minimum_spend, is_active)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+			c.Name, c.Type, c.Trigger, c.RewardType, c.RewardValue,
+			rpid, nullDate(c.CampaignStartDate), nullDate(c.CampaignEndDate), ad,
+			apid, c.MinimumSpend, c.IsActive).Scan(&id)
+	})
+	return id, err
+}
+
+func (r *Repo) UpdateLoyaltyCondition(ctx context.Context, id string, c LoyaltyCondition) error {
+	return r.tx(ctx, "loyaltyConditions", func(t pgx.Tx) error {
+		rpid, _ := jsonb(c.RewardProductIDs)
+		apid, _ := jsonb(c.ApplicableProductIDs)
+		ad, _ := jsonb(c.ActiveDays)
+		ct, e := t.Exec(ctx, `
+			UPDATE loyalty_conditions SET name=$1, type=$2, trigger=$3, reward_type=$4,
+			  reward_value=$5, reward_product_ids=$6, campaign_start_date=$7,
+			  campaign_end_date=$8, active_days=$9, applicable_product_ids=$10,
+			  minimum_spend=$11, is_active=$12 WHERE id=$13`,
+			c.Name, c.Type, c.Trigger, c.RewardType, c.RewardValue,
+			rpid, nullDate(c.CampaignStartDate), nullDate(c.CampaignEndDate), ad,
+			apid, c.MinimumSpend, c.IsActive, id)
+		if e == nil && ct.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return e
+	})
+}
+
+func (r *Repo) DeleteLoyaltyCondition(ctx context.Context, id string) error {
+	return r.delete(ctx, "loyaltyConditions", "loyalty_conditions", id)
+}

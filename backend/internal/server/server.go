@@ -248,6 +248,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/settings/app", h.UpdateAppSettings)
 				r.Put("/settings/loyalty", h.UpdateLoyaltySettings)
 				r.Post("/customers/{id}/points/adjust", h.AdjustPoints)
+				r.Post("/loyalty-conditions", h.CreateLoyaltyCondition)
+				r.Put("/loyalty-conditions/{id}", h.UpdateLoyaltyCondition)
+				r.Delete("/loyalty-conditions/{id}", h.DeleteLoyaltyCondition)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_stock_count"))

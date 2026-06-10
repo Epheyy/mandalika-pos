@@ -880,6 +880,22 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
+    LoyaltyConditionInput:
+      type: object
+      required: [name, type, trigger, rewardType, rewardValue, isActive]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [always_on, campaign] }
+        trigger: { type: string }
+        rewardType: { type: string, enum: [set_points, multiply_points, product_reward] }
+        rewardValue: { type: number }
+        rewardProductIds: { type: array, items: { type: string } }
+        campaignStartDate: { type: string }
+        campaignEndDate: { type: string }
+        activeDays: { type: array, items: { type: integer } }
+        applicableProductIds: { type: array, items: { type: string } }
+        minimumSpend: { type: number, nullable: true }
+        isActive: { type: boolean }
     RewardGrant:
       type: object
       required: [id, conditionName, rewardProductIds, orderId, createdAt]
@@ -2277,6 +2293,54 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoyaltyConditionListResponse' }
+    post:
+      operationId: createLoyaltyCondition
+      tags: [promotions]
+      summary: Create loyalty condition (Backoffice, manage_settings)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoyaltyConditionInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+  /api/v1/loyalty-conditions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: updateLoyaltyCondition
+      tags: [promotions]
+      summary: Update loyalty condition (Backoffice, manage_settings)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoyaltyConditionInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteLoyaltyCondition
+      tags: [promotions]
+      summary: Delete loyalty condition (Backoffice, manage_settings)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/outlets:
     post:
       operationId: createOutlet
