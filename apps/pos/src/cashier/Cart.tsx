@@ -105,37 +105,41 @@ export const Cart = memo(function Cart({
                   {item.productName}
                 </p>
                 {variantLabel(item.variantSize) && <p className="text-xs text-gray-500">{variantLabel(item.variantSize)}</p>}
-                <p className="text-xs text-indigo-600 font-bold">
-                  {formatRupiah(item.subtotal)}
-                </p>
+                {item.isReward ? (
+                  <p className="text-xs font-bold text-green-600">GRATIS · Hadiah Loyalti</p>
+                ) : (
+                  <p className="text-xs text-indigo-600 font-bold">{formatRupiah(item.subtotal)}</p>
+                )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() =>
-                    onSetQty(item.productId, item.variantSize, item.quantity - 1)
-                  }
-                  className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
-                >
-                  −
-                </button>
-                <span className="w-5 text-center text-xs font-bold">
-                  {item.quantity}
-                </span>
-                <button
-                  onClick={() =>
-                    onSetQty(item.productId, item.variantSize, item.quantity + 1)
-                  }
-                  className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => onRemove(item.productId, item.variantSize)}
-                  className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 hover:bg-red-200 text-xs ml-1"
-                >
-                  ×
-                </button>
-              </div>
+              {!item.isReward && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() =>
+                      onSetQty(item.productId, item.variantSize, item.quantity - 1)
+                    }
+                    className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
+                  >
+                    −
+                  </button>
+                  <span className="w-5 text-center text-xs font-bold">
+                    {item.quantity}
+                  </span>
+                  <button
+                    onClick={() =>
+                      onSetQty(item.productId, item.variantSize, item.quantity + 1)
+                    }
+                    className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={() => onRemove(item.productId, item.variantSize)}
+                    className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 hover:bg-red-200 text-xs ml-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}

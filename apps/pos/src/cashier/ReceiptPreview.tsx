@@ -118,8 +118,8 @@ export const ReceiptPreview = memo(function ReceiptPreview({
                     {variantLabel(item.variantSize) ? `${variantLabel(item.variantSize)} ×${item.quantity}` : `×${item.quantity}`}
                   </span>
                 </span>
-                <span className="text-gray-800 font-medium flex-shrink-0">
-                  {formatRupiah(item.subtotal)}
+                <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-green-600' : 'text-gray-800'}`}>
+                  {item.isReward ? 'GRATIS' : formatRupiah(item.subtotal)}
                 </span>
               </div>
             ))}
