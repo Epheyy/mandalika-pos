@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Customer, Order } from '@mandalika/api'
+import type { Customer, Order, RewardGrant } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -19,6 +19,7 @@ import {
   type InteractionType,
 } from './interactionTypes'
 import { pointTypeLabel, pointTypeChipClasses } from './pointTypes'
+import { rewardGrantSummary } from './rewardTypes'
 import { TagManager } from './TagManager'
 
 interface CustomerDetailProps {
@@ -114,6 +115,11 @@ export default function CustomerDetail({
   )
   const ptx = ptq.data?.data ?? []
   const ptTotal = ptq.data?.meta?.total ?? 0
+  const rgq = usePolledQuery(
+    () => api.listRewardGrants(customerId),
+    [customerId],
+  )
+  const rewardGrants: RewardGrant[] = rgq.data ?? []
 
   const [adjOpen, setAdjOpen] = useState(false)
   const [adjAmount, setAdjAmount] = useState('')   // signed integer string
@@ -415,6 +421,22 @@ export default function CustomerDetail({
                   onChange={setPtPage} pageSize={ptLimit}
                   onPageSizeChange={() => { /* fixed 25 */ }}
                 />
+              </div>
+            )}
+            {rewardGrants.length > 0 && (
+              <div className="border-t border-gray-100 px-4 py-3">
+                <p className="text-xs font-bold text-gray-500 mb-2">Reward Produk</p>
+                <ul className="space-y-1">
+                  {rewardGrants.map((g) => (
+                    <li key={g.id} className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-gray-700">{g.conditionName}</span>
+                      <span className="text-gray-400">
+                        {rewardGrantSummary(g.rewardProductIds)}
+                        {g.orderNumber ? ` · ${g.orderNumber}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </Card>
