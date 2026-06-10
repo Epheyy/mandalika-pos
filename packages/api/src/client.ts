@@ -64,6 +64,7 @@ export type Reminder = S['Reminder']
 export type PointTransaction = S['PointTransaction']
 export type AdjustPointsInput = S['AdjustPointsInput']
 export type RewardGrant = S['RewardGrant']
+export type LoyaltyPreviewReward = S['LoyaltyPreviewReward']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -186,6 +187,12 @@ export interface Api {
   listPointTransactions: (customerId: string, page?: number, limit?: number) => Promise<ListResult<PointTransaction>>
   adjustPoints: (customerId: string, input: AdjustPointsInput) => Promise<{ balanceAfter: number }>
   listRewardGrants: (customerId: string) => Promise<RewardGrant[]>
+  loyaltyPreview: (
+    customerId: string,
+    items: CartItem[],
+    total: number,
+    clientCreatedAt?: string,
+  ) => Promise<LoyaltyPreviewReward[]>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -476,6 +483,13 @@ export function createClient(opts: ClientOptions): Api {
       data<{ balanceAfter: number }>('POST', `${API}/customers/${customerId}/points/adjust`, input),
     listRewardGrants: (customerId) =>
       data<RewardGrant[]>('GET', `${API}/customers/${customerId}/reward-grants`),
+    loyaltyPreview: (customerId, items, total, clientCreatedAt) =>
+      data<LoyaltyPreviewReward[]>('POST', `${API}/sync/loyalty-preview`, {
+        customerId,
+        items,
+        total,
+        ...(clientCreatedAt ? { clientCreatedAt } : {}),
+      }),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>
