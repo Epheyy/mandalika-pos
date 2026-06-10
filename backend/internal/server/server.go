@@ -133,6 +133,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
 			r.Get("/sync/customers/lookup", h.CustomersLookup)
+			r.Post("/sync/loyalty-preview", h.LoyaltyPreview)
 
 			// ── Reference-data writes (Backoffice; permission-gated, bump
 			// content_version → POS sync wall) ──

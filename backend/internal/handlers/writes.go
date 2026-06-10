@@ -949,6 +949,46 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	h.returnOrder(w, r, id)
 }
 
+type loyaltyPreviewBody struct {
+	CustomerID      string              `json:"customerId"`
+	Total           float64             `json:"total"`
+	ClientCreatedAt *time.Time          `json:"clientCreatedAt"`
+	Items           []service.OrderItem `json:"items"`
+}
+
+// LoyaltyPreview returns the product_reward free-item menus a customer qualifies
+// for on the current cart (online-only checkout preview; read-only).
+func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
+	body, ok := decodeWrite[loyaltyPreviewBody](w, r)
+	if !ok {
+		return
+	}
+	if body.CustomerID == "" {
+		httpx.Err(w, http.StatusBadRequest, "customerId required")
+		return
+	}
+	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	out := make([]api.LoyaltyPreviewReward, 0, len(rewards))
+	for _, rw := range rewards {
+		products := make([]api.LoyaltyPreviewProduct, 0, len(rw.Products))
+		for _, p := range rw.Products {
+			vs := make([]api.LoyaltyPreviewVariant, 0, len(p.Variants))
+			for _, v := range p.Variants {
+				vs = append(vs, api.LoyaltyPreviewVariant{Size: v.Size, Price: float32(v.Price)})
+			}
+			products = append(products, api.LoyaltyPreviewProduct{Id: p.ID, Name: p.Name, Variants: vs})
+		}
+		out = append(out, api.LoyaltyPreviewReward{
+			ConditionId: rw.ConditionID, ConditionName: rw.ConditionName, Products: products,
+		})
+	}
+	httpx.JSON(w, http.StatusOK, api.LoyaltyPreviewResponse{Data: out})
+}
+
 func (h *Handlers) returnOrder(w http.ResponseWriter, r *http.Request, id string) {
 	o, err := h.Repo.Order(r.Context(), scope(r), id)
 	if err != nil {
