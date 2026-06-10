@@ -362,6 +362,9 @@ export default function Customers() {
                             {TRIGGER_OPTIONS.find((t) => t.value === c.trigger)?.label} →{' '}
                             {c.rewardType === 'set_points' ? `+${c.rewardValue} Poin` : c.rewardType === 'multiply_points' ? `×${c.rewardValue} Poin` : 'Produk Gratis'}
                           </p>
+                          {typeof c.appliedCount === 'number' && c.appliedCount > 0 && (
+                            <p className="text-xs text-gray-400">Terpakai: {c.appliedCount}×</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
