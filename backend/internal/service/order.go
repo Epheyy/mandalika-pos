@@ -421,6 +421,9 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	// Points reversal (SP-CRM-7): claw back earned (floor 0, forgive remainder) and
 	// restore redeemed. Idempotent: the already-refunded short-circuit above means
 	// this runs at most once per order.
+	// SP-CRM-8: orders.points_earned now stores the FULL engine total (base × mult +
+	// bonuses), so this clawback reverses bonuses too with no change here. Condition
+	// application rows are immutable order-time facts and are intentionally not reversed.
 	if custID != nil && *custID != "" {
 		// Safe lock order: this tx already holds the orders row lock; acquiring the
 		// customers row lock here can't cycle with CreateOrder (which locks customers
