@@ -330,8 +330,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 					return "", false, false, fmt.Errorf("ledger redeem: %w", e)
 				}
 			}
-			// Audit: one row per matched condition (set/multiply/product_reward).
+			// Audit. set_points / multiply_points record on match (unchanged).
+			// product_reward records ONLY when a validated reward line fulfills it
+			// (SP-CRM-9 "actually received"); collect the matched menus for that.
+			rewardMenu := make(map[string]AppliedCondition) // conditionID -> matched product_reward
 			for _, a := range outcome.Applied {
+				if a.RewardType == "product_reward" {
+					rewardMenu[a.ConditionID] = a
+					continue
+				}
 				if e := write.InsertConditionApplication(ctx, tx, write.ConditionApplicationRow{
 					OrderID: orderID, CustomerID: in.CustomerID, ConditionID: a.ConditionID,
 					ConditionName: a.Name, Trigger: a.Trigger, RewardType: a.RewardType,
@@ -339,6 +346,30 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 					RewardProductIDs: a.RewardProductIDs,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("record condition application: %w", e)
+				}
+			}
+			// One validated grant per reward line; ≤1 per condition (also enforced
+			// by UNIQUE(order_id, condition_id)). Invalid lines are dropped + logged
+			// (lenient — the staff POS already trusts client item prices).
+			seenReward := make(map[string]bool)
+			for _, it := range in.Items {
+				if !it.IsReward {
+					continue
+				}
+				a, ok := rewardMenu[it.RewardConditionID]
+				if !ok || seenReward[it.RewardConditionID] || !contains(a.RewardProductIDs, it.ProductID) {
+					slog.Warn("dropping unfulfillable reward line from audit",
+						"order_id", orderID, "condition_id", it.RewardConditionID, "product_id", it.ProductID)
+					continue
+				}
+				seenReward[it.RewardConditionID] = true
+				if e := write.InsertConditionApplication(ctx, tx, write.ConditionApplicationRow{
+					OrderID: orderID, CustomerID: in.CustomerID, ConditionID: a.ConditionID,
+					ConditionName: a.Name, Trigger: a.Trigger, RewardType: "product_reward",
+					RewardValue: a.RewardValue, PointsContributed: 0,
+					RewardProductIDs: []string{it.ProductID}, // the CHOSEN product
+				}); e != nil {
+					return "", false, false, fmt.Errorf("record reward fulfillment: %w", e)
 				}
 			}
 		}
