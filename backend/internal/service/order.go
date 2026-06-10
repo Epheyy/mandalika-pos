@@ -556,10 +556,16 @@ func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, strin
 	return te, tr, re, rt, err
 }
 
-func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, float64, error) {
+// rowQueryRower is satisfied by both *pgxpool.Pool and pgx.Tx, so loadLoyalty
+// can run on the pool (preview) or inside the order tx (commit).
+type rowQueryRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func loadLoyalty(ctx context.Context, q rowQueryRower) (bool, float64, float64, error) {
 	var en bool
 	var ppk, rate float64
-	err := tx.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`SELECT enabled, points_per_thousand, redemption_rate
 		   FROM loyalty_settings WHERE id=1`).
 		Scan(&en, &ppk, &rate)
