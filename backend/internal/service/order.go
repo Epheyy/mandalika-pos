@@ -178,6 +178,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		}
 		pidSet := make(map[string]bool, len(in.Items))
 		for _, it := range in.Items {
+			if it.IsReward {
+				continue // a free reward item must not trigger more conditions
+			}
 			pidSet[it.ProductID] = true
 		}
 		saleTime := time.Now()
