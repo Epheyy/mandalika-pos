@@ -5,6 +5,7 @@ import { formatRupiah } from './pricing'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
+type LoyaltyPreviewReward = components['schemas']['LoyaltyPreviewReward']
 
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'qris'
 
@@ -22,6 +23,15 @@ interface CheckoutPanelProps {
   onSelectSalesman: (salesman: { id: string; name: string } | null) => void
   loyaltyEnabled: boolean
   customerPoints: number
+  rewards: LoyaltyPreviewReward[]
+  rewardsLoading: boolean
+  pickedRewards: Record<string, { productId: string; variantSize: string }>
+  onPickReward: (
+    conditionId: string,
+    product: { id: string; name: string },
+    variant: { size: string; price: number },
+  ) => void
+  onClearReward: (conditionId: string) => void
   pointsToRedeem: number
   onPointsRedeemedChange: (points: number) => void
   onPaymentMethodChange: (method: PaymentMethod) => void
@@ -53,6 +63,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   onSelectSalesman,
   loyaltyEnabled,
   customerPoints,
+  rewards,
+  rewardsLoading,
+  pickedRewards,
+  onPickReward,
+  onClearReward,
   pointsToRedeem,
   onPointsRedeemedChange,
   onPaymentMethodChange,
@@ -150,6 +165,64 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             <div className="p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
               <span className="font-semibold">Catatan: </span>
               {orderNotes}
+            </div>
+          )}
+
+          {/* Loyalty product rewards (online-only) */}
+          {loyaltyEnabled && selectedCustomer && (rewardsLoading || rewards.length > 0) && (
+            <div>
+              <p className="text-xs font-semibold text-gray-700 mb-2">
+                🎁 Hadiah Loyalti
+              </p>
+              {rewardsLoading && (
+                <p className="text-[11px] text-gray-400">Memeriksa hadiah…</p>
+              )}
+              <div className="space-y-3">
+                {rewards.map((rw) => {
+                  const picked = pickedRewards[rw.conditionId]
+                  return (
+                    <div key={rw.conditionId} className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-800">{rw.conditionName}</span>
+                        {picked && (
+                          <button
+                            type="button"
+                            onClick={() => onClearReward(rw.conditionId)}
+                            className="text-[11px] text-amber-700 underline"
+                          >
+                            Batalkan
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {rw.products.flatMap((p) =>
+                          p.variants.map((v) => {
+                            const isSel = picked?.productId === p.id && picked?.variantSize === v.size
+                            return (
+                              <button
+                                key={`${p.id}-${v.size}`}
+                                type="button"
+                                onClick={() => onPickReward(rw.conditionId, { id: p.id, name: p.name }, v)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                  isSel
+                                    ? 'border-amber-500 bg-amber-600 text-white'
+                                    : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-100'
+                                }`}
+                              >
+                                {p.name}
+                                {v.size ? ` · ${v.size}` : ''}
+                              </button>
+                            )
+                          }),
+                        )}
+                      </div>
+                      {picked && (
+                        <p className="mt-1.5 text-[11px] font-semibold text-green-600">GRATIS ✓</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
