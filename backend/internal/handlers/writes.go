@@ -986,7 +986,9 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 			ConditionId: rw.ConditionID, ConditionName: rw.ConditionName, Products: products,
 		})
 	}
-	httpx.JSON(w, http.StatusOK, api.LoyaltyPreviewResponse{Data: out})
+	// writeJSON (not httpx.JSON): LoyaltyPreviewResponse already carries the
+	// {data:...} envelope, so httpx.JSON would double-wrap it ({data:{data:...}}).
+	writeJSON(w, http.StatusOK, api.LoyaltyPreviewResponse{Data: out})
 }
 
 func (h *Handlers) returnOrder(w http.ResponseWriter, r *http.Request, id string) {
