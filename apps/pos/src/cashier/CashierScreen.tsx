@@ -235,6 +235,7 @@ export default function CashierScreen() {
       !offlineData.isOnline
     ) {
       setRewards([])
+      setRewardsLoading(false)
       return
     }
     let ignore = false
@@ -256,7 +257,7 @@ export default function CashierScreen() {
     // Fetch once when the panel opens; the cart is final at checkout. Re-picking a
     // reward must not refetch, so cart/derived.total are intentionally excluded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer, offlineData.isOnline])
+  }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer?.id, offlineData.isOnline])
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = (enabledMethods[0]?.id ?? 'cash') as 'cash' | 'card' | 'transfer' | 'qris'
