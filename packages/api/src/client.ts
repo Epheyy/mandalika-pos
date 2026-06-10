@@ -63,6 +63,7 @@ export type InteractionInput = S['InteractionInput']
 export type Reminder = S['Reminder']
 export type PointTransaction = S['PointTransaction']
 export type AdjustPointsInput = S['AdjustPointsInput']
+export type RewardGrant = S['RewardGrant']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -184,6 +185,7 @@ export interface Api {
   // points ledger (SP-CRM-7)
   listPointTransactions: (customerId: string, page?: number, limit?: number) => Promise<ListResult<PointTransaction>>
   adjustPoints: (customerId: string, input: AdjustPointsInput) => Promise<{ balanceAfter: number }>
+  listRewardGrants: (customerId: string) => Promise<RewardGrant[]>
 
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
@@ -472,6 +474,8 @@ export function createClient(opts: ClientOptions): Api {
       list<PointTransaction>(`${API}/customers/${customerId}/points`, { page, limit }),
     adjustPoints: (customerId, input) =>
       data<{ balanceAfter: number }>('POST', `${API}/customers/${customerId}/points/adjust`, input),
+    listRewardGrants: (customerId) =>
+      data<RewardGrant[]>('GET', `${API}/customers/${customerId}/reward-grants`),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>
