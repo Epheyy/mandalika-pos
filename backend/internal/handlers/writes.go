@@ -626,6 +626,15 @@ func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
 	}{BalanceAfter: bal}})
 }
 
+func (h *Handlers) RewardGrants(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Repo.RewardGrants(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RewardGrantListResponse{Data: rows})
+}
+
 // ── Ingredient transfers ───────────────────────────────────
 
 func (h *Handlers) IngredientTransfers(w http.ResponseWriter, r *http.Request) {

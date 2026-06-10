@@ -787,6 +787,20 @@ func (r *Repo) PointTransactions(ctx context.Context, customerID string, page, l
 	return listJSON[api.PointTransaction](ctx, r.Pool, sql, customerID, off(page, limit), limit)
 }
 
+// RewardGrants lists a customer's product_reward grants (SP-CRM-8), newest first.
+func (r *Repo) RewardGrants(ctx context.Context, customerID string) ([]api.RewardGrant, error) {
+	const sql = `SELECT json_build_object(
+		  'id', a.id, 'conditionName', a.condition_name,
+		  'rewardProductIds', COALESCE(a.reward_product_ids,'[]'::jsonb),
+		  'orderId', a.order_id, 'orderNumber', o.order_number, 'createdAt', a.created_at)
+		FROM loyalty_condition_applications a
+		LEFT JOIN orders o ON o.id = a.order_id
+		WHERE a.customer_id = $1 AND a.reward_type = 'product_reward'
+		ORDER BY a.created_at DESC, a.id DESC`
+	rows, _, err := listJSON[api.RewardGrant](ctx, r.Pool, sql, customerID)
+	return rows, err
+}
+
 // Tags lists all customer tags ordered by sort_order then name.
 func (r *Repo) Tags(ctx context.Context) ([]api.Tag, error) {
 	const sql = `SELECT json_build_object('id',id,'name',name,'color',color,
@@ -838,7 +852,9 @@ func (r *Repo) LoyaltyConditions(ctx context.Context) ([]api.LoyaltyCondition, i
 		   'rewardProductIds',reward_product_ids,
 		   'campaignStartDate',campaign_start_date,'campaignEndDate',campaign_end_date,
 		   'activeDays',active_days,'applicableProductIds',applicable_product_ids,
-		   'minimumSpend',minimum_spend,'isActive',is_active,'createdAt',created_at)
+		   'minimumSpend',minimum_spend,'isActive',is_active,'createdAt',created_at,
+		   'appliedCount',(SELECT count(*) FROM loyalty_condition_applications a
+		                     WHERE a.condition_id = loyalty_conditions.id))
 		   FROM loyalty_conditions ORDER BY created_at DESC`)
 }
 
