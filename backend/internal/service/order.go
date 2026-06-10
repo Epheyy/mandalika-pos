@@ -163,7 +163,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
 	base := res.EarnedPoints
 	finalEarned := base
-	var outcome LoyaltyOutcome
+	// Default to the identity multiplier so a future reader can't get FinalEarned==0
+	// from a zero-value outcome (EvaluateLoyalty also returns BestMultiplier>=1.0).
+	outcome := LoyaltyOutcome{BestMultiplier: 1.0}
 	if hasLoyaltyCustomer {
 		conds, e := loadActiveConditions(ctx, tx)
 		if e != nil {
