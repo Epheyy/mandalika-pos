@@ -480,6 +480,37 @@ func loadLoyalty(ctx context.Context, tx pgx.Tx) (bool, float64, float64, error)
 	return en, ppk, rate, err
 }
 
+// loadActiveConditions reads the active loyalty_conditions inside the order tx into
+// the pure engine struct. Ordered (created_at, id) so multiply-tie attribution is
+// deterministic. jsonb arrays scan directly into Go slices (pgx v5), as in resolvePromo.
+func loadActiveConditions(ctx context.Context, tx pgx.Tx) ([]LoyaltyCondition, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT id, name, type, trigger, reward_type, reward_value,
+		       COALESCE(reward_product_ids,'[]'::jsonb),
+		       campaign_start_date, campaign_end_date,
+		       COALESCE(active_days,'[]'::jsonb),
+		       COALESCE(applicable_product_ids,'[]'::jsonb),
+		       minimum_spend, is_active
+		  FROM loyalty_conditions
+		 WHERE is_active = true
+		 ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("load loyalty conditions: %w", err)
+	}
+	defer rows.Close()
+	var out []LoyaltyCondition
+	for rows.Next() {
+		var c LoyaltyCondition
+		if err := rows.Scan(&c.ID, &c.Name, &c.Type, &c.Trigger, &c.RewardType, &c.RewardValue,
+			&c.RewardProductIDs, &c.CampaignStartDate, &c.CampaignEndDate,
+			&c.ActiveDays, &c.ApplicableProductIDs, &c.MinimumSpend, &c.IsActive); err != nil {
+			return nil, fmt.Errorf("scan loyalty condition: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // nextOrderNumber assigns a short, globally-unique MND-NNNNNN from a single
 // sequence. nextval is atomic, so offline/multi-device sales never collide
 // (plan §5); order_number is also UNIQUE as a backstop.
