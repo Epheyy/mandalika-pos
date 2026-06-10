@@ -18,8 +18,9 @@ THE 6 WORKING RULES (confirm these — the user expects them every session):
 
 PROJECT STATE (as of 2026-06-09):
 - Branch `prod-hardening`. Backend Cloud Run rev **00055-n5h** (migrations →0031, next slot = 0032). Backoffice auto-deploys via Cloudflare on push; backend deploys via `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet`; APK via GH Actions android-release.yml. Real-data deployment (30+ outlets, thousands trx/day, 50k–500k identified customers).
-- DONE: SP-CRM-1..6, and **SP-CRM-7 (points ledger + manual adjustment + refund reversal — deployed rev 00055-n5h, mig 0031; adjust/ledger/lean-sync 16/16 authed + schema/CHECK/index proven; earn/redeem/refund verified-by-construction, pending a real-txn proof)**.
-- USER-PENDING: SP-CRM-5b on-device APK check + fleet rollout; SP-CRM-6 + SP-CRM-7 backoffice visual walkthroughs; optionally a real POS order+refund to confirm SP-CRM-7 earn/redeem/refund live on rev 00055-n5h.
+- DONE: SP-CRM-1..6, and **SP-CRM-7 (points ledger + manual adjustment + refund reversal — deployed rev 00055-n5h, mig 0031; adjust/ledger/lean-sync 16/16 authed + schema/CHECK/index proven + earn/redeem/refund/forgiveness/idempotency LIVE-PROVEN 12/12 via a real-OrderService e2e)**.
+- NOTE: **loyalty is currently OFF in prod** (`loyalty_settings.enabled=false`, though points_per_thousand=1 + redemption_rate=100 are configured) → earning is DORMANT until the business enables it. The e2e briefly toggled it on→off to prove the path.
+- USER-PENDING: SP-CRM-5b on-device APK check + fleet rollout; SP-CRM-6 + SP-CRM-7 backoffice visual walkthroughs.
 
 THE CRM MODULE — SP-CRM-1..7 DONE; remaining (each own spec→plan→build):
 - SP-CRM-8 — Loyalty-conditions trigger engine (NEXT; touches pricing.go/order.go — the hot earning path; writes the SP-CRM-7 ledger). See ⚠️ above.
@@ -65,9 +66,11 @@ SP-CRM-7 bundled two separable subsystems; user chose **ledger + adjustment + re
 ## ✅ Verification — adjust/ledger/lean-sync DONE (16/16 on rev 00055-n5h) + schema/CHECK/index
 Authed (temp customer, cleaned up): adjust +100→balanceAfter 100 + cached `points` reflects it + ledger `adjust` entry (author Administrator); adjust −30→70; **over-subtract→400, zero→400, empty-reason→400**, balance unchanged after rejects; missing-customer→404; lean-sync regression (by-phone + lookup carry cached `points` but NO ledger). DB (pgx throwaway, rolled back): table+index+points_earned exist; **CHECK constraints actively reject** points=0 and balance_after=-1 (valid row accepted); per-customer read → **Bitmap Index Scan on idx_point_transactions_customer**. Throwaways deleted. Backoffice `tsc -b`+`vite build` clean.
 
-## ⚠️ GAP / USER-PENDING (rule 6 — honest)
-- **earn/redeem/refund Go orchestration NOT exercised over HTTP.** A synthetic order would write a PERMANENT row into the production transaction log (orders are immutable), so it wasn't done unprompted. It's verified-by-construction (2 rigorous reviews: math byte-unchanged, idempotency control-flow traced) + the CHECK/index/adjust paths are live-proven. **Definitive proof = the first real POS order (→ earn entry) + a refund (→ reversal entries) on rev 00055-n5h.** A fully-cleaned-up synthetic-order e2e was OFFERED to the user.
-- **Backoffice visual walkthrough:** hard-refresh `mandalika-pos.pages.dev` → Pelanggan → open a customer → the **Poin** section: ledger list + (as an admin/`manage_settings` user) the "Sesuaikan Poin" form (+/− amount + reason).
+## ✅ earn/redeem/refund — LIVE-PROVEN 12/12 (e2e, 2026-06-09→10)
+A throwaway `cmd/crm7e2e` called the REAL `service.OrderService.CreateOrder`+`Refund` against the prod DB: briefly toggled `loyalty_settings.enabled` on (restored to false immediately + via defer), created O1 (earn) + O2 (earn+redeem 20), refunded both, then DELETED all artifacts (order_items/processed_keys/point_transactions/orders/customer; stock net-zero via the refunds' restock; order# advanced by 2, harmless). Verified ledger: earn+50→50, earn+50→100, redeem−20→80, refund clawback−50→30, refund clawback−30→0 (**floor-0, "20 poin dimaafkan"** forgiveness), refund restore+20→20; final balance 20; `orders.points_earned` 50/50; **replay no double-log; double-refund no double-reverse** (idempotency live-confirmed). loyalty confirmed back to false after. (Same-created_at rows sort by random `id` tiebreak — the documented known-minor; `balance_after` is authoritative.) **NOTE: loyalty is OFF in prod** — earning stays dormant until the business enables it.
+
+## ▶️ USER-PENDING — backoffice visual walkthrough
+Hard-refresh `mandalika-pos.pages.dev` → Pelanggan → open a customer → the **Poin** section: ledger list + (as an admin/`manage_settings` user) the "Sesuaikan Poin" form (+/− amount + reason).
 
 ---
 
