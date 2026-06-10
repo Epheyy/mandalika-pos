@@ -149,6 +149,9 @@ export default function Customers() {
   }
 
   const [loyaltyForm, setLoyaltyForm] = useState<LoyaltySettings>(DEFAULT_LOYALTY)
+  useEffect(() => {
+    if (lq.data) setLoyaltyForm(lq.data)
+  }, [lq.data])
   const [savingLoyalty, setSavingLoyalty] = useState(false)
 
   const [condOpen, setCondOpen] = useState(false)
@@ -197,7 +200,7 @@ export default function Customers() {
   const saveLoyalty = async () => {
     setSavingLoyalty(true)
     try {
-      await api.updateLoyaltySettings({ ...loyaltyForm, tierEnabled: loyalty.tierEnabled })
+      await api.updateLoyaltySettings(loyaltyForm)
       await lq.refetch()
     } finally {
       setSavingLoyalty(false)
