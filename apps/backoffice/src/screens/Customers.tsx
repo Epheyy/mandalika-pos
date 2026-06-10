@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type {
   Customer,
   LoyaltySettings,
@@ -149,8 +149,14 @@ export default function Customers() {
   }
 
   const [loyaltyForm, setLoyaltyForm] = useState<LoyaltySettings>(DEFAULT_LOYALTY)
+  // Seed the form from the server ONCE on first load. Guarding with a ref keeps a
+  // background poll refetch (usePolledQuery) from clobbering the user's unsaved edits.
+  const loyaltySeeded = useRef(false)
   useEffect(() => {
-    if (lq.data) setLoyaltyForm(lq.data)
+    if (lq.data && !loyaltySeeded.current) {
+      setLoyaltyForm(lq.data)
+      loyaltySeeded.current = true
+    }
   }, [lq.data])
   const [savingLoyalty, setSavingLoyalty] = useState(false)
 
