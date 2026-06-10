@@ -59,7 +59,7 @@ export type CashierAction =
   | { type: 'CART_ADD_ITEM'; item: CartItem }
   | { type: 'CART_REMOVE_ITEM'; productId: string; variantSize: string }
   | { type: 'CART_SET_QTY'; productId: string; variantSize: string; quantity: number }
-  | { type: 'CART_ADD_REWARD'; item: CartItem }
+  | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId: string } }
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
