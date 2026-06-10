@@ -875,6 +875,47 @@ components:
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         appliedCount: { type: integer, nullable: true }
+    LoyaltyPreviewVariant:
+      type: object
+      required: [size, price]
+      properties:
+        size: { type: string }
+        price: { type: number }
+    LoyaltyPreviewProduct:
+      type: object
+      required: [id, name, variants]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        variants:
+          type: array
+          items: { $ref: '#/components/schemas/LoyaltyPreviewVariant' }
+    LoyaltyPreviewReward:
+      type: object
+      required: [conditionId, conditionName, products]
+      properties:
+        conditionId: { type: string }
+        conditionName: { type: string }
+        products:
+          type: array
+          items: { $ref: '#/components/schemas/LoyaltyPreviewProduct' }
+    LoyaltyPreviewRequest:
+      type: object
+      required: [customerId, items, total]
+      properties:
+        customerId: { type: string }
+        total: { type: number }
+        clientCreatedAt: { type: string, nullable: true }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderItemInput' }
+    LoyaltyPreviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/LoyaltyPreviewReward' }
     LoyaltyConditionListResponse:
       type: object
       required: [data]
@@ -971,6 +1012,8 @@ components:
         quantity: { type: integer }
         subtotal: { type: number }
         isBundle: { type: boolean }
+        isReward: { type: boolean }
+        rewardConditionId: { type: string }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -1347,6 +1390,8 @@ components:
         quantity: { type: integer }
         subtotal: { type: number }
         isBundle: { type: boolean }
+        isReward: { type: boolean }
+        rewardConditionId: { type: string }
     CreateOrderRequest:
       type: object
       required: [orderUuid, items, paymentMethod]
@@ -3799,6 +3844,22 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerListResponse' }
+  /api/v1/sync/loyalty-preview:
+    post:
+      operationId: loyaltyPreview
+      tags: [sync]
+      summary: Eligible product_reward free-item menus for a cart + customer (online preview).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoyaltyPreviewRequest' }
+      responses:
+        '200':
+          description: matched rewards (possibly empty)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoyaltyPreviewResponse' }
   /api/v1/uploads/sign:
     post:
       operationId: signUpload

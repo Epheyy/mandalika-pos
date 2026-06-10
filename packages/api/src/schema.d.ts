@@ -1726,6 +1726,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/loyalty-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Eligible product_reward free-item menus for a cart + customer (online preview). */
+        post: operations["loyaltyPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/uploads/sign": {
         parameters: {
             query?: never;
@@ -2484,6 +2501,29 @@ export interface components {
             createdAt: string;
             appliedCount?: number | null;
         };
+        LoyaltyPreviewVariant: {
+            size: string;
+            price: number;
+        };
+        LoyaltyPreviewProduct: {
+            id: string;
+            name: string;
+            variants: components["schemas"]["LoyaltyPreviewVariant"][];
+        };
+        LoyaltyPreviewReward: {
+            conditionId: string;
+            conditionName: string;
+            products: components["schemas"]["LoyaltyPreviewProduct"][];
+        };
+        LoyaltyPreviewRequest: {
+            customerId: string;
+            total: number;
+            clientCreatedAt?: string | null;
+            items: components["schemas"]["OrderItemInput"][];
+        };
+        LoyaltyPreviewResponse: {
+            data: components["schemas"]["LoyaltyPreviewReward"][];
+        };
         LoyaltyConditionListResponse: {
             data: components["schemas"]["LoyaltyCondition"][];
         };
@@ -2572,6 +2612,8 @@ export interface components {
             quantity: number;
             subtotal: number;
             isBundle?: boolean;
+            isReward?: boolean;
+            rewardConditionId?: string;
         };
         Order: {
             /** Format: uuid */
@@ -2889,6 +2931,8 @@ export interface components {
             quantity: number;
             subtotal: number;
             isBundle?: boolean;
+            isReward?: boolean;
+            rewardConditionId?: string;
         };
         /** @description Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required. */
         CreateOrderRequest: {
@@ -6717,6 +6761,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerListResponse"];
+                };
+            };
+        };
+    };
+    loyaltyPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description matched rewards (possibly empty) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyPreviewResponse"];
                 };
             };
         };
