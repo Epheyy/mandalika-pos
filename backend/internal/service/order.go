@@ -32,6 +32,11 @@ type OrderItem struct {
 	Quantity    int     `json:"quantity"`
 	Subtotal    float64 `json:"subtotal"`
 	IsBundle    bool    `json:"isBundle"`
+	// SP-CRM-9: a free loyalty reward line. IsReward marks a Rp0 giveaway line;
+	// RewardConditionID is the product_reward condition it fulfills (validated at
+	// commit). Request-only — not persisted to order_items.
+	IsReward          bool   `json:"isReward"`
+	RewardConditionID string `json:"rewardConditionId"`
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
