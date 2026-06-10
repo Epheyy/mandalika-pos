@@ -59,6 +59,8 @@ export type CashierAction =
   | { type: 'CART_ADD_ITEM'; item: CartItem }
   | { type: 'CART_REMOVE_ITEM'; productId: string; variantSize: string }
   | { type: 'CART_SET_QTY'; productId: string; variantSize: string; quantity: number }
+  | { type: 'CART_ADD_REWARD'; item: CartItem }
+  | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
   | { type: 'SET_CUSTOMER_SEARCH'; search: string }
@@ -113,7 +115,10 @@ export const CASHIER_INITIAL_STATE: CashierState = {
 
 function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
   const idx = cart.findIndex(
-    (c) => c.productId === item.productId && c.variantSize === item.variantSize,
+    (c) =>
+      c.productId === item.productId &&
+      c.variantSize === item.variantSize &&
+      !c.isReward,
   )
   if (idx >= 0) {
     const existing = cart[idx]
@@ -137,6 +142,22 @@ export function cashierReducer(
     case 'CART_ADD_ITEM':
       return { ...state, cart: upsertCartItem(state.cart, action.item) }
 
+    case 'CART_ADD_REWARD': {
+      // One free line per condition; re-picking replaces it. Never merges with paid.
+      const without = state.cart.filter(
+        (c) => !(c.isReward && c.rewardConditionId === action.item.rewardConditionId),
+      )
+      return { ...state, cart: [...without, action.item] }
+    }
+
+    case 'CART_REMOVE_REWARD':
+      return {
+        ...state,
+        cart: state.cart.filter(
+          (c) => !(c.isReward && c.rewardConditionId === action.rewardConditionId),
+        ),
+      }
+
     case 'CART_REMOVE_ITEM':
       return {
         ...state,
@@ -144,7 +165,8 @@ export function cashierReducer(
           (c) =>
             !(
               c.productId === action.productId &&
-              c.variantSize === action.variantSize
+              c.variantSize === action.variantSize &&
+              !c.isReward
             ),
         ),
       }
@@ -157,7 +179,8 @@ export function cashierReducer(
             (c) =>
               !(
                 c.productId === action.productId &&
-                c.variantSize === action.variantSize
+                c.variantSize === action.variantSize &&
+                !c.isReward
               ),
           ),
         }
@@ -165,7 +188,9 @@ export function cashierReducer(
       return {
         ...state,
         cart: state.cart.map((c) =>
-          c.productId === action.productId && c.variantSize === action.variantSize
+          c.productId === action.productId &&
+          c.variantSize === action.variantSize &&
+          !c.isReward
             ? {
                 ...c,
                 quantity: action.quantity,
@@ -200,6 +225,8 @@ export function cashierReducer(
         customerSearch: action.customer ? '' : state.customerSearch,
         // Points belong to a customer; drop redemption when they change/clear.
         pointsToRedeem: 0,
+        // Reward eligibility is customer-specific; drop reward lines on change/clear.
+        cart: state.cart.filter((c) => !c.isReward),
       }
 
     case 'SET_CUSTOMER_SEARCH':
