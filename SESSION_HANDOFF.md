@@ -1,10 +1,12 @@
 # Session Handoff — Mandalika POS
 
-Date: 2026-06-09 · Branch: `prod-hardening` · HEAD: `8931f8b` · Backend rev **00055-n5h** (migrations →0031)
+Date: 2026-06-10 · Branch: `prod-hardening` · HEAD: `ca9e4ab` · Backend rev **00056-wx9** (migrations →0032)
+
+> **SP-CRM-8 (Loyalty-Conditions Trigger Engine) is DONE + deployed (rev 00056-wx9, mig 0032) — see the ⭐ LATEST SESSION section directly below.** The COPY-READY block beneath it was the SP-CRM-8 kickoff and is now historical. Next candidates: **SP-CRM-Merge** (dup-candidate review queue) or **product_reward POS fulfillment** (the deferred half of SP-CRM-8) — each its own spec→plan→build.
 
 ---
 
-# 📋 COPY-READY: start SP-CRM-8 (Loyalty-Conditions Trigger Engine) in a fresh session
+# 📋 COPY-READY: (HISTORICAL) SP-CRM-8 kickoff — now DONE
 
 Paste the block below as the first message of a new session. (Full current state is in the ⭐ LATEST SESSION section further down; this block is the self-contained kickoff.)
 
@@ -42,7 +44,49 @@ GOTCHAS: commit hook false-positives on chained `git commit && ...` (run git add
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-09 (SP-CRM-7: Points Ledger + Manual Adjustment + Refund Reversal) — READ THIS FIRST; supersedes everything below
+# ⭐ LATEST SESSION — 2026-06-10 (SP-CRM-8: Loyalty-Conditions Trigger Engine) — READ THIS FIRST; supersedes everything below
+
+Branch `prod-hardening`. **Backend + backoffice only** (no POS, no APK). Backend deployed **rev `00056-wx9`** (migration **0032** applied + verified; `/readyz` ok). Commits `cfd4dcd`(mig)→…→`ca9e4ab`. Built brainstorm→spec→plan→**subagent-driven** (fresh implementer per task + two-stage review: spec-compliance + go-reviewer/typescript-reviewer). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-10-crm-sp8-loyalty-trigger-engine*`.
+
+## What this slice does (wires the unwired engine)
+Before SP-CRM-8 the `loyalty_conditions` table was CRUD'd in the backoffice but **never evaluated**; every order earned a flat `base = floor(total/1000)×pointsPerThousand`. Now `CreateOrder` evaluates active conditions and earns **variable** points.
+
+## Scope decisions (locked with user)
+- **set_points + multiply_points** ship fully (points → SP-CRM-7 earn ledger). **product_reward** is **evaluated + recorded** (audit grant row, backoffice-visible) but free-item **fulfillment is DEFERRED to a future POS slice** (it's receipt/POS-coupled; server never injects items).
+- **Stacking:** `earned = round(base × bestMultiplier) + Σ(matching set_points)`. Multipliers do NOT compound (single highest wins; ties → first by created_at,id). `reward_value ≤ 0` ignored.
+- **Eval date:** `client_created_at` in **WIB (UTC+7 fixed, no tzdata)**, fallback server `now()`.
+- **Recording:** full audit — one append-only row per applied condition.
+- Also **fixed the pre-existing loyaltyForm clobber bug** (+ hardened against poll-refetch race). POS checkout estimate still shows the flat base (server authoritative; customer earns ≥ shown — a future POS slice mirrors the engine).
+
+## What shipped (SP-CRM-8)
+- **Migration 0032:** `loyalty_condition_applications` (order_id/customer_id CASCADE, condition_id SET NULL, snapshots of name/trigger/reward_type/reward_value, points_contributed, reward_product_ids jsonb) + 3 indexes + **UNIQUE (order_id, condition_id)**.
+- **Pure engine `service/loyalty.go`** (no DB import, 16 table tests): `EvaluateLoyalty(conds, ctx) → {BestMultiplier, FlatBonus, Applied[]}`; `FinalEarned(base)`; `LoyaltyEarnReason(...)` breakdown string. All 7 triggers (first_registration/birthday/anniversary/double_date/member_day/product_purchase/spending_threshold) + campaign window + WIB.
+- **`order.go` CreateOrder wiring:** expanded the customer FOR UPDATE select to load birthday/anniversary/visit_count; `loadActiveConditions` tx read; `finalEarned` replaces `res.EarnedPoints` at orders.points_earned + customer balance + earn ledger (Points/BalanceAfter) + breakdown reason; one `write.InsertConditionApplication` per matched condition. **Byte-identical when no condition matches** (bestMultiplier=1, flatBonus=0). Refund unchanged — already claws back orders.points_earned (now the full bonus-inclusive total).
+- **API:** `appliedCount` (optional) on LoyaltyCondition read (correlated count); `GET /customers/{id}/reward-grants` (manage_customers) → product_reward grants; TS client `listRewardGrants`.
+- **Backoffice:** loyaltyForm seeded-once from server (bug fix); "Terpakai: N×" per condition; "Reward Produk" grants list on CustomerDetail (`screens/customers/rewardTypes.ts`).
+
+## Review-caught (all addressed)
+- go-reviewer (engine): added missing tests (fractional multiplier, flat-only reason, early-morning WIB campaign boundary). **Rejected a false positive** — the reviewer claimed `dateOnly` mishandled early-morning WIB, but `t.Year()/Month()/Day()` use t's own location (identical to `t.Date()`); proven correct by a passing regression test.
+- go-reviewer (hot path): hardened `outcome` init to `{BestMultiplier:1.0}` (no-match invariant footgun). Rejected the unique-index NULL "gap" with reasoning (condition_id always non-NULL at insert; `NULLS NOT DISTINCT` would break ON DELETE SET NULL). Caching of `loadActiveConditions` deferred to the loyalty-enable cutover (small config table; fine at current scale).
+- typescript-reviewer: surfaced a real **poll-race clobber** in the loyaltyForm fix → guarded with a seed-once `useRef`. (eslint is NOT CI-enforced here — `tsc -b`+`vite build` is the gate.)
+
+## ✅ Verification — LIVE-PROVEN on rev 00056-wx9
+- Engine: 16 unit tests. Backend `go build` + `go test ./...` green; backoffice `tsc -b` + `vite build` clean; `make gen-check` clean.
+- DB (throwaway, tx rolled back): table + 5 indexes + UNIQUE + orders.points_earned present.
+- **Live e2e (real `service.OrderService`, throwaway, briefly toggled loyalty on→off, all artifacts deleted):** order earned **200 = base(50)×2 + 100**; earn ledger 200 with reason `"Poin transaksi MND-000039 (dasar 50 ×2 + SP8 Set +100)"`; 3 application rows (set=100, multiply=base, product=0) + product grant with reward_product_ids; **replay idempotent** (no double earn/apps); **refund clawed back to 0** (full bonus-inclusive); **stock net-zero**. Loyalty confirmed back OFF + zero SP8 leftovers (safety-net clean run). Order# advanced by 2 (MND-000039), harmless. **NOTE: loyalty stays OFF in prod** — the engine is dormant until the business enables it.
+
+## ▶️ USER-PENDING — backoffice visual walkthrough
+Hard-refresh `mandalika-pos.pages.dev` → Pelanggan/Loyalitas: (1) Loyalitas settings now persist correctly (the clobber bug is fixed); (2) Kondisi Khusus list shows "Terpakai: N×" per condition once any fire; (3) a customer detail with a product-reward grant shows the "Reward Produk" list. (Engine is dormant until loyalty is enabled, so counts/grants stay empty until then.)
+
+## Deferred / next
+- **product_reward fulfillment** (inject free items / stock / receipt) — its own POS slice.
+- **POS checkout** showing real engine points at the register — POS slice.
+- **`loadActiveConditions` caching** when loyalty goes live at scale (short TTL, invalidate on condition writes).
+- **SP-CRM-Merge** (dup-candidate review queue) still pending.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-09 (SP-CRM-7: Points Ledger + Manual Adjustment + Refund Reversal)
 
 Branch `prod-hardening`. **Backend + backoffice only** (no POS, no APK). Backend deployed **rev `00055-n5h`** (migration **0031** applied + verified; `/readyz` ok). Commits `8c8061d`(spec)→`6daaa3e`(plan)→`8931f8b`. Built brainstorm→spec→plan→**subagent-driven** with the backend SPLIT into two dispatches (foundation T1-3, then the high-risk earning/refund T4-6) so the live-path change got focused review; per-batch two-stage review (spec-compliance + go-reviewer/typescript-reviewer); all findings fixed. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-09-crm-sp7-points-ledger*`.
 
