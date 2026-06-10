@@ -1,6 +1,8 @@
 # Session Handoff — Mandalika POS
 
-Date: 2026-06-10 · Branch: `prod-hardening` · HEAD: `ca9e4ab` · Backend rev **00056-wx9** (migrations →0032)
+Date: 2026-06-10 · Branch: `prod-hardening` · HEAD: `ece37cc` · Backend rev **00057-77z** (migrations →0032)
+
+> **POST-SP-CRM-8 FIX (rev 00057-77z, commit `ece37cc`):** discovered the backoffice **Kondisi Khusus** save never worked — the backend only had `GET /loyalty-conditions`; the create/update/delete write side was never built (pre-existing gap, the frontend client+UI already called these endpoints). Added the CRUD: `write.LoyaltyCondition` + `Create/Update/DeleteLoyaltyCondition` (mirrors Promotions/DiscountCodes pattern), 3 handlers, `POST /loyalty-conditions` + `PUT/DELETE /loyalty-conditions/{id}` gated **manage_settings**, OpenAPI `LoyaltyConditionInput` + 3 ops (regen, gen-check green). go-reviewer: Approve. Authed smoke test on 00057-77z: create+list+delete all work. **This unblocks authoring loyalty conditions** (prod had 0). NEXT: user creates a real condition in the backoffice → then temporary enable→verify-bonus→disable (loyalty still OFF in prod).
 
 > **SP-CRM-8 (Loyalty-Conditions Trigger Engine) is DONE + deployed (rev 00056-wx9, mig 0032) — see the ⭐ LATEST SESSION section directly below.** The COPY-READY block beneath it was the SP-CRM-8 kickoff and is now historical. Next candidates: **SP-CRM-Merge** (dup-candidate review queue) or **product_reward POS fulfillment** (the deferred half of SP-CRM-8) — each its own spec→plan→build.
 
