@@ -1,14 +1,53 @@
 # Session Handoff — Mandalika POS
 
-Date: 2026-06-10 · Branch: `prod-hardening` · HEAD: `74b2820` · Backend rev **00057-77z** (migrations →0032)
+Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `50d554b` (pushed to origin) · Backend rev **00059-297** (migrations →0032; **SP-CRM-9 added NO migration**)
 
-> **▶️ NEXT UP — SP-CRM-9 (product_reward POS fulfillment) is SPEC'd + PLANNED, ready to BUILD (not started).** Brainstorm→spec→plan done this session (commits `a8fe4ef` spec, `74b2820` plan). Read `docs/superpowers/plans/2026-06-10-crm-sp9-product-reward-fulfillment.md` (+ its spec) and execute via **superpowers:subagent-driven-development** (fresh implementer per task + spec-compliance + go-reviewer/typescript-reviewer two-stage review). **Locked decisions:** pick-one free item from the menu; **online-only v1** (Go engine = single source of truth, new `POST /sync/loyalty-preview`); offer at the **checkout panel** as a Rp0 cart line; grant = **actually received** (records chosen product, server-validated, replaces SP-CRM-8's product_reward auto-record); invalid reward line = **lenient** (drop+`slog.Warn`, don't fail sale); **NO migration** (reuse `loyalty_condition_applications.reward_product_ids`). Touches backend + POS → needs APK build + fleet rollout. 19 tasks across 5 batches (A engine → B commit grant → C preview endpoint → D POS UI → E verify/deploy/e2e/rollout).
+> **▶️ NEXT UP — SP-CRM-9 (product_reward POS fulfillment) is BUILT, backend DEPLOYED (rev `00059-297`), and LIVE-VERIFIED.** See the ⭐ LATEST SESSION (SP-CRM-9) directly below. 18 commits (`4bd8a05`…`50d554b`) on `prod-hardening`, pushed to origin. **TWO follow-throughs remain, both USER-PENDING:** (1) **APK BUILD** — `android-release.yml` is `workflow_dispatch`-only and the agent has no `gh`/token to dispatch it; trigger it yourself: GitHub UI → Actions → "Android Release APK" → Run workflow on `prod-hardening` (the default `api_url` = the Cloud Run URL is correct), or `! gh workflow run android-release.yml --ref prod-hardening`. (2) **On-device rollout** — after the APK builds: install + on-device check (online + loyalty customer + an active `product_reward` condition → checkout shows "🎁 Hadiah Loyalti"; pick a product → GRATIS Rp0 line; confirming hands over the free item, decrements its stock, and the backoffice "Reward Produk" shows the chosen product; offline → no reward section, no degradation) + fleet rollout. Next CRM candidates after that: **SP-CRM-Merge** (dup review queue) or the deferred **offline reward eval**.
 
 > **POST-SP-CRM-8 FIX (rev 00057-77z, commit `ece37cc`):** discovered the backoffice **Kondisi Khusus** save never worked — the backend only had `GET /loyalty-conditions`; the create/update/delete write side was never built (pre-existing gap, the frontend client+UI already called these endpoints). Added the CRUD: `write.LoyaltyCondition` + `Create/Update/DeleteLoyaltyCondition` (mirrors Promotions/DiscountCodes pattern), 3 handlers, `POST /loyalty-conditions` + `PUT/DELETE /loyalty-conditions/{id}` gated **manage_settings**, OpenAPI `LoyaltyConditionInput` + 3 ops (regen, gen-check green). go-reviewer: Approve. Authed smoke test on 00057-77z: create+list+delete all work. **This unblocks authoring loyalty conditions** (prod had 0). DONE 2026-06-10: user created a real condition "First Registrant" (first_registration → set_points +10000); **live-verified** via the real OrderService — a first-time customer's Rp50,000 order earned base 50 + 10000 = **10050** with the breakdown ledger reason + application audit row. **LOYALTY IS NOW ENABLED for ongoing testing** (`loyalty_settings.enabled=true`, ppt=1, redemptionRate=100) — NOT a real go-live; see the ⚠️ ENV note below.
 >
 > **⚠️ ENV REALITY (user-confirmed 2026-06-10):** the Cloud Run/Neon/Upstash/Cloudflare deployment is the **free-tier TEST cutover** (RUNBOOK.md) — a **pre-launch environment for polishing/hardening before go-live**, holding **TEST data**, NOT live with real customers. "30+ outlets / 50k–500k customers / thousands trx/day" is the **what-if scale to harden for** (the point of `prod-hardening`), not current reality. So: **engineer like it's live, operate like it's test** — routine test-DB writes + feature-flag toggles are low-stakes; act directly without disaster-grade ceremony; re-confirm with the user only before things that matter at actual go-live. (See memory `deployment-is-prelaunch-test`.)
 
-> **SP-CRM-8 (Loyalty-Conditions Trigger Engine) is DONE + deployed (rev 00056-wx9, mig 0032) — see the ⭐ LATEST SESSION section directly below.** The COPY-READY block beneath it was the SP-CRM-8 kickoff and is now historical. Next candidates: **SP-CRM-Merge** (dup-candidate review queue) or **product_reward POS fulfillment** (the deferred half of SP-CRM-8) — each its own spec→plan→build.
+> **SP-CRM-8 (Loyalty-Conditions Trigger Engine) is DONE + deployed (rev 00056-wx9, mig 0032) — see its section further below.** The COPY-READY block beneath it was the SP-CRM-8 kickoff and is now historical.
+
+---
+
+# ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9: product_reward POS Fulfillment) — READ THIS FIRST
+
+Branch `prod-hardening`. **Backend + POS + packages/api** (no backoffice code change). Backend deployed **rev `00059-297`** (**NO new migration** — reused `loyalty_condition_applications.reward_product_ids`). 18 commits `4bd8a05`…`50d554b`, pushed to origin. Built brainstorm→spec→plan→**subagent-driven** (fresh implementer per task + two-stage review: spec-compliance + go-reviewer/typescript-reviewer). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-10-crm-sp9-product-reward-fulfillment*`.
+
+## What this slice does
+SP-CRM-8 left `product_reward` conditions *recorded-but-not-fulfilled* (an audit grant meaning "was eligible," no free item handed over). SP-CRM-9 lets a cashier actually **give** the free item at checkout — picked online, added as a **Rp0 cart line**, with correct stock, receipt, and an "actually received" grant.
+
+## Architecture (online-only v1)
+- New **`POST /api/v1/sync/loyalty-preview`** (cashier-authed). Reuses the pure Go `EvaluateLoyalty` engine (single source of truth) → returns the eligible `product_reward` free-item menus `{conditionId, conditionName, products:[{id,name,variants:[{size,price}]}]}` for the current cart+customer. Read-only, advisory.
+- POS CheckoutPanel shows a **"🎁 Hadiah Loyalti"** section; picking a product (+size) dispatches `CART_ADD_REWARD` → a Rp0 line `{isReward:true, rewardConditionId}` that flows through the existing item→stock→receipt path (cart sends `items: state.cart` unchanged).
+- At commit, `CreateOrder` re-runs the engine on **paid items only**, validates each reward line (condition matched **and** chosen product ∈ menu), and writes the grant recording the **chosen** product (`points_contributed=0`). **This REPLACES SP-CRM-8's product_reward auto-record-on-match.** Invalid reward line = **lenient** (`slog.Warn` + drop from audit, sale still succeeds).
+
+## What shipped
+- **Backend:** `service.OrderItem` +`IsReward`/`RewardConditionID` (request-only, not persisted as columns); pure `ProductRewards(conds,ctx)` engine helper (+test); `loadActiveConditions`/`loadLoyalty` widened to pool-or-tx interfaces; `CreateOrder` builds the eval product-set from paid lines only + the new validated-grant loop (reuses existing `contains` from pricing.go); `service/loyalty_preview.go` `PreviewRewards` + product/variant menu resolution (active products only, lenient on missing customer); `handlers.LoyaltyPreview` + route. OpenAPI: `isReward`/`rewardConditionId` on `OrderItemInput`+`CartItem`, `LoyaltyPreview*` schemas + path (regen, gen-check green).
+- **POS/shared:** `api.loyaltyPreview(...)` client; cart reducer `CART_ADD_REWARD`/`CART_REMOVE_REWARD` (one-per-condition, re-pick replaces, paid ops can't touch reward lines, reward lines dropped on customer change) + 9 vitest cases; CheckoutPanel "Hadiah Loyalti" section; CashierScreen preview-fetch effect (online + checkout-open + loyalty + customer; placed after `loyalty`/`derived` to avoid a TDZ; `?.id` dep) + pick/clear handlers; **GRATIS** labels in Cart + ReceiptPreview (no qty/remove controls on reward lines). The thermal-printed receipt not showing GRATIS is an accepted v1 limitation.
+
+## Review-caught (all addressed)
+- go-reviewer C1: preview now lenient on `pgx.ErrNoRows` customer (advisory read → empty, not 500) + wrapped errors. **Rejected** its float32-IDR-price concern (app-wide `type:number`→float32 convention; realistic IDR < 16.7M is exact) and the B1 "reward line shouldn't be in order_items" flag (it MUST be — that's how the free item decrements stock; only the FLAG fields aren't persisted as columns).
+- ts-reviewer D2/D4: tightened `CART_ADD_REWARD` payload to compile-time-enforce `isReward:true`+`rewardConditionId`; reset `rewardsLoading` on the effect early-return; primitive `selectedCustomer?.id` dep.
+- **⭐ E2 live smoke caught a real bug both code-reviews missed:** the handler used `httpx.JSON` (which wraps in `{data:...}`) on an already-enveloped `LoyaltyPreviewResponse{Data:...}` → **double-wrapped `{data:{data:[]}}`**. Fixed to `writeJSON` (commit `50d554b`); redeployed; re-smoke returns the correct single `{data:[]}`. (Sibling `RewardGrants` uses `writeJSON` for the same reason.)
+
+## ✅ Verification — LIVE-PROVEN on rev `00059-297`
+- Local gate green: backend `go build`+`go test ./...`+`make gen-check`; POS `tsc -b`+`vite build`+vitest **22/22**; backoffice `tsc -b` (additive schema, no break).
+- **E2 authed smoke** (deployed): `/readyz` 200; no-token→401; missing customerId→400; authed real-customer preview→200 `{data:[]}` (correct envelope after the double-wrap fix).
+- **E3 live e2e** (throwaway `cmd/sp9e2e`, real `service.OrderService` against the test DB, **all artifacts deleted + loyalty restored** — same protocol as SP-CRM-7/8): valid reward order → **stock −2** (paid+reward same variant, free item handed over); exactly **one product_reward grant** recording the chosen product, `points_contributed=0`; **replay idempotent** (dup, no double-grant/decrement); **bogus reward line → `slog.Warn` + no grant + sale succeeds** (lenient); **refund restocks +2, grant row immutable**; **CLEANUP OK**. Bonus: the order also earned +10000 from the pre-existing "First Registrant" `set_points` condition while the product_reward grant stayed at 0 points — confirms no point inflation from the free item + the existing earning path is intact. Throwaway removed (never committed).
+
+## ▶️ USER-PENDING (the only remaining work)
+1. **APK build** — trigger `android-release.yml` (workflow_dispatch) on `prod-hardening` (agent lacks `gh`/token to dispatch). Default `api_url` (Cloud Run URL) is correct.
+2. **On-device check + fleet rollout** — see the acceptance criteria in the ▶️ NEXT UP banner at the very top.
+3. (Optional) backoffice hard-refresh to confirm a fulfilled order's customer shows the chosen product under "Reward Produk".
+
+## Deferred / next
+- **Offline reward eval** (on-device condition evaluation) — the explicit future follow-up.
+- Persisting `is_reward` on `order_items` (v1 is migration-free; reprinted thermal receipts won't show GRATIS).
+- Strict-reject of invalid reward lines (v1 is lenient+logged).
+- **SP-CRM-Merge** (dup-candidate review queue) still pending.
 
 ---
 
