@@ -19,6 +19,10 @@ var (
 	ErrOrderClosed = errors.New("order not refundable")
 )
 
+// wib is the fixed Indonesia business zone (UTC+7, no DST) used to evaluate
+// date-dependent loyalty triggers against the order's sale moment.
+var wib = time.FixedZone("WIB", 7*3600)
+
 // OrderItem is one cart line submitted by the client.
 type OrderItem struct {
 	ProductID   string  `json:"productId"`
@@ -131,10 +135,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	// both for the redemption clamp and as balance_before for the ledger entries.
 	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
 	balanceBefore := 0
+	var evalCust EvalCustomer
 	if hasLoyaltyCustomer {
 		if e := tx.QueryRow(ctx,
-			`SELECT points FROM customers WHERE id=$1 FOR UPDATE`,
-			in.CustomerID).Scan(&balanceBefore); e != nil {
+			`SELECT points, birthday, anniversary, visit_count
+			   FROM customers WHERE id=$1 FOR UPDATE`,
+			in.CustomerID).Scan(&balanceBefore, &evalCust.Birthday, &evalCust.Anniversary, &evalCust.VisitCount); e != nil {
 			return "", false, false, fmt.Errorf("load customer points: %w", e)
 		}
 	}
@@ -152,6 +158,31 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		}
 	}
 	finalTotal := res.Total - redeemAmount
+
+	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
+	// Inert when no condition matches → finalEarned == base (byte-identical to before).
+	base := res.EarnedPoints
+	finalEarned := base
+	var outcome LoyaltyOutcome
+	if hasLoyaltyCustomer {
+		conds, e := loadActiveConditions(ctx, tx)
+		if e != nil {
+			return "", false, false, e
+		}
+		pidSet := make(map[string]bool, len(in.Items))
+		for _, it := range in.Items {
+			pidSet[it.ProductID] = true
+		}
+		saleTime := time.Now()
+		if in.ClientCreated != nil {
+			saleTime = *in.ClientCreated
+		}
+		outcome = EvaluateLoyalty(conds, EvalContext{
+			Total: res.Total, BasePoints: base, ProductIDs: pidSet,
+			SaleDate: saleTime.In(wib), Customer: evalCust,
+		})
+		finalEarned = outcome.FinalEarned(base)
+	}
 
 	// Per-outlet stock decrement under row lock (FOR UPDATE). Stock lives in
 	// outlet_variant_stock keyed by (outlet_id, product_id, variant_size). A row
@@ -237,7 +268,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
-		res.EarnedPoints,
+		finalEarned,
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)
@@ -259,7 +290,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		if _, e := tx.Exec(ctx, `
 			UPDATE customers SET total_spent=total_spent+$1, visit_count=visit_count+1,
 			  last_visit=now(), points=points+$2-$4 WHERE id=$3`,
-			finalTotal, res.EarnedPoints, in.CustomerID, pointsRedeemed); e != nil {
+			finalTotal, finalEarned, in.CustomerID, pointsRedeemed); e != nil {
 			return "", false, false, fmt.Errorf("update customer: %w", e)
 		}
 
@@ -268,12 +299,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		// explicit guard stops a future edit from firing these with a stale balanceBefore==0.
 		// Same tx → inherits the order's idempotency guard (a replayed order won't double-log).
 		if hasLoyaltyCustomer {
-			earned := res.EarnedPoints
+			earned := finalEarned
 			if earned > 0 {
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 					CustomerID: in.CustomerID, Type: "earn", Points: earned,
 					BalanceAfter: balanceBefore + earned,
-					Reason:       fmt.Sprintf("Poin dari transaksi %s", orderNumber),
+					Reason:       LoyaltyEarnReason(orderNumber, base, outcome),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("ledger earn: %w", e)
@@ -287,6 +318,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("ledger redeem: %w", e)
+				}
+			}
+			// Audit: one row per matched condition (set/multiply/product_reward).
+			for _, a := range outcome.Applied {
+				if e := write.InsertConditionApplication(ctx, tx, write.ConditionApplicationRow{
+					OrderID: orderID, CustomerID: in.CustomerID, ConditionID: a.ConditionID,
+					ConditionName: a.Name, Trigger: a.Trigger, RewardType: a.RewardType,
+					RewardValue: a.RewardValue, PointsContributed: a.PointsContributed,
+					RewardProductIDs: a.RewardProductIDs,
+				}); e != nil {
+					return "", false, false, fmt.Errorf("record condition application: %w", e)
 				}
 			}
 		}
