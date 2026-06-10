@@ -222,6 +222,42 @@ export default function CashierScreen() {
     }
   }, [derived.totalCartItems, state.activeTab])
 
+  const [rewards, setRewards] = useState<
+    components['schemas']['LoyaltyPreviewReward'][]
+  >([])
+  const [rewardsLoading, setRewardsLoading] = useState(false)
+
+  useEffect(() => {
+    if (
+      !state.isCheckoutOpen ||
+      !loyalty.enabled ||
+      !state.selectedCustomer ||
+      !offlineData.isOnline
+    ) {
+      setRewards([])
+      return
+    }
+    let ignore = false
+    setRewardsLoading(true)
+    api
+      .loyaltyPreview(state.selectedCustomer.id, state.cart, derived.total)
+      .then((r) => {
+        if (!ignore) setRewards(r)
+      })
+      .catch(() => {
+        if (!ignore) setRewards([])
+      })
+      .finally(() => {
+        if (!ignore) setRewardsLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
+    // Fetch once when the panel opens; the cart is final at checkout. Re-picking a
+    // reward must not refetch, so cart/derived.total are intentionally excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer, offlineData.isOnline])
+
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = (enabledMethods[0]?.id ?? 'cash') as 'cash' | 'card' | 'transfer' | 'qris'
 
@@ -311,6 +347,39 @@ export default function CashierScreen() {
     setCustomerRequired(false)
     dispatch({ type: 'OPEN_CHECKOUT', defaultMethod })
   }
+
+  const pickedRewards = useMemo(() => {
+    const m: Record<string, { productId: string; variantSize: string }> = {}
+    for (const c of state.cart) {
+      if (c.isReward && c.rewardConditionId) {
+        m[c.rewardConditionId] = { productId: c.productId, variantSize: c.variantSize }
+      }
+    }
+    return m
+  }, [state.cart])
+
+  const handlePickReward = (
+    conditionId: string,
+    product: { id: string; name: string },
+    variant: { size: string; price: number },
+  ) => {
+    dispatch({
+      type: 'CART_ADD_REWARD',
+      item: {
+        productId: product.id,
+        productName: product.name,
+        variantSize: variant.size,
+        price: 0,
+        quantity: 1,
+        subtotal: 0,
+        isReward: true,
+        rewardConditionId: conditionId,
+      },
+    })
+  }
+
+  const handleClearReward = (conditionId: string) =>
+    dispatch({ type: 'CART_REMOVE_REWARD', rewardConditionId: conditionId })
 
   const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
@@ -758,6 +827,11 @@ export default function CashierScreen() {
         onSelectSalesman={(s) => dispatch({ type: 'SET_SALESMAN', salesman: s })}
         loyaltyEnabled={loyalty.enabled}
         customerPoints={state.selectedCustomer?.points ?? 0}
+        rewards={rewards}
+        rewardsLoading={rewardsLoading}
+        pickedRewards={pickedRewards}
+        onPickReward={handlePickReward}
+        onClearReward={handleClearReward}
         pointsToRedeem={state.pointsToRedeem}
         onPointsRedeemedChange={(p) => dispatch({ type: 'SET_POINTS_REDEEMED', points: p })}
         onPaymentMethodChange={(m) => dispatch({ type: 'SET_PAYMENT_METHOD', method: m })}
