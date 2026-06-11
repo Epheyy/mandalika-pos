@@ -39,7 +39,7 @@ Date: 2026-06-11 · Status: APPROVED (user, this session) · Builds on SP-CRM-9 
 - The grant's `reward_product_ids` single element now records `"<productId>|<size>"` (precise audit). Lenient-drop semantics unchanged.
 
 ### 2.4 Backoffice grant display
-- `rewardGrantSummary` (`screens/customers/rewardTypes.ts` / CustomerDetail) parses an optional `|size` suffix: shows "NAME · size"; old product-only grants render as today.
+- `rewardGrantSummary` (`screens/customers/rewardTypes.ts` / CustomerDetail) parses an optional `|size` suffix: shows the count + sizes, e.g. "1 produk gratis (10ml ATOMIZER)" — product NAMES aren't stored on grants (pre-existing SP-CRM-8 limitation, unchanged); old product-only grants render as today.
 
 ## 3. Backoffice form — shared drill-down picker
 
