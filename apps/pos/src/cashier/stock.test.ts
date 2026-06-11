@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyPendingStock, stockFor } from './stock'
+import { applyPendingStock, stockFor, overstockLines } from './stock'
 
 const products = [
   { id: 'p1', name: 'A', variants: [{ size: '10ml', price: 1, stock: 5, sku: '' }, { size: '2ml', price: 1, stock: 0, sku: '' }], isActive: true, brand: '', categoryId: '', createdAt: '' },
@@ -23,5 +23,21 @@ describe('stockFor', () => {
   it('returns null for an unknown product/size', () => {
     expect(stockFor(products, 'pX', '10ml')).toBeNull()
     expect(stockFor(products, 'p1', '99ml')).toBeNull()
+  })
+})
+
+describe('overstockLines', () => {
+  const sp = [{ id: 'p1', name: 'A', variants: [{ size: '10ml', price: 1, stock: 1, sku: '' }], isActive: true, brand: '', categoryId: '', createdAt: '' }] as any
+  it('returns nothing when negative is allowed', () => {
+    expect(overstockLines([{ productId: 'p1', variantSize: '10ml', quantity: 5 }], sp, true)).toHaveLength(0)
+  })
+  it('flags lines over available stock when not allowed', () => {
+    expect(overstockLines([{ productId: 'p1', variantSize: '10ml', quantity: 5 }], sp, false)).toHaveLength(1)
+  })
+  it('does not flag a line within stock', () => {
+    expect(overstockLines([{ productId: 'p1', variantSize: '10ml', quantity: 1 }], sp, false)).toHaveLength(0)
+  })
+  it('ignores unknown products (no stock row)', () => {
+    expect(overstockLines([{ productId: 'pX', variantSize: 'S', quantity: 9 }], sp, false)).toHaveLength(0)
   })
 })

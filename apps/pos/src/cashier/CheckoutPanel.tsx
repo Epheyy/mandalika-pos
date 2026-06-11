@@ -2,7 +2,8 @@ import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
-import { stockFor } from './stock'
+import { stockFor, overstockLines } from './stock'
+import type { CartLineLike } from './stock'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -43,6 +44,8 @@ interface CheckoutPanelProps {
   onClose: () => void
   discountAmount: number
   taxAmount: number
+  allowNegativeStock: boolean
+  cartLines: CartLineLike[]
 }
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -80,6 +83,8 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   onClose,
   discountAmount,
   taxAmount,
+  allowNegativeStock,
+  cartLines,
 }: CheckoutPanelProps) {
   // SP-CRM-9b: per-condition expand state; collapsed by default so a generous
   // menu doesn't flood the checkout. Picking auto-collapses.
@@ -410,6 +415,18 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               )}
             </div>
           )}
+
+          {/* Negative-stock warning (setting-gated, warn + override) */}
+          {(() => {
+            const over = overstockLines(cartLines, stockProducts, allowNegativeStock)
+            if (over.length === 0) return null
+            return (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-800">
+                <p className="font-bold">⚠️ Stok tidak mencukupi</p>
+                <p className="mt-0.5">Penjualan ini akan membuat stok minus. Anda masih bisa melanjutkan.</p>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Confirm button */}

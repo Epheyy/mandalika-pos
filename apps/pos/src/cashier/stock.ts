@@ -26,3 +26,19 @@ export function stockFor(products: Product[], productId: string, size: string): 
   const v = p.variants.find((x) => x.size === size)
   return v ? v.stock : null
 }
+
+export interface CartLineLike { productId: string; variantSize: string; quantity: number }
+
+/** SP-CRM-9c: lines whose quantity exceeds the (pending-adjusted) available
+ *  stock. Used only to WARN — never to block. Empty when allowNegative is true. */
+export function overstockLines(
+  cart: CartLineLike[],
+  stockProducts: Product[],
+  allowNegative: boolean,
+): CartLineLike[] {
+  if (allowNegative) return []
+  return cart.filter((line) => {
+    const st = stockFor(stockProducts, line.productId, line.variantSize)
+    return st !== null && line.quantity > st
+  })
+}

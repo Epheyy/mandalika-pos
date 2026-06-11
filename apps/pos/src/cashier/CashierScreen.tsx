@@ -848,6 +848,8 @@ export default function CashierScreen() {
         onConfirm={handleConfirmPayment}
         onClose={() => dispatch({ type: 'CLOSE_CHECKOUT' })}
         discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
+        allowNegativeStock={settings.allowNegativeStock ?? true}
+        cartLines={state.cart}
       />
 
       <ReceiptPreview
