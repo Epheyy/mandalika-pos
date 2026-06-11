@@ -40,4 +40,14 @@ describe('overstockLines', () => {
   it('ignores unknown products (no stock row)', () => {
     expect(overstockLines([{ productId: 'pX', variantSize: 'S', quantity: 9 }], sp, false)).toHaveLength(0)
   })
+  it('aggregates same-variant lines (paid + reward) before comparing', () => {
+    const sp = [{ id: 'p1', name: 'A', variants: [{ size: '10ml', price: 1, stock: 1, sku: '' }], isActive: true, brand: '', categoryId: '', createdAt: '' }] as any
+    const lines = [
+      { productId: 'p1', variantSize: '10ml', quantity: 1 },
+      { productId: 'p1', variantSize: '10ml', quantity: 1 },
+    ]
+    const out = overstockLines(lines, sp, false)
+    expect(out).toHaveLength(1)
+    expect(out[0].quantity).toBe(2)
+  })
 })

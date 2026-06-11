@@ -30,15 +30,28 @@ export function stockFor(products: Product[], productId: string, size: string): 
 export interface CartLineLike { productId: string; variantSize: string; quantity: number }
 
 /** SP-CRM-9c: lines whose quantity exceeds the (pending-adjusted) available
- *  stock. Used only to WARN — never to block. Empty when allowNegative is true. */
+ *  stock. Used only to WARN — never to block. Empty when allowNegative is true.
+ *  Aggregates quantities across all lines sharing the same productId|variantSize
+ *  before comparing, so a paid line + reward line for the same SKU are evaluated
+ *  together rather than independently. */
 export function overstockLines(
   cart: CartLineLike[],
   stockProducts: Product[],
   allowNegative: boolean,
 ): CartLineLike[] {
   if (allowNegative) return []
-  return cart.filter((line) => {
-    const st = stockFor(stockProducts, line.productId, line.variantSize)
-    return st !== null && line.quantity > st
-  })
+  const totals = new Map<string, number>()
+  for (const line of cart) {
+    const key = `${line.productId}|${line.variantSize}`
+    totals.set(key, (totals.get(key) ?? 0) + line.quantity)
+  }
+  const result: CartLineLike[] = []
+  for (const [key, totalQty] of totals) {
+    const [productId, variantSize] = key.split('|')
+    const st = stockFor(stockProducts, productId, variantSize)
+    if (st !== null && totalQty > st) {
+      result.push({ productId, variantSize, quantity: totalQty })
+    }
+  }
+  return result
 }
