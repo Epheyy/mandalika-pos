@@ -183,7 +183,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			}
 			pidSet[it.ProductID] = true
 			if it.VariantSize != "" {
-				pidSet[it.ProductID+"|"+it.VariantSize] = true // variant-level trigger entries (SP-CRM-9b)
+				pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
 			}
 		}
 		saleTime := time.Now()
@@ -362,13 +362,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 				a, ok := rewardMenu[it.RewardConditionID]
 				if !ok || seenReward[it.RewardConditionID] || !rewardLineAllowed(a.RewardProductIDs, it.ProductID, it.VariantSize) {
 					slog.Warn("dropping unfulfillable reward line from audit",
-						"order_id", orderID, "condition_id", it.RewardConditionID, "product_id", it.ProductID)
+						"order_id", orderID, "condition_id", it.RewardConditionID, "product_id", it.ProductID, "variant_size", it.VariantSize)
 					continue
 				}
 				seenReward[it.RewardConditionID] = true
 				chosen := it.ProductID // grant records the CHOSEN item; "pid|size" when the size is known
 				if it.VariantSize != "" {
-					chosen += "|" + it.VariantSize
+					chosen = variantKey(it.ProductID, it.VariantSize)
 				}
 				if e := write.InsertConditionApplication(ctx, tx, write.ConditionApplicationRow{
 					OrderID: orderID, CustomerID: in.CustomerID, ConditionID: a.ConditionID,
@@ -623,7 +623,14 @@ func rewardLineAllowed(menu []string, productID, size string) bool {
 	if contains(menu, productID) {
 		return true
 	}
-	return size != "" && contains(menu, productID+"|"+size)
+	return size != "" && contains(menu, variantKey(productID, size))
+}
+
+// variantKey is the composite "pid|size" key shared by the loyalty trigger set,
+// the reward-fulfillment grant, and rewardLineAllowed — they must agree, so the
+// format lives in one place. SP-CRM-9b.
+func variantKey(productID, size string) string {
+	return productID + "|" + size
 }
 
 // nextOrderNumber assigns a short, globally-unique MND-NNNNNN from a single
