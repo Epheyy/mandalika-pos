@@ -37,6 +37,7 @@ export function ProductVariantPicker({ products, value, onChange }: ProductVaria
     <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
       {products.map((p) => {
         const pid = p.id ?? ''
+        if (!pid) return null
         const variants = (p.variants || []).filter((v) => !v.size.includes('|'))
         const pickedCount = value.filter((e) => e.startsWith(`${pid}|`)).length
         const isOpen = open[pid] ?? false
