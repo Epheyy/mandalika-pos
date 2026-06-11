@@ -1,8 +1,10 @@
 # Session Handoff — Mandalika POS
 
-Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `50d554b` (pushed to origin) · Backend rev **00059-297** (migrations →0032; **SP-CRM-9 added NO migration**)
+Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `1bbef45` (pushed to origin; +docs commit on top) · Backend rev **00060-cdn** (migrations →0032; **SP-CRM-9 & 9b added NO migration**)
 
-> **▶️ NEXT UP — SP-CRM-9 (product_reward POS fulfillment) is BUILT, backend DEPLOYED (rev `00059-297`), and LIVE-VERIFIED.** See the ⭐ LATEST SESSION (SP-CRM-9) directly below. 18 commits (`4bd8a05`…`50d554b`) on `prod-hardening`, pushed to origin. **APK BUILT ✅ (user-confirmed 2026-06-11).** **ONE follow-through remains, USER-PENDING:** **On-device check + fleet rollout** (user's tablet is at work, not yet checked) — install + on-device check (online + loyalty customer + an active `product_reward` condition → checkout shows "🎁 Hadiah Loyalti"; pick a product → GRATIS Rp0 line; confirming hands over the free item, decrements its stock, and the backoffice "Reward Produk" shows the chosen product; offline → no reward section, no degradation) + fleet rollout. Next CRM candidates after that: **SP-CRM-Merge** (dup review queue) or the deferred **offline reward eval**.
+> **▶️ NEXT UP — SP-CRM-9b (variant-level loyalty selectors + collapsible Hadiah Loyalti) is BUILT, backend DEPLOYED (rev `00060-cdn`), and LIVE-VERIFIED.** See the ⭐ LATEST SESSION (SP-CRM-9b) directly below. 9 commits (`b5f263c`…`1bbef45`) on `prod-hardening`, pushed. NO migration, NO OpenAPI change (composite `"pid"`/`"pid|size"` IDs ride the existing `string[]` arrays). **TWO follow-throughs, USER-PENDING:** (1) **NEW APK build** — the POS UI changed (collapsible reward rows), so the tablet's current APK won't show it until rebuilt; trigger `android-release.yml` (workflow_dispatch) on `prod-hardening` (agent lacks gh/token). (2) **On-device re-check** after the new APK — collapsed "Tersedia!" rows; expand→variant menu; pick→"GRATIS: … · size"; optionally author a variant-level condition via the new backoffice drill-down picker. Next CRM candidates after that: **SP-CRM-Merge** (dup review queue) or the deferred **offline reward eval**.
+>
+> **SP-CRM-9 (product_reward POS fulfillment, rev `00059-297`) was the PRIOR slice — DONE + live-verified + APK built + on-device confirmed working** (see the PRIOR SESSION section below the latest one).
 
 > **POST-SP-CRM-8 FIX (rev 00057-77z, commit `ece37cc`):** discovered the backoffice **Kondisi Khusus** save never worked — the backend only had `GET /loyalty-conditions`; the create/update/delete write side was never built (pre-existing gap, the frontend client+UI already called these endpoints). Added the CRUD: `write.LoyaltyCondition` + `Create/Update/DeleteLoyaltyCondition` (mirrors Promotions/DiscountCodes pattern), 3 handlers, `POST /loyalty-conditions` + `PUT/DELETE /loyalty-conditions/{id}` gated **manage_settings**, OpenAPI `LoyaltyConditionInput` + 3 ops (regen, gen-check green). go-reviewer: Approve. Authed smoke test on 00057-77z: create+list+delete all work. **This unblocks authoring loyalty conditions** (prod had 0). DONE 2026-06-10: user created a real condition "First Registrant" (first_registration → set_points +10000); **live-verified** via the real OrderService — a first-time customer's Rp50,000 order earned base 50 + 10000 = **10050** with the breakdown ledger reason + application audit row. **LOYALTY IS NOW ENABLED for ongoing testing** (`loyalty_settings.enabled=true`, ppt=1, redemptionRate=100) — NOT a real go-live; see the ⚠️ ENV note below.
 >
@@ -12,7 +14,37 @@ Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `50d554b` (pushed to origi
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9: product_reward POS Fulfillment) — READ THIS FIRST
+# ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9b: Variant-Level Selectors + Collapsible Rewards) — READ THIS FIRST
+
+Branch `prod-hardening`. Backend deployed **rev `00060-cdn`** (**NO migration**, NO OpenAPI change — composite IDs ride the existing `string[]` jsonb arrays). Built brainstorm→spec→plan→**subagent-driven** with per-task model routing (Sonnet implement / Opus review / Haiku spec-check). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-11-crm-sp9b-variant-selectors-collapsible-rewards*`.
+
+## What this slice does
+SP-CRM-9 let conditions grant a free PRODUCT (all its variants). SP-CRM-9b lets the business pick **specific variants** — e.g. "free 10ml ATOMIZER only", or "only buying the 110ml triggers the promo" — and declutters the POS reward UI.
+
+## Encoding (zero migration)
+`rewardProductIds` + `applicableProductIds` stay `string[]`. Each entry is `"pid"` (whole product, any variant — exactly what every pre-9b row means → full backward compat) or `"pid|size"` (that variant only). `|` never appears in size names. NO migration, NO API schema change.
+
+## What shipped
+- **Backend** (`100ed87`,`961159e`): `variantKey(pid,size)` helper (one source of the `pid|size` format, shared by 3 sites that must agree); `CreateOrder` eval set + preview eval set gain `pid|size` keys per paid line (engine UNCHANGED — it's a set lookup, pinned by tests in `d96cf15`); `rewardLineAllowed(menu,pid,size)` validates reward lines (whole-product OR exact variant); the fulfillment grant records the chosen item as `pid|size`; `parseMenu` splits composite entries → distinct product ids + per-product allowed-size set (nil=all sizes, whole-product wins), and `rewardProductMenu` filters returned variants by it.
+- **Backoffice** (`82a294e`,`240c6e2`): one shared `ProductVariantPicker` (drill-down: whole-product checkbox + chevron → per-variant checkboxes; mutual-exclusion per product; skips id-less products) wired into BOTH Produk Pemicu and Produk Hadiah; `rewardGrantSummary` shows sizes.
+- **POS** (`1bbef45`): "Hadiah Loyalti" rewards now COLLAPSE — each promo is a one-line "(name) — Tersedia!" row (chevron, collapsed by default); tap → variant menu; pick → re-collapses to "GRATIS: (product) · (size)" with Ganti/Hapus. Presentation-only (reducer/cart/receipt/props untouched).
+
+## ✅ Verification — LIVE-PROVEN on rev `00060-cdn`
+- Local gate green: backend build+test+`make gen-check` (no codegen drift); POS tsc + vitest 22/22; backoffice tsc+build.
+- **Live smoke** (deployed): narrowed `#DIJAMINGORGEOUS` to `6560a172…|10ml ATOMIZER` → preview returned EXACTLY 1 product / 1 variant (225000); restored to the 3 whole-product entries → preview returned 3 products / 15 variants (backward-compat proven). Condition left restored to its original whole-product menu.
+- Reviews: A1/A2/A3 go-reviewer (Opus) Approve (applied LOWs: `variantKey` DRY + log variant on dropped line); B1/C1 typescript-reviewer (Opus) Approve (applied MEDIUM: skip id-less products).
+
+## ▶️ USER-PENDING (the only remaining work)
+1. **NEW APK build** — POS UI changed (collapsible rows), so the tablet's current APK won't show it until rebuilt. Trigger `android-release.yml` (workflow_dispatch) on `prod-hardening` (agent lacks gh/token).
+2. **On-device re-check** — after the new APK: collapsed "Tersedia!" rows; expand → variant menu; pick → "GRATIS: … · size"; and (optional) author a variant-level condition in backoffice (the drill-down picker) to confirm the form.
+
+## Known-minor (deferred, not bugs)
+- Backoffice picker doesn't reconcile a SAVED `pid|size` entry whose variant was later deleted/renamed — it lingers invisibly (counted in "N varian", no uncheck row). Backend treats it as a no-match (harmless, not an error). Auto-filtering on load is riskier (could drop valid entries before products load), so left as-is.
+- POS reward GRATIS still not on the thermal-printed receipt (SP-CRM-9 v1 limitation, unchanged).
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-11 (SP-CRM-9: product_reward POS Fulfillment)
 
 Branch `prod-hardening`. **Backend + POS + packages/api** (no backoffice code change). Backend deployed **rev `00059-297`** (**NO new migration** — reused `loyalty_condition_applications.reward_product_ids`). 18 commits `4bd8a05`…`50d554b`, pushed to origin. Built brainstorm→spec→plan→**subagent-driven** (fresh implementer per task + two-stage review: spec-compliance + go-reviewer/typescript-reviewer). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-10-crm-sp9-product-reward-fulfillment*`.
 
