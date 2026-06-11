@@ -214,6 +214,24 @@ export class SyncEngine {
     return this.outbox.count()
   }
 
+  /** SP-CRM-9c: sum unsynced order quantities per `${productId}|${variantSize}` so
+   *  the POS can optimistically decrement displayed stock. Includes reward lines
+   *  because they decrement stock server-side too. Dead-lettered items are excluded
+   *  (outbox.pending() already filters them). */
+  pendingStockDeltas(): Record<string, number> {
+    const deltas: Record<string, number> = {}
+    for (const item of this.outbox.pending()) {
+      if (item.type !== 'order') continue
+      const payload = item.payload as { items?: Array<{ productId?: string; variantSize?: string; quantity?: number }> }
+      for (const line of payload.items ?? []) {
+        if (!line.productId) continue
+        const key = `${line.productId}|${line.variantSize ?? ''}`
+        deltas[key] = (deltas[key] ?? 0) + (line.quantity ?? 0)
+      }
+    }
+    return deltas
+  }
+
   /** Permanently-rejected items (server kept refusing) with their error text. */
   deadLettered(): { idempotencyKey: string; type: string; lastError?: string }[] {
     return this.outbox.deadLettered().map((i) => ({
