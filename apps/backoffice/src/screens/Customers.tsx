@@ -229,6 +229,14 @@ export default function Customers() {
       setErr('Nama kondisi wajib diisi')
       return
     }
+    if (condForm.rewardType === 'product_reward' && !(condForm.rewardProductIds || []).length) {
+      setErr('Pilih minimal satu produk hadiah untuk reward Produk Gratis')
+      return
+    }
+    if (condForm.type === 'campaign' && (!condForm.campaignStartDate || !condForm.campaignEndDate)) {
+      setErr('Campaign wajib punya tanggal mulai DAN berakhir (tanpa keduanya kondisi tidak akan pernah aktif)')
+      return
+    }
     setBusy(true)
     try {
       if (editingCond) await api.updateLoyaltyCondition(editingCond.id, condForm)
@@ -663,6 +671,18 @@ export default function Customers() {
           </Select>
           {condForm.rewardType !== 'product_reward' && (
             <Input label={condForm.rewardType === 'set_points' ? 'Jumlah Poin' : 'Pengali (×)'} type="number" value={condForm.rewardValue} onChange={(e) => setCondForm((f) => ({ ...f, rewardValue: parseFloat(e.target.value) || 0 }))} />
+          )}
+          {condForm.rewardType === 'product_reward' && (
+            <Field label="Produk Hadiah (pilihan item gratis untuk kasir)">
+              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
+                {products.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
+                    <input type="checkbox" checked={(condForm.rewardProductIds || []).includes(p.id)} onChange={(e) => setCondForm((f) => ({ ...f, rewardProductIds: e.target.checked ? [...(f.rewardProductIds || []), p.id] : (f.rewardProductIds || []).filter((x) => x !== p.id) }))} className="accent-gold-600" />
+                    <span className="text-sm text-gray-700">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
           )}
           {condForm.type === 'campaign' && (
             <div className="grid grid-cols-2 gap-4">
