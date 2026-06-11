@@ -36,6 +36,7 @@ const DEFAULT: AppSettings = {
     showChange: true,
   },
   autoOpenShift: false,
+  allowNegativeStock: true,
   receiveApproverRoles: [],
 }
 
@@ -300,6 +301,13 @@ export default function SettingsScreen() {
                 <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login</p>
               </div>
               <Toggle checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
+            </div>
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <p className="font-bold text-gray-900">Izinkan Stok Minus</p>
+                <p className="text-xs text-gray-400">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
+              </div>
+              <Toggle checked={s.allowNegativeStock} onClick={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
             </div>
           </>
         )}
