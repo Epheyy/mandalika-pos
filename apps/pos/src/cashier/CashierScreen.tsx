@@ -38,6 +38,7 @@ import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
+import { applyPendingStock } from './stock'
 import { api } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -59,6 +60,7 @@ const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
   ],
   receipt: { headerText: '', footerText: '', showTax: true, showCashier: true },
   autoOpenShift: false,
+  allowNegativeStock: true,
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -190,6 +192,11 @@ export default function CashierScreen() {
   const inbound = engine.getInboundTransfers()
   const approvers = receiveApprovers(snapshot)
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
+  const pendingStockDeltas = engine.pendingStockDeltas()
+  const displayProducts = useMemo(
+    () => applyPendingStock(products, pendingStockDeltas),
+    [products, pendingStockDeltas],
+  )
   const scanIndex = useMemo(() => buildScanIndex(products), [products])
   const categories = snapshot.categories ?? []
   // Customers created on this device this session aren't in the synced
@@ -774,7 +781,7 @@ export default function CashierScreen() {
             loyaltyEnabled={loyalty.enabled}
           />
           <ProductGrid
-            products={products} categories={categories}
+            products={displayProducts} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
             showPrice={showPrice} showStock={showStock} showVariants={showVariants}
@@ -830,6 +837,7 @@ export default function CashierScreen() {
         customerPoints={state.selectedCustomer?.points ?? 0}
         rewards={rewards}
         rewardsLoading={rewardsLoading}
+        stockProducts={displayProducts}
         pickedRewards={pickedRewards}
         onPickReward={handlePickReward}
         onClearReward={handleClearReward}

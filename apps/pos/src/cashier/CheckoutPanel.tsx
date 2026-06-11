@@ -2,10 +2,12 @@ import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
+import { stockFor } from './stock'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
 type LoyaltyPreviewReward = components['schemas']['LoyaltyPreviewReward']
+type Product = components['schemas']['Product']
 
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'qris'
 
@@ -25,6 +27,7 @@ interface CheckoutPanelProps {
   customerPoints: number
   rewards: LoyaltyPreviewReward[]
   rewardsLoading: boolean
+  stockProducts: Product[]
   pickedRewards: Record<string, { productId: string; variantSize: string }>
   onPickReward: (
     conditionId: string,
@@ -65,6 +68,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   customerPoints,
   rewards,
   rewardsLoading,
+  stockProducts,
   pickedRewards,
   onPickReward,
   onClearReward,
@@ -249,6 +253,12 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                                   >
                                     {p.name}
                                     {v.size ? ` · ${v.size}` : ''}
+                                    {(() => {
+                                      const st = stockFor(stockProducts, p.id, v.size)
+                                      return st === null ? null : (
+                                        <span className={st > 0 ? 'ml-1 text-amber-600' : 'ml-1 text-red-500 font-bold'}>· Stok {st}</span>
+                                      )
+                                    })()}
                                   </button>
                                 )
                               }),
