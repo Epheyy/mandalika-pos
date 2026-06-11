@@ -1,10 +1,10 @@
 # Session Handoff — Mandalika POS
 
-Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `1bbef45` (pushed to origin; +docs commit on top) · Backend rev **00060-cdn** (migrations →0032; **SP-CRM-9 & 9b added NO migration**)
+Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `e82f721` (pushed to origin; +docs on top) · Backend rev **00060-cdn** DEPLOYED (migrations →0032); **SP-CRM-9c migration 0033 is committed but NOT yet deployed**
 
-> **▶️ NEXT UP — SP-CRM-9b (variant-level loyalty selectors + collapsible Hadiah Loyalti) is BUILT, backend DEPLOYED (rev `00060-cdn`), and LIVE-VERIFIED.** See the ⭐ LATEST SESSION (SP-CRM-9b) directly below. 9 commits (`b5f263c`…`1bbef45`) on `prod-hardening`, pushed. NO migration, NO OpenAPI change (composite `"pid"`/`"pid|size"` IDs ride the existing `string[]` arrays). **TWO follow-throughs, USER-PENDING:** (1) **NEW APK build** — the POS UI changed (collapsible reward rows), so the tablet's current APK won't show it until rebuilt; trigger `android-release.yml` (workflow_dispatch) on `prod-hardening` (agent lacks gh/token). (2) **On-device re-check** after the new APK — collapsed "Tersedia!" rows; expand→variant menu; pick→"GRATIS: … · size"; optionally author a variant-level condition via the new backoffice drill-down picker. Next CRM candidates after that: **SP-CRM-Merge** (dup review queue) or the deferred **offline reward eval**.
+> **▶️ NEXT UP — SP-CRM-9c (stock awareness at the POS) is CODE-COMPLETE + reviewed + pushed, but the backend deploy is USER-PENDING** (agent's deploy was auto-mode-blocked because migration **0033** runs on boot). See the ⭐ LATEST SESSION (SP-CRM-9c) directly below. Commits `29db28e`…`e82f721`. **USER ACTIONS, in order:** (1) **deploy the backend** — `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet` (runs migration 0033, default `allow_negative_stock=true` = today's behavior). (2) **live settings smoke** — GET /settings/app → `allowNegativeStock:true`; PUT false; GET=false; PUT true. (3) **new APK** (POS changed — ALSO carries the still-pending SP-CRM-9b collapsible UI). (4) **on-device check** — reward picker shows `· Stok N`; toggle "Izinkan Stok Minus" off → checkout shows the amber warning but still lets you confirm; product card stock drops immediately after a sale.
 >
-> **SP-CRM-9 (product_reward POS fulfillment, rev `00059-297`) was the PRIOR slice — DONE + live-verified + APK built + on-device confirmed working** (see the PRIOR SESSION section below the latest one).
+> **SP-CRM-9b (variant selectors + collapsible rewards, rev `00060-cdn`) — DONE + deployed + live-verified; its POS UI still needs the new APK** (covered by the 9c APK). **SP-CRM-9 (product_reward fulfillment) — DONE + on-device confirmed working.** Next CRM candidates: **SP-CRM-Merge** (dup review queue) or the deferred **offline reward eval**.
 
 > **POST-SP-CRM-8 FIX (rev 00057-77z, commit `ece37cc`):** discovered the backoffice **Kondisi Khusus** save never worked — the backend only had `GET /loyalty-conditions`; the create/update/delete write side was never built (pre-existing gap, the frontend client+UI already called these endpoints). Added the CRUD: `write.LoyaltyCondition` + `Create/Update/DeleteLoyaltyCondition` (mirrors Promotions/DiscountCodes pattern), 3 handlers, `POST /loyalty-conditions` + `PUT/DELETE /loyalty-conditions/{id}` gated **manage_settings**, OpenAPI `LoyaltyConditionInput` + 3 ops (regen, gen-check green). go-reviewer: Approve. Authed smoke test on 00057-77z: create+list+delete all work. **This unblocks authoring loyalty conditions** (prod had 0). DONE 2026-06-10: user created a real condition "First Registrant" (first_registration → set_points +10000); **live-verified** via the real OrderService — a first-time customer's Rp50,000 order earned base 50 + 10000 = **10050** with the breakdown ledger reason + application audit row. **LOYALTY IS NOW ENABLED for ongoing testing** (`loyalty_settings.enabled=true`, ppt=1, redemptionRate=100) — NOT a real go-live; see the ⚠️ ENV note below.
 >
@@ -14,7 +14,31 @@ Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `1bbef45` (pushed to origi
 
 ---
 
-# ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9b: Variant-Level Selectors + Collapsible Rewards) — READ THIS FIRST
+# ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9c: Stock Awareness at the POS) — READ THIS FIRST
+
+Branch `prod-hardening`. Code COMPLETE + reviewed + pushed (commits `29db28e`(spec)→`e82f721`); **backend NOT yet deployed — the deploy is USER-PENDING** (the auto-mode classifier blocked it because migration **0033** runs on boot; an earlier no-migration deploy this session passed). Built brainstorm→spec→plan→subagent-driven with per-task model routing (Sonnet implement / Opus review / Haiku spec-check). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-11-crm-sp9c-stock-awareness*`.
+
+## What this slice does (user-reported on-device, SP-CRM-9b session)
+A cashier picked an out-of-stock free reward and the sale went through → stock **−2**. Root causes (all confirmed in code): (a) the reward picker showed no stock; (b) the POS submits every order through the offline-first **sync path** (`sync.go:221 Offline:true`) which deliberately allows negative stock + flags `stockWarning` — there was no business toggle; (c) the product card "doesn't update fast" because the grid reads a snapshot that "only refreshes on resync" (`CashierScreen.tsx:196`) with no optimistic local decrement. **All three are addressed.**
+
+## What shipped (code, pushed)
+- **Backend** (`95a83a0`): `allowNegativeStock bool` on `app_settings` — **migration 0033** (`ADD COLUMN ... DEFAULT true`), OpenAPI `AppSettings` schema (required→plain bool), read json_build_object + write UpdateAppSettings, regen api.gen.go + schema.d.ts. **Default true = today's behavior.** Server stays LENIENT (records + flags; offline-first can't reject an already-made sale) — the setting drives POS UX only.
+- **Backoffice** (`5984073`): "Izinkan Stok Minus" toggle in SettingsScreen (mirrors autoOpenShift; save sends the whole settings object).
+- **POS sync pkg** (`61c33b1`): `SyncEngine.pendingStockDeltas(): Record<string,number>` sums unsynced outbox `'order'` quantities per `${productId}|${variantSize}` (paid + reward lines).
+- **POS** (`f0f30bd`,`1a86c27`,`e82f721`): `apps/pos/src/cashier/stock.ts` — `applyPendingStock`/`stockFor`/`overstockLines` (pure, tested). `CashierScreen` derives `displayProducts` = snapshot stock − pending deltas → feeds ProductGrid (card updates immediately after a sale) + the reward picker (now shows `· Stok N`, red ≤0) + the checkout warning. CheckoutPanel shows a setting-gated amber "⚠️ Stok tidak mencukupi · masih bisa dilanjutkan" when any line (paid OR reward, **aggregated by variant** so paid+reward of the same item combine) would go negative AND `allowNegativeStock===false` — **confirm button STAYS enabled (warn + override)**. `DEFAULT_SETTINGS` got `allowNegativeStock:true`.
+
+## ✅ Verification (local) / ⏳ deploy+smoke USER-PENDING
+- Local gate green: backend build+test+`make gen-check` (no drift); POS tsc + vitest (30/30 incl. 9 stock cases); backoffice + sync builds.
+- Reviews: A1 go-reviewer (Opus) Approve; C1/C2/C3 typescript-reviewer (Opus) Approve. Applied: C3 same-variant aggregation fix (paid+reward of one variant now warns correctly).
+- **NOT YET DONE (needs the user):** (1) **authorize the backend deploy** — `gcloud run deploy mandalika-pos --source backend --region asia-southeast2 --quiet` (runs migration 0033; the agent's deploy was auto-mode-blocked). (2) **live settings smoke** — GET /settings/app shows `allowNegativeStock:true`; PUT false; GET=false; PUT true. (3) **new APK** (POS changed — also carries the still-pending 9b UI). (4) **on-device check** — reward picker shows stock; toggle off → checkout warns but allows; product card decrements immediately after a sale.
+
+## Known-minor (deferred, not bugs)
+- `displayProducts` useMemo doesn't fully stabilize (pendingStockDeltas() + filtered products are fresh refs each render) — but ProductGrid already received an equally-unstable array pre-9c, so no regression; decorative, perf-pass candidate.
+- The existing scan-add guard (`CashierScreen.tsx:296`, unconditional "Stok habis") is left as-is — the new enforcement is the setting-gated CHECKOUT warning covering the reward path that 296 never guarded.
+
+---
+
+# ⭐ PRIOR SESSION — 2026-06-11 (SP-CRM-9b: Variant-Level Selectors + Collapsible Rewards)
 
 Branch `prod-hardening`. Backend deployed **rev `00060-cdn`** (**NO migration**, NO OpenAPI change — composite IDs ride the existing `string[]` jsonb arrays). Built brainstorm→spec→plan→**subagent-driven** with per-task model routing (Sonnet implement / Opus review / Haiku spec-check). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-11-crm-sp9b-variant-selectors-collapsible-rewards*`.
 
