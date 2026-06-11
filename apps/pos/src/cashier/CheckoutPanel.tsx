@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
@@ -77,6 +77,10 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   discountAmount,
   taxAmount,
 }: CheckoutPanelProps) {
+  // SP-CRM-9b: per-condition expand state; collapsed by default so a generous
+  // menu doesn't flood the checkout. Picking auto-collapses.
+  const [openRewards, setOpenRewards] = useState<Record<string, boolean>>({})
+
   if (!isOpen) return null
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
@@ -180,44 +184,86 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               <div className="space-y-3">
                 {rewards.map((rw) => {
                   const picked = pickedRewards[rw.conditionId]
+                  const pickedProduct = picked
+                    ? rw.products.find((p) => p.id === picked.productId)
+                    : undefined
+                  const isExpanded = openRewards[rw.conditionId] ?? false
                   return (
                     <div key={rw.conditionId} className="border border-amber-200 bg-amber-50 rounded-xl p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-amber-800">{rw.conditionName}</span>
-                        {picked && (
-                          <button
-                            type="button"
-                            onClick={() => onClearReward(rw.conditionId)}
-                            className="text-[11px] text-amber-700 underline"
-                          >
-                            Batalkan
-                          </button>
-                        )}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {rw.products.flatMap((p) =>
-                          p.variants.map((v) => {
-                            const isSel = picked?.productId === p.id && picked?.variantSize === v.size
-                            return (
-                              <button
-                                key={`${p.id}-${v.size}`}
-                                type="button"
-                                onClick={() => onPickReward(rw.conditionId, { id: p.id, name: p.name }, v)}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                                  isSel
-                                    ? 'border-amber-500 bg-amber-600 text-white'
-                                    : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-100'
-                                }`}
-                              >
-                                {p.name}
-                                {v.size ? ` · ${v.size}` : ''}
-                              </button>
-                            )
-                          }),
-                        )}
-                      </div>
-                      {picked && (
-                        <p className="mt-1.5 text-[11px] font-semibold text-green-600">GRATIS ✓</p>
+                      <button
+                        type="button"
+                        onClick={() => setOpenRewards((o) => ({ ...o, [rw.conditionId]: !isExpanded }))}
+                        className="w-full flex items-center justify-between gap-2"
+                      >
+                        <span className="text-xs font-semibold text-amber-800 text-left">{rw.conditionName}</span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {!picked && (
+                            <span className="text-[11px] font-bold text-green-600">Tersedia!</span>
+                          )}
+                          <span className="text-amber-700 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                        </span>
+                      </button>
+                      {picked && !isExpanded && (
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-semibold text-green-600">
+                            GRATIS: {pickedProduct?.name ?? ''}
+                            {picked.variantSize ? ` · ${picked.variantSize}` : ''}
+                          </p>
+                          <span className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setOpenRewards((o) => ({ ...o, [rw.conditionId]: true }))}
+                              className="text-[11px] text-amber-700 underline"
+                            >
+                              Ganti
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onClearReward(rw.conditionId)}
+                              className="text-[11px] text-amber-700 underline"
+                            >
+                              Hapus
+                            </button>
+                          </span>
+                        </div>
+                      )}
+                      {isExpanded && (
+                        <>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {rw.products.flatMap((p) =>
+                              p.variants.map((v) => {
+                                const isSel = picked?.productId === p.id && picked?.variantSize === v.size
+                                return (
+                                  <button
+                                    key={`${p.id}-${v.size}`}
+                                    type="button"
+                                    onClick={() => {
+                                      onPickReward(rw.conditionId, { id: p.id, name: p.name }, v)
+                                      setOpenRewards((o) => ({ ...o, [rw.conditionId]: false }))
+                                    }}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                      isSel
+                                        ? 'border-amber-500 bg-amber-600 text-white'
+                                        : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    {p.name}
+                                    {v.size ? ` · ${v.size}` : ''}
+                                  </button>
+                                )
+                              }),
+                            )}
+                          </div>
+                          {picked && (
+                            <button
+                              type="button"
+                              onClick={() => onClearReward(rw.conditionId)}
+                              className="mt-1.5 text-[11px] text-amber-700 underline"
+                            >
+                              Batalkan hadiah
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   )
