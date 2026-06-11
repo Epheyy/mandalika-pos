@@ -278,3 +278,46 @@ func TestProductRewards(t *testing.T) {
 		t.Fatalf("want 2 menu products, got %d", len(got[0].RewardProductIDs))
 	}
 }
+
+// TestProductPurchaseVariantEntries pins the SP-CRM-9b composite-key semantics for
+// product_purchase matching: entries in ApplicableProductIDs may be "pid" (whole
+// product) or "pid|size" (one variant). The engine is a plain set lookup, so a
+// whole-product entry only matches when the caller puts the bare "pid" key in
+// ProductIDs, and a variant entry only matches its exact "pid|size" key.
+func TestProductPurchaseVariantEntries(t *testing.T) {
+	mk := func(entries ...string) []LoyaltyCondition {
+		return []LoyaltyCondition{{
+			ID: "c1", Name: "V", Type: "always_on", Trigger: "product_purchase",
+			RewardType: "product_reward", RewardProductIDs: []string{"rp1"},
+			ApplicableProductIDs: entries, IsActive: true,
+		}}
+	}
+	ctx := func(keys ...string) EvalContext {
+		set := make(map[string]bool, len(keys))
+		for _, k := range keys {
+			set[k] = true
+		}
+		return EvalContext{Total: 100000, BasePoints: 100, ProductIDs: set,
+			SaleDate: time.Date(2026, 6, 11, 10, 0, 0, 0, wib)}
+	}
+	cases := []struct {
+		name    string
+		conds   []LoyaltyCondition
+		ctx     EvalContext
+		matched bool
+	}{
+		{"whole-product entry matches product key", mk("p1"), ctx("p1", "p1|10ml"), true},
+		{"variant entry matches exact variant key", mk("p1|10ml"), ctx("p1", "p1|10ml"), true},
+		{"variant entry does NOT match a different size", mk("p1|110ml"), ctx("p1", "p1|10ml"), false},
+		{"variant entry does NOT match product-only key", mk("p1|10ml"), ctx("p1"), false},
+		{"mixed entries: whole product wins for any size", mk("p1|110ml", "p1"), ctx("p1", "p1|10ml"), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := EvaluateLoyalty(tc.conds, tc.ctx)
+			if got := len(out.Applied) == 1; got != tc.matched {
+				t.Fatalf("matched=%v want %v (applied=%v)", got, tc.matched, out.Applied)
+			}
+		})
+	}
+}
