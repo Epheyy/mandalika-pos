@@ -1252,7 +1252,7 @@ components:
         showChange: { type: boolean, nullable: true }
     AppSettings:
       type: object
-      required: [taxEnabled, taxRate, roundingEnabled, roundingType, paymentMethods, receipt, autoOpenShift]
+      required: [taxEnabled, taxRate, roundingEnabled, roundingType, paymentMethods, receipt, autoOpenShift, allowNegativeStock]
       properties:
         taxEnabled: { type: boolean }
         taxRate: { type: number }
@@ -1264,6 +1264,7 @@ components:
         paymentMethods: { type: array, items: { $ref: '#/components/schemas/PaymentMethodConfig' } }
         receipt: { $ref: '#/components/schemas/ReceiptSettings' }
         autoOpenShift: { type: boolean }
+        allowNegativeStock: { type: boolean }
         receiveApproverRoles:
           type: array
           items: { type: string }

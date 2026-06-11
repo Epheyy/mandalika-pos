@@ -2836,6 +2836,7 @@ export interface components {
             paymentMethods: components["schemas"]["PaymentMethodConfig"][];
             receipt: components["schemas"]["ReceiptSettings"];
             autoOpenShift: boolean;
+            allowNegativeStock: boolean;
             /** @description Roles whose users may approve a POS transfer receive. */
             receiveApproverRoles?: string[];
             documents?: components["schemas"]["DocumentSettings"];

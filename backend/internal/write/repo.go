@@ -645,6 +645,7 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 		RoundingDirection    *string               `json:"roundingDirection"`
 		RoundingApplyToTax   *bool                 `json:"roundingApplyToTax"`
 		AutoOpenShift        bool                  `json:"autoOpenShift"`
+		AllowNegativeStock   bool                  `json:"allowNegativeStock"`
 		PaymentMethods       json.RawMessage       `json:"paymentMethods"`
 		Receipt              json.RawMessage       `json:"receipt"`
 		ReceiveApproverRoles []string              `json:"receiveApproverRoles"`
@@ -669,11 +670,12 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 			UPDATE app_settings SET tax_enabled=$1, tax_rate=$2,
 			  rounding_enabled=$3, rounding_type=$4, rounding_amount=$5,
 			  rounding_direction=$6, rounding_apply_to_tax=$7, auto_open_shift=$8,
-			  payment_methods=$9, receipt=$10, receive_approver_roles=$11 WHERE id=1`,
+			  payment_methods=$9, receipt=$10, receive_approver_roles=$11,
+			  allow_negative_stock=$12 WHERE id=1`,
 			s.TaxEnabled, s.TaxRate, s.RoundingEnabled, s.RoundingType,
 			s.RoundingAmount, s.RoundingDirection, s.RoundingApplyToTax,
 			s.AutoOpenShift, []byte(s.PaymentMethods), []byte(s.Receipt),
-			s.ReceiveApproverRoles)
+			s.ReceiveApproverRoles, s.AllowNegativeStock)
 		if e != nil {
 			return e
 		}

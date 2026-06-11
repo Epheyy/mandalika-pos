@@ -870,7 +870,7 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 		`SELECT json_build_object('taxEnabled',tax_enabled,'taxRate',tax_rate,
 		   'roundingEnabled',rounding_enabled,'roundingType',rounding_type,
 		   'roundingAmount',rounding_amount,'roundingDirection',rounding_direction,
-		   'roundingApplyToTax',rounding_apply_to_tax,'autoOpenShift',auto_open_shift,
+		   'roundingApplyToTax',rounding_apply_to_tax,'autoOpenShift',auto_open_shift,'allowNegativeStock',allow_negative_stock,
 		   'paymentMethods',payment_methods,'receipt',receipt,
 		   'receiveApproverRoles',receive_approver_roles,
 		   'recipesEnabled',recipes_enabled,
