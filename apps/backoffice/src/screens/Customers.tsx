@@ -24,6 +24,7 @@ import {
 import CustomerDetail from './customers/CustomerDetail'
 import { SegmentManager } from './customers/SegmentManager'
 import { tagChipClasses } from './customers/tagColors'
+import { ProductVariantPicker } from './customers/ProductVariantPicker'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -652,15 +653,12 @@ export default function Customers() {
             </Field>
           )}
           {condForm.trigger === 'product_purchase' && (
-            <Field label="Produk Pemicu">
-              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
-                {products.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                    <input type="checkbox" checked={(condForm.applicableProductIds || []).includes(p.id)} onChange={(e) => setCondForm((f) => ({ ...f, applicableProductIds: e.target.checked ? [...(f.applicableProductIds || []), p.id] : (f.applicableProductIds || []).filter((x) => x !== p.id) }))} className="accent-gold-600" />
-                    <span className="text-sm text-gray-700">{p.name}</span>
-                  </label>
-                ))}
-              </div>
+            <Field label="Produk Pemicu (produk utuh atau varian tertentu)">
+              <ProductVariantPicker
+                products={products}
+                value={condForm.applicableProductIds || []}
+                onChange={(next) => setCondForm((f) => ({ ...f, applicableProductIds: next }))}
+              />
             </Field>
           )}
           {condForm.trigger === 'spending_threshold' && (
@@ -674,14 +672,11 @@ export default function Customers() {
           )}
           {condForm.rewardType === 'product_reward' && (
             <Field label="Produk Hadiah (pilihan item gratis untuk kasir)">
-              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
-                {products.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                    <input type="checkbox" checked={(condForm.rewardProductIds || []).includes(p.id)} onChange={(e) => setCondForm((f) => ({ ...f, rewardProductIds: e.target.checked ? [...(f.rewardProductIds || []), p.id] : (f.rewardProductIds || []).filter((x) => x !== p.id) }))} className="accent-gold-600" />
-                    <span className="text-sm text-gray-700">{p.name}</span>
-                  </label>
-                ))}
-              </div>
+              <ProductVariantPicker
+                products={products}
+                value={condForm.rewardProductIds || []}
+                onChange={(next) => setCondForm((f) => ({ ...f, rewardProductIds: next }))}
+              />
             </Field>
           )}
           {condForm.type === 'campaign' && (
