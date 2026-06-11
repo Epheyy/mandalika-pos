@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -58,12 +59,15 @@ func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, it
 	if err != nil {
 		return nil, fmt.Errorf("preview load conditions: %w", err)
 	}
-	pidSet := make(map[string]bool, len(items))
+	pidSet := make(map[string]bool, len(items)*2)
 	for _, it := range items {
 		if it.IsReward {
 			continue
 		}
 		pidSet[it.ProductID] = true
+		if it.VariantSize != "" {
+			pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
+		}
 	}
 	saleTime := time.Now()
 	if clientCreated != nil {
@@ -95,18 +99,53 @@ func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, it
 	return out, nil
 }
 
+// parseMenu splits SP-CRM-9b composite menu entries ("pid" or "pid|size") into
+// the distinct product ids to query (entry order, deduped) and a per-product
+// allowed-size set. A nil set means ALL sizes (whole-product entry; it wins over
+// variant entries for the same product).
+func parseMenu(entries []string) ([]string, map[string]map[string]bool) {
+	allowed := make(map[string]map[string]bool, len(entries))
+	var order []string
+	for _, e := range entries {
+		pid, size := e, ""
+		if i := strings.IndexByte(e, '|'); i >= 0 {
+			pid, size = e[:i], e[i+1:]
+		}
+		cur, seen := allowed[pid]
+		if !seen {
+			order = append(order, pid)
+		}
+		if size == "" {
+			allowed[pid] = nil // whole product — all sizes
+			continue
+		}
+		if seen && cur == nil {
+			continue // a whole-product entry is already present; superset wins
+		}
+		if cur == nil {
+			cur = make(map[string]bool)
+			allowed[pid] = cur
+		}
+		cur[size] = true
+	}
+	return order, allowed
+}
+
 // rewardProductMenu resolves product ids → {name, sellable variants}. Drops
 // products with no variants (nothing to give), inactive products, and missing products.
+// ids may contain SP-CRM-9b composite entries ("pid" or "pid|size"); parseMenu
+// extracts the base product ids for the DB query and the per-product size filter.
 func (s *OrderService) rewardProductMenu(ctx context.Context, ids []string) ([]RewardPreviewProduct, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	productIDs, allowedSizes := parseMenu(ids)
 	rows, err := s.Pool.Query(ctx, `
 		SELECT p.id, p.name, v.size, v.price
 		  FROM products p
 		  JOIN product_variants v ON v.product_id = p.id
 		 WHERE p.id = ANY($1) AND p.is_active = true
-		 ORDER BY p.name, v.price`, ids)
+		 ORDER BY p.name, v.price`, productIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load reward products: %w", err)
 	}
@@ -118,6 +157,9 @@ func (s *OrderService) rewardProductMenu(ctx context.Context, ids []string) ([]R
 		var price float64
 		if e := rows.Scan(&pid, &name, &size, &price); e != nil {
 			return nil, fmt.Errorf("scan reward product: %w", e)
+		}
+		if sz := allowedSizes[pid]; sz != nil && !sz[size] {
+			continue // variant-level entry: this size isn't on the menu (SP-CRM-9b)
 		}
 		p, ok := byID[pid]
 		if !ok {
