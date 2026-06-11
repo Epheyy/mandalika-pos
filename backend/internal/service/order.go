@@ -176,12 +176,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		if e != nil {
 			return "", false, false, e
 		}
-		pidSet := make(map[string]bool, len(in.Items))
+		pidSet := make(map[string]bool, len(in.Items)*2)
 		for _, it := range in.Items {
 			if it.IsReward {
 				continue // a free reward item must not trigger more conditions
 			}
 			pidSet[it.ProductID] = true
+			if it.VariantSize != "" {
+				pidSet[it.ProductID+"|"+it.VariantSize] = true // variant-level trigger entries (SP-CRM-9b)
+			}
 		}
 		saleTime := time.Now()
 		if in.ClientCreated != nil {
@@ -357,17 +360,21 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 					continue
 				}
 				a, ok := rewardMenu[it.RewardConditionID]
-				if !ok || seenReward[it.RewardConditionID] || !contains(a.RewardProductIDs, it.ProductID) {
+				if !ok || seenReward[it.RewardConditionID] || !rewardLineAllowed(a.RewardProductIDs, it.ProductID, it.VariantSize) {
 					slog.Warn("dropping unfulfillable reward line from audit",
 						"order_id", orderID, "condition_id", it.RewardConditionID, "product_id", it.ProductID)
 					continue
 				}
 				seenReward[it.RewardConditionID] = true
+				chosen := it.ProductID // grant records the CHOSEN item; "pid|size" when the size is known
+				if it.VariantSize != "" {
+					chosen += "|" + it.VariantSize
+				}
 				if e := write.InsertConditionApplication(ctx, tx, write.ConditionApplicationRow{
 					OrderID: orderID, CustomerID: in.CustomerID, ConditionID: a.ConditionID,
 					ConditionName: a.Name, Trigger: a.Trigger, RewardType: "product_reward",
 					RewardValue: a.RewardValue, PointsContributed: 0,
-					RewardProductIDs: []string{it.ProductID}, // the CHOSEN product
+					RewardProductIDs: []string{chosen}, // the CHOSEN product
 				}); e != nil {
 					return "", false, false, fmt.Errorf("record reward fulfillment: %w", e)
 				}
@@ -607,6 +614,16 @@ func loadActiveConditions(ctx context.Context, q rowQuerier) ([]LoyaltyCondition
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// rewardLineAllowed reports whether a reward line's chosen item is on the
+// condition's menu: listed as the whole product ("pid") or the exact variant
+// ("pid|size"). SP-CRM-9b composite entries.
+func rewardLineAllowed(menu []string, productID, size string) bool {
+	if contains(menu, productID) {
+		return true
+	}
+	return size != "" && contains(menu, productID+"|"+size)
 }
 
 // nextOrderNumber assigns a short, globally-unique MND-NNNNNN from a single
