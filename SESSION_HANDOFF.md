@@ -14,6 +14,20 @@ Date: 2026-06-11 · Branch: `prod-hardening` · HEAD: `e82f721` (pushed to origi
 
 ---
 
+# 📋 COPY-READY: NEXT SLICE — SP-CRM-Merge (paste as the first message of a new session)
+
+```
+Continue Mandalika POS / next = SP-CRM-Merge (backoffice duplicate-customer review queue). Read SESSION_HANDOFF.md (the ▶️ NEXT UP banner) + the crm-customers-module, model-routing-policy, and working-rules-six memories FIRST, then confirm the 6 working rules. Then kick off superpowers:brainstorming for SP-CRM-Merge before any code (brainstorm→spec→plan→subagent-driven, same as 9b/9c).
+
+SP-CRM-Merge scope (from memory): a backoffice APPROVAL REVIEW QUEUE for the customer_dup_candidates flagged by SP-CRM-3 (migration 0027, status pending/merged/dismissed, already review-queue-ready). Staff review each flagged pair side-by-side and confirm or dismiss. A confirmed merge: re-points the dup customer's orders to the keeper, lets aggregates (total_spent, points, visit_count, segment) recompute, resolves field conflicts (which name/phone/email/birthday/notes/tags win), and tombstones the dup. HUMAN-IN-THE-LOOP, NEVER auto-merge (same phone ≠ same person; merges are destructive). Brainstorm the real design questions first: conflict-resolution UX (field-by-field pick vs keep-one-wholesale), what "tombstone" means (soft-delete row + redirect, or hard merge), points/ledger reconciliation (the SP-CRM-7 point_transactions must follow the keeper), idempotency/undo, and whether the POS needs to know about merged ids.
+
+Apply the model-routing-policy: Sonnet implements; review tier by what the diff TOUCHES (anything touching the points ledger, order re-pointing, customer aggregates, or type-gen → Opus even if small; mechanical → Haiku; unsure → Opus); Opus re-derives any Haiku finding from source.
+```
+
+**Design heads-up for that session** (the genuine forks, not yet decided): merge is destructive and touches the hot tables — order re-pointing + the SP-CRM-7 `point_transactions` ledger must follow the keeper, and `customers` aggregates recompute. It will likely need a **migration** (a `merged_into`/tombstone column or a `customer_merges` audit table), so a fresh deploy-with-migration — now pre-authorized via the `autoMode.allow` rule in `.claude/settings.local.json`. Brainstorm conflict-resolution UX, tombstone semantics, ledger reconciliation, idempotency/undo, and POS awareness of merged ids before writing the spec.
+
+---
+
 # ⭐ LATEST SESSION — 2026-06-11 (SP-CRM-9c: Stock Awareness at the POS) — READ THIS FIRST
 
 Branch `prod-hardening`. Code COMPLETE + reviewed + pushed (commits `29db28e`(spec)→`e82f721`); **backend DEPLOYED rev `00061-jtw` (migration 0033) + settings-smoke-verified.** Built brainstorm→spec→plan→subagent-driven with per-task model routing (Sonnet implement / Opus review / Haiku spec-check). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-11-crm-sp9c-stock-awareness*`.
