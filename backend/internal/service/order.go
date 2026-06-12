@@ -75,6 +75,28 @@ type OrderService struct{ Pool *pgxpool.Pool }
 
 func NewOrderService(p *pgxpool.Pool) *OrderService { return &OrderService{Pool: p} }
 
+// resolveMergedCustomer follows customers.merged_into to the terminal (non-merged)
+// keeper id, so an order placed against a stale/tombstoned dup id (e.g. from an
+// offline POS cache that synced late) lands on the live keeper. Capped + cycle-safe.
+func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, error) {
+	cur := id
+	for i := 0; i < 10; i++ {
+		var mi *string
+		err := tx.QueryRow(ctx, `SELECT merged_into FROM customers WHERE id=$1`, cur).Scan(&mi)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return cur, nil // unknown id: leave as-is, downstream load handles it
+		}
+		if err != nil {
+			return "", fmt.Errorf("resolve merged customer: %w", err)
+		}
+		if mi == nil || *mi == "" {
+			return cur, nil // terminal: not merged
+		}
+		cur = *mi
+	}
+	return cur, nil // hop cap reached (defensive); use the furthest resolved id
+}
+
 // CreateOrder runs the whole checkout in ONE transaction and is idempotent on
 // IdempotencyKey: a replay (offline retry, two devices/outlets posting the same
 // data) returns the canonical stored order and never double-inserts (plan §5).
@@ -138,6 +160,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	// points and to the order total (can't pay a negative bill).
 	// Read the cached balance once under row-lock for any loyalty customer — used
 	// both for the redemption clamp and as balance_before for the ledger entries.
+	// SP-CRM-Merge: resolve a stale/tombstoned duplicate customer id (e.g. from an
+	// offline POS cache that synced late) to the terminal keeper id. All downstream
+	// writes (order row, points, aggregates) then land on the live keeper.
+	if in.CustomerID != "" {
+		keeperID, e := resolveMergedCustomer(ctx, tx, in.CustomerID)
+		if e != nil {
+			return "", false, false, e
+		}
+		in.CustomerID = keeperID // all downstream order/points/aggregate writes target the keeper
+	}
+
 	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
 	balanceBefore := 0
 	var evalCust EvalCustomer
