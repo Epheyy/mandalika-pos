@@ -398,6 +398,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/dup-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Duplicate-customer review queue (Backoffice, manage_customers) */
+        get: operations["listDupCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/dup-candidates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One duplicate-customer candidate (Backoffice, manage_customers) */
+        get: operations["getDupCandidate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/dup-candidates/{id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a duplicate merge (Backoffice, manage_settings) */
+        post: operations["mergeDupCandidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/dup-candidates/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a duplicate candidate (Backoffice, manage_customers) */
+        post: operations["dismissDupCandidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promotions": {
         parameters: {
             query?: never;
@@ -2404,6 +2472,31 @@ export interface components {
         CustomerResponse: {
             data: components["schemas"]["Customer"];
         };
+        DupCandidate: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            /** @enum {string} */
+            status: "pending" | "merged" | "dismissed";
+            /** Format: date-time */
+            createdAt: string;
+            newCustomer: components["schemas"]["Customer"];
+            existingCustomer: components["schemas"]["Customer"];
+        };
+        DupCandidateListResponse: {
+            data: components["schemas"]["DupCandidate"][];
+            meta: components["schemas"]["Meta"];
+        };
+        DupCandidateResponse: {
+            data: components["schemas"]["DupCandidate"];
+        };
+        MergeCustomersInput: {
+            /** Format: uuid */
+            keeperId: string;
+            fieldChoices?: {
+                [key: string]: "keeper" | "dup";
+            } | null;
+        };
         Interaction: {
             /** Format: uuid */
             id: string;
@@ -4095,6 +4188,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RewardGrantListResponse"];
+                };
+            };
+        };
+    };
+    listDupCandidates: {
+        parameters: {
+            query?: {
+                status?: "pending" | "merged" | "dismissed";
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description candidates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DupCandidateListResponse"];
+                };
+            };
+        };
+    };
+    getDupCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description candidate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DupCandidateResponse"];
+                };
+            };
+        };
+    };
+    mergeDupCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeCustomersInput"];
+            };
+        };
+        responses: {
+            /** @description merged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    dismissDupCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description dismissed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
         };

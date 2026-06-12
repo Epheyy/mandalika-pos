@@ -769,6 +769,36 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/Customer' }
+    DupCandidate:
+      type: object
+      required: [id, phone, status, createdAt, newCustomer, existingCustomer]
+      properties:
+        id: { type: string, format: uuid }
+        phone: { type: string }
+        status: { type: string, enum: [pending, merged, dismissed] }
+        createdAt: { type: string, format: date-time }
+        newCustomer: { $ref: '#/components/schemas/Customer' }
+        existingCustomer: { $ref: '#/components/schemas/Customer' }
+    DupCandidateListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/DupCandidate' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    DupCandidateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DupCandidate' }
+    MergeCustomersInput:
+      type: object
+      required: [keeperId]
+      properties:
+        keeperId: { type: string, format: uuid }
+        fieldChoices:
+          type: object
+          additionalProperties: { type: string, enum: [keeper, dup] }
+          nullable: true
     Interaction:
       type: object
       required: [id, type, interactionDate, createdAt]
@@ -2274,6 +2304,65 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RewardGrantListResponse' }
+  /api/v1/customers/dup-candidates:
+    get:
+      operationId: listDupCandidates
+      tags: [customers]
+      summary: Duplicate-customer review queue (Backoffice, manage_customers)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, merged, dismissed] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+      responses:
+        '200':
+          description: candidates
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DupCandidateListResponse' }
+  /api/v1/customers/dup-candidates/{id}:
+    get:
+      operationId: getDupCandidate
+      tags: [customers]
+      summary: One duplicate-customer candidate (Backoffice, manage_customers)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: candidate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DupCandidateResponse' }
+  /api/v1/customers/dup-candidates/{id}/merge:
+    post:
+      operationId: mergeDupCandidate
+      tags: [customers]
+      summary: Confirm a duplicate merge (Backoffice, manage_settings)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MergeCustomersInput' }
+      responses:
+        '200':
+          description: merged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+  /api/v1/customers/dup-candidates/{id}/dismiss:
+    post:
+      operationId: dismissDupCandidate
+      tags: [customers]
+      summary: Dismiss a duplicate candidate (Backoffice, manage_customers)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: dismissed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
   /api/v1/promotions:
     post:
       operationId: createPromotion
