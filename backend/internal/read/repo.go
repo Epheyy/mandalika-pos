@@ -698,7 +698,8 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, s
 	}
 	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
 		   FROM customers
-		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')` +
+		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+		    AND merged_into IS NULL` +
 		tagFilter + segFilter + `
 		  ` + order + `
 		  OFFSET $1 LIMIT $2`
@@ -709,7 +710,7 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, s
 // the backoffice soft dup-check via idx_customers_phone.
 func (r *Repo) CustomerByPhone(ctx context.Context, phone string) ([]api.Customer, error) {
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers WHERE phone = $1`, phone)
+		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers WHERE phone = $1 AND merged_into IS NULL`, phone)
 	return rows, err
 }
 
@@ -721,7 +722,8 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 	}
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
-		  WHERE name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'
+		  WHERE (name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%')
+		    AND merged_into IS NULL
 		  ORDER BY (phone = $1) DESC, name
 		  LIMIT $2`, q, limit)
 	return rows, err
@@ -750,6 +752,7 @@ func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, da
 		   ORDER BY last_seen DESC
 		      LIMIT $3
 		   ) recent ON recent.customer_id = c.id
+		  WHERE c.merged_into IS NULL
 		  ORDER BY recent.last_seen DESC`,
 		outletID, days, limit)
 	return rows, err
@@ -757,7 +760,7 @@ func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, da
 
 func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {
 	return oneJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObjWithTags+` FROM customers WHERE id=$1`, id)
+		`SELECT `+customerObjWithTags+` FROM customers WHERE id=$1 AND merged_into IS NULL`, id)
 }
 
 // Interactions returns a customer's interaction log, newest-first, paginated.
