@@ -89,6 +89,8 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   // SP-CRM-9b: per-condition expand state; collapsed by default so a generous
   // menu doesn't flood the checkout. Picking auto-collapses.
   const [openRewards, setOpenRewards] = useState<Record<string, boolean>>({})
+  // SP-CRM-9c: overstock confirm modal state
+  const [showOverstockConfirm, setShowOverstockConfirm] = useState(false)
 
   if (!isOpen) return null
 
@@ -104,6 +106,16 @@ export const CheckoutPanel = memo(function CheckoutPanel({
     Math.ceil(derived.total / 50000) * 50000,
     Math.ceil(derived.total / 100000) * 100000,
   ].filter((v, i, a) => a.indexOf(v) === i && v >= derived.total)
+
+  // SP-CRM-9c: overstock guard — overstockLines returns [] when allowNegativeStock is true
+  const overstock = overstockLines(cartLines, stockProducts, allowNegativeStock)
+  const handleConfirmClick = () => {
+    if (overstock.length > 0) {
+      setShowOverstockConfirm(true)
+      return
+    }
+    onConfirm()
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -416,23 +428,12 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             </div>
           )}
 
-          {/* Negative-stock warning (setting-gated, warn + override) */}
-          {(() => {
-            const over = overstockLines(cartLines, stockProducts, allowNegativeStock)
-            if (over.length === 0) return null
-            return (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-800">
-                <p className="font-bold">⚠️ Stok tidak mencukupi</p>
-                <p className="mt-0.5">Penjualan ini akan membuat stok minus. Anda masih bisa melanjutkan.</p>
-              </div>
-            )
-          })()}
         </div>
 
         {/* Confirm button */}
         <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
           <button
-            onClick={onConfirm}
+            onClick={handleConfirmClick}
             disabled={isProcessing || isCashShort}
             className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold text-sm disabled:opacity-40 hover:bg-green-700 transition-colors shadow-sm"
           >
@@ -443,6 +444,61 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           </p>
         </div>
       </div>
+
+      {/* SP-CRM-9c: overstock confirm modal — warn + override, z-[60] above CheckoutPanel z-50 */}
+      {showOverstockConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowOverstockConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-base font-black text-gray-900">Stok Tidak Mencukupi</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Penjualan ini melebihi stok dan akan membuat stok minus:</p>
+            <ul className="space-y-1 mb-4 max-h-40 overflow-y-auto">
+              {overstock.map((line) => {
+                const p = stockProducts.find((x) => x.id === line.productId)
+                const avail = stockFor(stockProducts, line.productId, line.variantSize)
+                return (
+                  <li
+                    key={`${line.productId}-${line.variantSize}`}
+                    className="text-xs text-gray-700 flex justify-between gap-2"
+                  >
+                    <span className="font-semibold">
+                      {p?.name ?? line.productId}
+                      {line.variantSize ? ` · ${line.variantSize}` : ''}
+                    </span>
+                    <span className="text-red-600 font-bold shrink-0">
+                      minta {line.quantity} · stok {avail ?? 0}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowOverstockConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowOverstockConfirm(false); onConfirm() }}
+                className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700"
+              >
+                Lanjutkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 })
