@@ -7,6 +7,7 @@ import type {
   Tag,
   Segment,
   Reminder,
+  DupCandidate,
 } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
@@ -22,6 +23,8 @@ import {
   Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
 } from '../ui'
 import CustomerDetail from './customers/CustomerDetail'
+import DupCandidates from './customers/DupCandidates'
+import MergeReview from './customers/MergeReview'
 import { SegmentManager } from './customers/SegmentManager'
 import { tagChipClasses } from './customers/tagColors'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
@@ -95,8 +98,15 @@ export default function Customers() {
   const [tab, setTab] = useState<'customers' | 'settings'>('customers')
   const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
 
-  // Customers sub-view + reminders (SP-CRM-6)
-  const [custView, setCustView] = useState<'daftar' | 'pengingat'>('daftar')
+  // Customers sub-view + reminders (SP-CRM-6) + dup review (SP-CRM-Merge)
+  const [custView, setCustView] = useState<'daftar' | 'pengingat' | 'duplikat'>('daftar')
+  const [selectedDupId, setSelectedDupId] = useState<string | null>(null)
+  const [dupRefresh, setDupRefresh] = useState(0)
+  const dupCountQ = usePolledQuery<{ data: DupCandidate[]; meta?: { total: number; page: number; limit: number } }>(
+    () => api.listDupCandidates('pending', 1, 1),
+    [dupRefresh],
+  )
+  const dupCount = dupCountQ.data?.meta?.total ?? 0
   const [remWindow, setRemWindow] = useState<7 | 30>(7)
   const [remType, setRemType] = useState<'all' | 'birthday' | 'anniversary'>('all')
   const [remPage, setRemPage] = useState(1)
@@ -282,10 +292,11 @@ export default function Customers() {
               <>
                 <Tabs
                   value={custView}
-                  onChange={setCustView}
+                  onChange={(v) => { setCustView(v); setSelectedDupId(null) }}
                   tabs={[
                     { id: 'daftar', label: 'Daftar' },
                     { id: 'pengingat', label: 'Pengingat' },
+                    { id: 'duplikat', label: dupCount ? `Duplikat (${dupCount})` : 'Duplikat' },
                   ]}
                 />
                 {custView === 'daftar' && (
@@ -396,6 +407,15 @@ export default function Customers() {
             </div>
           )}
         </div>
+      ) : custView === 'duplikat' ? (
+        selectedDupId ? (
+          <MergeReview
+            candidateId={selectedDupId}
+            onBack={() => { setSelectedDupId(null); setDupRefresh((n) => n + 1) }}
+          />
+        ) : (
+          <DupCandidates refreshKey={dupRefresh} onReview={setSelectedDupId} />
+        )
       ) : custView === 'pengingat' ? (
         <Card className="overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
