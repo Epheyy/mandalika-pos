@@ -36,6 +36,8 @@ type dupRow struct {
 // keeperRow holds the keeper's current totals needed for reconciliation.
 type keeperRow struct {
 	id         string
+	name       string
+	phone      string
 	points     int
 	totalSpent float64
 	visitCount int
@@ -101,10 +103,10 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 	var keeper keeperRow
 	keeper.id = keeperID
 	err = t.QueryRow(ctx,
-		`SELECT points, total_spent, visit_count,
+		`SELECT name, phone, points, total_spent, visit_count,
 		        COALESCE(last_visit::text,''), COALESCE(merged_into::text,'')
 		   FROM customers WHERE id=$1`,
-		keeperID).Scan(&keeper.points, &keeper.totalSpent, &keeper.visitCount,
+		keeperID).Scan(&keeper.name, &keeper.phone, &keeper.points, &keeper.totalSpent, &keeper.visitCount,
 		&keeper.lastVisit, &keeper.mergedInto)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -250,7 +252,7 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 			Type:         "adjust",
 			Points:       -dup.points,
 			BalanceAfter: 0,
-			Reason:       fmt.Sprintf("Dipindah ke %s (%s)", keeper.id, keeperID),
+			Reason:       fmt.Sprintf("Dipindah ke %s (%s)", keeper.phone, keeper.name),
 			ByID:         byID,
 			ByName:       byName,
 		}); err != nil {
@@ -289,7 +291,7 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 		return fmt.Errorf("resolve candidate: %w", err)
 	}
 	if _, err := t.Exec(ctx,
-		`UPDATE customer_dup_candidates SET status='merged'
+		`UPDATE customer_dup_candidates SET status='dismissed'
 		  WHERE status='pending'
 		    AND (new_customer_id=$1 OR existing_customer_id=$1)`,
 		dupID); err != nil {
