@@ -65,6 +65,8 @@ export type PointTransaction = S['PointTransaction']
 export type AdjustPointsInput = S['AdjustPointsInput']
 export type RewardGrant = S['RewardGrant']
 export type LoyaltyPreviewReward = S['LoyaltyPreviewReward']
+export type DupCandidate = S['DupCandidate']
+export type MergeCustomersInput = S['MergeCustomersInput']
 
 export type ProductInput = S['ProductInput']
 export type CategoryInput = S['CategoryInput']
@@ -162,6 +164,12 @@ export interface Api {
   createCustomer: (input: CustomerInput) => Promise<Customer>
   updateCustomer: (id: string, input: CustomerInput) => Promise<Customer>
   deleteCustomer: (id: string) => Promise<void>
+
+  // dup-candidate review (SP-CRM-Merge)
+  listDupCandidates: (status?: string, page?: number, limit?: number) => Promise<ListResult<DupCandidate>>
+  getDupCandidate: (id: string) => Promise<DupCandidate>
+  mergeDupCandidate: (id: string, input: MergeCustomersInput) => Promise<{ ok: boolean }>
+  dismissDupCandidate: (id: string) => Promise<{ ok: boolean }>
 
   // tags (SP-CRM-4)
   listTags: () => Promise<Tag[]>
@@ -449,6 +457,15 @@ export function createClient(opts: ClientOptions): Api {
     deleteCustomer: async (id) => {
       await request('DELETE', `${API}/customers/${id}`)
     },
+
+    listDupCandidates: (status = 'pending', page = 1, limit = 25) =>
+      list<DupCandidate>(`${API}/customers/dup-candidates`, { status, page, limit }),
+    getDupCandidate: (id) =>
+      data<DupCandidate>('GET', `${API}/customers/dup-candidates/${id}`),
+    mergeDupCandidate: (id, input) =>
+      data<{ ok: boolean }>('POST', `${API}/customers/dup-candidates/${id}/merge`, input),
+    dismissDupCandidate: (id) =>
+      data<{ ok: boolean }>('POST', `${API}/customers/dup-candidates/${id}/dismiss`, {}),
 
     listTags: () => list<Tag>(`${API}/tags`).then((r) => r.data),
     createTag: (input) => data<{ id: string }>('POST', `${API}/tags`, input),
