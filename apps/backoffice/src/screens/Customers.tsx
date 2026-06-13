@@ -95,11 +95,8 @@ export default function Customers() {
   const conditions = condQ.data ?? []
   const products = pq.data ?? []
 
-  const [tab, setTab] = useState<'customers' | 'settings'>('customers')
+  const [view, setView] = useState<'daftar' | 'pengingat' | 'duplikat' | 'loyalitas'>('daftar')
   const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
-
-  // Customers sub-view + reminders (SP-CRM-6) + dup review (SP-CRM-Merge)
-  const [custView, setCustView] = useState<'daftar' | 'pengingat' | 'duplikat'>('daftar')
   const [selectedDupId, setSelectedDupId] = useState<string | null>(null)
   const [dupRefresh, setDupRefresh] = useState(0)
   const dupCountQ = usePolledQuery<{ data: DupCandidate[]; meta?: { total: number; page: number; limit: number } }>(
@@ -281,38 +278,27 @@ export default function Customers() {
         actions={
           <>
             <Tabs
-              value={tab}
-              onChange={setTab}
+              value={view}
+              onChange={(v) => { setView(v); setSelectedDupId(null) }}
               tabs={[
-                { id: 'customers', label: 'Pelanggan' },
-                { id: 'settings', label: 'Loyalitas' },
+                { id: 'daftar', label: 'Daftar' },
+                { id: 'pengingat', label: 'Pengingat' },
+                { id: 'duplikat', label: dupCount ? `Duplikat (${dupCount})` : 'Duplikat' },
+                { id: 'loyalitas', label: 'Loyalitas' },
               ]}
             />
-            {tab === 'customers' && (
+            {view === 'daftar' && (
               <>
-                <Tabs
-                  value={custView}
-                  onChange={(v) => { setCustView(v); setSelectedDupId(null) }}
-                  tabs={[
-                    { id: 'daftar', label: 'Daftar' },
-                    { id: 'pengingat', label: 'Pengingat' },
-                    { id: 'duplikat', label: dupCount ? `Duplikat (${dupCount})` : 'Duplikat' },
-                  ]}
+                <ImportExportBar
+                  onExport={(fmt) => void exportCustomers(fmt)}
+                  exportDisabled={customers.length === 0}
                 />
-                {custView === 'daftar' && (
-                  <>
-                    <ImportExportBar
-                      onExport={(fmt) => void exportCustomers(fmt)}
-                      exportDisabled={customers.length === 0}
-                    />
-                    <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
-                      Tambah
-                    </Button>
-                  </>
-                )}
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
+                  Tambah
+                </Button>
               </>
             )}
-            {tab === 'settings' && subTab === 'conditions' && (
+            {view === 'loyalitas' && subTab === 'conditions' && (
               <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingCond(null); setCondForm({ ...EMPTY_COND }); setCondOpen(true) }}>
                 Tambah Kondisi
               </Button>
@@ -321,7 +307,7 @@ export default function Customers() {
         }
       />
 
-      {tab === 'settings' ? (
+      {view === 'loyalitas' ? (
         <div className="space-y-4">
           <Tabs
             value={subTab}
@@ -407,7 +393,7 @@ export default function Customers() {
             </div>
           )}
         </div>
-      ) : custView === 'duplikat' ? (
+      ) : view === 'duplikat' ? (
         selectedDupId ? (
           <MergeReview
             candidateId={selectedDupId}
@@ -416,7 +402,7 @@ export default function Customers() {
         ) : (
           <DupCandidates refreshKey={dupRefresh} onReview={setSelectedDupId} />
         )
-      ) : custView === 'pengingat' ? (
+      ) : view === 'pengingat' ? (
         <Card className="overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
