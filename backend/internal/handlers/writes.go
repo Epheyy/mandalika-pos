@@ -939,6 +939,11 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _, _, err := h.OrderSvc.CreateOrder(r.Context(), in)
 	if err != nil {
+		var rej *service.ErrDiscountRejected
+		if errors.As(err, &rej) {
+			httpx.Err(w, http.StatusUnprocessableEntity, discountRejectMessage(rej.Violations))
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -1376,4 +1381,32 @@ func (h *Handlers) MovementSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, api.MovementSummaryResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+// discountRejectMessage turns the first promo violation into an Indonesian cashier
+// message for an online-rejected discount (SP-Promo-1).
+func discountRejectMessage(v []service.PromoViolation) string {
+	if len(v) == 0 {
+		return "Diskon tidak berlaku"
+	}
+	switch v[0] {
+	case service.ViolationExpired:
+		return "Kode/promo sudah kadaluarsa"
+	case service.ViolationNotStarted:
+		return "Promo belum dimulai"
+	case service.ViolationBelowMin:
+		return "Belum memenuhi minimum belanja"
+	case service.ViolationOutsideHours:
+		return "Promo tidak berlaku pada jam ini"
+	case service.ViolationWrongDay:
+		return "Promo tidak berlaku hari ini"
+	case service.ViolationWrongOutlet:
+		return "Promo tidak berlaku di outlet ini"
+	case service.ViolationUsageLimit:
+		return "Kuota kode diskon sudah habis"
+	case service.ViolationNotFound:
+		return "Diskon tidak ditemukan"
+	default:
+		return "Diskon tidak berlaku"
+	}
 }
