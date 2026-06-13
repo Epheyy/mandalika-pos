@@ -39,7 +39,7 @@ import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
-import { decideApplyCode } from './promoValidate'
+import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -473,6 +473,39 @@ export default function CashierScreen() {
 
   const handleConfirmPayment = () => {
     if (state.isProcessing) return
+    // Re-guard: a promo/code valid when picked can lapse while the cart sits open
+    // (hour/day boundary) or fall below min_purchase (items removed). Block + clear
+    // the offending discount so the cashier re-confirms a clean total. This keeps
+    // the server-side discount_warning flag a true rarity.
+    const guardCtx = {
+      now: new Date(),
+      outletId: authStore.outletId ?? '',
+      subtotal: derived.subtotal,
+    }
+    if (state.appliedPromotion) {
+      const vs = validatePromo(state.appliedPromotion, guardCtx)
+      if (vs.length > 0) {
+        showToast(`Promo dibatalkan: ${violationMessage(vs[0])}`)
+        dispatch({ type: 'CLEAR_PROMOTIONS' })
+        return
+      }
+    }
+    if (state.appliedPromoCode) {
+      const dc = discountCodes.find(
+        (d) => d.code.toUpperCase() === state.appliedPromoCode!.code.toUpperCase() && d.isActive,
+      )
+      if (!dc) {
+        showToast('Kode diskon dibatalkan: Kode tidak ditemukan')
+        dispatch({ type: 'CLEAR_PROMOTIONS' })
+        return
+      }
+      const vs = validateCode(dc, guardCtx)
+      if (vs.length > 0) {
+        showToast(`Kode diskon dibatalkan: ${violationMessage(vs[0])}`)
+        dispatch({ type: 'CLEAR_PROMOTIONS' })
+        return
+      }
+    }
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
       // Client-authoritative number: receipt == history, generated on-device.
