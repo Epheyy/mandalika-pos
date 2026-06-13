@@ -192,6 +192,9 @@ export const Cart = memo(function Cart({
             <div className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
                 Promo: {appliedPromoLabel}
+                {derived.promoDiscountAmount > 0
+                  ? ` — −${formatRupiah(derived.promoDiscountAmount)}`
+                  : ''}
                 <button
                   onClick={onClearPromo}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"

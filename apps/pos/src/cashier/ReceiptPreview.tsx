@@ -14,6 +14,7 @@ interface ReceiptPreviewProps {
   items: CartItem[]
   total: number
   discountAmount: number
+  promoLabel?: string | null
   taxAmount: number
   paymentMethod: string
   amountPaid: number
@@ -42,6 +43,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   items,
   total,
   discountAmount,
+  promoLabel,
   taxAmount,
   paymentMethod,
   amountPaid,
@@ -133,7 +135,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between text-green-600">
-                <span>Diskon</span>
+                <span>{promoLabel ? `Diskon · ${promoLabel}` : 'Diskon'}</span>
                 <span>−{formatRupiah(discountAmount)}</span>
               </div>
             )}
