@@ -171,6 +171,14 @@ export function OrdersPanel() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
+                    {o.discountWarning && (
+                      <span
+                        title={o.discountWarningReason ?? undefined}
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                      >
+                        ⚠ Diskon
+                      </span>
+                    )}
                     <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                     {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}

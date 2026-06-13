@@ -2728,6 +2728,8 @@ export interface components {
             discountCode?: string | null;
             discountLabel?: string | null;
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
+            discountWarning?: boolean;
+            discountWarningReason?: string | null;
             surchargeType?: string | null;
             surchargeValue?: number | null;
             surchargeAmount?: number | null;

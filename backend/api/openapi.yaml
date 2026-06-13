@@ -1070,6 +1070,8 @@ components:
           type: array
           nullable: true
           items: { $ref: '#/components/schemas/DiscountComponent' }
+        discountWarning: { type: boolean }
+        discountWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, nullable: true }
         surchargeAmount: { type: number, nullable: true }
