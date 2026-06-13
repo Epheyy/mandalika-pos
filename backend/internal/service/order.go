@@ -127,11 +127,25 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		return "", false, false, fmt.Errorf("idempotency check: %w", err)
 	}
 
+	// SP-Promo-1: validate the applied discount against its stored rules. Subtotal
+	// (pre-discount) is needed for min_purchase; saleTime (WIB) for date/hour/day
+	// gating — hoisted here and reused by the loyalty engine below.
+	var promoSubtotal float64
+	for _, it := range in.Items {
+		promoSubtotal += it.Subtotal
+	}
+	saleTime := time.Now()
+	if in.ClientCreated != nil {
+		saleTime = *in.ClientCreated
+	}
+	promoEvalCtx := PromoEvalContext{SaleTimeWIB: saleTime.In(wib), OutletID: in.OutletID, Subtotal: promoSubtotal}
+
 	// Resolve promo spec server-side (authoritative value, not client-supplied).
-	promo, promoCodeID, err := s.resolvePromo(ctx, tx, in.PromotionID, in.DiscountCode)
+	promo, promoCodeID, discountWarnReason, err := s.resolvePromo(ctx, tx, in.PromotionID, in.DiscountCode, promoEvalCtx, in.Offline)
 	if err != nil {
 		return "", false, false, err
 	}
+	discountWarning := discountWarnReason != ""
 
 	taxEnabled, taxRate, roundEnabled, roundType, err := loadAppSettings(ctx, tx)
 	if err != nil {
@@ -219,10 +233,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 				pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
 			}
 		}
-		saleTime := time.Now()
-		if in.ClientCreated != nil {
-			saleTime = *in.ClientCreated
-		}
 		outcome = EvaluateLoyalty(conds, EvalContext{
 			Total: res.Total, BasePoints: base, ProductIDs: pidSet,
 			SaleDate: saleTime.In(wib), Customer: evalCust,
@@ -301,9 +311,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -314,7 +324,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
-		finalEarned,
+		finalEarned, discountWarning, nullStr(discountWarnReason),
 	).Scan(&orderID)
 	if err != nil {
 		return "", false, false, fmt.Errorf("insert order: %w", err)
@@ -547,43 +557,72 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 }
 
 // resolvePromo turns an applied promotion id and/or discount code into the
-// authoritative PromoSpec. Returns the discount_codes row id for usage++.
-func (s *OrderService) resolvePromo(ctx context.Context, tx pgx.Tx, promoID, code string) (*PromoSpec, string, error) {
+// authoritative PromoSpec, validating the stored gating rules (SP-Promo-1).
+// Returns the discount_codes row id (for usage++) and a non-empty warnReason when
+// an OFFLINE order applied an invalid discount (recorded + flagged). An INVALID
+// discount on an ONLINE order returns *ErrDiscountRejected (caller → HTTP 422).
+func (s *OrderService) resolvePromo(ctx context.Context, tx pgx.Tx, promoID, code string, ec PromoEvalContext, offline bool) (*PromoSpec, string, string, error) {
 	if promoID != "" {
 		var kind string
 		var value float64
 		var ids []string
+		var row PromoRow
 		err := tx.QueryRow(ctx,
 			`SELECT type, value,
-			   COALESCE(applicable_product_ids,'[]'::jsonb)
+			   COALESCE(applicable_product_ids,'[]'::jsonb),
+			   start_date, end_date, min_purchase,
+			   active_from_hour, active_to_hour,
+			   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb)
 			   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
-			Scan(&kind, &value, &ids)
+			Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
+				&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", nil
+			if !offline {
+				return nil, "", "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+			}
+			return nil, "", string(ViolationNotFound), nil // can't reconstruct value offline
 		}
 		if err != nil {
-			return nil, "", fmt.Errorf("load promotion: %w", err)
+			return nil, "", "", fmt.Errorf("load promotion: %w", err)
 		}
-		return &PromoSpec{
-			Kind: DiscountKind(kind), Value: value,
-			ApplicableProductIDs: ids, IsBOGO: kind == "bogo",
-		}, "", nil
+		spec := &PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo"}
+		if vio := ValidatePromo(row, ec); len(vio) > 0 {
+			if !offline {
+				return nil, "", "", &ErrDiscountRejected{Violations: vio}
+			}
+			return spec, "", JoinViolations(vio), nil // offline: apply authoritative value + flag
+		}
+		return spec, "", "", nil
 	}
 	if code != "" {
 		var id, kind string
 		var value float64
+		var row CodeRow
+		// FOR UPDATE: hold the row lock from validation through the usage_count++ at
+		// the end of this same tx — makes the usage_limit check race-safe.
 		err := tx.QueryRow(ctx,
-			`SELECT id, type, value FROM discount_codes
-			   WHERE code=$1 AND is_active=true`, code).Scan(&id, &kind, &value)
+			`SELECT id, type, value, start_date, end_date, min_purchase, usage_limit, usage_count
+			   FROM discount_codes WHERE code=$1 AND is_active=true FOR UPDATE`, code).
+			Scan(&id, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", nil
+			if !offline {
+				return nil, "", "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+			}
+			return nil, "", string(ViolationNotFound), nil
 		}
 		if err != nil {
-			return nil, "", fmt.Errorf("load discount code: %w", err)
+			return nil, "", "", fmt.Errorf("load discount code: %w", err)
 		}
-		return &PromoSpec{Kind: DiscountKind(kind), Value: value}, id, nil
+		spec := &PromoSpec{Kind: DiscountKind(kind), Value: value}
+		if vio := ValidateCode(row, ec); len(vio) > 0 {
+			if !offline {
+				return nil, "", "", &ErrDiscountRejected{Violations: vio}
+			}
+			return spec, id, JoinViolations(vio), nil // offline: apply + flag; usage still increments (accurate)
+		}
+		return spec, id, "", nil
 	}
-	return nil, "", nil
+	return nil, "", "", nil
 }
 
 func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, string, error) {
