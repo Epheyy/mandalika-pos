@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
+import { validatePromo, violationMessage } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -13,6 +14,7 @@ interface PromoPanelProps {
   promoCodeInput: string
   isValidating: boolean
   subtotal: number
+  outletId: string
   onSelectPromotion: (promo: Promotion) => void
   onClearPromotion: () => void
   onPromoCodeChange: (value: string) => void
@@ -28,20 +30,18 @@ export const PromoPanel = memo(function PromoPanel({
   promoCodeInput,
   isValidating,
   subtotal,
+  outletId,
   onSelectPromotion,
   onClearPromotion,
   onPromoCodeChange,
   onApplyPromoCode,
   onClose,
 }: PromoPanelProps) {
-  const activePromos = promotions.filter((p) => {
-    if (!p.isActive) return false
-    const today = new Date().toISOString().slice(0, 10)
-    if (p.startDate && p.startDate > today) return false
-    if (p.endDate && p.endDate < today) return false
-    if (p.minPurchase && subtotal < p.minPurchase) return false
-    return true
-  })
+  const now = new Date()
+  const evalCtx = { now, outletId, subtotal }
+  const activePromos = promotions
+    .filter((p) => p.isActive)
+    .map((promo) => ({ promo, violations: validatePromo(promo, evalCtx) }))
 
   return (
     <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
@@ -138,36 +138,48 @@ export const PromoPanel = memo(function PromoPanel({
                 Promosi Aktif
               </p>
               <div className="space-y-2">
-                {activePromos.map((promo) => (
-                  <button
-                    key={promo.id}
-                    onClick={() => onSelectPromotion(promo)}
-                    className={`w-full text-left p-3 rounded-xl border transition-all ${
-                      appliedPromotion?.id === promo.id
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
-                    }`}
-                  >
-                    <p className="text-xs font-bold text-gray-800">
-                      {promo.name}
-                    </p>
-                    {promo.description && (
-                      <p className="text-[10px] text-gray-500 mt-0.5">
-                        {promo.description}
+                {activePromos.map(({ promo, violations }) => {
+                  const invalid = violations.length > 0
+                  const isApplied = appliedPromotion?.id === promo.id
+                  return (
+                    <button
+                      key={promo.id}
+                      onClick={() => !invalid && onSelectPromotion(promo)}
+                      disabled={invalid}
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${
+                        invalid
+                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          : isApplied
+                            ? 'border-green-400 bg-green-50'
+                            : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                      }`}
+                    >
+                      <p className="text-xs font-bold text-gray-800">
+                        {promo.name}
                       </p>
-                    )}
-                    <p className="text-[10px] text-indigo-600 mt-1">
-                      {promo.type === 'percentage'
-                        ? `Diskon ${promo.value}%`
-                        : promo.type === 'fixed'
-                          ? `Potongan ${formatRupiah(promo.value)}`
-                          : 'BOGO'}
-                      {promo.minPurchase
-                        ? ` · Min. ${formatRupiah(promo.minPurchase)}`
-                        : ''}
-                    </p>
-                  </button>
-                ))}
+                      {promo.description && (
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {promo.description}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-indigo-600 mt-1">
+                        {promo.type === 'percentage'
+                          ? `Diskon ${promo.value}%`
+                          : promo.type === 'fixed'
+                            ? `Potongan ${formatRupiah(promo.value)}`
+                            : 'BOGO'}
+                        {promo.minPurchase
+                          ? ` · Min. ${formatRupiah(promo.minPurchase)}`
+                          : ''}
+                      </p>
+                      {invalid && (
+                        <p className="text-[10px] text-red-500 mt-1 font-semibold">
+                          {violationMessage(violations[0])}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}

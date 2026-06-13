@@ -39,7 +39,7 @@ import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
-import { api } from '../api'
+import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
 import logoGold from '../assets/logo-gold.png'
@@ -820,7 +820,7 @@ export default function CashierScreen() {
       {/* Floating panels */}
       <AdjustmentDrawer
         state={state} dispatch={dispatch} promotions={promotions} discountCodes={discountCodes}
-        subtotal={derived.subtotal} isValidatingCode={isValidatingCode}
+        subtotal={derived.subtotal} outletId={authStore.outletId ?? ''} isValidatingCode={isValidatingCode}
         onApplyPromoCode={() => void handleApplyPromoCode()}
         onApplyDiscount={cartActions.applyDiscount}
         onApplySurcharge={cartActions.applySurcharge}

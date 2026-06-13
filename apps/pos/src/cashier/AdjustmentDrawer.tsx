@@ -17,6 +17,7 @@ interface AdjustmentDrawerProps {
   promotions: Promotion[]
   discountCodes: DiscountCode[]
   subtotal: number
+  outletId: string
   isValidatingCode: boolean
   onApplyPromoCode: () => void
   onApplyDiscount: () => void
@@ -29,6 +30,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
   promotions,
   discountCodes,
   subtotal,
+  outletId,
   isValidatingCode,
   onApplyPromoCode,
   onApplyDiscount,
@@ -131,6 +133,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       promoCodeInput={state.promoCodeInput}
       isValidating={isValidatingCode}
       subtotal={subtotal}
+      outletId={outletId}
       onSelectPromotion={(p) => dispatch({ type: 'APPLY_PROMOTION', promotion: p })}
       onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
       onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
