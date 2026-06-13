@@ -22,6 +22,8 @@ interface AdjustmentDrawerProps {
   onApplyPromoCode: () => void
   onApplyDiscount: () => void
   onApplySurcharge: () => void
+  promoCodeError: string | null
+  onClearPromoCodeError: () => void
 }
 
 export const AdjustmentDrawer = memo(function AdjustmentDrawer({
@@ -35,6 +37,8 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
   onApplyPromoCode,
   onApplyDiscount,
   onApplySurcharge,
+  promoCodeError,
+  onClearPromoCodeError,
 }: AdjustmentDrawerProps) {
   if (!state.activeAdjustment) return null
 
@@ -139,6 +143,8 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
       onApplyPromoCode={onApplyPromoCode}
       onClose={close}
+      promoCodeError={promoCodeError}
+      onClearPromoCodeError={onClearPromoCodeError}
     />
   )
 })

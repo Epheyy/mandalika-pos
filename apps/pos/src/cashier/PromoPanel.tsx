@@ -20,6 +20,8 @@ interface PromoPanelProps {
   onPromoCodeChange: (value: string) => void
   onApplyPromoCode: () => void
   onClose: () => void
+  promoCodeError: string | null
+  onClearPromoCodeError: () => void
 }
 
 export const PromoPanel = memo(function PromoPanel({
@@ -36,6 +38,8 @@ export const PromoPanel = memo(function PromoPanel({
   onPromoCodeChange,
   onApplyPromoCode,
   onClose,
+  promoCodeError,
+  onClearPromoCodeError,
 }: PromoPanelProps) {
   const now = new Date()
   const evalCtx = { now, outletId, subtotal }
@@ -88,9 +92,10 @@ export const PromoPanel = memo(function PromoPanel({
                 className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase"
                 placeholder="Masukkan kode…"
                 value={promoCodeInput}
-                onChange={(e) =>
+                onChange={(e) => {
+                  onClearPromoCodeError()
                   onPromoCodeChange(e.target.value.toUpperCase())
-                }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onApplyPromoCode()
                 }}
@@ -103,6 +108,11 @@ export const PromoPanel = memo(function PromoPanel({
                 {isValidating ? '…' : 'Pakai'}
               </button>
             </div>
+            {promoCodeError && (
+              <p className="text-[10px] text-red-500 mt-1 font-semibold">
+                {promoCodeError}
+              </p>
+            )}
             {/* Hint: show available codes that match typed prefix */}
             {promoCodeInput.length >= 2 && (
               <div className="mt-1 space-y-1">

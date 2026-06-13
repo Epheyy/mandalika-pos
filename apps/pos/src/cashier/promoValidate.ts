@@ -93,3 +93,29 @@ const MESSAGES: Record<Violation, string> = {
 export function violationMessage(v: Violation): string {
   return MESSAGES[v]
 }
+
+export interface AppliedPromoCode {
+  code: string
+  value: number
+  type: 'percentage' | 'fixed'
+}
+
+export type ApplyCodeDecision =
+  | { ok: true; code: AppliedPromoCode }
+  | { ok: false; reason: string }
+
+// Pure decision for applying a typed promo code: find an active code by name
+// (case-insensitive), validate it, and either return the payload to dispatch or
+// a human reason to show. The handler stays a thin wrapper around this.
+export function decideApplyCode(
+  typed: string,
+  codes: DiscountCode[],
+  ctx: PromoEvalContext,
+): ApplyCodeDecision {
+  const upper = typed.trim().toUpperCase()
+  const dc = codes.find((d) => d.code.toUpperCase() === upper && d.isActive)
+  if (!dc) return { ok: false, reason: 'Kode tidak ditemukan' }
+  const violations = validateCode(dc, ctx)
+  if (violations.length > 0) return { ok: false, reason: violationMessage(violations[0]) }
+  return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type } }
+}

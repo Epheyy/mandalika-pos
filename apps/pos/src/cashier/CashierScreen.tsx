@@ -39,6 +39,7 @@ import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
+import { decideApplyCode } from './promoValidate'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -126,6 +127,7 @@ export default function CashierScreen() {
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
+  const [promoCodeError, setPromoCodeError] = useState<string | null>(null)
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -448,15 +450,20 @@ export default function CashierScreen() {
     if (!code) return
     setIsValidatingCode(true)
     try {
-      const dc = discountCodes.find((d) => d.code.toUpperCase() === code && d.isActive)
-      if (!dc) return
-      const today = new Date().toISOString().slice(0, 10)
-      if (dc.startDate && dc.startDate > today) return
-      if (dc.endDate && dc.endDate < today) return
-      if (dc.usageLimit && dc.usageCount >= dc.usageLimit) return
-      if (dc.minPurchase && derived.subtotal < dc.minPurchase) return
-      dispatch({ type: 'APPLY_PROMO_CODE', code: { code: dc.code, value: dc.value, type: dc.type } })
-    } finally { setIsValidatingCode(false) }
+      const decision = decideApplyCode(
+        code,
+        discountCodes,
+        { now: new Date(), outletId: authStore.outletId ?? '', subtotal: derived.subtotal },
+      )
+      if (!decision.ok) {
+        setPromoCodeError(decision.reason)
+        return
+      }
+      setPromoCodeError(null)
+      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code })
+    } finally {
+      setIsValidatingCode(false)
+    }
   }
 
   const handleConfirmPayment = () => {
@@ -824,6 +831,8 @@ export default function CashierScreen() {
         onApplyPromoCode={() => void handleApplyPromoCode()}
         onApplyDiscount={cartActions.applyDiscount}
         onApplySurcharge={cartActions.applySurcharge}
+        promoCodeError={promoCodeError}
+        onClearPromoCodeError={() => setPromoCodeError(null)}
       />
 
       <CheckoutPanel
