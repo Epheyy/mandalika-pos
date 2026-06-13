@@ -479,6 +479,8 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	}
 	// SP-Promo-1: restore the discount code's usage (floor 0). Idempotent — the
 	// already-refunded short-circuit above means this runs at most once per order.
+	// Create-side increments by the resolved row id; we decrement by code, which is
+	// equivalent because discount_codes.code is UNIQUE and matches the create-side row.
 	if discountCode != nil && *discountCode != "" {
 		if _, err = tx.Exec(ctx,
 			`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
