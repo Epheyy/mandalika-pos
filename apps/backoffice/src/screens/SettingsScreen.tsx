@@ -70,7 +70,7 @@ export default function SettingsScreen() {
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<'locations' | 'tax' | 'payment' | 'receipt' | 'shift' | 'approver' | 'documents' | 'recipes'>('tax')
+  const [section, setSection] = useState<'locations' | 'transaksi' | 'operasional' | 'recipe'>('locations')
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
@@ -118,13 +118,9 @@ export default function SettingsScreen() {
 
   const sections = [
     { id: 'locations', label: 'Outlet & Gudang' },
-    { id: 'tax', label: 'Pajak & Pembulatan' },
-    { id: 'payment', label: 'Metode Pembayaran' },
-    { id: 'receipt', label: 'Struk' },
-    { id: 'shift', label: 'Shift' },
-    { id: 'approver', label: 'Persetujuan Transfer' },
-    { id: 'documents', label: 'Dokumen' },
-    { id: 'recipes', label: 'Resep & Bahan' },
+    { id: 'transaksi', label: 'Transaksi' },
+    { id: 'operasional', label: 'Operasional' },
+    { id: 'recipe', label: 'Resep & Bahan' },
   ] as const
 
   return (
@@ -144,6 +140,7 @@ export default function SettingsScreen() {
 
       <Tabs value={section} onChange={setSection} tabs={sections} />
 
+      {/* ── Outlet & Gudang ── */}
       {section === 'locations' && (
         <>
           <LocationsSection />
@@ -160,11 +157,12 @@ export default function SettingsScreen() {
         </>
       )}
 
-      {section !== 'locations' && (
-      <Card className="p-6 max-w-2xl space-y-5">
-        {section === 'tax' && (
-          <>
-            <h3 className="font-black text-gray-900">Pajak & Pembulatan</h3>
+      {/* ── Transaksi: Pajak & Pembulatan · Metode Pembayaran · Struk ── */}
+      {section === 'transaksi' && (
+        <div className="max-w-2xl space-y-5">
+          {/* Sub-section: Pajak & Pembulatan */}
+          <Card className="p-6 space-y-5">
+            <h3 className="font-black text-gray-900">Pajak &amp; Pembulatan</h3>
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
                 <p className="font-bold text-gray-900">Aktifkan PPN</p>
@@ -210,11 +208,10 @@ export default function SettingsScreen() {
                 </Select>
               </div>
             )}
-          </>
-        )}
+          </Card>
 
-        {section === 'payment' && (
-          <>
+          {/* Sub-section: Metode Pembayaran */}
+          <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Metode Pembayaran</h3>
             <div className="space-y-2">
               {s.paymentMethods.map((pm) => (
@@ -254,11 +251,10 @@ export default function SettingsScreen() {
                 }}
               />
             </div>
-          </>
-        )}
+          </Card>
 
-        {section === 'receipt' && (
-          <>
+          {/* Sub-section: Struk */}
+          <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Pengaturan Struk</h3>
             <Input
               label="Jumlah Salinan"
@@ -301,11 +297,15 @@ export default function SettingsScreen() {
                 ))}
               </div>
             </Field>
-          </>
-        )}
+          </Card>
+        </div>
+      )}
 
-        {section === 'shift' && (
-          <>
+      {/* ── Operasional: Shift · Persetujuan Transfer · Dokumen ── */}
+      {section === 'operasional' && (
+        <div className="max-w-2xl space-y-5">
+          {/* Sub-section: Shift */}
+          <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Pengaturan Shift</h3>
             <div className="flex items-center justify-between py-3">
               <div>
@@ -314,11 +314,10 @@ export default function SettingsScreen() {
               </div>
               <Toggle checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
             </div>
-          </>
-        )}
+          </Card>
 
-        {section === 'approver' && (
-          <>
+          {/* Sub-section: Persetujuan Transfer */}
+          <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Persetujuan Penerimaan Transfer</h3>
             <p className="text-xs text-gray-400">Admin selalu boleh; pilih peran lain yang boleh menyetujui penerimaan di POS.</p>
             <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
@@ -344,30 +343,10 @@ export default function SettingsScreen() {
                 </div>
               ))}
             </div>
-          </>
-        )}
+          </Card>
 
-        {section === 'recipes' && (
-          <>
-            <h3 className="font-black text-gray-900">Resep &amp; Bahan</h3>
-            <p className="text-xs text-gray-400">
-              Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
-              produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
-            </p>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
-              <div>
-                <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
-              </div>
-              <Toggle
-                checked={s.recipesEnabled ?? false}
-                onClick={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
-              />
-            </div>
-          </>
-        )}
-
-        {section === 'documents' && (
-          <>
+          {/* Sub-section: Dokumen */}
+          <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Dokumen Pengiriman</h3>
             <p className="text-xs text-gray-400">
               Identitas merek yang muncul di surat jalan dan tanda terima. Bisa ditimpa per gudang/outlet (di halaman masing-masing).
@@ -452,9 +431,28 @@ export default function SettingsScreen() {
               onChange={(e) => setDoc('npwp', e.target.value || undefined)}
               placeholder="mis. 00.000.000.0-000.000"
             />
-          </>
-        )}
-      </Card>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Resep & Bahan ── */}
+      {section === 'recipe' && (
+        <Card className="p-6 max-w-2xl space-y-5">
+          <h3 className="font-black text-gray-900">Resep &amp; Bahan</h3>
+          <p className="text-xs text-gray-400">
+            Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
+            produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
+          </p>
+          <div className="flex items-center justify-between py-3 border-b border-gray-100">
+            <div>
+              <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
+            </div>
+            <Toggle
+              checked={s.recipesEnabled ?? false}
+              onClick={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
+            />
+          </div>
+        </Card>
       )}
     </div>
   )
