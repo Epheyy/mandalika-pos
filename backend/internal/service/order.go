@@ -457,11 +457,12 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 
 	var status, orderNumber string
 	var custID *string
+	var discountCode *string
 	var oEarned, oRedeemed int
 	err = tx.QueryRow(ctx,
-		`SELECT status, order_number, customer_id, points_earned, points_redeemed
+		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code
 		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
-		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed)
+		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed, &discountCode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrOrderClosed
 	}
@@ -475,6 +476,15 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		`UPDATE orders SET status='refunded', refund_reason=$1, refunded_at=now()
 		   WHERE id=$2`, reason, orderID); err != nil {
 		return err
+	}
+	// SP-Promo-1: restore the discount code's usage (floor 0). Idempotent — the
+	// already-refunded short-circuit above means this runs at most once per order.
+	if discountCode != nil && *discountCode != "" {
+		if _, err = tx.Exec(ctx,
+			`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
+			*discountCode); err != nil {
+			return fmt.Errorf("restore discount usage: %w", err)
+		}
 	}
 	rows, err := tx.Query(ctx,
 		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1`,
