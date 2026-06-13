@@ -908,7 +908,11 @@ export default function CashierScreen() {
         customerName={state.selectedCustomer?.name ?? null} cashierName={user.displayName}
         settings={settings} isPendingSync={offlineData.pendingCount > 0}
         canReprint={printer.isPaired} printError={printError}
-        promoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
+        promoLabel={
+          derived.manualDiscountAmount > 0
+            ? null
+            : (state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null)
+        }
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
