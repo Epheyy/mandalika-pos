@@ -10,7 +10,6 @@ import {
   Tag,
   BarChart3,
   Settings,
-  Receipt,
   AlertTriangle,
   Warehouse,
 } from 'lucide-react'
@@ -23,7 +22,6 @@ import Dashboard from './screens/Dashboard'
 import Products from './screens/Products'
 import Customers from './screens/Customers'
 import Promotions from './screens/Promotions'
-import Orders from './screens/Orders'
 import Reports from './screens/Reports'
 import Warehouses from './screens/Warehouses'
 import Users from './screens/Users'
@@ -35,7 +33,6 @@ const NAV = [
   { id: 'products', label: 'Produk', icon: Package, perm: 'manage_products', C: Products },
   { id: 'customers', label: 'Pelanggan', icon: UsersIcon, perm: 'manage_customers', C: Customers },
   { id: 'promotions', label: 'Promosi', icon: Tag, perm: 'manage_promotions', C: Promotions },
-  { id: 'orders', label: 'Transaksi', icon: Receipt, perm: 'view_transactions', C: Orders },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
@@ -108,6 +105,7 @@ export default function App() {
     return NAV.filter((n) => {
       if (isAdmin) return true
       if (n.id === 'warehouses') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
+      if (n.id === 'reports') return perms.includes('view_reports') || perms.includes('view_transactions')
       return perms.includes(n.perm)
     })
   }, [user])
@@ -218,9 +216,6 @@ export default function App() {
           >
             <Menu className="w-5 h-5 text-gray-500" />
           </button>
-          <h1 className="text-lg font-black text-gray-900">
-            {active?.label ?? ''}
-          </h1>
           <div className="flex-1" />
           <OutletSwitcher />
         </header>

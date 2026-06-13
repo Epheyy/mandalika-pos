@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Order, Shift, Outlet } from '@mandalika/api'
 import {
   format,
@@ -10,10 +10,12 @@ import {
 import { id as idLocale } from 'date-fns/locale'
 import { Download, ShoppingBag, TrendingUp, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api'
+import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
+import { OrdersPanel } from './Orders'
 import {
   Button,
   Card,
@@ -25,9 +27,27 @@ import {
   Tabs,
 } from '../ui'
 
+type ReportTab = 'orders' | 'export' | 'shifts'
+
 export default function Reports() {
+  const { user } = useAuth()
   const { outletId } = useOutlet()
-  const [tab, setTab] = useState<'transactions' | 'shifts'>('transactions')
+
+  const isAdmin = user?.role === 'admin'
+  const perms = user?.permissions ?? []
+  const canViewTransactions = isAdmin || perms.includes('view_transactions')
+  const canViewReports = isAdmin || perms.includes('view_reports')
+
+  const visibleTabs = useMemo(() => {
+    const t: { id: ReportTab; label: string }[] = []
+    if (canViewTransactions) t.push({ id: 'orders', label: 'Transaksi' })
+    if (canViewReports) t.push({ id: 'export', label: 'Ekspor' })
+    if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
+    return t
+  }, [canViewTransactions, canViewReports])
+
+  const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
+  const [tab, setTab] = useState<ReportTab>(defaultTab)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 10))
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10))
@@ -137,14 +157,14 @@ export default function Reports() {
           <Tabs
             value={tab}
             onChange={setTab}
-            tabs={[
-              { id: 'transactions', label: 'Transaksi' },
-              { id: 'shifts', label: 'Shift' },
-            ]}
+            tabs={visibleTabs}
           />
         }
       />
 
+      {tab === 'orders' && <OrdersPanel />}
+
+      {tab !== 'orders' && (
       <Card className="p-4 flex flex-wrap gap-3 items-end">
         <Input
           type="date"
@@ -160,7 +180,7 @@ export default function Reports() {
           onChange={(e) => setDateTo(e.target.value)}
           className="w-auto"
         />
-        {tab === 'transactions' && (
+        {tab === 'export' && (
           <>
             <Select
               label="Status"
@@ -188,14 +208,15 @@ export default function Reports() {
         )}
         <Button
           variant="secondary"
-          onClick={tab === 'transactions' ? exportTx : exportSh}
+          onClick={tab === 'export' ? exportTx : exportSh}
           icon={<Download className="w-4 h-4" />}
         >
           Export CSV
         </Button>
       </Card>
+      )}
 
-      {tab === 'transactions' ? (
+      {tab !== 'orders' && tab === 'export' ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[

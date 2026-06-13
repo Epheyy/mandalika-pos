@@ -16,13 +16,13 @@ import {
   Button,
   Card,
   EmptyState,
-  PageHeader,
   Select,
   Textarea,
   fieldClass,
 } from '../ui'
 
-export default function Orders() {
+/** The transactions list/table/search/refund UI — no page header. */
+export function OrdersPanel() {
   const { user } = useAuth()
   const { outletId, outlets: ctxOutlets } = useOutlet()
   const [query, setQuery] = useState('')
@@ -105,11 +105,8 @@ export default function Orders() {
   }
 
   return (
-    <div className="p-6 space-y-5">
-      <PageHeader
-        title="Transaksi"
-        subtitle={`${filtered.length} transaksi · Total: ${BRAND.currency.format(revenue)}`}
-      />
+    <div className="space-y-5">
+      <p className="text-sm text-gray-500">{filtered.length} transaksi · Total: {BRAND.currency.format(revenue)}</p>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
