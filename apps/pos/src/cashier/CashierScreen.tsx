@@ -128,6 +128,11 @@ export default function CashierScreen() {
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
   const [promoCodeError, setPromoCodeError] = useState<string | null>(null)
+  // Clear any stale promo-code error once the promo panel is no longer open
+  // (covers ×/backdrop close and reducer-driven closes like applying a promo).
+  useEffect(() => {
+    if (state.activeAdjustment !== 'promo') setPromoCodeError(null)
+  }, [state.activeAdjustment])
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)

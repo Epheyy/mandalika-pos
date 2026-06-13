@@ -5,17 +5,13 @@
  */
 
 import type { components } from '@mandalika/api'
+export type { AppliedPromoCode } from '../promoValidate'
+import type { AppliedPromoCode } from '../promoValidate'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
 type Promotion = components['schemas']['Promotion']
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'qris'
-
-export interface AppliedPromoCode {
-  code: string
-  value: number
-  type: 'percentage' | 'fixed'
-}
 
 export interface CashierState {
   // Cart
