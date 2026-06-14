@@ -40,7 +40,7 @@ type PricingInput struct {
 	ManualKind      DiscountKind // discountType (manual discount only)
 	Surcharge       float64      // surchargeRunning
 	SurchargeKind   DiscountKind // surchargeType (independent of discount)
-	Promo           *PromoSpec   // applied promotion or promo code, nil if none
+	Promos          []PromoSpec  // applied promotions/codes; additive, empty = none
 	TaxEnabled      bool
 	TaxRate         float64 // percent, e.g. 11
 	RoundingEnabled bool
@@ -149,8 +149,8 @@ func Compute(in PricingInput) PricingResult {
 	}
 
 	promo := 0.0
-	if in.Promo != nil {
-		promo = calcPromotionDiscount(in.Promo, in.Items, subtotal)
+	for i := range in.Promos {
+		promo += calcPromotionDiscount(&in.Promos[i], in.Items, subtotal)
 	}
 
 	discount := math.Min(manual+promo, subtotal)

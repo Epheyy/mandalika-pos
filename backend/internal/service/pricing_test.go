@@ -58,8 +58,8 @@ func TestComputeRoundingNearest1000(t *testing.T) {
 func TestComputePromoPercentageScopedToProducts(t *testing.T) {
 	// promo 50% only on product "a"; matching subtotal 20000 -> 10000 off
 	r := Compute(PricingInput{
-		Items: []LineItem{item("a", 10000, 2), item("b", 30000, 1)},
-		Promo: &PromoSpec{Kind: DiscountPercentage, Value: 50, ApplicableProductIDs: []string{"a"}},
+		Items:  []LineItem{item("a", 10000, 2), item("b", 30000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountPercentage, Value: 50, ApplicableProductIDs: []string{"a"}}},
 	})
 	if r.PromoDiscount != 10000 || r.DiscountAmount != 10000 || r.Total != 40000 {
 		t.Fatalf("got %+v", r)
@@ -68,8 +68,8 @@ func TestComputePromoPercentageScopedToProducts(t *testing.T) {
 
 func TestComputePromoBOGOCheapestUnit(t *testing.T) {
 	r := Compute(PricingInput{
-		Items: []LineItem{item("a", 8000, 1), item("b", 5000, 2)},
-		Promo: &PromoSpec{IsBOGO: true},
+		Items:  []LineItem{item("a", 8000, 1), item("b", 5000, 2)},
+		Promos: []PromoSpec{{IsBOGO: true}},
 	})
 	if r.PromoDiscount != 5000 {
 		t.Fatalf("bogo discount = %v want 5000 (cheapest unit)", r.PromoDiscount)
@@ -78,11 +78,55 @@ func TestComputePromoBOGOCheapestUnit(t *testing.T) {
 
 func TestComputePromoScopedNoMatchIsZero(t *testing.T) {
 	r := Compute(PricingInput{
-		Items: []LineItem{item("a", 10000, 1)},
-		Promo: &PromoSpec{Kind: DiscountPercentage, Value: 50, ApplicableProductIDs: []string{"zzz"}},
+		Items:  []LineItem{item("a", 10000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountPercentage, Value: 50, ApplicableProductIDs: []string{"zzz"}}},
 	})
 	if r.PromoDiscount != 0 || r.Total != 10000 {
 		t.Fatalf("got %+v want no promo", r)
+	}
+}
+
+func TestComputeStacksAdditively(t *testing.T) {
+	items := []LineItem{{ProductID: "a", Price: 100000, Quantity: 1, Subtotal: 100000}}
+	res := Compute(PricingInput{
+		Items: items,
+		Promos: []PromoSpec{
+			{Kind: DiscountPercentage, Value: 10}, // 10k off 100k
+			{Kind: DiscountPercentage, Value: 5},  // 5k off 100k
+			{Kind: DiscountFixed, Value: 20000},   // 20k
+		},
+	})
+	if res.PromoDiscount != 35000 {
+		t.Fatalf("PromoDiscount = %v, want 35000", res.PromoDiscount)
+	}
+	if res.DiscountAmount != 35000 {
+		t.Fatalf("DiscountAmount = %v, want 35000", res.DiscountAmount)
+	}
+	if res.Total != 65000 {
+		t.Fatalf("Total = %v, want 65000", res.Total)
+	}
+}
+
+func TestComputeStackCapsAtSubtotal(t *testing.T) {
+	items := []LineItem{{ProductID: "a", Price: 100000, Quantity: 1, Subtotal: 100000}}
+	res := Compute(PricingInput{
+		Items:  items,
+		Promos: []PromoSpec{{Kind: DiscountPercentage, Value: 60}, {Kind: DiscountPercentage, Value: 60}},
+	})
+	if res.DiscountAmount != 100000 {
+		t.Fatalf("DiscountAmount = %v, want 100000 (capped)", res.DiscountAmount)
+	}
+	if res.Total != 0 {
+		t.Fatalf("Total = %v, want 0", res.Total)
+	}
+}
+
+func TestComputeEmptyPromosSameAsNone(t *testing.T) {
+	items := []LineItem{{ProductID: "a", Price: 50000, Quantity: 1, Subtotal: 50000}}
+	a := Compute(PricingInput{Items: items})
+	b := Compute(PricingInput{Items: items, Promos: nil})
+	if a != b {
+		t.Fatalf("nil-Promos diverged: %+v vs %+v", a, b)
 	}
 }
 
