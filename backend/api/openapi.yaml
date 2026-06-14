@@ -1026,6 +1026,7 @@ components:
         startDate: { type: string, nullable: true }
         endDate: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        combinable: { type: boolean, nullable: true }
     DiscountCodeListResponse:
       type: object
       required: [data]
@@ -1044,6 +1045,8 @@ components:
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
+        promotionIds: { type: array, items: { type: string }, nullable: true }
+        discountCodes: { type: array, items: { type: string }, nullable: true }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -1447,6 +1450,8 @@ components:
         surchargeValue: { type: number, nullable: true }
         discountCode: { type: string, nullable: true }
         promotionId: { type: string, nullable: true }
+        promotionIds: { type: array, items: { type: string }, nullable: true }
+        discountCodes: { type: array, items: { type: string }, nullable: true }
         discountLabel: { type: string, nullable: true }
         discountBreakdown:
           type: array
@@ -1666,6 +1671,7 @@ components:
         isActive: { type: boolean }
         startDate: { type: string }
         endDate: { type: string }
+        combinable: { type: boolean, nullable: true }
     OutletInput:
       type: object
       required: [name, isActive]

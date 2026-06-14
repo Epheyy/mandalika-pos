@@ -2693,6 +2693,7 @@ export interface components {
             endDate?: string | null;
             /** Format: date-time */
             createdAt: string;
+            combinable?: boolean | null;
         };
         DiscountCodeListResponse: {
             data: components["schemas"]["DiscountCode"][];
@@ -2707,6 +2708,8 @@ export interface components {
             isBundle?: boolean;
             isReward?: boolean;
             rewardConditionId?: string;
+            promotionIds?: string[] | null;
+            discountCodes?: string[] | null;
         };
         Order: {
             /** Format: uuid */
@@ -3049,6 +3052,8 @@ export interface components {
             surchargeValue?: number | null;
             discountCode?: string | null;
             promotionId?: string | null;
+            promotionIds?: string[] | null;
+            discountCodes?: string[] | null;
             discountLabel?: string | null;
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             notes?: string | null;
@@ -3227,6 +3232,7 @@ export interface components {
             isActive: boolean;
             startDate?: string;
             endDate?: string;
+            combinable?: boolean | null;
         };
         OutletInput: {
             name: string;
