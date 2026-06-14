@@ -7,6 +7,7 @@ import { variantLabel } from '@mandalika/types'
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
+type Promotion = components['schemas']['Promotion']
 
 interface CartProps {
   cart: CartItem[]
@@ -23,9 +24,11 @@ interface CartProps {
   discountType: 'percentage' | 'fixed'
   surchargeRunning: number
   orderNotes: string
-  appliedPromoLabel: string | null
+  appliedPromotions: Promotion[]
+  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
   onClearDiscount: () => void
-  onClearPromo: () => void
+  onRemovePromotion: (id: string) => void
+  onRemovePromoCode: (code: string) => void
   loyaltyEnabled: boolean
   wallRaised: boolean
 }
@@ -45,9 +48,11 @@ export const Cart = memo(function Cart({
   discountType,
   surchargeRunning,
   orderNotes,
-  appliedPromoLabel,
+  appliedPromotions,
+  appliedPromoCodes,
   onClearDiscount,
-  onClearPromo,
+  onRemovePromotion,
+  onRemovePromoCode,
   loyaltyEnabled,
   wallRaised,
 }: CartProps) {
@@ -171,7 +176,7 @@ export const Cart = memo(function Cart({
           <button
             onClick={() => onOpenAdjustment('promo')}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-              appliedPromoLabel
+              appliedPromotions.length > 0 || appliedPromoCodes.length > 0
                 ? 'border-green-400 bg-green-50 text-green-700'
                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
@@ -188,21 +193,38 @@ export const Cart = memo(function Cart({
             <span>Subtotal</span>
             <span>{formatRupiah(derived.subtotal)}</span>
           </div>
-          {appliedPromoLabel && (
-            <div className="flex justify-between items-center text-green-600">
+          {appliedPromotions.map((p) => (
+            <div key={p.id} className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
-                Promo: {appliedPromoLabel}
-                {derived.promoDiscountAmount > 0
-                  ? ` — −${formatRupiah(derived.promoDiscountAmount)}`
-                  : ''}
+                Promo: {p.name}
                 <button
-                  onClick={onClearPromo}
+                  onClick={() => onRemovePromotion(p.id)}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
                   title="Hapus promo"
                 >
                   ×
                 </button>
               </span>
+            </div>
+          ))}
+          {appliedPromoCodes.map((c) => (
+            <div key={c.code} className="flex justify-between items-center text-green-600">
+              <span className="flex items-center gap-1">
+                Kode: {c.code}
+                <button
+                  onClick={() => onRemovePromoCode(c.code)}
+                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
+                  title="Hapus kode"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          ))}
+          {(appliedPromotions.length > 0 || appliedPromoCodes.length > 0) && derived.promoDiscountAmount > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>Total Promo</span>
+              <span>−{formatRupiah(derived.promoDiscountAmount)}</span>
             </div>
           )}
           {discountRunning > 0 && (

@@ -132,13 +132,14 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
     <PromoPanel
       promotions={promotions}
       discountCodes={discountCodes}
-      appliedPromotion={state.appliedPromotion}
-      appliedPromoCode={state.appliedPromoCode}
+      appliedPromotions={state.appliedPromotions}
+      appliedPromoCodes={state.appliedPromoCodes}
       promoCodeInput={state.promoCodeInput}
       isValidating={isValidatingCode}
       subtotal={subtotal}
       outletId={outletId}
       onSelectPromotion={(p) => dispatch({ type: 'APPLY_PROMOTION', promotion: p })}
+      onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
       onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
       onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
       onApplyPromoCode={onApplyPromoCode}

@@ -9,13 +9,14 @@ type DiscountCode = components['schemas']['DiscountCode']
 interface PromoPanelProps {
   promotions: Promotion[]
   discountCodes: DiscountCode[]
-  appliedPromotion: Promotion | null
-  appliedPromoCode: { code: string; value: number; type: 'percentage' | 'fixed' } | null
+  appliedPromotions: Promotion[]
+  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
   promoCodeInput: string
   isValidating: boolean
   subtotal: number
   outletId: string
   onSelectPromotion: (promo: Promotion) => void
+  onRemovePromotion: (id: string) => void
   onClearPromotion: () => void
   onPromoCodeChange: (value: string) => void
   onApplyPromoCode: () => void
@@ -27,13 +28,14 @@ interface PromoPanelProps {
 export const PromoPanel = memo(function PromoPanel({
   promotions,
   discountCodes,
-  appliedPromotion,
-  appliedPromoCode,
+  appliedPromotions,
+  appliedPromoCodes,
   promoCodeInput,
   isValidating,
   subtotal,
   outletId,
   onSelectPromotion,
+  onRemovePromotion,
   onClearPromotion,
   onPromoCodeChange,
   onApplyPromoCode,
@@ -46,6 +48,8 @@ export const PromoPanel = memo(function PromoPanel({
   const activePromos = promotions
     .filter((p) => p.isActive)
     .map((promo) => ({ promo, violations: validatePromo(promo, evalCtx) }))
+
+  const hasApplied = appliedPromotions.length > 0 || appliedPromoCodes.length > 0
 
   return (
     <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
@@ -64,21 +68,34 @@ export const PromoPanel = memo(function PromoPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Applied state */}
-          {(appliedPromotion || appliedPromoCode) && (
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-200">
-              <div>
+          {/* Applied state — show each chip */}
+          {hasApplied && (
+            <div className="p-3 bg-green-50 rounded-xl border border-green-200 space-y-1">
+              <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-green-800">Diterapkan</p>
-                <p className="text-xs text-green-700">
-                  {appliedPromotion?.name ?? appliedPromoCode?.code}
-                </p>
+                <button
+                  onClick={onClearPromotion}
+                  className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                >
+                  Hapus semua
+                </button>
               </div>
-              <button
-                onClick={onClearPromotion}
-                className="text-xs text-red-500 hover:text-red-700 font-semibold"
-              >
-                Hapus
-              </button>
+              {appliedPromotions.map((p) => (
+                <div key={p.id} className="flex items-center justify-between">
+                  <p className="text-xs text-green-700">{p.name}</p>
+                  <button
+                    onClick={() => onRemovePromotion(p.id)}
+                    className="text-xs text-red-400 hover:text-red-600 font-semibold ml-2"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {appliedPromoCodes.map((c) => (
+                <div key={c.code} className="flex items-center justify-between">
+                  <p className="text-xs text-green-700">{c.code}</p>
+                </div>
+              ))}
             </div>
           )}
 
@@ -141,7 +158,7 @@ export const PromoPanel = memo(function PromoPanel({
             )}
           </div>
 
-          {/* Available promotions */}
+          {/* Available promotions — multi-toggle */}
           {activePromos.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-700 mb-2">
@@ -150,7 +167,7 @@ export const PromoPanel = memo(function PromoPanel({
               <div className="space-y-2">
                 {activePromos.map(({ promo, violations }) => {
                   const invalid = violations.length > 0
-                  const isApplied = appliedPromotion?.id === promo.id
+                  const isApplied = appliedPromotions.some((p) => p.id === promo.id)
                   return (
                     <button
                       key={promo.id}

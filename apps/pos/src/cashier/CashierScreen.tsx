@@ -40,6 +40,7 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
+import { calcPromoDiscount } from './pricing'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -465,7 +466,8 @@ export default function CashierScreen() {
         return
       }
       setPromoCodeError(null)
-      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code })
+      const dc = discountCodes.find((d) => d.code.toUpperCase() === code && d.isActive)
+      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: dc?.combinable ?? false })
     } finally {
       setIsValidatingCode(false)
     }
@@ -528,12 +530,16 @@ export default function CashierScreen() {
           value: state.discountRunning,
           amount: derived.manualDiscountAmount,
         },
-        derived.promoDiscountAmount > 0 && {
-          label: state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? 'Promo',
-          kind: state.appliedPromotion?.type ?? state.appliedPromoCode?.type ?? null,
-          value: state.appliedPromotion?.value ?? state.appliedPromoCode?.value ?? null,
-          amount: derived.promoDiscountAmount,
-        },
+        ...state.appliedPromotions.map((p) => ({
+          label: p.name, kind: p.type, value: p.value,
+          amount: calcPromoDiscount(p, state.cart, derived.subtotal),
+        })),
+        ...state.appliedPromoCodes.map((c) => ({
+          label: c.code, kind: c.type, value: c.value,
+          amount: c.type === 'percentage'
+            ? Math.round(derived.subtotal * (c.value / 100))
+            : Math.min(c.value, derived.subtotal),
+        })),
       ].filter(Boolean)
       const { orderUuid } = engine.enqueue('order', {
         orderNumber: orderNo,
@@ -548,13 +554,16 @@ export default function CashierScreen() {
         discountValue: state.discountRunning > 0 ? state.discountRunning : null,
         surchargeValue: state.surchargeRunning > 0 ? state.surchargeRunning : null,
         surchargeType: state.surchargeRunning > 0 ? state.appliedSurchargeType : null,
-        discountCode: state.appliedPromoCode?.code ?? null,
-        promotionId: state.appliedPromotion?.id ?? null,
+        // SP-Promo-3a: send plural arrays; keep singular = first for back-compat
+        promotionIds: state.appliedPromotions.map((p) => p.id),
+        discountCodes: state.appliedPromoCodes.map((c) => c.code),
+        discountCode: state.appliedPromoCodes[0]?.code ?? null,
+        promotionId: state.appliedPromotions[0]?.id ?? null,
         // Denormalized discount source for analytics: promotion name › code ›
         // manual. Persisted on the order so history/exports show what applied.
         discountLabel:
-          state.appliedPromotion?.name ??
-          state.appliedPromoCode?.code ??
+          state.appliedPromotions[0]?.name ??
+          state.appliedPromoCodes[0]?.code ??
           (state.discountRunning > 0 ? 'Diskon Manual' : null),
         discountBreakdown: discountBreakdown.length ? discountBreakdown : null,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
@@ -861,9 +870,11 @@ export default function CashierScreen() {
               discountRunning={state.discountRunning} discountType={state.appliedDiscountType}
               surchargeRunning={state.surchargeRunning}
               orderNotes={state.orderNotes}
-              appliedPromoLabel={state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null}
+              appliedPromotions={state.appliedPromotions}
+              appliedPromoCodes={state.appliedPromoCodes}
+              onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
+              onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
               onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
-              onClearPromo={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
               loyaltyEnabled={loyalty.enabled}
               wallRaised={false}
             />
@@ -920,7 +931,7 @@ export default function CashierScreen() {
         promoLabel={
           derived.manualDiscountAmount > 0
             ? null
-            : (state.appliedPromotion?.name ?? state.appliedPromoCode?.code ?? null)
+            : (state.appliedPromotions[0]?.name ?? state.appliedPromoCodes[0]?.code ?? null)
         }
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
