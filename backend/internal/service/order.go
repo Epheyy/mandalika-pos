@@ -477,11 +477,13 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	var status, orderNumber string
 	var custID *string
 	var discountCode *string
+	var appliedCodes []string
 	var oEarned, oRedeemed int
 	err = tx.QueryRow(ctx,
-		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code
+		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code,
+		        COALESCE(applied_discount_codes,'[]'::jsonb)
 		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
-		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed, &discountCode)
+		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed, &discountCode, &appliedCodes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrOrderClosed
 	}
@@ -496,14 +498,20 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		   WHERE id=$2`, reason, orderID); err != nil {
 		return err
 	}
-	// SP-Promo-1: restore the discount code's usage (floor 0). Idempotent — the
-	// already-refunded short-circuit above means this runs at most once per order.
-	// Create-side increments by the resolved row id; we decrement by code, which is
-	// equivalent because discount_codes.code is UNIQUE and matches the create-side row.
-	if discountCode != nil && *discountCode != "" {
+	// SP-Promo-3a: restore usage for EVERY applied code. Fall back to the singular
+	// discount_code for pre-feature orders (applied_discount_codes is NULL there).
+	// GREATEST(-1,0) + the already-refunded short-circuit keep this idempotent.
+	restore := appliedCodes
+	if len(restore) == 0 && discountCode != nil && *discountCode != "" {
+		restore = []string{*discountCode}
+	}
+	for _, code := range restore {
+		if code == "" {
+			continue
+		}
 		if _, err = tx.Exec(ctx,
 			`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
-			*discountCode); err != nil {
+			code); err != nil {
 			return fmt.Errorf("restore discount usage: %w", err)
 		}
 	}
