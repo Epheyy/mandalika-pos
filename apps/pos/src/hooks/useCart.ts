@@ -61,7 +61,7 @@ export function useCart(opts: UseCartOptions): {
     surchargeType: state.appliedSurchargeType,
     discountRunning: state.discountRunning,
     surchargeRunning: state.surchargeRunning,
-    appliedPromotions: state.appliedPromotions as Promotion[],
+    appliedPromotions: state.appliedPromotions,
     appliedPromoCodes: state.appliedPromoCodes,
     settings,
     loyalty,
