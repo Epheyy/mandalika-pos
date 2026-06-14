@@ -10,13 +10,13 @@ import (
 type PromoViolation string
 
 const (
-	ViolationNotStarted   PromoViolation = "not_started"
-	ViolationExpired      PromoViolation = "expired"
-	ViolationBelowMin     PromoViolation = "below_min_purchase"
-	ViolationWrongDay     PromoViolation = "wrong_day"
-	ViolationOutsideHours PromoViolation = "outside_hours"
-	ViolationWrongOutlet  PromoViolation = "wrong_outlet"
-	ViolationUsageLimit   PromoViolation = "usage_limit_reached"
+	ViolationNotStarted    PromoViolation = "not_started"
+	ViolationExpired       PromoViolation = "expired"
+	ViolationBelowMin      PromoViolation = "below_min_purchase"
+	ViolationWrongDay      PromoViolation = "wrong_day"
+	ViolationOutsideHours  PromoViolation = "outside_hours"
+	ViolationWrongOutlet   PromoViolation = "wrong_outlet"
+	ViolationUsageLimit    PromoViolation = "usage_limit_reached"
 	ViolationNotFound      PromoViolation = "not_found"
 	ViolationNotCombinable PromoViolation = "not_combinable"
 )

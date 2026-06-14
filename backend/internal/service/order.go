@@ -65,9 +65,9 @@ type CreateOrderInput struct {
 	PromotionID       string   // applied promotion id
 	PromotionIDs      []string // SP-Promo-3a: stacked promotions; falls back to PromotionID
 	DiscountCodes     []string // SP-Promo-3a: stacked codes; falls back to DiscountCode
-	DiscountLabel     string // denormalized source: promotion name / code / "Manual"
-	DiscountBreakdown []byte // raw JSON array of {label,kind,value,amount}; stored as jsonb
-	PointsRedeemed    int    // loyalty points the customer spends on this order
+	DiscountLabel     string   // denormalized source: promotion name / code / "Manual"
+	DiscountBreakdown []byte   // raw JSON array of {label,kind,value,amount}; stored as jsonb
+	PointsRedeemed    int      // loyalty points the customer spends on this order
 	Notes             string
 	ShiftID           string
 	ClientCreated     *time.Time
@@ -153,17 +153,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	if len(codes) == 0 && in.DiscountCode != "" {
 		codes = []string{in.DiscountCode}
 	}
-	promos, promoCodeIDs, discountWarnReason, err := s.resolvePromos(ctx, tx, promoIDs, codes, promoEvalCtx, in.Offline)
+	// C1: appliedCodes is now the RESOLVED code strings returned by resolvePromos —
+	// only codes that successfully loaded are included, so refund mirrors create exactly.
+	// M2: the old `if len(appliedCodes)==0 { appliedCodes = nil }` block is gone;
+	// nullCodes already treats an empty/nil slice as SQL NULL.
+	promos, promoCodeIDs, appliedCodes, discountWarnReason, err := s.resolvePromos(ctx, tx, promoIDs, codes, promoEvalCtx, in.Offline)
 	if err != nil {
 		return "", false, false, err
 	}
 	discountWarning := discountWarnReason != ""
-	// The applied code strings (in resolved order) are persisted for refund restore.
-	// promoCodeIDs aligns 1:1 with the codes that resolved; re-derive their strings.
-	appliedCodes := codes
-	if len(appliedCodes) == 0 {
-		appliedCodes = nil
-	}
 
 	taxEnabled, taxRate, roundEnabled, roundType, err := loadAppSettings(ctx, tx)
 	if err != nil {
@@ -610,15 +608,44 @@ func combinabilityViolation(combinable []bool) *PromoViolation {
 	return nil
 }
 
+// dedupeNonEmpty returns a new slice with empty strings removed and duplicate
+// strings eliminated (first occurrence wins, order preserved). Returns nil when
+// the input is nil or all elements are empty.
+func dedupeNonEmpty(ss []string) []string {
+	if len(ss) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // resolvePromos turns the applied promotion ids + discount codes into authoritative
 // PromoSpecs, validating each stored gating rule (SP-Promo-1) AND the cross-discount
 // combinability gate (SP-Promo-3a). Returns the applied discount_codes row ids (for
-// usage++), a non-empty warnReason when an OFFLINE order applied invalid/conflicting
-// discounts (recorded + flagged), and *ErrDiscountRejected for an ONLINE conflict
-// (caller -> HTTP 422).
-func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, codes []string, ec PromoEvalContext, offline bool) ([]PromoSpec, []string, string, error) {
+// usage++), the RESOLVED code strings that parallel codeIDs (for persisting to
+// applied_discount_codes — only codes that successfully loaded), a non-empty
+// warnReason when an OFFLINE order applied invalid/conflicting discounts (recorded +
+// flagged), and *ErrDiscountRejected for an ONLINE conflict (caller -> HTTP 422).
+func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, codes []string, ec PromoEvalContext, offline bool) ([]PromoSpec, []string /*codeIDs*/, []string /*appliedCodes*/, string, error) {
+	// I1: dedupe both lists before processing — a duplicate code would double-increment
+	// usage_count and falsely trip the combinability gate (two entries → len>1).
+	promoIDs = dedupeNonEmpty(promoIDs)
+	codes = dedupeNonEmpty(codes)
+
 	var specs []PromoSpec
 	var codeIDs []string
+	var appliedCodes []string
 	var combinable []bool
 	var violations []PromoViolation
 
@@ -642,18 +669,18 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 				&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs, &row.Combinable)
 		if errors.Is(err, pgx.ErrNoRows) {
 			if !offline {
-				return nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+				return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
 			}
 			violations = append(violations, ViolationNotFound)
 			continue // can't reconstruct value offline
 		}
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("load promotion: %w", err)
+			return nil, nil, nil, "", fmt.Errorf("load promotion: %w", err)
 		}
 		spec := PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo"}
 		if vio := ValidatePromo(row, ec); len(vio) > 0 {
 			if !offline {
-				return nil, nil, "", &ErrDiscountRejected{Violations: vio}
+				return nil, nil, nil, "", &ErrDiscountRejected{Violations: vio}
 			}
 			violations = append(violations, vio...)
 		}
@@ -676,29 +703,32 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 			Scan(&id, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount, &row.Combinable)
 		if errors.Is(err, pgx.ErrNoRows) {
 			if !offline {
-				return nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+				return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
 			}
 			violations = append(violations, ViolationNotFound)
 			continue
 		}
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("load discount code: %w", err)
+			return nil, nil, nil, "", fmt.Errorf("load discount code: %w", err)
 		}
 		spec := PromoSpec{Kind: DiscountKind(kind), Value: value}
 		if vio := ValidateCode(row, ec); len(vio) > 0 {
 			if !offline {
-				return nil, nil, "", &ErrDiscountRejected{Violations: vio}
+				return nil, nil, nil, "", &ErrDiscountRejected{Violations: vio}
 			}
 			violations = append(violations, vio...)
 		}
 		specs = append(specs, spec)
+		// C1: append id and code string in lockstep so appliedCodes mirrors codeIDs.
+		// Only codes that successfully loaded (no pgx.ErrNoRows continue above) reach here.
 		codeIDs = append(codeIDs, id)
+		appliedCodes = append(appliedCodes, code)
 		combinable = append(combinable, row.Combinable)
 	}
 
 	if v := combinabilityViolation(combinable); v != nil {
 		if !offline {
-			return nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{*v}}
+			return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{*v}}
 		}
 		violations = append(violations, *v)
 	}
@@ -707,7 +737,7 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	if len(violations) > 0 {
 		warn = JoinViolations(violations)
 	}
-	return specs, codeIDs, warn, nil
+	return specs, codeIDs, appliedCodes, warn, nil
 }
 
 func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, string, error) {
@@ -883,6 +913,9 @@ func nullCodes(codes []string) any {
 	}
 	b, err := json.Marshal(codes)
 	if err != nil {
+		// M1: surface the error so it is not silently swallowed (per repo policy).
+		// json.Marshal of []string cannot fail in practice, but log it if it ever does.
+		slog.Error("marshal applied codes", "err", err)
 		return nil
 	}
 	return b
