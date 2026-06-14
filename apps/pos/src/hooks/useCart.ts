@@ -12,7 +12,6 @@ type Product = components['schemas']['Product']
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
 type LoyaltySettings = components['schemas']['LoyaltySettings']
-type Promotion = components['schemas']['Promotion']
 
 interface UseCartOptions {
   state: CashierState
@@ -62,8 +61,8 @@ export function useCart(opts: UseCartOptions): {
     surchargeType: state.appliedSurchargeType,
     discountRunning: state.discountRunning,
     surchargeRunning: state.surchargeRunning,
-    appliedPromotion: state.appliedPromotion as Promotion | null,
-    appliedPromoCode: state.appliedPromoCode,
+    appliedPromotions: state.appliedPromotions as Promotion[],
+    appliedPromoCodes: state.appliedPromoCodes,
     settings,
     loyalty,
     hasCustomer: state.selectedCustomer !== null,

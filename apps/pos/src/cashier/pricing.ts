@@ -62,8 +62,8 @@ export interface PricingInput {
   surchargeType: 'percentage' | 'fixed'
   discountRunning: number
   surchargeRunning: number
-  appliedPromotion: Promotion | null
-  appliedPromoCode: { code: string; value: number; type: 'percentage' | 'fixed' } | null
+  appliedPromotions: Promotion[]
+  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
   settings: AppSettings
   loyalty: LoyaltySettings
   hasCustomer: boolean
@@ -78,8 +78,8 @@ export function computePricing(input: PricingInput): PricingResult {
     surchargeType,
     discountRunning,
     surchargeRunning,
-    appliedPromotion,
-    appliedPromoCode,
+    appliedPromotions,
+    appliedPromoCodes,
     settings,
     loyalty,
     hasCustomer,
@@ -103,13 +103,16 @@ export function computePricing(input: PricingInput): PricingResult {
         : surchargeRunning
       : 0
 
-  const promoDiscountAmount = appliedPromotion
-    ? calcPromoDiscount(appliedPromotion, cart, subtotal)
-    : appliedPromoCode
-      ? appliedPromoCode.type === 'percentage'
-        ? Math.round(subtotal * (appliedPromoCode.value / 100))
-        : Math.min(appliedPromoCode.value, subtotal)
-      : 0
+  const promoDiscountAmount =
+    appliedPromotions.reduce((sum, p) => sum + calcPromoDiscount(p, cart, subtotal), 0) +
+    appliedPromoCodes.reduce(
+      (sum, c) =>
+        sum +
+        (c.type === 'percentage'
+          ? Math.round(subtotal * (c.value / 100))
+          : Math.min(c.value, subtotal)),
+      0,
+    )
 
   const discountAmount = Math.min(
     manualDiscountAmount + promoDiscountAmount,

@@ -482,17 +482,17 @@ export default function CashierScreen() {
       outletId: authStore.outletId ?? '',
       subtotal: derived.subtotal,
     }
-    if (state.appliedPromotion) {
-      const vs = validatePromo(state.appliedPromotion, guardCtx)
+    for (const p of state.appliedPromotions) {
+      const vs = validatePromo(p, guardCtx)
       if (vs.length > 0) {
         showToast(`Promo dibatalkan: ${violationMessage(vs[0])}`)
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
     }
-    if (state.appliedPromoCode) {
+    for (const c of state.appliedPromoCodes) {
       const dc = discountCodes.find(
-        (d) => d.code.toUpperCase() === state.appliedPromoCode!.code.toUpperCase() && d.isActive,
+        (d) => d.code.toUpperCase() === c.code.toUpperCase() && d.isActive,
       )
       if (!dc) {
         showToast('Kode diskon dibatalkan: Kode tidak ditemukan')
@@ -505,6 +505,15 @@ export default function CashierScreen() {
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
+    }
+    if (
+      state.appliedPromotions.length + state.appliedPromoCodes.length > 1 &&
+      (state.appliedPromotions.some((p) => !p.combinable) ||
+        state.appliedPromoCodes.some((c) => !c.combinable))
+    ) {
+      showToast('Promo/Kode diskon dibatalkan: tidak bisa digabung')
+      dispatch({ type: 'CLEAR_PROMOTIONS' })
+      return
     }
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
