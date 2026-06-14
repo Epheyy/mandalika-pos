@@ -143,6 +143,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
       onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
       onApplyPromoCode={onApplyPromoCode}
+      onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
       onClose={close}
       promoCodeError={promoCodeError}
       onClearPromoCodeError={onClearPromoCodeError}

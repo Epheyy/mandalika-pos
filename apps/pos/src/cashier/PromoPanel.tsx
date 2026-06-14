@@ -20,6 +20,7 @@ interface PromoPanelProps {
   onClearPromotion: () => void
   onPromoCodeChange: (value: string) => void
   onApplyPromoCode: () => void
+  onRemovePromoCode: (code: string) => void
   onClose: () => void
   promoCodeError: string | null
   onClearPromoCodeError: () => void
@@ -39,6 +40,7 @@ export const PromoPanel = memo(function PromoPanel({
   onClearPromotion,
   onPromoCodeChange,
   onApplyPromoCode,
+  onRemovePromoCode,
   onClose,
   promoCodeError,
   onClearPromoCodeError,
@@ -94,6 +96,12 @@ export const PromoPanel = memo(function PromoPanel({
               {appliedPromoCodes.map((c) => (
                 <div key={c.code} className="flex items-center justify-between">
                   <p className="text-xs text-green-700">{c.code}</p>
+                  <button
+                    onClick={() => onRemovePromoCode(c.code)}
+                    className="text-xs text-red-400 hover:text-red-600 font-semibold ml-2"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
