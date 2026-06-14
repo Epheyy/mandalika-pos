@@ -583,7 +583,7 @@ func (s *OrderService) resolvePromo(ctx context.Context, tx pgx.Tx, promoID, cod
 			`SELECT type, value,
 			   COALESCE(applicable_product_ids,'[]'::jsonb),
 			   start_date, end_date, min_purchase,
-			   active_from_hour, active_to_hour,
+			   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
 			   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb)
 			   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
 			Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
