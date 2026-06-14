@@ -98,6 +98,7 @@ export interface AppliedPromoCode {
   code: string
   value: number
   type: 'percentage' | 'fixed'
+  combinable?: boolean
 }
 
 export type ApplyCodeDecision =

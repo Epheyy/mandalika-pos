@@ -37,8 +37,8 @@ export interface CashierState {
   activeAdjustment: 'notes' | 'discount' | 'promo' | null
   adjustInputStr: string
   // Promotions
-  appliedPromotion: Promotion | null
-  appliedPromoCode: AppliedPromoCode | null
+  appliedPromotions: Promotion[]
+  appliedPromoCodes: AppliedPromoCode[]
   promoCodeInput: string
   // Checkout
   isCheckoutOpen: boolean
@@ -70,8 +70,10 @@ export type CashierAction =
   | { type: 'SET_ACTIVE_ADJUSTMENT'; panel: CashierState['activeAdjustment'] }
   | { type: 'SET_ADJUST_INPUT'; value: string }
   | { type: 'SET_PROMO_CODE_INPUT'; value: string }
-  | { type: 'APPLY_PROMO_CODE'; code: AppliedPromoCode }
+  | { type: 'APPLY_PROMO_CODE'; code: AppliedPromoCode; combinable: boolean }
   | { type: 'APPLY_PROMOTION'; promotion: Promotion }
+  | { type: 'REMOVE_PROMOTION'; id: string }
+  | { type: 'REMOVE_PROMO_CODE'; code: string }
   | { type: 'CLEAR_PROMOTIONS' }
   | { type: 'OPEN_CHECKOUT'; defaultMethod: PaymentMethod }
   | { type: 'CLOSE_CHECKOUT' }
@@ -97,8 +99,8 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   orderNotes: '',
   activeAdjustment: null,
   adjustInputStr: '',
-  appliedPromotion: null,
-  appliedPromoCode: null,
+  appliedPromotions: [],
+  appliedPromoCodes: [],
   promoCodeInput: '',
   isCheckoutOpen: false,
   paymentMethod: 'cash',
@@ -107,6 +109,12 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   lastOrderId: null,
   isSuccessOpen: false,
   activeTab: 'products',
+}
+
+// A non-combinable discount is exclusive: its presence (existing or incoming)
+// forces the set to a single member.
+function hasNonCombinablePromotion(promotions: Promotion[]): boolean {
+  return promotions.some((p) => !p.combinable)
 }
 
 function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
@@ -209,8 +217,8 @@ export function cashierReducer(
         discountRunning: 0,
         surchargeRunning: 0,
         adjustInputStr: '',
-        appliedPromoCode: null,
-        appliedPromotion: null,
+        appliedPromoCodes: [],
+        appliedPromotions: [],
         activeAdjustment: null,
       }
 
@@ -275,28 +283,73 @@ export function cashierReducer(
     case 'SET_PROMO_CODE_INPUT':
       return { ...state, promoCodeInput: action.value }
 
-    case 'APPLY_PROMO_CODE':
+    case 'APPLY_PROMOTION': {
+      const exists = state.appliedPromotions.some((p) => p.id === action.promotion.id)
+      if (exists) {
+        // toggle off
+        return {
+          ...state,
+          appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotion.id),
+          activeAdjustment: null,
+        }
+      }
+      const incomingExclusive = !action.promotion.combinable
+      const currentExclusive =
+        hasNonCombinablePromotion(state.appliedPromotions) ||
+        state.appliedPromoCodes.some((c) => !c.combinable)
+      if (incomingExclusive || currentExclusive) {
+        return {
+          ...state,
+          appliedPromotions: [action.promotion],
+          appliedPromoCodes: [],
+          activeAdjustment: null,
+        }
+      }
       return {
         ...state,
-        appliedPromoCode: action.code,
-        appliedPromotion: null,
+        appliedPromotions: [...state.appliedPromotions, action.promotion],
+        activeAdjustment: null,
+      }
+    }
+
+    case 'APPLY_PROMO_CODE': {
+      const exists = state.appliedPromoCodes.some((c) => c.code === action.code.code)
+      if (exists) {
+        return { ...state, promoCodeInput: '', activeAdjustment: null }
+      }
+      const incomingExclusive = !action.combinable
+      const currentExclusive =
+        hasNonCombinablePromotion(state.appliedPromotions) ||
+        state.appliedPromoCodes.some((c) => !c.combinable)
+      const code: AppliedPromoCode = { ...action.code, combinable: action.combinable }
+      if (incomingExclusive || currentExclusive) {
+        return {
+          ...state,
+          appliedPromotions: [],
+          appliedPromoCodes: [code],
+          promoCodeInput: '',
+          activeAdjustment: null,
+        }
+      }
+      return {
+        ...state,
+        appliedPromoCodes: [...state.appliedPromoCodes, code],
         promoCodeInput: '',
         activeAdjustment: null,
       }
+    }
 
-    case 'APPLY_PROMOTION':
-      return {
-        ...state,
-        appliedPromotion: action.promotion,
-        appliedPromoCode: null,
-        activeAdjustment: null,
-      }
+    case 'REMOVE_PROMOTION':
+      return { ...state, appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id) }
+
+    case 'REMOVE_PROMO_CODE':
+      return { ...state, appliedPromoCodes: state.appliedPromoCodes.filter((c) => c.code !== action.code) }
 
     case 'CLEAR_PROMOTIONS':
       return {
         ...state,
-        appliedPromotion: null,
-        appliedPromoCode: null,
+        appliedPromotions: [],
+        appliedPromoCodes: [],
         promoCodeInput: '',
       }
 

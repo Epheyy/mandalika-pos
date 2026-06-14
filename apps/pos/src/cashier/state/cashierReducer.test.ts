@@ -2,6 +2,42 @@ import { describe, it, expect } from 'vitest'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './cashierReducer'
 import type { components } from '@mandalika/api'
 
+const promo = (id: string, combinable: boolean) =>
+  ({ id, name: id, type: 'percentage', value: 10, combinable }) as any
+
+describe('promo stacking reducer', () => {
+  it('appends combinable promotions', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    s = cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: promo('b', true) })
+    expect(s.appliedPromotions.map((p) => p.id)).toEqual(['a', 'b'])
+  })
+
+  it('a non-combinable promotion replaces the set', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    s = cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: promo('x', false) })
+    expect(s.appliedPromotions.map((p) => p.id)).toEqual(['x'])
+    expect(s.appliedPromoCodes).toEqual([])
+  })
+
+  it('applying when a non-combinable is active replaces the set', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('x', false) })
+    s = cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    expect(s.appliedPromotions.map((p) => p.id)).toEqual(['a'])
+  })
+
+  it('re-applying the same promotion id toggles it off', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    s = cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    expect(s.appliedPromotions).toEqual([])
+  })
+
+  it('REMOVE_PROMOTION removes by id', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })
+    s = cashierReducer(s, { type: 'REMOVE_PROMOTION', id: 'a' })
+    expect(s.appliedPromotions).toEqual([])
+  })
+})
+
 type CartItem = components['schemas']['CartItem']
 
 const paid = (productId: string, variantSize = 'M'): CartItem => ({
