@@ -1406,6 +1406,8 @@ func discountRejectMessage(v []service.PromoViolation) string {
 		return "Kuota kode diskon sudah habis"
 	case service.ViolationNotFound:
 		return "Diskon tidak ditemukan"
+	case service.ViolationNotCombinable:
+		return "Promo/kode ini tidak bisa digabung"
 	default:
 		return "Diskon tidak berlaku"
 	}

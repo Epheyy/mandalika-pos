@@ -17,7 +17,8 @@ const (
 	ViolationOutsideHours PromoViolation = "outside_hours"
 	ViolationWrongOutlet  PromoViolation = "wrong_outlet"
 	ViolationUsageLimit   PromoViolation = "usage_limit_reached"
-	ViolationNotFound     PromoViolation = "not_found"
+	ViolationNotFound      PromoViolation = "not_found"
+	ViolationNotCombinable PromoViolation = "not_combinable"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
@@ -34,12 +35,14 @@ type PromoRow struct {
 	ActiveFromHour, ActiveToHour string
 	ActiveDays                   []int // 0=Sun..6=Sat (matches Go time.Weekday)
 	OutletIDs                    []string
+	Combinable                   bool
 }
 type CodeRow struct {
 	StartDate, EndDate *time.Time
 	MinPurchase        *float64
 	UsageLimit         *int
 	UsageCount         int
+	Combinable         bool
 }
 
 // ErrDiscountRejected is returned for an INVALID discount on an ONLINE order so

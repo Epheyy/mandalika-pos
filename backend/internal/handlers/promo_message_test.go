@@ -21,6 +21,7 @@ func TestDiscountRejectMessage(t *testing.T) {
 		{"wrong outlet", []service.PromoViolation{service.ViolationWrongOutlet}, "Promo tidak berlaku di outlet ini"},
 		{"usage limit", []service.PromoViolation{service.ViolationUsageLimit}, "Kuota kode diskon sudah habis"},
 		{"not found", []service.PromoViolation{service.ViolationNotFound}, "Diskon tidak ditemukan"},
+		{"not combinable", []service.PromoViolation{service.ViolationNotCombinable}, "Promo/kode ini tidak bisa digabung"},
 		{"first violation wins", []service.PromoViolation{service.ViolationExpired, service.ViolationBelowMin}, "Kode/promo sudah kadaluarsa"},
 		{"unknown falls back", []service.PromoViolation{service.PromoViolation("bogus")}, "Diskon tidak berlaku"},
 	}
