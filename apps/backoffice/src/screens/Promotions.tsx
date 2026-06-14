@@ -17,7 +17,7 @@ const EMPTY_PROMO: PromotionInput = {
   combinable: false, activeFromHour: '', activeToHour: '', activeDays: [],
 }
 const EMPTY_CODE: DiscountCodeInput = {
-  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true,
+  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false,
 }
 
 export default function Promotions() {
@@ -92,7 +92,7 @@ export default function Promotions() {
     setEditingCode(c)
     setCodeForm({
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
-      usageLimit: c.usageLimit || 0, isActive: c.isActive,
+      usageLimit: c.usageLimit || 0, isActive: c.isActive, combinable: c.combinable ?? false,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
     setCodeOpen(true)
@@ -113,7 +113,7 @@ export default function Promotions() {
   const toggleCode = async (c: DiscountCode) => {
     await api.updateDiscountCode(c.id, {
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
-      usageLimit: c.usageLimit || 0, isActive: !c.isActive,
+      usageLimit: c.usageLimit || 0, isActive: !c.isActive, combinable: c.combinable ?? false,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
     await dcq.refetch()
@@ -276,6 +276,7 @@ export default function Promotions() {
                           <span className="font-black text-gold-700 bg-gold-50 px-3 py-1 rounded-lg text-sm tracking-wider">{c.code}</span>
                           <IconButton onClick={() => navigator.clipboard.writeText(c.code)} className="p-1"><Copy className="w-3.5 h-3.5" /></IconButton>
                         </div>
+                        {c.combinable && <Badge tone="gold" className="inline-block mt-0.5">Bisa Kombinasi</Badge>}
                       </td>
                       <td className="px-5 py-3 font-bold text-gray-900 text-sm">{c.type === 'percentage' ? `${c.value}%` : BRAND.currency.format(c.value)}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</td>
@@ -402,6 +403,10 @@ export default function Promotions() {
             <Input label="Mulai" type="date" value={codeForm.startDate || ''} onChange={(e) => setCodeForm((f) => ({ ...f, startDate: e.target.value }))} />
             <Input label="Berakhir" type="date" value={codeForm.endDate || ''} onChange={(e) => setCodeForm((f) => ({ ...f, endDate: e.target.value }))} />
           </div>
+          <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={codeForm.combinable ?? false} onChange={(e) => setCodeForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
+            <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promo/kode lain (combinable)</span>
+          </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={codeForm.isActive} onChange={(e) => setCodeForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
             <span className="text-sm font-bold text-gray-700">Kode Aktif</span>

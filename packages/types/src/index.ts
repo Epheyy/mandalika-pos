@@ -227,6 +227,7 @@ export interface DiscountCode {
   usageLimit?: number
   usageCount: number
   isActive: boolean
+  combinable?: boolean
   startDate?: string
   endDate?: string
   createdAt: string
