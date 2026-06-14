@@ -556,6 +556,7 @@ type DiscountCode struct {
 	IsActive    bool     `json:"isActive"`
 	StartDate   string   `json:"startDate"`
 	EndDate     string   `json:"endDate"`
+	Combinable  bool     `json:"combinable"` // SP-Promo-3a: may this code stack with other combinable discounts
 }
 
 func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, error) {
@@ -563,10 +564,10 @@ func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, 
 	err := r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
 		return t.QueryRow(ctx, `
 			INSERT INTO discount_codes (code, promotion_id, type, value,
-			  min_purchase, usage_limit, is_active, start_date, end_date)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+			  min_purchase, usage_limit, is_active, start_date, end_date, combinable)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 			d.Code, nullUUID(d.PromotionID), d.Type, d.Value, d.MinPurchase,
-			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate)).
+			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable).
 			Scan(&id)
 	})
 	return id, err
@@ -577,9 +578,9 @@ func (r *Repo) UpdateDiscountCode(ctx context.Context, id string, d DiscountCode
 		ct, e := t.Exec(ctx, `
 			UPDATE discount_codes SET code=$1, promotion_id=$2, type=$3, value=$4,
 			  min_purchase=$5, usage_limit=$6, is_active=$7, start_date=$8,
-			  end_date=$9 WHERE id=$10`,
+			  end_date=$9, combinable=$10 WHERE id=$11`,
 			d.Code, nullUUID(d.PromotionID), d.Type, d.Value, d.MinPurchase,
-			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), id)
+			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
