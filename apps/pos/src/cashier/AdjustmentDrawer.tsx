@@ -134,6 +134,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       discountCodes={discountCodes}
       appliedPromotions={state.appliedPromotions}
       appliedPromoCodes={state.appliedPromoCodes}
+      cart={state.cart}
       promoCodeInput={state.promoCodeInput}
       isValidating={isValidatingCode}
       subtotal={subtotal}

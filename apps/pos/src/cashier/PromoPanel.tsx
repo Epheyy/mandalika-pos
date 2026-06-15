@@ -1,16 +1,18 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { formatRupiah } from './pricing'
+import { calcPromoDiscount, formatRupiah } from './pricing'
 import { validatePromo, violationMessage } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
+type CartItem = components['schemas']['CartItem']
 
 interface PromoPanelProps {
   promotions: Promotion[]
   discountCodes: DiscountCode[]
   appliedPromotions: Promotion[]
   appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
+  cart: CartItem[]
   promoCodeInput: string
   isValidating: boolean
   subtotal: number
@@ -26,11 +28,36 @@ interface PromoPanelProps {
   onClearPromoCodeError: () => void
 }
 
+// CombinableTag surfaces whether a discount stacks with others — the headline
+// behavior of the stacking feature. Combinable = indigo pill; exclusive = muted.
+function CombinableTag({ combinable }: { combinable: boolean }) {
+  return combinable ? (
+    <span className="inline-block text-[9px] font-semibold text-indigo-600 bg-indigo-50 rounded px-1.5 py-0.5 leading-none">
+      Bisa digabung
+    </span>
+  ) : (
+    <span className="inline-block text-[9px] font-semibold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 leading-none">
+      Tidak digabung
+    </span>
+  )
+}
+
+function promoRuleLabel(p: Promotion): string {
+  const base =
+    p.type === 'percentage'
+      ? `Diskon ${p.value}%`
+      : p.type === 'fixed'
+        ? `Potongan ${formatRupiah(p.value)}`
+        : 'BOGO'
+  return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
+}
+
 export const PromoPanel = memo(function PromoPanel({
   promotions,
   discountCodes,
   appliedPromotions,
   appliedPromoCodes,
+  cart,
   promoCodeInput,
   isValidating,
   subtotal,
@@ -51,7 +78,17 @@ export const PromoPanel = memo(function PromoPanel({
     .filter((p) => p.isActive)
     .map((promo) => ({ promo, violations: validatePromo(promo, evalCtx) }))
 
-  const hasApplied = appliedPromotions.length > 0 || appliedPromoCodes.length > 0
+  const appliedCount = appliedPromotions.length + appliedPromoCodes.length
+  const hasApplied = appliedCount > 0
+
+  // Savings shown in the panel use the SAME calc as the cart total: scoped/BOGO
+  // promos go through calcPromoDiscount (needs the cart); codes are whole-cart.
+  const codeSavings = (c: { value: number; type: 'percentage' | 'fixed' }) =>
+    c.type === 'percentage'
+      ? Math.round(subtotal * (c.value / 100))
+      : Math.min(c.value, subtotal)
+  const codeCombinable = (code: string) =>
+    discountCodes.find((dc) => dc.code === code)?.combinable ?? false
 
   return (
     <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
@@ -60,7 +97,7 @@ export const PromoPanel = memo(function PromoPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">Promo & Kode Diskon</h3>
+          <h3 className="font-bold text-gray-900">Promo &amp; Kode Diskon</h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -70,51 +107,85 @@ export const PromoPanel = memo(function PromoPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Applied state — show each chip */}
+          {/* Applied state — each item with its computed savings */}
           {hasApplied && (
-            <div className="p-3 bg-green-50 rounded-xl border border-green-200 space-y-1">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-green-800">Diterapkan</p>
+            <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-green-200/70">
+                <p className="text-[11px] font-bold text-green-800 tracking-wide uppercase">
+                  Diterapkan ({appliedCount})
+                </p>
                 <button
                   onClick={onClearPromotion}
-                  className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                  className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
                 >
                   Hapus semua
                 </button>
               </div>
-              {appliedPromotions.map((p) => (
-                <div key={p.id} className="flex items-center justify-between">
-                  <p className="text-xs text-green-700">{p.name}</p>
-                  <button
-                    onClick={() => onRemovePromotion(p.id)}
-                    className="text-xs text-red-400 hover:text-red-600 font-semibold ml-2"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {appliedPromoCodes.map((c) => (
-                <div key={c.code} className="flex items-center justify-between">
-                  <p className="text-xs text-green-700">{c.code}</p>
-                  <button
-                    onClick={() => onRemovePromoCode(c.code)}
-                    className="text-xs text-red-400 hover:text-red-600 font-semibold ml-2"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              <div className="divide-y divide-green-200/60">
+                {appliedPromotions.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-2">
+                    <span className="text-green-600 text-sm leading-none">✓</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-semibold text-green-900 truncate">
+                          {p.name}
+                        </p>
+                        <CombinableTag combinable={!!p.combinable} />
+                      </div>
+                      <p className="text-[10px] text-green-700/80">{promoRuleLabel(p)}</p>
+                    </div>
+                    <p className="text-xs font-bold text-green-800 whitespace-nowrap">
+                      −{formatRupiah(calcPromoDiscount(p, cart, subtotal))}
+                    </p>
+                    <button
+                      onClick={() => onRemovePromotion(p.id)}
+                      className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
+                      aria-label={`Hapus ${p.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {appliedPromoCodes.map((c) => (
+                  <div key={c.code} className="flex items-center gap-2 px-3 py-2">
+                    <span className="text-green-600 text-sm leading-none">✓</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-semibold text-green-900 truncate">
+                          {c.code}
+                        </p>
+                        <CombinableTag combinable={codeCombinable(c.code)} />
+                      </div>
+                      <p className="text-[10px] text-green-700/80">
+                        {c.type === 'percentage'
+                          ? `Diskon ${c.value}%`
+                          : `Potongan ${formatRupiah(c.value)}`}
+                      </p>
+                    </div>
+                    <p className="text-xs font-bold text-green-800 whitespace-nowrap">
+                      −{formatRupiah(codeSavings(c))}
+                    </p>
+                    <button
+                      onClick={() => onRemovePromoCode(c.code)}
+                      className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
+                      aria-label={`Hapus ${c.code}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Promo code input */}
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-2">
+            <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
               Kode Promo
             </p>
             <div className="flex gap-2">
               <input
-                className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase"
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase placeholder:normal-case"
                 placeholder="Masukkan kode…"
                 value={promoCodeInput}
                 onChange={(e) => {
@@ -128,38 +199,41 @@ export const PromoPanel = memo(function PromoPanel({
               <button
                 onClick={onApplyPromoCode}
                 disabled={isValidating || !promoCodeInput.trim()}
-                className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
+                className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
               >
                 {isValidating ? '…' : 'Pakai'}
               </button>
             </div>
             {promoCodeError && (
-              <p className="text-[10px] text-red-500 mt-1 font-semibold">
+              <p className="text-[10px] text-red-500 mt-1.5 font-semibold">
                 {promoCodeError}
               </p>
             )}
-            {/* Hint: show available codes that match typed prefix */}
+            {/* Hint: codes matching the typed prefix */}
             {promoCodeInput.length >= 2 && (
-              <div className="mt-1 space-y-1">
+              <div className="mt-1.5 space-y-1">
                 {discountCodes
                   .filter(
                     (dc) =>
                       dc.isActive &&
-                      dc.code
-                        .toUpperCase()
-                        .startsWith(promoCodeInput.toUpperCase()),
+                      dc.code.toUpperCase().startsWith(promoCodeInput.toUpperCase()),
                   )
                   .slice(0, 3)
                   .map((dc) => (
                     <button
                       key={dc.id}
                       onClick={() => onPromoCodeChange(dc.code)}
-                      className="w-full text-left px-2 py-1 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
+                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
                     >
-                      {dc.code} —{' '}
-                      {dc.type === 'percentage'
-                        ? `${dc.value}%`
-                        : formatRupiah(dc.value)}
+                      <span className="font-semibold">{dc.code}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-gray-500">
+                          {dc.type === 'percentage'
+                            ? `${dc.value}%`
+                            : formatRupiah(dc.value)}
+                        </span>
+                        <CombinableTag combinable={!!dc.combinable} />
+                      </span>
                     </button>
                   ))}
               </div>
@@ -169,13 +243,14 @@ export const PromoPanel = memo(function PromoPanel({
           {/* Available promotions — multi-toggle */}
           {activePromos.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-700 mb-2">
+              <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
                 Promosi Aktif
               </p>
               <div className="space-y-2">
                 {activePromos.map(({ promo, violations }) => {
                   const invalid = violations.length > 0
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
+                  const savings = invalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
                   return (
                     <button
                       key={promo.id}
@@ -183,35 +258,46 @@ export const PromoPanel = memo(function PromoPanel({
                       disabled={invalid}
                       className={`w-full text-left p-3 rounded-xl border transition-all ${
                         invalid
-                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                           : isApplied
-                            ? 'border-green-400 bg-green-50'
-                            : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                            ? 'border-green-400 bg-green-50 ring-1 ring-green-300'
+                            : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 active:bg-indigo-100'
                       }`}
                     >
-                      <p className="text-xs font-bold text-gray-800">
-                        {promo.name}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-bold text-gray-800">{promo.name}</p>
+                        {invalid ? null : isApplied ? (
+                          <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">
+                            ✓ Diterapkan
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">
+                            + Tambah
+                          </span>
+                        )}
+                      </div>
                       {promo.description && (
                         <p className="text-[10px] text-gray-500 mt-0.5">
                           {promo.description}
                         </p>
                       )}
                       <p className="text-[10px] text-indigo-600 mt-1">
-                        {promo.type === 'percentage'
-                          ? `Diskon ${promo.value}%`
-                          : promo.type === 'fixed'
-                            ? `Potongan ${formatRupiah(promo.value)}`
-                            : 'BOGO'}
-                        {promo.minPurchase
-                          ? ` · Min. ${formatRupiah(promo.minPurchase)}`
-                          : ''}
+                        {promoRuleLabel(promo)}
+                        {!invalid && savings > 0 && (
+                          <span className="text-gray-500">
+                            {' · '}hemat {formatRupiah(savings)}
+                          </span>
+                        )}
                       </p>
-                      {invalid && (
-                        <p className="text-[10px] text-red-500 mt-1 font-semibold">
-                          {violationMessage(violations[0])}
-                        </p>
-                      )}
+                      <div className="mt-1.5">
+                        {invalid ? (
+                          <span className="text-[10px] text-red-500 font-semibold">
+                            {violationMessage(violations[0])}
+                          </span>
+                        ) : (
+                          <CombinableTag combinable={!!promo.combinable} />
+                        )}
+                      </div>
                     </button>
                   )
                 })}
