@@ -630,6 +630,44 @@ func dedupeNonEmpty(ss []string) []string {
 	return out
 }
 
+// combinedViolations returns code-gate + linked-promotion violations as a fresh
+// slice (Model A intersection: a linked code passes only if BOTH the code's gates
+// and the promotion's rules pass). Does not mutate either argument.
+func combinedViolations(code, promo []PromoViolation) []PromoViolation {
+	out := make([]PromoViolation, 0, len(code)+len(promo))
+	out = append(out, code...)
+	out = append(out, promo...)
+	return out
+}
+
+// loadPromoSpec loads an ACTIVE promotion by id, builds its PromoSpec, and returns
+// its combinable + code_only flags and validation violations. found=false on
+// ErrNoRows (caller decides reject-vs-flag by origin).
+func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID string, ec PromoEvalContext) (spec PromoSpec, combinable, codeOnly bool, vio []PromoViolation, found bool, err error) {
+	var kind string
+	var value float64
+	var ids []string
+	var row PromoRow
+	e := tx.QueryRow(ctx,
+		`SELECT type, value,
+		   COALESCE(applicable_product_ids,'[]'::jsonb),
+		   start_date, end_date, min_purchase,
+		   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
+		   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb),
+		   COALESCE(combinable,false), COALESCE(code_only,false)
+		   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
+		Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
+			&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs, &row.Combinable, &codeOnly)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return PromoSpec{}, false, false, nil, false, nil
+	}
+	if e != nil {
+		return PromoSpec{}, false, false, nil, false, fmt.Errorf("load promotion: %w", e)
+	}
+	spec = PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo"}
+	return spec, row.Combinable, codeOnly, ValidatePromo(row, ec), true, nil
+}
+
 // resolvePromos turns the applied promotion ids + discount codes into authoritative
 // PromoSpecs, validating each stored gating rule (SP-Promo-1) AND the cross-discount
 // combinability gate (SP-Promo-3a). Returns the applied discount_codes row ids (for
@@ -637,6 +675,13 @@ func dedupeNonEmpty(ss []string) []string {
 // applied_discount_codes — only codes that successfully loaded), a non-empty
 // warnReason when an OFFLINE order applied invalid/conflicting discounts (recorded +
 // flagged), and *ErrDiscountRejected for an ONLINE conflict (caller -> HTTP 422).
+//
+// SP-Promo-3c (Model A): when a discount code has a non-null promotion_id, the LINKED
+// PROMOTION supplies all discount mechanics; the code acts as a key — both the code's
+// gates (ValidateCode) AND the promotion's rules (ValidatePromo) must pass (intersection).
+// A code_only promotion is blocked on the direct promoIDs path and only reachable via a
+// linked code. Deduplication prevents the same promotion from being applied twice across
+// the direct and linked paths.
 func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, codes []string, ec PromoEvalContext, offline bool) ([]PromoSpec, []string /*codeIDs*/, []string /*appliedCodes*/, string, error) {
 	// I1: dedupe both lists before processing — a duplicate code would double-increment
 	// usage_count and falsely trip the combinability gate (two entries → len>1).
@@ -648,62 +693,65 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	var appliedCodes []string
 	var combinable []bool
 	var violations []PromoViolation
+	seen := map[string]bool{} // resolved promotion ids already applied (cross-path dedupe)
 
+	reject := func(v []PromoViolation) ([]PromoSpec, []string, []string, string, error) {
+		return nil, nil, nil, "", &ErrDiscountRejected{Violations: v}
+	}
+
+	// ── direct promotions ────────────────────────────────────
 	for _, promoID := range promoIDs {
 		if promoID == "" {
 			continue
 		}
-		var kind string
-		var value float64
-		var ids []string
-		var row PromoRow
-		err := tx.QueryRow(ctx,
-			`SELECT type, value,
-			   COALESCE(applicable_product_ids,'[]'::jsonb),
-			   start_date, end_date, min_purchase,
-			   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
-			   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb),
-			   COALESCE(combinable,false)
-			   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
-			Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
-				&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs, &row.Combinable)
-		if errors.Is(err, pgx.ErrNoRows) {
+		spec, comb, codeOnly, vio, found, err := s.loadPromoSpec(ctx, tx, promoID, ec)
+		if err != nil {
+			return nil, nil, nil, "", err
+		}
+		if !found {
 			if !offline {
-				return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+				return reject([]PromoViolation{ViolationNotFound})
 			}
 			violations = append(violations, ViolationNotFound)
-			continue // can't reconstruct value offline
+			continue
 		}
-		if err != nil {
-			return nil, nil, nil, "", fmt.Errorf("load promotion: %w", err)
-		}
-		spec := PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo"}
-		if vio := ValidatePromo(row, ec); len(vio) > 0 {
+		// code_only promotions can't be applied directly — only via a linked code.
+		if codeOnly {
 			if !offline {
-				return nil, nil, nil, "", &ErrDiscountRejected{Violations: vio}
+				return reject([]PromoViolation{ViolationNotFound})
+			}
+			violations = append(violations, ViolationNotFound)
+			continue
+		}
+		if len(vio) > 0 {
+			if !offline {
+				return reject(vio)
 			}
 			violations = append(violations, vio...)
 		}
+		seen[promoID] = true
 		specs = append(specs, spec)
-		combinable = append(combinable, row.Combinable)
+		combinable = append(combinable, comb)
 	}
 
+	// ── discount codes ───────────────────────────────────────
 	for _, code := range codes {
 		if code == "" {
 			continue
 		}
 		var id, kind string
 		var value float64
+		var promotionID *string
 		var row CodeRow
 		// FOR UPDATE: hold the row lock from validation through usage_count++ later
 		// in this same tx — makes the usage_limit check race-safe.
 		err := tx.QueryRow(ctx,
-			`SELECT id, type, value, start_date, end_date, min_purchase, usage_limit, usage_count, combinable
+			`SELECT id, promotion_id, type, value, start_date, end_date, min_purchase, usage_limit, usage_count, combinable
 			   FROM discount_codes WHERE code=$1 AND is_active=true FOR UPDATE`, code).
-			Scan(&id, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount, &row.Combinable)
+			Scan(&id, &promotionID, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount, &row.Combinable)
 		if errors.Is(err, pgx.ErrNoRows) {
 			if !offline {
-				return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationNotFound}}
+				return reject([]PromoViolation{ViolationNotFound})
 			}
 			violations = append(violations, ViolationNotFound)
 			continue
@@ -711,13 +759,49 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 		if err != nil {
 			return nil, nil, nil, "", fmt.Errorf("load discount code: %w", err)
 		}
-		spec := PromoSpec{Kind: DiscountKind(kind), Value: value}
-		if vio := ValidateCode(row, ec); len(vio) > 0 {
-			if !offline {
-				return nil, nil, nil, "", &ErrDiscountRejected{Violations: vio}
+
+		codeVio := ValidateCode(row, ec)
+
+		// ── LINKED CODE (Model A: code is a key) ──────────────
+		if promotionID != nil && *promotionID != "" {
+			if seen[*promotionID] {
+				slog.Warn("linked promotion already applied; skipping redundant code",
+					"code", code, "promotionId", *promotionID)
+				continue
 			}
-			violations = append(violations, vio...)
+			pspec, pcomb, _, pvio, found, lerr := s.loadPromoSpec(ctx, tx, *promotionID, ec)
+			if lerr != nil {
+				return nil, nil, nil, "", lerr
+			}
+			if !found {
+				if !offline {
+					return reject([]PromoViolation{ViolationNotFound})
+				}
+				violations = append(violations, ViolationNotFound)
+				continue
+			}
+			if all := combinedViolations(codeVio, pvio); len(all) > 0 {
+				if !offline {
+					return reject(all)
+				}
+				violations = append(violations, all...)
+			}
+			seen[*promotionID] = true
+			specs = append(specs, pspec)
+			combinable = append(combinable, pcomb)
+			codeIDs = append(codeIDs, id)
+			appliedCodes = append(appliedCodes, code)
+			continue
 		}
+
+		// ── UNLINKED CODE (pre-3c behavior, byte-identical) ───
+		if len(codeVio) > 0 {
+			if !offline {
+				return reject(codeVio)
+			}
+			violations = append(violations, codeVio...)
+		}
+		spec := PromoSpec{Kind: DiscountKind(kind), Value: value}
 		specs = append(specs, spec)
 		// C1: append id and code string in lockstep so appliedCodes mirrors codeIDs.
 		// Only codes that successfully loaded (no pgx.ErrNoRows continue above) reach here.
@@ -728,7 +812,7 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 
 	if v := combinabilityViolation(combinable); v != nil {
 		if !offline {
-			return nil, nil, nil, "", &ErrDiscountRejected{Violations: []PromoViolation{*v}}
+			return reject([]PromoViolation{*v})
 		}
 		violations = append(violations, *v)
 	}
