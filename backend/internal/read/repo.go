@@ -836,6 +836,7 @@ func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
 		   'combinableWith',combinable_with,'activeFromHour',active_from_hour,
 		   'activeToHour',active_to_hour,'activeDays',active_days,
 		   'isActive',is_active,'startDate',start_date,'endDate',end_date,
+		   'codeOnly',code_only,
 		   'createdAt',created_at) FROM promotions ORDER BY created_at DESC`)
 }
 
