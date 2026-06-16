@@ -14,10 +14,10 @@ const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 const EMPTY_PROMO: PromotionInput = {
   name: '', description: '', type: 'percentage', value: 0, minPurchase: 0,
   applicableProductIds: [], applicableVariantKeys: [], isActive: true,
-  combinable: false, activeFromHour: '', activeToHour: '', activeDays: [],
+  combinable: false, codeOnly: false, activeFromHour: '', activeToHour: '', activeDays: [],
 }
 const EMPTY_CODE: DiscountCodeInput = {
-  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false,
+  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
 }
 
 export default function Promotions() {
@@ -47,8 +47,9 @@ export default function Promotions() {
       minPurchase: p.minPurchase || 0, applicableProductIds: p.applicableProductIds || [],
       applicableVariantKeys: p.applicableVariantKeys || [], isActive: p.isActive,
       startDate: p.startDate || undefined, endDate: p.endDate || undefined,
-      combinable: p.combinable ?? false, activeFromHour: p.activeFromHour || '',
-      activeToHour: p.activeToHour || '', activeDays: p.activeDays || [],
+      combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
+      activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
+      activeDays: p.activeDays || [],
     })
     setPromoOpen(true)
   }
@@ -70,9 +71,10 @@ export default function Promotions() {
       value: p.value, minPurchase: p.minPurchase || 0,
       applicableProductIds: p.applicableProductIds || [],
       applicableVariantKeys: p.applicableVariantKeys || [], isActive: p.isActive,
-      combinable: p.combinable ?? false, activeFromHour: p.activeFromHour || '',
-      activeToHour: p.activeToHour || '', activeDays: p.activeDays || [],
-      startDate: p.startDate || undefined, endDate: p.endDate || undefined,
+      combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
+      activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
+      activeDays: p.activeDays || [], startDate: p.startDate || undefined,
+      endDate: p.endDate || undefined,
     })
     await prq.refetch()
   }
@@ -81,9 +83,10 @@ export default function Promotions() {
       name: p.name, description: p.description || '', type: p.type, value: p.value,
       minPurchase: p.minPurchase || 0, applicableProductIds: p.applicableProductIds || [],
       applicableVariantKeys: p.applicableVariantKeys || [], isActive: !p.isActive,
-      combinable: p.combinable ?? false, activeFromHour: p.activeFromHour || '',
-      activeToHour: p.activeToHour || '', activeDays: p.activeDays || [],
-      startDate: p.startDate || undefined, endDate: p.endDate || undefined,
+      combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
+      activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
+      activeDays: p.activeDays || [], startDate: p.startDate || undefined,
+      endDate: p.endDate || undefined,
     })
     await prq.refetch()
   }
@@ -93,6 +96,7 @@ export default function Promotions() {
     setCodeForm({
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
       usageLimit: c.usageLimit || 0, isActive: c.isActive, combinable: c.combinable ?? false,
+      promotionId: c.promotionId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
     setCodeOpen(true)
@@ -101,7 +105,12 @@ export default function Promotions() {
     if (!codeForm.code.trim()) return
     setBusy(true)
     try {
-      const body = { ...codeForm, code: codeForm.code.toUpperCase() }
+      const body = {
+        ...codeForm,
+        code: codeForm.code.toUpperCase(),
+        // Send undefined (omit) when empty so backend nulls it; send the id when linked
+        promotionId: codeForm.promotionId || undefined,
+      }
       if (editingCode) await api.updateDiscountCode(editingCode.id, body)
       else await api.createDiscountCode(body)
       setCodeOpen(false)
@@ -114,6 +123,7 @@ export default function Promotions() {
     await api.updateDiscountCode(c.id, {
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
       usageLimit: c.usageLimit || 0, isActive: !c.isActive, combinable: c.combinable ?? false,
+      promotionId: c.promotionId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
     await dcq.refetch()
@@ -232,6 +242,7 @@ export default function Promotions() {
                           <p className="font-bold text-gray-900 text-sm">{p.name}</p>
                           {p.description && <p className="text-xs text-gray-400">{p.description}</p>}
                           {p.combinable && <Badge tone="gold" className="inline-block mt-0.5">Bisa Kombinasi</Badge>}
+                          {p.codeOnly && <Badge tone="gold" className="inline-block mt-0.5 ml-1">Hanya kode</Badge>}
                         </td>
                         <td className="px-5 py-3"><Badge tone="gold">{p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO'}</Badge></td>
                         <td className="px-5 py-3 font-bold text-gray-900 text-sm">{p.type === 'percentage' ? `${p.value}%` : p.type === 'fixed' ? BRAND.currency.format(p.value) : 'Buy 1 Get 1'}</td>
@@ -277,6 +288,11 @@ export default function Promotions() {
                           <IconButton onClick={() => navigator.clipboard.writeText(c.code)} className="p-1"><Copy className="w-3.5 h-3.5" /></IconButton>
                         </div>
                         {c.combinable && <Badge tone="gold" className="inline-block mt-0.5">Bisa Kombinasi</Badge>}
+                        {c.promotionId && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Tertaut: {promotions.find((p) => p.id === c.promotionId)?.name ?? c.promotionId}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-3 font-bold text-gray-900 text-sm">{c.type === 'percentage' ? `${c.value}%` : BRAND.currency.format(c.value)}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</td>
@@ -338,6 +354,10 @@ export default function Promotions() {
             <input type="checkbox" checked={promoForm.combinable ?? false} onChange={(e) => setPromoForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
             <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promosi lain</span>
           </label>
+          <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={promoForm.codeOnly ?? false} onChange={(e) => setPromoForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
+            <span className="text-sm font-bold text-gray-900">Hanya via kode (sembunyikan dari panel kasir)</span>
+          </label>
           <Field label="Varian Spesifik (opsional)">
             <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
               {products.map((p) => (
@@ -388,13 +408,39 @@ export default function Promotions() {
               <Button variant="secondary" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={() => setCodeForm((f) => ({ ...f, code: generateCode() }))} />
             </div>
           </Field>
+          <Select
+            label="Tautkan ke promosi"
+            value={codeForm.promotionId ?? ''}
+            onChange={(e) => setCodeForm((f) => ({ ...f, promotionId: e.target.value || undefined }))}
+          >
+            <option value="">— Tidak ditautkan —</option>
+            {promotions.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Tipe" value={codeForm.type} onChange={(e) => setCodeForm((f) => ({ ...f, type: e.target.value as DiscountCodeInput['type'] }))}>
+            <Select
+              label="Tipe"
+              value={codeForm.type}
+              onChange={(e) => setCodeForm((f) => ({ ...f, type: e.target.value as DiscountCodeInput['type'] }))}
+              disabled={!!codeForm.promotionId}
+            >
               <option value="percentage">Persentase (%)</option>
               <option value="fixed">Nominal (Rp)</option>
             </Select>
-            <Input label="Nilai" type="number" value={codeForm.value} onChange={(e) => setCodeForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
+            <Input
+              label="Nilai"
+              type="number"
+              value={codeForm.value}
+              onChange={(e) => setCodeForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))}
+              disabled={!!codeForm.promotionId}
+            />
           </div>
+          {!!codeForm.promotionId && (
+            <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg -mt-2">
+              Tipe &amp; nilai diikuti dari promosi tertaut.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Input label="Min. Beli" type="number" value={codeForm.minPurchase || ''} onChange={(e) => setCodeForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
             <Input label="Batas Pakai" type="number" value={codeForm.usageLimit || ''} onChange={(e) => setCodeForm((f) => ({ ...f, usageLimit: parseInt(e.target.value) || 0 }))} />
