@@ -1004,6 +1004,9 @@ components:
         isActive: { type: boolean }
         startDate: { type: string, nullable: true }
         endDate: { type: string, nullable: true }
+        codeOnly:
+          type: boolean
+          description: When true, hidden from the POS panel; reachable only via a linked discount code.
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
       type: object
@@ -1658,6 +1661,9 @@ components:
         isActive: { type: boolean }
         startDate: { type: string }
         endDate: { type: string }
+        codeOnly:
+          type: boolean
+          description: When true, hidden from the POS panel; reachable only via a linked discount code.
     DiscountCodeInput:
       type: object
       required: [code, type, value, isActive]
