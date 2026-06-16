@@ -40,7 +40,7 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
-import { calcPromoDiscount } from './pricing'
+import { calcPromoDiscount, linkedPromoShape } from './pricing'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -467,8 +467,7 @@ export default function CashierScreen() {
         return
       }
       setPromoCodeError(null)
-      const dc = discountCodes.find((d) => d.code.toUpperCase() === code && d.isActive)
-      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: dc?.combinable ?? false })
+      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: decision.code.combinable ?? false })
     } finally {
       setIsValidatingCode(false)
     }
@@ -556,11 +555,7 @@ export default function CashierScreen() {
           kind: c.promotion ? c.promotion.type : c.type,
           value: c.promotion ? c.promotion.value : c.value,
           amount: c.promotion
-            ? calcPromoDiscount(
-                { id: c.promotion.id, name: c.code, type: c.promotion.type as 'percentage' | 'fixed' | 'bogo', value: c.promotion.value, applicableProductIds: c.promotion.applicableProductIds ?? null, isActive: true, createdAt: '' },
-                state.cart,
-                derived.subtotal,
-              )
+            ? calcPromoDiscount(linkedPromoShape(c), state.cart, derived.subtotal)
             : c.type === 'percentage'
               ? Math.round(derived.subtotal * (c.value / 100))
               : Math.min(c.value, derived.subtotal),

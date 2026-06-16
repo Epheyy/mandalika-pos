@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { calcPromoDiscount, formatRupiah } from './pricing'
+import { calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
@@ -88,24 +88,12 @@ export const PromoPanel = memo(function PromoPanel({
   // SP-Promo-3c: linked codes delegate to calcPromoDiscount via the promotion shape.
   const codeSavings = (c: AppliedPromoCode) => {
     if (c.promotion) {
-      const promoShape: Promotion = {
-        id: c.promotion.id,
-        name: c.code,
-        type: c.promotion.type as Promotion['type'],
-        value: c.promotion.value,
-        applicableProductIds: c.promotion.applicableProductIds ?? null,
-        isActive: true,
-        createdAt: '',
-      }
-      return calcPromoDiscount(promoShape, cart, subtotal)
+      return calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
     }
     return c.type === 'percentage'
       ? Math.round(subtotal * (c.value / 100))
       : Math.min(c.value, subtotal)
   }
-  const codeCombinable = (code: string) =>
-    discountCodes.find((dc) => dc.code === code)?.combinable ?? false
-
   // Rule label for an applied code chip
   const codeRuleLabel = (c: AppliedPromoCode): string => {
     if (c.promotion) {
@@ -184,7 +172,7 @@ export const PromoPanel = memo(function PromoPanel({
                         <p className="text-xs font-semibold text-green-900 truncate">
                           {c.code}
                         </p>
-                        <CombinableTag combinable={codeCombinable(c.code)} />
+                        <CombinableTag combinable={c.combinable ?? false} />
                       </div>
                       <p className="text-[10px] text-green-700/80">
                         {codeRuleLabel(c)}

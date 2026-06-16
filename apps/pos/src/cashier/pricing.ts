@@ -72,6 +72,24 @@ export interface PricingInput {
   customerPoints: number
 }
 
+/**
+ * Build the Promotion-shaped object needed by calcPromoDiscount for a linked
+ * AppliedPromoCode. All three sites that needed this shape (pricing.ts,
+ * PromoPanel.tsx, CashierScreen.tsx) use this helper so they can never desync.
+ */
+export function linkedPromoShape(c: AppliedPromoCode): Promotion {
+  if (!c.promotion) throw new Error('linkedPromoShape called on unlinked code')
+  return {
+    id: c.promotion.id,
+    name: c.code,
+    type: c.promotion.type as Promotion['type'],
+    value: c.promotion.value,
+    applicableProductIds: c.promotion.applicableProductIds ?? null,
+    isActive: true,
+    createdAt: '',
+  }
+}
+
 export function computePricing(input: PricingInput): PricingResult {
   const {
     cart,
@@ -110,16 +128,7 @@ export function computePricing(input: PricingInput): PricingResult {
       // SP-Promo-3c: linked codes carry a promotion snapshot; delegate to the
       // same calcPromoDiscount used for appliedPromotions so BOGO/scoping work.
       if (c.promotion) {
-        const promoShape: Promotion = {
-          id: c.promotion.id,
-          name: c.code,
-          type: c.promotion.type as Promotion['type'],
-          value: c.promotion.value,
-          applicableProductIds: c.promotion.applicableProductIds ?? null,
-          isActive: true,
-          createdAt: '',
-        }
-        return sum + calcPromoDiscount(promoShape, cart, subtotal)
+        return sum + calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
       }
       // Unlinked code: flat percentage or fixed discount off the whole cart
       return sum + (c.type === 'percentage'

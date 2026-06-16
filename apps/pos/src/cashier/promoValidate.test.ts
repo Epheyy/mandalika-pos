@@ -181,4 +181,33 @@ describe('decideApplyCode — linked codes', () => {
     const result = decideApplyCode('atm100', [linkedCode], baseCtx, [linkedPromo])
     expect(result.ok).toBe(true)
   })
+
+  // I1 regression: a non-combinable promotion linked to a combinable code must
+  // yield combinable:false on the applied code (promotion wins, not the raw code).
+  it('linked code inherits promotion combinable=false even when code.combinable=true', () => {
+    const nonCombinablePromo: Promotion = { ...linkedPromo, combinable: false }
+    const combinableCode: components['schemas']['DiscountCode'] = {
+      ...linkedCode,
+      combinable: true, // code says combinable — but promotion overrides
+    }
+    const result = decideApplyCode('ATM100', [combinableCode], baseCtx, [nonCombinablePromo])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Must carry the promotion's combinable, not the code's
+    expect(result.code.combinable).toBe(false)
+  })
+
+  // I1 corollary: a combinable promotion linked to a non-combinable code must
+  // yield combinable:true (promotion wins in both directions).
+  it('linked code inherits promotion combinable=true even when code.combinable=false', () => {
+    const combinablePromo: Promotion = { ...linkedPromo, combinable: true }
+    const nonCombinableCode: components['schemas']['DiscountCode'] = {
+      ...linkedCode,
+      combinable: false,
+    }
+    const result = decideApplyCode('ATM100', [nonCombinableCode], baseCtx, [combinablePromo])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.code.combinable).toBe(true)
+  })
 })
