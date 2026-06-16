@@ -481,6 +481,7 @@ type Promotion struct {
 	OutletIDs              []string `json:"outletIds"`
 	Combinable             *bool    `json:"combinable"`
 	CombinableWith         []string `json:"combinableWith"`
+	CodeOnly               bool     `json:"codeOnly"`
 	ActiveFromHour         string   `json:"activeFromHour"`
 	ActiveToHour           string   `json:"activeToHour"`
 	ActiveDays             []int    `json:"activeDays"`
@@ -503,13 +504,13 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			  applicable_product_ids, applicable_variant_keys,
 			  applicable_variant_sizes, outlet_ids, combinable, combinable_with,
 			  active_from_hour, active_to_hour, active_days, is_active,
-			  start_date, end_date)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+			  start_date, end_date, code_only)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 			RETURNING id`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate)).Scan(&id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly).Scan(&id)
 	})
 	return id, err
 }
@@ -527,12 +528,12 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			  min_purchase=$5, applicable_product_ids=$6, applicable_variant_keys=$7,
 			  applicable_variant_sizes=$8, outlet_ids=$9, combinable=$10,
 			  combinable_with=$11, active_from_hour=$12, active_to_hour=$13,
-			  active_days=$14, is_active=$15, start_date=$16, end_date=$17
-			WHERE id=$18`,
+			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18
+			WHERE id=$19`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
