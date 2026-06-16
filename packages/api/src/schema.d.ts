@@ -2671,6 +2671,8 @@ export interface components {
             isActive: boolean;
             startDate?: string | null;
             endDate?: string | null;
+            /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
+            codeOnly?: boolean;
             /** Format: date-time */
             createdAt: string;
         };
@@ -3220,6 +3222,8 @@ export interface components {
             isActive: boolean;
             startDate?: string;
             endDate?: string;
+            /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
+            codeOnly?: boolean;
         };
         DiscountCodeInput: {
             code: string;
