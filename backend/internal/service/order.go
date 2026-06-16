@@ -718,9 +718,9 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 		// code_only promotions can't be applied directly — only via a linked code.
 		if codeOnly {
 			if !offline {
-				return reject([]PromoViolation{ViolationNotFound})
+				return reject([]PromoViolation{ViolationCodeOnly})
 			}
-			violations = append(violations, ViolationNotFound)
+			violations = append(violations, ViolationCodeOnly)
 			continue
 		}
 		if len(vio) > 0 {

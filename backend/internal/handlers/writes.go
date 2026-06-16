@@ -1411,6 +1411,8 @@ func discountRejectMessage(v []service.PromoViolation) string {
 		return "Diskon tidak ditemukan"
 	case service.ViolationNotCombinable:
 		return "Promo/kode ini tidak bisa digabung"
+	case service.ViolationCodeOnly:
+		return "Promo ini hanya bisa dipakai lewat kode"
 	default:
 		return "Diskon tidak berlaku"
 	}

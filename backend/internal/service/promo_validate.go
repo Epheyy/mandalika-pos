@@ -19,6 +19,7 @@ const (
 	ViolationUsageLimit    PromoViolation = "usage_limit_reached"
 	ViolationNotFound      PromoViolation = "not_found"
 	ViolationNotCombinable PromoViolation = "not_combinable"
+	ViolationCodeOnly      PromoViolation = "code_only" // promo applied directly but is reachable only via a linked code
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
