@@ -21,6 +21,7 @@ export type Violation =
   | 'outside_hours'
   | 'wrong_outlet'
   | 'usage_limit_reached'
+  | 'code_only'
 
 export interface PromoEvalContext {
   now: Date
@@ -88,17 +89,32 @@ const MESSAGES: Record<Violation, string> = {
   wrong_day: 'Tidak berlaku hari ini',
   wrong_outlet: 'Tidak berlaku di outlet ini',
   usage_limit_reached: 'Kuota kode diskon sudah habis',
+  code_only: 'Promo ini hanya bisa dipakai lewat kode',
 }
 
 export function violationMessage(v: Violation): string {
   return MESSAGES[v]
 }
 
+// When a discount code is linked to a promotion, the promotion supplies all
+// discount mechanics. This payload is carried on AppliedPromoCode so the
+// pricing layer (computePricing) can delegate to calcPromoDiscount instead of
+// applying the code's own flat value.
+export interface LinkedPromotionInfo {
+  id: string
+  type: string
+  value: number
+  applicableProductIds?: string[] | null
+  isBOGO: boolean
+}
+
 export interface AppliedPromoCode {
   code: string
   value: number
-  type: 'percentage' | 'fixed'
+  type: 'percentage' | 'fixed' | 'bogo'
   combinable?: boolean
+  /** Present only for codes that link to a promotion (SP-Promo-3c). */
+  promotion?: LinkedPromotionInfo
 }
 
 export type ApplyCodeDecision =
@@ -108,15 +124,51 @@ export type ApplyCodeDecision =
 // Pure decision for applying a typed promo code: find an active code by name
 // (case-insensitive), validate it, and either return the payload to dispatch or
 // a human reason to show. The handler stays a thin wrapper around this.
+//
+// SP-Promo-3c: when the code carries a promotionId, the linked promotion
+// supplies ALL discount mechanics (type/value/scoping/BOGO). Both the code's
+// own constraints AND the promotion's constraints must pass (intersection rule,
+// mirroring resolvePromos in promo_validate.go).
 export function decideApplyCode(
   typed: string,
   codes: DiscountCode[],
   ctx: PromoEvalContext,
+  promotions: Promotion[] = [],
 ): ApplyCodeDecision {
   const upper = typed.trim().toUpperCase()
   const dc = codes.find((d) => d.code.toUpperCase() === upper && d.isActive)
   if (!dc) return { ok: false, reason: 'Kode tidak ditemukan' }
-  const violations = validateCode(dc, ctx)
-  if (violations.length > 0) return { ok: false, reason: violationMessage(violations[0]) }
+
+  const codeViolations = validateCode(dc, ctx)
+
+  if (dc.promotionId) {
+    // Linked code: find the active promotion
+    const promo = promotions.find((p) => p.id === dc.promotionId && p.isActive)
+    if (!promo) return { ok: false, reason: 'Promo tertaut tidak tersedia' }
+
+    // Intersection: code constraints ∩ promotion constraints must all pass
+    const all = [...codeViolations, ...validatePromo(promo, ctx)]
+    if (all.length > 0) return { ok: false, reason: violationMessage(all[0]) }
+
+    return {
+      ok: true,
+      code: {
+        code: dc.code,
+        value: promo.value,
+        type: promo.type,
+        combinable: promo.combinable ?? false,
+        promotion: {
+          id: promo.id,
+          type: promo.type,
+          value: promo.value,
+          applicableProductIds: promo.applicableProductIds,
+          isBOGO: promo.type === 'bogo',
+        },
+      },
+    }
+  }
+
+  // Unlinked code: today's behavior unchanged
+  if (codeViolations.length > 0) return { ok: false, reason: violationMessage(codeViolations[0]) }
   return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type } }
 }

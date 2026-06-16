@@ -4,6 +4,7 @@ import {
   validatePromo,
   validateCode,
   violationMessage,
+  decideApplyCode,
   type Violation,
 } from './promoValidate'
 
@@ -84,10 +85,100 @@ describe('violationMessage', () => {
   const all: Violation[] = [
     'not_started', 'expired', 'below_min_purchase',
     'wrong_day', 'outside_hours', 'wrong_outlet', 'usage_limit_reached',
+    'code_only',
   ]
   it('returns a non-empty Indonesian string for every violation', () => {
     for (const v of all) {
       expect(violationMessage(v).length).toBeGreaterThan(0)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// decideApplyCode — linked-code (SP-Promo-3c) tests
+// ---------------------------------------------------------------------------
+
+describe('decideApplyCode — linked codes', () => {
+  // A BOGO promotion that is code_only (hidden from panel, reached via code)
+  const linkedPromo: components['schemas']['Promotion'] = {
+    id: 'p1',
+    name: 'ATM BOGO',
+    type: 'bogo',
+    value: 0,
+    applicableProductIds: ['atm'],
+    isActive: true,
+    codeOnly: true,
+    createdAt: '2026-01-01T00:00:00Z',
+  }
+
+  // A code whose own type/value should be IGNORED because it links to a promotion
+  const linkedCode: components['schemas']['DiscountCode'] = {
+    id: 'c1',
+    code: 'ATM100',
+    promotionId: 'p1',
+    type: 'fixed',
+    value: 999, // must be ignored; promotion mechanics take over
+    usageLimit: 1,
+    usageCount: 0,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+  }
+
+  // An unlinked code — today's flat-value behavior must be unchanged
+  const unlinkedCode: components['schemas']['DiscountCode'] = {
+    id: 'c2',
+    code: 'FLAT10K',
+    type: 'fixed',
+    value: 10000,
+    usageCount: 0,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+  }
+
+  it('linked code inherits promotion mechanics (type, value, isBOGO)', () => {
+    const result = decideApplyCode('ATM100', [linkedCode], baseCtx, [linkedPromo])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Must NOT use the code's own value (999) / type (fixed)
+    expect(result.code.value).toBe(0)
+    expect(result.code.type).toBe('bogo')
+    // Must carry promotion metadata
+    expect(result.code.promotion).toBeDefined()
+    expect(result.code.promotion?.id).toBe('p1')
+    expect(result.code.promotion?.isBOGO).toBe(true)
+    expect(result.code.promotion?.applicableProductIds).toEqual(['atm'])
+  })
+
+  it('linked code is rejected when the underlying promotion is expired', () => {
+    const expiredPromo: components['schemas']['Promotion'] = {
+      ...linkedPromo,
+      endDate: '2026-01-01', // past relative to NOW (2026-06-13)
+    }
+    const result = decideApplyCode('ATM100', [linkedCode], baseCtx, [expiredPromo])
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.reason.length).toBeGreaterThan(0)
+  })
+
+  it('linked code is rejected when the promotion is not found in the list', () => {
+    // Pass empty promotions list — linked promotion unavailable
+    const result = decideApplyCode('ATM100', [linkedCode], baseCtx, [])
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.reason.length).toBeGreaterThan(0)
+  })
+
+  it('unlinked code returns its own value and type unchanged', () => {
+    const result = decideApplyCode('FLAT10K', [unlinkedCode], baseCtx, [linkedPromo])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.code.value).toBe(10000)
+    expect(result.code.type).toBe('fixed')
+    expect(result.code.promotion).toBeUndefined()
+  })
+
+  it('code search is case-insensitive for linked codes', () => {
+    const result = decideApplyCode('atm100', [linkedCode], baseCtx, [linkedPromo])
+    expect(result.ok).toBe(true)
   })
 })
