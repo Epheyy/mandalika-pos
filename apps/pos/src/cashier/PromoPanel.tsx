@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { calcPromoDiscount, formatRupiah } from './pricing'
-import { validatePromo, violationMessage } from './promoValidate'
+import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -11,7 +11,7 @@ interface PromoPanelProps {
   promotions: Promotion[]
   discountCodes: DiscountCode[]
   appliedPromotions: Promotion[]
-  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
+  appliedPromoCodes: AppliedPromoCode[]
   cart: CartItem[]
   promoCodeInput: string
   isValidating: boolean
@@ -74,8 +74,10 @@ export const PromoPanel = memo(function PromoPanel({
 }: PromoPanelProps) {
   const now = new Date()
   const evalCtx = { now, outletId, subtotal }
+  // code_only promotions are hidden from the browse panel — they are only
+  // reachable by typing the linked discount code (SP-Promo-3c).
   const activePromos = promotions
-    .filter((p) => p.isActive)
+    .filter((p) => p.isActive && !p.codeOnly)
     .map((promo) => ({ promo, violations: validatePromo(promo, evalCtx) }))
 
   const appliedCount = appliedPromotions.length + appliedPromoCodes.length
@@ -83,12 +85,40 @@ export const PromoPanel = memo(function PromoPanel({
 
   // Savings shown in the panel use the SAME calc as the cart total: scoped/BOGO
   // promos go through calcPromoDiscount (needs the cart); codes are whole-cart.
-  const codeSavings = (c: { value: number; type: 'percentage' | 'fixed' }) =>
-    c.type === 'percentage'
+  // SP-Promo-3c: linked codes delegate to calcPromoDiscount via the promotion shape.
+  const codeSavings = (c: AppliedPromoCode) => {
+    if (c.promotion) {
+      const promoShape: Promotion = {
+        id: c.promotion.id,
+        name: c.code,
+        type: c.promotion.type as Promotion['type'],
+        value: c.promotion.value,
+        applicableProductIds: c.promotion.applicableProductIds ?? null,
+        isActive: true,
+        createdAt: '',
+      }
+      return calcPromoDiscount(promoShape, cart, subtotal)
+    }
+    return c.type === 'percentage'
       ? Math.round(subtotal * (c.value / 100))
       : Math.min(c.value, subtotal)
+  }
   const codeCombinable = (code: string) =>
     discountCodes.find((dc) => dc.code === code)?.combinable ?? false
+
+  // Rule label for an applied code chip
+  const codeRuleLabel = (c: AppliedPromoCode): string => {
+    if (c.promotion) {
+      return c.promotion.isBOGO
+        ? 'BOGO (via promo)'
+        : c.promotion.type === 'percentage'
+          ? `Diskon ${c.promotion.value}% (via promo)`
+          : `Potongan ${formatRupiah(c.promotion.value)} (via promo)`
+    }
+    return c.type === 'percentage'
+      ? `Diskon ${c.value}%`
+      : `Potongan ${formatRupiah(c.value)}`
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
@@ -157,9 +187,7 @@ export const PromoPanel = memo(function PromoPanel({
                         <CombinableTag combinable={codeCombinable(c.code)} />
                       </div>
                       <p className="text-[10px] text-green-700/80">
-                        {c.type === 'percentage'
-                          ? `Diskon ${c.value}%`
-                          : `Potongan ${formatRupiah(c.value)}`}
+                        {codeRuleLabel(c)}
                       </p>
                     </div>
                     <p className="text-xs font-bold text-green-800 whitespace-nowrap">

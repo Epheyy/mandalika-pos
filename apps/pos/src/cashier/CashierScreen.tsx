@@ -460,6 +460,7 @@ export default function CashierScreen() {
         code,
         discountCodes,
         { now: new Date(), outletId: authStore.outletId ?? '', subtotal: derived.subtotal },
+        promotions,
       )
       if (!decision.ok) {
         setPromoCodeError(decision.reason)
@@ -507,6 +508,22 @@ export default function CashierScreen() {
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
+      // SP-Promo-3c: for linked codes, also re-validate the linked promotion
+      // (mirrors decideApplyCode's intersection rule)
+      if (c.promotion) {
+        const linkedPromo = promotions.find((p) => p.id === c.promotion!.id && p.isActive)
+        if (!linkedPromo) {
+          showToast('Kode diskon dibatalkan: Promo tertaut tidak tersedia')
+          dispatch({ type: 'CLEAR_PROMOTIONS' })
+          return
+        }
+        const promoVs = validatePromo(linkedPromo, guardCtx)
+        if (promoVs.length > 0) {
+          showToast(`Kode diskon dibatalkan: ${violationMessage(promoVs[0])}`)
+          dispatch({ type: 'CLEAR_PROMOTIONS' })
+          return
+        }
+      }
     }
     if (
       state.appliedPromotions.length + state.appliedPromoCodes.length > 1 &&
@@ -535,10 +552,18 @@ export default function CashierScreen() {
           amount: calcPromoDiscount(p, state.cart, derived.subtotal),
         })),
         ...state.appliedPromoCodes.map((c) => ({
-          label: c.code, kind: c.type, value: c.value,
-          amount: c.type === 'percentage'
-            ? Math.round(derived.subtotal * (c.value / 100))
-            : Math.min(c.value, derived.subtotal),
+          label: c.code,
+          kind: c.promotion ? c.promotion.type : c.type,
+          value: c.promotion ? c.promotion.value : c.value,
+          amount: c.promotion
+            ? calcPromoDiscount(
+                { id: c.promotion.id, name: c.code, type: c.promotion.type as 'percentage' | 'fixed' | 'bogo', value: c.promotion.value, applicableProductIds: c.promotion.applicableProductIds ?? null, isActive: true, createdAt: '' },
+                state.cart,
+                derived.subtotal,
+              )
+            : c.type === 'percentage'
+              ? Math.round(derived.subtotal * (c.value / 100))
+              : Math.min(c.value, derived.subtotal),
         })),
       ].filter(Boolean)
       const { orderUuid } = engine.enqueue('order', {

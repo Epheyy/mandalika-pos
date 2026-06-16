@@ -5,6 +5,7 @@
  */
 
 import type { components } from '@mandalika/api'
+import type { AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
 type AppSettings = components['schemas']['AppSettings']
@@ -63,7 +64,7 @@ export interface PricingInput {
   discountRunning: number
   surchargeRunning: number
   appliedPromotions: Promotion[]
-  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
+  appliedPromoCodes: AppliedPromoCode[]
   settings: AppSettings
   loyalty: LoyaltySettings
   hasCustomer: boolean
@@ -105,14 +106,26 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const promoDiscountAmount =
     appliedPromotions.reduce((sum, p) => sum + calcPromoDiscount(p, cart, subtotal), 0) +
-    appliedPromoCodes.reduce(
-      (sum, c) =>
-        sum +
-        (c.type === 'percentage'
-          ? Math.round(subtotal * (c.value / 100))
-          : Math.min(c.value, subtotal)),
-      0,
-    )
+    appliedPromoCodes.reduce((sum, c) => {
+      // SP-Promo-3c: linked codes carry a promotion snapshot; delegate to the
+      // same calcPromoDiscount used for appliedPromotions so BOGO/scoping work.
+      if (c.promotion) {
+        const promoShape: Promotion = {
+          id: c.promotion.id,
+          name: c.code,
+          type: c.promotion.type as Promotion['type'],
+          value: c.promotion.value,
+          applicableProductIds: c.promotion.applicableProductIds ?? null,
+          isActive: true,
+          createdAt: '',
+        }
+        return sum + calcPromoDiscount(promoShape, cart, subtotal)
+      }
+      // Unlinked code: flat percentage or fixed discount off the whole cart
+      return sum + (c.type === 'percentage'
+        ? Math.round(subtotal * (c.value / 100))
+        : Math.min(c.value, subtotal))
+    }, 0)
 
   const discountAmount = Math.min(
     manualDiscountAmount + promoDiscountAmount,

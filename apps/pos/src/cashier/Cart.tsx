@@ -25,7 +25,7 @@ interface CartProps {
   surchargeRunning: number
   orderNotes: string
   appliedPromotions: Promotion[]
-  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' }[]
+  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' | 'bogo' }[]
   onClearDiscount: () => void
   onRemovePromotion: (id: string) => void
   onRemovePromoCode: (code: string) => void
