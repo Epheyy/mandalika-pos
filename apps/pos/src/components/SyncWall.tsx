@@ -57,6 +57,8 @@ export const SyncWall = memo(function SyncWall({
         {/* Pending count indicator in top-right when online */}
         {isOnline && pendingCount > 0 && (
           <div
+            role="button"
+            tabIndex={0}
             style={{
               position: 'fixed',
               top: 8,
@@ -71,6 +73,12 @@ export const SyncWall = memo(function SyncWall({
               cursor: 'pointer',
             }}
             onClick={onFlush}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onFlush()
+              }
+            }}
             title="Klik untuk sinkronisasi"
           >
             {pendingCount} menunggu ↑

@@ -682,7 +682,7 @@ export default function Products() {
           </div>
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Varian *</label>
+              <label htmlFor="variant-size-0" className="text-xs font-black text-gray-400 uppercase tracking-widest">Varian *</label>
               <Button variant="ghost" size="sm" icon={<Plus className="w-3 h-3" />} onClick={() => setForm((f) => ({ ...f, variants: [...f.variants, { ...EMPTY_VARIANT }] }))}>Tambah</Button>
             </div>
             {!editing && (
@@ -710,7 +710,7 @@ export default function Products() {
                     { k: 'price', span: 'col-span-3', ph: '150000', num: true },
                     { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
                   ] as const).map(({ k, span, ph, num }) => (
-                    <input key={k} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} aria-label={k === 'size' ? 'Ukuran varian' : k === 'price' ? 'Harga dasar varian' : 'SKU varian'} className={`${fieldClass} ${span}`} />
+                    <input key={k} id={i === 0 && k === 'size' ? 'variant-size-0' : undefined} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} aria-label={k === 'size' ? 'Ukuran varian' : k === 'price' ? 'Harga dasar varian' : 'SKU varian'} className={`${fieldClass} ${span}`} />
                   ))}
                   <input
                     type="text"
@@ -743,7 +743,7 @@ export default function Products() {
 
           {editing && (
             <div>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+              <label htmlFor="outlet-config-all-0" className="text-xs font-black text-gray-400 uppercase tracking-widest">
                 Harga &amp; Ketersediaan per Outlet
               </label>
               {ocfgLoading ? (
@@ -752,7 +752,7 @@ export default function Products() {
                 <p className="text-sm text-gray-400 py-3">Tidak ada outlet aktif.</p>
               ) : (
                 <div className="mt-2 space-y-3">
-                  {ocfgOutlets.map((o) => {
+                  {ocfgOutlets.map((o, oi) => {
                     const sizes = form.variants.filter((v) => v.size.trim())
                     const allOn = sizes.length > 0 && sizes.every((v) => ocGet(o.id, v.size).available)
                     const collapsed = ocCollapsed[o.id]
@@ -764,7 +764,7 @@ export default function Products() {
                             <Store className="w-3.5 h-3.5 text-gold-600" /> {o.name}
                           </button>
                           <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-500">
-                            <input type="checkbox" checked={allOn} onChange={(e) => setOutletAllAvailable(o.id, e.target.checked)} className="w-4 h-4 accent-gold-600" />
+                            <input id={oi === 0 ? 'outlet-config-all-0' : undefined} type="checkbox" checked={allOn} onChange={(e) => setOutletAllAvailable(o.id, e.target.checked)} className="w-4 h-4 accent-gold-600" />
                             Dijual di sini (semua)
                           </label>
                         </div>

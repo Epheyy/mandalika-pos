@@ -126,29 +126,29 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
         {/* Filters */}
         <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-end flex-shrink-0">
           <div>
-            <label className="block text-[10px] text-gray-500 font-semibold mb-1">Dari</label>
+            <label htmlFor="history-from" className="block text-[10px] text-gray-500 font-semibold mb-1">Dari</label>
             <input
+              id="history-from"
               type="date" value={from} max={to}
               onChange={(e) => setFrom(e.target.value)}
-              aria-label="Dari tanggal"
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
           <div>
-            <label className="block text-[10px] text-gray-500 font-semibold mb-1">Sampai</label>
+            <label htmlFor="history-to" className="block text-[10px] text-gray-500 font-semibold mb-1">Sampai</label>
             <input
+              id="history-to"
               type="date" value={to} min={from} max={today()}
               onChange={(e) => setTo(e.target.value)}
-              aria-label="Sampai tanggal"
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
           <div className="flex-1 min-w-[140px]">
-            <label className="block text-[10px] text-gray-500 font-semibold mb-1">Cari</label>
+            <label htmlFor="history-search" className="block text-[10px] text-gray-500 font-semibold mb-1">Cari</label>
             <input
+              id="history-search"
               type="text" value={search} placeholder="No. order / nama / telepon"
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Cari transaksi"
               className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>

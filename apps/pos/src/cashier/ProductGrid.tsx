@@ -105,6 +105,12 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
       role="button"
       tabIndex={inStock ? 0 : -1}
       onClick={() => { if (inStock) onTap(product) }}
+      onKeyDown={(e) => {
+        if (inStock && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onTap(product)
+        }
+      }}
       className={`group flex flex-col rounded-xl border text-left overflow-hidden select-none touch-manipulation ${
         inStock
           ? 'border-gray-200 bg-white cursor-pointer hover:border-indigo-300 hover:shadow-md active:scale-[0.98]'

@@ -103,10 +103,11 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
         </div>
 
         {/* Approver select */}
-        <label className="block text-xs text-gray-700 font-semibold mb-1">
+        <label htmlFor="pin-stepup-approver" className="block text-xs text-gray-700 font-semibold mb-1">
           Penyetuju
         </label>
         <select
+          id="pin-stepup-approver"
           value={approverId}
           onChange={(e) => {
             setApproverId(e.target.value)
@@ -122,14 +123,14 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
         </select>
 
         {/* PIN input */}
-        <label className="block text-xs text-gray-700 font-semibold mb-1">
+        <label htmlFor="pin-stepup-pin" className="block text-xs text-gray-700 font-semibold mb-1">
           PIN
         </label>
         <input
+          id="pin-stepup-pin"
           type="password"
           inputMode="numeric"
           maxLength={8}
-          aria-label="PIN"
           value={pin}
           onChange={(e) => {
             setPin(e.target.value.replace(/\D/g, ''))

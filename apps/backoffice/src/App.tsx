@@ -77,6 +77,7 @@ function LoginScreen() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
+            aria-label="Email"
             autoComplete="username"
           />
           <Input
@@ -84,6 +85,7 @@ function LoginScreen() {
             onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Kata sandi"
+            aria-label="Kata sandi"
             autoComplete="current-password"
           />
           <Button type="submit" loading={busy} className="w-full py-3 rounded-2xl">

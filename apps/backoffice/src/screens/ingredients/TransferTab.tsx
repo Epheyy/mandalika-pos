@@ -155,25 +155,25 @@ export default function TransferTab() {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <label htmlFor="ingredient-transfer-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
           <input
+            id="ingredient-transfer-from-date"
             type="date"
             value={fromDate}
             max={toDate || undefined}
             onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
             className={fieldClass}
-            aria-label="Tanggal dari"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <label htmlFor="ingredient-transfer-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
           <input
+            id="ingredient-transfer-to-date"
             type="date"
             value={toDate}
             min={fromDate || undefined}
             onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
             className={fieldClass}
-            aria-label="Tanggal sampai"
           />
         </div>
         <div className="flex items-end gap-2 ml-auto">

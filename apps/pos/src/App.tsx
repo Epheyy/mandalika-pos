@@ -64,34 +64,34 @@ function LoginScreen() {
             <p className="text-sm text-gray-500 mt-1">Masuk untuk memulai shift Anda.</p>
           </div>
 
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">Email</label>
+          <label htmlFor="login-email" className="block text-xs font-bold text-gray-500 mb-1.5">Email</label>
           <div className="relative mb-4">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></svg>
             </span>
             <input
+              id="login-email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="nama@mandalika.com"
               autoComplete="username"
               type="email"
-              aria-label="Email"
               className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
             />
           </div>
 
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">Kata Sandi</label>
+          <label htmlFor="login-password" className="block text-xs font-bold text-gray-500 mb-1.5">Kata Sandi</label>
           <div className="relative mb-2">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             </span>
             <input
+              id="login-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               autoComplete="current-password"
-              aria-label="Kata Sandi"
               className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
             />
             <button

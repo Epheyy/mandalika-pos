@@ -285,13 +285,14 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
 
                 {/* Qty input */}
                 <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">
+                  <label htmlFor={`receive-qty-${key}`} className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">
                     Diterima
                   </label>
                   <input
+                    id={`receive-qty-${key}`}
+                    aria-label="Diterima"
                     type="text"
                     inputMode="numeric"
-                    aria-label="Diterima"
                     value={currentVal}
                     onChange={(e) => handleQtyChange(key, e.target.value)}
                     className={`flex-1 min-w-0 px-3 py-1.5 border rounded-lg text-sm font-bold text-right focus:outline-none transition-colors ${
@@ -308,12 +309,12 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
           {/* Discrepancy reason — required when any line differs */}
           {anyDiff && (
             <div className="border border-red-200 bg-red-50 rounded-xl px-4 py-3">
-              <label className="block text-xs font-bold text-red-700 mb-1.5">
+              <label htmlFor="receive-alasan-selisih" className="block text-xs font-bold text-red-700 mb-1.5">
                 Alasan selisih <span className="font-black">(wajib)</span>
               </label>
               <textarea
+                id="receive-alasan-selisih"
                 rows={3}
-                aria-label="Alasan selisih"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Jelaskan penyebab selisih antara jumlah dikirim dan diterima…"

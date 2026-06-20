@@ -133,10 +133,10 @@ export function MovementSummary() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <label htmlFor="movement-summary-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
           <input
+            id="movement-summary-from-date"
             type="date"
-            aria-label="Tanggal dari"
             value={fromDate}
             max={toDate}
             onChange={(e) => {
@@ -148,10 +148,10 @@ export function MovementSummary() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <label htmlFor="movement-summary-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
           <input
+            id="movement-summary-to-date"
             type="date"
-            aria-label="Tanggal sampai"
             value={toDate}
             min={fromDate}
             onChange={(e) => {

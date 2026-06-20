@@ -55,15 +55,15 @@ export const RefundDialog = memo(function RefundDialog({
           ))}
         </div>
 
-        <label className="block text-xs text-gray-700 font-semibold mb-1">
+        <label htmlFor="refund-reason" className="block text-xs text-gray-700 font-semibold mb-1">
           Alasan Refund *
         </label>
         <textarea
+          id="refund-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Masukkan alasan refund…"
           rows={3}
-          aria-label="Alasan refund"
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-400 mb-4 resize-none"
         />
 

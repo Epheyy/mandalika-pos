@@ -257,7 +257,7 @@ export default function Reports() {
               <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {fOrders.map((o) => (
                   <div key={o.id}>
-                    <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(expanded === o.id ? null : o.id)}>
+                    <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" role="button" tabIndex={0} onClick={() => setExpanded(expanded === o.id ? null : o.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(expanded === o.id ? null : o.id) } }}>
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
                         <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
                       </div>

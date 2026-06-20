@@ -128,7 +128,10 @@ export default function ErrorLogs() {
                 <div key={e.id}>
                   <div
                     className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setExpanded(open ? null : e.id)}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setExpanded(open ? null : e.id) } }}
                   >
                     <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
                       <AlertTriangle className="w-4 h-4 text-red-400" />

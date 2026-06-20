@@ -437,7 +437,9 @@ export default function Customers() {
             <div className="divide-y divide-gray-50">
               {reminders.map((rm: Reminder, i: number) => (
                 <div key={`${rm.id}-${rm.kind}-${i}`} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => setSelectedId(rm.id)}>
+                  role="button" tabIndex={0}
+                  onClick={() => setSelectedId(rm.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(rm.id) } }}>
                   <span className="text-lg flex-shrink-0">{rm.kind === 'birthday' ? '🎂' : '💍'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{rm.name}</p>

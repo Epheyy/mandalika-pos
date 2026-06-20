@@ -150,10 +150,20 @@ export function OrdersPanel() {
               <div key={o.id}>
                 <div
                   className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     setExpanded(expanded === o.id ? null : o.id)
                     setRefundingId(null)
                     setNote('')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setExpanded(expanded === o.id ? null : o.id)
+                      setRefundingId(null)
+                      setNote('')
+                    }
                   }}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>

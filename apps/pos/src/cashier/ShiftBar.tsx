@@ -140,16 +140,16 @@ export const ShiftBar = memo(function ShiftBar({
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xs p-5 shadow-xl">
             <h3 className="font-bold text-gray-900 mb-4">Buka Shift Baru</h3>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label htmlFor="shift-starting-cash" className="block text-xs text-gray-600 mb-1">
               Uang awal (kas)
             </label>
             <input
+              id="shift-starting-cash"
               type="number"
               inputMode="numeric"
               value={depositStr}
               onChange={(e) => setDepositStr(e.target.value)}
               placeholder="0"
-              aria-label="Uang awal kas"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-green-400"
             />
             <div className="flex gap-2">

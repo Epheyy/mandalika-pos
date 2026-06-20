@@ -198,10 +198,10 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <label htmlFor="transfers-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
           <input
+            id="transfers-from-date"
             type="date"
-            aria-label="Tanggal dari"
             value={fromDate}
             max={toDate || undefined}
             onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
@@ -209,10 +209,10 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <label htmlFor="transfers-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
           <input
+            id="transfers-to-date"
             type="date"
-            aria-label="Tanggal sampai"
             value={toDate}
             min={fromDate || undefined}
             onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
