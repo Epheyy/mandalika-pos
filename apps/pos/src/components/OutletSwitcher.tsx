@@ -4,7 +4,7 @@
  * For cashiers with a single fixed outlet this is hidden.
  */
 
-import { memo, useContext, useState } from 'react'
+import { memo, use, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api, authStore } from '../api'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -21,7 +21,7 @@ export const OutletSwitcher = memo(function OutletSwitcher({
   user,
   onResync,
 }: OutletSwitcherProps) {
-  const engine = useContext(SyncContext)
+  const engine = use(SyncContext)
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)

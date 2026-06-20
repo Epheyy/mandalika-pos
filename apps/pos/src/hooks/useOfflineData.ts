@@ -3,7 +3,7 @@
  * online status, resync, and bootstraps engine on mount.
  */
 
-import { useCallback, useContext, useEffect, useState } from 'react'
+import { useCallback, use, useEffect, useState } from 'react'
 import type { WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 
@@ -29,7 +29,7 @@ export interface OfflineDataState {
 }
 
 export function useOfflineData(): OfflineDataState {
-  const engine = useContext(SyncContext)
+  const engine = use(SyncContext)
   if (!engine) throw new Error('useOfflineData must be used within SyncProvider')
 
   // Real server reachability from the engine (a GET actually succeeded),

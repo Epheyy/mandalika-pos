@@ -2,7 +2,7 @@
  * Manages current shift: fetches via API, open/close via engine.enqueue.
  */
 
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, use, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -20,7 +20,7 @@ export interface ShiftState {
 }
 
 export function useShift(): ShiftState {
-  const engine = useContext(SyncContext)
+  const engine = use(SyncContext)
   if (!engine) throw new Error('useShift must be used within SyncProvider')
 
   const [currentShift, setCurrentShift] = useState<Shift | null>(null)

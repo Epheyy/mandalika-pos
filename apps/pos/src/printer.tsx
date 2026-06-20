@@ -7,7 +7,7 @@
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useMemo,
   useRef,
   useState,
@@ -185,7 +185,7 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
 }
 
 export function usePrinter(): PrinterState {
-  const ctx = useContext(PrinterCtx)
+  const ctx = use(PrinterCtx)
   if (!ctx) throw new Error('usePrinter must be used within PrinterProvider')
   return ctx
 }

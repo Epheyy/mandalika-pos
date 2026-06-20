@@ -1,7 +1,7 @@
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useState,
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthCtx)
+  const ctx = use(AuthCtx)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }

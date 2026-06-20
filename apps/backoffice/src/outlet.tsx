@@ -1,7 +1,7 @@
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useState,
@@ -73,7 +73,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 }
 
 export function useOutlet(): OutletState {
-  const ctx = useContext(OutletCtx)
+  const ctx = use(OutletCtx)
   if (!ctx) throw new Error('useOutlet must be used within OutletProvider')
   return ctx
 }

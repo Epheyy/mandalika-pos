@@ -9,7 +9,7 @@
  * engine.enqueue('cash_flow', ...).
  */
 
-import { memo, useContext, useState } from 'react'
+import { memo, use, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
@@ -80,7 +80,7 @@ export const SettingsScreen = memo(function SettingsScreen({
   onShowVariantsChange,
   onClose,
 }: SettingsScreenProps) {
-  const engine = useContext(SyncContext)
+  const engine = use(SyncContext)
   const printer = usePrinter()
   const [printerBusy, setPrinterBusy] = useState(false)
   const [printerMsg, setPrinterMsg] = useState<string | null>(null)

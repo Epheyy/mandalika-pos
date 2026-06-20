@@ -3,7 +3,7 @@
  * Data from SyncEngine snapshot (offline-first); writes via engine.enqueue.
  */
 
-import { useContext, useReducer, useRef, useState, useEffect, useMemo } from 'react'
+import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
@@ -75,9 +75,9 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
 
 export default function CashierScreen() {
   const { user, logout } = useAuth()
-  const engine = useContext(SyncContext)!
-  const receiveRejectedRef = useContext(SyncReceiveRejectedRefContext)
-  const receiveAcceptedRef = useContext(SyncReceiveAcceptedRefContext)
+  const engine = use(SyncContext)!
+  const receiveRejectedRef = use(SyncReceiveRejectedRefContext)
+  const receiveAcceptedRef = use(SyncReceiveAcceptedRefContext)
   const [pendingTT, setPendingTT] = useState<Transfer | null>(null)
   // Track recently-received transfers so the receive panel can offer reprint.
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([])
