@@ -17,6 +17,11 @@ import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 
+const badgeTone = (st: string): 'success' | 'danger' | 'neutral' =>
+  st === 'completed' ? 'success' : st === 'refunded' ? 'danger' : 'neutral'
+const label = (st: string) =>
+  st === 'completed' ? 'Selesai' : st === 'refunded' ? 'Refund' : st === 'cancelled' ? 'Dibatalkan' : st
+
 /** The transactions list/table/search/refund UI — no page header. */
 export function OrdersPanel() {
   const { user } = useAuth()
@@ -67,11 +72,6 @@ export function OrdersPanel() {
       setBusy(false)
     }
   }
-
-  const badgeTone = (st: string): 'success' | 'danger' | 'neutral' =>
-    st === 'completed' ? 'success' : st === 'refunded' ? 'danger' : 'neutral'
-  const label = (st: string) =>
-    st === 'completed' ? 'Selesai' : st === 'refunded' ? 'Refund' : st === 'cancelled' ? 'Dibatalkan' : st
 
   // Detailed export for analysts — one row per order with the discount source
   // (promotion name / code / manual) and structured discount fields.

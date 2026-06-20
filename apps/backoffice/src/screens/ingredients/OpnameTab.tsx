@@ -109,6 +109,45 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
 
 // ---- main component ----
 
+const parseLocationKey = (key: string): { kind: 'outlet' | 'warehouse'; id: string } | null => {
+  if (!key) return null
+  const idx = key.indexOf(':')
+  return { kind: key.slice(0, idx) as 'outlet' | 'warehouse', id: key.slice(idx + 1) }
+}
+
+const exportIngredientStockCounts = async (fmt: 'csv' | 'xlsx') => {
+  const result = await api.listIngredientStockCounts({ page: 1, limit: 10000 })
+  const exportRows = result.data.map((sc) => ({
+    Nama: sc.name,
+    Lokasi: sc.location.name ?? sc.location.id,
+    'Tipe Lokasi': sc.location.kind === 'outlet' ? 'Outlet' : 'Gudang',
+    Status:
+      sc.status === 'planned' ? 'Direncanakan'
+      : sc.status === 'in_progress' ? 'Sedang Berjalan'
+      : sc.status === 'completed' ? 'Selesai'
+      : 'Dibatalkan',
+    'Tanggal Rencana': sc.plannedDate ?? '',
+    Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
+  }))
+  if (fmt === 'csv') exportToCSV(exportRows, 'opname-bahan')
+  else exportToXLSX(exportRows, 'opname-bahan')
+}
+
+const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
+  s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
+
+const statusLabel = (s: string) =>
+  s === 'planned'
+    ? 'Direncanakan'
+    : s === 'in_progress'
+      ? 'Sedang Berjalan'
+      : s === 'completed'
+        ? 'Selesai'
+        : 'Dibatalkan'
+
+const locationKindLabel = (kind: 'outlet' | 'warehouse') =>
+  kind === 'outlet' ? 'Outlet' : 'Gudang'
+
 export default function OpnameTab() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
@@ -145,12 +184,6 @@ export default function OpnameTab() {
   })
 
   const countedFor = (sc: IngredientStockCount) => draft[sc.id] ?? {}
-
-  const parseLocationKey = (key: string): { kind: 'outlet' | 'warehouse'; id: string } | null => {
-    if (!key) return null
-    const idx = key.indexOf(':')
-    return { kind: key.slice(0, idx) as 'outlet' | 'warehouse', id: key.slice(idx + 1) }
-  }
 
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
@@ -229,39 +262,6 @@ export default function OpnameTab() {
       setActiveId(null)
     }
   }
-
-  const exportIngredientStockCounts = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listIngredientStockCounts({ page: 1, limit: 10000 })
-    const exportRows = result.data.map((sc) => ({
-      Nama: sc.name,
-      Lokasi: sc.location.name ?? sc.location.id,
-      'Tipe Lokasi': sc.location.kind === 'outlet' ? 'Outlet' : 'Gudang',
-      Status:
-        sc.status === 'planned' ? 'Direncanakan'
-        : sc.status === 'in_progress' ? 'Sedang Berjalan'
-        : sc.status === 'completed' ? 'Selesai'
-        : 'Dibatalkan',
-      'Tanggal Rencana': sc.plannedDate ?? '',
-      Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
-    }))
-    if (fmt === 'csv') exportToCSV(exportRows, 'opname-bahan')
-    else exportToXLSX(exportRows, 'opname-bahan')
-  }
-
-  const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
-    s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
-
-  const statusLabel = (s: string) =>
-    s === 'planned'
-      ? 'Direncanakan'
-      : s === 'in_progress'
-        ? 'Sedang Berjalan'
-        : s === 'completed'
-          ? 'Selesai'
-          : 'Dibatalkan'
-
-  const locationKindLabel = (kind: 'outlet' | 'warehouse') =>
-    kind === 'outlet' ? 'Outlet' : 'Gudang'
 
   return (
     <div className="space-y-5">

@@ -38,6 +38,9 @@ const ROLE_TONE: Record<Role, 'gold' | 'success' | 'danger'> = {
   cashier: 'success',
 }
 
+const togglePerm = (p: string, set: React.Dispatch<React.SetStateAction<string[]>>) =>
+  set((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]))
+
 export default function Users() {
   const { user: me } = useAuth()
   const uq = usePolledQuery<User[]>(() => api.listUsers().then((r) => r.data), [])
@@ -135,9 +138,6 @@ export default function Users() {
       setBusy(false)
     }
   }
-
-  const togglePerm = (p: string, set: React.Dispatch<React.SetStateAction<string[]>>) =>
-    set((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]))
 
   return (
     <div className="p-6 space-y-5">

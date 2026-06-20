@@ -52,6 +52,20 @@ function promoRuleLabel(p: Promotion): string {
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
 
+// Rule label for an applied code chip
+const codeRuleLabel = (c: AppliedPromoCode): string => {
+    if (c.promotion) {
+      return c.promotion.isBOGO
+        ? 'BOGO (via promo)'
+        : c.promotion.type === 'percentage'
+          ? `Diskon ${c.promotion.value}% (via promo)`
+          : `Potongan ${formatRupiah(c.promotion.value)} (via promo)`
+    }
+    return c.type === 'percentage'
+      ? `Diskon ${c.value}%`
+      : `Potongan ${formatRupiah(c.value)}`
+  }
+
 export const PromoPanel = memo(function PromoPanel({
   promotions,
   discountCodes,
@@ -93,19 +107,6 @@ export const PromoPanel = memo(function PromoPanel({
     return c.type === 'percentage'
       ? Math.round(subtotal * (c.value / 100))
       : Math.min(c.value, subtotal)
-  }
-  // Rule label for an applied code chip
-  const codeRuleLabel = (c: AppliedPromoCode): string => {
-    if (c.promotion) {
-      return c.promotion.isBOGO
-        ? 'BOGO (via promo)'
-        : c.promotion.type === 'percentage'
-          ? `Diskon ${c.promotion.value}% (via promo)`
-          : `Potongan ${formatRupiah(c.promotion.value)} (via promo)`
-    }
-    return c.type === 'percentage'
-      ? `Diskon ${c.value}%`
-      : `Potongan ${formatRupiah(c.value)}`
   }
 
   return (

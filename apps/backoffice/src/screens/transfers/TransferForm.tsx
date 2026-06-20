@@ -27,6 +27,14 @@ interface TransferFormProps {
   onCreated: (id: string) => void
 }
 
+const parse = (v: string): LocPick | null => {
+  if (!v) return null
+  const idx = v.indexOf(':')
+  return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
+}
+
+const onHand = (r: WarehouseStockRow) => r.stock
+
 /** Create a draft transfer: pick source + dest (mesh), then qty per source
  *  variant (live on-hand shown so you cannot over-send). */
 export function TransferForm({ outlets, warehouses, onCancel, onCreated }: TransferFormProps) {
@@ -47,12 +55,6 @@ export function TransferForm({ outlets, warehouses, onCancel, onCreated }: Trans
     [warehouses, outlets],
   )
 
-  const parse = (v: string): LocPick | null => {
-    if (!v) return null
-    const idx = v.indexOf(':')
-    return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
-  }
-
   // Load source on-hand whenever the source changes.
   useEffect(() => {
     if (!source) {
@@ -68,8 +70,6 @@ export function TransferForm({ outlets, warehouses, onCancel, onCreated }: Trans
       alive = false
     }
   }, [source])
-
-  const onHand = (r: WarehouseStockRow) => r.stock
 
   const submit = async () => {
     if (!source || !dest) {

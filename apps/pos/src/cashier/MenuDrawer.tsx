@@ -78,6 +78,19 @@ type Item = {
   onClick: () => void
 }
 
+const renderItem = ({ Icon, label, active, badge, onClick }: Item) => (
+    <button type="button" key={label} onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${active ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}`}>
+      <div className={`relative p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
+        <Icon className={`w-4 h-4 ${active ? 'text-orange-600' : 'text-gray-500'}`} />
+        {badge && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />}
+      </div>
+      <span className="leading-tight flex-1">{label}</span>
+      {badge && <span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Baru</span>}
+      {active && !badge && <div className="ml-auto w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
+    </button>
+  )
+
 export const MenuDrawer = memo(function MenuDrawer({
   open,
   onClose,
@@ -117,19 +130,6 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: PrinterIcon, label: 'Pengaturan Cetakan', onClick: () => { onClose(); onPrintSettings() } },
     { Icon: DisplayIcon, label: 'Pengaturan Tampilan Produk', onClick: () => { onClose(); onProductDisplay() } },
   ]
-
-  const renderItem = ({ Icon, label, active, badge, onClick }: Item) => (
-    <button type="button" key={label} onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${active ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}`}>
-      <div className={`relative p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
-        <Icon className={`w-4 h-4 ${active ? 'text-orange-600' : 'text-gray-500'}`} />
-        {badge && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />}
-      </div>
-      <span className="leading-tight flex-1">{label}</span>
-      {badge && <span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Baru</span>}
-      {active && !badge && <div className="ml-auto w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
-    </button>
-  )
 
   return (
     <div className="fixed inset-0 z-[60] flex">

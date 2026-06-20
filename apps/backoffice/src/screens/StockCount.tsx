@@ -20,6 +20,12 @@ import { PageHeader } from '../ui/PageHeader'
 import { Pagination } from '../ui/Pagination'
 
 
+const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
+  s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
+const label = (s: string) =>
+  s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
+const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
+
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
   const [page, setPage] = useState(1)
@@ -167,16 +173,11 @@ export default function StockCount() {
     else exportToXLSX(exportRows, name)
   }
 
-  const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
-    s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
-  const label = (s: string) =>
-    s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
   const locName = (sc: StockCount) =>
     sc.warehouseId
       ? warehouses.find((w) => w.id === sc.warehouseId)?.name ?? 'Gudang'
       : outletName(sc.outletId ?? '')
-  const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
 
   return (
     <div className="p-6 space-y-5">

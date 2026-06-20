@@ -102,6 +102,13 @@ const HISTORY_PAGE_SIZE = 20
 
 type Tab = 'rekapan' | 'riwayat'
 
+const sumRow = (label: string, value: string, bold = false) => (
+    <div className={`flex justify-between text-sm py-1 ${bold ? 'font-black text-gray-900' : ''}`}>
+      <span className={bold ? 'text-gray-900' : 'text-gray-500'}>{label}</span>
+      <span>{value}</span>
+    </div>
+  )
+
 export function ShiftRecapPanel({
   isOpen,
   onClose,
@@ -321,13 +328,6 @@ export function ShiftRecapPanel({
     totalOrders: live?.totalOrders ?? 0,
     generatedAt: new Date(),
   })
-
-  const sumRow = (label: string, value: string, bold = false) => (
-    <div className={`flex justify-between text-sm py-1 ${bold ? 'font-black text-gray-900' : ''}`}>
-      <span className={bold ? 'text-gray-900' : 'text-gray-500'}>{label}</span>
-      <span>{value}</span>
-    </div>
-  )
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col sm:flex-row overflow-hidden safe-top safe-bottom">

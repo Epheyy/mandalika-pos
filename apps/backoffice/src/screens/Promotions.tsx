@@ -28,6 +28,36 @@ const EMPTY_CODE: DiscountCodeInput = {
   code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
 }
 
+const exportPromotions = async (fmt: 'csv' | 'xlsx') => {
+  const data = await api.listPromotions()
+  const rows = data.map((p) => ({
+    Nama: p.name,
+    Tipe: p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO',
+    Nilai: p.value,
+    'Min. Belanja': p.minPurchase ?? 0,
+    Mulai: p.startDate ?? '',
+    Selesai: p.endDate ?? '',
+    Aktif: p.isActive ? 'Ya' : 'Tidak',
+  }))
+  if (fmt === 'csv') exportToCSV(rows, 'promosi')
+  else exportToXLSX(rows, 'promosi')
+}
+
+const exportDiscountCodes = async (fmt: 'csv' | 'xlsx') => {
+  const data = await api.listDiscountCodes()
+  const rows = data.map((c) => ({
+    Kode: c.code,
+    Tipe: c.type === 'percentage' ? 'Persentase' : 'Nominal',
+    Nilai: c.value,
+    'Min. Belanja': c.minPurchase ?? 0,
+    Kuota: c.usageLimit ?? 0,
+    Terpakai: c.usageCount,
+    Aktif: c.isActive ? 'Ya' : 'Tidak',
+  }))
+  if (fmt === 'csv') exportToCSV(rows, 'kode-diskon')
+  else exportToXLSX(rows, 'kode-diskon')
+}
+
 export default function Promotions() {
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const dcq = usePolledQuery<DiscountCode[]>(() => api.listDiscountCodes(), [])
@@ -153,36 +183,6 @@ export default function Promotions() {
         ? (f.activeDays || []).filter((x) => x !== d)
         : [...(f.activeDays || []), d],
     }))
-
-  const exportPromotions = async (fmt: 'csv' | 'xlsx') => {
-    const data = await api.listPromotions()
-    const rows = data.map((p) => ({
-      Nama: p.name,
-      Tipe: p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO',
-      Nilai: p.value,
-      'Min. Belanja': p.minPurchase ?? 0,
-      Mulai: p.startDate ?? '',
-      Selesai: p.endDate ?? '',
-      Aktif: p.isActive ? 'Ya' : 'Tidak',
-    }))
-    if (fmt === 'csv') exportToCSV(rows, 'promosi')
-    else exportToXLSX(rows, 'promosi')
-  }
-
-  const exportDiscountCodes = async (fmt: 'csv' | 'xlsx') => {
-    const data = await api.listDiscountCodes()
-    const rows = data.map((c) => ({
-      Kode: c.code,
-      Tipe: c.type === 'percentage' ? 'Persentase' : 'Nominal',
-      Nilai: c.value,
-      'Min. Belanja': c.minPurchase ?? 0,
-      Kuota: c.usageLimit ?? 0,
-      Terpakai: c.usageCount,
-      Aktif: c.isActive ? 'Ya' : 'Tidak',
-    }))
-    if (fmt === 'csv') exportToCSV(rows, 'kode-diskon')
-    else exportToXLSX(rows, 'kode-diskon')
-  }
 
   const today = new Date().toISOString().slice(0, 10)
   const promoStatus = (p: Promotion) => {

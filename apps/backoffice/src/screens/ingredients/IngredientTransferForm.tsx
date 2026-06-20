@@ -24,6 +24,12 @@ interface IngredientTransferFormProps {
   onCreated: () => void
 }
 
+const parse = (v: string): LocPick | null => {
+  if (!v) return null
+  const idx = v.indexOf(':')
+  return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
+}
+
 /** Create a draft ingredient transfer: pick source + dest (mesh: outlet or warehouse), then add items. */
 export function IngredientTransferForm({ onClose, onCreated }: IngredientTransferFormProps) {
   const [loading, setLoading] = useState(true)
@@ -60,12 +66,6 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
     ],
     [warehouses, outlets],
   )
-
-  const parse = (v: string): LocPick | null => {
-    if (!v) return null
-    const idx = v.indexOf(':')
-    return { kind: v.slice(0, idx) as LocKind, id: v.slice(idx + 1) }
-  }
 
   const setItem = (index: number, patch: Partial<FormItem>) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))

@@ -64,6 +64,22 @@ const EMPTY_COND: CondForm = {
   activeDays: [], applicableProductIds: [], rewardProductIds: [],
 }
 
+const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
+  const result = await api.listCustomers(1, 10000)
+  const rows = result.data.map((c) => ({
+    Nama: c.name,
+    Telepon: c.phone,
+    Email: c.email ?? '',
+    Poin: c.points,
+    'Total Belanja': c.totalSpent,
+    'Jumlah Kunjungan': c.visitCount,
+    Tag: (c.tags ?? []).map((t) => t.name).join(', '),
+    Segmen: c.segment?.name ?? '',
+  }))
+  if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
+  else exportToXLSX(rows, 'pelanggan')
+}
+
 export default function Customers() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -146,22 +162,6 @@ export default function Customers() {
     }, 300)
     return () => { clearTimeout(t); ignore = true }
   }, [open, form.phone, editing?.id])
-
-  const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listCustomers(1, 10000)
-    const rows = result.data.map((c) => ({
-      Nama: c.name,
-      Telepon: c.phone,
-      Email: c.email ?? '',
-      Poin: c.points,
-      'Total Belanja': c.totalSpent,
-      'Jumlah Kunjungan': c.visitCount,
-      Tag: (c.tags ?? []).map((t) => t.name).join(', '),
-      Segmen: c.segment?.name ?? '',
-    }))
-    if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
-    else exportToXLSX(rows, 'pelanggan')
-  }
 
   const [loyaltyForm, setLoyaltyForm] = useState<LoyaltySettings>(DEFAULT_LOYALTY)
   // Seed the form from the server ONCE on first load. Guarding with a ref keeps a

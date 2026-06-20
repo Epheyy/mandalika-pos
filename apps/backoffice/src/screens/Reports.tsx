@@ -26,6 +26,15 @@ import { Tabs } from '../ui/Tabs'
 
 type ReportTab = 'orders' | 'export' | 'shifts'
 
+const statusBadge = (st: string) =>
+  st === 'completed' ? (
+    <Badge tone="success">Selesai</Badge>
+  ) : st === 'refunded' ? (
+    <Badge tone="danger">Refund</Badge>
+  ) : (
+    <Badge tone="neutral">{st}</Badge>
+  )
+
 export default function Reports() {
   const { user } = useAuth()
   const { outletId } = useOutlet()
@@ -134,15 +143,6 @@ export default function Reports() {
         `dari-${dateFrom}`,
         `sd-${dateTo}`,
       ]),
-    )
-
-  const statusBadge = (st: string) =>
-    st === 'completed' ? (
-      <Badge tone="success">Selesai</Badge>
-    ) : st === 'refunded' ? (
-      <Badge tone="danger">Refund</Badge>
-    ) : (
-      <Badge tone="neutral">{st}</Badge>
     )
 
   return (

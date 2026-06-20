@@ -42,6 +42,19 @@ const EMPTY: Form = {
 type OcRow = { price: number | null; available: boolean }
 const EMPTY_OC: OcRow = { price: null, available: true }
 
+const ocKey = (oid: string, size: string) => `${oid}|${size}`
+
+// Downloadable CSV template: the exact importer columns + two example rows
+// (one product, two variants → same Nama+Brand) so the grouping is self-evident.
+// First row leaves Barcode blank to show it defaults to the SKU.
+const downloadTemplate = () => {
+  const example = [
+    { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+    { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
+  ]
+  exportToCSV(example, 'template_produk_mandalika')
+}
+
 export default function Products() {
   const { outletId, outlets: ctxOutlets } = useOutlet()
   // Refetch the list when the admin switches outlet so stock/price/availability
@@ -150,7 +163,6 @@ export default function Products() {
     }
   }
 
-  const ocKey = (oid: string, size: string) => `${oid}|${size}`
   const ocGet = (oid: string, size: string): OcRow => ocfgMap[ocKey(oid, size)] ?? EMPTY_OC
   const ocSet = (oid: string, size: string, patch: Partial<OcRow>) =>
     setOcfgMap((m) => {
@@ -314,17 +326,6 @@ export default function Products() {
     const name = buildExportName('produk', [scope])
     if (fmt === 'xlsx') exportToXLSX(rows, name)
     else exportToCSV(rows, name)
-  }
-
-  // Downloadable CSV template: the exact importer columns + two example rows
-  // (one product, two variants → same Nama+Brand) so the grouping is self-evident.
-  // First row leaves Barcode blank to show it defaults to the SKU.
-  const downloadTemplate = () => {
-    const example = [
-      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
-      { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
-    ]
-    exportToCSV(example, 'template_produk_mandalika')
   }
 
   const importProductRows = async (rows: Record<string, string>[]) => {

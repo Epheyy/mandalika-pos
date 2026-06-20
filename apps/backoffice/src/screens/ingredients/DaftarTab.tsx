@@ -20,6 +20,31 @@ const formatIDR = (n: number | null | undefined) => {
   return n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 }
 
+const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
+  // Fetch ALL ingredients for export (not just the current page)
+  const all = await api.listIngredients({ page: 1, limit: 10000 })
+  const rows = all.data.map((i) => ({
+    Nama: i.name,
+    SKU: i.sku || '',
+    Satuan: i.unit,
+    Kategori: i.categoryName ?? '',
+    'Biaya Default': i.defaultUnitCost ?? '',
+    Catatan: i.notes ?? '',
+    Status: i.isActive ? 'Aktif' : 'Nonaktif',
+  }))
+  if (!rows.length) return
+  if (fmt === 'xlsx') exportToXLSX(rows, 'bahan_mandalika')
+  else exportToCSV(rows, 'bahan_mandalika')
+}
+
+const downloadIngredientTemplate = () => {
+  const example = [
+    { Nama: 'Rose Oil', SKU: 'RO-001', Satuan: 'g', Kategori: 'Fragrance Oil', 'Biaya Default': 15000, Catatan: '', Status: 'Aktif' },
+    { Nama: 'Contoh Bahan', SKU: '', Satuan: 'ml', Kategori: '', 'Biaya Default': '', Catatan: 'Bahan tanpa SKU dan kategori', Status: 'Aktif' },
+  ]
+  exportToCSV(example, 'template_bahan_mandalika')
+}
+
 export default function DaftarTab() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -74,31 +99,6 @@ export default function DaftarTab() {
   const handleCategoryChange = (value: string) => {
     setCategoryFilter(value)
     setPage(1)
-  }
-
-  const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
-    // Fetch ALL ingredients for export (not just the current page)
-    const all = await api.listIngredients({ page: 1, limit: 10000 })
-    const rows = all.data.map((i) => ({
-      Nama: i.name,
-      SKU: i.sku || '',
-      Satuan: i.unit,
-      Kategori: i.categoryName ?? '',
-      'Biaya Default': i.defaultUnitCost ?? '',
-      Catatan: i.notes ?? '',
-      Status: i.isActive ? 'Aktif' : 'Nonaktif',
-    }))
-    if (!rows.length) return
-    if (fmt === 'xlsx') exportToXLSX(rows, 'bahan_mandalika')
-    else exportToCSV(rows, 'bahan_mandalika')
-  }
-
-  const downloadIngredientTemplate = () => {
-    const example = [
-      { Nama: 'Rose Oil', SKU: 'RO-001', Satuan: 'g', Kategori: 'Fragrance Oil', 'Biaya Default': 15000, Catatan: '', Status: 'Aktif' },
-      { Nama: 'Contoh Bahan', SKU: '', Satuan: 'ml', Kategori: '', 'Biaya Default': '', Catatan: 'Bahan tanpa SKU dan kategori', Status: 'Aktif' },
-    ]
-    exportToCSV(example, 'template_bahan_mandalika')
   }
 
   const importIngredientRows = async (rows: Record<string, string>[]) => {
