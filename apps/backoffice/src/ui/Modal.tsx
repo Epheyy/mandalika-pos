@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from './cn'
 
@@ -27,8 +27,14 @@ interface ModalProps {
 /** Centered overlay dialog. Closing via the backdrop or the × asks to confirm
  *  when the body has unsaved edits (any input changed since it opened). Explicit
  *  footer buttons (Batal/Simpan) are the caller's responsibility. */
-export function Modal({
-  open,
+export function Modal({ open, ...rest }: ModalProps) {
+  // Mount the body only while open, so the dirty flag and confirm-state reset
+  // naturally on each open (fresh mount) — no open-change effect needed.
+  if (!open) return null
+  return <ModalBody {...rest} />
+}
+
+function ModalBody({
   onClose,
   title,
   subtitle,
@@ -36,18 +42,9 @@ export function Modal({
   size = 'md',
   padded = true,
   children,
-}: ModalProps) {
+}: Omit<ModalProps, 'open'>) {
   const dirty = useRef(false)
   const [confirming, setConfirming] = useState(false)
-
-  useEffect(() => {
-    if (open) {
-      dirty.current = false
-      setConfirming(false)
-    }
-  }, [open])
-
-  if (!open) return null
 
   const requestClose = () => {
     if (dirty.current) setConfirming(true)

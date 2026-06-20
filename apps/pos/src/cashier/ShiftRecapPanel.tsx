@@ -109,8 +109,15 @@ const sumRow = (label: string, value: string, bold = false) => (
     </div>
   )
 
-export function ShiftRecapPanel({
-  isOpen,
+export function ShiftRecapPanel(props: ShiftRecapPanelProps) {
+  // Mount the panel only while open, so per-shift view state (tab, selected
+  // history shift, counts, status messages) resets cleanly on each open —
+  // no isOpen-change effects adjusting state from a prop.
+  if (!props.isOpen) return null
+  return <ShiftRecapPanelBody {...props} />
+}
+
+function ShiftRecapPanelBody({
   onClose,
   paymentMethods,
   userName,
@@ -122,7 +129,7 @@ export function ShiftRecapPanel({
   onCloseShift,
   isOpeningShift,
   isClosingShift,
-}: ShiftRecapPanelProps) {
+}: Omit<ShiftRecapPanelProps, 'isOpen'>) {
   const printer = usePrinter()
   const [printMsg, setPrintMsg] = useState<string | null>(null)
   const [closeError, setCloseError] = useState<string | null>(null)
@@ -227,21 +234,21 @@ export function ShiftRecapPanel({
     }
   }, [])
 
-  // Always land on Rekapan when (re)opening — both the menu shortcut and the
-  // header "Tutup" route here; Riwayat is reached from the in-panel nav.
-  useEffect(() => {
-    if (isOpen) setTab('rekapan')
-  }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen) return
+  // Switching tabs clears the previous tab's transient view state (selected
+  // history shift, detail overlay, status messages) before the new tab loads.
+  const changeTab = (next: Tab) => {
     setSelected(null)
     setShowMobileDetail(false)
     setPrintMsg(null)
     setCloseError(null)
+    setTab(next)
+  }
+
+  // Load the active tab's data on mount (panel open) and on every tab change.
+  useEffect(() => {
     if (tab === 'rekapan') void loadRekap()
     else { setHistPage(1); void loadHistory() }
-  }, [isOpen, tab, loadRekap, loadHistory])
+  }, [tab, loadRekap, loadHistory])
 
   const selectHistoryShift = async (s: Shift) => {
     setSelected(s)
@@ -283,8 +290,6 @@ export function ShiftRecapPanel({
     setClosingCash('')
     setTimeout(() => void loadRekap(), 1700)
   }
-
-  if (!isOpen) return null
 
   const cashIn = currentFlows.filter((f) => !isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
   const cashOut = currentFlows.filter((f) => isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
@@ -336,7 +341,7 @@ export function ShiftRecapPanel({
         <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
         <div className="flex-1 flex gap-1 bg-gray-100 rounded-xl p-1">
           {([{ id: 'rekapan', label: 'Rekapan' }, { id: 'riwayat', label: 'Riwayat' }] as const).map((t) => (
-            <button type="button" key={t.id} onClick={() => setTab(t.id)}
+            <button type="button" key={t.id} onClick={() => changeTab(t.id)}
               className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600'}`}>
               {t.label}
             </button>
@@ -360,7 +365,7 @@ export function ShiftRecapPanel({
             { id: 'rekapan', label: 'Rekapan' },
             { id: 'riwayat', label: 'Riwayat' },
           ] as const).map((t) => (
-            <button type="button" key={t.id} onClick={() => setTab(t.id)}
+            <button type="button" key={t.id} onClick={() => changeTab(t.id)}
               className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                 tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
               }`}>
