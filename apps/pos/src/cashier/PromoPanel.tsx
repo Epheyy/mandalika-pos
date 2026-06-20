@@ -90,9 +90,11 @@ export const PromoPanel = memo(function PromoPanel({
   const evalCtx = { now, outletId, subtotal }
   // code_only promotions are hidden from the browse panel — they are only
   // reachable by typing the linked discount code (SP-Promo-3c).
-  const activePromos = promotions
-    .filter((p) => p.isActive && !p.codeOnly)
-    .map((promo) => ({ promo, violations: validatePromo(promo, evalCtx) }))
+  const activePromos = promotions.flatMap((promo) =>
+    promo.isActive && !promo.codeOnly
+      ? [{ promo, violations: validatePromo(promo, evalCtx) }]
+      : [],
+  )
 
   const appliedCount = appliedPromotions.length + appliedPromoCodes.length
   const hasApplied = appliedCount > 0

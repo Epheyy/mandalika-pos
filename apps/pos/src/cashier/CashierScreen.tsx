@@ -492,10 +492,21 @@ export default function CashierScreen() {
         return
       }
     }
+    // Precompute O(1) lookups once (the re-guard scans the full catalog per
+    // applied code → O(n²) otherwise). Keep FIRST occurrence to match .find().
+    const activeCodeByName = new Map<string, (typeof discountCodes)[number]>()
+    for (const d of discountCodes) {
+      if (!d.isActive) continue
+      const key = d.code.toUpperCase()
+      if (!activeCodeByName.has(key)) activeCodeByName.set(key, d)
+    }
+    const activePromoById = new Map<string, (typeof promotions)[number]>()
+    for (const p of promotions) {
+      if (!p.isActive) continue
+      if (!activePromoById.has(p.id)) activePromoById.set(p.id, p)
+    }
     for (const c of state.appliedPromoCodes) {
-      const dc = discountCodes.find(
-        (d) => d.code.toUpperCase() === c.code.toUpperCase() && d.isActive,
-      )
+      const dc = activeCodeByName.get(c.code.toUpperCase())
       if (!dc) {
         showToast('Kode diskon dibatalkan: Kode tidak ditemukan')
         dispatch({ type: 'CLEAR_PROMOTIONS' })
@@ -510,7 +521,7 @@ export default function CashierScreen() {
       // SP-Promo-3c: for linked codes, also re-validate the linked promotion
       // (mirrors decideApplyCode's intersection rule)
       if (c.promotion) {
-        const linkedPromo = promotions.find((p) => p.id === c.promotion!.id && p.isActive)
+        const linkedPromo = activePromoById.get(c.promotion.id)
         if (!linkedPromo) {
           showToast('Kode diskon dibatalkan: Promo tertaut tidak tersedia')
           dispatch({ type: 'CLEAR_PROMOTIONS' })

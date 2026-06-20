@@ -78,16 +78,16 @@ export function parseCSV(text: string): Record<string, string>[] {
     return values
   }
   const headers = splitLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim())
-  return lines
-    .slice(1)
-    .filter(Boolean)
-    .map((line) => {
-      const values = splitLine(line)
-      return headers.reduce(
+  return lines.slice(1).flatMap((line) => {
+    if (!line) return []
+    const values = splitLine(line)
+    return [
+      headers.reduce(
         (obj, h, i) => ({ ...obj, [h]: values[i] || '' }),
         {} as Record<string, string>,
-      )
-    })
+      ),
+    ]
+  })
 }
 
 /**
@@ -107,9 +107,11 @@ export function buildExportName(
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 32)
-  const tail = parts
-    .map((p) => (p === null || p === undefined || p === '' ? '' : slug(String(p))))
-    .filter(Boolean)
+  const tail = parts.flatMap((p) => {
+    if (p === null || p === undefined || p === '') return []
+    const s = slug(String(p))
+    return s ? [s] : []
+  })
   const b = slug(base)
   return tail.length ? `${b}_${tail.join('_')}` : b
 }

@@ -315,9 +315,9 @@ function ShiftRecapPanelBody({
     closedAt: currentShift?.closedAt ? new Date(currentShift.closedAt) : null,
     startingCash: currentShift?.startingCash ?? null,
     closingCash: currentShift?.closingCash ?? null,
-    methods: paymentMethods
-      .filter((p) => p.isEnabled)
-      .map((pm) => ({ label: pm.label, recorded: live?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null })),
+    methods: paymentMethods.flatMap((pm) =>
+      pm.isEnabled ? [{ label: pm.label, recorded: live?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null }] : [],
+    ),
     totalRecorded: live?.totalSales ?? 0,
     totalCounted: Object.keys(counted).length ? Object.values(counted).reduce((a, b) => a + b, 0) : null,
     cashIn,
@@ -430,7 +430,8 @@ function ShiftRecapPanelBody({
             )}
 
             <div className="space-y-2">
-              {paymentMethods.filter((p) => p.isEnabled).map((pm) => {
+              {paymentMethods.flatMap((pm) => {
+                if (!pm.isEnabled) return []
                 const recorded = live?.byMethod[pm.id] ?? 0
                 const hasC = counted[pm.id] !== undefined
                 const diff = (counted[pm.id] ?? 0) - recorded

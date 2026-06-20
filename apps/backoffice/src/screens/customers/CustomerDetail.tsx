@@ -238,12 +238,16 @@ export default function CustomerDetail({
                   <button type="button" aria-label={`Lepas ${t.name}`} disabled={tagBusy} onClick={() => void toggleTag(t.id)} className="hover:opacity-70 disabled:opacity-40">×</button>
                 </span>
               ))}
-              {allTags.filter((t) => !cTags.some((ct) => ct.id === t.id)).map((t) => (
-                <button key={t.id} type="button" disabled={tagBusy} onClick={() => void toggleTag(t.id)}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-dashed ${tagChipClasses(t.color)} opacity-50 hover:opacity-100 disabled:opacity-30`}>
-                  + {t.name}
-                </button>
-              ))}
+              {allTags.flatMap((t) =>
+                cTags.some((ct) => ct.id === t.id)
+                  ? []
+                  : [
+                      <button key={t.id} type="button" disabled={tagBusy} onClick={() => void toggleTag(t.id)}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-dashed ${tagChipClasses(t.color)} opacity-50 hover:opacity-100 disabled:opacity-30`}>
+                        + {t.name}
+                      </button>,
+                    ],
+              )}
               {allTags.length === 0 && <span className="text-xs text-gray-300 italic">Belum ada tag — klik Kelola</span>}
             </div>
           </div>

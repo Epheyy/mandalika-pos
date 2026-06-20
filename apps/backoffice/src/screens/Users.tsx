@@ -111,6 +111,8 @@ export default function Users() {
   const importUsers = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const outletIdByName = new Map<string, string>()
+    for (const o of outlets) if (!outletIdByName.has(o.name)) outletIdByName.set(o.name, o.id)
     for (const row of parseCSV(await file.text())) {
       if (!row['Email']?.trim()) continue
       await api.createUser({
@@ -118,7 +120,7 @@ export default function Users() {
         password: row['Password'] || 'changeme123',
         displayName: row['Nama'] || row['Email'],
         role: (row['Role'] as Role) || 'cashier',
-        outletId: row['Outlet'] ? (outlets.find((o) => o.name === row['Outlet'].trim())?.id ?? null) : null,
+        outletId: row['Outlet'] ? (outletIdByName.get(row['Outlet'].trim()) ?? null) : null,
         permissions: row['Permissions'] ? row['Permissions'].split(';').filter(Boolean) : [],
       })
     }

@@ -104,7 +104,17 @@ export default function DaftarTab() {
   const importIngredientRows = async (rows: Record<string, string>[]) => {
     // Auto-creates missing ingredient categories (deduplicated per import run).
     // Upsert: match by SKU (if present) or by exact name (case-insensitive).
-    let currentCategories = [...categories]
+    // Keep a name→category map in sync with the category list for O(1) lookups
+    // (first match wins like .find); rebuilt whenever the list is refetched.
+    const buildCatMap = (cats: typeof categories) => {
+      const m = new Map<string, (typeof cats)[number]>()
+      for (const c of cats) {
+        const k = c.name.toLowerCase()
+        if (!m.has(k)) m.set(k, c)
+      }
+      return m
+    }
+    let catByLower = buildCatMap(categories)
     const createdCatNames = new Set<string>()
     const resolvedCatIds: Record<string, string> = {}
 
@@ -114,7 +124,7 @@ export default function DaftarTab() {
       if (!catName) continue
       const lower = catName.toLowerCase()
       if (resolvedCatIds[lower]) continue
-      const existing = currentCategories.find((c) => c.name.toLowerCase() === lower)
+      const existing = catByLower.get(lower)
       if (existing) {
         resolvedCatIds[lower] = existing.id
       } else if (!createdCatNames.has(lower)) {
@@ -122,9 +132,9 @@ export default function DaftarTab() {
         await api.createIngredientCategory({ name: catName })
         // Refetch so we can get the new id
         const updated = await api.listIngredientCategories()
-        currentCategories = updated
+        catByLower = buildCatMap(updated)
         setCategories(updated)
-        const found = updated.find((c) => c.name.toLowerCase() === lower)
+        const found = catByLower.get(lower)
         if (found) resolvedCatIds[lower] = found.id
       }
     }
@@ -136,6 +146,18 @@ export default function DaftarTab() {
 
     // Fetch the catalog ONCE for upsert matching (avoid a per-row N+1).
     const known = (await api.listIngredients({ page: 1, limit: 10000 })).data
+    // Index by sku/name (lowercased) for O(1) match lookups (first match wins
+    // like .find), avoiding a per-row linear scan of the catalog.
+    const knownBySku = new Map<string, (typeof known)[number]>()
+    const knownByName = new Map<string, (typeof known)[number]>()
+    for (const i of known) {
+      if (i.sku) {
+        const sk = i.sku.toLowerCase()
+        if (!knownBySku.has(sk)) knownBySku.set(sk, i)
+      }
+      const nk = i.name.toLowerCase()
+      if (!knownByName.has(nk)) knownByName.set(nk, i)
+    }
     const seen = new Set<string>() // dedupe rows within a single import file
 
     for (const row of rows) {
@@ -167,8 +189,8 @@ export default function DaftarTab() {
 
       // Upsert: match by SKU first, then by exact name (case-insensitive).
       const match = sku
-        ? known.find((i) => i.sku && i.sku.toLowerCase() === sku.toLowerCase())
-        : known.find((i) => i.name.toLowerCase() === name.toLowerCase())
+        ? knownBySku.get(sku.toLowerCase())
+        : knownByName.get(name.toLowerCase())
 
       try {
         if (match) {

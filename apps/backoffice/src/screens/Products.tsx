@@ -276,18 +276,19 @@ export default function Products() {
         await api.updateProduct(editing.id, body)
         if (ocfgOutlets.length > 0) {
           const items = ocfgOutlets.flatMap((o) =>
-            variants
-              .filter((v) => v.size)
-              .map((v) => {
-                const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
-                // price + available only; stock/PAR are owned by Inventori.
-                return {
+            variants.flatMap((v) => {
+              if (!v.size) return []
+              const c = ocfgMap[`${o.id}|${v.size}`] ?? EMPTY_OC
+              // price + available only; stock/PAR are owned by Inventori.
+              return [
+                {
                   outletId: o.id,
                   variantSize: v.size,
                   price: c.price,
                   available: c.available,
-                }
-              }),
+                },
+              ]
+            }),
           )
           await api.updateProductOutletConfig(editing.id, items)
         }
@@ -351,8 +352,13 @@ export default function Products() {
       })
     }
 
-    // Resolve categories — auto-create any new ones (dedupe by lowercased name)
-    let currentCategories = [...(cq.data ?? [])]
+    // Resolve categories — auto-create any new ones (dedupe by lowercased name).
+    // Precompute a name→category map (O(1) lookups; first match wins like .find).
+    const catByLower = new Map<string, { id: string }>()
+    for (const c of cq.data ?? []) {
+      const k = c.name.toLowerCase()
+      if (!catByLower.has(k)) catByLower.set(k, c)
+    }
     const createdCatNames = new Set<string>()
     const resolvedCatIds: Record<string, string> = {}
     for (const { row } of Object.values(grouped)) {
@@ -360,15 +366,23 @@ export default function Products() {
       if (!catName) continue
       const lower = catName.toLowerCase()
       if (resolvedCatIds[lower]) continue
-      const existing = currentCategories.find((c) => c.name.toLowerCase() === lower)
+      const existing = catByLower.get(lower)
       if (existing) {
         resolvedCatIds[lower] = existing.id
       } else if (!createdCatNames.has(lower)) {
         createdCatNames.add(lower)
         const newCat = await api.createCategory({ name: catName })
         resolvedCatIds[lower] = newCat.id
-        currentCategories = [...currentCategories, newCat]
+        if (!catByLower.has(lower)) catByLower.set(lower, newCat)
       }
+    }
+
+    // Precompute name|brand → product for O(1) upsert matching (first match wins
+    // like .find), avoiding a per-group linear scan of the product list.
+    const productByNameBrand = new Map<string, (typeof products)[number]>()
+    for (const p of products) {
+      const k = `${p.name.trim().toLowerCase()}|${p.brand.trim().toLowerCase()}`
+      if (!productByNameBrand.has(k)) productByNameBrand.set(k, p)
     }
 
     let created = 0
@@ -377,10 +391,8 @@ export default function Products() {
       if (variants.length === 0) continue
       const catLower = (row['Kategori'] || '').trim().toLowerCase()
       const catId = resolvedCatIds[catLower] || ''
-      const existing = products.find(
-        (p) =>
-          p.name.trim().toLowerCase() === row['Nama'].trim().toLowerCase() &&
-          p.brand.trim().toLowerCase() === (row['Brand'] || '').trim().toLowerCase(),
+      const existing = productByNameBrand.get(
+        `${row['Nama'].trim().toLowerCase()}|${(row['Brand'] || '').trim().toLowerCase()}`,
       )
       const body: ProductInput = {
         name: row['Nama'].trim(),
