@@ -8,7 +8,15 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { generateCode, exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import { ImportExportBar } from '../components/ImportExportBar'
-import { Button, Input, Select, Textarea, Field, fieldClass, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs } from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select, Textarea, Field, fieldClass } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { IconButton } from '../ui/IconButton'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 
 const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 const EMPTY_PROMO: PromotionInput = {
@@ -404,7 +412,7 @@ export default function Promotions() {
         <div className="space-y-4">
           <Field label="Kode *">
             <div className="flex gap-2">
-              <input type="text" value={codeForm.code} onChange={(e) => setCodeForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} className={`${fieldClass} flex-1 font-mono tracking-wider`} />
+              <input type="text" value={codeForm.code} onChange={(e) => setCodeForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} aria-label="Kode diskon" className={`${fieldClass} flex-1 font-mono tracking-wider`} />
               <Button variant="secondary" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={() => setCodeForm((f) => ({ ...f, code: generateCode() }))} />
             </div>
           </Field>

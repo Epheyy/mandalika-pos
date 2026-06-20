@@ -9,7 +9,15 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
-import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select, Textarea, fieldClass } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { IconButton } from '../ui/IconButton'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Pagination } from '../ui/Pagination'
 
 
 export default function StockCount() {
@@ -259,7 +267,7 @@ export default function StockCount() {
                             <td className="px-4 py-2 text-sm font-bold text-gold-700">{it.frozenQty}</td>
                             <td className="px-4 py-2">
                               {sc.status === 'in_progress' ? (
-                                <input type="number" value={it.actualQty ?? ''} onChange={(e) => setQty(sc, idx, parseInt(e.target.value) || 0)} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
+                                <input type="number" value={it.actualQty ?? ''} onChange={(e) => setQty(sc, idx, parseInt(e.target.value) || 0)} aria-label={`Jumlah aktual ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
                               ) : (
                                 <span className="text-sm font-bold text-gray-900">{it.actualQty ?? '—'}</span>
                               )}

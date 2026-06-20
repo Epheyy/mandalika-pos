@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Ingredient, Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Input, Field, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, Field, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 interface LocationTarget {
   kind: 'outlet' | 'warehouse'

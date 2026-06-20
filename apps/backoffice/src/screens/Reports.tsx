@@ -16,16 +16,13 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import { OrdersPanel } from './Orders'
-import {
-  Button,
-  Card,
-  Badge,
-  Input,
-  Select,
-  EmptyState,
-  PageHeader,
-  Tabs,
-} from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select } from '../ui/Field'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 
 type ReportTab = 'orders' | 'export' | 'shifts'
 

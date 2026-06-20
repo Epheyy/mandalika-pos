@@ -4,7 +4,9 @@ import { Users } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Button, Card, EmptyState } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Card } from '../../ui/Card'
+import { EmptyState } from '../../ui/EmptyState'
 
 interface DupCandidatesProps {
   onReview: (id: string) => void

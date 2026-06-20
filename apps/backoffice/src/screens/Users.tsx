@@ -6,7 +6,15 @@ import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, parseCSV } from '../lib/csvUtils'
-import { Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs } from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select, Field } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { IconButton } from '../ui/IconButton'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 
 type Role = 'admin' | 'manager' | 'cashier'
 const PERMS: Record<string, { label: string; desc: string }> = {
@@ -159,7 +167,7 @@ export default function Users() {
                 <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => csvRef.current?.click()}>
                   Import
                 </Button>
-                <input ref={csvRef} type="file" accept=".csv" onChange={importUsers} className="hidden" />
+                <input ref={csvRef} type="file" accept=".csv" onChange={importUsers} aria-label="Impor pengguna dari CSV" className="hidden" />
                 <Button icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
                   Tambah
                 </Button>
@@ -283,6 +291,7 @@ export default function Users() {
               inputMode="numeric"
               maxLength={8}
               placeholder="Isi untuk set / ganti PIN"
+              aria-label="PIN penerimaan transfer"
               value={pin}
               onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setClearPin(false) }}
               disabled={clearPin}

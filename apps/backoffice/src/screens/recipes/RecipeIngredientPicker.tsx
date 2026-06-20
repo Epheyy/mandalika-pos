@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { Search } from 'lucide-react'
 import { api } from '../../api'
-import { fieldClass } from '../../ui'
+import { fieldClass } from '../../ui/Field'
 
 interface Props {
   excludeIds: string[]
@@ -42,6 +42,7 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
         <input
           className={`${fieldClass} pl-9 bg-white`}
           placeholder="Cari bahan (nama / SKU)…"
+          aria-label="Cari bahan"
           value={q}
           autoFocus
           onChange={(e) => setQ(e.target.value)}
@@ -52,6 +53,7 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
       {/* category filter on its own row */}
       <select
         className={`${fieldClass} bg-white`}
+        aria-label="Filter kategori bahan"
         value={cat}
         onChange={(e) => setCat(e.target.value)}
       >

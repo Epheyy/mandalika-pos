@@ -3,7 +3,8 @@ import type { DupCandidate, Customer } from '@mandalika/api'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { api } from '../../api'
 import { BRAND } from '../../lib/brand'
-import { Button, Card } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Card } from '../../ui/Card'
 import { tagChipClasses } from './tagColors'
 import {
   computeConflicts, MERGE_FIELD_LABELS,

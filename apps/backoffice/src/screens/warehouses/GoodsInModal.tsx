@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { WarehouseStockRow, GoodsReceiptInput } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Input, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 // One editable goods-in line, keyed by `${productId}|${variantSize}`.
 type GoodsLine = { qty: string; unitCost: string }
@@ -125,6 +127,7 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
                       type="number"
                       min={0}
                       value={l?.qty ?? ''}
+                      aria-label={`Qty masuk ${r.productName} ${r.variantSize}`}
                       onChange={(e) => setLine(key, { qty: e.target.value })}
                       placeholder="0"
                       className={`${fieldClass} col-span-2 py-1.5`}
@@ -133,6 +136,7 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
                       type="number"
                       min={0}
                       value={l?.unitCost ?? ''}
+                      aria-label={`Harga beli ${r.productName} ${r.variantSize}`}
                       onChange={(e) => setLine(key, { unitCost: e.target.value })}
                       placeholder="—"
                       className={`${fieldClass} col-span-3 py-1.5`}

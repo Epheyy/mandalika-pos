@@ -291,6 +291,7 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
                   <input
                     type="text"
                     inputMode="numeric"
+                    aria-label="Diterima"
                     value={currentVal}
                     onChange={(e) => handleQtyChange(key, e.target.value)}
                     className={`flex-1 min-w-0 px-3 py-1.5 border rounded-lg text-sm font-bold text-right focus:outline-none transition-colors ${
@@ -312,6 +313,7 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
               </label>
               <textarea
                 rows={3}
+                aria-label="Alasan selisih"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Jelaskan penyebab selisih antara jumlah dikirim dan diterima…"

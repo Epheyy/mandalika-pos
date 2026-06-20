@@ -12,7 +12,11 @@ import {
 import { api } from '../../api'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { Button, Modal, IconButton, Badge, EmptyState } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Modal } from '../../ui/Modal'
+import { Badge } from '../../ui/Badge'
+import { IconButton } from '../../ui/IconButton'
+import { EmptyState } from '../../ui/EmptyState'
 import { OutletFormModal } from '../inventory/OutletFormModal'
 import { WarehouseFormModal } from '../inventory/WarehouseFormModal'
 

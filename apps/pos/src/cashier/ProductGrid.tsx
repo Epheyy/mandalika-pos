@@ -274,6 +274,7 @@ export const ProductGrid = memo(function ProductGrid({
             }
           }}
           placeholder="Cari / scan produk…"
+          aria-label="Cari atau scan produk"
           className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
         />
         {onScanClick && (

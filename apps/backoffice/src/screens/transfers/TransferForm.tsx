@@ -7,7 +7,10 @@ import type {
 } from '@mandalika/api'
 import { ArrowLeft, Save } from 'lucide-react'
 import { api } from '../../api'
-import { Button, Card, Select, Textarea, PageHeader, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Select, Textarea, fieldClass } from '../../ui/Field'
+import { Card } from '../../ui/Card'
+import { PageHeader } from '../../ui/PageHeader'
 
 type LocKind = 'outlet' | 'warehouse'
 interface LocPick {
@@ -190,6 +193,7 @@ export function TransferForm({ outlets, warehouses, onCancel, onCreated }: Trans
                       min={0}
                       max={r.stock}
                       value={qty[key] ?? ''}
+                      aria-label={`Qty kirim ${r.productName} ${r.variantSize}`}
                       onChange={(e) => setQty((m) => ({ ...m, [key]: e.target.value }))}
                       placeholder="0"
                       className={`${fieldClass} col-span-3 py-1.5`}

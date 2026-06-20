@@ -129,6 +129,7 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
           type="password"
           inputMode="numeric"
           maxLength={8}
+          aria-label="PIN"
           value={pin}
           onChange={(e) => {
             setPin(e.target.value.replace(/\D/g, ''))

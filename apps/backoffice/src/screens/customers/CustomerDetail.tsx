@@ -12,7 +12,13 @@ import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { BRAND } from '../../lib/brand'
-import { Button, Card, Badge, IconButton, EmptyState, Modal, Pagination } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Modal } from '../../ui/Modal'
+import { Card } from '../../ui/Card'
+import { Badge } from '../../ui/Badge'
+import { IconButton } from '../../ui/IconButton'
+import { EmptyState } from '../../ui/EmptyState'
+import { Pagination } from '../../ui/Pagination'
 import { tagChipClasses } from './tagColors'
 import {
   INTERACTION_TYPES, interactionLabel, interactionChipClasses, daysUntilRecurrence,
@@ -320,14 +326,17 @@ export default function CustomerDetail({
             <div className="p-4 space-y-3 border-b border-gray-100 bg-gray-50">
               <div className="flex flex-wrap gap-2">
                 <select value={iType} onChange={(e) => setIType(e.target.value as InteractionType)}
+                  aria-label="Jenis interaksi"
                   className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white">
                   {INTERACTION_TYPES.map((t) => <option key={t} value={t}>{interactionLabel(t)}</option>)}
                 </select>
                 <input type="date" value={iDate} onChange={(e) => setIDate(e.target.value)}
+                  aria-label="Tanggal interaksi"
                   className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
               </div>
               <textarea value={iNote} onChange={(e) => setINote(e.target.value)} rows={2}
                 placeholder="Catatan interaksi…"
+                aria-label="Catatan interaksi"
                 className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
               <Button icon={<Plus className="w-4 h-4" />} loading={iBusy} disabled={iBusy} onClick={() => void addInteraction()}>
                 Tambah Interaksi
@@ -380,9 +389,9 @@ export default function CustomerDetail({
               <div className="p-4 space-y-2 border-b border-gray-100 bg-gray-50">
                 <div className="flex flex-wrap gap-2">
                   <input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)}
-                    placeholder="+50 atau -20" className="w-32 px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                    placeholder="+50 atau -20" aria-label="Jumlah penyesuaian poin" className="w-32 px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
                   <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)}
-                    placeholder="Alasan (mis. hadiah, koreksi)" className="flex-1 min-w-[12rem] px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                    placeholder="Alasan (mis. hadiah, koreksi)" aria-label="Alasan penyesuaian poin" className="flex-1 min-w-[12rem] px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
                 </div>
                 {adjErr && <p className="text-xs text-red-600">{adjErr}</p>}
                 <div className="flex gap-2">

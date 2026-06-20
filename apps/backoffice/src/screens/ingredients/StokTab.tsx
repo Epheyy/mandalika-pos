@@ -3,7 +3,8 @@ import type { Outlet, Warehouse } from '@mandalika/api'
 import { ChevronRight, Layers, Store, Warehouse as WarehouseIcon } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { Badge, EmptyState } from '../../ui'
+import { Badge } from '../../ui/Badge'
+import { EmptyState } from '../../ui/EmptyState'
 import { IngredientLocationStockView } from './IngredientLocationStockView'
 
 interface LocationTarget {

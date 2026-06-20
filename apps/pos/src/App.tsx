@@ -75,6 +75,7 @@ function LoginScreen() {
               placeholder="nama@mandalika.com"
               autoComplete="username"
               type="email"
+              aria-label="Email"
               className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
             />
           </div>
@@ -90,6 +91,7 @@ function LoginScreen() {
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               autoComplete="current-password"
+              aria-label="Kata Sandi"
               className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
             />
             <button

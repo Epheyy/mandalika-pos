@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Download, Upload, FileText } from 'lucide-react'
-import { Button } from '../ui'
+import { Button } from '../ui/Button'
 import { parseCSV } from '../lib/csvUtils'
 
 export interface ImportExportBarProps {
@@ -116,6 +116,7 @@ export function ImportExportBar({
               type="file"
               accept=".csv"
               onChange={handleFile}
+              aria-label="Impor dari file CSV"
               className="hidden"
             />
           </>

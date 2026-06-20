@@ -19,9 +19,16 @@ import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
-import {
-  Button, Input, Select, Field, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Tabs, Pagination,
-} from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select, Field } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { IconButton } from '../ui/IconButton'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
+import { Pagination } from '../ui/Pagination'
 import CustomerDetail from './customers/CustomerDetail'
 import DupCandidates from './customers/DupCandidates'
 import MergeReview from './customers/MergeReview'
@@ -613,6 +620,7 @@ export default function Customers() {
           </div>
           <Field label="Catatan">
             <textarea
+              aria-label="Catatan"
               className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400"
               rows={3}
               value={form.notes}

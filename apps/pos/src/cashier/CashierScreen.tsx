@@ -271,7 +271,7 @@ export default function CashierScreen() {
     }
     // Fetch once when the panel opens; the cart is final at checkout. Re-picking a
     // reward must not refetch, so cart/derived.total are intentionally excluded.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-doctor/exhaustive-deps
   }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer?.id, offlineData.isOnline])
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)

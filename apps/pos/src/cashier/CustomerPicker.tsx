@@ -116,6 +116,7 @@ export const CustomerPicker = memo(function CustomerPicker({
           <input
             className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             placeholder="Nama *"
+            aria-label="Nama pelanggan"
             value={newCustomerForm.name}
             onChange={(e) => onNewFormChange('name', e.target.value)}
           />
@@ -124,12 +125,14 @@ export const CustomerPicker = memo(function CustomerPicker({
             placeholder="Telepon *"
             type="tel"
             inputMode="tel"
+            aria-label="Nomor telepon pelanggan"
             value={newCustomerForm.phone}
             onChange={(e) => onNewFormChange('phone', e.target.value)}
           />
           <input
             className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             placeholder="Email (opsional)"
+            aria-label="Email pelanggan (opsional)"
             value={newCustomerForm.email}
             onChange={(e) => onNewFormChange('email', e.target.value)}
           />
@@ -165,6 +168,7 @@ export const CustomerPicker = memo(function CustomerPicker({
                 required ? 'border-red-300' : 'border-gray-200'
               }`}
               placeholder="Cari nama / no. telepon…"
+              aria-label="Cari nama atau nomor telepon pelanggan"
               value={customerSearch}
               onChange={(e) => onSearchChange(e.target.value)}
             />

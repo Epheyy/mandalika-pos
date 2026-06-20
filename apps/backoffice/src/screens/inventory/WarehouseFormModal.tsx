@@ -4,7 +4,9 @@ import type { Warehouse, WarehouseInput } from '@mandalika/api'
 import { Upload, X } from 'lucide-react'
 import { api } from '../../api'
 import { uploadImage, getThumbnailUrl } from '../../lib/uploadImage'
-import { Button, Modal, Input, Textarea, Field } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, Textarea, Field } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 const EMPTY_FORM = {
   name: '',
@@ -171,6 +173,7 @@ export function WarehouseFormModal({ open, editing, onClose, onDone }: Props) {
               ref={logoFileRef}
               type="file"
               accept="image/*"
+              aria-label="Unggah logo gudang"
               className="hidden"
               onChange={onLogoFile}
             />

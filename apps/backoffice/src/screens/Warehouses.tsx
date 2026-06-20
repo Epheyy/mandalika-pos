@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { Tabs } from '../ui'
+import { Tabs } from '../ui/Tabs'
 import { Transfers } from './transfers/Transfers'
 import Ingredients from './ingredients/Ingredients'
 import StokProduk from './inventory/StokProduk'

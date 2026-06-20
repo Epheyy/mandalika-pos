@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Tabs } from '../../ui'
+import { Tabs } from '../../ui/Tabs'
 import StockCount from '../StockCount'
 import OpnameTab from '../ingredients/OpnameTab'
 

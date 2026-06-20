@@ -29,18 +29,18 @@ import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { BRAND } from '../lib/brand'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
+import { EmptyState } from '../ui/EmptyState'
 import {
-  Card,
-  Badge,
-  PageHeader,
-  Tabs,
-  EmptyState,
   CHART_PRIMARY,
   CHART_SERIES,
   CHART_GRID,
   CHART_AXIS,
   CHART_TOOLTIP,
-} from '../ui'
+} from '../ui/chartColors'
 import { KpiCard, RankedList } from './dashboard/components'
 import {
   type Period,

@@ -6,7 +6,12 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { ImportExportBar } from '../../components/ImportExportBar'
-import { Button, Card, Badge, EmptyState, Pagination, Select, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Select, fieldClass } from '../../ui/Field'
+import { Card } from '../../ui/Card'
+import { Badge } from '../../ui/Badge'
+import { EmptyState } from '../../ui/EmptyState'
+import { Pagination } from '../../ui/Pagination'
 import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
@@ -157,6 +162,7 @@ export default function TransferTab() {
             max={toDate || undefined}
             onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
             className={fieldClass}
+            aria-label="Tanggal dari"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -167,6 +173,7 @@ export default function TransferTab() {
             min={fromDate || undefined}
             onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
             className={fieldClass}
+            aria-label="Tanggal sampai"
           />
         </div>
         <div className="flex items-end gap-2 ml-auto">

@@ -117,7 +117,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-            title="Tutup"
+            aria-label="Tutup"
           >
             ✕
           </button>
@@ -130,6 +130,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <input
               type="date" value={from} max={to}
               onChange={(e) => setFrom(e.target.value)}
+              aria-label="Dari tanggal"
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
@@ -138,6 +139,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <input
               type="date" value={to} min={from} max={today()}
               onChange={(e) => setTo(e.target.value)}
+              aria-label="Sampai tanggal"
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
@@ -146,6 +148,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <input
               type="text" value={search} placeholder="No. order / nama / telepon"
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Cari transaksi"
               className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>

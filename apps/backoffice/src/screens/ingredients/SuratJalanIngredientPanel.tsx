@@ -9,7 +9,9 @@
 import { useRef, useState } from 'react'
 import { Share2, Download, FileText, Eye } from 'lucide-react'
 import type { IngredientTransfer } from '@mandalika/api'
-import { Card, Button, Modal } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Modal } from '../../ui/Modal'
+import { Card } from '../../ui/Card'
 import { IngredientSuratJalanDoc } from './docs/IngredientSuratJalanDoc'
 import {
   renderNodeToPng,

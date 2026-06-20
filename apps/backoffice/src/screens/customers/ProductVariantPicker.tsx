@@ -48,6 +48,7 @@ export function ProductVariantPicker({ products, value, onChange }: ProductVaria
                 type="checkbox"
                 checked={has(pid)}
                 onChange={() => toggleWhole(pid)}
+                aria-label={`Pilih semua varian ${p.name}`}
                 className="accent-gold-600"
               />
               <button

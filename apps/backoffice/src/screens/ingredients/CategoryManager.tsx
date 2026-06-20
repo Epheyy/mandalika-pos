@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import type { IngredientCategory } from '@mandalika/api'
 import { api } from '../../api'
-import { Button } from '../../ui'
+import { Button } from '../../ui/Button'
 
 interface ConfirmDeleteState {
   id: string

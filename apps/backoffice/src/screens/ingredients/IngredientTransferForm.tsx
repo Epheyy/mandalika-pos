@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Ingredient, Outlet, Warehouse, IngredientTransferCreateInput } from '@mandalika/api'
 import { Save } from 'lucide-react'
 import { api } from '../../api'
-import { Button, Modal, Field, Textarea, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Field, Textarea, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 interface FormItem {
   ingredientId: string
@@ -213,6 +215,7 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
                     onChange={(e) => setItem(idx, { qty: e.target.value })}
                     placeholder="0"
                     className={`${fieldClass} col-span-4 py-1.5`}
+                    aria-label="Qty kirim"
                   />
                   <button
                     type="button"

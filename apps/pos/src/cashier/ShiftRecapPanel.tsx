@@ -443,6 +443,7 @@ export function ShiftRecapPanel({
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">Terhitung</span>
                           <input
                             type="number" inputMode="numeric"
+                            aria-label="Terhitung"
                             value={hasC ? String(counted[pm.id]) : ''}
                             onChange={(e) => {
                               const v = e.target.value
@@ -501,7 +502,7 @@ export function ShiftRecapPanel({
                 <p className="text-sm font-bold text-gray-700">Buka Shift Baru</p>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Kas Awal (Rp)</label>
-                  <input type="number" inputMode="numeric" value={depositAmount}
+                  <input type="number" inputMode="numeric" aria-label="Kas Awal (Rp)" value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)} placeholder="0"
                     className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
                 </div>
@@ -513,7 +514,7 @@ export function ShiftRecapPanel({
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Kas Akhir (Rp)</label>
-                <input type="number" inputMode="numeric" value={closingCash}
+                <input type="number" inputMode="numeric" aria-label="Kas Akhir (Rp)" value={closingCash}
                   onChange={(e) => setClosingCash(e.target.value)} placeholder="0"
                   className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
               </div>
@@ -563,7 +564,7 @@ export function ShiftRecapPanel({
             return (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 space-y-2">
-                  <input type="text" value={historySearch}
+                  <input type="text" aria-label="Cari nama kasir" value={historySearch}
                     onChange={(e) => { setHistorySearch(e.target.value); setHistPage(1) }}
                     placeholder="Cari nama kasir…"
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />

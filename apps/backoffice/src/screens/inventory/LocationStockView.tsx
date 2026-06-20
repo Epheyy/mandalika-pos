@@ -4,7 +4,12 @@ import { ArrowLeft, Package, PackagePlus, Search, SlidersHorizontal } from 'luci
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Badge, Button, Card, EmptyState, PageHeader, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { fieldClass } from '../../ui/Field'
+import { Card } from '../../ui/Card'
+import { Badge } from '../../ui/Badge'
+import { EmptyState } from '../../ui/EmptyState'
+import { PageHeader } from '../../ui/PageHeader'
 import { GoodsInModal } from '../warehouses/GoodsInModal'
 import { AdjustModal } from '../warehouses/AdjustModal'
 
@@ -76,6 +81,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
         <input
           type="text"
           placeholder="Cari produk / SKU..."
+          aria-label="Cari produk atau SKU"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={`${fieldClass} pl-9`}
@@ -122,7 +128,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
                           type="number"
                           defaultValue={r.parLevel ?? ''}
                           placeholder="—"
-                          title="Batas stok menipis (PAR)"
+                          aria-label="PAR level stok"
                           onBlur={async (e) => {
                             const v = e.target.value === '' ? null : Number(e.target.value)
                             try {

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { IngredientTransfer, IngredientTransferReceiveInput } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Textarea, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Textarea, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 interface IngredientReceiveModalProps {
   transfer: IngredientTransfer
@@ -103,6 +105,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
                     value={actual[it.id] ?? ''}
                     onChange={(e) => setActual((m) => ({ ...m, [it.id]: e.target.value }))}
                     className={`${fieldClass} py-1.5`}
+                    aria-label="Qty diterima"
                   />
                   {diff !== 0 && (
                     <span className={`text-[11px] font-bold ${diff < 0 ? 'text-red-600' : 'text-green-600'}`}>

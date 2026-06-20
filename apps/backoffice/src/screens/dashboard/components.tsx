@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
-import { Card } from '../../ui'
+import { Card } from '../../ui/Card'
 
 interface KpiCardProps {
   label: string

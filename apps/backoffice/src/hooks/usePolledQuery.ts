@@ -27,9 +27,14 @@ export function usePolledQuery<T>(
   const run = useCallback(async () => {
     try {
       const r = await fetcherRef.current()
-      if (!alive.current) return
-      setData(r)
-      setError(null)
+      // Liveness guard runs AFTER the await on purpose: it catches an unmount
+      // (or deps change) that happened while the fetch was in flight, so we
+      // never set state on a dead instance. A positive guard keeps the result
+      // path inside the `if` instead of an early-return after the await.
+      if (alive.current) {
+        setData(r)
+        setError(null)
+      }
     } catch (e: unknown) {
       if (!alive.current) return
       setError(e instanceof Error ? e.message : 'load failed')
@@ -53,7 +58,9 @@ export function usePolledQuery<T>(
       alive.current = false
       clearInterval(id)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `deps` is a caller-forwarded array, not an inline literal, so neither
+    // linter can statically check it — intentional for a generic polling hook.
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-doctor/exhaustive-deps
   }, deps)
 
   return { data, error, loading, refetch: run }

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { WarehouseStockRow } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Input } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 interface AdjustModalProps {
   location: { kind: 'outlet' | 'warehouse'; id: string; name: string }

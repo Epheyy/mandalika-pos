@@ -14,21 +14,15 @@ import { ImportExportBar } from '../components/ImportExportBar'
 import { uploadImage } from '../lib/uploadImage'
 import { exportToCSV, exportToXLSX, parseCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
-import {
-  Button,
-  Card,
-  Badge,
-  Modal,
-  Field,
-  Input,
-  Select,
-  Textarea,
-  IconButton,
-  EmptyState,
-  PageHeader,
-  Tabs,
-  fieldClass,
-} from '../ui'
+import { Button } from '../ui/Button'
+import { Field, Input, Select, Textarea, fieldClass } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { IconButton } from '../ui/IconButton'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 
 const EMPTY_VARIANT: ProductVariant = { size: '', price: 0, stock: 0, sku: '', barcode: '' } // stock kept at 0; UI no longer shows it (managed in Inventori)
 const MAX_IMAGES = 5
@@ -476,7 +470,7 @@ export default function Products() {
                 <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => catCsvRef.current?.click()}>
                   Import
                 </Button>
-                <input ref={catCsvRef} type="file" accept=".csv" onChange={importCats} className="hidden" />
+                <input ref={catCsvRef} type="file" accept=".csv" onChange={importCats} className="hidden" aria-label="Impor kategori dari CSV" />
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingCat(null); setCatForm({ name: '', description: '' }); setCatOpen(true) }}>
                   Tambah
                 </Button>
@@ -491,9 +485,9 @@ export default function Products() {
           <div className="flex gap-3 flex-wrap">
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-              <input type="text" placeholder="Cari produk..." value={search} onChange={(e) => setSearch(e.target.value)} className={`${fieldClass} pl-9`} />
+              <input type="text" aria-label="Cari produk" placeholder="Cari produk..." value={search} onChange={(e) => setSearch(e.target.value)} className={`${fieldClass} pl-9`} />
             </div>
-            <select value={fCat} onChange={(e) => setFCat(e.target.value)} className={`${fieldClass} w-auto`}>
+            <select value={fCat} onChange={(e) => setFCat(e.target.value)} className={`${fieldClass} w-auto`} aria-label="Filter kategori">
               <option value="">Semua Kategori</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -664,7 +658,7 @@ export default function Products() {
                   )}
                 </button>
               )}
-              <input ref={fileRef} type="file" accept="image/*" multiple onChange={onImage} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/*" multiple onChange={onImage} className="hidden" aria-label="Unggah foto produk" />
             </div>
           </Field>
           <div className="grid grid-cols-2 gap-4">
@@ -715,13 +709,14 @@ export default function Products() {
                     { k: 'price', span: 'col-span-3', ph: '150000', num: true },
                     { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
                   ] as const).map(({ k, span, ph, num }) => (
-                    <input key={k} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} className={`${fieldClass} ${span}`} />
+                    <input key={k} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => updVariant(i, k, e.target.value)} placeholder={ph} aria-label={k === 'size' ? 'Ukuran varian' : k === 'price' ? 'Harga dasar varian' : 'SKU varian'} className={`${fieldClass} ${span}`} />
                   ))}
                   <input
                     type="text"
                     value={v.barcode ?? ''}
                     onChange={(e) => updVariant(i, 'barcode', e.target.value)}
                     placeholder={v.sku.trim() || '= SKU'}
+                    aria-label="Barcode varian"
                     title="Kosongkan untuk memakai SKU sebagai barcode"
                     className={`${fieldClass} col-span-2`}
                   />
@@ -787,10 +782,10 @@ export default function Products() {
                                   return (
                                     <div key={v.size} className="grid grid-cols-12 gap-2 items-center">
                                       <label className="col-span-1 flex justify-center cursor-pointer">
-                                        <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} className="w-4 h-4 accent-gold-600" />
+                                        <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} aria-label={`Jual ${v.size} di outlet ini`} className="w-4 h-4 accent-gold-600" />
                                       </label>
                                       <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
-                                      <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
+                                      <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} aria-label={`Harga ${v.size} di outlet ini`} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
                                     </div>
                                   )
                                 })}

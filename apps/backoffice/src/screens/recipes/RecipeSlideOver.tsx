@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { Button } from '../../ui'
+import { Button } from '../../ui/Button'
 import { useRecipe, type EditLine } from './useRecipe'
 import { RecipeIngredientPicker } from './RecipeIngredientPicker'
 import { VersionHistoryDropdown } from './VersionHistoryDropdown'
@@ -51,7 +51,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
               <div className="text-[10px] font-black tracking-widest text-gray-400 uppercase">Resep</div>
               <div className="font-black text-gray-900">{variantLabel}</div>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+            <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
           </div>
           <div className="mt-3">
             <VersionHistoryDropdown
@@ -105,6 +105,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
                     </div>
                     <input
                       type="number" inputMode="decimal" value={l.qty} disabled={readOnly}
+                      aria-label={`Jumlah ${l.name}`}
                       onChange={(e) => setQty(i, e.target.value)}
                       className="col-span-3 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right disabled:bg-gray-50"
                     />
@@ -165,6 +166,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
             <textarea
               value={r.notes} onChange={(e) => r.setNotes(e.target.value)} rows={2}
               placeholder="Catatan versi…"
+              aria-label="Catatan versi resep"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
             <Button className="w-full" onClick={() => void r.save()}>Simpan versi baru</Button>

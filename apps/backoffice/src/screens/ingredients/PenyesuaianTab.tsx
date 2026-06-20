@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
-import { Button } from '../../ui'
+import { Button } from '../../ui/Button'
 import { IngredientAdjustModal } from './IngredientAdjustModal'
 
 export default function PenyesuaianTab() {

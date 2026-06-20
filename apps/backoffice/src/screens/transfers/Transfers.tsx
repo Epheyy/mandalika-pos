@@ -7,7 +7,13 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { ImportExportBar } from '../../components/ImportExportBar'
-import { Button, Card, Badge, EmptyState, PageHeader, Pagination, Select, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Select, fieldClass } from '../../ui/Field'
+import { Card } from '../../ui/Card'
+import { Badge } from '../../ui/Badge'
+import { EmptyState } from '../../ui/EmptyState'
+import { PageHeader } from '../../ui/PageHeader'
+import { Pagination } from '../../ui/Pagination'
 import { TransferForm } from './TransferForm'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
@@ -195,6 +201,7 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
           <input
             type="date"
+            aria-label="Tanggal dari"
             value={fromDate}
             max={toDate || undefined}
             onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
@@ -205,6 +212,7 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
           <input
             type="date"
+            aria-label="Tanggal sampai"
             value={toDate}
             min={fromDate || undefined}
             onChange={(e) => onFilterChange(() => setToDate(e.target.value))}

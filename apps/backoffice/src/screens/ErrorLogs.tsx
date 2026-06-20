@@ -8,7 +8,13 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
-import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Tabs } from '../ui'
+import { Button } from '../ui/Button'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { EmptyState } from '../ui/EmptyState'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
+import { Pagination } from '../ui/Pagination'
 
 
 const SOURCES: ReadonlyArray<{ id: string; label: string }> = [

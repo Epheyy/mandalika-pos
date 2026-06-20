@@ -321,6 +321,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                     )
                   }
                   placeholder="0"
+                  aria-label="Jumlah poin yang ditukar"
                   className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
                 />
                 <button
@@ -400,6 +401,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 value={amountPaid}
                 onChange={(e) => onAmountPaidChange(e.target.value)}
                 placeholder={String(derived.total)}
+                aria-label="Jumlah dibayar"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-2"
               />
               {/* Quick amount buttons */}

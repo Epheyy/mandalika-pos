@@ -4,7 +4,8 @@ import { FlaskConical, Search, Store, Warehouse as WarehouseIcon } from 'lucide-
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Card, EmptyState } from '../../ui'
+import { Card } from '../../ui/Card'
+import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientLocationStockView } from './IngredientLocationStockView'
 
@@ -137,6 +138,7 @@ export function IngredientOverviewMatrix() {
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Cari bahan…"
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
+            aria-label="Cari bahan"
           />
         </div>
       </div>

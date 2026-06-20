@@ -4,7 +4,12 @@ import { Plus, Trash2, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
-import { Button, Input, Select, Field, Card, IconButton, PageHeader, Tabs, Textarea } from '../ui'
+import { Button } from '../ui/Button'
+import { Input, Select, Field, Textarea } from '../ui/Field'
+import { Card } from '../ui/Card'
+import { IconButton } from '../ui/IconButton'
+import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 import { LocationsSection } from './settings/LocationsSection'
 
 const DEFAULT: AppSettings = {
@@ -44,15 +49,17 @@ const DEFAULT: AppSettings = {
 function Toggle({
   checked,
   onClick,
+  label,
   size = 'md',
 }: {
   checked: boolean
   onClick: () => void
+  label: string
   size?: 'sm' | 'md'
 }) {
   const cls = size === 'md' ? 'w-7 h-7' : 'w-6 h-6'
   return (
-    <button onClick={onClick} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/40 rounded-lg">
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={onClick} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/40 rounded-lg">
       {checked ? (
         <ToggleRight className={`${cls} text-gold-600`} />
       ) : (
@@ -151,7 +158,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Izinkan Stok Minus</p>
                 <p className="text-xs text-gray-400">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
               </div>
-              <Toggle checked={s.allowNegativeStock} onClick={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
+              <Toggle label="Izinkan stok minus" checked={s.allowNegativeStock} onClick={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
             </div>
           </Card>
         </>
@@ -168,7 +175,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Aktifkan PPN</p>
                 <p className="text-xs text-gray-400">Pajak dihitung di kasir</p>
               </div>
-              <Toggle checked={s.taxEnabled} onClick={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
+              <Toggle label="Aktifkan pajak" checked={s.taxEnabled} onClick={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
             </div>
             {s.taxEnabled && (
               <Input
@@ -184,7 +191,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Pembulatan Harga</p>
                 <p className="text-xs text-gray-400">Membulatkan total transaksi</p>
               </div>
-              <Toggle checked={s.roundingEnabled} onClick={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
+              <Toggle label="Aktifkan pembulatan" checked={s.roundingEnabled} onClick={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
             </div>
             {s.roundingEnabled && (
               <div className="grid grid-cols-2 gap-4">
@@ -219,6 +226,7 @@ export default function SettingsScreen() {
                   <span className="font-bold text-gray-900 text-sm">{pm.label}</span>
                   <div className="flex items-center gap-2">
                     <Toggle
+                      label={`Aktifkan metode ${pm.label}`}
                       checked={pm.isEnabled}
                       size="sm"
                       onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
@@ -238,6 +246,7 @@ export default function SettingsScreen() {
                 value={newPay}
                 onChange={(e) => setNewPay(e.target.value)}
                 placeholder="Nama metode baru..."
+                aria-label="Nama metode pembayaran baru"
                 className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
               />
               <Button
@@ -267,7 +276,7 @@ export default function SettingsScreen() {
             />
             <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <p className="font-bold text-gray-900 text-sm">Cetak struk otomatis</p>
-              <Toggle checked={!!s.receipt.autoPrint} size="sm" onClick={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
+              <Toggle label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onClick={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
             </div>
             {([['headerText', 'Teks Header'], ['footerText', 'Teks Footer']] as const).map(([k, label]) => (
               <Input
@@ -292,7 +301,7 @@ export default function SettingsScreen() {
                 ] as const).map(([k, label]) => (
                   <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
                     <p className="font-bold text-gray-900 text-sm">{label}</p>
-                    <Toggle checked={!!s.receipt[k]} size="sm" onClick={() => setReceipt(k, !s.receipt[k])} />
+                    <Toggle label={label} checked={!!s.receipt[k]} size="sm" onClick={() => setReceipt(k, !s.receipt[k])} />
                   </div>
                 ))}
               </div>
@@ -312,7 +321,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Buka Shift Otomatis</p>
                 <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login</p>
               </div>
-              <Toggle checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
+              <Toggle label="Buka shift otomatis" checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
             </div>
           </Card>
 
@@ -334,6 +343,7 @@ export default function SettingsScreen() {
                 <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
                   <p className="font-bold text-gray-900 text-sm capitalize">{role}</p>
                   <Toggle
+                    label={`Jadikan ${role} sebagai approver`}
                     checked={approverRoles.includes(role)}
                     size="sm"
                     onClick={() => setApproverRoles((prev) =>
@@ -375,6 +385,7 @@ export default function SettingsScreen() {
                     <button
                       type="button"
                       onClick={() => setDoc('logoUrl', undefined)}
+                      aria-label="Hapus logo"
                       className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow hover:bg-red-50 transition"
                     >
                       <X className="w-3 h-3 text-gray-500" />
@@ -400,6 +411,7 @@ export default function SettingsScreen() {
                 type="file"
                 accept="image/*"
                 onChange={onLogoFile}
+                aria-label="Unggah logo"
                 className="hidden"
               />
             </Field>
@@ -448,6 +460,7 @@ export default function SettingsScreen() {
               <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
             </div>
             <Toggle
+              label="Aktifkan modul Resep & Bahan"
               checked={s.recipesEnabled ?? false}
               onClick={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
             />

@@ -8,7 +8,15 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
 import { ImportExportBar } from '../../components/ImportExportBar'
-import { Button, Input, Select, Textarea, Modal, Card, Badge, IconButton, EmptyState, PageHeader, Pagination, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, Select, Textarea, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
+import { Card } from '../../ui/Card'
+import { Badge } from '../../ui/Badge'
+import { IconButton } from '../../ui/IconButton'
+import { EmptyState } from '../../ui/EmptyState'
+import { PageHeader } from '../../ui/PageHeader'
+import { Pagination } from '../../ui/Pagination'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -54,6 +62,7 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
                       value={counted[it.id] !== undefined ? counted[it.id] : (it.counted ?? '')}
                       onChange={(e) => onCountChange(it.id, parseFloat(e.target.value) || 0)}
                       className={`${fieldClass} w-24 px-2 py-1 text-center`}
+                      aria-label="Jumlah dihitung"
                     />
                   ) : (
                     <span className="text-sm font-bold text-gray-900">{fmtQty(it.counted)}</span>

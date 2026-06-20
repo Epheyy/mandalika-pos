@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import type { Transfer, TransferReceiveInput } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { api } from '../../api'
-import { Button, Modal, Textarea, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Textarea, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 const lineKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
@@ -109,6 +111,7 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
                     type="number"
                     min={0}
                     value={actual[key] ?? ''}
+                    aria-label={`Qty diterima ${it.productName} ${variantLabel(it.variantSize)}`}
                     onChange={(e) => setActual((m) => ({ ...m, [key]: e.target.value }))}
                     className={`${fieldClass} py-1.5`}
                   />

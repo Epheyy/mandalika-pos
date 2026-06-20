@@ -16,7 +16,9 @@
 import { useRef, useState } from 'react'
 import { Share2, Download, FileText, Eye } from 'lucide-react'
 import type { Transfer } from '@mandalika/api'
-import { Card, Button, Modal } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Modal } from '../../ui/Modal'
+import { Card } from '../../ui/Card'
 import { SuratJalanDoc } from './docs/SuratJalanDoc'
 import {
   renderNodeToPng,

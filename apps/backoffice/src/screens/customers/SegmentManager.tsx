@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { Segment, SegmentInput } from '@mandalika/api'
 import { Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react'
 import { api } from '../../api'
-import { Button, Input } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input } from '../../ui/Field'
 import { TAG_COLORS, tagChipClasses } from './tagColors'
 
 interface SegmentManagerProps {

@@ -4,7 +4,10 @@ import { BarChart2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
-import { Card, EmptyState, Pagination, Select, fieldClass } from '../../ui'
+import { Select, fieldClass } from '../../ui/Field'
+import { Card } from '../../ui/Card'
+import { EmptyState } from '../../ui/EmptyState'
+import { Pagination } from '../../ui/Pagination'
 
 // ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
 function toFromIso(date: string): string {
@@ -132,6 +135,7 @@ export function MovementSummary() {
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
           <input
             type="date"
+            aria-label="Tanggal dari"
             value={fromDate}
             max={toDate}
             onChange={(e) => {
@@ -146,6 +150,7 @@ export function MovementSummary() {
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
           <input
             type="date"
+            aria-label="Tanggal sampai"
             value={toDate}
             min={fromDate}
             onChange={(e) => {

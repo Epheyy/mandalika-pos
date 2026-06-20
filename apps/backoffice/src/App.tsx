@@ -16,7 +16,9 @@ import {
 import { useAuth } from './auth'
 import { OutletSwitcher } from './outlet'
 import { BRAND } from './lib/brand'
-import { Button, Card, Input } from './ui'
+import { Button } from './ui/Button'
+import { Input } from './ui/Field'
+import { Card } from './ui/Card'
 
 import Dashboard from './screens/Dashboard'
 import Products from './screens/Products'

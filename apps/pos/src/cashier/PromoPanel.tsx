@@ -203,6 +203,7 @@ export const PromoPanel = memo(function PromoPanel({
               <input
                 className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase placeholder:normal-case"
                 placeholder="Masukkan kode…"
+                aria-label="Kode promo"
                 value={promoCodeInput}
                 onChange={(e) => {
                   onClearPromoCodeError()

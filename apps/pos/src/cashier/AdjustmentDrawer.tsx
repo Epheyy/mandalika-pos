@@ -57,6 +57,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
             onChange={(e) => dispatch({ type: 'SET_ORDER_NOTES', notes: e.target.value })}
             rows={3}
             placeholder="Catatan untuk order ini…"
+            aria-label="Catatan order"
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none mb-3"
           />
           <button
@@ -99,6 +100,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
             value={state.adjustInputStr}
             onChange={(e) => dispatch({ type: 'SET_ADJUST_INPUT', value: e.target.value })}
             placeholder={state.discountType === 'percentage' ? 'Contoh: 10' : 'Contoh: 5000'}
+            aria-label="Nilai diskon atau surcharge"
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-3"
           />
           <div className="flex gap-2">

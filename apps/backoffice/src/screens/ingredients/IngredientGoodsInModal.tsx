@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Ingredient, Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Input, Field, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, Field, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 
 interface GoodsInItem {
   ingredientId: string
@@ -220,6 +222,7 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
                     onChange={(e) => setItem(idx, { qty: e.target.value })}
                     placeholder="0"
                     className={`${fieldClass} col-span-3 py-1.5`}
+                    aria-label="Qty"
                   />
                   <input
                     type="number"
@@ -228,6 +231,7 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
                     onChange={(e) => setItem(idx, { unitCost: e.target.value })}
                     placeholder="—"
                     className={`${fieldClass} col-span-3 py-1.5`}
+                    aria-label="Biaya per satuan"
                   />
                   <button
                     type="button"

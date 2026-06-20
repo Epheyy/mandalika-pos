@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Ingredient, IngredientUsageVariant } from '@mandalika/api'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../../api'
-import { Button, Modal } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Modal } from '../../ui/Modal'
 
 interface DeleteIngredientModalProps {
   ingredient: Ingredient

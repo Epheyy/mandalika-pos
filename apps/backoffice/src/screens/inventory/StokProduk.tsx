@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { PageHeader, Tabs } from '../../ui'
+import { PageHeader } from '../../ui/PageHeader'
+import { Tabs } from '../../ui/Tabs'
 import { MovementSummary } from './MovementSummary'
 import { OverviewMatrix } from './OverviewMatrix'
 

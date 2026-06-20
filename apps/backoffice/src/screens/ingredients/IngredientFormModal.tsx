@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { api } from '../../api'
-import { Button, Modal, Input, Select, Textarea, Field, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { Input, Select, Textarea, Field, fieldClass } from '../../ui/Field'
+import { Modal } from '../../ui/Modal'
 import { COMMON_UNITS, isCommonUnit } from './units'
 import { CategoryManager } from './CategoryManager'
 
@@ -210,6 +212,7 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
                 onChange={(e) => setNewCatName(e.target.value)}
                 placeholder="Nama kategori baru"
                 className={fieldClass + ' flex-1'}
+                aria-label="Nama kategori baru"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); void handleAddCategory() }
                   if (e.key === 'Escape') setShowNewCat(false)

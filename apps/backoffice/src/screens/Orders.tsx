@@ -11,15 +11,11 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Select,
-  Textarea,
-  fieldClass,
-} from '../ui'
+import { Button } from '../ui/Button'
+import { Select, Textarea, fieldClass } from '../ui/Field'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { EmptyState } from '../ui/EmptyState'
 
 /** The transactions list/table/search/refund UI — no page header. */
 export function OrdersPanel() {
@@ -113,19 +109,20 @@ export function OrdersPanel() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
           <input
             type="text"
+            aria-label="Cari order / kasir / pelanggan"
             placeholder="Cari order / kasir / pelanggan..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className={`${fieldClass} pl-9`}
           />
         </div>
-        <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-auto">
+        <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-auto" aria-label="Filter status">
           <option value="">Semua Status</option>
           <option value="completed">Selesai</option>
           <option value="refunded">Refund</option>
           <option value="cancelled">Dibatalkan</option>
         </Select>
-        <Select value={fPay} onChange={(e) => setFPay(e.target.value)} className="w-auto">
+        <Select value={fPay} onChange={(e) => setFPay(e.target.value)} className="w-auto" aria-label="Filter pembayaran">
           <option value="">Semua Pembayaran</option>
           <option value="cash">Tunai</option>
           <option value="card">Kartu</option>

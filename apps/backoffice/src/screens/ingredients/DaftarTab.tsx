@@ -6,7 +6,11 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { ImportExportBar } from '../../components/ImportExportBar'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
-import { Button, Badge, EmptyState, Pagination, fieldClass } from '../../ui'
+import { Button } from '../../ui/Button'
+import { fieldClass } from '../../ui/Field'
+import { Badge } from '../../ui/Badge'
+import { EmptyState } from '../../ui/EmptyState'
+import { Pagination } from '../../ui/Pagination'
 import { IngredientFormModal } from './IngredientFormModal'
 import { DeleteIngredientModal } from './DeleteIngredientModal'
 
@@ -202,6 +206,7 @@ export default function DaftarTab() {
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Cari nama atau SKU..."
               className={`${fieldClass} pl-9`}
+              aria-label="Cari bahan"
             />
           </div>
 
@@ -210,6 +215,7 @@ export default function DaftarTab() {
             value={categoryFilter}
             onChange={(e) => handleCategoryChange(e.target.value)}
             className={fieldClass + ' w-auto py-2'}
+            aria-label="Filter kategori"
           >
             <option value="">Semua kategori</option>
             {categories.map((c) => (
@@ -268,7 +274,7 @@ export default function DaftarTab() {
                 <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
                   Status
                 </th>
-                <th className="px-4 py-3" />
+                <th className="px-4 py-3"><span className="sr-only">Aksi</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
