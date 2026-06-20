@@ -7,11 +7,13 @@ import { Field, Textarea, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 
 interface FormItem {
+  rowId: number
   ingredientId: string
   qty: string
 }
 
-const EMPTY_ITEM: FormItem = { ingredientId: '', qty: '' }
+let nextRowId = 0
+const makeRow = (): FormItem => ({ rowId: nextRowId++, ingredientId: '', qty: '' })
 
 type LocKind = 'outlet' | 'warehouse'
 interface LocPick {
@@ -39,7 +41,7 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
   const [source, setSource] = useState<LocPick | null>(null)
   const [dest, setDest] = useState<LocPick | null>(null)
   const [note, setNote] = useState('')
-  const [items, setItems] = useState<FormItem[]>([{ ...EMPTY_ITEM }])
+  const [items, setItems] = useState<FormItem[]>(() => [makeRow()])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -70,7 +72,7 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
   const setItem = (index: number, patch: Partial<FormItem>) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
 
-  const addRow = () => setItems((prev) => [...prev, { ...EMPTY_ITEM }])
+  const addRow = () => setItems((prev) => [...prev, makeRow()])
 
   const removeRow = (index: number) =>
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
@@ -194,7 +196,7 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {items.map((it, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <div key={it.rowId} className="grid grid-cols-12 gap-2 items-center">
                   <select
                     value={it.ingredientId}
                     onChange={(e) => setItem(idx, { ingredientId: e.target.value })}

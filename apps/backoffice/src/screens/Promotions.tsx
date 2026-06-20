@@ -354,7 +354,7 @@ export default function Promotions() {
           <Field label="Aktif Hari (kosong = semua)">
             <div className="flex gap-1.5 flex-wrap">
               {DAYS.map((d, i) => (
-                <button key={i} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(promoForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
+                <button key={d} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(promoForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
               ))}
             </div>
           </Field>

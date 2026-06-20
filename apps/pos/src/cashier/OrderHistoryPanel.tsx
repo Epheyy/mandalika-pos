@@ -222,8 +222,8 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         </div>
                         {o.discountAmount > 0 && (
                           o.discountBreakdown && o.discountBreakdown.length > 0 ? (
-                            o.discountBreakdown.map((d, i) => (
-                              <div key={i} className="flex justify-between text-red-600">
+                            o.discountBreakdown.map((d) => (
+                              <div key={`${d.label}-${d.kind}`} className="flex justify-between text-red-600">
                                 <span>
                                   Diskon · {d.label}
                                   {d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}

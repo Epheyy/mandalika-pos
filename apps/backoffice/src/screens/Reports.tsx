@@ -277,8 +277,8 @@ export default function Reports() {
                     {expanded === o.id && (
                       <div className="px-5 pb-3 bg-gray-50 border-t border-gray-100">
                         <div className="pt-3 space-y-1">
-                          {o.items.map((it, i) => (
-                            <div key={i} className="flex justify-between text-sm">
+                          {o.items.map((it) => (
+                            <div key={`${it.productId}|${it.variantSize}`} className="flex justify-between text-sm">
                               <span className="text-gray-600">{it.productName} {it.variantSize} ×{it.quantity}</span>
                               <span className="font-bold text-gray-900">{BRAND.currency.format(it.subtotal)}</span>
                             </div>

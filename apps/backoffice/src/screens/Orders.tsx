@@ -197,8 +197,8 @@ export function OrdersPanel() {
                       <div>
                         <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Item</p>
                         <div className="space-y-1.5">
-                          {o.items.map((it, i) => (
-                            <div key={i} className="flex justify-between text-sm">
+                          {o.items.map((it) => (
+                            <div key={`${it.productId}|${it.variantSize}`} className="flex justify-between text-sm">
                               <span className="text-gray-600">{it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}</span>
                               <span className="font-bold text-gray-900">{BRAND.currency.format(it.subtotal)}</span>
                             </div>
@@ -209,8 +209,8 @@ export function OrdersPanel() {
                         <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
                         {o.discountAmount > 0 && (
                           o.discountBreakdown && o.discountBreakdown.length > 0 ? (
-                            o.discountBreakdown.map((d, i) => (
-                              <div key={i} className="flex justify-between text-sm text-green-600">
+                            o.discountBreakdown.map((d) => (
+                              <div key={`${d.label}|${d.kind ?? ''}`} className="flex justify-between text-sm text-green-600">
                                 <span>Diskon · {d.label}{d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}</span>
                                 <span>-{BRAND.currency.format(d.amount)}</span>
                               </div>

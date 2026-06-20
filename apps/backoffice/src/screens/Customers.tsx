@@ -663,7 +663,7 @@ export default function Customers() {
             <Field label="Pilih Hari">
               <div className="flex gap-1.5 flex-wrap">
                 {DAYS_ID.map((d, i) => (
-                  <button key={i} type="button" onClick={() => setCondForm((f) => ({ ...f, activeDays: (f.activeDays || []).includes(i) ? (f.activeDays || []).filter((x) => x !== i) : [...(f.activeDays || []), i] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(condForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
+                  <button key={d} type="button" onClick={() => setCondForm((f) => ({ ...f, activeDays: (f.activeDays || []).includes(i) ? (f.activeDays || []).filter((x) => x !== i) : [...(f.activeDays || []), i] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(condForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
                 ))}
               </div>
             </Field>

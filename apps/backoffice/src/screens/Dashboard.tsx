@@ -206,8 +206,8 @@ export default function Dashboard() {
                     paddingAngle={2}
                     stroke="none"
                   >
-                    {pay.map((_, i) => (
-                      <Cell key={i} fill={CHART_SERIES[i % CHART_SERIES.length]} />
+                    {pay.map((p, i) => (
+                      <Cell key={p.method} fill={CHART_SERIES[i % CHART_SERIES.length]} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -275,8 +275,8 @@ export default function Dashboard() {
             <EmptyState icon={<PackageX />} title="Semua stok aman" />
           ) : (
             <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-              {stock.map((s, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              {stock.map((s) => (
+                <div key={s.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span className="text-gray-600 truncate min-w-0">{s.name}</span>
                   {s.stock <= 0 ? (
                     <Badge tone="danger">Habis</Badge>
@@ -355,8 +355,8 @@ export default function Dashboard() {
                   cursor={{ fill: 'rgba(176,125,24,0.06)' }}
                 />
                 <Bar dataKey="transactions" radius={[0, 4, 4, 0]}>
-                  {cashiers.map((_, i) => (
-                    <Cell key={i} fill={CHART_SERIES[i % CHART_SERIES.length]} />
+                  {cashiers.map((c, i) => (
+                    <Cell key={c.id} fill={CHART_SERIES[i % CHART_SERIES.length]} />
                   ))}
                 </Bar>
               </BarChart>

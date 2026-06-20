@@ -177,7 +177,7 @@ export default function ErrorLogs() {
                           <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Aktivitas Sebelum Error</p>
                           <ol className="space-y-1">
                             {e.breadcrumbs.map((b, i) => (
-                              <li key={i} className="flex gap-2 text-xs">
+                              <li key={`${b.at}-${b.label}-${i}`} className="flex gap-2 text-xs">
                                 <span className="text-gray-400 font-mono flex-shrink-0">{fmtTime(b.at).slice(-8)}</span>
                                 <span className="text-gray-700">{b.label}</span>
                               </li>

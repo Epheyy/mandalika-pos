@@ -49,7 +49,7 @@ export function RankedList({ rows, empty }: { rows: RankedRow[]; empty: string }
   return (
     <div className="divide-y divide-gray-50">
       {rows.map((r, i) => (
-        <div key={i} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+        <div key={r.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
           <span className="text-gray-600 truncate min-w-0">
             <span className="text-gray-400 tabular-nums mr-1">{i + 1}.</span>
             {r.name}

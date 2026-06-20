@@ -82,8 +82,8 @@ export function DeleteIngredientModal({ ingredient, onClose, onDone }: DeleteIng
             </p>
           </div>
           <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-xl text-sm">
-            {variants.map((v, i) => (
-              <li key={i} className="px-3 py-2 text-gray-700">
+            {variants.map((v) => (
+              <li key={`${v.productName}|${v.variantSize}`} className="px-3 py-2 text-gray-700">
                 <span className="font-medium">{v.productName}</span>
                 <span className="text-gray-400"> — </span>
                 <span>{v.variantSize}</span>

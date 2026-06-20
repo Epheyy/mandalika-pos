@@ -83,8 +83,8 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
               <button type="button" className="text-gray-400 text-sm" onClick={() => setOpen(null)}>Tutup detail</button>
             </div>
             <div className="text-xs text-gray-600 mb-2">{open.source?.name} → {open.dest?.name}</div>
-            {(open.items ?? []).map((it, i) => (
-              <div key={i} className="flex justify-between text-xs py-0.5">
+            {(open.items ?? []).map((it) => (
+              <div key={`${it.productId}-${it.variantSize}`} className="flex justify-between text-xs py-0.5">
                 <span>{it.productName} {it.variantSize}</span>
                 <span>{it.sentQty}{it.receivedQty != null && it.receivedQty !== it.sentQty ? ` → ${it.receivedQty}` : ''}</span>
               </div>

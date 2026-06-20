@@ -603,8 +603,8 @@ export default function Products() {
                 <Badge tone={b.isActive ? 'success' : 'neutral'}>{b.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {b.items.map((it, i) => (
-                  <Badge key={i} tone="neutral">{it.productName} {it.variantSize} ×{it.quantity}</Badge>
+                {b.items.map((it) => (
+                  <Badge key={`${it.productId}|${it.variantSize}`} tone="neutral">{it.productName} {it.variantSize} ×{it.quantity}</Badge>
                 ))}
               </div>
             </Card>
@@ -630,7 +630,7 @@ export default function Products() {
           <Field label={`Foto Produk (maks ${MAX_IMAGES}, foto pertama = utama)`}>
             <div className="flex flex-wrap gap-2">
               {form.images.map((url, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 group">
+                <div key={url} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 group">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   {i === 0 && (
                     <span className="absolute top-0 left-0 bg-gold-600 text-white text-[9px] font-bold px-1 rounded-br-lg">Utama</span>
@@ -704,7 +704,7 @@ export default function Products() {
             </div>
             <div className="space-y-2">
               {form.variants.map((v, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                <div key={v.id || v.size || `new-${i}`} className="grid grid-cols-12 gap-2 items-center">
                   {([
                     { k: 'size', span: 'col-span-3', ph: '30ml', num: false },
                     { k: 'price', span: 'col-span-3', ph: '150000', num: true },

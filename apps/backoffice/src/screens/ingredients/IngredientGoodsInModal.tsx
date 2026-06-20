@@ -6,10 +6,14 @@ import { Input, Field, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 
 interface GoodsInItem {
+  rowId: number
   ingredientId: string
   qty: string
   unitCost: string
 }
+
+let nextRowId = 0
+const makeRow = (): GoodsInItem => ({ rowId: nextRowId++, ingredientId: '', qty: '', unitCost: '' })
 
 interface LocationTarget {
   kind: 'outlet' | 'warehouse'
@@ -25,8 +29,6 @@ interface IngredientGoodsInModalProps {
   location?: LocationTarget
 }
 
-const EMPTY_ITEM: GoodsInItem = { ingredientId: '', qty: '', unitCost: '' }
-
 /** Stok Masuk Bahan: records a goods receipt for one or more ingredients. */
 export function IngredientGoodsInModal({ onClose, onDone, location: propLocation }: IngredientGoodsInModalProps) {
   const [outlets, setOutlets] = useState<Outlet[]>([])
@@ -38,7 +40,7 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
   )
   const [supplier, setSupplier] = useState('')
   const [note, setNote] = useState('')
-  const [items, setItems] = useState<GoodsInItem[]>([{ ...EMPTY_ITEM }])
+  const [items, setItems] = useState<GoodsInItem[]>(() => [makeRow()])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -82,7 +84,7 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
       prev.map((it, i) => (i === index ? { ...it, ...patch } : it)),
     )
 
-  const addRow = () => setItems((prev) => [...prev, { ...EMPTY_ITEM }])
+  const addRow = () => setItems((prev) => [...prev, makeRow()])
 
   const removeRow = (index: number) =>
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
@@ -202,7 +204,7 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {items.map((it, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <div key={it.rowId} className="grid grid-cols-12 gap-2 items-center">
                   <select
                     value={it.ingredientId}
                     onChange={(e) => setItem(idx, { ingredientId: e.target.value })}
