@@ -188,10 +188,13 @@ export function computePricing(input: PricingInput): PricingResult {
   }
 }
 
+// Hoisted once: Intl constructors allocate locale-data tables per call.
+const RUPIAH_FORMAT = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  minimumFractionDigits: 0,
+})
+
 export function formatRupiah(amount: number): string {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(amount)
+  return RUPIAH_FORMAT.format(amount)
 }

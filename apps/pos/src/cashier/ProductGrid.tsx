@@ -171,6 +171,13 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
   )
 })
 
+const colClass: Record<number, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  6: 'grid-cols-6',
+}
+
 export const ProductGrid = memo(function ProductGrid({
   products,
   categories,
@@ -250,13 +257,6 @@ export const ProductGrid = memo(function ProductGrid({
     if (!variantPopup) return
     onProductTap(variantPopup, variantQtys)
     setVariantPopup(null)
-  }
-
-  const colClass: Record<number, string> = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-3',
-    4: 'grid-cols-4',
-    6: 'grid-cols-6',
   }
 
   return (

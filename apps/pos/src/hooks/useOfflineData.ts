@@ -35,10 +35,10 @@ export function useOfflineData(): OfflineDataState {
   // Real server reachability from the engine (a GET actually succeeded),
   // NOT navigator.onLine — which falsely reports online on some Android
   // WebViews even with no connection.
-  const [isOnline, setIsOnline] = useState(engine.isReachable())
-  const [wall, setWall] = useState<WallState>(engine.getWall())
-  const [pendingCount, setPendingCount] = useState(engine.pendingCount())
-  const [failed, setFailed] = useState<FailedItem[]>(engine.deadLettered())
+  const [isOnline, setIsOnline] = useState(() => engine.isReachable())
+  const [wall, setWall] = useState<WallState>(() => engine.getWall())
+  const [pendingCount, setPendingCount] = useState(() => engine.pendingCount())
+  const [failed, setFailed] = useState<FailedItem[]>(() => engine.deadLettered())
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )

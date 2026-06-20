@@ -41,8 +41,8 @@ function today(): string {
 }
 
 export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint }: OrderHistoryPanelProps) {
-  const [from, setFrom] = useState(today())
-  const [to, setTo] = useState(today())
+  const [from, setFrom] = useState(() => today())
+  const [to, setTo] = useState(() => today())
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])

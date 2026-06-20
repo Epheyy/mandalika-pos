@@ -46,8 +46,8 @@ export default function Reports() {
   const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
   const [tab, setTab] = useState<ReportTab>(defaultTab)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 10))
-  const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10))
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
 

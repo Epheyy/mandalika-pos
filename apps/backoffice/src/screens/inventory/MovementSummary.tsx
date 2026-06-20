@@ -37,6 +37,20 @@ function parseLocationKey(key: string): { kind: 'outlet' | 'warehouse'; id: stri
   return { kind: key.slice(0, idx) as 'outlet' | 'warehouse', id: key.slice(idx + 1) }
 }
 
+const HEADERS = [
+  'Produk',
+  'Ukuran',
+  'SKU',
+  'Stok Saat Ini',
+  'Stok Masuk',
+  'Terjual',
+  'Refund/Batal',
+  'Transfer Masuk',
+  'Transfer Keluar',
+  'Koreksi',
+  'Selisih Opname',
+]
+
 export function MovementSummary() {
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
@@ -53,8 +67,8 @@ export function MovementSummary() {
   })()
 
   const [locationKey, setLocationKey] = useState('')
-  const [fromDate, setFromDate] = useState(daysAgoDate(30))
-  const [toDate, setToDate] = useState(todayDate())
+  const [fromDate, setFromDate] = useState(() => daysAgoDate(30))
+  const [toDate, setToDate] = useState(() => todayDate())
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
@@ -86,19 +100,6 @@ export function MovementSummary() {
 
   const isWarehouse = kind === 'warehouse'
 
-  const HEADERS = [
-    'Produk',
-    'Ukuran',
-    'SKU',
-    'Stok Saat Ini',
-    'Stok Masuk',
-    'Terjual',
-    'Refund/Batal',
-    'Transfer Masuk',
-    'Transfer Keluar',
-    'Koreksi',
-    'Selisih Opname',
-  ]
 
   return (
     <div className="space-y-5">

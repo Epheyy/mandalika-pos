@@ -1,3 +1,11 @@
+// Hoisted once: Intl constructors allocate locale-data tables per call.
+const IDR_FORMAT = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+})
+
 export const BRAND = {
   name: 'Mandalika',
   tagline: 'Your Scent, Your Statement',
@@ -9,13 +17,7 @@ export const BRAND = {
     code: 'IDR',
     symbol: 'Rp',
     locale: 'id-ID',
-    format: (amount: number) =>
-      new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(amount),
+    format: (amount: number) => IDR_FORMAT.format(amount),
   },
 
   colors: {

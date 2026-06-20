@@ -84,7 +84,7 @@ export default function CustomerDetail({
   const iTotalPages = Math.max(1, Math.ceil(iTotal / iLimit))
 
   const [iType, setIType] = useState<InteractionType>('catatan')
-  const [iDate, setIDate] = useState(todayISO())
+  const [iDate, setIDate] = useState(() => todayISO())
   const [iNote, setINote] = useState('')
   const [iBusy, setIBusy] = useState(false)
 

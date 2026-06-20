@@ -69,6 +69,13 @@ function Toggle({
   )
 }
 
+const sections = [
+  { id: 'locations', label: 'Outlet & Gudang' },
+  { id: 'transaksi', label: 'Transaksi' },
+  { id: 'operasional', label: 'Operasional' },
+  { id: 'recipe', label: 'Resep & Bahan' },
+] as const
+
 export default function SettingsScreen() {
   const q = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 30000)
   const [s, setS] = useState<AppSettings>(DEFAULT)
@@ -123,12 +130,6 @@ export default function SettingsScreen() {
     }
   }
 
-  const sections = [
-    { id: 'locations', label: 'Outlet & Gudang' },
-    { id: 'transaksi', label: 'Transaksi' },
-    { id: 'operasional', label: 'Operasional' },
-    { id: 'recipe', label: 'Resep & Bahan' },
-  ] as const
 
   return (
     <div className="p-6 space-y-5">
