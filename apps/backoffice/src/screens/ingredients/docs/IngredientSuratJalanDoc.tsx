@@ -129,20 +129,19 @@ function Block({ label, name, addr }: { label: string; name: string; addr: strin
   )
 }
 
+const TH_BASE: CSSProperties = {
+  background: '#f3f0e8',
+  color: '#555',
+  fontSize: 11,
+  padding: '6px 8px',
+  borderBottom: '1px solid #ddd',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+}
+
 function Th({ children, right }: { children: ReactNode; right?: boolean }) {
   return (
-    <th
-      style={{
-        textAlign: right ? 'right' : 'left',
-        background: '#f3f0e8',
-        color: '#555',
-        fontSize: 11,
-        padding: '6px 8px',
-        borderBottom: '1px solid #ddd',
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-      }}
-    >
+    <th style={{ ...TH_BASE, textAlign: right ? 'right' : 'left' }}>
       {children}
     </th>
   )

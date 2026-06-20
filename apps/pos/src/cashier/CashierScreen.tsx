@@ -87,12 +87,17 @@ export default function CashierScreen() {
 
   // UI prefs. The layout is a single adaptive view (responsive by width); the
   // old products/cart "default view" and forced-mobile toggles were removed.
-  const [fontSize, setFontSize] = useState<FontSize>('md')
-  const [gridCols, setGridCols] = useState<GridCols>(4)
+  const [fontSize, setFontSize] = useState<FontSize>(
+    () => (localStorage.getItem('pos_fontSize') as FontSize | null) ?? 'md',
+  )
+  const [gridCols, setGridCols] = useState<GridCols>(() => {
+    const gc = localStorage.getItem('pos_gridCols')
+    return gc ? (parseInt(gc) as GridCols) : 4
+  })
   // Optional product-card details — off by default, toggled in display settings.
-  const [showPrice, setShowPrice] = useState(false)
-  const [showStock, setShowStock] = useState(false)
-  const [showVariants, setShowVariants] = useState(false)
+  const [showPrice, setShowPrice] = useState(() => localStorage.getItem('pos_cardPrice') === '1')
+  const [showStock, setShowStock] = useState(() => localStorage.getItem('pos_cardStock') === '1')
+  const [showVariants, setShowVariants] = useState(() => localStorage.getItem('pos_cardVariants') === '1')
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -185,16 +190,6 @@ export default function CashierScreen() {
     }
     return () => { receiveAcceptedRef.current = undefined }
   }, [receiveAcceptedRef])
-
-  useEffect(() => {
-    const fs = localStorage.getItem('pos_fontSize') as FontSize | null
-    if (fs) setFontSize(fs)
-    const gc = localStorage.getItem('pos_gridCols')
-    if (gc) setGridCols(parseInt(gc) as GridCols)
-    setShowPrice(localStorage.getItem('pos_cardPrice') === '1')
-    setShowStock(localStorage.getItem('pos_cardStock') === '1')
-    setShowVariants(localStorage.getItem('pos_cardVariants') === '1')
-  }, [])
 
   const snapshot = engine.getSnapshot()
   const inbound = engine.getInboundTransfers()
