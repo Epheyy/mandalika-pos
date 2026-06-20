@@ -1,6 +1,6 @@
 // POS-local segment palette → chip classes. Mirrors the backoffice tagColors
 // tokens (the backend validates exactly these 8). The apps don't share a UI lib.
-export const SEGMENT_COLORS = ['amber', 'blue', 'green', 'red', 'purple', 'gray', 'pink', 'teal'] as const
+const SEGMENT_COLORS = ['amber', 'blue', 'green', 'red', 'purple', 'gray', 'pink', 'teal'] as const
 export type SegmentColor = (typeof SEGMENT_COLORS)[number]
 
 const CLASSES: Record<SegmentColor, string> = {

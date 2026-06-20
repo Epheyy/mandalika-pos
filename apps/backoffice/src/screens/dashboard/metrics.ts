@@ -54,7 +54,7 @@ export function prevInterval(period: Period, now = new Date()): Interval | null 
   }
 }
 
-export function inInterval(iso: string, iv: Interval): boolean {
+function inInterval(iso: string, iv: Interval): boolean {
   try {
     return isWithinInterval(parseISO(iso), { start: iv.start, end: iv.end })
   } catch {

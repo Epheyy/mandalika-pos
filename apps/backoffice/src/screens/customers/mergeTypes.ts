@@ -1,6 +1,6 @@
 import type { Customer } from '@mandalika/api'
 
-export const MERGE_FIELDS = ['name', 'phone', 'email', 'birthday', 'anniversary', 'notes'] as const
+const MERGE_FIELDS = ['name', 'phone', 'email', 'birthday', 'anniversary', 'notes'] as const
 export type MergeField = (typeof MERGE_FIELDS)[number]
 
 export const MERGE_FIELD_LABELS: Record<MergeField, string> = {

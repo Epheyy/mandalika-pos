@@ -8,7 +8,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 }
 
 /** Product grid placeholder cards. */
-export function ProductGridSkeleton({ cols = 4, count = 8 }: { cols?: number; count?: number }) {
+function ProductGridSkeleton({ cols = 4, count = 8 }: { cols?: number; count?: number }) {
   const colClass =
     cols === 2 ? 'grid-cols-2' : cols === 3 ? 'grid-cols-3' : cols === 6 ? 'grid-cols-6' : 'grid-cols-4'
   return (

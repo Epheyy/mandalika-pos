@@ -3,7 +3,7 @@
 
 import { Capacitor } from '@capacitor/core'
 
-export function isNative(): boolean {
+function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
 

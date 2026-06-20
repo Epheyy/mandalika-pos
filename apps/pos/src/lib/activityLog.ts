@@ -21,7 +21,3 @@ export function track(label: string): void {
 export function getBreadcrumbs(): Breadcrumb[] {
   return crumbs.slice()
 }
-
-export function clearBreadcrumbs(): void {
-  crumbs = []
-}

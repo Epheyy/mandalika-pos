@@ -13,7 +13,7 @@ export interface EditLine {
   onHandTotal?: number
 }
 
-export function lineFromServer(l: RecipeIngredientLine): EditLine {
+function lineFromServer(l: RecipeIngredientLine): EditLine {
   return {
     ingredientId: l.ingredientId,
     name: l.name,

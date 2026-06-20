@@ -3,7 +3,7 @@
  * "Memuat…" text across backoffice list screens.
  */
 
-export function Skeleton({ className = '' }: { className?: string }) {
+function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-gray-200 ${className}`} />
 }
 
