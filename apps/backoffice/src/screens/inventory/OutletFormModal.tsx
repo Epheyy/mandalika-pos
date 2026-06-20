@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { Outlet } from '@mandalika/api'
 import { Upload, X } from 'lucide-react'
@@ -18,36 +18,30 @@ const EMPTY_FORM = {
 }
 
 interface Props {
-  open: boolean
   editing: Outlet | null
   onClose: () => void
   onDone: () => void
 }
 
-export function OutletFormModal({ open, editing, onClose, onDone }: Props) {
-  const [form, setForm] = useState(EMPTY_FORM)
+// Mounted only while open and keyed by the edited outlet at the call site, so
+// the form seeds fresh on every open without an adjust-state-on-prop effect.
+export function OutletFormModal({ editing, onClose, onDone }: Props) {
+  const [form, setForm] = useState(() =>
+    editing
+      ? {
+          name: editing.name,
+          code: editing.code || '',
+          address: editing.address || '',
+          phone: editing.phone || '',
+          isActive: editing.isActive,
+          logoUrl: editing.logoUrl ?? undefined,
+        }
+      : EMPTY_FORM,
+  )
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
-
-  // Reset the form whenever the modal opens (or the edited outlet changes).
-  useEffect(() => {
-    if (!open) return
-    setForm(
-      editing
-        ? {
-            name: editing.name,
-            code: editing.code || '',
-            address: editing.address || '',
-            phone: editing.phone || '',
-            isActive: editing.isActive,
-            logoUrl: editing.logoUrl ?? undefined,
-          }
-        : EMPTY_FORM,
-    )
-    setErr(null)
-  }, [open, editing])
 
   const onLogoFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -101,7 +95,7 @@ export function OutletFormModal({ open, editing, onClose, onDone }: Props) {
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title={editing ? 'Edit Outlet' : 'Tambah Outlet'}
       footer={

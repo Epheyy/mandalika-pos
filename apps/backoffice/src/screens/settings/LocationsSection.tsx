@@ -223,19 +223,23 @@ export function LocationsSection() {
         </div>
       </div>
 
-      <OutletFormModal
-        open={outletFormOpen}
-        editing={editingOutlet}
-        onClose={() => setOutletFormOpen(false)}
-        onDone={onOutletDone}
-      />
+      {outletFormOpen && (
+        <OutletFormModal
+          key={editingOutlet?.id ?? 'new'}
+          editing={editingOutlet}
+          onClose={() => setOutletFormOpen(false)}
+          onDone={onOutletDone}
+        />
+      )}
 
-      <WarehouseFormModal
-        open={warehouseFormOpen}
-        editing={editingWarehouse}
-        onClose={() => setWarehouseFormOpen(false)}
-        onDone={() => wq.refetch()}
-      />
+      {warehouseFormOpen && (
+        <WarehouseFormModal
+          key={editingWarehouse?.id ?? 'new'}
+          editing={editingWarehouse}
+          onClose={() => setWarehouseFormOpen(false)}
+          onDone={() => wq.refetch()}
+        />
+      )}
 
       {/* Delete warehouse confirmation */}
       <Modal
