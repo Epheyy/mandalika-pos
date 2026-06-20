@@ -813,7 +813,7 @@ export default function CashierScreen() {
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={offlineData.retryFailed} onSendLog={handleSendLog}
           />
-          <button
+          <button type="button"
             onClick={() => setShowMenu(true)}
             className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
             title="Menu" aria-label="Menu"
@@ -833,7 +833,7 @@ export default function CashierScreen() {
         {/* Mobile tab bar — cart tab only appears when the cart has items. */}
         <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
-            <button key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
+            <button type="button" key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
               className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500'}`}>
               {tab === 'products' ? 'Produk' : 'Keranjang'}
               {tab === 'cart' && derived.totalCartItems > 0 && (

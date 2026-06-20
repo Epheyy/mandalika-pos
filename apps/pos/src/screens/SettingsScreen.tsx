@@ -167,7 +167,7 @@ export const SettingsScreen = memo(function SettingsScreen({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-bold text-gray-900">{TITLES[section]}</h2>
-          <button
+          <button type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
             aria-label="Tutup"
@@ -184,7 +184,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 <p className="text-xs text-gray-600 font-semibold mb-1.5">Ukuran Font</p>
                 <div className="flex gap-2">
                   {(['sm', 'md', 'lg'] as FontSize[]).map((s) => (
-                    <button
+                    <button type="button"
                       key={s}
                       onClick={() => onFontSizeChange(s)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
@@ -203,7 +203,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 <p className="text-xs text-gray-600 font-semibold mb-1.5">Kolom Grid Produk</p>
                 <div className="flex gap-2">
                   {([2, 3, 4, 6] as GridCols[]).map((c) => (
-                    <button
+                    <button type="button"
                       key={c}
                       onClick={() => onGridColsChange(c)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
@@ -246,7 +246,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <button type="button"
                       onClick={() => void handleShowBonded()}
                       disabled={printerBusy}
                       className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
@@ -254,7 +254,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                       {printer.isPaired ? 'Ganti Printer' : 'Pilih Printer Terpasang'}
                     </button>
                     {printer.isPaired && (
-                      <button
+                      <button type="button"
                         onClick={() => void handleTestPrint()}
                         disabled={printerBusy}
                         className="flex-1 py-2 border border-gray-200 text-gray-700 rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-gray-50 transition-colors"
@@ -267,7 +267,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                   {bonded !== null && (
                     <div className="space-y-1">
                       {bonded.map((d) => (
-                        <button
+                        <button type="button"
                           key={d.deviceId}
                           onClick={() => {
                             printer.pairTo(d.deviceId, d.name)
@@ -280,7 +280,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                           <span className="block text-[10px] text-gray-400">{d.deviceId}</span>
                         </button>
                       ))}
-                      <button
+                      <button type="button"
                         onClick={() => { setBonded(null); void handlePair() }}
                         disabled={printerBusy}
                         className="w-full py-1.5 text-[11px] text-indigo-600 font-semibold disabled:opacity-50"
@@ -290,7 +290,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                     </div>
                   )}
                   {printer.isPaired && (
-                    <button
+                    <button type="button"
                       onClick={printer.unpair}
                       className="w-full py-1.5 text-xs text-red-500 hover:text-red-600 font-semibold"
                     >
@@ -350,7 +350,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           {section === 'cashflow' && (
             <div className="space-y-2">
               <div className="flex gap-2">
-                <button
+                <button type="button"
                   onClick={() => setCashFlowType('in')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     cashFlowType === 'in'
@@ -360,7 +360,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 >
                   Kas Masuk
                 </button>
-                <button
+                <button type="button"
                   onClick={() => setCashFlowType('out')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     cashFlowType === 'out'
@@ -393,7 +393,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                   {cashFlowMsg}
                 </p>
               )}
-              <button
+              <button type="button"
                 onClick={handleSaveCashFlow}
                 disabled={isSavingCashFlow || !engine}
                 className="w-full py-2 bg-gray-800 text-white rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-gray-900 transition-colors"

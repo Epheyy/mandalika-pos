@@ -257,7 +257,7 @@ export default function Promotions() {
                         <td className="px-5 py-3 text-xs text-gray-500">
                           {p.startDate ? format(parseISO(p.startDate), 'dd MMM', { locale: idLocale }) : '—'} → {p.endDate ? format(parseISO(p.endDate), 'dd MMM yy', { locale: idLocale }) : '∞'}
                         </td>
-                        <td className="px-5 py-3"><button onClick={() => togglePromo(p)} className={`px-2.5 py-1 text-xs font-bold rounded-lg ${st.color}`}>{st.label}</button></td>
+                        <td className="px-5 py-3"><button type="button" onClick={() => togglePromo(p)} className={`px-2.5 py-1 text-xs font-bold rounded-lg ${st.color}`}>{st.label}</button></td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-1">
                             <IconButton onClick={() => openEditPromo(p)}><Edit2 className="w-4 h-4" /></IconButton>
@@ -305,7 +305,7 @@ export default function Promotions() {
                       <td className="px-5 py-3 font-bold text-gray-900 text-sm">{c.type === 'percentage' ? `${c.value}%` : BRAND.currency.format(c.value)}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</td>
                       <td className="px-5 py-3 text-sm font-bold text-gray-900">{c.usageCount} / {c.usageLimit || '∞'}</td>
-                      <td className="px-5 py-3"><button onClick={() => toggleCode(c)} className={`px-2.5 py-1 text-xs font-bold rounded-lg ${c.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.isActive ? 'Aktif' : 'Nonaktif'}</button></td>
+                      <td className="px-5 py-3"><button type="button" onClick={() => toggleCode(c)} className={`px-2.5 py-1 text-xs font-bold rounded-lg ${c.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.isActive ? 'Aktif' : 'Nonaktif'}</button></td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
                           <IconButton onClick={() => openEditCode(c)}><Edit2 className="w-4 h-4" /></IconButton>

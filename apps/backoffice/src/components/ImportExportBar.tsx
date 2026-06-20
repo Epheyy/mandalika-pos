@@ -75,13 +75,13 @@ export function ImportExportBar({
           </Button>
           {exportMenu && (
             <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
-              <button
+              <button type="button"
                 onClick={() => handleExport('csv')}
                 className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700"
               >
                 CSV (.csv)
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleExport('xlsx')}
                 className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700"
               >

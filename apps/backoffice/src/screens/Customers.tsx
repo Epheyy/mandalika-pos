@@ -334,7 +334,7 @@ export default function Customers() {
                   <p className="font-bold text-gray-900 text-sm">Sistem Poin</p>
                   <p className="text-xs text-gray-400">Pelanggan mendapat poin setiap transaksi</p>
                 </div>
-                <button onClick={() => setLoyaltyForm((f) => ({ ...f, enabled: !f.enabled }))}>
+                <button type="button" onClick={() => setLoyaltyForm((f) => ({ ...f, enabled: !f.enabled }))}>
                   {loyaltyForm.enabled ? <ToggleRight className="w-7 h-7 text-gold-600" /> : <ToggleLeft className="w-7 h-7 text-gray-400" />}
                 </button>
               </div>
@@ -387,7 +387,7 @@ export default function Customers() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button onClick={() => toggleCond(c)}>
+                        <button type="button" onClick={() => toggleCond(c)}>
                           <Badge tone={c.isActive ? 'success' : 'neutral'}>{c.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
                         </button>
                         <IconButton onClick={() => openEditCond(c)}><Edit2 className="w-4 h-4" /></IconButton>

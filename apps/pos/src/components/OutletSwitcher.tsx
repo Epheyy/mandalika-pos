@@ -62,7 +62,7 @@ export const OutletSwitcher = memo(function OutletSwitcher({
 
   return (
     <>
-      <button
+      <button type="button"
         onClick={handleOpen}
         disabled={isLoading}
         className="text-xs text-gray-600 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors font-semibold"
@@ -75,7 +75,7 @@ export const OutletSwitcher = memo(function OutletSwitcher({
           <div className="bg-white rounded-2xl w-full max-w-xs shadow-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-gray-900 text-sm">Pilih Outlet</h3>
-              <button
+              <button type="button"
                 onClick={() => setIsOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -84,7 +84,7 @@ export const OutletSwitcher = memo(function OutletSwitcher({
             </div>
             <div className="space-y-1">
               {outlets.map((o) => (
-                <button
+                <button type="button"
                   key={o.id}
                   onClick={() => void handleSelect(o)}
                   className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors ${

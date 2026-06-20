@@ -72,14 +72,14 @@ export const RefundDialog = memo(function RefundDialog({
         </p>
 
         <div className="flex gap-2">
-          <button
+          <button type="button"
             onClick={handleConfirm}
             disabled={isProcessing || !reason.trim()}
             className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-red-700 transition-colors"
           >
             {isProcessing ? 'Memproses…' : 'Konfirmasi Refund'}
           </button>
-          <button
+          <button type="button"
             onClick={onClose}
             disabled={isProcessing}
             className="flex-1 py-2.5 border border-gray-200 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50"

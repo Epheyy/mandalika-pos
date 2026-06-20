@@ -51,7 +51,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
               <div className="text-[10px] font-black tracking-widest text-gray-400 uppercase">Resep</div>
               <div className="font-black text-gray-900">{variantLabel}</div>
             </div>
-            <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+            <button type="button" onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
           </div>
           <div className="mt-3">
             <VersionHistoryDropdown
@@ -70,8 +70,8 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
             <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
               <span>Versi {r.versions.find((v) => v.id === r.viewingVersionId)?.versionNo} — hanya-baca</span>
               <div className="flex gap-2">
-                <button className="font-bold underline" onClick={() => r.viewingVersionId && void r.restore(r.viewingVersionId)}>Pulihkan ke versi ini</button>
-                <button className="text-amber-600" onClick={() => void r.loadCurrent()}>Kembali ke versi kini</button>
+                <button type="button" className="font-bold underline" onClick={() => r.viewingVersionId && void r.restore(r.viewingVersionId)}>Pulihkan ke versi ini</button>
+                <button type="button" className="text-amber-600" onClick={() => void r.loadCurrent()}>Kembali ke versi kini</button>
               </div>
             </div>
           )}
@@ -111,7 +111,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
                     />
                     <span className="col-span-2 text-xs text-gray-500">{l.unit}</span>
                     {!readOnly && (
-                      <button className="col-span-1 text-gray-300 hover:text-red-500" onClick={() => removeLine(i)}><X className="w-4 h-4" /></button>
+                      <button type="button" className="col-span-1 text-gray-300 hover:text-red-500" onClick={() => removeLine(i)}><X className="w-4 h-4" /></button>
                     )}
                   </div>
                 )

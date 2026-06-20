@@ -41,7 +41,7 @@ function LocationHeaderButton({
   onClick: () => void
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       className="flex flex-col items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors min-w-[80px]"
       title={`Lihat stok bahan ${loc.name}`}
@@ -115,7 +115,7 @@ export function IngredientOverviewMatrix() {
         {/* Location-type toggle */}
         <div className="flex rounded-xl border border-gray-200 overflow-hidden">
           {KIND_OPTIONS.map((opt) => (
-            <button
+            <button type="button"
               key={opt.id}
               onClick={() => handleKindChange(opt.id)}
               className={`px-3 py-1.5 text-xs font-bold transition-colors ${

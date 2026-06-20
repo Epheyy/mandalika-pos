@@ -80,7 +80,7 @@ export function Modal({
               {title && <h2 className="text-xl font-black text-gray-900 truncate">{title}</h2>}
               {subtitle && <p className="text-sm text-gray-400 truncate">{subtitle}</p>}
             </div>
-            <button
+            <button type="button"
               onClick={requestClose}
               className="p-2 hover:bg-gray-100 rounded-xl flex-shrink-0"
               aria-label="Tutup"
@@ -112,13 +112,13 @@ export function Modal({
               Perubahan yang belum disimpan akan hilang.
             </p>
             <div className="flex gap-3">
-              <button
+              <button type="button"
                 onClick={() => setConfirming(false)}
                 className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 font-bold rounded-xl"
               >
                 Lanjut Edit
               </button>
-              <button
+              <button type="button"
                 onClick={discard}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
               >

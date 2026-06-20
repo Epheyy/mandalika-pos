@@ -333,10 +333,10 @@ export function ShiftRecapPanel({
     <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col sm:flex-row overflow-hidden safe-top safe-bottom">
       {/* ── Mobile top bar (replaces the left rail in portrait) ── */}
       <div className="sm:hidden flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
+        <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
         <div className="flex-1 flex gap-1 bg-gray-100 rounded-xl p-1">
           {([{ id: 'rekapan', label: 'Rekapan' }, { id: 'riwayat', label: 'Riwayat' }] as const).map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button type="button" key={t.id} onClick={() => setTab(t.id)}
               className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600'}`}>
               {t.label}
             </button>
@@ -360,7 +360,7 @@ export function ShiftRecapPanel({
             { id: 'rekapan', label: 'Rekapan' },
             { id: 'riwayat', label: 'Riwayat' },
           ] as const).map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button type="button" key={t.id} onClick={() => setTab(t.id)}
               className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                 tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
               }`}>
@@ -378,7 +378,7 @@ export function ShiftRecapPanel({
               <p className="text-[10px] text-gray-400 capitalize truncate">{userRole}</p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button type="button" onClick={onClose}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">
             ✕ Kembali ke Kasir
           </button>
@@ -506,7 +506,7 @@ export function ShiftRecapPanel({
                     onChange={(e) => setDepositAmount(e.target.value)} placeholder="0"
                     className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
                 </div>
-                <button onClick={handleOpen} disabled={isOpeningShift}
+                <button type="button" onClick={handleOpen} disabled={isOpeningShift}
                   className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl transition-all">
                   {isOpeningShift ? 'Membuka…' : 'Buka Shift'}
                 </button>
@@ -525,11 +525,11 @@ export function ShiftRecapPanel({
                 {closeError && (
                   <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{closeError}</p>
                 )}
-                <button onClick={handleClose} disabled={isClosingShift}
+                <button type="button" onClick={handleClose} disabled={isClosingShift}
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
                 </button>
-                <button onClick={() => void handlePrintRecap(buildCurrentRecap())}
+                <button type="button" onClick={() => void handlePrintRecap(buildCurrentRecap())}
                   className="w-full py-2.5 border border-indigo-200 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                   Cetak Rekap
@@ -540,7 +540,7 @@ export function ShiftRecapPanel({
               </div>
             )}
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}
-            <button onClick={() => setShowMobileDetail(true)}
+            <button type="button" onClick={() => setShowMobileDetail(true)}
               className="sm:hidden w-full py-2.5 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-100 transition-all mb-4">
               Lihat Ringkasan
             </button>
@@ -575,7 +575,7 @@ export function ShiftRecapPanel({
                     <input type="date" value={dateTo} aria-label="Sampai tanggal"
                       onChange={(e) => { setDateTo(e.target.value); setHistPage(1) }} className={inputCls} />
                     {hasFilter && (
-                      <button onClick={() => { setHistorySearch(''); setDateFrom(''); setDateTo(''); setHistPage(1) }}
+                      <button type="button" onClick={() => { setHistorySearch(''); setDateFrom(''); setDateTo(''); setHistPage(1) }}
                         className="text-xs font-bold text-gray-400 hover:text-gray-600 flex-shrink-0 px-1">Reset</button>
                     )}
                   </div>
@@ -597,7 +597,7 @@ export function ShiftRecapPanel({
                         const shiftNum = sameDay.length - sameDay.indexOf(s)
                         const isSel = selected?.id === s.id
                         return (
-                          <button key={s.id} onClick={() => void selectHistoryShift(s)}
+                          <button type="button" key={s.id} onClick={() => void selectHistoryShift(s)}
                             className={`w-full grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
                             <span className="text-gray-700 font-semibold">{fmtDate(s.openedAt)}</span>
                             <span className="text-gray-500">Shift {shiftNum}</span>
@@ -613,9 +613,9 @@ export function ShiftRecapPanel({
                   <div className="px-4 py-2 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
                     <span className="text-xs text-gray-500">{filtered.length} shift · Hal {page}/{totalPages}</span>
                     <div className="flex gap-1">
-                      <button disabled={page <= 1} onClick={() => setHistPage(page - 1)}
+                      <button type="button" disabled={page <= 1} onClick={() => setHistPage(page - 1)}
                         className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">‹</button>
-                      <button disabled={page >= totalPages} onClick={() => setHistPage(page + 1)}
+                      <button type="button" disabled={page >= totalPages} onClick={() => setHistPage(page + 1)}
                         className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">›</button>
                     </div>
                   </div>
@@ -629,7 +629,7 @@ export function ShiftRecapPanel({
       {/* ── RIGHT: detail (desktop side panel; full-screen overlay in portrait) ── */}
       <div className={`${showMobileDetail ? 'fixed inset-0 z-[60]' : 'hidden'} sm:static sm:z-auto sm:block w-full sm:w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-gray-200 safe-top safe-bottom`}>
         <div className="sm:hidden sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white">
-          <button onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
+          <button type="button" onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
           <span className="font-bold text-gray-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
         </div>
         {tab === 'rekapan' ? (
@@ -747,7 +747,7 @@ export function ShiftRecapPanel({
                     <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
                   </div>
                   {!loadingSelected && (
-                    <button onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
+                    <button type="button" onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
                       className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 transition-all">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                       Cetak

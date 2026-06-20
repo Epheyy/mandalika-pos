@@ -146,7 +146,7 @@ export function LocationsSection() {
                   <IconButton onClick={() => openEditOutlet(o)} aria-label={`Edit outlet ${o.name}`}>
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
-                  <button
+                  <button type="button"
                     onClick={() => toggleOutlet(o)}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
                     aria-label={o.isActive ? 'Nonaktifkan outlet' : 'Aktifkan outlet'}

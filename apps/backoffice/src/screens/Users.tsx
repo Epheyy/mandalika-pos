@@ -269,7 +269,7 @@ export default function Users() {
           <Field label="Role">
             <div className="grid grid-cols-3 gap-2">
               {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-                <button key={r} onClick={() => setEditRole(r)} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
+                <button type="button" key={r} onClick={() => setEditRole(r)} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
               ))}
             </div>
           </Field>
@@ -315,7 +315,7 @@ export default function Users() {
             <Field label="Permission">
               <div className="space-y-2">
                 {Object.entries(PERMS).map(([p, { label, desc }]) => (
-                  <button key={p} onClick={() => togglePerm(p, setEditPerms)} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${editPerms.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
+                  <button type="button" key={p} onClick={() => togglePerm(p, setEditPerms)} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${editPerms.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
                     <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${editPerms.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
                       {editPerms.includes(p) && <Check className="w-3 h-3 text-white" />}
                     </div>
@@ -353,7 +353,7 @@ export default function Users() {
           <Field label="Role">
             <div className="grid grid-cols-3 gap-2">
               {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-                <button key={r} onClick={() => setNf((f) => ({ ...f, role: r }))} className={`py-2 text-sm font-bold rounded-xl border-2 ${nf.role === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
+                <button type="button" key={r} onClick={() => setNf((f) => ({ ...f, role: r }))} className={`py-2 text-sm font-bold rounded-xl border-2 ${nf.role === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
               ))}
             </div>
           </Field>
@@ -374,7 +374,7 @@ export default function Users() {
             <Field label="Permission">
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {Object.entries(PERMS).map(([p, { label }]) => (
-                  <button key={p} onClick={() => setNf((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-left ${nf.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100'}`}>
+                  <button type="button" key={p} onClick={() => setNf((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-left ${nf.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100'}`}>
                     <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${nf.permissions.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
                       {nf.permissions.includes(p) && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
@@ -403,7 +403,7 @@ export default function Users() {
           <Field label="Permission">
             <div className="space-y-2">
               {Object.entries(PERMS).map(([p, { label, desc }]) => (
-                <button key={p} onClick={() => setRoleForm((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${roleForm.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
+                <button type="button" key={p} onClick={() => setRoleForm((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${roleForm.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
                   <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${roleForm.permissions.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
                     {roleForm.permissions.includes(p) && <Check className="w-3 h-3 text-white" />}
                   </div>

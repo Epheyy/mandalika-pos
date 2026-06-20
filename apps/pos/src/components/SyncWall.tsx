@@ -205,7 +205,7 @@ export const SyncWall = memo(function SyncWall({
               {pendingCount} transaksi tertunda akan disinkronisasi terlebih
               dahulu.
               {isOnline && (
-                <button
+                <button type="button"
                   onClick={onFlush}
                   style={{
                     display: 'block',
@@ -225,7 +225,7 @@ export const SyncWall = memo(function SyncWall({
             </div>
           )}
 
-          <button
+          <button type="button"
             onClick={onResync}
             disabled={isResyncing || !isOnline}
             style={{

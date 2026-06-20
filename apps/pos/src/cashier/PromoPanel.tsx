@@ -116,7 +116,7 @@ export const PromoPanel = memo(function PromoPanel({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900">Promo &amp; Kode Diskon</h3>
-          <button
+          <button type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
           >
@@ -132,7 +132,7 @@ export const PromoPanel = memo(function PromoPanel({
                 <p className="text-[11px] font-bold text-green-800 tracking-wide uppercase">
                   Diterapkan ({appliedCount})
                 </p>
-                <button
+                <button type="button"
                   onClick={onClearPromotion}
                   className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
                 >
@@ -155,7 +155,7 @@ export const PromoPanel = memo(function PromoPanel({
                     <p className="text-xs font-bold text-green-800 whitespace-nowrap">
                       −{formatRupiah(calcPromoDiscount(p, cart, subtotal))}
                     </p>
-                    <button
+                    <button type="button"
                       onClick={() => onRemovePromotion(p.id)}
                       className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
                       aria-label={`Hapus ${p.name}`}
@@ -181,7 +181,7 @@ export const PromoPanel = memo(function PromoPanel({
                     <p className="text-xs font-bold text-green-800 whitespace-nowrap">
                       −{formatRupiah(codeSavings(c))}
                     </p>
-                    <button
+                    <button type="button"
                       onClick={() => onRemovePromoCode(c.code)}
                       className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
                       aria-label={`Hapus ${c.code}`}
@@ -213,7 +213,7 @@ export const PromoPanel = memo(function PromoPanel({
                   if (e.key === 'Enter') onApplyPromoCode()
                 }}
               />
-              <button
+              <button type="button"
                 onClick={onApplyPromoCode}
                 disabled={isValidating || !promoCodeInput.trim()}
                 className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
@@ -237,7 +237,7 @@ export const PromoPanel = memo(function PromoPanel({
                   )
                   .slice(0, 3)
                   .map((dc) => (
-                    <button
+                    <button type="button"
                       key={dc.id}
                       onClick={() => onPromoCodeChange(dc.code)}
                       className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
@@ -269,7 +269,7 @@ export const PromoPanel = memo(function PromoPanel({
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
                   const savings = invalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
                   return (
-                    <button
+                    <button type="button"
                       key={promo.id}
                       onClick={() => !invalid && onSelectPromotion(promo)}
                       disabled={invalid}

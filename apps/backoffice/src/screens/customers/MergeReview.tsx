@@ -86,7 +86,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
   if (loading) {
     return (
       <div className="p-6">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
+        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Kembali
         </button>
         <p className="text-sm text-gray-400">Memuat data…</p>
@@ -96,7 +96,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
   if (err || !pair) {
     return (
       <div className="p-6">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
+        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Kembali
         </button>
         <p className="text-sm text-red-600">{err ?? 'Data tidak ditemukan'}</p>
@@ -143,7 +143,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
 
   return (
     <div className="p-6 space-y-5">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
+      <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
         <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar Duplikat
       </button>
 

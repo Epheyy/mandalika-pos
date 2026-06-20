@@ -76,7 +76,7 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
           <p className="text-sm text-gray-600 mb-5">
             Belum ada penyetuju ber-PIN untuk outlet ini. Hubungi admin.
           </p>
-          <button
+          <button type="button"
             onClick={onCancel}
             className="w-full py-2.5 border border-gray-200 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
@@ -93,7 +93,7 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-gray-900">Persetujuan penerimaan</h3>
-          <button
+          <button type="button"
             onClick={onCancel}
             className="text-gray-400 hover:text-gray-600 text-lg leading-none"
             aria-label="Tutup"
@@ -153,14 +153,14 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
 
         {/* Actions */}
         <div className="flex gap-2">
-          <button
+          <button type="button"
             onClick={() => void submit()}
             disabled={busy || pin.length < 4}
             className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors"
           >
             {busy ? 'Memverifikasi…' : 'Setujui'}
           </button>
-          <button
+          <button type="button"
             onClick={onCancel}
             disabled={busy}
             className="flex-1 py-2.5 border border-gray-200 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50 transition-colors"

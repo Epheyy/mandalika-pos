@@ -12,7 +12,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className }: Tab
   return (
     <div className={cn('flex bg-gray-100 rounded-xl p-1', className)}>
       {tabs.map((t) => (
-        <button
+        <button type="button"
           key={t.id}
           onClick={() => onChange(t.id)}
           className={cn(

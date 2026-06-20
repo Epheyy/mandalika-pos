@@ -50,11 +50,11 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
       <div className="w-full max-w-md bg-white h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <h2 className="font-bold text-gray-900">Riwayat Transfer</h2>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none">×</button>
+          <button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none">×</button>
         </div>
         <div className="flex border-b">
           {(['completed', 'cancelled'] as Tab[]).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
+            <button type="button" key={t} onClick={() => setTab(t)}
               className={`flex-1 py-2.5 text-sm font-bold ${tab === t ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400'}`}>
               {t === 'completed' ? 'Selesai' : 'Dibatalkan'}
             </button>
@@ -65,7 +65,7 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
             : err ? <p className="p-4 text-sm text-red-600">{err}</p>
             : rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Tidak ada transfer.</p>
             : rows.map((t) => (
-              <button key={t.id} onClick={() => setOpen(t)}
+              <button type="button" key={t.id} onClick={() => setOpen(t)}
                 className="w-full text-left px-4 py-3 border-b hover:bg-gray-50">
                 <div className="flex justify-between">
                   <span className="font-bold text-gray-800 text-sm">{t.transferNo}</span>
@@ -80,7 +80,7 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
           <div className="border-t bg-gray-50 max-h-[45%] overflow-auto p-4">
             <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-sm">{open.transferNo}</span>
-              <button className="text-gray-400 text-sm" onClick={() => setOpen(null)}>Tutup detail</button>
+              <button type="button" className="text-gray-400 text-sm" onClick={() => setOpen(null)}>Tutup detail</button>
             </div>
             <div className="text-xs text-gray-600 mb-2">{open.source?.name} → {open.dest?.name}</div>
             {(open.items ?? []).map((it, i) => (
@@ -90,7 +90,7 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
               </div>
             ))}
             {open.status === 'completed' && (
-              <button onClick={() => onReprint(open)}
+              <button type="button" onClick={() => onReprint(open)}
                 className="mt-3 w-full bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold">
                 Cetak Ulang Tanda Terima
               </button>

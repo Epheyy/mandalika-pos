@@ -93,7 +93,7 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="font-bold text-gray-900">Terima Transfer</h3>
-          <button
+          <button type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
             aria-label="Tutup"
@@ -112,7 +112,7 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
               </p>
             ) : (
               transfers.map((t) => (
-                <button
+                <button type="button"
                   key={t.id}
                   onClick={() => onSelect(t)}
                   className="w-full text-left px-4 py-3 border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all group"
@@ -153,7 +153,7 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
                         {t.tandaTerimaNo} · Dari {t.source.name ?? t.source.id}
                       </p>
                     </div>
-                    <button
+                    <button type="button"
                       onClick={() => onReprintTandaTerima(t)}
                       className="flex-shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400 rounded-lg transition-all"
                     >
@@ -224,7 +224,7 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <button
+          <button type="button"
             onClick={onBack}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0"
             aria-label="Kembali"
@@ -330,14 +330,14 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
               Isi alasan selisih sebelum melanjutkan
             </p>
           )}
-          <button
+          <button type="button"
             onClick={handleConfirm}
             disabled={!canSubmit}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all"
           >
             Terima
           </button>
-          <button
+          <button type="button"
             onClick={onBack}
             className="w-full py-2.5 border border-gray-200 text-gray-600 font-semibold text-sm rounded-xl hover:bg-gray-50 transition-all"
           >

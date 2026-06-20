@@ -292,7 +292,7 @@ export const ProductGrid = memo(function ProductGrid({
 
       {/* Category tabs */}
       <div className="flex gap-1 px-3 py-2 overflow-x-auto flex-shrink-0 border-b border-gray-100">
-        <button
+        <button type="button"
           onClick={() => onCategoryChange(null)}
           className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
             selectedCategoryId === null
@@ -303,7 +303,7 @@ export const ProductGrid = memo(function ProductGrid({
           Semua
         </button>
         {categories.map((cat) => (
-          <button
+          <button type="button"
             key={cat.id}
             onClick={() => onCategoryChange(cat.id)}
             className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
@@ -315,7 +315,7 @@ export const ProductGrid = memo(function ProductGrid({
             {cat.name}
           </button>
         ))}
-        <button
+        <button type="button"
           onClick={onToggleFavourites}
           className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
             showFavouritesOnly
@@ -372,7 +372,7 @@ export const ProductGrid = memo(function ProductGrid({
                     <p className="text-xs text-gray-400">Stok: {v.stock}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <button type="button"
                       onClick={() => handleVariantChange(v.size, -1)}
                       disabled={(variantQtys[v.size] || 0) === 0}
                       className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
@@ -382,7 +382,7 @@ export const ProductGrid = memo(function ProductGrid({
                     <span className="w-6 text-center text-sm font-bold">
                       {variantQtys[v.size] || 0}
                     </span>
-                    <button
+                    <button type="button"
                       onClick={() => handleVariantChange(v.size, 1)}
                       disabled={(variantQtys[v.size] || 0) >= v.stock}
                       className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
@@ -393,7 +393,7 @@ export const ProductGrid = memo(function ProductGrid({
                 </div>
               ))}
             </div>
-            <button
+            <button type="button"
               onClick={handleConfirmVariants}
               disabled={Object.values(variantQtys).reduce((a, b) => a + b, 0) === 0}
               className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors"

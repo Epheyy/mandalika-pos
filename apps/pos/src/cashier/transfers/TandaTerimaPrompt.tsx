@@ -74,14 +74,14 @@ export function TandaTerimaPrompt({ transfer, receivedByName, receiptSettings, o
 
         {/* Actions */}
         <div className="px-5 pb-5 space-y-2">
-          <button
+          <button type="button"
             onClick={() => void handleCetak()}
             disabled={!printer.isPaired || busy}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all"
           >
             {busy ? 'Mencetak…' : 'Cetak'}
           </button>
-          <button
+          <button type="button"
             onClick={onClose}
             disabled={busy}
             className="w-full py-2.5 border border-gray-200 text-gray-600 font-semibold text-sm rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-all"

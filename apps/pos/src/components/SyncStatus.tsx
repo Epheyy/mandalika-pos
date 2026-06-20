@@ -70,7 +70,7 @@ export const SyncStatus = memo(function SyncStatus({
 
   return (
     <div className="relative">
-      <button
+      <button type="button"
         onClick={() => setOpen((v) => !v)}
         className={`px-2 py-1 rounded-lg text-[11px] font-bold ${tone}`}
         title="Status sinkronisasi"
@@ -97,7 +97,7 @@ export const SyncStatus = memo(function SyncStatus({
             </div>
 
             {updateAvailable && (
-              <button
+              <button type="button"
                 onClick={() => { onResync(); setOpen(false) }}
                 disabled={isResyncing}
                 className="w-full py-2 bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50"
@@ -107,7 +107,7 @@ export const SyncStatus = memo(function SyncStatus({
             )}
 
             {pendingCount > 0 && !hasFailed && (
-              <button
+              <button type="button"
                 onClick={() => { onFlush(); setOpen(false) }}
                 className="w-full py-2 bg-amber-500 text-white rounded-lg font-semibold"
               >
@@ -133,14 +133,14 @@ export const SyncStatus = memo(function SyncStatus({
                     </div>
                   ))}
                 </div>
-                <button
+                <button type="button"
                   onClick={() => { onRetryFailed(); setOpen(false) }}
                   className="w-full py-2 bg-red-600 text-white rounded-lg font-semibold"
                 >
                   Coba lagi
                 </button>
                 {!confirmingDiscard ? (
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmingDiscard(true)}
                     className="w-full py-2 border border-red-200 text-red-600 rounded-lg font-semibold"
                   >
@@ -154,13 +154,13 @@ export const SyncStatus = memo(function SyncStatus({
                         : `${failed.length} item gagal sinkron akan dihapus.`}
                     </p>
                     <div className="flex gap-2">
-                      <button
+                      <button type="button"
                         onClick={() => setConfirmingDiscard(false)}
                         className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg font-semibold"
                       >
                         Batal
                       </button>
-                      <button
+                      <button type="button"
                         onClick={() => { onSendLog(); setOpen(false) }}
                         className="flex-1 py-2 bg-red-600 text-white rounded-lg font-semibold"
                       >

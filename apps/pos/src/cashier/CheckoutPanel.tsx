@@ -126,7 +126,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900">Konfirmasi Pembayaran</h3>
-          <button
+          <button type="button"
             onClick={onClose}
             disabled={isProcessing}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -372,7 +372,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             </p>
             <div className="grid grid-cols-2 gap-2">
               {enabledMethods.map((m) => (
-                <button
+                <button type="button"
                   key={m.id}
                   onClick={() =>
                     onPaymentMethodChange(m.id as PaymentMethod)
@@ -407,7 +407,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               {/* Quick amount buttons */}
               <div className="flex gap-2 flex-wrap">
                 {quickAmounts.map((amt) => (
-                  <button
+                  <button type="button"
                     key={amt}
                     onClick={() => onAmountPaidChange(String(amt))}
                     className="px-3 py-1.5 bg-gray-100 hover:bg-indigo-50 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
@@ -434,7 +434,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
         {/* Confirm button */}
         <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
-          <button
+          <button type="button"
             onClick={handleConfirmClick}
             disabled={isProcessing || isCashShort}
             className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold text-sm disabled:opacity-40 hover:bg-green-700 transition-colors shadow-sm"

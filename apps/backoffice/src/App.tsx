@@ -151,7 +151,7 @@ export default function App() {
               </p>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1 hover:bg-gray-100 rounded-lg"
           >
@@ -165,7 +165,7 @@ export default function App() {
             </p>
           ) : (
             visible.map(({ id, label, icon: Icon }) => (
-              <button
+              <button type="button"
                 key={id}
                 onClick={() => {
                   setActiveId(id)
@@ -201,7 +201,7 @@ export default function App() {
               <p className="text-xs text-gray-400 capitalize">{user.role}</p>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={logout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all"
           >
@@ -212,7 +212,7 @@ export default function App() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 flex-shrink-0">
-          <button
+          <button type="button"
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 hover:bg-gray-100 rounded-xl"
           >

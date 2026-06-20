@@ -182,7 +182,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
         )}
         {canReprint && (
           <div className="px-5 pb-2 flex-shrink-0">
-            <button
+            <button type="button"
               onClick={onReprint}
               className="w-full py-2 border border-indigo-200 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-colors"
             >
@@ -191,13 +191,13 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           </div>
         )}
         <div className="px-5 pb-5 flex gap-2 flex-shrink-0">
-          <button
+          <button type="button"
             onClick={onClose}
             className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Tutup
           </button>
-          <button
+          <button type="button"
             onClick={onNewSale}
             className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
           >

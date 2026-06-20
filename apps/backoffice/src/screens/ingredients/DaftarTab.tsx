@@ -297,14 +297,14 @@ export default function DaftarTab() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button
+                      <button type="button"
                         onClick={() => openEdit(ing)}
                         className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
                         title="Edit"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button
+                      <button type="button"
                         onClick={() => setDeleting(ing)}
                         className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
                         title="Hapus"

@@ -15,7 +15,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /** Square ghost action (edit / delete) — consistent row affordance. */
 export function IconButton({ tone = 'default', className, children, ...rest }: IconButtonProps) {
   return (
-    <button
+    <button type="button"
       className={cn(
         'p-2 rounded-xl text-gray-400 transition-colors flex-shrink-0',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/40',

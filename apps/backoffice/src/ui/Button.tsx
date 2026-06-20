@@ -37,7 +37,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
+    <button type="button"
       disabled={disabled || loading}
       className={cn(
         'inline-flex items-center justify-center font-bold rounded-xl transition-all',

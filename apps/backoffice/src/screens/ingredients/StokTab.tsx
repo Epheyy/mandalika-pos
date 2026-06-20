@@ -38,7 +38,7 @@ export default function StokTab() {
 
           <div className="space-y-2">
             {outlets.map((o) => (
-              <button
+              <button type="button"
                 key={o.id}
                 onClick={() => setSelected({ kind: 'outlet', id: o.id, name: o.name })}
                 className={`w-full flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 hover:border-gold-200 hover:bg-gold-50/30 transition-colors text-left ${
@@ -71,7 +71,7 @@ export default function StokTab() {
 
           <div className="space-y-2">
             {warehouses.map((w) => (
-              <button
+              <button type="button"
                 key={w.id}
                 onClick={() => setSelected({ kind: 'warehouse', id: w.id, name: w.name })}
                 className={`w-full flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 hover:border-gold-200 hover:bg-gold-50/30 transition-colors text-left ${

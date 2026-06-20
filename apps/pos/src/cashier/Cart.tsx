@@ -83,7 +83,7 @@ export const Cart = memo(function Cart({
           )}
         </h2>
         {!isEmpty && (
-          <button
+          <button type="button"
             onClick={onClear}
             className="text-xs text-red-500 hover:text-red-700 font-semibold"
           >
@@ -118,7 +118,7 @@ export const Cart = memo(function Cart({
               </div>
               {!item.isReward && (
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
+                  <button type="button"
                     onClick={() =>
                       onSetQty(item.productId, item.variantSize, item.quantity - 1)
                     }
@@ -129,7 +129,7 @@ export const Cart = memo(function Cart({
                   <span className="w-5 text-center text-xs font-bold">
                     {item.quantity}
                   </span>
-                  <button
+                  <button type="button"
                     onClick={() =>
                       onSetQty(item.productId, item.variantSize, item.quantity + 1)
                     }
@@ -137,7 +137,7 @@ export const Cart = memo(function Cart({
                   >
                     +
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => onRemove(item.productId, item.variantSize)}
                     className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 hover:bg-red-200 text-xs ml-1"
                   >
@@ -153,7 +153,7 @@ export const Cart = memo(function Cart({
       {/* Adjustments row */}
       {!isEmpty && (
         <div className="px-3 py-2 border-t border-gray-100 flex gap-1 flex-shrink-0">
-          <button
+          <button type="button"
             onClick={() => onOpenAdjustment('notes')}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               orderNotes
@@ -163,7 +163,7 @@ export const Cart = memo(function Cart({
           >
             Catatan
           </button>
-          <button
+          <button type="button"
             onClick={() => onOpenAdjustment('discount')}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               discountRunning > 0 || surchargeRunning > 0
@@ -173,7 +173,7 @@ export const Cart = memo(function Cart({
           >
             Diskon
           </button>
-          <button
+          <button type="button"
             onClick={() => onOpenAdjustment('promo')}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               appliedPromotions.length > 0 || appliedPromoCodes.length > 0
@@ -197,7 +197,7 @@ export const Cart = memo(function Cart({
             <div key={p.id} className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
                 Promo: {p.name}
-                <button
+                <button type="button"
                   onClick={() => onRemovePromotion(p.id)}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
                   title="Hapus promo"
@@ -211,7 +211,7 @@ export const Cart = memo(function Cart({
             <div key={c.code} className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
                 Kode: {c.code}
-                <button
+                <button type="button"
                   onClick={() => onRemovePromoCode(c.code)}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
                   title="Hapus kode"
@@ -234,7 +234,7 @@ export const Cart = memo(function Cart({
                 {discountType === 'percentage'
                   ? `${discountRunning}%`
                   : formatRupiah(discountRunning)}
-                <button
+                <button type="button"
                   onClick={onClearDiscount}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
                   title="Hapus diskon"
@@ -276,7 +276,7 @@ export const Cart = memo(function Cart({
 
       {/* Checkout button */}
       <div className="px-3 pb-4 flex-shrink-0 safe-bottom">
-        <button
+        <button type="button"
           onClick={onCheckout}
           disabled={isEmpty || wallRaised}
           className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors shadow-sm"

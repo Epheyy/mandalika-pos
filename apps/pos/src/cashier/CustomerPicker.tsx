@@ -97,7 +97,7 @@ export const CustomerPicker = memo(function CustomerPicker({
               </p>
             )}
           </div>
-          <button
+          <button type="button"
             onClick={onClear}
             className="text-xs text-indigo-500 hover:text-indigo-700 ml-2"
           >
@@ -140,14 +140,14 @@ export const CustomerPicker = memo(function CustomerPicker({
             <p className="text-[11px] font-semibold text-red-600">{errorText}</p>
           )}
           <div className="flex gap-2">
-            <button
+            <button type="button"
               onClick={onSaveNew}
               disabled={isSaving}
               className="flex-1 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
             >
               {isSaving ? 'Menyimpan…' : 'Simpan'}
             </button>
-            <button
+            <button type="button"
               onClick={onToggleAdding}
               className="flex-1 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600"
             >
@@ -172,7 +172,7 @@ export const CustomerPicker = memo(function CustomerPicker({
               value={customerSearch}
               onChange={(e) => onSearchChange(e.target.value)}
             />
-            <button
+            <button type="button"
               onClick={onToggleAdding}
               className="px-2 py-1.5 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200 whitespace-nowrap"
             >
@@ -181,7 +181,7 @@ export const CustomerPicker = memo(function CustomerPicker({
           </div>
           {customerSearch.trim().length >= 2 &&
             filteredCustomers.length === 0 && (
-              <button
+              <button type="button"
                 onClick={() => onAddNewFromSearch(customerSearch.trim())}
                 className="mt-1 w-full text-left px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors"
               >
@@ -191,7 +191,7 @@ export const CustomerPicker = memo(function CustomerPicker({
           {filteredCustomers.length > 0 && (
             <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
               {filteredCustomers.map((c) => (
-                <button
+                <button type="button"
                   key={c.id}
                   onClick={() => {
                     onSelect(c)

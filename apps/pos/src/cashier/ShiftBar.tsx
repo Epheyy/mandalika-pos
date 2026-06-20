@@ -72,7 +72,7 @@ export const ShiftBar = memo(function ShiftBar({
           portrait where the inline detail wouldn't fit). */}
       {currentShift ? (
         <div className="relative flex items-center gap-1.5 min-w-0">
-          <button
+          <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
             className="flex items-center gap-1.5 min-w-0 flex-shrink"
@@ -86,7 +86,7 @@ export const ShiftBar = memo(function ShiftBar({
               <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
-          <button
+          <button type="button"
             onClick={onRequestClose}
             className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
@@ -126,7 +126,7 @@ export const ShiftBar = memo(function ShiftBar({
       ) : (
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
-          <button
+          <button type="button"
             onClick={() => setShowOpenModal(true)}
             className="px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
           >
@@ -153,14 +153,14 @@ export const ShiftBar = memo(function ShiftBar({
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-green-400"
             />
             <div className="flex gap-2">
-              <button
+              <button type="button"
                 onClick={handleOpen}
                 disabled={isOpening}
                 className="flex-1 py-2 bg-green-600 text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
               >
                 {isOpening ? 'Membuka…' : 'Buka'}
               </button>
-              <button
+              <button type="button"
                 onClick={() => setShowOpenModal(false)}
                 className="flex-1 py-2 border border-gray-200 rounded-xl font-semibold text-sm text-gray-600"
               >

@@ -730,7 +730,7 @@ export default function Products() {
                         <FlaskConical className="w-4 h-4" />
                       </button>
                     )}
-                    <button onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))}
+                    <button type="button" onClick={() => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))}
                       disabled={form.variants.length === 1} className="text-gray-300 hover:text-red-500 disabled:opacity-0">
                       <X className="w-4 h-4" />
                     </button>

@@ -119,7 +119,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   ]
 
   const renderItem = ({ Icon, label, active, badge, onClick }: Item) => (
-    <button key={label} onClick={onClick}
+    <button type="button" key={label} onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${active ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}`}>
       <div className={`relative p-1.5 rounded-lg flex-shrink-0 ${active ? 'bg-orange-100' : 'bg-gray-100'}`}>
         <Icon className={`w-4 h-4 ${active ? 'text-orange-600' : 'text-gray-500'}`} />
@@ -142,7 +142,7 @@ export const MenuDrawer = memo(function MenuDrawer({
         <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-black text-gray-900">Mandalika POS</p>
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg" aria-label="Tutup">
+            <button type="button" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg" aria-label="Tutup">
               <CloseIcon className="w-4 h-4 text-gray-400" />
             </button>
           </div>
@@ -159,7 +159,7 @@ export const MenuDrawer = memo(function MenuDrawer({
                   : <span className="text-gray-400">Tidak ada shift</span>}
               </p>
             </div>
-            <button onClick={() => { onClose(); onBackOffice() }}
+            <button type="button" onClick={() => { onClose(); onBackOffice() }}
               className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex-shrink-0">
               Back Office →
             </button>
@@ -183,7 +183,7 @@ export const MenuDrawer = memo(function MenuDrawer({
               {settingItems.map(renderItem)}
             </nav>
             <div className="mt-auto px-2 pb-2 border-t border-gray-100 pt-2">
-              <button onClick={() => { onClose(); onLogout() }}
+              <button type="button" onClick={() => { onClose(); onLogout() }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-all text-left">
                 <div className="p-1.5 rounded-lg bg-red-50 flex-shrink-0">
                   <LogoutIcon className="w-4 h-4 text-red-500" />

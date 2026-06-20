@@ -114,7 +114,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="font-bold text-gray-900">Riwayat Transaksi</h3>
-          <button
+          <button type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
             aria-label="Tutup"
@@ -152,7 +152,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
               className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
-          <button
+          <button type="button"
             onClick={() => void load()}
             disabled={isLoading}
             className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
@@ -178,7 +178,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
               const expanded = expandedId === o.id
               return (
                 <div key={o.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                  <button
+                  <button type="button"
                     onClick={() => setExpandedId(expanded ? null : o.id)}
                     className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50"
                   >
@@ -267,7 +267,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                           Refund: {o.refundReason}
                         </p>
                       )}
-                      <button
+                      <button type="button"
                         onClick={() => onReprint(o)}
                         disabled={!canReprint}
                         title={canReprint ? undefined : 'Pasangkan printer untuk cetak ulang'}
@@ -276,7 +276,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         🖨 Cetak Ulang
                       </button>
                       {o.status === 'completed' && (
-                        <button
+                        <button type="button"
                           onClick={() => onRefund(o)}
                           className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
                         >
@@ -297,14 +297,14 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             {total} transaksi · hal {page}/{totalPages}
           </span>
           <div className="flex gap-2">
-            <button
+            <button type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || isLoading}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
             >
               ‹ Sebelumnya
             </button>
-            <button
+            <button type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || isLoading}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
