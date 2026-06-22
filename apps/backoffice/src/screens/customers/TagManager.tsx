@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useReducer, useState } from 'react'
 import type { Tag } from '@mandalika/api'
 import { Trash2, Plus, Check, X } from 'lucide-react'
 import { api } from '../../api'
@@ -9,6 +9,35 @@ import { TAG_COLORS, tagChipClasses } from './tagColors'
 interface TagManagerProps {
   tags: Tag[]
   onChange: () => void // refetch tags after any mutation
+}
+
+interface EditState {
+  editId: string | null
+  editName: string
+  editColor: string
+}
+
+type EditAction =
+  | { type: 'START_EDIT'; tag: Tag }
+  | { type: 'SET_NAME'; value: string }
+  | { type: 'SET_COLOR'; value: string }
+  | { type: 'CANCEL' }
+
+const EDIT_INITIAL: EditState = { editId: null, editName: '', editColor: '' }
+
+function editReducer(state: EditState, action: EditAction): EditState {
+  switch (action.type) {
+    case 'START_EDIT':
+      return { editId: action.tag.id, editName: action.tag.name, editColor: action.tag.color }
+    case 'SET_NAME':
+      return { ...state, editName: action.value }
+    case 'SET_COLOR':
+      return { ...state, editColor: action.value }
+    case 'CANCEL':
+      return EDIT_INITIAL
+    default:
+      return state
+  }
 }
 
 function ColorPicker({ value, onPick }: { value: string; onPick: (c: string) => void }) {
@@ -32,9 +61,7 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
   const [color, setColor] = useState<string>('amber')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editColor, setEditColor] = useState('amber')
+  const [edit, dispatch] = useReducer(editReducer, EDIT_INITIAL)
   const [confirmDelete, setConfirmDelete] = useState<Tag | null>(null)
 
   const create = async () => {
@@ -49,11 +76,11 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
   }
 
   const saveEdit = async (id: string) => {
-    if (!editName.trim()) return
+    if (!edit.editName.trim()) return
     setBusy(true); setErr(null)
     try {
-      await api.updateTag(id, { name: editName.trim(), color: editColor })
-      setEditId(null); onChange()
+      await api.updateTag(id, { name: edit.editName.trim(), color: edit.editColor })
+      dispatch({ type: 'CANCEL' }); onChange()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal menyimpan tag.')
     } finally { setBusy(false) }
@@ -77,20 +104,20 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
       <ul className="space-y-1">
         {tags.map((t) => (
           <li key={t.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-gray-50">
-            {editId === t.id ? (
+            {edit.editId === t.id ? (
               <div className="flex-1 space-y-1.5">
-                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                <ColorPicker value={editColor} onPick={setEditColor} />
+                <Input value={edit.editName} onChange={(e) => dispatch({ type: 'SET_NAME', value: e.target.value })} />
+                <ColorPicker value={edit.editColor} onPick={(c) => dispatch({ type: 'SET_COLOR', value: c })} />
                 <div className="flex gap-1">
                   <Button size="sm" icon={<Check className="w-3.5 h-3.5" />} loading={busy} onClick={() => void saveEdit(t.id)}>Simpan</Button>
-                  <Button size="sm" variant="secondary" icon={<X className="w-3.5 h-3.5" />} onClick={() => setEditId(null)}>Batal</Button>
+                  <Button size="sm" variant="secondary" icon={<X className="w-3.5 h-3.5" />} onClick={() => dispatch({ type: 'CANCEL' })}>Batal</Button>
                 </div>
               </div>
             ) : (
               <>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${tagChipClasses(t.color)}`}>{t.name}</span>
                 <div className="flex items-center gap-1">
-                  <button type="button" className="text-xs text-gray-500 hover:text-gray-900" onClick={() => { setEditId(t.id); setEditName(t.name); setEditColor(t.color) }}>Edit</button>
+                  <button type="button" className="text-xs text-gray-500 hover:text-gray-900" onClick={() => dispatch({ type: 'START_EDIT', tag: t })}>Edit</button>
                   <button type="button" aria-label={`Hapus tag ${t.name}`} className="p-1 text-gray-400 hover:text-red-500" onClick={() => setConfirmDelete(t)}><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </>

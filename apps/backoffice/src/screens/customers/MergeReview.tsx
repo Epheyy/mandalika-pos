@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useReducer } from 'react'
 import type { DupCandidate, Customer } from '@mandalika/api'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { api } from '../../api'
@@ -48,16 +48,54 @@ function CustomerSummary({ c, label }: { c: Customer; label: string }) {
   )
 }
 
+// Coordinated review cluster: a new pair resets the keeper side, choices are
+// recomputed when the pair/keeper side changes, the user flips choices, then
+// opens the confirm. Grouped into one reducer to keep these moves coordinated.
+interface MergeState {
+  pair: DupCandidate | null
+  keeperIsExisting: boolean
+  choices: Record<string, 'keeper' | 'dup'>
+  confirmOpen: boolean
+}
+
+type MergeAction =
+  | { type: 'SET_PAIR'; pair: DupCandidate | null }
+  | { type: 'SET_KEEPER'; keeperIsExisting: boolean }
+  | { type: 'SET_CHOICES'; choices: Record<string, 'keeper' | 'dup'> }
+  | { type: 'SET_FIELD_CHOICE'; field: string; side: 'keeper' | 'dup' }
+  | { type: 'OPEN_CONFIRM' }
+  | { type: 'CLOSE_CONFIRM' }
+
+const initialMergeState: MergeState = {
+  pair: null,
+  keeperIsExisting: true,
+  choices: {},
+  confirmOpen: false,
+}
+
+function mergeReducer(state: MergeState, action: MergeAction): MergeState {
+  switch (action.type) {
+    case 'SET_PAIR':
+      return { ...state, pair: action.pair }
+    case 'SET_KEEPER':
+      return { ...state, keeperIsExisting: action.keeperIsExisting }
+    case 'SET_CHOICES':
+      return { ...state, choices: action.choices }
+    case 'SET_FIELD_CHOICE':
+      return { ...state, choices: { ...state.choices, [action.field]: action.side } }
+    case 'OPEN_CONFIRM':
+      return { ...state, confirmOpen: true }
+    case 'CLOSE_CONFIRM':
+      return { ...state, confirmOpen: false }
+    default:
+      return state
+  }
+}
+
 export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
-  const [pair, setPair] = useState<DupCandidate | null>(null)
+  const [review, dispatch] = useReducer(mergeReducer, initialMergeState)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-
-  // keeperIsExisting = true means existingCustomer is the keeper (default)
-  const [keeperIsExisting, setKeeperIsExisting] = useState(true)
-
-  const [choices, setChoices] = useState<Record<string, 'keeper' | 'dup'>>({})
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [actionErr, setActionErr] = useState<string | null>(null)
 
@@ -66,7 +104,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
     setLoading(true)
     setErr(null)
     api.getDupCandidate(candidateId)
-      .then((d) => { if (!ignore) { setPair(d); setKeeperIsExisting(true) } })
+      .then((d) => { if (!ignore) { dispatch({ type: 'SET_PAIR', pair: d }); dispatch({ type: 'SET_KEEPER', keeperIsExisting: true }) } })
       .catch((e: unknown) => { if (!ignore) setErr(e instanceof Error ? e.message : 'Gagal memuat data duplikat') })
       .finally(() => { if (!ignore) setLoading(false) })
     return () => { ignore = true }
@@ -74,14 +112,14 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
 
   // Recompute choices whenever pair or keeperIsExisting changes
   useEffect(() => {
-    if (!pair) return
-    const keeper = keeperIsExisting ? pair.existingCustomer : pair.newCustomer
-    const dup = keeperIsExisting ? pair.newCustomer : pair.existingCustomer
+    if (!review.pair) return
+    const keeper = review.keeperIsExisting ? review.pair.existingCustomer : review.pair.newCustomer
+    const dup = review.keeperIsExisting ? review.pair.newCustomer : review.pair.existingCustomer
     const conflicts = computeConflicts(keeper, dup)
     const seed: Record<string, 'keeper' | 'dup'> = {}
     for (const c of conflicts) seed[c.field] = c.default
-    setChoices(seed)
-  }, [pair, keeperIsExisting])
+    dispatch({ type: 'SET_CHOICES', choices: seed })
+  }, [review.pair, review.keeperIsExisting])
 
   if (loading) {
     return (
@@ -93,7 +131,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
       </div>
     )
   }
-  if (err || !pair) {
+  if (err || !review.pair) {
     return (
       <div className="p-6">
         <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
@@ -104,6 +142,9 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
     )
   }
 
+  const pair = review.pair
+  const keeperIsExisting = review.keeperIsExisting
+  const choices = review.choices
   const keeper = keeperIsExisting ? pair.existingCustomer : pair.newCustomer
   const dup = keeperIsExisting ? pair.newCustomer : pair.existingCustomer
   const conflicts = computeConflicts(keeper, dup)
@@ -156,7 +197,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
           <Button variant="secondary" disabled={busy} onClick={doDismiss} loading={busy}>
             Bukan Duplikat
           </Button>
-          <Button disabled={busy} onClick={() => setConfirmOpen(true)}>
+          <Button disabled={busy} onClick={() => dispatch({ type: 'OPEN_CONFIRM' })}>
             Gabungkan
           </Button>
         </div>
@@ -175,7 +216,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setKeeperIsExisting(isExisting)}
+                onClick={() => dispatch({ type: 'SET_KEEPER', keeperIsExisting: isExisting })}
                 className={`text-left p-4 rounded-xl border-2 transition-all ${isSelected ? 'border-gold-500 bg-gold-50' : 'border-gray-200 hover:border-gray-300'}`}
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -224,7 +265,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
                       type="radio"
                       name={`field-${conflict.field}`}
                       checked={choices[conflict.field] === 'keeper'}
-                      onChange={() => setChoices((prev) => ({ ...prev, [conflict.field]: 'keeper' }))}
+                      onChange={() => dispatch({ type: 'SET_FIELD_CHOICE', field: conflict.field, side: 'keeper' })}
                       className="mt-0.5 accent-gold-600 flex-shrink-0"
                     />
                     <div>
@@ -237,7 +278,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
                       type="radio"
                       name={`field-${conflict.field}`}
                       checked={choices[conflict.field] === 'dup'}
-                      onChange={() => setChoices((prev) => ({ ...prev, [conflict.field]: 'dup' }))}
+                      onChange={() => dispatch({ type: 'SET_FIELD_CHOICE', field: conflict.field, side: 'dup' })}
                       className="mt-0.5 accent-gold-600 flex-shrink-0"
                     />
                     <div>
@@ -269,7 +310,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
       )}
 
       {/* Confirm modal (inline, no Modal component to keep it simple) */}
-      {confirmOpen && (
+      {review.confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <Card className="p-6 space-y-4 max-w-sm w-full shadow-2xl">
             <div className="text-center">
@@ -285,7 +326,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
             </div>
             {actionErr && <p className="text-sm text-red-600 text-center">{actionErr}</p>}
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" disabled={busy} onClick={() => setConfirmOpen(false)}>
+              <Button variant="secondary" className="flex-1" disabled={busy} onClick={() => dispatch({ type: 'CLOSE_CONFIRM' })}>
                 Batal
               </Button>
               <Button variant="danger" className="flex-1" loading={busy} onClick={doMerge}>

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useReducer, useRef, useState } from 'react'
 import type { User, CustomRole, Outlet } from '@mandalika/api'
 import { Edit2, Users as UsersIcon, Shield, Check, Plus, Trash2, Download, Upload, Store } from 'lucide-react'
 import { api } from '../api'
@@ -38,8 +38,68 @@ const ROLE_TONE: Record<Role, 'gold' | 'success' | 'danger'> = {
   cashier: 'success',
 }
 
-const togglePerm = (p: string, set: React.Dispatch<React.SetStateAction<string[]>>) =>
-  set((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]))
+type EditUserState = {
+  editingUser: User | null
+  editRole: Role
+  editPerms: string[]
+  editOutletId: string
+  pin: string
+  clearPin: boolean
+}
+
+type EditUserAction =
+  | { type: 'OPEN_EDIT'; user: User }
+  | { type: 'SET_ROLE'; value: Role }
+  | { type: 'SET_PERMS'; value: string[] }
+  | { type: 'TOGGLE_PERM'; perm: string }
+  | { type: 'SET_OUTLET'; value: string }
+  | { type: 'SET_PIN'; value: string }
+  | { type: 'SET_CLEAR_PIN'; value: boolean }
+  | { type: 'CLOSE' }
+
+const initialEditUser: EditUserState = {
+  editingUser: null,
+  editRole: 'cashier',
+  editPerms: [],
+  editOutletId: '',
+  pin: '',
+  clearPin: false,
+}
+
+const editUserReducer = (state: EditUserState, action: EditUserAction): EditUserState => {
+  switch (action.type) {
+    case 'OPEN_EDIT':
+      return {
+        editingUser: action.user,
+        editRole: action.user.role as Role,
+        editPerms: action.user.permissions || [],
+        editOutletId: action.user.outletId || '',
+        pin: '',
+        clearPin: false,
+      }
+    case 'SET_ROLE':
+      return { ...state, editRole: action.value }
+    case 'SET_PERMS':
+      return { ...state, editPerms: action.value }
+    case 'TOGGLE_PERM':
+      return {
+        ...state,
+        editPerms: state.editPerms.includes(action.perm)
+          ? state.editPerms.filter((x) => x !== action.perm)
+          : [...state.editPerms, action.perm],
+      }
+    case 'SET_OUTLET':
+      return { ...state, editOutletId: action.value }
+    case 'SET_PIN':
+      return { ...state, pin: action.value, clearPin: false }
+    case 'SET_CLEAR_PIN':
+      return { ...state, clearPin: action.value }
+    case 'CLOSE':
+      return { ...state, editingUser: null, pin: '', clearPin: false }
+    default:
+      return state
+  }
+}
 
 export default function Users() {
   const { user: me } = useAuth()
@@ -53,12 +113,8 @@ export default function Users() {
   const [tab, setTab] = useState<'users' | 'roles'>('users')
   const csvRef = useRef<HTMLInputElement>(null)
 
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [editRole, setEditRole] = useState<Role>('cashier')
-  const [editPerms, setEditPerms] = useState<string[]>([])
-  const [editOutletId, setEditOutletId] = useState<string>('')
-  const [pin, setPin] = useState('')
-  const [clearPin, setClearPin] = useState(false)
+  const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
+  const { editingUser, editRole, editPerms, editOutletId, pin, clearPin } = editUser
   const [busy, setBusy] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
@@ -79,9 +135,7 @@ export default function Users() {
       } else if (pin) {
         await api.setUserReceivePin(editingUser.id, { pin })
       }
-      setEditingUser(null)
-      setPin('')
-      setClearPin(false)
+      dispatch({ type: 'CLOSE' })
       await uq.refetch()
     } finally {
       setBusy(false)
@@ -215,7 +269,7 @@ export default function Users() {
                   </div>
                   <Badge tone={ROLE_TONE[u.role as Role]} className="flex-shrink-0">{ROLE_LABEL[u.role as Role]}</Badge>
                   {me?.role === 'admin' && u.id !== me?.id && (
-                    <IconButton onClick={() => { setEditingUser(u); setEditRole(u.role as Role); setEditPerms(u.permissions || []); setEditOutletId(u.outletId || ''); setPin(''); setClearPin(false) }}><Edit2 className="w-4 h-4" /></IconButton>
+                    <IconButton onClick={() => dispatch({ type: 'OPEN_EDIT', user: u })}><Edit2 className="w-4 h-4" /></IconButton>
                   )}
                 </div>
               ))}
@@ -257,12 +311,12 @@ export default function Users() {
 
       <Modal
         open={!!editingUser}
-        onClose={() => { setEditingUser(null); setPin(''); setClearPin(false) }}
+        onClose={() => dispatch({ type: 'CLOSE' })}
         title="Edit Akses"
         subtitle={editingUser?.displayName}
         footer={
           <>
-            <Button variant="secondary" className="flex-1" onClick={() => { setEditingUser(null); setPin(''); setClearPin(false) }}>Batal</Button>
+            <Button variant="secondary" className="flex-1" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
             <Button className="flex-1" loading={busy} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           </>
         }
@@ -271,14 +325,14 @@ export default function Users() {
           <Field label="Role">
             <div className="grid grid-cols-3 gap-2">
               {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-                <button type="button" key={r} onClick={() => setEditRole(r)} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
+                <button type="button" key={r} onClick={() => dispatch({ type: 'SET_ROLE', value: r })} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
               ))}
             </div>
           </Field>
           <Select
             label="Outlet"
             value={editOutletId}
-            onChange={(e) => setEditOutletId(e.target.value)}
+            onChange={(e) => dispatch({ type: 'SET_OUTLET', value: e.target.value })}
           >
             <option value="">Semua Outlet (tanpa pembatasan)</option>
             {outlets.map((o) => (
@@ -295,12 +349,12 @@ export default function Users() {
               placeholder="Isi untuk set / ganti PIN"
               aria-label="PIN penerimaan transfer"
               value={pin}
-              onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setClearPin(false) }}
+              onChange={(e) => dispatch({ type: 'SET_PIN', value: e.target.value.replace(/\D/g, '') })}
               disabled={clearPin}
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition disabled:opacity-50"
             />
             <label className="mt-1 flex items-center gap-2 text-sm text-gray-500">
-              <input type="checkbox" checked={clearPin} onChange={(e) => setClearPin(e.target.checked)} />
+              <input type="checkbox" checked={clearPin} onChange={(e) => dispatch({ type: 'SET_CLEAR_PIN', value: e.target.checked })} />
               Hapus PIN
             </label>
           </Field>
@@ -308,7 +362,7 @@ export default function Users() {
             <Field label="Terapkan Template">
               <div className="flex gap-2 flex-wrap">
                 {roles.map((r) => (
-                  <Button key={r.id} variant="ghost" size="sm" onClick={() => setEditPerms(r.permissions)}>{r.name}</Button>
+                  <Button key={r.id} variant="ghost" size="sm" onClick={() => dispatch({ type: 'SET_PERMS', value: r.permissions })}>{r.name}</Button>
                 ))}
               </div>
             </Field>
@@ -317,7 +371,7 @@ export default function Users() {
             <Field label="Permission">
               <div className="space-y-2">
                 {Object.entries(PERMS).map(([p, { label, desc }]) => (
-                  <button type="button" key={p} onClick={() => togglePerm(p, setEditPerms)} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${editPerms.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
+                  <button type="button" key={p} onClick={() => dispatch({ type: 'TOGGLE_PERM', perm: p })} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${editPerms.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
                     <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${editPerms.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
                       {editPerms.includes(p) && <Check className="w-3 h-3 text-white" />}
                     </div>
