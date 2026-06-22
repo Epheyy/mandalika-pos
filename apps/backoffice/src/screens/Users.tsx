@@ -1,13 +1,13 @@
 import { useReducer, useRef, useState } from 'react'
 import type { User, CustomRole, Outlet } from '@mandalika/api'
-import { Edit2, Users as UsersIcon, Shield, Check, Plus, Trash2, Download, Upload, Store } from 'lucide-react'
+import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Upload, Store } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, parseCSV } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
-import { Input, Select, Field } from '../ui/Field'
+import { Select, Field } from '../ui/Field'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -15,22 +15,11 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { PERMS, PermissionPicker } from './users/PermissionPicker'
+import { AddUserModal } from './users/AddUserModal'
+import { RoleModal } from './users/RoleModal'
 
 type Role = 'admin' | 'manager' | 'cashier'
-const PERMS: Record<string, { label: string; desc: string }> = {
-  view_dashboard: { label: 'Lihat Dashboard', desc: 'Akses ringkasan & grafik' },
-  view_transactions: { label: 'Lihat Transaksi', desc: 'Riwayat semua transaksi' },
-  manage_products: { label: 'Kelola Produk', desc: 'Tambah, edit, hapus produk' },
-  manage_customers: { label: 'Kelola Pelanggan', desc: 'Akses data pelanggan' },
-  manage_outlets: { label: 'Kelola Outlet', desc: 'Tambah dan edit outlet' },
-  manage_users: { label: 'Kelola Pengguna', desc: 'Atur role & akses' },
-  process_refund: { label: 'Proses Refund', desc: 'Memproses pengembalian dana' },
-  manage_promotions: { label: 'Kelola Promosi', desc: 'Buat dan edit promosi' },
-  view_reports: { label: 'Lihat Laporan', desc: 'Akses laporan & export' },
-  manage_settings: { label: 'Pengaturan', desc: 'Ubah konfigurasi sistem' },
-  manage_stock_count: { label: 'Stock Count', desc: 'Kelola penghitungan stok' },
-  manage_inventory: { label: 'Kelola Gudang', desc: 'Gudang, barang masuk & stok' },
-}
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
 const ROLE_TONE: Record<Role, 'gold' | 'success' | 'danger'> = {
   admin: 'danger',
@@ -369,128 +358,34 @@ export default function Users() {
           )}
           {editRole !== 'admin' && (
             <Field label="Permission">
-              <div className="space-y-2">
-                {Object.entries(PERMS).map(([p, { label, desc }]) => (
-                  <button type="button" key={p} onClick={() => dispatch({ type: 'TOGGLE_PERM', perm: p })} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${editPerms.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                    <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${editPerms.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
-                      {editPerms.includes(p) && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <div>
-                      <p className={`text-sm font-bold ${editPerms.includes(p) ? 'text-gold-700' : 'text-gray-700'}`}>{label}</p>
-                      <p className="text-xs text-gray-400">{desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <PermissionPicker selected={editPerms} onToggle={(p) => dispatch({ type: 'TOGGLE_PERM', perm: p })} />
             </Field>
           )}
         </div>
       </Modal>
 
-      <Modal
+      <AddUserModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Tambah Pengguna"
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setAddOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={addUser}>{busy ? 'Menambahkan...' : 'Tambah'}</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {[
-            { k: 'displayName' as const, label: 'Nama *', type: 'text' },
-            { k: 'email' as const, label: 'Email *', type: 'email' },
-            { k: 'password' as const, label: 'Kata Sandi *', type: 'password' },
-          ].map(({ k, label, type }) => (
-            <Input key={k} label={label} type={type} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
-          ))}
-          <Field label="Role">
-            <div className="grid grid-cols-3 gap-2">
-              {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-                <button type="button" key={r} onClick={() => setNf((f) => ({ ...f, role: r }))} className={`py-2 text-sm font-bold rounded-xl border-2 ${nf.role === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
-              ))}
-            </div>
-          </Field>
-          <Select
-            label="Outlet"
-            value={nf.outletId}
-            onChange={(e) => setNf((f) => ({ ...f, outletId: e.target.value }))}
-          >
-            <option value="">Semua Outlet (tanpa pembatasan)</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </Select>
-          {nf.role === 'cashier' && !nf.outletId && (
-            <p className="text-[11px] text-amber-600 -mt-3">Kasir sebaiknya ditempatkan di satu outlet.</p>
-          )}
-          {nf.role !== 'admin' && (
-            <Field label="Permission">
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {Object.entries(PERMS).map(([p, { label }]) => (
-                  <button type="button" key={p} onClick={() => setNf((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-left ${nf.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100'}`}>
-                    <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${nf.permissions.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
-                      {nf.permissions.includes(p) && <Check className="w-2.5 h-2.5 text-white" />}
-                    </div>
-                    <span className={`text-sm font-bold ${nf.permissions.includes(p) ? 'text-gold-700' : 'text-gray-700'}`}>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </Field>
-          )}
-        </div>
-      </Modal>
+        nf={nf}
+        setNf={setNf}
+        busy={busy}
+        outlets={outlets}
+        onSave={addUser}
+      />
 
-      <Modal
+      <RoleModal
         open={roleOpen}
         onClose={() => setRoleOpen(false)}
-        title={editingRole ? 'Edit Role' : 'Buat Role Kustom'}
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setRoleOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={saveRole}>Simpan</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input label="Nama Role *" type="text" value={roleForm.name} onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))} />
-          <Field label="Permission">
-            <div className="space-y-2">
-              {Object.entries(PERMS).map(([p, { label, desc }]) => (
-                <button type="button" key={p} onClick={() => setRoleForm((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${roleForm.permissions.includes(p) ? 'border-gold-400 bg-gold-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                  <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${roleForm.permissions.includes(p) ? 'bg-gold-600' : 'border-2 border-gray-300'}`}>
-                    {roleForm.permissions.includes(p) && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${roleForm.permissions.includes(p) ? 'text-gold-700' : 'text-gray-700'}`}>{label}</p>
-                    <p className="text-xs text-gray-400">{desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </Field>
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!delRole}
-        onClose={() => setDelRole(null)}
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setDelRole(null)}>Batal</Button>
-            <Button variant="danger" className="flex-1" onClick={async () => { await api.deleteCustomRole(delRole!); setDelRole(null); await rq.refetch() }}>Ya, Hapus</Button>
-          </>
-        }
-      >
-        <div className="text-center">
-          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
-          <h3 className="text-xl font-black text-gray-900 mb-2">Hapus Role?</h3>
-          <p className="text-sm text-gray-400">Template permission akan hilang.</p>
-        </div>
-      </Modal>
+        editingRole={editingRole}
+        roleForm={roleForm}
+        setRoleForm={setRoleForm}
+        busy={busy}
+        onSave={saveRole}
+        delRole={delRole}
+        onCloseDelete={() => setDelRole(null)}
+        onConfirmDelete={async () => { await api.deleteCustomRole(delRole!); setDelRole(null); await rq.refetch() }}
+      />
     </div>
   )
 }

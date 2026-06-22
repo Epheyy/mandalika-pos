@@ -2,14 +2,13 @@ import { useState } from 'react'
 import type { Promotion, DiscountCode, Product, PromotionInput, DiscountCodeInput } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Plus, Edit2, Trash2, Tag, Copy, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Edit2, Trash2, Tag, Copy } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { generateCode, exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button } from '../ui/Button'
-import { Input, Select, Textarea, Field, fieldClass } from '../ui/Field'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -17,8 +16,9 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { PromoFormModal } from './promotions/PromoFormModal'
+import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
 
-const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 const EMPTY_PROMO: PromotionInput = {
   name: '', description: '', type: 'percentage', value: 0, minPurchase: 0,
   applicableProductIds: [], applicableVariantKeys: [], isActive: true,
@@ -167,23 +167,6 @@ export default function Promotions() {
     await dcq.refetch()
   }
 
-  const toggleVariant = (pid: string, size: string) => {
-    const key = `${pid}::${size}`
-    setPromoForm((f) => ({
-      ...f,
-      applicableVariantKeys: (f.applicableVariantKeys || []).includes(key)
-        ? (f.applicableVariantKeys || []).filter((k) => k !== key)
-        : [...(f.applicableVariantKeys || []), key],
-    }))
-  }
-  const toggleDay = (d: number) =>
-    setPromoForm((f) => ({
-      ...f,
-      activeDays: (f.activeDays || []).includes(d)
-        ? (f.activeDays || []).filter((x) => x !== d)
-        : [...(f.activeDays || []), d],
-    }))
-
   const today = new Date().toISOString().slice(0, 10)
   const promoStatus = (p: Promotion) => {
     if (!p.isActive) return { label: 'Nonaktif', color: 'bg-gray-100 text-gray-600' }
@@ -321,152 +304,29 @@ export default function Promotions() {
         </Card>
       )}
 
-      <Modal
+      <PromoFormModal
         open={promoOpen}
+        editingPromo={!!editingPromo}
+        form={promoForm}
+        setForm={setPromoForm}
+        products={products}
+        variantPicker={variantPicker}
+        setVariantPicker={setVariantPicker}
+        busy={busy}
+        onSave={savePromo}
         onClose={() => setPromoOpen(false)}
-        size="lg"
-        title={editingPromo ? 'Edit Promosi' : 'Tambah Promosi'}
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setPromoOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={savePromo}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input label="Nama Promosi *" type="text" value={promoForm.name} onChange={(e) => setPromoForm((f) => ({ ...f, name: e.target.value }))} />
-          <Textarea label="Deskripsi" value={promoForm.description || ''} onChange={(e) => setPromoForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Tipe" value={promoForm.type} onChange={(e) => setPromoForm((f) => ({ ...f, type: e.target.value as PromotionInput['type'] }))}>
-              <option value="percentage">Persentase (%)</option>
-              <option value="fixed">Nominal (Rp)</option>
-              <option value="bogo">Buy 1 Get 1</option>
-            </Select>
-            {promoForm.type !== 'bogo' && (
-              <Input label="Nilai" type="number" value={promoForm.value} onChange={(e) => setPromoForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
-            )}
-          </div>
-          <Input label="Minimum Pembelian (Rp)" type="number" value={promoForm.minPurchase || ''} onChange={(e) => setPromoForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Mulai" type="date" value={promoForm.startDate || ''} onChange={(e) => setPromoForm((f) => ({ ...f, startDate: e.target.value }))} />
-            <Input label="Berakhir" type="date" value={promoForm.endDate || ''} onChange={(e) => setPromoForm((f) => ({ ...f, endDate: e.target.value }))} />
-          </div>
-          <Field label="Aktif Hari (kosong = semua)">
-            <div className="flex gap-1.5 flex-wrap">
-              {DAYS.map((d, i) => (
-                <button key={d} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(promoForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
-              ))}
-            </div>
-          </Field>
-          <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-            <input type="checkbox" checked={promoForm.combinable ?? false} onChange={(e) => setPromoForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-            <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promosi lain</span>
-          </label>
-          <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-            <input type="checkbox" checked={promoForm.codeOnly ?? false} onChange={(e) => setPromoForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-            <span className="text-sm font-bold text-gray-900">Hanya via kode (sembunyikan dari panel kasir)</span>
-          </label>
-          <Field label="Varian Spesifik (opsional)">
-            <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
-              {products.map((p) => (
-                <div key={p.id}>
-                  <button type="button" onClick={() => setVariantPicker(variantPicker === p.id ? null : p.id)} className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-gray-50 rounded-lg text-left">
-                    <span className="text-sm font-bold text-gray-700">{p.name}</span>
-                    {variantPicker === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                  </button>
-                  {variantPicker === p.id && (
-                    <div className="ml-4 space-y-0.5 mt-0.5">
-                      {p.variants.map((v) => {
-                        const key = `${p.id}::${v.size}`
-                        return (
-                          <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                            <input type="checkbox" checked={(promoForm.applicableVariantKeys || []).includes(key)} onChange={() => toggleVariant(p.id, v.size)} className="accent-gold-600" />
-                            <span className="text-xs text-gray-600">{v.size} — {BRAND.currency.format(v.price)}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Field>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={promoForm.isActive} onChange={(e) => setPromoForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
-            <span className="text-sm font-bold text-gray-700">Promosi Aktif</span>
-          </label>
-        </div>
-      </Modal>
+      />
 
-      <Modal
+      <DiscountCodeFormModal
         open={codeOpen}
+        editingCode={!!editingCode}
+        form={codeForm}
+        setForm={setCodeForm}
+        promotions={promotions}
+        busy={busy}
+        onSave={saveCode}
         onClose={() => setCodeOpen(false)}
-        title={editingCode ? 'Edit Kode' : 'Tambah Kode Diskon'}
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setCodeOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={saveCode}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Field label="Kode *">
-            <div className="flex gap-2">
-              <input type="text" value={codeForm.code} onChange={(e) => setCodeForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} aria-label="Kode diskon" className={`${fieldClass} flex-1 font-mono tracking-wider`} />
-              <Button variant="secondary" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={() => setCodeForm((f) => ({ ...f, code: generateCode() }))} />
-            </div>
-          </Field>
-          <Select
-            label="Tautkan ke promosi"
-            value={codeForm.promotionId ?? ''}
-            onChange={(e) => setCodeForm((f) => ({ ...f, promotionId: e.target.value || undefined }))}
-          >
-            <option value="">— Tidak ditautkan —</option>
-            {promotions.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </Select>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Tipe"
-              value={codeForm.type}
-              onChange={(e) => setCodeForm((f) => ({ ...f, type: e.target.value as DiscountCodeInput['type'] }))}
-              disabled={!!codeForm.promotionId}
-            >
-              <option value="percentage">Persentase (%)</option>
-              <option value="fixed">Nominal (Rp)</option>
-            </Select>
-            <Input
-              label="Nilai"
-              type="number"
-              value={codeForm.value}
-              onChange={(e) => setCodeForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))}
-              disabled={!!codeForm.promotionId}
-            />
-          </div>
-          {!!codeForm.promotionId && (
-            <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg -mt-2">
-              Tipe &amp; nilai diikuti dari promosi tertaut.
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Min. Beli" type="number" value={codeForm.minPurchase || ''} onChange={(e) => setCodeForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
-            <Input label="Batas Pakai" type="number" value={codeForm.usageLimit || ''} onChange={(e) => setCodeForm((f) => ({ ...f, usageLimit: parseInt(e.target.value) || 0 }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Mulai" type="date" value={codeForm.startDate || ''} onChange={(e) => setCodeForm((f) => ({ ...f, startDate: e.target.value }))} />
-            <Input label="Berakhir" type="date" value={codeForm.endDate || ''} onChange={(e) => setCodeForm((f) => ({ ...f, endDate: e.target.value }))} />
-          </div>
-          <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-            <input type="checkbox" checked={codeForm.combinable ?? false} onChange={(e) => setCodeForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-            <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promo/kode lain (combinable)</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={codeForm.isActive} onChange={(e) => setCodeForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
-            <span className="text-sm font-bold text-gray-700">Kode Aktif</span>
-          </label>
-        </div>
-      </Modal>
+      />
 
       <Modal
         open={!!(delPromo || delCode)}
