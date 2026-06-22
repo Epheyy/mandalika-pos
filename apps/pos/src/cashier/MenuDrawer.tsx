@@ -134,7 +134,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   return (
     <div className="fixed inset-0 z-[60] flex">
       {/* Backdrop (left) */}
-      <div className="flex-1 bg-black/40 animate-[backdropfade_0.2s_ease-out]" onClick={onClose} />
+      <button type="button" aria-label="Tutup" tabIndex={-1} className="flex-1 bg-black/40 animate-[backdropfade_0.2s_ease-out]" onClick={onClose} />
 
       {/* Panel (right, slides in from the right under the hamburger) */}
       <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col safe-top safe-bottom animate-[slideinright_0.2s_cubic-bezier(0.16,1,0.3,1)]">

@@ -130,7 +130,10 @@ export default function App() {
   return (
     <div className="h-screen flex bg-gray-50 overflow-hidden">
       {sidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Tutup menu"
+          tabIndex={-1}
           className="fixed inset-0 bg-black/40 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />

@@ -360,14 +360,15 @@ export const ProductGrid = memo(function ProductGrid({
 
       {/* Variant popup */}
       {variantPopup && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setVariantPopup(null)}
-        >
-          <div
-            className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Tutup"
+            tabIndex={-1}
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setVariantPopup(null)}
+          />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <h3 className="font-bold text-gray-900 mb-4">{variantPopup.name}</h3>
             <div className="space-y-3 mb-5">
               {variantPopup.variants.map((v) => (

@@ -449,14 +449,15 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
       {/* SP-CRM-9c: overstock confirm modal — warn + override, z-[60] above CheckoutPanel z-50 */}
       {showOverstockConfirm && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowOverstockConfirm(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Tutup"
+            tabIndex={-1}
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowOverstockConfirm(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">⚠️</span>
               <h3 className="text-base font-black text-gray-900">Stok Tidak Mencukupi</h3>

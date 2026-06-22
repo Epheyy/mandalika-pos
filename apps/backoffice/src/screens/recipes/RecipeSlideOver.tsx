@@ -42,7 +42,7 @@ export function RecipeSlideOver({ productId, variantId, variantLabel, onClose }:
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-label="Editor resep">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <button type="button" aria-label="Tutup" tabIndex={-1} className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col">
         {/* header */}
         <div className="px-5 py-4 border-b border-gray-100">

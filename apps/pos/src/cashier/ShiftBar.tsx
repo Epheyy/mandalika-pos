@@ -96,7 +96,7 @@ export const ShiftBar = memo(function ShiftBar({
           {showDetail && (
             <>
               {/* click-away */}
-              <div className="fixed inset-0 z-40" onClick={() => setShowDetail(false)} />
+              <button type="button" aria-label="Tutup" tabIndex={-1} className="fixed inset-0 z-40" onClick={() => setShowDetail(false)} />
               <div
                 style={detailPos ? { position: 'fixed', top: detailPos.top, left: detailPos.left } : undefined}
                 className="z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-2"

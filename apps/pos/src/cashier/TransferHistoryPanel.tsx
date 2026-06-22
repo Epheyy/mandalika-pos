@@ -46,8 +46,9 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
   }, [tab])
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div className="w-full max-w-md bg-white h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" aria-label="Tutup" tabIndex={-1} className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white h-full flex flex-col">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <h2 className="font-bold text-gray-900">Riwayat Transfer</h2>
           <button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none">×</button>

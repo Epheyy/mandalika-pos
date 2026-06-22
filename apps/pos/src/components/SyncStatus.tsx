@@ -80,7 +80,10 @@ export const SyncStatus = memo(function SyncStatus({
 
       {open && (
         <>
-          <div
+          <button
+            type="button"
+            aria-label="Tutup"
+            tabIndex={-1}
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
           />
