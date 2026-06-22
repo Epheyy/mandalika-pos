@@ -169,3 +169,78 @@ func TestTierBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func bxgyItem(id, size string, price float64, qty int) LineItem {
+	return LineItem{ProductID: id, VariantSize: size, Price: price, Quantity: qty, Subtotal: price * float64(qty)}
+}
+
+func TestCalcBXGYSameSetFree(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 3)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 10000 {
+		t.Fatalf("got %v want 10000", r.PromoDiscount)
+	}
+}
+
+func TestCalcBXGYRepeatAndCap(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
+	full := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 6)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if full.PromoDiscount != 20000 {
+		t.Fatalf("repeat got %v want 20000", full.PromoDiscount)
+	}
+	cfg.MaxApplications = 1
+	capped := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 6)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if capped.PromoDiscount != 10000 {
+		t.Fatalf("capped got %v want 10000", capped.PromoDiscount)
+	}
+}
+
+func TestCalcBXGYSeparateSetPercentAndScarcity(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, BuyProductIDs: []string{"a"},
+		GetProductIDs: []string{"b"}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 50}
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 2), bxgyItem("b", "M", 8000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 4000 {
+		t.Fatalf("got %v want 4000", r.PromoDiscount)
+	}
+	r0 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "M", 8000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r0.PromoDiscount != 0 {
+		t.Fatalf("scarcity got %v want 0", r0.PromoDiscount)
+	}
+}
+
+func TestCalcBXGYFixedCappedAtUnit(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 1, GetQuantity: 1, GetDiscountKind: DiscountFixed, GetDiscountValue: 99999}
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 5000, 2)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 5000 {
+		t.Fatalf("got %v want 5000 (capped)", r.PromoDiscount)
+	}
+}
+
+func TestCalcBXGYVariantLevelKey(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 1, GetQuantity: 1, BuyProductIDs: []string{"a"},
+		GetProductIDs: []string{variantKey("b", "10ml")}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "50ml", 8000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 0 {
+		t.Fatalf("wrong-variant got %v want 0", r.PromoDiscount)
+	}
+	r2 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "10ml", 8000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r2.PromoDiscount != 8000 {
+		t.Fatalf("right-variant got %v want 8000", r2.PromoDiscount)
+	}
+}
+
+func TestCalcBXGYNilConfigIsZero(t *testing.T) {
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 3)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: nil}}})
+	if r.PromoDiscount != 0 {
+		t.Fatalf("nil cfg got %v want 0", r.PromoDiscount)
+	}
+}

@@ -4,7 +4,11 @@
 // loyalty and tier at order time.
 package service
 
-import "math"
+import (
+	"log/slog"
+	"math"
+	"sort"
+)
 
 // Money is whole-rupiah (IDR has no minor unit in this system). The legacy
 // client computes in JS numbers with Math.round; we mirror that exactly with
@@ -15,23 +19,37 @@ type DiscountKind string
 const (
 	DiscountPercentage DiscountKind = "percentage"
 	DiscountFixed      DiscountKind = "fixed"
+	DiscountBuyXGetY   DiscountKind = "buy_x_get_y"
 )
 
 // LineItem mirrors CartItem for pricing. Subtotal is price*quantity as quoted
 // by the client and is honored (offline price quote, plan §5).
 type LineItem struct {
-	ProductID string
-	Price     float64
-	Quantity  int
-	Subtotal  float64
+	ProductID   string
+	VariantSize string // pid|size matching for buy_x_get_y; empty = product-level line
+	Price       float64
+	Quantity    int
+	Subtotal    float64
+}
+
+// BXGYConfig is the buy_x_get_y rule (stored as promotions.bxgy_config jsonb).
+type BXGYConfig struct {
+	BuyQuantity      int          `json:"buyQuantity"`
+	GetQuantity      int          `json:"getQuantity"`
+	BuyProductIDs    []string     `json:"buyProductIds"`
+	GetProductIDs    []string     `json:"getProductIds"`
+	GetDiscountKind  DiscountKind `json:"getDiscountKind"`
+	GetDiscountValue float64      `json:"getDiscountValue"`
+	MaxApplications  int          `json:"maxApplications"`
 }
 
 // PromoSpec is the resolved promotion (from a Promotion or a DiscountCode).
 type PromoSpec struct {
-	Kind                 DiscountKind // percentage | fixed | bogo
+	Kind                 DiscountKind // percentage | fixed | bogo | buy_x_get_y
 	Value                float64
 	ApplicableProductIDs []string // empty = applies to whole cart
 	IsBOGO               bool
+	BXGY                 *BXGYConfig
 }
 
 type PricingInput struct {
@@ -72,8 +90,90 @@ func contains(ids []string, id string) bool {
 	return false
 }
 
+// keyMatchesLine: a "pid" key matches any variant; a "pid|size" key matches that variant only.
+func keyMatchesLine(keys []string, productID, size string) bool {
+	if contains(keys, productID) {
+		return true
+	}
+	return size != "" && contains(keys, variantKey(productID, size))
+}
+
+func bxgyExpand(items []LineItem, keys []string, emptyMatchesAll bool) []float64 {
+	var prices []float64
+	for _, i := range items {
+		match := emptyMatchesAll
+		if len(keys) > 0 {
+			match = keyMatchesLine(keys, i.ProductID, i.VariantSize)
+		}
+		if !match {
+			continue
+		}
+		for n := 0; n < i.Quantity; n++ {
+			prices = append(prices, i.Price)
+		}
+	}
+	return prices
+}
+
+func calcBXGY(c *BXGYConfig, items []LineItem) float64 {
+	if c == nil || c.BuyQuantity < 1 || c.GetQuantity < 1 {
+		slog.Warn("buy_x_get_y: invalid config, 0 discount", "config", c)
+		return 0
+	}
+	var getPool []float64
+	var nApp int
+	if len(c.GetProductIDs) == 0 {
+		pool := bxgyExpand(items, c.BuyProductIDs, true)
+		nApp = len(pool) / (c.BuyQuantity + c.GetQuantity)
+		getPool = pool
+	} else {
+		var buyPool []float64
+		if len(c.BuyProductIDs) == 0 {
+			for _, i := range items {
+				if keyMatchesLine(c.GetProductIDs, i.ProductID, i.VariantSize) {
+					continue
+				}
+				for n := 0; n < i.Quantity; n++ {
+					buyPool = append(buyPool, i.Price)
+				}
+			}
+		} else {
+			buyPool = bxgyExpand(items, c.BuyProductIDs, false)
+		}
+		getPool = bxgyExpand(items, c.GetProductIDs, false)
+		nApp = len(buyPool) / c.BuyQuantity
+		if g := len(getPool) / c.GetQuantity; g < nApp {
+			nApp = g
+		}
+	}
+	if c.MaxApplications > 0 && nApp > c.MaxApplications {
+		nApp = c.MaxApplications
+	}
+	if nApp <= 0 {
+		return 0
+	}
+	nDiscount := nApp * c.GetQuantity
+	sort.Float64s(getPool)
+	if nDiscount > len(getPool) {
+		nDiscount = len(getPool)
+	}
+	var total float64
+	for k := 0; k < nDiscount; k++ {
+		switch c.GetDiscountKind {
+		case DiscountPercentage:
+			total += math.Round(getPool[k] * (c.GetDiscountValue / 100))
+		case DiscountFixed:
+			total += math.Min(c.GetDiscountValue, getPool[k])
+		}
+	}
+	return total
+}
+
 // calcPromotionDiscount ports CashierScreen.tsx:335-349 exactly.
 func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 {
+	if p.Kind == DiscountBuyXGetY {
+		return calcBXGY(p.BXGY, items)
+	}
 	scoped := len(p.ApplicableProductIDs) > 0
 	matching := items
 	if scoped {
