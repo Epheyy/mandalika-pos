@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useMemo, useState, type CSSProperties } from 'react'
 import type { components } from '@mandalika/api'
 import {
   DndContext,
@@ -238,7 +238,7 @@ export const ProductGrid = memo(function ProductGrid({
     }
   }
 
-  const handleProductClick = (product: Product) => {
+  const handleProductClick = useCallback((product: Product) => {
     if (product.variants.length === 1) {
       onProductTap(product, { [product.variants[0].size]: 1 })
       return
@@ -247,7 +247,7 @@ export const ProductGrid = memo(function ProductGrid({
     product.variants.forEach((v) => { qtys[v.size] = 0 })
     setVariantQtys(qtys)
     setVariantPopup(product)
-  }
+  }, [onProductTap])
 
   const handleVariantChange = (size: string, delta: number) => {
     if (!variantPopup) return

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { Search } from 'lucide-react'
 import { api } from '../../api'
@@ -16,6 +16,12 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
   const [cats, setCats] = useState<IngredientCategory[]>([])
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus the search input once when the picker mounts (opens).
+  useEffect(() => {
+    searchInputRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -40,11 +46,11 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input
+          ref={searchInputRef}
           className={`${fieldClass} pl-9 bg-white`}
           placeholder="Cari bahan (nama / SKU)…"
           aria-label="Cari bahan"
           value={q}
-          autoFocus
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose?.() } }}
         />

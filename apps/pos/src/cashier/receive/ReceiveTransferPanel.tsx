@@ -20,6 +20,8 @@ interface ConfirmItem {
   receivedQty: number
 }
 
+const EMPTY_TRANSFERS: Transfer[] = []
+
 interface Props {
   transfers: Transfer[]
   /** Recently-completed transfers eligible for tanda terima reprint. */
@@ -41,7 +43,7 @@ function lineKey(productId: string, variantSize: string): string {
 
 export function ReceiveTransferPanel({
   transfers,
-  completedTransfers = [],
+  completedTransfers = EMPTY_TRANSFERS,
   onClose,
   onConfirm,
   onReprintTandaTerima,

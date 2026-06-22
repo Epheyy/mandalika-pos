@@ -65,7 +65,7 @@ export function CategoryManager({
               type="button"
               aria-label={`Hapus kategori ${cat.name}`}
               onClick={() => { setConfirmDelete({ id: cat.id, name: cat.name }); setDeleteErr(null) }}
-              className="ml-2 p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="ml-2 p-1 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>

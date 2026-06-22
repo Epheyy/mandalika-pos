@@ -1,0 +1,139 @@
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  PieChart,
+  Pie,
+} from 'recharts'
+import { BRAND } from '../../lib/brand'
+import {
+  CHART_PRIMARY,
+  CHART_SERIES,
+  CHART_GRID,
+  CHART_AXIS,
+  CHART_TOOLTIP,
+} from '../../ui/chartColors'
+import type { TrendPoint, PayRow, CashierRow } from './metrics'
+
+const rb = (v: number) => `Rp ${(v / 1000).toFixed(0)}rb`
+
+interface TrendChartProps {
+  trend: TrendPoint[]
+}
+
+/** Tren Penjualan — daily/hourly/monthly revenue bars. */
+export function TrendChart({ trend }: TrendChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={trend}>
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 11, fontWeight: 700, fill: CHART_AXIS }}
+          axisLine={false}
+          tickLine={false}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          tickFormatter={rb}
+          tick={{ fontSize: 11, fill: CHART_AXIS }}
+          axisLine={false}
+          tickLine={false}
+          width={56}
+        />
+        <Tooltip
+          formatter={(v) => [BRAND.currency.format(Number(v)), 'Penjualan']}
+          contentStyle={CHART_TOOLTIP}
+          cursor={{ fill: 'rgba(176,125,24,0.06)' }}
+        />
+        <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+interface PaymentChartProps {
+  pay: PayRow[]
+}
+
+/** Metode Pembayaran — donut of payment-method amounts. */
+export function PaymentChart({ pay }: PaymentChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={150}>
+      <PieChart>
+        <Pie
+          data={pay}
+          dataKey="amount"
+          nameKey="label"
+          innerRadius={42}
+          outerRadius={66}
+          paddingAngle={2}
+          stroke="none"
+        >
+          {pay.map((p, i) => (
+            <Cell key={p.method} fill={CHART_SERIES[i % CHART_SERIES.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(v) => BRAND.currency.format(Number(v))}
+          contentStyle={CHART_TOOLTIP}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+interface CashierChartProps {
+  cashiers: CashierRow[]
+}
+
+/** Performa Kasir — horizontal transaction bars per cashier. */
+export function CashierChart({ cashiers }: CashierChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(200, cashiers.length * 36)}>
+      <BarChart
+        data={cashiers}
+        layout="vertical"
+        barSize={16}
+        margin={{ left: 0, right: 24, top: 0, bottom: 0 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} horizontal={false} />
+        <XAxis
+          type="number"
+          tick={{ fontSize: 10, fill: CHART_AXIS }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          tick={{ fontSize: 11, fontWeight: 700, fill: CHART_AXIS }}
+          axisLine={false}
+          tickLine={false}
+          width={90}
+        />
+        <Tooltip
+          formatter={(v, n) => [
+            n === 'revenue' ? BRAND.currency.format(Number(v)) : `${v} transaksi`,
+            n === 'revenue' ? 'Penjualan' : 'Transaksi',
+          ]}
+          contentStyle={CHART_TOOLTIP}
+          cursor={{ fill: 'rgba(176,125,24,0.06)' }}
+        />
+        <Bar dataKey="transactions" radius={[0, 4, 4, 0]}>
+          {cashiers.map((c, i) => (
+            <Cell key={c.id} fill={CHART_SERIES[i % CHART_SERIES.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+const Charts = { TrendChart, PaymentChart, CashierChart }
+export default Charts

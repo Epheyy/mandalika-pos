@@ -185,7 +185,7 @@ function Sig({ label }: { label: string }) {
           marginTop: 32,
           paddingTop: 4,
           textAlign: 'center',
-          fontSize: 11,
+          fontSize: 12,
           color: '#555',
         }}
       >

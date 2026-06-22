@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { api } from '../../api'
 import { Button } from '../../ui/Button'
@@ -48,6 +48,12 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
   const [newCatName, setNewCatName] = useState('')
   const [newCatBusy, setNewCatBusy] = useState(false)
   const [newCatErr, setNewCatErr] = useState<string | null>(null)
+  const newCatInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus the new-category input when the inline form opens.
+  useEffect(() => {
+    if (showNewCat) newCatInputRef.current?.focus()
+  }, [showNewCat])
 
   // Manage-categories panel (delete affordance)
   const [showManageCats, setShowManageCats] = useState(false)
@@ -207,6 +213,7 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
           {showNewCat && (
             <div className="mt-2 flex items-center gap-2">
               <input
+                ref={newCatInputRef}
                 type="text"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
@@ -217,7 +224,6 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
                   if (e.key === 'Enter') { e.preventDefault(); void handleAddCategory() }
                   if (e.key === 'Escape') setShowNewCat(false)
                 }}
-                autoFocus
               />
               <Button
                 onClick={() => { void handleAddCategory() }}

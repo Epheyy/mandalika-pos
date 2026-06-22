@@ -56,7 +56,7 @@ const sections = [
 export default function SettingsScreen() {
   const q = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 30000)
   const [s, setS] = useState<AppSettings>(DEFAULT)
-  const [loaded, setLoaded] = useState(false)
+  const loadedRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
@@ -66,12 +66,12 @@ export default function SettingsScreen() {
   const logoFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (q.data && !loaded) {
+    if (q.data && !loadedRef.current) {
       setS({ ...DEFAULT, ...q.data })
       setApproverRoles((q.data.receiveApproverRoles ?? []).filter((r) => r !== 'admin'))
-      setLoaded(true)
+      loadedRef.current = true
     }
-  }, [q.data, loaded])
+  }, [q.data])
 
   const save = async () => {
     setSaving(true)

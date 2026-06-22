@@ -1,17 +1,5 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import type { Order, Product, Promotion } from '@mandalika/api'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -34,13 +22,7 @@ import { Badge } from '../ui/Badge'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 import { EmptyState } from '../ui/EmptyState'
-import {
-  CHART_PRIMARY,
-  CHART_SERIES,
-  CHART_GRID,
-  CHART_AXIS,
-  CHART_TOOLTIP,
-} from '../ui/chartColors'
+import { CHART_SERIES } from '../ui/chartColors'
 import { KpiCard, RankedList } from './dashboard/components'
 import {
   type Period,
@@ -58,7 +40,22 @@ import {
   cashierPerformance,
 } from './dashboard/metrics'
 
-const rb = (v: number) => `Rp ${(v / 1000).toFixed(0)}rb`
+// recharts is code-split out of the dashboard's initial bundle; the chart bodies
+// live in ./dashboard/Charts and load on first render behind a sized fallback.
+const TrendChart = lazy(() =>
+  import('./dashboard/Charts').then((m) => ({ default: m.TrendChart })),
+)
+const PaymentChart = lazy(() =>
+  import('./dashboard/Charts').then((m) => ({ default: m.PaymentChart })),
+)
+const CashierChart = lazy(() =>
+  import('./dashboard/Charts').then((m) => ({ default: m.CashierChart })),
+)
+
+/** Height-reserving placeholder so lazy chart loading does not shift layout. */
+function ChartFallback({ height }: { height: number }) {
+  return <div className="animate-pulse bg-gray-50 rounded-xl" style={{ height }} />
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -159,31 +156,9 @@ export default function Dashboard() {
               Belum ada data penjualan
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fontWeight: 700, fill: CHART_AXIS }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tickFormatter={rb}
-                  tick={{ fontSize: 11, fill: CHART_AXIS }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={56}
-                />
-                <Tooltip
-                  formatter={(v) => [BRAND.currency.format(Number(v)), 'Penjualan']}
-                  contentStyle={CHART_TOOLTIP}
-                  cursor={{ fill: 'rgba(176,125,24,0.06)' }}
-                />
-                <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartFallback height={220} />}>
+              <TrendChart trend={trend} />
+            </Suspense>
           )}
         </Card>
 
@@ -195,27 +170,9 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={pay}
-                    dataKey="amount"
-                    nameKey="label"
-                    innerRadius={42}
-                    outerRadius={66}
-                    paddingAngle={2}
-                    stroke="none"
-                  >
-                    {pay.map((p, i) => (
-                      <Cell key={p.method} fill={CHART_SERIES[i % CHART_SERIES.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(v) => BRAND.currency.format(Number(v))}
-                    contentStyle={CHART_TOOLTIP}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <Suspense fallback={<ChartFallback height={150} />}>
+                <PaymentChart pay={pay} />
+              </Suspense>
               <div className="mt-3 space-y-1.5">
                 {pay.map((p, i) => (
                   <div key={p.method} className="flex items-center gap-2 text-xs">
@@ -324,43 +281,9 @@ export default function Dashboard() {
               Belum ada data
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(200, cashiers.length * 36)}>
-              <BarChart
-                data={cashiers}
-                layout="vertical"
-                barSize={16}
-                margin={{ left: 0, right: 24, top: 0, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 10, fill: CHART_AXIS }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 11, fontWeight: 700, fill: CHART_AXIS }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={90}
-                />
-                <Tooltip
-                  formatter={(v, n) => [
-                    n === 'revenue' ? BRAND.currency.format(Number(v)) : `${v} transaksi`,
-                    n === 'revenue' ? 'Penjualan' : 'Transaksi',
-                  ]}
-                  contentStyle={CHART_TOOLTIP}
-                  cursor={{ fill: 'rgba(176,125,24,0.06)' }}
-                />
-                <Bar dataKey="transactions" radius={[0, 4, 4, 0]}>
-                  {cashiers.map((c, i) => (
-                    <Cell key={c.id} fill={CHART_SERIES[i % CHART_SERIES.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartFallback height={Math.max(200, cashiers.length * 36)} />}>
+              <CashierChart cashiers={cashiers} />
+            </Suspense>
           )}
         </Card>
       </div>

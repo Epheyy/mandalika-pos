@@ -52,7 +52,8 @@ interface PrinterState {
 const PrinterCtx = createContext<PrinterState | null>(null)
 
 export function PrinterProvider({ children }: { children: ReactNode }) {
-  const transportRef = useRef<PrinterTransport>(createTransport())
+  const transportRef = useRef<PrinterTransport>(null as unknown as PrinterTransport)
+  if (!transportRef.current) transportRef.current = createTransport()
   const kv = getKV()
   const [pairedId, setPairedId] = useState<string | null>(
     () => kv.get(PRINTER_KEY),
