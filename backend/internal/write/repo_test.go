@@ -66,3 +66,51 @@ func TestValidateVariants(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateBXGYRejectsBadQuantities(t *testing.T) {
+	if err := validateBXGY(&BXGYConfigInput{BuyQuantity: 0, GetQuantity: 1, GetDiscountKind: "percentage", GetDiscountValue: 100}); err == nil {
+		t.Fatal("buyQuantity 0 must be rejected")
+	}
+}
+func TestValidateBXGYRejectsPercentOver100(t *testing.T) {
+	if err := validateBXGY(&BXGYConfigInput{BuyQuantity: 1, GetQuantity: 1, GetDiscountKind: "percentage", GetDiscountValue: 150}); err == nil {
+		t.Fatal("percentage 150 must be rejected")
+	}
+}
+func TestValidateBXGYRejectsFixedNonPositive(t *testing.T) {
+	if err := validateBXGY(&BXGYConfigInput{BuyQuantity: 1, GetQuantity: 1, GetDiscountKind: "fixed", GetDiscountValue: 0}); err == nil {
+		t.Fatal("fixed value 0 must be rejected")
+	}
+}
+func TestValidateBXGYRejectsUnknownKind(t *testing.T) {
+	if err := validateBXGY(&BXGYConfigInput{BuyQuantity: 1, GetQuantity: 1, GetDiscountKind: "bogo", GetDiscountValue: 1}); err == nil {
+		t.Fatal("unknown getDiscountKind must be rejected")
+	}
+}
+func TestValidateBXGYRejectsOverlap(t *testing.T) {
+	c := &BXGYConfigInput{BuyQuantity: 1, GetQuantity: 1, GetDiscountKind: "fixed", GetDiscountValue: 1000,
+		BuyProductIDs: []string{"a"}, GetProductIDs: []string{"a"}}
+	if err := validateBXGY(c); err == nil {
+		t.Fatal("overlapping buy/get sets must be rejected")
+	}
+}
+func TestValidateBXGYAcceptsValidSameSet(t *testing.T) {
+	// same-set: empty getProductIds, no overlap rule triggered
+	c := &BXGYConfigInput{BuyQuantity: 2, GetQuantity: 1, GetDiscountKind: "percentage", GetDiscountValue: 100,
+		BuyProductIDs: []string{"a"}}
+	if err := validateBXGY(c); err != nil {
+		t.Fatalf("valid same-set rejected: %v", err)
+	}
+}
+func TestValidateBXGYAcceptsValidSeparate(t *testing.T) {
+	c := &BXGYConfigInput{BuyQuantity: 2, GetQuantity: 1, GetDiscountKind: "percentage", GetDiscountValue: 100,
+		BuyProductIDs: []string{"a"}, GetProductIDs: []string{"b"}}
+	if err := validateBXGY(c); err != nil {
+		t.Fatalf("valid separate rejected: %v", err)
+	}
+}
+func TestValidateBXGYNilRejected(t *testing.T) {
+	if err := validateBXGY(nil); err == nil {
+		t.Fatal("nil config must be rejected")
+	}
+}
