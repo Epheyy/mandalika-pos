@@ -1,6 +1,6 @@
 # React Doctor cleanup — session handoff
 
-**Status: 587 → 233 → 143 → 123 issues** (score 41 → improving). Branch `prod-hardening`. Both apps `tsc -b` + `pnpm -r build` green after every commit.
+**Status: 587 → 233 → 143 → 123 → 120 issues** (score 41 → improving). Branch `prod-hardening`. Both apps `tsc -b` + `pnpm -r build` green after every commit.
 
 Session 1 (mechanical) + session 2 (mechanical) are pushed & deployed (user-tested, passes). Session 3 did the **dialog/backdrop a11y migration** (committed `53e89ea`, NOT yet pushed — needs a visual/on-device pass first). What remains is the **largest, most design-sensitive** work (`prefer-useReducer ×32`, `no-giant-component ×13`) plus the effect-family and visual a11y — not auto-verifiable, so don't rush at the tail of a long context.
 
@@ -45,5 +45,5 @@ Session 1 (mechanical) + session 2 (mechanical) are pushed & deployed (user-test
 4. **Visual a11y (needs design eyeballs).** `no-gray-on-colored-background ×5`, `no-tiny-text ×2`, `no-autofocus ×2`. Contrast / font-size / autofocus — judgment + design review.
 5. **Rerender micro-opts (per-site, low value).** `rerender-state-only-in-handlers ×4`, `jsx-no-jsx-as-prop ×1` (OutletFormModal:132), `jsx-no-new-function-as-prop ×1` (ProductGrid:353), `rerender-memo-with-default-value ×1` (ReceiveTransferPanel:44), `rerender-lazy-ref-init ×1` (printer.tsx:55 — `useRef(createTransport())`; skipped this session because the lazy-ref null pattern would force 7 non-null assertions), `prefer-dynamic-import ×1` (Dashboard recharts → React.lazy + Suspense, decent bundle win).
 6. **Largest, most design-sensitive — do LAST, component-by-component:**
-   - **`prefer-useReducer ×32`** — consolidate many related `useState` into reducers per component.
-   - **`no-giant-component ×13`** — split large components. High blast radius; pure refactor.
+   - **`prefer-useReducer` — ✅ TRIAGED + done (commit `d257281`).** The rule is a **pure ≥5-`useState` count** that ignores relatedness, so **29 of 32 are false positives** — independent list/filter/pagination/modal slices, state already consolidated into one object (`Products` form, `SettingsScreen` `s`, `IngredientFormModal`/`OpnameTab` form objects), `CashierScreen`'s existing cart reducer, or `rowId`-array helpers (`IngredientGoodsIn`/`TransferForm`). Converting those would add boilerplate and violate KISS. **Converted only the 3 genuine coordinated clusters:** `Users.tsx` edit-akses form (6 fields incl. role/perms/PIN), `customers/MergeReview.tsx` selection state-machine (effects kept), `customers/TagManager.tsx` inline edit-tag trio. The remaining **29 are documented FPs** — leave as `useState`, or (optional) raise the rule threshold / disable via `npx react-doctor rules set prefer-useReducer ...` if the persistent count is noisy (ask user first; full triage verdicts are in the session that produced `d257281`).
+   - **`no-giant-component ×13`** — split large components. High blast radius; pure refactor. Still OPEN — the last big bucket.
