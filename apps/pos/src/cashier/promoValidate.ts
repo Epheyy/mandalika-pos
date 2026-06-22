@@ -106,12 +106,13 @@ export interface LinkedPromotionInfo {
   value: number
   applicableProductIds?: string[] | null
   isBOGO: boolean
+  bxgyConfig?: Promotion['bxgyConfig']
 }
 
 export interface AppliedPromoCode {
   code: string
   value: number
-  type: 'percentage' | 'fixed' | 'bogo'
+  type: Promotion['type']
   combinable?: boolean
   /** Present only for codes that link to a promotion (SP-Promo-3c). */
   promotion?: LinkedPromotionInfo
@@ -163,6 +164,7 @@ export function decideApplyCode(
           value: promo.value,
           applicableProductIds: promo.applicableProductIds,
           isBOGO: promo.type === 'bogo',
+          bxgyConfig: promo.bxgyConfig ?? null,
         },
       },
     }

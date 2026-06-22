@@ -11,6 +11,7 @@ type Promotion = components['schemas']['Promotion']
 type AppSettings = components['schemas']['AppSettings']
 type LoyaltySettings = components['schemas']['LoyaltySettings']
 type CartItem = components['schemas']['CartItem']
+type BXGYConfig = NonNullable<Promotion['bxgyConfig']>
 
 export interface PricingResult {
   subtotal: number
@@ -26,11 +27,68 @@ export interface PricingResult {
   earnedPoints: number
 }
 
+function bxgyVariantKey(productId: string, size: string): string {
+  return `${productId}|${size}`
+}
+function bxgyKeyMatches(keys: string[], productId: string, size: string): boolean {
+  return keys.includes(productId) || (size !== '' && keys.includes(bxgyVariantKey(productId, size)))
+}
+function bxgyExpand(items: CartItem[], keys: string[], emptyMatchesAll: boolean): number[] {
+  const prices: number[] = []
+  for (const i of items) {
+    let match = emptyMatchesAll
+    if (keys.length > 0) match = bxgyKeyMatches(keys, i.productId, i.variantSize)
+    if (!match) continue
+    for (let n = 0; n < i.quantity; n++) prices.push(i.price)
+  }
+  return prices
+}
+function calcBXGY(cfg: BXGYConfig | null | undefined, items: CartItem[]): number {
+  if (!cfg || cfg.buyQuantity < 1 || cfg.getQuantity < 1) return 0
+  const buyKeys = cfg.buyProductIds ?? []
+  const getKeys = cfg.getProductIds ?? []
+  let getPool: number[]
+  let nApp: number
+  if (getKeys.length === 0) {
+    const pool = bxgyExpand(items, buyKeys, true)
+    nApp = Math.floor(pool.length / (cfg.buyQuantity + cfg.getQuantity))
+    getPool = pool
+  } else {
+    let buyPool: number[]
+    if (buyKeys.length === 0) {
+      buyPool = []
+      for (const i of items) {
+        if (bxgyKeyMatches(getKeys, i.productId, i.variantSize)) continue
+        for (let n = 0; n < i.quantity; n++) buyPool.push(i.price)
+      }
+    } else {
+      buyPool = bxgyExpand(items, buyKeys, false)
+    }
+    getPool = bxgyExpand(items, getKeys, false)
+    nApp = Math.floor(buyPool.length / cfg.buyQuantity)
+    const g = Math.floor(getPool.length / cfg.getQuantity)
+    if (g < nApp) nApp = g
+  }
+  const maxApp = cfg.maxApplications ?? 0
+  if (maxApp > 0 && nApp > maxApp) nApp = maxApp
+  if (nApp <= 0) return 0
+  let nDiscount = nApp * cfg.getQuantity
+  const sorted = [...getPool].sort((a, b) => a - b)
+  if (nDiscount > sorted.length) nDiscount = sorted.length
+  let total = 0
+  for (let k = 0; k < nDiscount; k++) {
+    if (cfg.getDiscountKind === 'percentage') total += Math.round(sorted[k] * (cfg.getDiscountValue / 100))
+    else if (cfg.getDiscountKind === 'fixed') total += Math.min(cfg.getDiscountValue, sorted[k])
+  }
+  return total
+}
+
 export function calcPromoDiscount(
   promo: Promotion,
   items: CartItem[],
   sub: number,
 ): number {
+  if (promo.type === 'buy_x_get_y') return calcBXGY(promo.bxgyConfig, items)
   const matchingItems =
     promo.applicableProductIds && promo.applicableProductIds.length > 0
       ? items.filter((i) => promo.applicableProductIds!.includes(i.productId))
@@ -85,6 +143,7 @@ export function linkedPromoShape(c: AppliedPromoCode): Promotion {
     type: c.promotion.type as Promotion['type'],
     value: c.promotion.value,
     applicableProductIds: c.promotion.applicableProductIds ?? null,
+    bxgyConfig: c.promotion.bxgyConfig ?? null,
     isActive: true,
     createdAt: '',
   }

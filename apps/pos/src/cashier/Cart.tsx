@@ -3,6 +3,7 @@ import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
 import { variantLabel } from '@mandalika/types'
+import type { AppliedPromoCode } from './promoValidate'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
@@ -25,7 +26,7 @@ interface CartProps {
   surchargeRunning: number
   orderNotes: string
   appliedPromotions: Promotion[]
-  appliedPromoCodes: { code: string; value: number; type: 'percentage' | 'fixed' | 'bogo' }[]
+  appliedPromoCodes: AppliedPromoCode[]
   onClearDiscount: () => void
   onRemovePromotion: (id: string) => void
   onRemovePromoCode: (code: string) => void
