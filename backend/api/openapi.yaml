@@ -982,6 +982,17 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/RewardGrant' } }
+    BXGYConfig:
+      type: object
+      required: [buyQuantity, getQuantity, getDiscountKind, getDiscountValue]
+      properties:
+        buyQuantity: { type: integer }
+        getQuantity: { type: integer }
+        buyProductIds: { type: array, items: { type: string } }
+        getProductIds: { type: array, items: { type: string } }
+        getDiscountKind: { type: string, enum: [percentage, fixed] }
+        getDiscountValue: { type: number }
+        maxApplications: { type: integer }
     Promotion:
       type: object
       required: [id, name, type, value, isActive, createdAt]
@@ -989,7 +1000,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
-        type: { type: string, enum: [percentage, fixed, bogo] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
@@ -1007,6 +1018,9 @@ components:
         codeOnly:
           type: boolean
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
+        bxgyConfig:
+          allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
+          nullable: true
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
       type: object
@@ -1646,7 +1660,7 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        type: { type: string, enum: [percentage, fixed, bogo] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string } }
@@ -1664,6 +1678,9 @@ components:
         codeOnly:
           type: boolean
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
+        bxgyConfig:
+          allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
+          nullable: true
     DiscountCodeInput:
       type: object
       required: [code, type, value, isActive]

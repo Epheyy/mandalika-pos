@@ -2650,13 +2650,23 @@ export interface components {
         RewardGrantListResponse: {
             data: components["schemas"]["RewardGrant"][];
         };
+        BXGYConfig: {
+            buyQuantity: number;
+            getQuantity: number;
+            buyProductIds?: string[];
+            getProductIds?: string[];
+            /** @enum {string} */
+            getDiscountKind: "percentage" | "fixed";
+            getDiscountValue: number;
+            maxApplications?: number;
+        };
         Promotion: {
             /** Format: uuid */
             id: string;
             name: string;
             description?: string | null;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[] | null;
@@ -2673,6 +2683,7 @@ export interface components {
             endDate?: string | null;
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
+            bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -3207,7 +3218,7 @@ export interface components {
             name: string;
             description?: string;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[];
@@ -3224,6 +3235,7 @@ export interface components {
             endDate?: string;
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
+            bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
         };
         DiscountCodeInput: {
             code: string;
