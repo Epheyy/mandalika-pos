@@ -5,8 +5,27 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Input, Select, Textarea, Field } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { ProductVariantPicker } from '../customers/ProductVariantPicker'
 
 const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+
+const DEFAULT_BXGY: {
+  buyQuantity: number
+  getQuantity: number
+  buyProductIds: string[]
+  getProductIds: string[]
+  getDiscountKind: 'percentage' | 'fixed'
+  getDiscountValue: number
+  maxApplications: number
+} = {
+  buyQuantity: 2,
+  getQuantity: 1,
+  buyProductIds: [],
+  getProductIds: [],
+  getDiscountKind: 'percentage',
+  getDiscountValue: 100,
+  maxApplications: 0,
+}
 
 interface PromoFormModalProps {
   open: boolean
@@ -49,6 +68,8 @@ export function PromoFormModal({
         ? (f.activeDays || []).filter((x) => x !== d)
         : [...(f.activeDays || []), d],
     }))
+  const setBxgy = (patch: Partial<typeof DEFAULT_BXGY>) =>
+    setForm((f) => ({ ...f, bxgyConfig: { ...(f.bxgyConfig ?? DEFAULT_BXGY), ...patch } }))
 
   return (
     <Modal
@@ -67,15 +88,51 @@ export function PromoFormModal({
         <Input label="Nama Promosi *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         <Textarea label="Deskripsi" value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
         <div className="grid grid-cols-2 gap-4">
-          <Select label="Tipe" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as PromotionInput['type'] }))}>
+          <Select label="Tipe" value={form.type} onChange={(e) => {
+            const type = e.target.value as PromotionInput['type']
+            setForm((f) => ({ ...f, type, bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig }))
+          }}>
             <option value="percentage">Persentase (%)</option>
             <option value="fixed">Nominal (Rp)</option>
             <option value="bogo">Buy 1 Get 1</option>
+            <option value="buy_x_get_y">Beli X, Gratis/Diskon Y</option>
           </Select>
-          {form.type !== 'bogo' && (
+          {form.type !== 'bogo' && form.type !== 'buy_x_get_y' && (
             <Input label="Nilai" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
           )}
         </div>
+        {form.type === 'buy_x_get_y' && (
+          <div className="space-y-4 p-3 bg-gold-50 rounded-xl">
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Beli (X)" type="number" value={form.bxgyConfig?.buyQuantity ?? 2}
+                onChange={(e) => setBxgy({ buyQuantity: parseInt(e.target.value) || 0 })} />
+              <Input label="Dapat (Y)" type="number" value={form.bxgyConfig?.getQuantity ?? 1}
+                onChange={(e) => setBxgy({ getQuantity: parseInt(e.target.value) || 0 })} />
+              <Input label="Maks/transaksi (0=∞)" type="number" value={form.bxgyConfig?.maxApplications ?? 0}
+                onChange={(e) => setBxgy({ maxApplications: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Diskon Y" value={form.bxgyConfig?.getDiscountKind ?? 'percentage'}
+                onChange={(e) => setBxgy({ getDiscountKind: e.target.value as 'percentage' | 'fixed' })}>
+                <option value="percentage">Persentase (%)</option>
+                <option value="fixed">Nominal (Rp)</option>
+              </Select>
+              <div className="flex items-end gap-2">
+                <Input label="Nilai diskon Y" type="number" value={form.bxgyConfig?.getDiscountValue ?? 100}
+                  onChange={(e) => setBxgy({ getDiscountValue: parseFloat(e.target.value) || 0 })} />
+                <Button variant="secondary" onClick={() => setBxgy({ getDiscountKind: 'percentage', getDiscountValue: 100 })}>Gratis</Button>
+              </div>
+            </div>
+            <Field label="Produk Beli (kosong = semua produk)">
+              <ProductVariantPicker products={products} value={form.bxgyConfig?.buyProductIds ?? []}
+                onChange={(next) => setBxgy({ buyProductIds: next })} />
+            </Field>
+            <Field label="Produk Hadiah (kosong = sama dengan produk beli)">
+              <ProductVariantPicker products={products} value={form.bxgyConfig?.getProductIds ?? []}
+                onChange={(next) => setBxgy({ getProductIds: next })} />
+            </Field>
+          </div>
+        )}
         <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
@@ -96,31 +153,33 @@ export function PromoFormModal({
           <input type="checkbox" checked={form.codeOnly ?? false} onChange={(e) => setForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
           <span className="text-sm font-bold text-gray-900">Hanya via kode (sembunyikan dari panel kasir)</span>
         </label>
-        <Field label="Varian Spesifik (opsional)">
-          <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
-            {products.map((p) => (
-              <div key={p.id}>
-                <button type="button" onClick={() => setVariantPicker(variantPicker === p.id ? null : p.id)} className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-gray-50 rounded-lg text-left">
-                  <span className="text-sm font-bold text-gray-700">{p.name}</span>
-                  {variantPicker === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                </button>
-                {variantPicker === p.id && (
-                  <div className="ml-4 space-y-0.5 mt-0.5">
-                    {p.variants.map((v) => {
-                      const key = `${p.id}::${v.size}`
-                      return (
-                        <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                          <input type="checkbox" checked={(form.applicableVariantKeys || []).includes(key)} onChange={() => toggleVariant(p.id, v.size)} className="accent-gold-600" />
-                          <span className="text-xs text-gray-600">{v.size} — {BRAND.currency.format(v.price)}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </Field>
+        {form.type !== 'buy_x_get_y' && (
+          <Field label="Varian Spesifik (opsional)">
+            <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
+              {products.map((p) => (
+                <div key={p.id}>
+                  <button type="button" onClick={() => setVariantPicker(variantPicker === p.id ? null : p.id)} className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-gray-50 rounded-lg text-left">
+                    <span className="text-sm font-bold text-gray-700">{p.name}</span>
+                    {variantPicker === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                  </button>
+                  {variantPicker === p.id && (
+                    <div className="ml-4 space-y-0.5 mt-0.5">
+                      {p.variants.map((v) => {
+                        const key = `${p.id}::${v.size}`
+                        return (
+                          <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
+                            <input type="checkbox" checked={(form.applicableVariantKeys || []).includes(key)} onChange={() => toggleVariant(p.id, v.size)} className="accent-gold-600" />
+                            <span className="text-xs text-gray-600">{v.size} — {BRAND.currency.format(v.price)}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Field>
+        )}
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
           <span className="text-sm font-bold text-gray-700">Promosi Aktif</span>
