@@ -486,6 +486,14 @@ export default function CashierScreen() {
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
+      // buy_x_get_y has a cart precondition that gating can't see: if the cart
+      // no longer satisfies the buy/get criteria (items removed after applying),
+      // the discount is 0 — drop it so it isn't recorded as applied in history.
+      if (p.type === 'buy_x_get_y' && calcPromoDiscount(p, state.cart, derived.subtotal) <= 0) {
+        showToast('Promo dibatalkan: syarat beli belum terpenuhi')
+        dispatch({ type: 'CLEAR_PROMOTIONS' })
+        return
+      }
     }
     // Precompute O(1) lookups once (the re-guard scans the full catalog per
     // applied code → O(n²) otherwise). Keep FIRST occurrence to match .find().
