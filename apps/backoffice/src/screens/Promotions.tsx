@@ -87,7 +87,7 @@ export default function Promotions() {
       startDate: p.startDate || undefined, endDate: p.endDate || undefined,
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
-      activeDays: p.activeDays || [],
+      activeDays: p.activeDays || [], bxgyConfig: p.bxgyConfig ?? undefined,
     })
     setPromoOpen(true)
   }
@@ -112,7 +112,7 @@ export default function Promotions() {
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
       activeDays: p.activeDays || [], startDate: p.startDate || undefined,
-      endDate: p.endDate || undefined,
+      endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
     })
     await prq.refetch()
   }
@@ -124,7 +124,7 @@ export default function Promotions() {
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
       activeDays: p.activeDays || [], startDate: p.startDate || undefined,
-      endDate: p.endDate || undefined,
+      endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
     })
     await prq.refetch()
   }
