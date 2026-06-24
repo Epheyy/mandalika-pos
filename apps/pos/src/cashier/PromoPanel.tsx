@@ -43,12 +43,23 @@ function CombinableTag({ combinable }: { combinable: boolean }) {
 }
 
 function promoRuleLabel(p: Promotion): string {
-  const base =
-    p.type === 'percentage'
-      ? `Diskon ${p.value}%`
-      : p.type === 'fixed'
-        ? `Potongan ${formatRupiah(p.value)}`
-        : 'BOGO'
+  let base: string
+  if (p.type === 'percentage') base = `Diskon ${p.value}%`
+  else if (p.type === 'fixed') base = `Potongan ${formatRupiah(p.value)}`
+  else if (p.type === 'buy_x_get_y') {
+    const c = p.bxgyConfig
+    if (c) {
+      const deal =
+        c.getDiscountKind === 'percentage' && c.getDiscountValue === 100
+          ? 'Gratis'
+          : c.getDiscountKind === 'percentage'
+            ? `Diskon ${c.getDiscountValue}%`
+            : `Potongan ${formatRupiah(c.getDiscountValue)}`
+      base = `Beli ${c.buyQuantity}, ${deal} ${c.getQuantity}`
+    } else {
+      base = 'Beli X Gratis Y'
+    }
+  } else base = 'BOGO'
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
 
@@ -268,9 +279,21 @@ export const PromoPanel = memo(function PromoPanel({
               </p>
               <div className="space-y-2">
                 {activePromos.map(({ promo, violations }) => {
-                  const invalid = violations.length > 0
+                  const gatingInvalid = violations.length > 0
+                  const savings = gatingInvalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
+                  // buy_x_get_y has a CART precondition (the buy/get items must be
+                  // present in the required quantities) that date/min/etc gating
+                  // can't see. If the cart doesn't satisfy it, calcPromoDiscount is
+                  // 0 — block applying so it can't show as "applied" with no deal.
+                  const bxgyUnmet =
+                    !gatingInvalid && promo.type === 'buy_x_get_y' && savings <= 0
+                  const invalid = gatingInvalid || bxgyUnmet
+                  const reason = gatingInvalid
+                    ? violationMessage(violations[0])
+                    : bxgyUnmet
+                      ? 'Syarat beli belum terpenuhi'
+                      : null
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
-                  const savings = invalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
                   return (
                     <button type="button"
                       key={promo.id}
@@ -312,7 +335,7 @@ export const PromoPanel = memo(function PromoPanel({
                       <div className="mt-1.5">
                         {invalid ? (
                           <span className="text-[10px] text-red-500 font-semibold">
-                            {violationMessage(violations[0])}
+                            {reason}
                           </span>
                         ) : (
                           <CombinableTag combinable={!!promo.combinable} />

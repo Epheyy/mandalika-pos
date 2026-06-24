@@ -60,6 +60,19 @@ describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
     const promo: Promotion = { id: 'p1', name: 'x', type: 'buy_x_get_y', value: 0, isActive: true, createdAt: '' }
     expect(calcPromoDiscount(promo, items, sub(items))).toBe(0)
   })
+  it('separate-set: unrelated/under-qualified cart → 0 (PromoPanel gate basis — bug repro)', () => {
+    // Mirrors the on-device report: buy 2 Gorgeous, get 1 Holy Sweet 10ml free.
+    const cfg: BXGYConfig = {
+      buyQuantity: 2, getQuantity: 1, buyProductIds: ['gorgeous'],
+      getProductIds: ['holysweet|10ml ATOMIZER'], getDiscountKind: 'percentage', getDiscountValue: 100,
+    }
+    const unrelated = [ci('random', 'M', 50000, 1)]
+    expect(calcPromoDiscount(bxgy(cfg), unrelated, sub(unrelated))).toBe(0)
+    const buyOnly = [ci('gorgeous', 'M', 100000, 2)]
+    expect(calcPromoDiscount(bxgy(cfg), buyOnly, sub(buyOnly))).toBe(0)
+    const met = [ci('gorgeous', 'M', 100000, 2), ci('holysweet', '10ml ATOMIZER', 75000, 1)]
+    expect(calcPromoDiscount(bxgy(cfg), met, sub(met))).toBe(75000)
+  })
 })
 
 describe('computePricing stacking', () => {
