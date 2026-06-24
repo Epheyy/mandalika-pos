@@ -20,8 +20,8 @@ This is the SP-CRM-9 loyalty-reward paradigm (auto-added, server-validated, stoc
 3. **Pick each due unit.** `nApp × getQuantity` reward units are due; the modal lets the cashier choose each (variants may differ). Auto-add only when exactly one option and one unit.
 4. **Full-range reward price.** Reward line carries the configured net price: free (100%) → Rp0, percentage → reduced, fixed → reduced.
 5. **Approach 1 — pre-priced managed reward line** (not full-price-plus-engine-discount). Reuses SP-CRM-9 reward-line rendering/stock/refund; reward count + price are server-authoritative.
-6. **Lenient server** (drop invalid/over-quota reward line + `slog.Warn`, never block) — mirrors SP-CRM-9.
-7. **No new table, no migration** — reward-line flags are request-only; the reward is a normal `order_item`; the order's `promotionIds` + the line capture it for reporting.
+6. **Hard-reject, hybrid-by-origin.** A bogus / over-quota reward line on an **online** order → **HTTP 422** (new `ViolationRewardInvalid`, Indonesian message), so the cashier is stopped rather than silently giving a freebie. On an **offline-synced** order (can't 422 a completed sale) → **drop the unearned reward line** (do NOT give it free) + set `orders.discount_warning` + reason + `slog.Warn`. The POS local guard is the real-time prevention (it bounds the modal to the earned count), so a 422/drop is the rare tamper/stale-promo defense. (Stricter than SP-CRM-9's all-lenient stance — the user chose hard-reject.)
+7. **Grant audit table (new migration).** Each **honored** BXGY reward line writes a `promo_reward_grants` row inside the `CreateOrder` tx (which promo gave which product/variant, full vs reward price, and the giveaway value). Immutable on refund (matches SP-CRM-9 grant semantics; refund restocks stock but the grant stays as the sale-time record).
 8. **No preview endpoint** — BXGY eligibility is pure cart math the POS already does; reward options resolve client-side from the in-memory promotions + products list.
 
 ---
@@ -42,7 +42,7 @@ Pure helpers (Go in `service`, mirrored in POS TS), parity-tested:
 - `"pid|size"` → exactly that variant.
 Each option = `{ productId, productName, variantSize, fullPrice }`. The **reward net price** per option: `percentage` → `fullPrice − round(fullPrice × value/100)` (so 100 ⇒ 0); `fixed` → `max(0, fullPrice − value)`.
 
-## 3. Reward line representation (request-only, no migration)
+## 3. Reward line representation (request-only flags)
 
 Reuse the SP-CRM-9 reward-line pattern. The cart/order line is a normal item with **request-only flags** (not persisted as columns):
 - existing `isReward: true`
@@ -72,18 +72,44 @@ The reward net price computation (§2) is a shared pure helper, Go/TS parity-tes
 
 ## 6. Server authority — `CreateOrder` (Opus-review surface)
 
-For each item with `rewardPromotionId` set, the server re-derives entitlement from the **paid** lines (server-authoritative, never trusts the client price blindly):
-- The promo exists, is `buy_x_get_y`, and passes gating (`ValidatePromo`); else invalid.
-- The reward product ∈ the promo's get-set (`pid` / `pid|size` match, reusing `variantKey`/`keyMatchesLine`).
-- Per promo: total honored reward units ≤ `D` computed from the order's paid buy-set units (`nApp × getQuantity`, cap applied). Units beyond `D` are over-quota.
-- The line price = the configured net (looked up from the real product price); a mismatch is corrected to the server value (server-authoritative money, like the existing pricing recompute).
-- **Lenient (mirrors SP-CRM-9):** an invalid / over-quota reward line is **dropped from the order + `slog.Warn`** (sale succeeds; never a 422). Offline keeps the hybrid-by-origin posture.
-Stock: honored reward lines decrement stock (real items handed over), gated by the existing `allowNegativeStock` setting (SP-CRM-9c). **Refund restocks** them via the existing line-refund path. No grant table; the reward line + `orders.promotion_ids`/`applied_*` capture it.
+For each item with `rewardPromotionId` set, the server re-derives entitlement from the **paid** (non-reward) lines — never trusting the client price:
+- The promo exists, is `buy_x_get_y` with a non-empty get-set, and passes gating (`ValidatePromo`); else invalid.
+- The reward product ∈ the promo's get-set (`pid` / `pid|size` match, reusing `variantKey`/`keyMatchesLine`); else invalid.
+- Per promo: total reward units ≤ `D` (= `nApp × getQuantity`, cap applied) computed from the order's paid buy-set units. Units beyond `D` are over-quota → invalid.
+- The line price must equal the configured net (looked up from the real product price); a price mismatch is **invalid** (not silently corrected — under hard-reject we reject rather than re-price a tampered freebie).
 
-## 7. Wire / type-gen (no migration)
+**Hybrid-by-origin enforcement** (mirrors SP-Promo-1 / stock):
+- **Online** (`Offline=false`): any invalid reward line → `*ErrDiscountRejected{ViolationRewardInvalid}` → handler maps to **HTTP 422** + Indonesian message (e.g. "Hadiah promo tidak valid / melebihi kuota").
+- **Offline** (`Offline=true`, the POS sync path): **drop the invalid reward line from the order** (it is NOT recorded and NOT given free), set `orders.discount_warning` + reason + `slog.Warn`. A completed sale is never blocked, but an unearned freebie is never honored.
 
-- OpenAPI: add request-only `rewardPromotionId` (string, optional) to `OrderItemInput` and `CartItem` (siblings of the existing `rewardConditionId`). Regenerate `api.gen.go` + `schema.d.ts` (`make gen-check`; corepack pnpm for TS). No `bxgyConfig`/promotions schema change.
-- No DB migration (request-only fields; reward line is a normal order_item).
+Honored reward lines: decrement stock (real items handed over, gated by `allowNegativeStock`, SP-CRM-9c) and **write a `promo_reward_grants` row** (§6a) in the same tx. **Refund restocks** the reward lines via the existing line-refund path; the grant row is immutable (sale-time record).
+
+## 6a. Grant audit table — migration 0039
+
+```sql
+CREATE TABLE promo_reward_grants (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id      uuid NOT NULL REFERENCES orders(id),
+  promotion_id  uuid NOT NULL REFERENCES promotions(id),
+  product_id    uuid NOT NULL,
+  product_name  text NOT NULL,          -- snapshot
+  variant_size  text NOT NULL DEFAULT '',
+  full_price    numeric(14,2) NOT NULL,  -- catalog unit price at sale time
+  reward_price  numeric(14,2) NOT NULL,  -- net charged (0 for free)
+  reward_value  numeric(14,2) NOT NULL,  -- full_price - reward_price (the giveaway value)
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_promo_reward_grants_order ON promo_reward_grants(order_id);
+CREATE INDEX idx_promo_reward_grants_promo ON promo_reward_grants(promotion_id);
+```
+
+One row per honored reward line (qty is per-unit, §3). Written via a `write`-layer helper inside the `CreateOrder` tx. Read side: a repo method `RewardGrantsByOrder`/`...ByPromotion` for reporting; a backoffice reporting view is **deferred** (the data is captured + queryable now). Refund does not delete grant rows (immutable audit; mirrors SP-CRM-9 `loyalty_condition_applications`).
+
+## 7. Wire / type-gen
+
+- **Migration 0039**: `promo_reward_grants` (§6a).
+- OpenAPI: add request-only `rewardPromotionId` (string, optional) to `OrderItemInput` and `CartItem` (siblings of the existing `rewardConditionId`). Regenerate `api.gen.go` + `schema.d.ts` (`make gen-check`; corepack pnpm for TS). No `bxgyConfig`/promotions schema change. (A `RewardGrant` read schema only if a reporting endpoint is added — deferred; the table is written regardless.)
+- New `ViolationRewardInvalid` promo-violation + its Indonesian handler message.
 
 ## 8. Backoffice
 
@@ -91,9 +117,9 @@ Stock: honored reward lines decrement stock (real items handed over), gated by t
 
 ## 9. Testing & verification
 
-- **Go table tests:** `bxgyRewardDue` (buy units → D, cap), options resolution (`pid` → variants, `pid|size`), net price per kind (free/%/fixed, fixed capped at price), server entitlement (valid honored, over-quota dropped, wrong-product dropped, price corrected), refund restock.
-- **TS parity** for the due/options/net-price helpers; **vitest** for the reducer (add N reward lines, paid-op isolation, reactive removal) + the auto-add-vs-modal decision.
-- **Live e2e** (`cmd/promo3breward`, throwaway, real `OrderService` vs Neon, zero-residue): apply buy-2-get-1-free → 1 reward line at Rp0 → order records it + stock −1 → over-quota reward line dropped → 50%-off reward priced correctly → refund restocks → cleanup.
+- **Go table tests:** `bxgyRewardDue` (buy units → D, cap), options resolution (`pid` → variants, `pid|size`), net price per kind (free/%/fixed, fixed capped at price), server entitlement — **online** invalid/over-quota/wrong-product/price-mismatch → `ViolationRewardInvalid` (422), **offline** same → dropped + `discount_warning`; honored line writes a `promo_reward_grants` row (full/reward/value correct); refund restocks + grant row immutable.
+- **TS parity** for the due/options/net-price helpers; **vitest** for the reducer (add N reward lines, paid-op isolation, reactive removal) + the auto-add-vs-modal decision + the POS local guard blocking an over-earned reward before submit.
+- **Live e2e** (`cmd/promo3breward`, throwaway, real `OrderService` vs Neon, zero-residue): apply buy-2-get-1-free → 1 reward line at Rp0 → order records it + stock −1 + **one grant row** (reward_value = full price) → over-quota reward line **online-rejected (422)** and **offline-dropped+flagged** → 50%-off reward priced + granted correctly → refund restocks + grant immutable → cleanup.
 - **Gap-class guard (incl. frontend dimension — the lesson from the SP-Promo-3b on-device bugs):** verify (a) the order persists/returns the reward line, (b) the backoffice edit loads `bxgyConfig`, (c) the POS apply-gate + modal behave — not only API persistence.
 - Local gate (go build+test+gen-check; POS tsc+vite+vitest; backoffice tsc+vite); deploy; **new APK**; on-device acceptance.
 
@@ -103,8 +129,8 @@ Sonnet implements; **Opus** reviews the server entitlement validation, the POS r
 
 ## Deferred / out of scope
 
-- A dedicated BXGY reward-grant audit table (v1 derives reporting from the reward line + `promotionId`).
-- Online strict-reject of invalid reward lines (v1 is lenient, per SP-CRM-9).
+- A **backoffice reporting view** for `promo_reward_grants` (the table is written + queryable now; surfacing it in the UI is SP-Promo-4 / analytics).
+- A `GET` reward-grants endpoint + `RewardGrant` OpenAPI schema (add when the reporting view lands).
 - Tiered (SP-Promo-3b-tiered) and bundle (SP-Promo-3b-bundle) promo types — separate slices.
 - SP-Promo-4 authoring/UX overhaul (incl. active-hours form fields).
 - Same-set converting to a reward model (kept as in-place discount).
