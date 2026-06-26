@@ -1074,11 +1074,15 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 		it.Price = net
 		it.Subtotal = math.Round(net * float64(it.Quantity))
 		kept = append(kept, it)
-		grants = append(grants, write.RewardGrantRow{
-			PromotionID: it.RewardPromotionID, ProductID: it.ProductID,
-			ProductName: cat.name, VariantSize: it.VariantSize,
-			FullPrice: cat.fullPrice, RewardPrice: net, RewardValue: cat.fullPrice - net,
-		})
+		// Write one grant row per unit (qty-N reward line → N rows) so the audit
+		// table is one-row-per-unit and downstream reporting can count simply.
+		for range it.Quantity {
+			grants = append(grants, write.RewardGrantRow{
+				PromotionID: it.RewardPromotionID, ProductID: it.ProductID,
+				ProductName: cat.name, VariantSize: it.VariantSize,
+				FullPrice: cat.fullPrice, RewardPrice: net, RewardValue: cat.fullPrice - net,
+			})
+		}
 	}
 	in.Items = kept
 

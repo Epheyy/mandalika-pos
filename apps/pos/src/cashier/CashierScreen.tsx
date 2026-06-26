@@ -444,12 +444,28 @@ export default function CashierScreen() {
     setBxgyReward({ promo, options, due })
   }
 
-  // Confirm from the reward picker: add one CART_ADD_REWARD line per chosen unit
-  // (same variant may repeat), then mark the promo applied. Cancel clears state.
+  // Confirm from the reward picker: aggregate picks by (productId, variantSize) so
+  // that repeated selections of the same variant become a single qty-N line rather
+  // than N qty-1 lines. First clear any existing reward lines for this promo so
+  // re-confirming replaces rather than accumulates, then dispatch the aggregated
+  // lines, then mark the promo applied.
   const handleBxgyRewardConfirm = (picks: BxgyRewardPick[]) => {
     if (!bxgyReward) return
     const promoId = bxgyReward.promo.id
+    // Remove stale reward lines for this promo before adding the fresh set.
+    dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promoId })
+    // Aggregate picks: same (productId, variantSize) → qty-N line.
+    const agg = new Map<string, { pick: BxgyRewardPick; count: number }>()
     for (const p of picks) {
+      const key = `${p.productId}|${p.variantSize}`
+      const entry = agg.get(key)
+      if (entry) {
+        entry.count += 1
+      } else {
+        agg.set(key, { pick: p, count: 1 })
+      }
+    }
+    for (const { pick: p, count } of agg.values()) {
       dispatch({
         type: 'CART_ADD_REWARD',
         item: {
@@ -457,8 +473,8 @@ export default function CashierScreen() {
           productName: p.productName,
           variantSize: p.variantSize,
           price: p.net,
-          quantity: 1,
-          subtotal: p.net,
+          quantity: count,
+          subtotal: p.net * count,
           isReward: true,
           rewardPromotionId: promoId,
         },
@@ -471,7 +487,8 @@ export default function CashierScreen() {
   // SP-Promo-3b reactive removal: if the paid cart drops below the buy criteria
   // for an applied separate-set buy_x_get_y promo (items removed after applying),
   // strip its reward lines. When nothing is due any more, drop the promo too.
-  // Keyed on the cart so it re-runs whenever paid lines change.
+  // Compares UNITS (sum of quantities) not line count so qty-N lines are handled
+  // correctly. Keyed on the cart so it re-runs whenever paid lines change.
   useEffect(() => {
     const paidLines = state.cart.filter((c) => !c.isReward)
     for (const promo of state.appliedPromotions) {
@@ -479,10 +496,10 @@ export default function CashierScreen() {
       if (promo.type !== 'buy_x_get_y' || (cfg?.getProductIds ?? []).length === 0)
         continue
       const due = bxgyRewardDue(cfg, paidLines)
-      const rewardCount = state.cart.filter(
-        (c) => c.isReward && c.rewardPromotionId === promo.id,
-      ).length
-      if (due < rewardCount) {
+      const rewardUnits = state.cart
+        .filter((c) => c.isReward && c.rewardPromotionId === promo.id)
+        .reduce((sum, c) => sum + c.quantity, 0)
+      if (due < rewardUnits) {
         dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promo.id })
         if (due === 0) dispatch({ type: 'REMOVE_PROMOTION', id: promo.id })
       }

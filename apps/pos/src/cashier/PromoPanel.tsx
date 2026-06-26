@@ -294,7 +294,7 @@ export const PromoPanel = memo(function PromoPanel({
                     !gatingInvalid &&
                     promo.type === 'buy_x_get_y' &&
                     (isSeparateSet
-                      ? bxgyRewardDue(promo.bxgyConfig, cart) < 1
+                      ? bxgyRewardDue(promo.bxgyConfig, cart.filter((c) => !c.isReward)) < 1
                       : savings <= 0)
                   const invalid = gatingInvalid || bxgyUnmet
                   const reason = gatingInvalid

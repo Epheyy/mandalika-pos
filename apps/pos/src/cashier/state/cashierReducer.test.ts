@@ -130,6 +130,66 @@ const promoReward = (
   isReward: true, rewardPromotionId,
 })
 
+const promoRewardQty = (
+  productId: string,
+  variantSize: string,
+  rewardPromotionId: string,
+  quantity: number,
+  price = 0,
+): CartItem & { isReward: true; rewardPromotionId: string } => ({
+  productId, productName: 'Free', variantSize, price, quantity, subtotal: price * quantity,
+  isReward: true, rewardPromotionId,
+})
+
+describe('cashierReducer promo reward lines — multi-unit (qty-N aggregation)', () => {
+  it('stores an aggregated qty-2 reward line with quantity 2 and subtotal net*2', () => {
+    const NET = 5000
+    const s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD',
+      item: promoRewardQty('pA', 'M', 'promo1', 2, NET),
+    })
+    const rewards = s.cart.filter((c) => c.isReward && c.rewardPromotionId === 'promo1')
+    expect(rewards).toHaveLength(1)
+    expect(rewards[0].quantity).toBe(2)
+    expect(rewards[0].subtotal).toBe(NET * 2)
+  })
+
+  it('summing reward units treats a qty-2 line as 2 units (not 1)', () => {
+    const s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD',
+      item: promoRewardQty('pA', 'M', 'promo1', 2),
+    })
+    const rewardUnits = s.cart
+      .filter((c) => c.isReward && c.rewardPromotionId === 'promo1')
+      .reduce((sum, c) => sum + c.quantity, 0)
+    expect(rewardUnits).toBe(2)
+  })
+
+  it('re-adding the same (promo, product, variant) triple replaces the line regardless of quantity', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD',
+      item: promoRewardQty('pA', 'M', 'promo1', 2, 5000),
+    })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD',
+      item: promoRewardQty('pA', 'M', 'promo1', 1, 0),
+    })
+    const rewards = s.cart.filter((c) => c.isReward && c.rewardPromotionId === 'promo1')
+    expect(rewards).toHaveLength(1)
+    expect(rewards[0].quantity).toBe(1)
+    expect(rewards[0].subtotal).toBe(0)
+  })
+
+  it('CART_REMOVE_PROMO_REWARDS clears a qty-2 reward line entirely', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD',
+      item: promoRewardQty('pA', 'M', 'promo1', 2),
+    })
+    s = cashierReducer(s, { type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: 'promo1' })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+  })
+})
+
 describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
   it('adds two reward lines for the same promo (different product/variant)', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, {
