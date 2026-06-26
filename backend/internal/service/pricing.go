@@ -169,6 +169,53 @@ func calcBXGY(c *BXGYConfig, items []LineItem) float64 {
 	return total
 }
 
+// bxgyBuyUnits counts qty-expanded paid units that satisfy the buy set. Empty
+// BuyProductIDs => any unit NOT in the get set (buy∩get overlap is rejected at save).
+func bxgyBuyUnits(c *BXGYConfig, items []LineItem) int {
+	n := 0
+	for _, i := range items {
+		var isBuy bool
+		if len(c.BuyProductIDs) > 0 {
+			isBuy = keyMatchesLine(c.BuyProductIDs, i.ProductID, i.VariantSize)
+		} else {
+			isBuy = !keyMatchesLine(c.GetProductIDs, i.ProductID, i.VariantSize)
+		}
+		if isBuy {
+			n += i.Quantity
+		}
+	}
+	return n
+}
+
+// bxgyRewardDue is the number of reward units the cart earns (separate-set only).
+func bxgyRewardDue(c *BXGYConfig, items []LineItem) int {
+	if c == nil || len(c.GetProductIDs) == 0 || c.BuyQuantity < 1 || c.GetQuantity < 1 {
+		return 0
+	}
+	nApp := bxgyBuyUnits(c, items) / c.BuyQuantity
+	if c.MaxApplications > 0 && nApp > c.MaxApplications {
+		nApp = c.MaxApplications
+	}
+	if nApp < 0 {
+		nApp = 0
+	}
+	return nApp * c.GetQuantity
+}
+
+// bxgyRewardNet is the per-unit price charged for a reward (0 for free).
+func bxgyRewardNet(c *BXGYConfig, fullPrice float64) float64 {
+	switch c.GetDiscountKind {
+	case DiscountPercentage:
+		return fullPrice - math.Round(fullPrice*(c.GetDiscountValue/100))
+	case DiscountFixed:
+		if n := fullPrice - c.GetDiscountValue; n > 0 {
+			return n
+		}
+		return 0
+	}
+	return fullPrice
+}
+
 // calcPromotionDiscount ports CashierScreen.tsx:335-349 exactly.
 func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 {
 	if p.Kind == DiscountBuyXGetY {

@@ -244,3 +244,53 @@ func TestCalcBXGYNilConfigIsZero(t *testing.T) {
 		t.Fatalf("nil cfg got %v want 0", r.PromoDiscount)
 	}
 }
+
+func TestBXGYRewardDue(t *testing.T) {
+	c := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, BuyProductIDs: []string{"a"}, GetProductIDs: []string{"b"}}
+	// 4 buy units -> 2 applications -> 2 due
+	items := []LineItem{bxgyItem("a", "M", 10000, 4)}
+	if got := bxgyRewardDue(c, items); got != 2 {
+		t.Fatalf("due=%d want 2", got)
+	}
+	// 3 buy units, buyQty 2 -> 1 application -> 1 due
+	if got := bxgyRewardDue(c, []LineItem{bxgyItem("a", "M", 10000, 3)}); got != 1 {
+		t.Fatalf("due=%d want 1", got)
+	}
+	// under criteria -> 0
+	if got := bxgyRewardDue(c, []LineItem{bxgyItem("a", "M", 10000, 1)}); got != 0 {
+		t.Fatalf("due=%d want 0", got)
+	}
+	// cap
+	c.MaxApplications = 1
+	if got := bxgyRewardDue(c, []LineItem{bxgyItem("a", "M", 10000, 4)}); got != 1 {
+		t.Fatalf("capped due=%d want 1", got)
+	}
+	// same-set (empty get) -> 0 (not a fulfillment promo)
+	if got := bxgyRewardDue(&BXGYConfig{BuyQuantity: 2, GetQuantity: 1}, items); got != 0 {
+		t.Fatalf("sameset due=%d want 0", got)
+	}
+}
+
+func TestBXGYRewardDueExcludesGetSetFromBuyUnits(t *testing.T) {
+	// empty buyProductIds => any unit NOT in get set counts as buy
+	c := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, GetProductIDs: []string{"b"}}
+	items := []LineItem{bxgyItem("a", "M", 10000, 2), bxgyItem("b", "M", 8000, 5)}
+	if got := bxgyRewardDue(c, items); got != 1 { // only the 2 'a' count as buy -> 1 app
+		t.Fatalf("due=%d want 1", got)
+	}
+}
+
+func TestBXGYRewardNet(t *testing.T) {
+	free := &BXGYConfig{GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
+	if got := bxgyRewardNet(free, 50000); got != 0 {
+		t.Fatalf("free net=%v want 0", got)
+	}
+	half := &BXGYConfig{GetDiscountKind: DiscountPercentage, GetDiscountValue: 50}
+	if got := bxgyRewardNet(half, 50000); got != 25000 {
+		t.Fatalf("half net=%v want 25000", got)
+	}
+	fixed := &BXGYConfig{GetDiscountKind: DiscountFixed, GetDiscountValue: 99999}
+	if got := bxgyRewardNet(fixed, 5000); got != 0 { // capped: max(0, 5000-99999)
+		t.Fatalf("fixed net=%v want 0", got)
+	}
+}
