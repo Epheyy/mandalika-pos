@@ -311,10 +311,14 @@ export function cashierReducer(
     case 'APPLY_PROMOTION': {
       const exists = state.appliedPromotions.some((p) => p.id === action.promotion.id)
       if (exists) {
-        // toggle off
+        // toggle off — also strip any reward lines this promo added (else the
+        // free reward line lingers in the cart with the promo gone).
         return {
           ...state,
           appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotion.id),
+          cart: state.cart.filter(
+            (c) => !(c.isReward && c.rewardPromotionId === action.promotion.id),
+          ),
           activeAdjustment: null,
         }
       }
@@ -365,7 +369,12 @@ export function cashierReducer(
     }
 
     case 'REMOVE_PROMOTION':
-      return { ...state, appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id) }
+      return {
+        ...state,
+        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id),
+        // strip the reward lines this promo gave, so they don't linger when removed
+        cart: state.cart.filter((c) => !(c.isReward && c.rewardPromotionId === action.id)),
+      }
 
     case 'REMOVE_PROMO_CODE':
       return { ...state, appliedPromoCodes: state.appliedPromoCodes.filter((c) => c.code !== action.code) }
@@ -376,6 +385,9 @@ export function cashierReducer(
         appliedPromotions: [],
         appliedPromoCodes: [],
         promoCodeInput: '',
+        // strip ALL promo reward lines (keeps loyalty rewards, which have a
+        // rewardConditionId and no rewardPromotionId).
+        cart: state.cart.filter((c) => !(c.isReward && c.rewardPromotionId)),
       }
 
     case 'OPEN_CHECKOUT':

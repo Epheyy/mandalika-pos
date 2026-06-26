@@ -57,8 +57,17 @@ export function BxgyRewardModal({
   const remaining = due - picks.length
   const canConfirm = picks.length === due
 
+  // A free reward is a giveaway — never let the cashier pick more units than are
+  // in stock (independent of the allowNegativeStock setting, which governs SOLD
+  // items, not gifts). Unknown stock (null) = unconstrained.
+  const availFor = (o: { productId: string; variantSize: string }): number => {
+    const st = stockFor(stockProducts, o.productId, o.variantSize)
+    return st === null ? Infinity : Math.max(0, st)
+  }
+
   const addPick = (o: BXGYRewardOption) => {
     if (picks.length >= due) return
+    if (countFor(o) >= availFor(o)) return
     setPicks((prev) => [
       ...prev,
       {
@@ -139,7 +148,7 @@ export function BxgyRewardModal({
                     <button
                       type="button"
                       onClick={() => addPick(o)}
-                      disabled={remaining <= 0}
+                      disabled={remaining <= 0 || countFor(o) >= availFor(o)}
                       className="text-xs font-semibold text-amber-800 disabled:opacity-40 text-left"
                     >
                       {o.productName}

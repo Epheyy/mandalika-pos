@@ -190,6 +190,30 @@ describe('cashierReducer promo reward lines — multi-unit (qty-N aggregation)',
   })
 })
 
+describe('cashierReducer reward lines cleared on promo removal (lingering-reward bug)', () => {
+  const promo = { id: 'promo1', name: 'P', type: 'buy_x_get_y', value: 0, isActive: true, createdAt: '' } as any
+  it('REMOVE_PROMOTION strips that promo reward lines', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1') })
+    s = cashierReducer(s, { type: 'REMOVE_PROMOTION', id: 'promo1' })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+  })
+  it('CLEAR_PROMOTIONS strips all promo reward lines (keeps loyalty rewards)', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1') })
+    s = cashierReducer(s, { type: 'CART_ADD_REWARD', item: promoReward('pB', 'M', 'promo2') })
+    s = cashierReducer(s, { type: 'CART_ADD_REWARD', item: reward('pC', 'cond1') }) // loyalty reward (rewardConditionId)
+    s = cashierReducer(s, { type: 'CLEAR_PROMOTIONS' })
+    expect(s.cart.filter((c) => c.isReward && c.rewardPromotionId)).toHaveLength(0)
+    expect(s.cart.filter((c) => c.isReward && c.rewardConditionId === 'cond1')).toHaveLength(1)
+  })
+  it('APPLY_PROMOTION toggle-off strips that promo reward lines', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo })
+    s = cashierReducer(s, { type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1') })
+    s = cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: promo })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(s.appliedPromotions).toHaveLength(0)
+  })
+})
+
 describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
   it('adds two reward lines for the same promo (different product/variant)', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, {
