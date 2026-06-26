@@ -28,6 +28,15 @@ const base: Omit<PricingInput, 'appliedPromotions' | 'appliedPromoCodes'> = {
 }
 
 describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
+  it('separate-set buy_x_get_y contributes 0 promo discount (reward is a priced line)', () => {
+    const cfg: BXGYConfig = { buyQuantity: 2, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b'], getDiscountKind: 'percentage', getDiscountValue: 100 }
+    const items = [ci('a', 'M', 10000, 2), ci('b', 'M', 8000, 1)]
+    expect(calcPromoDiscount(bxgy(cfg), items, sub(items))).toBe(0)
+  })
+  it('same-set buy_x_get_y still discounts in place', () => {
+    const items = [ci('a', 'M', 10000, 3)]
+    expect(calcPromoDiscount(bxgy({ buyQuantity: 2, getQuantity: 1, getDiscountKind: 'percentage', getDiscountValue: 100 }), items, sub(items))).toBe(10000)
+  })
   it('same-set buy2get1 free → cheapest unit free', () => {
     const items = [ci('a', 'M', 10000, 3)]
     expect(calcPromoDiscount(bxgy({ buyQuantity: 2, getQuantity: 1, getDiscountKind: 'percentage', getDiscountValue: 100 }), items, sub(items))).toBe(10000)
@@ -37,10 +46,10 @@ describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
     expect(calcPromoDiscount(bxgy({ buyQuantity: 2, getQuantity: 1, getDiscountKind: 'percentage', getDiscountValue: 100 }), items, sub(items))).toBe(20000)
     expect(calcPromoDiscount(bxgy({ buyQuantity: 2, getQuantity: 1, getDiscountKind: 'percentage', getDiscountValue: 100, maxApplications: 1 }), items, sub(items))).toBe(10000)
   })
-  it('separate set percentage + scarcity', () => {
+  it('separate-set always returns 0 from calcPromoDiscount (reward is a priced line)', () => {
     const cfg: BXGYConfig = { buyQuantity: 2, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b'], getDiscountKind: 'percentage', getDiscountValue: 50 }
     const items = [ci('a', 'M', 10000, 2), ci('b', 'M', 8000, 1)]
-    expect(calcPromoDiscount(bxgy(cfg), items, sub(items))).toBe(4000)
+    expect(calcPromoDiscount(bxgy(cfg), items, sub(items))).toBe(0)
     const items0 = [ci('a', 'M', 10000, 1), ci('b', 'M', 8000, 1)]
     expect(calcPromoDiscount(bxgy(cfg), items0, sub(items0))).toBe(0)
   })
@@ -48,19 +57,19 @@ describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
     const items = [ci('a', 'M', 5000, 2)]
     expect(calcPromoDiscount(bxgy({ buyQuantity: 1, getQuantity: 1, getDiscountKind: 'fixed', getDiscountValue: 99999 }), items, sub(items))).toBe(5000)
   })
-  it('variant-level get key matches only the right variant', () => {
+  it('variant-level separate-set: both wrong and right variant return 0 (reward is a priced line)', () => {
     const cfg: BXGYConfig = { buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b|10ml'], getDiscountKind: 'percentage', getDiscountValue: 100 }
     const wrong = [ci('a', 'M', 10000, 1), ci('b', '50ml', 8000, 1)]
     expect(calcPromoDiscount(bxgy(cfg), wrong, sub(wrong))).toBe(0)
     const right = [ci('a', 'M', 10000, 1), ci('b', '10ml', 8000, 1)]
-    expect(calcPromoDiscount(bxgy(cfg), right, sub(right))).toBe(8000)
+    expect(calcPromoDiscount(bxgy(cfg), right, sub(right))).toBe(0)
   })
   it('missing bxgyConfig → 0', () => {
     const items = [ci('a', 'M', 10000, 3)]
     const promo: Promotion = { id: 'p1', name: 'x', type: 'buy_x_get_y', value: 0, isActive: true, createdAt: '' }
     expect(calcPromoDiscount(promo, items, sub(items))).toBe(0)
   })
-  it('separate-set: unrelated/under-qualified cart → 0 (PromoPanel gate basis — bug repro)', () => {
+  it('separate-set: all cases return 0 from calcPromoDiscount (reward is a priced line)', () => {
     // Mirrors the on-device report: buy 2 Gorgeous, get 1 Holy Sweet 10ml free.
     const cfg: BXGYConfig = {
       buyQuantity: 2, getQuantity: 1, buyProductIds: ['gorgeous'],
@@ -70,8 +79,9 @@ describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
     expect(calcPromoDiscount(bxgy(cfg), unrelated, sub(unrelated))).toBe(0)
     const buyOnly = [ci('gorgeous', 'M', 100000, 2)]
     expect(calcPromoDiscount(bxgy(cfg), buyOnly, sub(buyOnly))).toBe(0)
+    // even when qualified, separate-set contributes 0 here — saving lives in the reward line
     const met = [ci('gorgeous', 'M', 100000, 2), ci('holysweet', '10ml ATOMIZER', 75000, 1)]
-    expect(calcPromoDiscount(bxgy(cfg), met, sub(met))).toBe(75000)
+    expect(calcPromoDiscount(bxgy(cfg), met, sub(met))).toBe(0)
   })
 })
 

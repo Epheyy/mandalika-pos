@@ -11,6 +11,7 @@ type Promotion = components['schemas']['Promotion']
 type AppSettings = components['schemas']['AppSettings']
 type LoyaltySettings = components['schemas']['LoyaltySettings']
 type CartItem = components['schemas']['CartItem']
+type Product = components['schemas']['Product']
 type BXGYConfig = NonNullable<Promotion['bxgyConfig']>
 
 export interface PricingResult {
@@ -83,12 +84,100 @@ function calcBXGY(cfg: BXGYConfig | null | undefined, items: CartItem[]): number
   return total
 }
 
+/**
+ * bxgyBuyUnits: count qty-expanded units that satisfy the buy set.
+ * Empty buyProductIds → any unit NOT in the get set.
+ */
+function bxgyBuyUnits(c: BXGYConfig, items: CartItem[]): number {
+  const getKeys = c.getProductIds ?? []
+  const buyKeys = c.buyProductIds ?? []
+  let n = 0
+  for (const i of items) {
+    const isBuy =
+      buyKeys.length > 0
+        ? bxgyKeyMatches(buyKeys, i.productId, i.variantSize)
+        : !bxgyKeyMatches(getKeys, i.productId, i.variantSize)
+    if (isBuy) n += i.quantity
+  }
+  return n
+}
+
+/**
+ * bxgyRewardDue: number of reward units the cart earns (separate-set only).
+ * Mirrors Go bxgyRewardDue 1:1.
+ */
+export function bxgyRewardDue(cfg: BXGYConfig | null | undefined, items: CartItem[]): number {
+  if (!cfg || (cfg.getProductIds ?? []).length === 0 || cfg.buyQuantity < 1 || cfg.getQuantity < 1)
+    return 0
+  const maxApp = cfg.maxApplications ?? 0
+  let nApp = Math.floor(bxgyBuyUnits(cfg, items) / cfg.buyQuantity)
+  if (maxApp > 0 && nApp > maxApp) nApp = maxApp
+  return Math.max(0, nApp) * cfg.getQuantity
+}
+
+/**
+ * bxgyRewardNet: per-unit price charged for a reward (0 for free).
+ * Mirrors Go bxgyRewardNet 1:1.
+ */
+export function bxgyRewardNet(cfg: BXGYConfig, fullPrice: number): number {
+  if (cfg.getDiscountKind === 'percentage') {
+    return fullPrice - Math.round(fullPrice * (cfg.getDiscountValue / 100))
+  }
+  if (cfg.getDiscountKind === 'fixed') {
+    return Math.max(0, fullPrice - cfg.getDiscountValue)
+  }
+  return fullPrice
+}
+
+export interface BXGYRewardOption {
+  productId: string
+  productName: string
+  variantSize: string
+  fullPrice: number
+  net: number
+}
+
+/**
+ * bxgyRewardOptions: expand getProductIds against the product catalog into
+ * selectable reward variants with their discounted net price.
+ * Mirrors Go bxgyRewardOptions logic.
+ */
+export function bxgyRewardOptions(
+  cfg: BXGYConfig | null | undefined,
+  products: Product[],
+): BXGYRewardOption[] {
+  if (!cfg) return []
+  const getKeys = cfg.getProductIds ?? []
+  if (getKeys.length === 0) return []
+  const result: BXGYRewardOption[] = []
+  for (const p of products) {
+    for (const v of p.variants) {
+      const size = v.size
+      if (!bxgyKeyMatches(getKeys, p.id, size)) continue
+      result.push({
+        productId: p.id,
+        productName: p.name,
+        variantSize: size,
+        fullPrice: v.price,
+        net: bxgyRewardNet(cfg, v.price),
+      })
+    }
+  }
+  return result
+}
+
 export function calcPromoDiscount(
   promo: Promotion,
   items: CartItem[],
   sub: number,
 ): number {
-  if (promo.type === 'buy_x_get_y') return calcBXGY(promo.bxgyConfig, items)
+  if (promo.type === 'buy_x_get_y') {
+    const cfg = promo.bxgyConfig
+    // separate-set is a reward giveaway: the saving lives in the reward line's
+    // reduced price, so it contributes 0 here. same-set discounts in place.
+    if (cfg && (cfg.getProductIds ?? []).length > 0) return 0
+    return calcBXGY(cfg, items)
+  }
   const matchingItems =
     promo.applicableProductIds && promo.applicableProductIds.length > 0
       ? items.filter((i) => promo.applicableProductIds!.includes(i.productId))

@@ -219,6 +219,12 @@ func bxgyRewardNet(c *BXGYConfig, fullPrice float64) float64 {
 // calcPromotionDiscount ports CashierScreen.tsx:335-349 exactly.
 func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 {
 	if p.Kind == DiscountBuyXGetY {
+		// separate-set is fulfilled as a priced reward LINE (the saving lives in
+		// that line's reduced price), so the promo itself contributes 0 here;
+		// same-set still discounts the cheapest in-cart unit.
+		if p.BXGY != nil && len(p.BXGY.GetProductIDs) > 0 {
+			return 0
+		}
 		return calcBXGY(p.BXGY, items)
 	}
 	scoped := len(p.ApplicableProductIDs) > 0

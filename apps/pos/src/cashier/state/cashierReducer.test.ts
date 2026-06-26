@@ -119,3 +119,65 @@ describe('cashierReducer reward lines', () => {
     expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
   })
 })
+
+const promoReward = (
+  productId: string,
+  variantSize: string,
+  rewardPromotionId: string,
+  price = 0,
+): CartItem & { isReward: true; rewardPromotionId: string } => ({
+  productId, productName: 'Free', variantSize, price, quantity: 1, subtotal: price,
+  isReward: true, rewardPromotionId,
+})
+
+describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
+  it('adds two reward lines for the same promo (different product/variant)', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD', item: promoReward('pA', 'S', 'promo1'),
+    })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD', item: promoReward('pB', 'M', 'promo1'),
+    })
+    const rewards = s.cart.filter((c) => c.isReward && c.rewardPromotionId === 'promo1')
+    expect(rewards).toHaveLength(2)
+    expect(rewards.map((r) => r.productId).sort()).toEqual(['pA', 'pB'])
+  })
+
+  it('re-picking the same (promo, product, variant) triple replaces that line', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1', 5000),
+    })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1', 0),
+    })
+    const rewards = s.cart.filter((c) => c.isReward && c.rewardPromotionId === 'promo1')
+    expect(rewards).toHaveLength(1)
+    expect(rewards[0].price).toBe(0)
+  })
+
+  it('paid CART_ADD_ITEM/CART_REMOVE_ITEM do not touch promo reward lines', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'CART_ADD_ITEM', item: paid('pA') })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD', item: promoReward('pA', 'M', 'promo1'),
+    })
+    s = cashierReducer(s, { type: 'CART_REMOVE_ITEM', productId: 'pA', variantSize: 'M' })
+    expect(s.cart.filter((c) => !c.isReward)).toHaveLength(0)
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(1)
+  })
+
+  it('CART_REMOVE_PROMO_REWARDS removes all reward lines for the promo', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, {
+      type: 'CART_ADD_REWARD', item: promoReward('pA', 'S', 'promo1'),
+    })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD', item: promoReward('pB', 'M', 'promo1'),
+    })
+    s = cashierReducer(s, {
+      type: 'CART_ADD_REWARD', item: promoReward('pC', 'L', 'promo2'),
+    })
+    s = cashierReducer(s, { type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: 'promo1' })
+    const remaining = s.cart.filter((c) => c.isReward)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].rewardPromotionId).toBe('promo2')
+  })
+})

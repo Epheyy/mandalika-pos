@@ -199,17 +199,20 @@ func TestCalcBXGYRepeatAndCap(t *testing.T) {
 }
 
 func TestCalcBXGYSeparateSetPercentAndScarcity(t *testing.T) {
+	// separate-set promos no longer contribute to PromoDiscount via Compute —
+	// the saving lives in the reward line's reduced price instead (see calcPromotionDiscount).
+	// calcBXGY itself is unchanged; only the routing in calcPromotionDiscount changed.
 	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, BuyProductIDs: []string{"a"},
 		GetProductIDs: []string{"b"}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 50}
 	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 2), bxgyItem("b", "M", 8000, 1)},
 		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
-	if r.PromoDiscount != 4000 {
-		t.Fatalf("got %v want 4000", r.PromoDiscount)
+	if r.PromoDiscount != 0 {
+		t.Fatalf("separate-set via Compute got %v want 0 (reward is a priced line)", r.PromoDiscount)
 	}
 	r0 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "M", 8000, 1)},
 		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
 	if r0.PromoDiscount != 0 {
-		t.Fatalf("scarcity got %v want 0", r0.PromoDiscount)
+		t.Fatalf("scarcity/separate-set got %v want 0", r0.PromoDiscount)
 	}
 }
 
@@ -223,17 +226,19 @@ func TestCalcBXGYFixedCappedAtUnit(t *testing.T) {
 }
 
 func TestCalcBXGYVariantLevelKey(t *testing.T) {
+	// separate-set: both wrong- and right-variant cases return 0 via Compute (reward is a priced line).
+	// calcBXGY variant matching is exercised directly by TestBXGYRewardDue which calls bxgyBuyUnits.
 	cfg := &BXGYConfig{BuyQuantity: 1, GetQuantity: 1, BuyProductIDs: []string{"a"},
 		GetProductIDs: []string{variantKey("b", "10ml")}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
 	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "50ml", 8000, 1)},
 		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
 	if r.PromoDiscount != 0 {
-		t.Fatalf("wrong-variant got %v want 0", r.PromoDiscount)
+		t.Fatalf("wrong-variant/separate-set got %v want 0", r.PromoDiscount)
 	}
 	r2 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 1), bxgyItem("b", "10ml", 8000, 1)},
 		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
-	if r2.PromoDiscount != 8000 {
-		t.Fatalf("right-variant got %v want 8000", r2.PromoDiscount)
+	if r2.PromoDiscount != 0 {
+		t.Fatalf("right-variant/separate-set got %v want 0 (reward is a priced line)", r2.PromoDiscount)
 	}
 }
 
@@ -292,5 +297,25 @@ func TestBXGYRewardNet(t *testing.T) {
 	fixed := &BXGYConfig{GetDiscountKind: DiscountFixed, GetDiscountValue: 99999}
 	if got := bxgyRewardNet(fixed, 5000); got != 0 { // capped: max(0, 5000-99999)
 		t.Fatalf("fixed net=%v want 0", got)
+	}
+}
+
+func TestComputeSeparateSetBuyXGetYIsZeroDiscount(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, BuyProductIDs: []string{"a"},
+		GetProductIDs: []string{"b"}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 50}
+	// even with a get-set item present, the separate-set promo contributes 0
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 2), bxgyItem("b", "M", 8000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 0 {
+		t.Fatalf("separate-set promo discount = %v, want 0 (reward is a priced line)", r.PromoDiscount)
+	}
+}
+
+func TestComputeSameSetBuyXGetYStillDiscounts(t *testing.T) {
+	cfg := &BXGYConfig{BuyQuantity: 2, GetQuantity: 1, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 10000, 3)},
+		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
+	if r.PromoDiscount != 10000 {
+		t.Fatalf("same-set discount = %v, want 10000", r.PromoDiscount)
 	}
 }

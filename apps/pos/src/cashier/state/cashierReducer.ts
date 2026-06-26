@@ -55,8 +55,9 @@ export type CashierAction =
   | { type: 'CART_ADD_ITEM'; item: CartItem }
   | { type: 'CART_REMOVE_ITEM'; productId: string; variantSize: string }
   | { type: 'CART_SET_QTY'; productId: string; variantSize: string; quantity: number }
-  | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId: string } }
+  | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId?: string; rewardPromotionId?: string } }
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
+  | { type: 'CART_REMOVE_PROMO_REWARDS'; rewardPromotionId: string }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
   | { type: 'SET_CUSTOMER_SEARCH'; search: string }
@@ -147,9 +148,25 @@ export function cashierReducer(
       return { ...state, cart: upsertCartItem(state.cart, action.item) }
 
     case 'CART_ADD_REWARD': {
-      // One free line per condition; re-picking replaces it. Never merges with paid.
+      const { rewardConditionId, rewardPromotionId } = action.item
+      if (rewardPromotionId) {
+        // promo reward: keyed by (rewardPromotionId, productId, variantSize) — multiple
+        // lines per promo are allowed (each pick appends a distinct variant line).
+        // Re-picking the same (promo, product, variant) triple replaces that line.
+        const without = state.cart.filter(
+          (c) =>
+            !(
+              c.isReward &&
+              c.rewardPromotionId === rewardPromotionId &&
+              c.productId === action.item.productId &&
+              c.variantSize === action.item.variantSize
+            ),
+        )
+        return { ...state, cart: [...without, action.item] }
+      }
+      // loyalty reward: one free line per condition; re-picking replaces it. Never merges with paid.
       const without = state.cart.filter(
-        (c) => !(c.isReward && c.rewardConditionId === action.item.rewardConditionId),
+        (c) => !(c.isReward && c.rewardConditionId === rewardConditionId),
       )
       return { ...state, cart: [...without, action.item] }
     }
@@ -159,6 +176,14 @@ export function cashierReducer(
         ...state,
         cart: state.cart.filter(
           (c) => !(c.isReward && c.rewardConditionId === action.rewardConditionId),
+        ),
+      }
+
+    case 'CART_REMOVE_PROMO_REWARDS':
+      return {
+        ...state,
+        cart: state.cart.filter(
+          (c) => !(c.isReward && c.rewardPromotionId === action.rewardPromotionId),
         ),
       }
 
