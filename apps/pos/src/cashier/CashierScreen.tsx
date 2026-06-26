@@ -40,7 +40,8 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { applyPendingStock } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
-import { calcPromoDiscount, linkedPromoShape } from './pricing'
+import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, type BXGYRewardOption } from './pricing'
+import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -237,6 +238,15 @@ export default function CashierScreen() {
   >([])
   const [rewardsLoading, setRewardsLoading] = useState(false)
 
+  // SP-Promo-3b reward fulfillment: separate-set buy_x_get_y reward picker.
+  // Holds the promo + resolved options + reward units due while the cashier
+  // chooses which variant(s) to take.
+  const [bxgyReward, setBxgyReward] = useState<{
+    promo: components['schemas']['Promotion']
+    options: BXGYRewardOption[]
+    due: number
+  } | null>(null)
+
   useEffect(() => {
     if (
       !state.isCheckoutOpen ||
@@ -392,6 +402,93 @@ export default function CashierScreen() {
   const handleClearReward = (conditionId: string) =>
     dispatch({ type: 'CART_REMOVE_REWARD', rewardConditionId: conditionId })
 
+  // SP-Promo-3b: selecting a promotion. For SEPARATE-SET buy_x_get_y the saving
+  // is a reward giveaway, not an in-place discount — applying must resolve which
+  // reward variant(s) the paid cart earns. One option + exactly one unit due →
+  // auto-add; otherwise open the picker. Toggling OFF an already-applied promo
+  // (or any non-separate-set promo) falls through to the plain reducer toggle,
+  // which the reactive-removal effect cleans reward lines for.
+  const handleSelectPromotion = (
+    promo: components['schemas']['Promotion'],
+  ) => {
+    const cfg = promo.bxgyConfig
+    const isSeparateSet =
+      promo.type === 'buy_x_get_y' && (cfg?.getProductIds ?? []).length > 0
+    const isApplied = state.appliedPromotions.some((p) => p.id === promo.id)
+    if (!isSeparateSet || isApplied) {
+      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+      return
+    }
+    const paidLines = state.cart.filter((c) => !c.isReward)
+    const due = bxgyRewardDue(cfg, paidLines)
+    if (due < 1) return // gate should have blocked this; defensive no-op
+    const options = bxgyRewardOptions(cfg, displayProducts)
+    if (options.length === 1 && due === 1) {
+      const o = options[0]
+      dispatch({
+        type: 'CART_ADD_REWARD',
+        item: {
+          productId: o.productId,
+          productName: o.productName,
+          variantSize: o.variantSize,
+          price: o.net,
+          quantity: 1,
+          subtotal: o.net,
+          isReward: true,
+          rewardPromotionId: promo.id,
+        },
+      })
+      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+      return
+    }
+    setBxgyReward({ promo, options, due })
+  }
+
+  // Confirm from the reward picker: add one CART_ADD_REWARD line per chosen unit
+  // (same variant may repeat), then mark the promo applied. Cancel clears state.
+  const handleBxgyRewardConfirm = (picks: BxgyRewardPick[]) => {
+    if (!bxgyReward) return
+    const promoId = bxgyReward.promo.id
+    for (const p of picks) {
+      dispatch({
+        type: 'CART_ADD_REWARD',
+        item: {
+          productId: p.productId,
+          productName: p.productName,
+          variantSize: p.variantSize,
+          price: p.net,
+          quantity: 1,
+          subtotal: p.net,
+          isReward: true,
+          rewardPromotionId: promoId,
+        },
+      })
+    }
+    dispatch({ type: 'APPLY_PROMOTION', promotion: bxgyReward.promo })
+    setBxgyReward(null)
+  }
+
+  // SP-Promo-3b reactive removal: if the paid cart drops below the buy criteria
+  // for an applied separate-set buy_x_get_y promo (items removed after applying),
+  // strip its reward lines. When nothing is due any more, drop the promo too.
+  // Keyed on the cart so it re-runs whenever paid lines change.
+  useEffect(() => {
+    const paidLines = state.cart.filter((c) => !c.isReward)
+    for (const promo of state.appliedPromotions) {
+      const cfg = promo.bxgyConfig
+      if (promo.type !== 'buy_x_get_y' || (cfg?.getProductIds ?? []).length === 0)
+        continue
+      const due = bxgyRewardDue(cfg, paidLines)
+      const rewardCount = state.cart.filter(
+        (c) => c.isReward && c.rewardPromotionId === promo.id,
+      ).length
+      if (due < rewardCount) {
+        dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promo.id })
+        if (due === 0) dispatch({ type: 'REMOVE_PROMOTION', id: promo.id })
+      }
+    }
+  }, [state.cart, state.appliedPromotions])
+
   const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
       setCustomerError('Nama dan telepon wajib diisi')
@@ -488,11 +585,23 @@ export default function CashierScreen() {
       }
       // buy_x_get_y has a cart precondition that gating can't see: if the cart
       // no longer satisfies the buy/get criteria (items removed after applying),
-      // the discount is 0 — drop it so it isn't recorded as applied in history.
-      if (p.type === 'buy_x_get_y' && calcPromoDiscount(p, state.cart, derived.subtotal) <= 0) {
-        showToast('Promo dibatalkan: syarat beli belum terpenuhi')
-        dispatch({ type: 'CLEAR_PROMOTIONS' })
-        return
+      // drop it so it isn't recorded as applied in history. SEPARATE-SET earns a
+      // reward (calcPromoDiscount is always 0), so check bxgyRewardDue over PAID
+      // lines and also strip the reward lines so they don't linger. SAME-SET
+      // discounts in place → check the discount.
+      if (p.type === 'buy_x_get_y') {
+        const cfg = p.bxgyConfig
+        const isSeparateSet = (cfg?.getProductIds ?? []).length > 0
+        const unmet = isSeparateSet
+          ? bxgyRewardDue(cfg, state.cart.filter((c) => !c.isReward)) < 1
+          : calcPromoDiscount(p, state.cart, derived.subtotal) <= 0
+        if (unmet) {
+          showToast('Promo dibatalkan: syarat beli belum terpenuhi')
+          if (isSeparateSet)
+            dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: p.id })
+          dispatch({ type: 'CLEAR_PROMOTIONS' })
+          return
+        }
       }
     }
     // Precompute O(1) lookups once (the re-guard scans the full catalog per
@@ -920,6 +1029,7 @@ export default function CashierScreen() {
       <AdjustmentDrawer
         state={state} dispatch={dispatch} promotions={promotions} discountCodes={discountCodes}
         subtotal={derived.subtotal} outletId={authStore.outletId ?? ''} isValidatingCode={isValidatingCode}
+        onSelectPromotion={handleSelectPromotion}
         onApplyPromoCode={() => void handleApplyPromoCode()}
         onApplyDiscount={cartActions.applyDiscount}
         onApplySurcharge={cartActions.applySurcharge}
@@ -1066,6 +1176,17 @@ export default function CashierScreen() {
           receivedByName={user?.displayName ?? ''}
           receiptSettings={settings.receipt}
           onClose={() => setPendingTT(null)}
+        />
+      )}
+
+      {bxgyReward && (
+        <BxgyRewardModal
+          promo={bxgyReward.promo}
+          options={bxgyReward.options}
+          due={bxgyReward.due}
+          stockProducts={displayProducts}
+          onConfirm={handleBxgyRewardConfirm}
+          onCancel={() => setBxgyReward(null)}
         />
       )}
 

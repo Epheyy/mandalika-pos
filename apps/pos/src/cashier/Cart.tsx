@@ -103,7 +103,7 @@ export const Cart = memo(function Cart({
         ) : (
           cart.map((item) => (
             <div
-              key={`${item.productId}-${item.variantSize}`}
+              key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
               className="flex items-start gap-2 p-2 rounded-lg bg-gray-50"
             >
               <div className="flex-1 min-w-0">
@@ -112,7 +112,11 @@ export const Cart = memo(function Cart({
                 </p>
                 {variantLabel(item.variantSize) && <p className="text-xs text-gray-500">{variantLabel(item.variantSize)}</p>}
                 {item.isReward ? (
-                  <p className="text-xs font-bold text-green-600">GRATIS · Hadiah Loyalti</p>
+                  <p className="text-xs font-bold text-green-600">
+                    {item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
+                    {' · '}
+                    {item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}
+                  </p>
                 ) : (
                   <p className="text-xs text-indigo-600 font-bold">{formatRupiah(item.subtotal)}</p>
                 )}

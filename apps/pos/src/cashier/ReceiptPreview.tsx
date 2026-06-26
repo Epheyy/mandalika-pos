@@ -111,7 +111,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           <div className="space-y-1 mb-4 border-t border-dashed border-gray-200 pt-3">
             {items.map((item) => (
               <div
-                key={`${item.productId}-${item.variantSize}`}
+                key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
                 className="flex justify-between text-xs"
               >
                 <span className="text-gray-700 flex-1 mr-2">
@@ -121,7 +121,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
                   </span>
                 </span>
                 <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-green-600' : 'text-gray-800'}`}>
-                  {item.isReward ? 'GRATIS' : formatRupiah(item.subtotal)}
+                  {item.isReward && item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
                 </span>
               </div>
             ))}

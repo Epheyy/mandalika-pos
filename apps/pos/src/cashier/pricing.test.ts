@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { computePricing, calcPromoDiscount, type PricingInput } from './pricing'
+import { computePricing, calcPromoDiscount, bxgyRewardOptions, type PricingInput } from './pricing'
 import type { components } from '@mandalika/api'
 
 type CartItem = components['schemas']['CartItem']
 type Promotion = components['schemas']['Promotion']
+type Product = components['schemas']['Product']
 type BXGYConfig = NonNullable<Promotion['bxgyConfig']>
 
 const ci = (productId: string, variantSize: string, price: number, quantity: number): CartItem => ({
@@ -82,6 +83,83 @@ describe('calcPromoDiscount buy_x_get_y (parity with Go calcBXGY)', () => {
     // even when qualified, separate-set contributes 0 here — saving lives in the reward line
     const met = [ci('gorgeous', 'M', 100000, 2), ci('holysweet', '10ml ATOMIZER', 75000, 1)]
     expect(calcPromoDiscount(bxgy(cfg), met, sub(met))).toBe(0)
+  })
+})
+
+describe('bxgyRewardOptions (separate-set reward resolution)', () => {
+  const prod = (id: string, name: string, variants: { size: string; price: number }[]): Product =>
+    ({
+      id,
+      name,
+      brand: 'B',
+      categoryId: 'c',
+      variants: variants.map((v) => ({ size: v.size, price: v.price, stock: 5, sku: '', barcode: '' })) as any,
+      isFeatured: false,
+      isFavourite: false,
+      isActive: true,
+      createdAt: '',
+    }) as Product
+  const catalog: Product[] = [
+    prod('b', 'Holy Sweet', [
+      { size: '10ml', price: 8000 },
+      { size: '50ml', price: 30000 },
+    ]),
+    prod('c', 'Other', [{ size: 'M', price: 12000 }]),
+  ]
+
+  it('a whole-product (pid) entry expands to ALL its variants at net', () => {
+    const cfg: BXGYConfig = {
+      buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b'],
+      getDiscountKind: 'percentage', getDiscountValue: 100,
+    }
+    const opts = bxgyRewardOptions(cfg, catalog)
+    // both variants of b, none of c
+    expect(opts.map((o) => `${o.productId}|${o.variantSize}`)).toEqual(['b|10ml', 'b|50ml'])
+    // free → net 0 for each
+    expect(opts.every((o) => o.net === 0)).toBe(true)
+    expect(opts[0].fullPrice).toBe(8000)
+  })
+
+  it('a variant-level (pid|size) entry yields exactly that one variant', () => {
+    const cfg: BXGYConfig = {
+      buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b|10ml'],
+      getDiscountKind: 'percentage', getDiscountValue: 100,
+    }
+    const opts = bxgyRewardOptions(cfg, catalog)
+    expect(opts).toHaveLength(1)
+    expect(opts[0].productId).toBe('b')
+    expect(opts[0].variantSize).toBe('10ml')
+    expect(opts[0].net).toBe(0)
+  })
+
+  it('percentage<100 net is fullPrice minus the rounded discount', () => {
+    const cfg: BXGYConfig = {
+      buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b|50ml'],
+      getDiscountKind: 'percentage', getDiscountValue: 25,
+    }
+    const opts = bxgyRewardOptions(cfg, catalog)
+    expect(opts).toHaveLength(1)
+    // 30000 - round(30000 * 0.25) = 30000 - 7500 = 22500
+    expect(opts[0].net).toBe(22500)
+    expect(opts[0].fullPrice).toBe(30000)
+  })
+
+  it('fixed get discount nets fullPrice minus value (floored at 0)', () => {
+    const cfg: BXGYConfig = {
+      buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b|10ml'],
+      getDiscountKind: 'fixed', getDiscountValue: 3000,
+    }
+    const opts = bxgyRewardOptions(cfg, catalog)
+    // 8000 - 3000 = 5000
+    expect(opts[0].net).toBe(5000)
+  })
+
+  it('empty getProductIds → no options', () => {
+    const cfg: BXGYConfig = {
+      buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: [],
+      getDiscountKind: 'percentage', getDiscountValue: 100,
+    }
+    expect(bxgyRewardOptions(cfg, catalog)).toEqual([])
   })
 })
 

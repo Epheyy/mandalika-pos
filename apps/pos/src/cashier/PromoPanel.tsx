@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
+import { bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
@@ -283,10 +283,19 @@ export const PromoPanel = memo(function PromoPanel({
                   const savings = gatingInvalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
                   // buy_x_get_y has a CART precondition (the buy/get items must be
                   // present in the required quantities) that date/min/etc gating
-                  // can't see. If the cart doesn't satisfy it, calcPromoDiscount is
-                  // 0 — block applying so it can't show as "applied" with no deal.
+                  // can't see. SEPARATE-SET (non-empty getProductIds) is a reward
+                  // giveaway: calcPromoDiscount is always 0 (the saving lives in
+                  // the reward line), so eligibility = "buy criteria met" via
+                  // bxgyRewardDue >= 1. SAME-SET discounts in place → savings > 0.
+                  const isSeparateSet =
+                    promo.type === 'buy_x_get_y' &&
+                    (promo.bxgyConfig?.getProductIds ?? []).length > 0
                   const bxgyUnmet =
-                    !gatingInvalid && promo.type === 'buy_x_get_y' && savings <= 0
+                    !gatingInvalid &&
+                    promo.type === 'buy_x_get_y' &&
+                    (isSeparateSet
+                      ? bxgyRewardDue(promo.bxgyConfig, cart) < 1
+                      : savings <= 0)
                   const invalid = gatingInvalid || bxgyUnmet
                   const reason = gatingInvalid
                     ? violationMessage(violations[0])
