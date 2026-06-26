@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -38,6 +39,7 @@ type OrderItem struct {
 	// commit). Request-only — not persisted to order_items.
 	IsReward          bool   `json:"isReward"`
 	RewardConditionID string `json:"rewardConditionId"`
+	RewardPromotionID string `json:"rewardPromotionId"` // SP-Promo-3b reward fulfillment: the buy_x_get_y promo that gave this line
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
@@ -170,6 +172,26 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	loyEnabled, pointsPerK, redemptionRate, err := loadLoyalty(ctx, tx)
 	if err != nil {
 		return "", false, false, err
+	}
+
+	// SP-Promo-3b reward fulfillment: validate every buy_x_get_y reward line against
+	// its promo's get-set + earned quota, reprice it to the SERVER net (never the
+	// client value), drop offline-invalid lines, and 422 an online-invalid one. The
+	// returned grants are written after the order row exists (orderID FK). This MUST
+	// run before pricing/stock/order_items so all of them see the corrected lines.
+	rewardGrants, rewardWarnReason, err := s.resolveRewardLines(ctx, tx, &in)
+	if err != nil {
+		return "", false, false, err
+	}
+	if rewardWarnReason != "" {
+		// an offline order dropped an unfulfillable reward line — flag for admin
+		// reconciliation, joining onto any existing discount warning reason.
+		discountWarning = true
+		if discountWarnReason == "" {
+			discountWarnReason = rewardWarnReason
+		} else {
+			discountWarnReason += "," + rewardWarnReason
+		}
 	}
 
 	items := make([]LineItem, len(in.Items))
@@ -354,6 +376,16 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			orderID, it.ProductID, it.ProductName, it.VariantSize,
 			it.Price, it.Quantity, it.Subtotal, it.IsBundle); e != nil {
 			return "", false, false, fmt.Errorf("insert item: %w", e)
+		}
+	}
+
+	// SP-Promo-3b: record one promo_reward_grants row per honored reward line (the
+	// order row now exists for the FK). Each grant carries the SERVER full/net prices
+	// resolved above — the audit of what was given for free.
+	for _, g := range rewardGrants {
+		g.OrderID = orderID
+		if e := write.InsertRewardGrant(ctx, tx, g); e != nil {
+			return "", false, false, fmt.Errorf("record reward grant: %w", e)
 		}
 	}
 
@@ -916,6 +948,161 @@ func rewardLineAllowed(menu []string, productID, size string) bool {
 		return true
 	}
 	return size != "" && contains(menu, variantKey(productID, size))
+}
+
+// rewardCatalog is one reward product's catalog identity: server name + per-unit
+// full (normal) price, looked up by (productId, variantSize). found=false means the
+// variant is gone/inactive → the reward line is unfulfillable.
+type rewardCatalog struct {
+	name      string
+	fullPrice float64
+	found     bool
+}
+
+// loadRewardCatalog fetches the active product's name + variant price. A reward
+// line whose variant no longer exists (deleted/inactive) is treated as invalid.
+func loadRewardCatalog(ctx context.Context, tx pgx.Tx, productID, size string) (rewardCatalog, error) {
+	var c rewardCatalog
+	e := tx.QueryRow(ctx, `
+		SELECT p.name, v.price
+		  FROM products p
+		  JOIN product_variants v ON v.product_id = p.id
+		 WHERE p.id = $1 AND v.size = $2 AND p.is_active = true`,
+		productID, size).Scan(&c.name, &c.fullPrice)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return rewardCatalog{}, nil // unfulfillable, not a hard error
+	}
+	if e != nil {
+		return rewardCatalog{}, fmt.Errorf("load reward catalog: %w", e)
+	}
+	c.found = true
+	return c, nil
+}
+
+// resolveRewardLines validates each SP-Promo-3b buy_x_get_y reward line in in.Items
+// against its promotion's get-set + earned quota, repricing valid lines to the
+// SERVER net (never the client value) and emitting one grant row each. It mutates
+// in.Items in place: valid reward lines get Price/Subtotal overwritten with the net;
+// offline-invalid lines are removed entirely (not charged, not stocked, not granted).
+// An ONLINE invalid line returns *ErrDiscountRejected{ViolationRewardInvalid} (→422).
+// Returns grants (OrderID left blank for the caller to stamp) and a warn reason
+// (non-empty only when an offline order dropped a line).
+func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *CreateOrderInput) ([]write.RewardGrantRow, string, error) {
+	// Fast exit: no reward lines reference a promo → nothing to do (common case).
+	any := false
+	for _, it := range in.Items {
+		if it.IsReward && it.RewardPromotionID != "" {
+			any = true
+			break
+		}
+	}
+	if !any {
+		return nil, "", nil
+	}
+
+	// Paid (non-reward) lines drive the earned-quota math (hard contract: reward
+	// lines must NOT count as buy units).
+	var paid []LineItem
+	for _, it := range in.Items {
+		if it.IsReward {
+			continue
+		}
+		paid = append(paid, LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal})
+	}
+
+	cfgCache := map[string]*BXGYConfig{} // promoID -> bxgyConfig (nil = absent/invalid promo)
+	cfgLoaded := map[string]bool{}
+	honored := map[string]int{} // promoID -> reward UNITS already honored this order
+
+	bxgyFor := func(promoID string) (*BXGYConfig, error) {
+		if cfgLoaded[promoID] {
+			return cfgCache[promoID], nil
+		}
+		spec, _, _, _, found, err := s.loadPromoSpec(ctx, tx, promoID, PromoEvalContext{})
+		if err != nil {
+			return nil, err
+		}
+		var cfg *BXGYConfig
+		if found && spec.Kind == DiscountBuyXGetY {
+			cfg = spec.BXGY
+		}
+		cfgLoaded[promoID] = true
+		cfgCache[promoID] = cfg
+		return cfg, nil
+	}
+
+	var grants []write.RewardGrantRow
+	kept := in.Items[:0] // reuse backing array; drops compact in place (offline only)
+	var warns []PromoViolation
+
+	for _, it := range in.Items {
+		if !it.IsReward || it.RewardPromotionID == "" {
+			kept = append(kept, it)
+			continue
+		}
+		cfg, err := bxgyFor(it.RewardPromotionID)
+		if err != nil {
+			return nil, "", err
+		}
+		cat, err := loadRewardCatalog(ctx, tx, it.ProductID, it.VariantSize)
+		if err != nil {
+			return nil, "", err
+		}
+
+		ok, net := false, 0.0
+		if cat.found {
+			ok, net = rewardLineEntitled(cfg, paid, honored[it.RewardPromotionID], it.ProductID, it.VariantSize, cat.fullPrice)
+		}
+		// Quantity-aware quota: a qty-N reward line needs N units of remaining quota.
+		if ok && cfg != nil && honored[it.RewardPromotionID]+it.Quantity > bxgyRewardDue(cfg, paid) {
+			ok = false
+		}
+		if !ok {
+			if !in.Offline {
+				return nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationRewardInvalid}}
+			}
+			// Offline: drop the line (not charged/stocked/granted) and flag the order.
+			slog.Warn("dropping unfulfillable reward line (offline)",
+				"promotion_id", it.RewardPromotionID, "product_id", it.ProductID,
+				"variant_size", it.VariantSize, "quantity", it.Quantity)
+			warns = append(warns, ViolationRewardInvalid)
+			continue
+		}
+
+		honored[it.RewardPromotionID] += it.Quantity
+		// Server-authoritative repricing: never trust the client reward price.
+		it.Price = net
+		it.Subtotal = math.Round(net * float64(it.Quantity))
+		kept = append(kept, it)
+		grants = append(grants, write.RewardGrantRow{
+			PromotionID: it.RewardPromotionID, ProductID: it.ProductID,
+			ProductName: cat.name, VariantSize: it.VariantSize,
+			FullPrice: cat.fullPrice, RewardPrice: net, RewardValue: cat.fullPrice - net,
+		})
+	}
+	in.Items = kept
+
+	warn := ""
+	if len(warns) > 0 {
+		warn = JoinViolations(warns)
+	}
+	return grants, warn, nil
+}
+
+// rewardLineEntitled reports whether a reward line (product/size at fullPrice) is
+// allowed for this buy_x_get_y promo given the PAID lines and how many reward
+// units of this promo were already honored, and returns the net price to charge.
+func rewardLineEntitled(c *BXGYConfig, paid []LineItem, alreadyHonored int, productID, size string, fullPrice float64) (bool, float64) {
+	if c == nil || len(c.GetProductIDs) == 0 {
+		return false, 0
+	}
+	if !keyMatchesLine(c.GetProductIDs, productID, size) {
+		return false, 0
+	}
+	if alreadyHonored >= bxgyRewardDue(c, paid) {
+		return false, 0
+	}
+	return true, bxgyRewardNet(c, fullPrice)
 }
 
 // variantKey is the composite "pid|size" key shared by the loyalty trigger set,

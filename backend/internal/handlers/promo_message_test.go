@@ -23,6 +23,7 @@ func TestDiscountRejectMessage(t *testing.T) {
 		{"not found", []service.PromoViolation{service.ViolationNotFound}, "Diskon tidak ditemukan"},
 		{"not combinable", []service.PromoViolation{service.ViolationNotCombinable}, "Promo/kode ini tidak bisa digabung"},
 		{"code only", []service.PromoViolation{service.ViolationCodeOnly}, "Promo ini hanya bisa dipakai lewat kode"},
+		{"reward invalid", []service.PromoViolation{service.ViolationRewardInvalid}, "Hadiah promo tidak valid atau melebihi kuota"},
 		{"first violation wins", []service.PromoViolation{service.ViolationExpired, service.ViolationBelowMin}, "Kode/promo sudah kadaluarsa"},
 		{"unknown falls back", []service.PromoViolation{service.PromoViolation("bogus")}, "Diskon tidak berlaku"},
 	}

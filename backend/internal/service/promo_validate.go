@@ -20,6 +20,9 @@ const (
 	ViolationNotFound      PromoViolation = "not_found"
 	ViolationNotCombinable PromoViolation = "not_combinable"
 	ViolationCodeOnly      PromoViolation = "code_only" // promo applied directly but is reachable only via a linked code
+	// SP-Promo-3b reward fulfillment: a reward (buy_x_get_y free/discounted) line is
+	// not on the promo's get-set, or exceeds the cart's earned reward quota.
+	ViolationRewardInvalid PromoViolation = "reward_invalid"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
