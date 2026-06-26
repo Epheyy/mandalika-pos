@@ -42,6 +42,28 @@ func InsertConditionApplication(ctx context.Context, tx pgx.Tx, a ConditionAppli
 	return nil
 }
 
+// RewardGrantRow is one promo_reward_grants insert. Written inside the order tx
+// for every BXGY (buy-X-get-Y) free item granted at checkout.
+type RewardGrantRow struct {
+	OrderID, PromotionID, ProductID, ProductName, VariantSize string
+	FullPrice, RewardPrice, RewardValue                       float64
+}
+
+// InsertRewardGrant appends one promo reward grant row inside the given order tx.
+func InsertRewardGrant(ctx context.Context, tx pgx.Tx, r RewardGrantRow) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO promo_reward_grants
+		  (order_id, promotion_id, product_id, product_name, variant_size,
+		   full_price, reward_price, reward_value)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		r.OrderID, r.PromotionID, r.ProductID, r.ProductName, r.VariantSize,
+		r.FullPrice, r.RewardPrice, r.RewardValue)
+	if err != nil {
+		return fmt.Errorf("insert reward grant: %w", err)
+	}
+	return nil
+}
+
 // LoyaltyCondition is the backoffice create/update input for a loyalty_conditions
 // row (id/createdAt/appliedCount are server-owned and not part of the input).
 // type + reward_type are enforced by DB CHECK constraints; trigger is free text
