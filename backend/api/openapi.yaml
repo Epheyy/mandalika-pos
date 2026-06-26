@@ -982,6 +982,19 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/RewardGrant' } }
+    PromoRewardGrant:
+      type: object
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        promotionId: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        fullPrice: { type: number }
+        rewardPrice: { type: number }
+        rewardValue: { type: number }
+        createdAt: { type: string }
     BXGYConfig:
       type: object
       required: [buyQuantity, getQuantity, getDiscountKind, getDiscountValue]
@@ -1062,6 +1075,7 @@ components:
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
+        rewardPromotionId: { type: string }
         promotionIds: { type: array, items: { type: string }, nullable: true }
         discountCodes: { type: array, items: { type: string }, nullable: true }
     Order:
@@ -1445,6 +1459,7 @@ components:
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
+        rewardPromotionId: { type: string }
     CreateOrderRequest:
       type: object
       required: [orderUuid, items, paymentMethod]

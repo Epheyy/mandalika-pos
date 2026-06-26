@@ -2650,6 +2650,18 @@ export interface components {
         RewardGrantListResponse: {
             data: components["schemas"]["RewardGrant"][];
         };
+        PromoRewardGrant: {
+            id?: string;
+            orderId?: string;
+            promotionId?: string;
+            productId?: string;
+            productName?: string;
+            variantSize?: string;
+            fullPrice?: number;
+            rewardPrice?: number;
+            rewardValue?: number;
+            createdAt?: string;
+        };
         BXGYConfig: {
             buyQuantity: number;
             getQuantity: number;
@@ -2721,6 +2733,7 @@ export interface components {
             isBundle?: boolean;
             isReward?: boolean;
             rewardConditionId?: string;
+            rewardPromotionId?: string;
             promotionIds?: string[] | null;
             discountCodes?: string[] | null;
         };
@@ -3045,6 +3058,7 @@ export interface components {
             isBundle?: boolean;
             isReward?: boolean;
             rewardConditionId?: string;
+            rewardPromotionId?: string;
         };
         /** @description Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required. */
         CreateOrderRequest: {

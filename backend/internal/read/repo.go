@@ -1765,3 +1765,30 @@ LIMIT $5 OFFSET $4`
 	}
 	return listJSON[api.MovementSummaryRow](ctx, r.Pool, sql, id, from, to, off(page, limit), limit)
 }
+
+// ── Promo reward grants ───────────────────────────────────
+
+// PromoRewardGrantRow is the read-side projection of promo_reward_grants.
+// It mirrors the PromoRewardGrant OpenAPI schema (SP-Promo-3b).
+type PromoRewardGrantRow struct {
+	ID          string  `json:"id"`
+	OrderID     string  `json:"orderId"`
+	PromotionID string  `json:"promotionId"`
+	ProductID   string  `json:"productId"`
+	ProductName string  `json:"productName"`
+	VariantSize string  `json:"variantSize"`
+	FullPrice   float64 `json:"fullPrice"`
+	RewardPrice float64 `json:"rewardPrice"`
+	RewardValue float64 `json:"rewardValue"`
+	CreatedAt   string  `json:"createdAt"`
+}
+
+// RewardGrantsByOrder returns all promo_reward_grants for a given order UUID.
+// Used by tests and the reporting layer (SP-Promo-3b-reward).
+func (r *Repo) RewardGrantsByOrder(ctx context.Context, orderID string) ([]PromoRewardGrantRow, int, error) {
+	return listJSON[PromoRewardGrantRow](ctx, r.Pool,
+		`SELECT json_build_object('id',id,'orderId',order_id,'promotionId',promotion_id,
+		   'productId',product_id,'productName',product_name,'variantSize',variant_size,
+		   'fullPrice',full_price,'rewardPrice',reward_price,'rewardValue',reward_value,
+		   'createdAt',created_at) FROM promo_reward_grants WHERE order_id=$1`, orderID)
+}
