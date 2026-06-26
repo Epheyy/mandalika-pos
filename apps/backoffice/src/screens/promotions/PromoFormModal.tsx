@@ -127,7 +127,7 @@ export function PromoFormModal({
               <ProductVariantPicker products={products} value={form.bxgyConfig?.buyProductIds ?? []}
                 onChange={(next) => setBxgy({ buyProductIds: next })} />
             </Field>
-            <Field label="Produk Hadiah (kosong = sama dengan produk beli)">
+            <Field label="Produk Hadiah (diberikan gratis/diskon ke pelanggan)" hint="Pelanggan menerima produk ini sebagai hadiah saat memenuhi syarat beli.">
               <ProductVariantPicker products={products} value={form.bxgyConfig?.getProductIds ?? []}
                 onChange={(next) => setBxgy({ getProductIds: next })} />
             </Field>
