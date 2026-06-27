@@ -672,6 +672,18 @@ func combinedViolations(code, promo []PromoViolation) []PromoViolation {
 	return out
 }
 
+// parseTieredConfig unmarshals the tiered_config jsonb. nil/empty -> (nil, nil).
+func parseTieredConfig(raw []byte) (*TieredConfig, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var c TieredConfig
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return nil, fmt.Errorf("parse tiered_config: %w", err)
+	}
+	return &c, nil
+}
+
 // parseBXGYConfig unmarshals the bxgy_config jsonb. nil/empty -> (nil, nil).
 func parseBXGYConfig(raw []byte) (*BXGYConfig, error) {
 	if len(raw) == 0 || string(raw) == "null" {
@@ -693,17 +705,18 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 	var ids []string
 	var row PromoRow
 	var bxgyRaw []byte
+	var tieredRaw []byte
 	e := tx.QueryRow(ctx,
 		`SELECT type, value,
 		   COALESCE(applicable_product_ids,'[]'::jsonb),
 		   start_date, end_date, min_purchase,
 		   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
 		   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb),
-		   COALESCE(combinable,false), COALESCE(code_only,false), bxgy_config
+		   COALESCE(combinable,false), COALESCE(code_only,false), bxgy_config, tiered_config
 		   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
 		Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
 			&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs,
-			&row.Combinable, &codeOnly, &bxgyRaw)
+			&row.Combinable, &codeOnly, &bxgyRaw, &tieredRaw)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return PromoSpec{}, false, false, nil, false, nil
 	}
@@ -717,6 +730,13 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 			return PromoSpec{}, false, false, nil, false, perr
 		}
 		spec.BXGY = cfg
+	}
+	if spec.Kind == DiscountTiered {
+		cfg, perr := parseTieredConfig(tieredRaw)
+		if perr != nil {
+			return PromoSpec{}, false, false, nil, false, perr
+		}
+		spec.Tiered = cfg
 	}
 	return spec, row.Combinable, codeOnly, ValidatePromo(row, ec), true, nil
 }
