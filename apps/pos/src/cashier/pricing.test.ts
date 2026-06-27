@@ -163,6 +163,122 @@ describe('bxgyRewardOptions (separate-set reward resolution)', () => {
   })
 })
 
+describe('calcPromoDiscount tiered (parity with Go calcPromotionDiscount)', () => {
+  type TieredConfig = NonNullable<Promotion['tieredConfig']>
+  const tieredPromo = (cfg: TieredConfig): Promotion => ({
+    id: 'p-tiered', name: 'Tiered', type: 'tiered', value: 0, isActive: true, createdAt: '', tieredConfig: cfg,
+  })
+  const twotier: TieredConfig = {
+    tiers: [
+      { minSubtotal: 100000, kind: 'fixed', value: 10000 },
+      { minSubtotal: 200000, kind: 'percentage', value: 15 },
+    ],
+  }
+
+  it('tier2 (300k subtotal, 15% percentage) → 45000', () => {
+    const items = [ci('a', '', 300000, 1)]
+    expect(calcPromoDiscount(tieredPromo(twotier), items, 300000)).toBe(45000)
+  })
+
+  it('tier1 (120k subtotal, fixed 10000) → 10000', () => {
+    const items = [ci('a', '', 120000, 1)]
+    expect(calcPromoDiscount(tieredPromo(twotier), items, 120000)).toBe(10000)
+  })
+
+  it('below lowest tier (50k) → 0', () => {
+    const items = [ci('a', '', 50000, 1)]
+    expect(calcPromoDiscount(tieredPromo(twotier), items, 50000)).toBe(0)
+  })
+
+  it('fixed tier capped at sub if value > sub', () => {
+    const cfg: TieredConfig = { tiers: [{ minSubtotal: 0, kind: 'fixed', value: 999999 }] }
+    expect(calcPromoDiscount(tieredPromo(cfg), [ci('a', '', 5000, 1)], 5000)).toBe(5000)
+  })
+
+  it('null tieredConfig → 0', () => {
+    const promo: Promotion = { id: 'p2', name: 'T', type: 'tiered', value: 0, isActive: true, createdAt: '' }
+    expect(calcPromoDiscount(promo, [ci('a', '', 300000, 1)], 300000)).toBe(0)
+  })
+})
+
+import { pickTier, tieredNextTier } from './pricing'
+
+describe('pickTier', () => {
+  type TieredConfig = NonNullable<Promotion['tieredConfig']>
+  const cfg: TieredConfig = {
+    tiers: [
+      { minSubtotal: 100000, kind: 'fixed', value: 10000 },
+      { minSubtotal: 200000, kind: 'percentage', value: 15 },
+    ],
+  }
+
+  it('picks tier2 at 300k', () => {
+    const t = pickTier(cfg, 300000)
+    expect(t?.minSubtotal).toBe(200000)
+    expect(t?.kind).toBe('percentage')
+  })
+
+  it('picks tier1 at 120k', () => {
+    const t = pickTier(cfg, 120000)
+    expect(t?.minSubtotal).toBe(100000)
+    expect(t?.kind).toBe('fixed')
+  })
+
+  it('returns null below lowest tier', () => {
+    expect(pickTier(cfg, 50000)).toBeNull()
+  })
+
+  it('null cfg → null', () => {
+    expect(pickTier(null, 100000)).toBeNull()
+  })
+})
+
+describe('tieredNextTier', () => {
+  type TieredConfig = NonNullable<Promotion['tieredConfig']>
+  const twotier: TieredConfig = {
+    tiers: [
+      { minSubtotal: 100000, kind: 'fixed', value: 10000 },
+      { minSubtotal: 200000, kind: 'percentage', value: 15 },
+    ],
+  }
+  const threetier: TieredConfig = {
+    tiers: [
+      { minSubtotal: 100000, kind: 'fixed', value: 10000 },
+      { minSubtotal: 200000, kind: 'percentage', value: 15 },
+      { minSubtotal: 500000, kind: 'percentage', value: 25 },
+    ],
+  }
+
+  it('at 50k → first tier (100k), gap=50000', () => {
+    const n = tieredNextTier(twotier, 50000)
+    expect(n).not.toBeNull()
+    expect(n?.minSubtotal).toBe(100000)
+    expect(n?.gap).toBe(50000)
+  })
+
+  it('at 120k → tier2 (200k), gap=80000', () => {
+    const n = tieredNextTier(twotier, 120000)
+    expect(n).not.toBeNull()
+    expect(n?.minSubtotal).toBe(200000)
+    expect(n?.gap).toBe(80000)
+  })
+
+  it('at top tier (300k in 2-tier) → null', () => {
+    expect(tieredNextTier(twotier, 300000)).toBeNull()
+  })
+
+  it('at 300k in 3-tier cfg → next=500k tier, gap=200000', () => {
+    const n = tieredNextTier(threetier, 300000)
+    expect(n).not.toBeNull()
+    expect(n?.minSubtotal).toBe(500000)
+    expect(n?.gap).toBe(200000)
+  })
+
+  it('null cfg → null', () => {
+    expect(tieredNextTier(null, 100000)).toBeNull()
+  })
+})
+
 describe('computePricing stacking', () => {
   it('sums two combinable promotions additively off subtotal', () => {
     const p = (id: string, value: number) =>

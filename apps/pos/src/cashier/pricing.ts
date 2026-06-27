@@ -13,6 +13,7 @@ type LoyaltySettings = components['schemas']['LoyaltySettings']
 type CartItem = components['schemas']['CartItem']
 type Product = components['schemas']['Product']
 type BXGYConfig = NonNullable<Promotion['bxgyConfig']>
+type TieredConfig = NonNullable<Promotion['tieredConfig']>
 
 export interface PricingResult {
   subtotal: number
@@ -166,6 +167,20 @@ export function bxgyRewardOptions(
   return result
 }
 
+export function pickTier(cfg: TieredConfig | null | undefined, sub: number) {
+  if (!cfg?.tiers) return null
+  let best: TieredConfig['tiers'][number] | null = null
+  for (const t of cfg.tiers) if (sub >= t.minSubtotal && (!best || t.minSubtotal > best.minSubtotal)) best = t
+  return best
+}
+
+export function tieredNextTier(cfg: TieredConfig | null | undefined, sub: number) {
+  if (!cfg?.tiers) return null
+  let next: TieredConfig['tiers'][number] | null = null
+  for (const t of cfg.tiers) if (t.minSubtotal > sub && (!next || t.minSubtotal < next.minSubtotal)) next = t
+  return next ? { ...next, gap: next.minSubtotal - sub } : null
+}
+
 export function calcPromoDiscount(
   promo: Promotion,
   items: CartItem[],
@@ -177,6 +192,13 @@ export function calcPromoDiscount(
     // reduced price, so it contributes 0 here. same-set discounts in place.
     if (cfg && (cfg.getProductIds ?? []).length > 0) return 0
     return calcBXGY(cfg, items)
+  }
+  if (promo.type === 'tiered') {
+    const t = pickTier(promo.tieredConfig, sub)
+    if (!t) return 0
+    if (t.kind === 'percentage') return Math.round(sub * (t.value / 100))
+    if (t.kind === 'fixed') return Math.min(t.value, sub)
+    return 0
   }
   const matchingItems =
     promo.applicableProductIds && promo.applicableProductIds.length > 0

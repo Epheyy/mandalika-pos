@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
+import { bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
@@ -59,6 +59,9 @@ function promoRuleLabel(p: Promotion): string {
     } else {
       base = 'Beli X Gratis Y'
     }
+  } else if (p.type === 'tiered') {
+    const tiers = p.tieredConfig?.tiers ?? []
+    base = tiers.length > 0 ? `Bertingkat (${tiers.length} tier)` : 'Bertingkat'
   } else base = 'BOGO'
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
@@ -341,6 +344,19 @@ export const PromoPanel = memo(function PromoPanel({
                           </span>
                         )}
                       </p>
+                      {promo.type === 'tiered' && (() => {
+                        const nxt = tieredNextTier(promo.tieredConfig, subtotal)
+                        if (!nxt) return null
+                        const hint =
+                          nxt.kind === 'percentage'
+                            ? `hemat ${nxt.value}%`
+                            : `potongan ${formatRupiah(nxt.value)}`
+                        return (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Belanja {formatRupiah(nxt.gap)} lagi untuk {hint}
+                          </p>
+                        )
+                      })()}
                       <div className="mt-1.5">
                         {invalid ? (
                           <span className="text-[10px] text-red-500 font-semibold">
