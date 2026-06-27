@@ -20,6 +20,7 @@ const (
 	DiscountPercentage DiscountKind = "percentage"
 	DiscountFixed      DiscountKind = "fixed"
 	DiscountBuyXGetY   DiscountKind = "buy_x_get_y"
+	DiscountTiered     DiscountKind = "tiered"
 )
 
 // LineItem mirrors CartItem for pricing. Subtotal is price*quantity as quoted
@@ -30,6 +31,33 @@ type LineItem struct {
 	Price       float64
 	Quantity    int
 	Subtotal    float64
+}
+
+// Tier is one threshold step in a tiered discount promotion.
+type Tier struct {
+	MinSubtotal float64      `json:"minSubtotal"`
+	Kind        DiscountKind `json:"kind"`
+	Value       float64      `json:"value"`
+}
+
+// TieredConfig holds the ordered (or unordered) tier steps for a tiered promo.
+type TieredConfig struct {
+	Tiers []Tier `json:"tiers"`
+}
+
+// pickTier returns the highest tier whose MinSubtotal <= sub, or nil if none.
+func pickTier(c *TieredConfig, sub float64) *Tier {
+	if c == nil {
+		return nil
+	}
+	var best *Tier
+	for i := range c.Tiers {
+		t := &c.Tiers[i]
+		if sub >= t.MinSubtotal && (best == nil || t.MinSubtotal > best.MinSubtotal) {
+			best = t
+		}
+	}
+	return best
 }
 
 // BXGYConfig is the buy_x_get_y rule (stored as promotions.bxgy_config jsonb).
@@ -45,11 +73,12 @@ type BXGYConfig struct {
 
 // PromoSpec is the resolved promotion (from a Promotion or a DiscountCode).
 type PromoSpec struct {
-	Kind                 DiscountKind // percentage | fixed | bogo | buy_x_get_y
+	Kind                 DiscountKind // percentage | fixed | bogo | buy_x_get_y | tiered
 	Value                float64
 	ApplicableProductIDs []string // empty = applies to whole cart
 	IsBOGO               bool
 	BXGY                 *BXGYConfig
+	Tiered               *TieredConfig
 }
 
 type PricingInput struct {
@@ -227,6 +256,19 @@ func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 
 		}
 		return calcBXGY(p.BXGY, items)
 	}
+	if p.Kind == DiscountTiered {
+		t := pickTier(p.Tiered, sub)
+		if t == nil {
+			return 0
+		}
+		switch t.Kind {
+		case DiscountPercentage:
+			return math.Round(sub * (t.Value / 100))
+		case DiscountFixed:
+			return math.Min(t.Value, sub)
+		}
+		return 0
+	}
 	scoped := len(p.ApplicableProductIDs) > 0
 	matching := items
 	if scoped {
@@ -342,8 +384,8 @@ func Compute(in PricingInput) PricingResult {
 	}
 }
 
-// Tier ports getTier (CashierScreen.tsx:385-389).
-func Tier(totalSpent float64) string {
+// CustomerTier ports getTier (CashierScreen.tsx:385-389).
+func CustomerTier(totalSpent float64) string {
 	switch {
 	case totalSpent >= 5_000_000:
 		return "Platinum"

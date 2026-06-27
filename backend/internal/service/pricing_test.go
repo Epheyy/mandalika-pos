@@ -164,8 +164,8 @@ func TestTierBoundaries(t *testing.T) {
 		1999999: "Silver", 2000000: "Gold", 4999999: "Gold", 5000000: "Platinum",
 	}
 	for spent, want := range cases {
-		if got := Tier(spent); got != want {
-			t.Errorf("Tier(%v) = %q want %q", spent, got, want)
+		if got := CustomerTier(spent); got != want {
+			t.Errorf("CustomerTier(%v) = %q want %q", spent, got, want)
 		}
 	}
 }
@@ -317,5 +317,64 @@ func TestComputeSameSetBuyXGetYStillDiscounts(t *testing.T) {
 		Promos: []PromoSpec{{Kind: DiscountBuyXGetY, BXGY: cfg}}})
 	if r.PromoDiscount != 10000 {
 		t.Fatalf("same-set discount = %v, want 10000", r.PromoDiscount)
+	}
+}
+
+func TestPickTier(t *testing.T) {
+	c := &TieredConfig{Tiers: []Tier{
+		{MinSubtotal: 100000, Kind: DiscountFixed, Value: 10000},
+		{MinSubtotal: 250000, Kind: DiscountPercentage, Value: 15},
+		{MinSubtotal: 500000, Kind: DiscountPercentage, Value: 20},
+	}}
+	if pickTier(c, 50000) != nil {
+		t.Fatal("below lowest tier should be nil")
+	}
+	if got := pickTier(c, 100000); got == nil || got.Value != 10000 {
+		t.Fatalf("at 100k want tier1 got %+v", got)
+	}
+	if got := pickTier(c, 300000); got == nil || got.MinSubtotal != 250000 {
+		t.Fatalf("at 300k want tier2 got %+v", got)
+	}
+	if got := pickTier(c, 999999); got == nil || got.MinSubtotal != 500000 {
+		t.Fatalf("at 999k want tier3 got %+v", got)
+	}
+	// unsorted input still picks the highest qualifying
+	u := &TieredConfig{Tiers: []Tier{{MinSubtotal: 500000, Kind: DiscountPercentage, Value: 20}, {MinSubtotal: 100000, Kind: DiscountFixed, Value: 10000}}}
+	if got := pickTier(u, 600000); got == nil || got.MinSubtotal != 500000 {
+		t.Fatalf("unsorted: want 500k tier got %+v", got)
+	}
+	if pickTier(nil, 100000) != nil {
+		t.Fatal("nil config should be nil")
+	}
+}
+
+func TestComputeTiered(t *testing.T) {
+	cfg := &TieredConfig{Tiers: []Tier{
+		{MinSubtotal: 100000, Kind: DiscountFixed, Value: 10000},
+		{MinSubtotal: 250000, Kind: DiscountPercentage, Value: 15},
+	}}
+	// 300k subtotal -> tier2 15% = 45000
+	r := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 300000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountTiered, Tiered: cfg}}})
+	if r.PromoDiscount != 45000 {
+		t.Fatalf("tiered discount = %v want 45000", r.PromoDiscount)
+	}
+	// 120k -> tier1 fixed 10000
+	r2 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 120000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountTiered, Tiered: cfg}}})
+	if r2.PromoDiscount != 10000 {
+		t.Fatalf("tier1 = %v want 10000", r2.PromoDiscount)
+	}
+	// 50k -> below lowest -> 0
+	r3 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 50000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountTiered, Tiered: cfg}}})
+	if r3.PromoDiscount != 0 {
+		t.Fatalf("below lowest = %v want 0", r3.PromoDiscount)
+	}
+	// nil config -> 0
+	r4 := Compute(PricingInput{Items: []LineItem{bxgyItem("a", "M", 300000, 1)},
+		Promos: []PromoSpec{{Kind: DiscountTiered, Tiered: nil}}})
+	if r4.PromoDiscount != 0 {
+		t.Fatalf("nil tiered = %v want 0", r4.PromoDiscount)
 	}
 }
