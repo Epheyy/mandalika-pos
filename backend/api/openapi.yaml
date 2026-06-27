@@ -1006,6 +1006,18 @@ components:
         getDiscountKind: { type: string, enum: [percentage, fixed] }
         getDiscountValue: { type: number }
         maxApplications: { type: integer }
+    Tier:
+      type: object
+      required: [minSubtotal, kind, value]
+      properties:
+        minSubtotal: { type: number }
+        kind: { type: string, enum: [percentage, fixed] }
+        value: { type: number }
+    TieredConfig:
+      type: object
+      required: [tiers]
+      properties:
+        tiers: { type: array, items: { $ref: '#/components/schemas/Tier' } }
     Promotion:
       type: object
       required: [id, name, type, value, isActive, createdAt]
@@ -1013,7 +1025,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
@@ -1033,6 +1045,9 @@ components:
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
         bxgyConfig:
           allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
+          nullable: true
+        tieredConfig:
+          allOf: [{ $ref: '#/components/schemas/TieredConfig' }]
           nullable: true
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
@@ -1675,7 +1690,7 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string } }
@@ -1695,6 +1710,9 @@ components:
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
         bxgyConfig:
           allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
+          nullable: true
+        tieredConfig:
+          allOf: [{ $ref: '#/components/schemas/TieredConfig' }]
           nullable: true
     DiscountCodeInput:
       type: object

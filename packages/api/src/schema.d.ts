@@ -2672,13 +2672,22 @@ export interface components {
             getDiscountValue: number;
             maxApplications?: number;
         };
+        Tier: {
+            minSubtotal: number;
+            /** @enum {string} */
+            kind: "percentage" | "fixed";
+            value: number;
+        };
+        TieredConfig: {
+            tiers: components["schemas"]["Tier"][];
+        };
         Promotion: {
             /** Format: uuid */
             id: string;
             name: string;
             description?: string | null;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[] | null;
@@ -2696,6 +2705,7 @@ export interface components {
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
+            tieredConfig?: components["schemas"]["TieredConfig"] | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -3232,7 +3242,7 @@ export interface components {
             name: string;
             description?: string;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[];
@@ -3250,6 +3260,7 @@ export interface components {
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
+            tieredConfig?: components["schemas"]["TieredConfig"] | null;
         };
         DiscountCodeInput: {
             code: string;
