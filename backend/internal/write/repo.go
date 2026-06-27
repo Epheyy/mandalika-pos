@@ -479,6 +479,44 @@ type BXGYConfigInput struct {
 	MaxApplications  int      `json:"maxApplications"`
 }
 
+type TierInput struct {
+	MinSubtotal float64 `json:"minSubtotal"`
+	Kind        string  `json:"kind"`
+	Value       float64 `json:"value"`
+}
+type TieredConfigInput struct {
+	Tiers []TierInput `json:"tiers"`
+}
+
+func validateTiered(c *TieredConfigInput) error {
+	if c == nil || len(c.Tiers) == 0 {
+		return fmt.Errorf("tieredConfig requires at least one tier")
+	}
+	seen := map[float64]bool{}
+	for _, t := range c.Tiers {
+		if t.MinSubtotal < 0 {
+			return fmt.Errorf("tier minSubtotal must be >= 0")
+		}
+		if seen[t.MinSubtotal] {
+			return fmt.Errorf("duplicate tier minSubtotal %v", t.MinSubtotal)
+		}
+		seen[t.MinSubtotal] = true
+		switch t.Kind {
+		case "percentage":
+			if t.Value <= 0 || t.Value > 100 {
+				return fmt.Errorf("tier percentage must be 0<v<=100")
+			}
+		case "fixed":
+			if t.Value <= 0 {
+				return fmt.Errorf("tier fixed value must be >0")
+			}
+		default:
+			return fmt.Errorf("tier kind must be percentage|fixed")
+		}
+	}
+	return nil
+}
+
 func validateBXGY(c *BXGYConfigInput) error {
 	if c == nil {
 		return fmt.Errorf("bxgyConfig required for buy_x_get_y")
@@ -527,12 +565,18 @@ type Promotion struct {
 	IsActive               bool             `json:"isActive"`
 	StartDate              string           `json:"startDate"`
 	EndDate                string           `json:"endDate"`
-	BXGYConfig             *BXGYConfigInput `json:"bxgyConfig"`
+	BXGYConfig             *BXGYConfigInput   `json:"bxgyConfig"`
+	TieredConfig           *TieredConfigInput `json:"tieredConfig"`
 }
 
 func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error) {
 	if p.Type == "buy_x_get_y" {
 		if err := validateBXGY(p.BXGYConfig); err != nil {
+			return "", err
+		}
+	}
+	if p.Type == "tiered" {
+		if err := validateTiered(p.TieredConfig); err != nil {
 			return "", err
 		}
 	}
@@ -549,18 +593,23 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			b, _ := jsonb(p.BXGYConfig)
 			bxgy = b
 		}
+		var tiered any
+		if p.Type == "tiered" && p.TieredConfig != nil {
+			b, _ := jsonb(p.TieredConfig)
+			tiered = b
+		}
 		return t.QueryRow(ctx, `
 			INSERT INTO promotions (name, description, type, value, min_purchase,
 			  applicable_product_ids, applicable_variant_keys,
 			  applicable_variant_sizes, outlet_ids, combinable, combinable_with,
 			  active_from_hour, active_to_hour, active_days, is_active,
-			  start_date, end_date, code_only, bxgy_config)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+			  start_date, end_date, code_only, bxgy_config, tiered_config)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 			RETURNING id`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy).Scan(&id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered).Scan(&id)
 	})
 	return id, err
 }
@@ -568,6 +617,11 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) error {
 	if p.Type == "buy_x_get_y" {
 		if err := validateBXGY(p.BXGYConfig); err != nil {
+			return err
+		}
+	}
+	if p.Type == "tiered" {
+		if err := validateTiered(p.TieredConfig); err != nil {
 			return err
 		}
 	}
@@ -583,18 +637,23 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			b, _ := jsonb(p.BXGYConfig)
 			bxgy = b
 		}
+		var tiered any
+		if p.Type == "tiered" && p.TieredConfig != nil {
+			b, _ := jsonb(p.TieredConfig)
+			tiered = b
+		}
 		ct, e := t.Exec(ctx, `
 			UPDATE promotions SET name=$1, description=$2, type=$3, value=$4,
 			  min_purchase=$5, applicable_product_ids=$6, applicable_variant_keys=$7,
 			  applicable_variant_sizes=$8, outlet_ids=$9, combinable=$10,
 			  combinable_with=$11, active_from_hour=$12, active_to_hour=$13,
 			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18,
-			  bxgy_config=$19
-			WHERE id=$20`,
+			  bxgy_config=$19, tiered_config=$20
+			WHERE id=$21`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}

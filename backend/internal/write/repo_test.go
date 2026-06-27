@@ -114,3 +114,38 @@ func TestValidateBXGYNilRejected(t *testing.T) {
 		t.Fatal("nil config must be rejected")
 	}
 }
+
+func TestValidateTieredRejectsEmpty(t *testing.T) {
+	if validateTiered(&TieredConfigInput{Tiers: nil}) == nil {
+		t.Fatal("empty tiers must be rejected")
+	}
+}
+func TestValidateTieredRejectsBadValue(t *testing.T) {
+	if validateTiered(&TieredConfigInput{Tiers: []TierInput{{MinSubtotal: 100000, Kind: "percentage", Value: 150}}}) == nil {
+		t.Fatal("percentage 150 must be rejected")
+	}
+	if validateTiered(&TieredConfigInput{Tiers: []TierInput{{MinSubtotal: 0, Kind: "fixed", Value: 0}}}) == nil {
+		t.Fatal("fixed 0 must be rejected")
+	}
+	if validateTiered(&TieredConfigInput{Tiers: []TierInput{{MinSubtotal: -1, Kind: "fixed", Value: 1000}}}) == nil {
+		t.Fatal("negative minSubtotal must be rejected")
+	}
+}
+func TestValidateTieredRejectsDuplicateThreshold(t *testing.T) {
+	c := &TieredConfigInput{Tiers: []TierInput{
+		{MinSubtotal: 100000, Kind: "fixed", Value: 1000},
+		{MinSubtotal: 100000, Kind: "percentage", Value: 10},
+	}}
+	if validateTiered(c) == nil {
+		t.Fatal("duplicate minSubtotal must be rejected")
+	}
+}
+func TestValidateTieredAccepts(t *testing.T) {
+	c := &TieredConfigInput{Tiers: []TierInput{
+		{MinSubtotal: 100000, Kind: "fixed", Value: 10000},
+		{MinSubtotal: 250000, Kind: "percentage", Value: 15},
+	}}
+	if err := validateTiered(c); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+}
