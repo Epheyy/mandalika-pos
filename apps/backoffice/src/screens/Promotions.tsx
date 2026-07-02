@@ -28,12 +28,44 @@ const EMPTY_CODE: DiscountCodeInput = {
   code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
 }
 
+const PROMO_TYPE_LABEL: Record<string, string> = {
+  percentage: 'Persentase',
+  fixed: 'Nominal',
+  bogo: 'BOGO',
+  buy_x_get_y: 'Beli-Gratis',
+  tiered: 'Bertingkat',
+}
+const promoTypeLabel = (t: string): string => PROMO_TYPE_LABEL[t] ?? t
+
+// Human value summary per promo type (list column + export).
+const promoValueLabel = (p: Promotion): string => {
+  if (p.type === 'percentage') return `${p.value}%`
+  if (p.type === 'fixed') return BRAND.currency.format(p.value)
+  if (p.type === 'bogo') return 'Buy 1 Get 1'
+  if (p.type === 'buy_x_get_y') {
+    const c = p.bxgyConfig
+    if (!c) return 'Beli X, Gratis/Diskon Y'
+    const deal =
+      c.getDiscountKind === 'percentage' && c.getDiscountValue === 100
+        ? 'Gratis'
+        : c.getDiscountKind === 'percentage'
+          ? `Diskon ${c.getDiscountValue}%`
+          : `Potongan ${BRAND.currency.format(c.getDiscountValue)}`
+    return `Beli ${c.buyQuantity}, ${deal} ${c.getQuantity}`
+  }
+  if (p.type === 'tiered') {
+    const n = p.tieredConfig?.tiers?.length ?? 0
+    return `${n} tingkat`
+  }
+  return String(p.value)
+}
+
 const exportPromotions = async (fmt: 'csv' | 'xlsx') => {
   const data = await api.listPromotions()
   const rows = data.map((p) => ({
     Nama: p.name,
-    Tipe: p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO',
-    Nilai: p.value,
+    Tipe: promoTypeLabel(p.type),
+    Nilai: promoValueLabel(p),
     'Min. Belanja': p.minPurchase ?? 0,
     Mulai: p.startDate ?? '',
     Selesai: p.endDate ?? '',
@@ -238,8 +270,8 @@ export default function Promotions() {
                           {p.combinable && <Badge tone="gold" className="inline-block mt-0.5">Bisa Kombinasi</Badge>}
                           {p.codeOnly && <Badge tone="gold" className="inline-block mt-0.5 ml-1">Hanya kode</Badge>}
                         </td>
-                        <td className="px-5 py-3"><Badge tone="gold">{p.type === 'percentage' ? 'Persentase' : p.type === 'fixed' ? 'Nominal' : 'BOGO'}</Badge></td>
-                        <td className="px-5 py-3 font-bold text-gray-900 text-sm">{p.type === 'percentage' ? `${p.value}%` : p.type === 'fixed' ? BRAND.currency.format(p.value) : 'Buy 1 Get 1'}</td>
+                        <td className="px-5 py-3"><Badge tone="gold">{promoTypeLabel(p.type)}</Badge></td>
+                        <td className="px-5 py-3 font-bold text-gray-900 text-sm">{promoValueLabel(p)}</td>
                         <td className="px-5 py-3 text-xs text-gray-500">
                           {p.startDate ? format(parseISO(p.startDate), 'dd MMM', { locale: idLocale }) : '—'} → {p.endDate ? format(parseISO(p.endDate), 'dd MMM yy', { locale: idLocale }) : '∞'}
                         </td>
