@@ -33,6 +33,49 @@ const DEFAULT_TIERED: { tiers: TierRow[] } = {
   tiers: [{ minSubtotal: 100000, kind: 'percentage', value: 10 }],
 }
 
+type PromoType = PromotionInput['type']
+const PROMO_TYPES: { value: PromoType; label: string; desc: string }[] = [
+  { value: 'percentage', label: 'Persentase (%)', desc: 'Diskon persen dari total belanja' },
+  { value: 'fixed', label: 'Nominal (Rp)', desc: 'Potongan rupiah tetap' },
+  { value: 'bogo', label: 'Buy 1 Get 1', desc: 'Beli 1 gratis 1 (barang termurah)' },
+  { value: 'buy_x_get_y', label: 'Beli X, Gratis/Diskon Y', desc: 'Beli sejumlah barang, dapat hadiah/diskon' },
+  { value: 'tiered', label: 'Bertingkat', desc: 'Belanja lebih, hemat lebih (tier)' },
+]
+
+// Stacked selectable cards replacing the plain type dropdown — each type shows
+// its name + a one-line description so the user knows what it does before picking.
+function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: PromoType) => void }) {
+  return (
+    <Field label="Tipe Promosi">
+      <div role="radiogroup" aria-label="Tipe promosi" className="space-y-1.5">
+        {PROMO_TYPES.map((t) => {
+          const selected = value === t.value
+          return (
+            <button
+              key={t.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(t.value)}
+              className={`w-full flex items-start gap-2.5 text-left p-3 rounded-xl border-2 transition-colors ${
+                selected ? 'border-gold-600 bg-gold-50' : 'border-gray-200 hover:border-gold-300 hover:bg-gray-50'
+              }`}
+            >
+              <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-gold-600' : 'border-gray-300'}`}>
+                {selected && <span className="w-2 h-2 rounded-full bg-gold-600" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-gray-900">{t.label}</span>
+                <span className="block text-[11px] text-gray-500">{t.desc}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </Field>
+  )
+}
+
 interface PromoFormModalProps {
   open: boolean
   editingPromo: boolean
@@ -80,6 +123,15 @@ export function PromoFormModal({
   const setTiers = (tiers: TierRow[]) =>
     setForm((f) => ({ ...f, tieredConfig: { tiers } }))
 
+  // Selecting a type seeds its default config (same logic the old dropdown ran).
+  const selectType = (type: PromoType) =>
+    setForm((f) => ({
+      ...f,
+      type,
+      bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig,
+      tieredConfig: type === 'tiered' ? (f.tieredConfig ?? DEFAULT_TIERED) : f.tieredConfig,
+    }))
+
   const tiers: TierRow[] = (form.tieredConfig?.tiers ?? []) as TierRow[]
 
   const tieredError = (() => {
@@ -113,26 +165,10 @@ export function PromoFormModal({
       <div className="space-y-4">
         <Input label="Nama Promosi *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         <Textarea label="Deskripsi" value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
-        <div className="grid grid-cols-2 gap-4">
-          <Select label="Tipe" value={form.type} onChange={(e) => {
-            const type = e.target.value as PromotionInput['type']
-            setForm((f) => ({
-              ...f,
-              type,
-              bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig,
-              tieredConfig: type === 'tiered' ? (f.tieredConfig ?? DEFAULT_TIERED) : f.tieredConfig,
-            }))
-          }}>
-            <option value="percentage">Persentase (%)</option>
-            <option value="fixed">Nominal (Rp)</option>
-            <option value="bogo">Buy 1 Get 1</option>
-            <option value="buy_x_get_y">Beli X, Gratis/Diskon Y</option>
-            <option value="tiered">Bertingkat — belanja lebih, hemat lebih</option>
-          </Select>
-          {form.type !== 'bogo' && form.type !== 'buy_x_get_y' && form.type !== 'tiered' && (
-            <Input label="Nilai" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
-          )}
-        </div>
+        <PromoTypePicker value={form.type} onChange={selectType} />
+        {form.type !== 'bogo' && form.type !== 'buy_x_get_y' && form.type !== 'tiered' && (
+          <Input label="Nilai" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
+        )}
         {form.type === 'buy_x_get_y' && (
           <div className="space-y-4 p-3 bg-gold-50 rounded-xl">
             <div className="grid grid-cols-3 gap-3">
