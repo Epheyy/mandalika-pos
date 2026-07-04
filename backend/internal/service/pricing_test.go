@@ -378,3 +378,67 @@ func TestComputeTiered(t *testing.T) {
 		t.Fatalf("nil tiered = %v want 0", r4.PromoDiscount)
 	}
 }
+
+func TestBundleApplications(t *testing.T) {
+	cfg := &BundleConfig{
+		Slots: []BundleSlot{
+			{ProductKeys: []string{"p110"}, Quantity: 1},
+			{ProductKeys: []string{"atomA", "atomB"}, Quantity: 1},
+			{ProductKeys: []string{"p2ml"}, Quantity: 1},
+		},
+		BundlePrice: 575000, MaxApplications: 0,
+	}
+	full := []LineItem{
+		{ProductID: "p110", Quantity: 1}, {ProductID: "atomA", Quantity: 1}, {ProductID: "p2ml", Quantity: 1},
+	}
+	if got := bundleApplications(cfg, full); got != 1 {
+		t.Fatalf("full set: want 1, got %d", got)
+	}
+	// two full sets (atom via either alternative)
+	two := []LineItem{
+		{ProductID: "p110", Quantity: 2}, {ProductID: "atomA", Quantity: 1}, {ProductID: "atomB", Quantity: 1}, {ProductID: "p2ml", Quantity: 2},
+	}
+	if got := bundleApplications(cfg, two); got != 2 {
+		t.Fatalf("two sets: want 2, got %d", got)
+	}
+	// missing the 2ml slot → 0
+	miss := []LineItem{{ProductID: "p110", Quantity: 1}, {ProductID: "atomA", Quantity: 1}}
+	if got := bundleApplications(cfg, miss); got != 0 {
+		t.Fatalf("missing slot: want 0, got %d", got)
+	}
+	// cap
+	capped := &BundleConfig{Slots: cfg.Slots, BundlePrice: 575000, MaxApplications: 1}
+	if got := bundleApplications(capped, two); got != 1 {
+		t.Fatalf("capped: want 1, got %d", got)
+	}
+	if got := bundleApplications(nil, full); got != 0 {
+		t.Fatalf("nil cfg: want 0, got %d", got)
+	}
+}
+
+func TestBundleAllocate(t *testing.T) {
+	// owner's clean case: 575000 + 225000 + 1, bundlePrice 575000 → free the two cheapest.
+	nets := bundleAllocate([]float64{575000, 225000, 1}, 575000, 1)
+	// aligns to input order: 575000 anchor kept, 225000 -> 0, 1 -> 0
+	if nets[0] != 575000 || nets[1] != 0 || nets[2] != 0 {
+		t.Fatalf("clean: want [575000 0 0], got %v", nets)
+	}
+	// partial: bundlePrice 500000 → D=300001; free 1 and 225000, then 110ml reduced by 75000 → 500000
+	p := bundleAllocate([]float64{575000, 225000, 1}, 500000, 1)
+	if p[0] != 500000 || p[1] != 0 || p[2] != 0 {
+		t.Fatalf("partial: want [500000 0 0], got %v", p)
+	}
+	// bundlePrice above set value → D=0, nothing freed
+	none := bundleAllocate([]float64{100, 50}, 200, 1)
+	if none[0] != 100 || none[1] != 50 {
+		t.Fatalf("no-discount: want [100 50], got %v", none)
+	}
+}
+
+func TestCalcPromotionDiscountBundleIsZero(t *testing.T) {
+	cfg := &BundleConfig{Slots: []BundleSlot{{ProductKeys: []string{"p110"}, Quantity: 1}}, BundlePrice: 100}
+	p := &PromoSpec{Kind: DiscountBundle, Bundle: cfg}
+	if got := calcPromotionDiscount(p, []LineItem{{ProductID: "p110", Price: 200, Quantity: 1, Subtotal: 200}}, 200); got != 0 {
+		t.Fatalf("bundle discount must be 0 (saving in freed lines), got %v", got)
+	}
+}

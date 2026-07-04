@@ -60,6 +60,91 @@ func pickTier(c *TieredConfig, sub float64) *Tier {
 	return best
 }
 
+const DiscountBundle DiscountKind = "bundle"
+
+// BundleSlot is one slot of a bundle: any one of ProductKeys satisfies it,
+// Quantity units per set. Keys are pid or pid|size (keyMatchesLine).
+type BundleSlot struct {
+	ProductKeys []string `json:"productKeys"`
+	Quantity    int      `json:"quantity"`
+}
+
+// BundleConfig (promotions.bundle_config jsonb) is a fixed-price bundle: the
+// consumed set is priced at BundlePrice; the saving is realized by zeroing the
+// cheapest consumed units (materialized as reward lines), not a lump discount.
+type BundleConfig struct {
+	Slots           []BundleSlot `json:"slots"`
+	BundlePrice     float64      `json:"bundlePrice"`
+	MaxApplications int          `json:"maxApplications"`
+}
+
+// bundleApplications reports how many complete sets `items` supports, capped by
+// MaxApplications (0 = unlimited). Save-time validation rejects overlapping
+// slots, so per-slot unit counting never double-claims a unit.
+func bundleApplications(c *BundleConfig, items []LineItem) int {
+	if c == nil || len(c.Slots) == 0 {
+		return 0
+	}
+	n := -1
+	for _, slot := range c.Slots {
+		if slot.Quantity < 1 || len(slot.ProductKeys) == 0 {
+			return 0
+		}
+		units := 0
+		for _, it := range items {
+			if keyMatchesLine(slot.ProductKeys, it.ProductID, it.VariantSize) {
+				units += it.Quantity
+			}
+		}
+		k := units / slot.Quantity
+		if n < 0 || k < n {
+			n = k
+		}
+	}
+	if n < 0 {
+		n = 0
+	}
+	if c.MaxApplications > 0 && n > c.MaxApplications {
+		n = c.MaxApplications
+	}
+	return n
+}
+
+// bundleAllocate returns the NET price of each consumed unit after zeroing the
+// cheapest units first until the discount D = sum(prices) - bundlePrice*nApp is
+// spent. D is floored at 0. The returned slice aligns to the input order.
+func bundleAllocate(prices []float64, bundlePrice float64, nApp int) []float64 {
+	nets := make([]float64, len(prices))
+	copy(nets, prices)
+	d := 0.0
+	for _, p := range prices {
+		d += p
+	}
+	d -= bundlePrice * float64(nApp)
+	if d <= 0 {
+		return nets
+	}
+	// indices sorted by price ascending (cheapest first).
+	idx := make([]int, len(prices))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(a, b int) bool { return prices[idx[a]] < prices[idx[b]] })
+	for _, i := range idx {
+		if d <= 0 {
+			break
+		}
+		if prices[i] <= d {
+			nets[i] = 0
+			d -= prices[i]
+		} else {
+			nets[i] = prices[i] - d
+			d = 0
+		}
+	}
+	return nets
+}
+
 // BXGYConfig is the buy_x_get_y rule (stored as promotions.bxgy_config jsonb).
 type BXGYConfig struct {
 	BuyQuantity      int          `json:"buyQuantity"`
@@ -79,6 +164,7 @@ type PromoSpec struct {
 	IsBOGO               bool
 	BXGY                 *BXGYConfig
 	Tiered               *TieredConfig
+	Bundle               *BundleConfig
 }
 
 type PricingInput struct {
@@ -267,6 +353,12 @@ func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 
 		case DiscountFixed:
 			return math.Min(t.Value, sub)
 		}
+		return 0
+	}
+	if p.Kind == DiscountBundle {
+		// The saving is realized as zeroed reward lines (server resolveBundleLines),
+		// so the promo itself contributes 0 to the additive discount stack — same
+		// rationale as buy_x_get_y separate-set. Prevents double-discount.
 		return 0
 	}
 	scoped := len(p.ApplicableProductIDs) > 0
