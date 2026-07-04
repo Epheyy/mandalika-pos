@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { components } from '@mandalika/api'
-import { computeBundleFreed } from './bundle'
+import { computeBundleFreed, bundleStillApplicable } from './bundle'
 
 type CartItem = components['schemas']['CartItem']
 type BundleConfig = NonNullable<components['schemas']['Promotion']['bundleConfig']>
@@ -111,5 +111,52 @@ describe('computeBundleFreed — freed set producer (mirrors Go bundleFreedNets)
     // still exactly one application; atomizer freed once (reward line not double-counted)
     const atom = (freed ?? []).find((f) => f.productId === ATOM)
     expect(atom?.quantity).toBe(1)
+  })
+})
+
+// ── reactive-removal predicate ────────────────────────────────────────────────
+// bundleStillApplicable keys the reactive-removal effect on "is this bundle still
+// applicable at all" (computeBundleFreed !== null) — NOT on a cheapest-first freed
+// COUNT, which depends on the cashier's assignment the effect can't see. It must
+// KEEP a valid pricier free-choice bundle and only REMOVE a truly broken one.
+describe('bundleStillApplicable — assignment-independent removal predicate', () => {
+  // A single multi-unit slot eligible over three distinct-priced units.
+  const PRICIER_CFG: BundleConfig = {
+    bundlePrice: 200,
+    slots: [{ productKeys: ['a', 'b', 'c'], quantity: 2 }],
+  }
+
+  it("reviewer's pricier repro: cashier freed the pricier pick {100,300} → KEEP (true)", () => {
+    // slot quantity 2, eligible paid units priced [100,100,300], bundlePrice 200, nApp 1.
+    // Cashier's assignment consumed {100,300} → applied freed = 2 units. The effect
+    // reconstructs `owned` = paid lines + this bundle's freed at full price. However
+    // it splits, owned recomposes to the original three units. A cheapest-first
+    // recompute would free [100,100] (D=0 → freed []) and wrongly signal a shrink;
+    // applicability-only keeps it.
+    const owned: CartItem[] = [line('a', 100), line('b', 100), line('c', 300)]
+    expect(bundleStillApplicable(PRICIER_CFG, owned)).toBe(true)
+    // And it is genuinely still applicable (non-null), just possibly empty-freed.
+    expect(computeBundleFreed(PRICIER_CFG, owned)).not.toBeNull()
+  })
+
+  it('genuine break: a required slot has no owned units → REMOVE (false)', () => {
+    // Owned only satisfies slot 'a'/'b' pool but the SAMPLE slot is empty.
+    const cfg: BundleConfig = {
+      bundlePrice: 200,
+      slots: [
+        { productKeys: ['a', 'b', 'c'], quantity: 2 },
+        { productKeys: [SAMPLE], quantity: 1 },
+      ],
+    }
+    const owned: CartItem[] = [line('a', 100), line('b', 100), line('c', 300)]
+    expect(bundleStillApplicable(cfg, owned)).toBe(false)
+  })
+
+  it('owner clean combo still-applicable → true; after dropping the 110ml → false', () => {
+    const ownedFull: CartItem[] = [line(P110, 575000), line(ATOM, 225000), line(SAMPLE, 1)]
+    expect(bundleStillApplicable(comboCfg(575000), ownedFull)).toBe(true)
+    // Drop the 110ml unit → slot 1 unsatisfiable → no longer applicable.
+    const ownedMinus110: CartItem[] = [line(ATOM, 225000), line(SAMPLE, 1)]
+    expect(bundleStillApplicable(comboCfg(575000), ownedMinus110)).toBe(false)
   })
 })

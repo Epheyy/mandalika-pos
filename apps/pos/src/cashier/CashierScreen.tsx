@@ -43,7 +43,7 @@ import { decideApplyCode, validatePromo, validateCode, violationMessage } from '
 import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, bundleApplications, keyMatchesLine, type BXGYRewardOption } from './pricing'
 import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
 import { BundleSlotPicker } from './BundleSlotPicker'
-import { computeBundleFreed, type BundleAssignment } from './bundle'
+import { computeBundleFreed, bundleStillApplicable, type BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -563,21 +563,27 @@ export default function CashierScreen() {
   }
 
   // SP-Promo-3b-bundle reactive removal: a bundle MOVED paid units into reward
-  // lines. If the paid cart later drops so the bundle no longer applies (its
-  // anchor/participants removed), auto-remove it (restores the moved units).
-  // Reconstruct the pre-apply paid set = current paid lines + this bundle's freed
-  // units at full price, then re-derive: if it no longer yields a freed set, or
-  // yields fewer freed units than are applied (a participant was removed), drop
-  // the bundle. Growth (cashier added more units) keeps the applied set — it's
-  // still a valid subset — mirroring the bxgy reactive-removal "only shrink" rule.
+  // lines. If the customer's owned units later drop so the bundle no longer applies
+  // at all (its anchor/participants removed), auto-remove it (restores the moved
+  // units). Reconstruct the owned set = current paid lines + this bundle's freed
+  // units restored at full price, then key the decision on APPLICABILITY only:
+  // remove iff the bundle is no longer applicable (computeBundleFreed → null).
+  //
+  // We deliberately do NOT compare freed COUNTS. The applied freed count reflects
+  // the cashier's per-slot free-choice (which may free a pricier eligible unit
+  // while a cheaper one stays paid); an assignment-independent cheapest-first
+  // recompute yields fewer freed units and would wrongly drop a valid bundle. Plain
+  // participant edits (remove item / set qty on a bundle unit) are already handled
+  // by the reducer's evictBundlesForKey, so this effect only needs to catch the
+  // residual "bundle became entirely inapplicable" case. For an applicable bundle
+  // the predicate stays true and no dispatch fires → no effect loop.
   useEffect(() => {
     for (const promo of state.appliedPromotions) {
       if (promo.type !== 'bundle') continue
       const cfg = promo.bundleConfig
       const applied = state.bundleFreed[promo.id]
       if (!cfg || !applied) continue
-      const appliedUnits = applied.reduce((n, f) => n + f.quantity, 0)
-      const synthetic = [
+      const owned = [
         ...state.cart.filter((c) => !c.isReward),
         ...applied.map((f) => ({
           productId: f.productId,
@@ -588,11 +594,7 @@ export default function CashierScreen() {
           subtotal: f.fullPrice * f.quantity,
         })),
       ]
-      const recomputed = computeBundleFreed(cfg, synthetic)
-      const recomputedUnits = recomputed
-        ? recomputed.reduce((n, f) => n + f.quantity, 0)
-        : 0
-      if (!recomputed || recomputedUnits < appliedUnits) {
+      if (!bundleStillApplicable(cfg, owned)) {
         dispatch({ type: 'REMOVE_BUNDLE', promotionId: promo.id, freed: applied })
       }
     }
