@@ -239,25 +239,30 @@ func bundleFreedNets(cfg *BundleConfig, paid []LineItem, freed []bundleFreedUnit
 		if len(freedUnits) > need {
 			return nil, false // over-freed this slot
 		}
-		// "free the cheapest": a cheaper eligible unit must never be left paid while a
-		// more expensive one is freed.
-		if len(freedUnits) > 0 {
+		sort.SliceStable(paidUnits, func(a, b int) bool { return paidUnits[a].price < paidUnits[b].price })
+		anchorsNeeded := need - len(freedUnits)
+		if anchorsNeeded > len(paidUnits) {
+			return nil, false // not enough real units to complete nApp sets (guard)
+		}
+		// "free the cheapest": no unit actually CONSUMED as an anchor for this slot may be
+		// cheaper than a freed unit — freeing a pricier consumed unit while a cheaper
+		// consumed unit stays paid would underpay the set (the real exploit). Only the
+		// anchorsNeeded cheapest paid units are consumed; paid units beyond that are
+		// STANDALONE extras bought at full price outside the bundle, so they are NEVER
+		// compared. This lets a cashier make a pricier eligible unit the freebie and pay
+		// full price for a cheaper eligible unit as an ordinary standalone item.
+		if len(freedUnits) > 0 && anchorsNeeded > 0 {
 			maxFreed := 0.0
 			for _, f := range freedUnits {
 				if f.price > maxFreed {
 					maxFreed = f.price
 				}
 			}
-			for _, p := range paidUnits {
+			for _, p := range paidUnits[:anchorsNeeded] {
 				if p.price < maxFreed {
 					return nil, false
 				}
 			}
-		}
-		sort.SliceStable(paidUnits, func(a, b int) bool { return paidUnits[a].price < paidUnits[b].price })
-		anchorsNeeded := need - len(freedUnits)
-		if anchorsNeeded > len(paidUnits) {
-			return nil, false // not enough real units to complete nApp sets (guard)
 		}
 		for _, f := range freedUnits { // freed first → equal-price ties zero the freed unit
 			consumed = append(consumed, f.price)

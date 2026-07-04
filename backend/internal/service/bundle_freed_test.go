@@ -99,15 +99,24 @@ func TestBundleFreedNets_NoCompleteSet(t *testing.T) {
 	}
 }
 
-// 5. Tamper (the exploit): the client frees the EXPENSIVE atomizer (atomB 300000)
-// while leaving the cheaper eligible atomizer (atomA 225000) paid. Freeing the
-// expensive one would save 300000 instead of 225000 → must be rejected.
+// 5. Tamper (the real exploit): a bundle whose atomizer slot CONSUMES TWO atomizers
+// (Quantity 2). The client frees the expensive atomB(300000) while the cheaper
+// atomA(225000) is a CONSUMED anchor (need=2, anchorsNeeded=1) — NOT a standalone extra.
+// Freeing a pricier consumed unit while a cheaper consumed unit stays paid underpays the
+// set → must be rejected. (The old need=1 form of this test was actually the legitimate
+// standalone-extra case now covered by TestBundleFreedNets_PricierFreebieStandaloneExtra;
+// this version uses Quantity 2 so the cheaper unit is genuinely consumed, guarding the
+// real exploit the relaxed guard must still catch.)
 func TestBundleFreedNets_FreeExpensiveAnchorRejected(t *testing.T) {
-	paid := []LineItem{paidLine("p110", 575000, 1), paidLine("atomA", 225000, 1)}
-	freed := []bundleFreedUnit{freedUnit("atomB", 300000), freedUnit("p2ml", 1)}
+	cfg := &BundleConfig{
+		Slots:       []BundleSlot{{ProductKeys: []string{"atomA", "atomB"}, Quantity: 2}},
+		BundlePrice: 225000,
+	}
+	paid := []LineItem{paidLine("atomA", 225000, 1)} // cheaper atomizer is a CONSUMED anchor
+	freed := []bundleFreedUnit{freedUnit("atomB", 300000)}
 
-	if _, ok := bundleFreedNets(bundleCfg(575000), paid, freed); ok {
-		t.Fatalf("expected ok=false: cheaper eligible unit left paid while pricier one freed")
+	if _, ok := bundleFreedNets(cfg, paid, freed); ok {
+		t.Fatalf("expected ok=false: cheaper CONSUMED anchor left paid while pricier consumed unit freed")
 	}
 }
 
@@ -127,6 +136,28 @@ func TestBundleFreedNets_TwoAtomizersChoosesCheapest(t *testing.T) {
 	}
 	if nets[0] != 0 || nets[1] != 0 {
 		t.Fatalf("nets = %v, want [0 0]", nets)
+	}
+}
+
+// 7. Cashier-chosen PRICIER freebie with cheaper STANDALONE extra: slot needs one
+// atomizer; the cart holds BOTH atomA(225000) and atomB(300000). The cashier frees the
+// pricier atomB and the customer pays for atomA as a normal standalone item. need=1 →
+// anchorsNeeded=0, so atomA is NOT a consumed anchor and is never compared. Financially
+// safe (the consumed set still nets to bundlePrice; atomA paid at full price) → ok=true,
+// atomB freed to 0. This is the invariant-1 case the old over-strict guard wrongly 422'd.
+func TestBundleFreedNets_PricierFreebieStandaloneExtra(t *testing.T) {
+	paid := []LineItem{
+		paidLine("p110", 575000, 1),
+		paidLine("atomA", 225000, 1), // cheaper atomizer, paid standalone (extra, not consumed)
+	}
+	freed := []bundleFreedUnit{freedUnit("atomB", 300000), freedUnit("p2ml", 1)}
+
+	nets, ok := bundleFreedNets(bundleCfg(575000), paid, freed)
+	if !ok {
+		t.Fatalf("expected ok=true: pricier freebie with cheaper standalone extra is legal")
+	}
+	if nets[0] != 0 || nets[1] != 0 {
+		t.Fatalf("nets = %v, want [0 0] (atomB freed to 0)", nets)
 	}
 }
 
