@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { computePricing, calcPromoDiscount, bxgyRewardOptions, type PricingInput } from './pricing'
+import { describe, it, test, expect } from 'vitest'
+import {
+  computePricing,
+  calcPromoDiscount,
+  bxgyRewardOptions,
+  bundleApplications,
+  bundleAllocate,
+  type PricingInput,
+} from './pricing'
 import type { components } from '@mandalika/api'
 
 type CartItem = components['schemas']['CartItem']
@@ -301,5 +308,47 @@ describe('computePricing stacking', () => {
   it('empty arrays = no promo discount', () => {
     const res = computePricing({ ...base, appliedPromotions: [], appliedPromoCodes: [] })
     expect(res.promoDiscountAmount).toBe(0)
+  })
+})
+
+describe('bundle primitives (parity with Go bundleApplications/bundleAllocate)', () => {
+  const slots = (): NonNullable<Promotion['bundleConfig']>['slots'] => [
+    { productKeys: ['p110'], quantity: 1 },
+    { productKeys: ['atomA', 'atomB'], quantity: 1 },
+    { productKeys: ['p2ml'], quantity: 1 },
+  ]
+  const item = (productId: string, quantity: number) =>
+    ({ productId, variantSize: '', price: 0, quantity, subtotal: 0, productName: '' }) as CartItem
+
+  test('bundleApplications counts complete sets, capped', () => {
+    const cfg = { slots: slots(), bundlePrice: 575000, maxApplications: 0 }
+    expect(bundleApplications(cfg, [item('p110', 1), item('atomA', 1), item('p2ml', 1)])).toBe(1)
+    expect(
+      bundleApplications(cfg, [item('p110', 2), item('atomA', 1), item('atomB', 1), item('p2ml', 2)]),
+    ).toBe(2)
+    expect(bundleApplications(cfg, [item('p110', 1), item('atomA', 1)])).toBe(0)
+    expect(
+      bundleApplications({ ...cfg, maxApplications: 1 }, [
+        item('p110', 2),
+        item('atomA', 1),
+        item('atomB', 1),
+        item('p2ml', 2),
+      ]),
+    ).toBe(1)
+    expect(bundleApplications(null, [item('p110', 1)])).toBe(0)
+  })
+
+  test('bundleAllocate zeros cheapest-first, keeps anchor', () => {
+    expect(bundleAllocate([575000, 225000, 1], 575000, 1)).toEqual([575000, 0, 0])
+    expect(bundleAllocate([575000, 225000, 1], 500000, 1)).toEqual([500000, 0, 0])
+    expect(bundleAllocate([100, 50], 200, 1)).toEqual([100, 50])
+  })
+
+  test('calcPromoDiscount is 0 for a bundle promo', () => {
+    const promo = {
+      type: 'bundle',
+      bundleConfig: { slots: slots(), bundlePrice: 100, maxApplications: 0 },
+    } as Promotion
+    expect(calcPromoDiscount(promo, [item('p110', 1)], 200)).toBe(0)
   })
 })

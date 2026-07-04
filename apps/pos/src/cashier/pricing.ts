@@ -14,6 +14,55 @@ type CartItem = components['schemas']['CartItem']
 type Product = components['schemas']['Product']
 type BXGYConfig = NonNullable<Promotion['bxgyConfig']>
 type TieredConfig = NonNullable<Promotion['tieredConfig']>
+type BundleConfig = NonNullable<Promotion['bundleConfig']>
+
+/**
+ * bundleApplications: how many complete bundle sets `items` supports, capped
+ * by maxApplications (0 = unlimited). Mirrors Go bundleApplications 1:1.
+ */
+export function bundleApplications(
+  cfg: BundleConfig | null | undefined,
+  items: CartItem[],
+): number {
+  if (!cfg || cfg.slots.length === 0) return 0
+  let n = -1
+  for (const slot of cfg.slots) {
+    if (slot.quantity < 1 || slot.productKeys.length === 0) return 0
+    let units = 0
+    for (const it of items) {
+      if (keyMatchesLine(slot.productKeys, it.productId, it.variantSize)) units += it.quantity
+    }
+    const k = Math.floor(units / slot.quantity)
+    if (n < 0 || k < n) n = k
+  }
+  if (n < 0) n = 0
+  if (cfg.maxApplications && cfg.maxApplications > 0 && n > cfg.maxApplications) n = cfg.maxApplications
+  return n
+}
+
+/**
+ * bundleAllocate: NET price of each consumed unit after zeroing the cheapest
+ * units first until the discount D = sum(prices) - bundlePrice*nApp is spent
+ * (D floored at 0). Returned slice aligns to the input order. Stable sort
+ * ascending on price mirrors Go's sort.SliceStable. Mirrors Go bundleAllocate 1:1.
+ */
+export function bundleAllocate(prices: number[], bundlePrice: number, nApp: number): number[] {
+  const nets = [...prices]
+  let d = prices.reduce((s, p) => s + p, 0) - bundlePrice * nApp
+  if (d <= 0) return nets
+  const idx = prices.map((_, i) => i).sort((a, b) => prices[a] - prices[b])
+  for (const i of idx) {
+    if (d <= 0) break
+    if (prices[i] <= d) {
+      nets[i] = 0
+      d -= prices[i]
+    } else {
+      nets[i] = prices[i] - d
+      d = 0
+    }
+  }
+  return nets
+}
 
 export interface PricingResult {
   subtotal: number
@@ -32,14 +81,16 @@ export interface PricingResult {
 function bxgyVariantKey(productId: string, size: string): string {
   return `${productId}|${size}`
 }
-function bxgyKeyMatches(keys: string[], productId: string, size: string): boolean {
+// keyMatchesLine: shared productKeys convention (`pid` or `pid|size`) used by
+// both buy_x_get_y and bundle promos. Mirrors Go keyMatchesLine 1:1.
+function keyMatchesLine(keys: string[], productId: string, size: string): boolean {
   return keys.includes(productId) || (size !== '' && keys.includes(bxgyVariantKey(productId, size)))
 }
 function bxgyExpand(items: CartItem[], keys: string[], emptyMatchesAll: boolean): number[] {
   const prices: number[] = []
   for (const i of items) {
     let match = emptyMatchesAll
-    if (keys.length > 0) match = bxgyKeyMatches(keys, i.productId, i.variantSize)
+    if (keys.length > 0) match = keyMatchesLine(keys, i.productId, i.variantSize)
     if (!match) continue
     for (let n = 0; n < i.quantity; n++) prices.push(i.price)
   }
@@ -60,7 +111,7 @@ function calcBXGY(cfg: BXGYConfig | null | undefined, items: CartItem[]): number
     if (buyKeys.length === 0) {
       buyPool = []
       for (const i of items) {
-        if (bxgyKeyMatches(getKeys, i.productId, i.variantSize)) continue
+        if (keyMatchesLine(getKeys, i.productId, i.variantSize)) continue
         for (let n = 0; n < i.quantity; n++) buyPool.push(i.price)
       }
     } else {
@@ -96,8 +147,8 @@ function bxgyBuyUnits(c: BXGYConfig, items: CartItem[]): number {
   for (const i of items) {
     const isBuy =
       buyKeys.length > 0
-        ? bxgyKeyMatches(buyKeys, i.productId, i.variantSize)
-        : !bxgyKeyMatches(getKeys, i.productId, i.variantSize)
+        ? keyMatchesLine(buyKeys, i.productId, i.variantSize)
+        : !keyMatchesLine(getKeys, i.productId, i.variantSize)
     if (isBuy) n += i.quantity
   }
   return n
@@ -154,7 +205,7 @@ export function bxgyRewardOptions(
   for (const p of products) {
     for (const v of p.variants) {
       const size = v.size
-      if (!bxgyKeyMatches(getKeys, p.id, size)) continue
+      if (!keyMatchesLine(getKeys, p.id, size)) continue
       result.push({
         productId: p.id,
         productName: p.name,
@@ -198,6 +249,11 @@ export function calcPromoDiscount(
     if (!t) return 0
     if (t.kind === 'percentage') return Math.round(sub * (t.value / 100))
     if (t.kind === 'fixed') return Math.min(t.value, sub)
+    return 0
+  }
+  if (promo.type === 'bundle') {
+    // saving is realized as zeroed reward lines (server resolveBundleLines), so the
+    // promo contributes 0 to the additive stack — mirrors buy_x_get_y separate-set.
     return 0
   }
   const matchingItems =
