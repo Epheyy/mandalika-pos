@@ -467,6 +467,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 				if !it.IsReward {
 					continue
 				}
+				// Promo-reward lines (bundle freed units, BXGY giveaways) are IsReward with
+				// an EMPTY RewardConditionID — they are fulfilled by resolveBundleLines /
+				// resolveRewardLines, NOT loyalty. Loyalty product_reward lines always carry
+				// a non-empty condition ID (rewardMenu is keyed by loyalty ConditionID), so
+				// skipping the empty ones here drops no real loyalty audit — it only silences
+				// the false "unfulfillable reward line" warn spam they used to trigger.
+				if it.RewardConditionID == "" {
+					continue
+				}
 				a, ok := rewardMenu[it.RewardConditionID]
 				if !ok || seenReward[it.RewardConditionID] || !rewardLineAllowed(a.RewardProductIDs, it.ProductID, it.VariantSize) {
 					slog.Warn("dropping unfulfillable reward line from audit",

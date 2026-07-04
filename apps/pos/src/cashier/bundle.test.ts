@@ -94,6 +94,32 @@ describe('computeBundleFreed — freed set producer (mirrors Go bundleFreedNets)
     expect(byId[SAMPLE].net).toBe(0)
   })
 
+  it('server-parity repro: multi-unit slot, assignment {A,B} → B freed net 150, A anchor & C standalone untouched', () => {
+    // Mirrors the Go TestBundleFreedNets_MultiUnitPricierAnchorStandaloneExtra: one slot
+    // keys [A,B,C], quantity 2, bundlePrice 450; cart A(300)+B(200)+C(100), nApp 1, need 2.
+    // Assignment consumes {A,B} → POS keeps priciest consumed (A) as anchor, frees B, and
+    // leaves C as a full-price STANDALONE extra. Confirms POS and the fixed server agree.
+    const cfg: BundleConfig = {
+      bundlePrice: 450,
+      slots: [{ productKeys: ['A', 'B', 'C'], quantity: 2 }],
+    }
+    const cart = [line('A', 300), line('B', 200), line('C', 100)]
+    const freed = computeBundleFreed(cfg, cart, {
+      0: [
+        { productId: 'A', variantSize: '' },
+        { productId: 'B', variantSize: '' },
+      ],
+    })
+    expect(freed).not.toBeNull()
+    const byId = Object.fromEntries((freed ?? []).map((f) => [f.productId, f]))
+    // Only B is freed, at net 150 (D = 500-450 = 50 off the cheaper consumed unit B).
+    expect(Object.keys(byId)).toEqual(['B'])
+    expect(byId['B'].net).toBe(150)
+    expect(byId['B'].quantity).toBe(1)
+    expect(byId['A']).toBeUndefined() // priciest consumed = anchor, stays paid
+    expect(byId['C']).toBeUndefined() // cheaper unit never consumed → standalone, full price
+  })
+
   it('returns null when a slot is unsatisfiable (bundle not applicable)', () => {
     // no 2ml sample in cart → slot 3 empty → nApp 0
     const cart = [line(P110, 575000), line(ATOM, 225000)]

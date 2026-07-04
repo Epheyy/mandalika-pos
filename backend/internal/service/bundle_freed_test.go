@@ -161,6 +161,31 @@ func TestBundleFreedNets_PricierFreebieStandaloneExtra(t *testing.T) {
 	}
 }
 
+// 8. Multi-unit slot (Quantity 2) with a cheaper STANDALONE extra — the reviewer
+// repro. Keys [A,B,C], need=2, nApp=1 → anchorsNeeded=1. Cart paid A(300)+C(100);
+// B(200) freed. The POS keeps the PRICIEST consumed unit (A) as the anchor, frees B,
+// and leaves the cheaper C as a full-price STANDALONE extra OUTSIDE the bundle. The
+// server must MIRROR that: consume {B, A}, never compare C → ok=true, B net 150
+// (bundlePrice 450: D = 500-450 = 50, zeroed off the cheaper consumed unit B first →
+// 200-50 = 150), A anchor & C standalone untouched. Regression for the false-422 the
+// old CHEAPEST-anchor selection produced (it consumed C as the anchor and rejected).
+func TestBundleFreedNets_MultiUnitPricierAnchorStandaloneExtra(t *testing.T) {
+	cfg := &BundleConfig{
+		Slots:       []BundleSlot{{ProductKeys: []string{"A", "B", "C"}, Quantity: 2}},
+		BundlePrice: 450,
+	}
+	paid := []LineItem{paidLine("A", 300, 1), paidLine("C", 100, 1)}
+	freed := []bundleFreedUnit{freedUnit("B", 200)}
+
+	nets, ok := bundleFreedNets(cfg, paid, freed)
+	if !ok {
+		t.Fatalf("expected ok=true: pricier consumed anchor with cheaper standalone extra is legal")
+	}
+	if len(nets) != 1 || nets[0] != 150 {
+		t.Fatalf("nets = %v, want [150] (B freed to 150; A anchor & C standalone at full price)", nets)
+	}
+}
+
 // Guard: nil config or no freed units → ok=false (nothing to resolve).
 func TestBundleFreedNets_Guards(t *testing.T) {
 	if _, ok := bundleFreedNets(nil, nil, []bundleFreedUnit{freedUnit("atomA", 1)}); ok {
