@@ -1018,6 +1018,19 @@ components:
       required: [tiers]
       properties:
         tiers: { type: array, items: { $ref: '#/components/schemas/Tier' } }
+    BundleSlot:
+      type: object
+      required: [productKeys, quantity]
+      properties:
+        productKeys: { type: array, items: { type: string } }
+        quantity: { type: integer }
+    BundleConfig:
+      type: object
+      required: [slots, bundlePrice]
+      properties:
+        slots: { type: array, items: { $ref: '#/components/schemas/BundleSlot' } }
+        bundlePrice: { type: number }
+        maxApplications: { type: integer }
     Promotion:
       type: object
       required: [id, name, type, value, isActive, createdAt]
@@ -1025,7 +1038,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
@@ -1048,6 +1061,9 @@ components:
           nullable: true
         tieredConfig:
           allOf: [{ $ref: '#/components/schemas/TieredConfig' }]
+          nullable: true
+        bundleConfig:
+          allOf: [{ $ref: '#/components/schemas/BundleConfig' }]
           nullable: true
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
@@ -1690,7 +1706,7 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         applicableProductIds: { type: array, items: { type: string } }
@@ -1713,6 +1729,9 @@ components:
           nullable: true
         tieredConfig:
           allOf: [{ $ref: '#/components/schemas/TieredConfig' }]
+          nullable: true
+        bundleConfig:
+          allOf: [{ $ref: '#/components/schemas/BundleConfig' }]
           nullable: true
     DiscountCodeInput:
       type: object

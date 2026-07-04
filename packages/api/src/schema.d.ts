@@ -2681,13 +2681,22 @@ export interface components {
         TieredConfig: {
             tiers: components["schemas"]["Tier"][];
         };
+        BundleSlot: {
+            productKeys: string[];
+            quantity: number;
+        };
+        BundleConfig: {
+            slots: components["schemas"]["BundleSlot"][];
+            bundlePrice: number;
+            maxApplications?: number;
+        };
         Promotion: {
             /** Format: uuid */
             id: string;
             name: string;
             description?: string | null;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[] | null;
@@ -2706,6 +2715,7 @@ export interface components {
             codeOnly?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
+            bundleConfig?: components["schemas"]["BundleConfig"] | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -3242,7 +3252,7 @@ export interface components {
             name: string;
             description?: string;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
             value: number;
             minPurchase?: number | null;
             applicableProductIds?: string[];
@@ -3261,6 +3271,7 @@ export interface components {
             codeOnly?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
+            bundleConfig?: components["schemas"]["BundleConfig"] | null;
         };
         DiscountCodeInput: {
             code: string;
