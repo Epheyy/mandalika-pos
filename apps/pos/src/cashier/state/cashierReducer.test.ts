@@ -415,6 +415,111 @@ describe('cashierReducer bundle restore on generic strip paths (stock leak fix)'
   })
 })
 
+describe('cashierReducer bundle reducer-edge consistency (item1 + item2)', () => {
+  const bundlePromo = { id: 'bundle1', name: 'Combo', type: 'bundle', value: 0, combinable: true, isActive: true, createdAt: '' } as any
+  const buildCart = (): CartItem[] => [
+    paidLine('p110', 575000),
+    paidLine('atom', 225000),
+    paidLine('p2ml', 1),
+  ]
+  const freed: BundleFreed[] = [
+    { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    { productId: 'p2ml', variantSize: 'M', productName: 'p2ml', fullPrice: 1, net: 0, quantity: 1 },
+  ]
+  const applyBundle = () =>
+    cashierReducer({ ...CASHIER_INITIAL_STATE, cart: buildCart() }, {
+      type: 'APPLY_BUNDLE', promotion: bundlePromo, freed,
+    })
+
+  // item1: an exclusive (non-combinable) promo replacing the applied set must
+  // restore the evicted bundle's moved units + clear its bundleFreed — no ghost
+  // Rp0 reward lines and no stale freed entry.
+  it('item1: exclusive APPLY_PROMOTION eviction restores the bundle (no ghost reward lines, bundleFreed cleared)', () => {
+    const excl = { id: 'x', name: 'X', type: 'percentage', value: 10, combinable: false, isActive: true, createdAt: '' } as any
+    const s = cashierReducer(applyBundle(), { type: 'APPLY_PROMOTION', promotion: excl })
+    // exclusive promo is now the only applied one
+    expect(s.appliedPromotions.map((p) => p.id)).toEqual(['x'])
+    // no bundle ghost reward lines linger
+    expect(s.cart.filter((c) => c.isReward && c.rewardPromotionId)).toHaveLength(0)
+    // freed units restored to paid at full price (stock conserved)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(s.cart.find((c) => c.productId === 'atom')?.price).toBe(225000)
+    expect(ownedQty(s.cart, 'p2ml', 'M')).toBe(1)
+    // stale freed entry cleared
+    expect(s.bundleFreed).toEqual({})
+  })
+
+  it('item1: exclusive APPLY_PROMO_CODE eviction also restores the bundle (twin gap)', () => {
+    const s = cashierReducer(applyBundle(), {
+      type: 'APPLY_PROMO_CODE',
+      code: { code: 'EXCL', type: 'percentage', value: 10 } as any,
+      combinable: false,
+    })
+    expect(s.appliedPromotions).toEqual([])
+    expect(s.appliedPromoCodes.map((c) => c.code)).toEqual(['EXCL'])
+    expect(s.cart.filter((c) => c.isReward && c.rewardPromotionId)).toHaveLength(0)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(s.bundleFreed).toEqual({})
+  })
+
+  // item2: editing a paid line that participates in an applied bundle's freed set
+  // must remove the bundle first (restore + clear entry) before applying the edit,
+  // so no stale bundleFreed lingers and a later strip cannot over-restore.
+  it('item2: CART_REMOVE_ITEM on a freed-set participant removes the bundle first (no stale entry)', () => {
+    // extra atom so a paid atom line survives the bundle move (2 owned: 1 paid, 1 reward)
+    const start = { ...CASHIER_INITIAL_STATE, cart: [paidLine('atom', 225000, 2), paidLine('p2ml', 1)] }
+    const partialFreed: BundleFreed[] = [
+      { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    ]
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    expect(applied.bundleFreed['bundle1']).toBeDefined()
+    // cashier deletes the atom paid line
+    const s = cashierReducer(applied, { type: 'CART_REMOVE_ITEM', productId: 'atom', variantSize: 'M' })
+    // bundle removed → no stale entry, no reward lines, dropped from appliedPromotions
+    expect(s.bundleFreed['bundle1']).toBeUndefined()
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(s.appliedPromotions.map((p) => p.id)).not.toContain('bundle1')
+    // both atom units gone (restore made 2 paid, then remove wiped the line)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(0)
+  })
+
+  it('item2: CART_SET_QTY on a freed-set participant removes the bundle first, then sets qty', () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: [paidLine('atom', 225000, 2), paidLine('p2ml', 1)] }
+    const partialFreed: BundleFreed[] = [
+      { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    ]
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const s = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'atom', variantSize: 'M', quantity: 5 })
+    expect(s.bundleFreed['bundle1']).toBeUndefined()
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    // restore merged to 2 paid, then set to 5
+    const atom = s.cart.find((c) => c.productId === 'atom' && !c.isReward)
+    expect(atom?.quantity).toBe(5)
+    expect(atom?.price).toBe(225000)
+  })
+
+  it('item2: no over-restore — edit a freed participant then CLEAR_PROMOTIONS keeps owned qty sane', () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: [paidLine('atom', 225000, 2), paidLine('p2ml', 1)] }
+    const partialFreed: BundleFreed[] = [
+      { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    ]
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const edited = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'atom', variantSize: 'M', quantity: 1 })
+    const s = cashierReducer(edited, { type: 'CLEAR_PROMOTIONS' })
+    // bundle already gone at edit time → CLEAR cannot double-restore atom
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+  })
+
+  it('item2: editing an UNRELATED paid line leaves the applied bundle intact', () => {
+    const applied = applyBundle()
+    const s = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'p110', variantSize: 'M', quantity: 3 })
+    // p110 is the anchor (not in the freed set) → bundle stays applied here
+    expect(s.bundleFreed['bundle1']).toBeDefined()
+    expect(s.appliedPromotions.map((p) => p.id)).toContain('bundle1')
+    expect(s.cart.find((c) => c.productId === 'p110' && !c.isReward)?.quantity).toBe(3)
+  })
+})
+
 describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
   it('adds two reward lines for the same promo (different product/variant)', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, {

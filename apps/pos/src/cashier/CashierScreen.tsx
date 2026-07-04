@@ -38,10 +38,12 @@ import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
-import { applyPendingStock } from './stock'
+import { applyPendingStock, stockFor } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
-import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, type BXGYRewardOption } from './pricing'
+import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, bundleApplications, keyMatchesLine, type BXGYRewardOption } from './pricing'
 import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
+import { BundleSlotPicker } from './BundleSlotPicker'
+import { computeBundleFreed, type BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -247,6 +249,14 @@ export default function CashierScreen() {
     due: number
   } | null>(null)
 
+  // SP-Promo-3b-bundle: slot picker for a bundle with AMBIGUOUS slots (more
+  // eligible cart units than a slot needs). Holds the promo + its config while
+  // the cashier chooses which units fill each ambiguous slot.
+  const [bundlePicker, setBundlePicker] = useState<{
+    promo: components['schemas']['Promotion']
+    cfg: NonNullable<components['schemas']['Promotion']['bundleConfig']>
+  } | null>(null)
+
   useEffect(() => {
     if (
       !state.isCheckoutOpen ||
@@ -411,6 +421,42 @@ export default function CashierScreen() {
   const handleSelectPromotion = (
     promo: components['schemas']['Promotion'],
   ) => {
+    // SP-Promo-3b-bundle: a bundle MOVES paid units into reward lines. Toggling
+    // an already-applied bundle off falls through to the plain reducer toggle
+    // (which restores). Applying: if any slot has more eligible units than it
+    // needs, the cashier picks which fill it (free choice) → open the picker;
+    // otherwise the consumed set is unambiguous → compute + apply directly.
+    if (promo.type === 'bundle') {
+      const bundleAlreadyApplied = state.appliedPromotions.some((p) => p.id === promo.id)
+      if (bundleAlreadyApplied) {
+        dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+        return
+      }
+      const bcfg = promo.bundleConfig
+      if (!bcfg) return
+      const paidLines = state.cart.filter((c) => !c.isReward)
+      const nApp = bundleApplications(bcfg, paidLines)
+      if (nApp < 1) return // gate should have blocked this; defensive no-op
+      const ambiguous = bcfg.slots.some((slot) => {
+        const need = nApp * slot.quantity
+        const units = paidLines.reduce(
+          (n, it) =>
+            keyMatchesLine(slot.productKeys, it.productId, it.variantSize)
+              ? n + it.quantity
+              : n,
+          0,
+        )
+        return units > need
+      })
+      if (ambiguous) {
+        setBundlePicker({ promo, cfg: bcfg })
+        return
+      }
+      const freed = computeBundleFreed(bcfg, paidLines)
+      if (!freed) return
+      dispatch({ type: 'APPLY_BUNDLE', promotion: promo, freed })
+      return
+    }
     const cfg = promo.bxgyConfig
     const isSeparateSet =
       promo.type === 'buy_x_get_y' && (cfg?.getProductIds ?? []).length > 0
@@ -505,6 +551,52 @@ export default function CashierScreen() {
       }
     }
   }, [state.cart, state.appliedPromotions])
+
+  // Confirm from the bundle slot picker: compute the freed set honoring the
+  // cashier's per-slot choice, then apply it. Empty/invalid → no-op close.
+  const handleBundlePickerConfirm = (assignment: BundleAssignment) => {
+    if (!bundlePicker) return
+    const paidLines = state.cart.filter((c) => !c.isReward)
+    const freed = computeBundleFreed(bundlePicker.cfg, paidLines, assignment)
+    if (freed) dispatch({ type: 'APPLY_BUNDLE', promotion: bundlePicker.promo, freed })
+    setBundlePicker(null)
+  }
+
+  // SP-Promo-3b-bundle reactive removal: a bundle MOVED paid units into reward
+  // lines. If the paid cart later drops so the bundle no longer applies (its
+  // anchor/participants removed), auto-remove it (restores the moved units).
+  // Reconstruct the pre-apply paid set = current paid lines + this bundle's freed
+  // units at full price, then re-derive: if it no longer yields a freed set, or
+  // yields fewer freed units than are applied (a participant was removed), drop
+  // the bundle. Growth (cashier added more units) keeps the applied set — it's
+  // still a valid subset — mirroring the bxgy reactive-removal "only shrink" rule.
+  useEffect(() => {
+    for (const promo of state.appliedPromotions) {
+      if (promo.type !== 'bundle') continue
+      const cfg = promo.bundleConfig
+      const applied = state.bundleFreed[promo.id]
+      if (!cfg || !applied) continue
+      const appliedUnits = applied.reduce((n, f) => n + f.quantity, 0)
+      const synthetic = [
+        ...state.cart.filter((c) => !c.isReward),
+        ...applied.map((f) => ({
+          productId: f.productId,
+          productName: f.productName,
+          variantSize: f.variantSize,
+          price: f.fullPrice,
+          quantity: f.quantity,
+          subtotal: f.fullPrice * f.quantity,
+        })),
+      ]
+      const recomputed = computeBundleFreed(cfg, synthetic)
+      const recomputedUnits = recomputed
+        ? recomputed.reduce((n, f) => n + f.quantity, 0)
+        : 0
+      if (!recomputed || recomputedUnits < appliedUnits) {
+        dispatch({ type: 'REMOVE_BUNDLE', promotionId: promo.id, freed: applied })
+      }
+    }
+  }, [state.cart, state.appliedPromotions, state.bundleFreed])
 
   const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
@@ -1204,6 +1296,17 @@ export default function CashierScreen() {
           stockProducts={displayProducts}
           onConfirm={handleBxgyRewardConfirm}
           onCancel={() => setBxgyReward(null)}
+        />
+      )}
+
+      {bundlePicker && (
+        <BundleSlotPicker
+          cfg={bundlePicker.cfg}
+          cart={state.cart}
+          promoName={bundlePicker.promo.name}
+          stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
+          onConfirm={handleBundlePickerConfirm}
+          onCancel={() => setBundlePicker(null)}
         />
       )}
 

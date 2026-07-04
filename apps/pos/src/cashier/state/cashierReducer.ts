@@ -206,6 +206,67 @@ function restoreAllBundles(
   return next
 }
 
+// bundlesContainingKey: ids of applied bundles whose FREED set includes a unit
+// matching (productId, variantSize). Catalog-free — reads only the stored freed
+// set. Used to evict a bundle before a cart edit touches one of its participants.
+function bundlesContainingKey(
+  bundleFreed: Record<string, BundleFreedUnit[]>,
+  productId: string,
+  variantSize: string,
+): string[] {
+  return Object.entries(bundleFreed)
+    .filter(([, freed]) =>
+      freed.some((f) => f.productId === productId && f.variantSize === variantSize),
+    )
+    .map(([id]) => id)
+}
+
+// evictBundlesForKey: remove every applied bundle whose freed set contains the
+// edited key BEFORE a CART_REMOVE_ITEM / CART_SET_QTY is applied. Restores each
+// bundle's moved units to paid, strips its reward lines, drops it from
+// appliedPromotions, and clears its bundleFreed entry — so no stale freed entry
+// survives the edit (which would let a later strip over-restore). Returns the
+// pieces of state that change; no-op passthrough when no bundle owns the key.
+function evictBundlesForKey(
+  state: CashierState,
+  productId: string,
+  variantSize: string,
+): Pick<CashierState, 'cart' | 'appliedPromotions' | 'bundleFreed'> {
+  const ids = bundlesContainingKey(state.bundleFreed, productId, variantSize)
+  if (ids.length === 0) {
+    return {
+      cart: state.cart,
+      appliedPromotions: state.appliedPromotions,
+      bundleFreed: state.bundleFreed,
+    }
+  }
+  let cart = state.cart
+  let bundleFreed = state.bundleFreed
+  let appliedPromotions = state.appliedPromotions
+  for (const id of ids) {
+    cart = restoreBundle(cart, id, bundleFreed[id])
+    bundleFreed = omitKey(bundleFreed, id)
+    appliedPromotions = appliedPromotions.filter((p) => p.id !== id)
+  }
+  return { cart, appliedPromotions, bundleFreed }
+}
+
+// evictAllForExclusive: an incoming exclusive (non-combinable) promo/code
+// replaces the whole applied set. Any applied bundle MOVED units off their paid
+// line, so restore them first (else ghost Rp0 reward lines + a stale freed entry
+// linger), then strip every remaining promo reward line (bxgy extras). Loyalty
+// rewards (rewardConditionId, no rewardPromotionId) survive — they're
+// customer-based, not promo-based. Mirrors CLEAR_PROMOTIONS' cart handling.
+function evictAllForExclusive(
+  state: CashierState,
+): Pick<CashierState, 'cart' | 'bundleFreed'> {
+  const restored = restoreAllBundles(state.cart, state.bundleFreed)
+  return {
+    cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
+    bundleFreed: {},
+  }
+}
+
 // omitKey: return a shallow copy of the map without `key` (immutable delete).
 function omitKey(
   map: Record<string, BundleFreedUnit[]>,
@@ -314,10 +375,15 @@ export function cashierReducer(
       }
     }
 
-    case 'CART_REMOVE_ITEM':
+    case 'CART_REMOVE_ITEM': {
+      // If this key participates in an applied bundle's freed set, remove that
+      // bundle first (restore its units + clear its entry) so no stale
+      // bundleFreed survives the delete and a later strip cannot over-restore.
+      const base = evictBundlesForKey(state, action.productId, action.variantSize)
       return {
         ...state,
-        cart: state.cart.filter(
+        ...base,
+        cart: base.cart.filter(
           (c) =>
             !(
               c.productId === action.productId &&
@@ -326,12 +392,16 @@ export function cashierReducer(
             ),
         ),
       }
+    }
 
     case 'CART_SET_QTY': {
+      // Same bundle-eviction guard as CART_REMOVE_ITEM: normalize first, then edit.
+      const base = evictBundlesForKey(state, action.productId, action.variantSize)
       if (action.quantity <= 0) {
         return {
           ...state,
-          cart: state.cart.filter(
+          ...base,
+          cart: base.cart.filter(
             (c) =>
               !(
                 c.productId === action.productId &&
@@ -343,7 +413,8 @@ export function cashierReducer(
       }
       return {
         ...state,
-        cart: state.cart.map((c) =>
+        ...base,
+        cart: base.cart.map((c) =>
           c.productId === action.productId &&
           c.variantSize === action.variantSize &&
           !c.isReward
@@ -470,8 +541,11 @@ export function cashierReducer(
         hasNonCombinablePromotion(state.appliedPromotions) ||
         state.appliedPromoCodes.some((c) => !c.combinable)
       if (incomingExclusive || currentExclusive) {
+        // Replace the whole set. Restore any evicted bundle's moved units + clear
+        // its bundleFreed first (else ghost Rp0 reward lines + a stale entry linger).
         return {
           ...state,
+          ...evictAllForExclusive(state),
           appliedPromotions: [action.promotion],
           appliedPromoCodes: [],
           activeAdjustment: null,
@@ -495,8 +569,11 @@ export function cashierReducer(
         state.appliedPromoCodes.some((c) => !c.combinable)
       const code: AppliedPromoCode = { ...action.code, combinable: action.combinable }
       if (incomingExclusive || currentExclusive) {
+        // Twin of APPLY_PROMOTION's exclusive branch — restore any evicted bundle
+        // before replacing the set so the moved units + bundleFreed don't leak.
         return {
           ...state,
+          ...evictAllForExclusive(state),
           appliedPromotions: [],
           appliedPromoCodes: [code],
           promoCodeInput: '',

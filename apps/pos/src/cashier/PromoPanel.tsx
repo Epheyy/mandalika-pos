@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
+import { bundleApplications, bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
+import type { BundleFreedUnit } from './bundle'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
@@ -13,6 +14,7 @@ interface PromoPanelProps {
   appliedPromotions: Promotion[]
   appliedPromoCodes: AppliedPromoCode[]
   cart: CartItem[]
+  bundleFreed: Record<string, BundleFreedUnit[]>
   promoCodeInput: string
   isValidating: boolean
   subtotal: number
@@ -62,6 +64,8 @@ function promoRuleLabel(p: Promotion): string {
   } else if (p.type === 'tiered') {
     const tiers = p.tieredConfig?.tiers ?? []
     base = tiers.length > 0 ? `Bertingkat (${tiers.length} tier)` : 'Bertingkat'
+  } else if (p.type === 'bundle') {
+    base = 'Paket Bundel'
   } else base = 'BOGO'
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
@@ -86,6 +90,7 @@ export const PromoPanel = memo(function PromoPanel({
   appliedPromotions,
   appliedPromoCodes,
   cart,
+  bundleFreed,
   promoCodeInput,
   isValidating,
   subtotal,
@@ -116,6 +121,17 @@ export const PromoPanel = memo(function PromoPanel({
   // Savings shown in the panel use the SAME calc as the cart total: scoped/BOGO
   // promos go through calcPromoDiscount (needs the cart); codes are whole-cart.
   // SP-Promo-3c: linked codes delegate to calcPromoDiscount via the promotion shape.
+  // Applied-chip savings. A bundle's saving is realized as zeroed/partial reward
+  // lines (calcPromoDiscount returns 0 for it), so derive it from the retained
+  // freed set: sum of (fullPrice − net) × quantity. Other promos use the shared calc.
+  const appliedSavings = (p: Promotion): number => {
+    if (p.type === 'bundle') {
+      const freed = bundleFreed[p.id] ?? []
+      return freed.reduce((sum, f) => sum + (f.fullPrice - f.net) * f.quantity, 0)
+    }
+    return calcPromoDiscount(p, cart, subtotal)
+  }
+
   const codeSavings = (c: AppliedPromoCode) => {
     if (c.promotion) {
       return calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
@@ -170,7 +186,7 @@ export const PromoPanel = memo(function PromoPanel({
                       <p className="text-[10px] text-green-700/80">{promoRuleLabel(p)}</p>
                     </div>
                     <p className="text-xs font-bold text-green-800 whitespace-nowrap">
-                      −{formatRupiah(calcPromoDiscount(p, cart, subtotal))}
+                      −{formatRupiah(appliedSavings(p))}
                     </p>
                     <button type="button"
                       onClick={() => onRemovePromotion(p.id)}
@@ -299,12 +315,21 @@ export const PromoPanel = memo(function PromoPanel({
                     (isSeparateSet
                       ? bxgyRewardDue(promo.bxgyConfig, cart.filter((c) => !c.isReward)) < 1
                       : savings <= 0)
-                  const invalid = gatingInvalid || bxgyUnmet
+                  // A bundle has a CART precondition (each slot's product keys must
+                  // be present in the required quantity) gating can't see: grey it
+                  // until at least one complete set is buildable from the paid lines.
+                  const bundleUnmet =
+                    !gatingInvalid &&
+                    promo.type === 'bundle' &&
+                    bundleApplications(promo.bundleConfig, cart.filter((c) => !c.isReward)) < 1
+                  const invalid = gatingInvalid || bxgyUnmet || bundleUnmet
                   const reason = gatingInvalid
                     ? violationMessage(violations[0])
                     : bxgyUnmet
                       ? 'Syarat beli belum terpenuhi'
-                      : null
+                      : bundleUnmet
+                        ? 'Syarat bundle belum terpenuhi'
+                        : null
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
                   return (
                     <button type="button"
