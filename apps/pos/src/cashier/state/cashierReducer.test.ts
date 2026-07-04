@@ -214,6 +214,116 @@ describe('cashierReducer reward lines cleared on promo removal (lingering-reward
   })
 })
 
+// ── bundle apply/remove (stock-conserving) ──────────────────────────────────
+type BundleFreed = {
+  productId: string
+  variantSize: string
+  productName: string
+  fullPrice: number
+  net: number
+  quantity: number
+}
+const bundlePromo = { id: 'bundle1', name: 'Combo', type: 'bundle', value: 0, isActive: true, createdAt: '' } as any
+
+const paidLine = (
+  productId: string,
+  price: number,
+  quantity = 1,
+  variantSize = 'M',
+): CartItem => ({ productId, productName: productId, variantSize, price, quantity, subtotal: price * quantity })
+
+// owned-qty per (pid,size) across paid + reward lines
+const ownedQty = (cart: CartItem[], productId: string, variantSize: string) =>
+  cart
+    .filter((c) => c.productId === productId && c.variantSize === variantSize)
+    .reduce((s, c) => s + c.quantity, 0)
+
+describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () => {
+  // owner combo: 110ml 575000, atomizer 225000, 2ml 1 — bundle frees atom+2ml @0
+  const buildCart = (): CartItem[] => [
+    paidLine('p110', 575000),
+    paidLine('atom', 225000),
+    paidLine('p2ml', 1),
+  ]
+  const freed: BundleFreed[] = [
+    { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    { productId: 'p2ml', variantSize: 'M', productName: 'p2ml', fullPrice: 1, net: 0, quantity: 1 },
+  ]
+
+  it('applying a bundle frees the cheapest units and conserves owned quantity', () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
+    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+    // 110ml still a paid line at full price
+    const p110 = s.cart.find((c) => c.productId === 'p110' && !c.isReward)
+    expect(p110?.quantity).toBe(1)
+    expect(p110?.price).toBe(575000)
+    // atom + 2ml became reward lines @0, their paid lines gone
+    expect(s.cart.filter((c) => c.productId === 'atom' && !c.isReward)).toHaveLength(0)
+    const atomReward = s.cart.find((c) => c.productId === 'atom' && c.isReward)
+    expect(atomReward?.rewardPromotionId).toBe('bundle1')
+    expect(atomReward?.price).toBe(0)
+    // stock-conservation invariant: paidQty + rewardQty == ownedQty (1 each)
+    expect(ownedQty(s.cart, 'p110', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'p2ml', 'M')).toBe(1)
+    // promotion registered
+    expect(s.appliedPromotions.map((p) => p.id)).toContain('bundle1')
+  })
+
+  it('removing the bundle restores the freed units to paid and clears reward lines', () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+    const removed = cashierReducer(applied, { type: 'REMOVE_BUNDLE', promotionId: 'bundle1', freed })
+    // no reward lines remain
+    expect(removed.cart.filter((c) => c.isReward)).toHaveLength(0)
+    // three paid lines restored at full price
+    const byId = Object.fromEntries(removed.cart.map((c) => [c.productId, c]))
+    expect(byId['p110'].quantity).toBe(1)
+    expect(byId['atom'].quantity).toBe(1)
+    expect(byId['atom'].price).toBe(225000)
+    expect(byId['p2ml'].quantity).toBe(1)
+    expect(byId['p2ml'].price).toBe(1)
+    // promotion removed
+    expect(removed.appliedPromotions.map((p) => p.id)).not.toContain('bundle1')
+    // invariant still holds after apply→remove
+    expect(ownedQty(removed.cart, 'atom', 'M')).toBe(1)
+  })
+
+  it('partial anchor: only 1 of a 2-qty paid line is freed, the rest stays paid', () => {
+    // 2 atomizers on one line; bundle frees 1 (partial net) → paid qty 2→1, reward qty 1
+    const start = {
+      ...CASHIER_INITIAL_STATE,
+      cart: [paidLine('atom', 225000, 2)],
+    }
+    const partialFreed: BundleFreed[] = [
+      { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 100000, quantity: 1 },
+    ]
+    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const paidAtom = s.cart.find((c) => c.productId === 'atom' && !c.isReward)
+    expect(paidAtom?.quantity).toBe(1)
+    expect(paidAtom?.subtotal).toBe(225000)
+    const rewardAtom = s.cart.find((c) => c.productId === 'atom' && c.isReward)
+    expect(rewardAtom?.quantity).toBe(1)
+    expect(rewardAtom?.price).toBe(100000)
+    expect(rewardAtom?.subtotal).toBe(100000)
+    // owned conserved: 1 paid + 1 reward == 2
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(2)
+  })
+
+  it('apply→remove round-trips a multi-qty line back to its exact pre-apply shape', () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: [paidLine('atom', 225000, 2)] }
+    const partialFreed: BundleFreed[] = [
+      { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    ]
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const removed = cashierReducer(applied, { type: 'REMOVE_BUNDLE', promotionId: 'bundle1', freed: partialFreed })
+    expect(removed.cart.filter((c) => c.isReward)).toHaveLength(0)
+    const atom = removed.cart.find((c) => c.productId === 'atom')
+    expect(atom?.quantity).toBe(2)
+    expect(atom?.subtotal).toBe(450000)
+  })
+})
+
 describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
   it('adds two reward lines for the same promo (different product/variant)', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, {

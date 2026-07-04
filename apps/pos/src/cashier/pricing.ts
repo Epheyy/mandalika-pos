@@ -83,7 +83,7 @@ function bxgyVariantKey(productId: string, size: string): string {
 }
 // keyMatchesLine: shared productKeys convention (`pid` or `pid|size`) used by
 // both buy_x_get_y and bundle promos. Mirrors Go keyMatchesLine 1:1.
-function keyMatchesLine(keys: string[], productId: string, size: string): boolean {
+export function keyMatchesLine(keys: string[], productId: string, size: string): boolean {
   return keys.includes(productId) || (size !== '' && keys.includes(bxgyVariantKey(productId, size)))
 }
 function bxgyExpand(items: CartItem[], keys: string[], emptyMatchesAll: boolean): number[] {

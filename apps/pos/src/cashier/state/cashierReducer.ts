@@ -7,6 +7,7 @@
 import type { components } from '@mandalika/api'
 export type { AppliedPromoCode } from '../promoValidate'
 import type { AppliedPromoCode } from '../promoValidate'
+import type { BundleFreedUnit } from '../bundle'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
@@ -58,6 +59,8 @@ export type CashierAction =
   | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId?: string; rewardPromotionId?: string } }
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
   | { type: 'CART_REMOVE_PROMO_REWARDS'; rewardPromotionId: string }
+  | { type: 'APPLY_BUNDLE'; promotion: Promotion; freed: BundleFreedUnit[] }
+  | { type: 'REMOVE_BUNDLE'; promotionId: string; freed: BundleFreedUnit[] }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
   | { type: 'SET_CUSTOMER_SEARCH'; search: string }
@@ -139,6 +142,23 @@ function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
   return [...cart, item]
 }
 
+// reducePaidQty: decrement a PAID (non-reward) line's quantity by `dec`, removing
+// the line when it reaches 0. Reward lines of the same product are untouched.
+// Used by APPLY_BUNDLE to move freed units off their paid line.
+function reducePaidQty(
+  cart: CartItem[],
+  productId: string,
+  variantSize: string,
+  dec: number,
+): CartItem[] {
+  return cart.flatMap((c) => {
+    if (c.isReward || c.productId !== productId || c.variantSize !== variantSize) return [c]
+    const newQty = c.quantity - dec
+    if (newQty <= 0) return []
+    return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]
+  })
+}
+
 export function cashierReducer(
   state: CashierState,
   action: CashierAction,
@@ -186,6 +206,64 @@ export function cashierReducer(
           (c) => !(c.isReward && c.rewardPromotionId === action.rewardPromotionId),
         ),
       }
+
+    case 'APPLY_BUNDLE': {
+      // Reprice the cheapest consumed units into reward lines: reduce each
+      // matching PAID line by the freed qty (dropping it at 0) and add an
+      // isReward line at the bundleAllocate net. Stock-conserving — a freed unit
+      // is MOVED from paid to reward, never added, so paidQty+rewardQty is
+      // unchanged for every (productId, variantSize).
+      let cart = state.cart
+      for (const f of action.freed) {
+        cart = reducePaidQty(cart, f.productId, f.variantSize, f.quantity)
+        cart = [
+          ...cart,
+          {
+            productId: f.productId,
+            productName: f.productName,
+            variantSize: f.variantSize,
+            price: f.net,
+            quantity: f.quantity,
+            subtotal: Math.round(f.net * f.quantity),
+            isReward: true,
+            rewardPromotionId: action.promotion.id,
+          },
+        ]
+      }
+      const already = state.appliedPromotions.some((p) => p.id === action.promotion.id)
+      return {
+        ...state,
+        cart,
+        appliedPromotions: already
+          ? state.appliedPromotions
+          : [...state.appliedPromotions, action.promotion],
+        activeAdjustment: null,
+      }
+    }
+
+    case 'REMOVE_BUNDLE': {
+      // Inverse of APPLY_BUNDLE: drop this bundle's reward lines and restore the
+      // freed units back onto their paid lines at full price (merging into an
+      // existing paid line, recreating it when it was fully consumed).
+      let cart = state.cart.filter(
+        (c) => !(c.isReward && c.rewardPromotionId === action.promotionId),
+      )
+      for (const f of action.freed) {
+        cart = upsertCartItem(cart, {
+          productId: f.productId,
+          productName: f.productName,
+          variantSize: f.variantSize,
+          price: f.fullPrice,
+          quantity: f.quantity,
+          subtotal: Math.round(f.fullPrice * f.quantity),
+        })
+      }
+      return {
+        ...state,
+        cart,
+        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotionId),
+      }
+    }
 
     case 'CART_REMOVE_ITEM':
       return {
