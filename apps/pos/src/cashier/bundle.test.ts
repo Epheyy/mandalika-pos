@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { components } from '@mandalika/api'
-import { computeBundleFreed, bundleStillApplicable } from './bundle'
+import { computeBundleFreed, bundleStillApplicable, shouldRemoveBundle } from './bundle'
 
 type CartItem = components['schemas']['CartItem']
 type BundleConfig = NonNullable<components['schemas']['Promotion']['bundleConfig']>
@@ -158,5 +158,44 @@ describe('bundleStillApplicable — assignment-independent removal predicate', (
     // Drop the 110ml unit → slot 1 unsatisfiable → no longer applicable.
     const ownedMinus110: CartItem[] = [line(ATOM, 225000), line(SAMPLE, 1)]
     expect(bundleStillApplicable(comboCfg(575000), ownedMinus110)).toBe(false)
+  })
+})
+
+// ── reactive-removal decision keyed on applied nApp ──────────────────────────
+// shouldRemoveBundle catches the multi-application anchor-reduction gap the
+// null-only bundleStillApplicable signal missed: reducing an ANCHOR slot's paid
+// qty in an nApp≥2 combo keeps the bundle applicable (non-null) but leaves the
+// stored freed set over-applied. Removing iff current nApp < applied nApp fixes
+// it while still KEEPING a pricier free-choice bundle (owned unchanged).
+describe('shouldRemoveBundle — remove iff current nApp < applied nApp', () => {
+  it("anchor reduction in a 2-application combo: current nApp 1 < applied 2 → REMOVE (true)", () => {
+    // owned originally 2×P110 + 2×ATOM + 2×SAMPLE (nApp 2). Cashier drops one P110
+    // (the anchor) → owned reconstructs to 1×P110 + 2×ATOM + 2×SAMPLE → nApp 1.
+    const ownedAfter: CartItem[] = [
+      line(P110, 575000, 1),
+      line(ATOM, 225000, 2),
+      line(SAMPLE, 1, 2),
+    ]
+    // Still applicable at all (would fool the null-only signal into KEEPING it):
+    expect(bundleStillApplicable(comboCfg(575000), ownedAfter)).toBe(true)
+    // But over-applied vs the nApp=2 it was applied at → must be removed.
+    expect(shouldRemoveBundle(comboCfg(575000), ownedAfter, 2)).toBe(true)
+  })
+
+  it('pricier free-choice, owned unchanged: current nApp 1, not < applied 1 → KEEP (false)', () => {
+    // Guards against reintroducing the Critical: a pricier per-slot pick does not
+    // change owned units, so current nApp equals applied nApp → keep.
+    const PRICIER_CFG: BundleConfig = {
+      bundlePrice: 200,
+      slots: [{ productKeys: ['a', 'b', 'c'], quantity: 2 }],
+    }
+    const owned: CartItem[] = [line('a', 100), line('b', 100), line('c', 300)]
+    expect(shouldRemoveBundle(PRICIER_CFG, owned, 1)).toBe(false)
+  })
+
+  it('full break: a required slot is empty → current nApp 0 < applied 1 → REMOVE (true)', () => {
+    // Drop the 110ml entirely → slot 1 unsatisfiable → nApp 0.
+    const ownedBroken: CartItem[] = [line(ATOM, 225000), line(SAMPLE, 1)]
+    expect(shouldRemoveBundle(comboCfg(575000), ownedBroken, 1)).toBe(true)
   })
 })

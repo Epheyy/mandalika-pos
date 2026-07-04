@@ -43,7 +43,7 @@ import { decideApplyCode, validatePromo, validateCode, violationMessage } from '
 import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, bundleApplications, keyMatchesLine, type BXGYRewardOption } from './pricing'
 import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
 import { BundleSlotPicker } from './BundleSlotPicker'
-import { computeBundleFreed, bundleStillApplicable, type BundleAssignment } from './bundle'
+import { computeBundleFreed, shouldRemoveBundle, type BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { track } from '../lib/activityLog'
@@ -454,7 +454,7 @@ export default function CashierScreen() {
       }
       const freed = computeBundleFreed(bcfg, paidLines)
       if (!freed) return
-      dispatch({ type: 'APPLY_BUNDLE', promotion: promo, freed })
+      dispatch({ type: 'APPLY_BUNDLE', promotion: promo, freed, applications: nApp })
       return
     }
     const cfg = promo.bxgyConfig
@@ -558,31 +558,40 @@ export default function CashierScreen() {
     if (!bundlePicker) return
     const paidLines = state.cart.filter((c) => !c.isReward)
     const freed = computeBundleFreed(bundlePicker.cfg, paidLines, assignment)
-    if (freed) dispatch({ type: 'APPLY_BUNDLE', promotion: bundlePicker.promo, freed })
+    if (freed) {
+      // nApp is assignment-independent (counts units per slot), so recompute it
+      // from the pre-apply paid lines to record the applied application count.
+      const nApp = bundleApplications(bundlePicker.cfg, paidLines)
+      dispatch({ type: 'APPLY_BUNDLE', promotion: bundlePicker.promo, freed, applications: nApp })
+    }
     setBundlePicker(null)
   }
 
   // SP-Promo-3b-bundle reactive removal: a bundle MOVED paid units into reward
-  // lines. If the customer's owned units later drop so the bundle no longer applies
-  // at all (its anchor/participants removed), auto-remove it (restores the moved
-  // units). Reconstruct the owned set = current paid lines + this bundle's freed
-  // units restored at full price, then key the decision on APPLICABILITY only:
-  // remove iff the bundle is no longer applicable (computeBundleFreed → null).
+  // lines. Reconstruct the owned set = current paid lines + this bundle's freed
+  // units restored at full price, then key the decision on the APPLIED nApp:
+  // remove iff the currently-owned applications drop BELOW the count the bundle
+  // was applied at (shouldRemoveBundle).
   //
-  // We deliberately do NOT compare freed COUNTS. The applied freed count reflects
-  // the cashier's per-slot free-choice (which may free a pricier eligible unit
-  // while a cheaper one stays paid); an assignment-independent cheapest-first
-  // recompute yields fewer freed units and would wrongly drop a valid bundle. Plain
-  // participant edits (remove item / set qty on a bundle unit) are already handled
-  // by the reducer's evictBundlesForKey, so this effect only needs to catch the
-  // residual "bundle became entirely inapplicable" case. For an applicable bundle
-  // the predicate stays true and no dispatch fires → no effect loop.
+  // Why nApp and not applicability(null) or freed-COUNT:
+  //  - Freed count reflects the cashier's per-slot free-choice (a pricier eligible
+  //    unit may be freed while a cheaper one stays paid); a cheapest-first recompute
+  //    would wrongly report a shrink. nApp is assignment-independent → safe.
+  //  - Plain participant edits (remove item / set qty on a unit IN the freed set)
+  //    are already handled by the reducer's evictBundlesForKey. But reducing an
+  //    ANCHOR slot's paid qty in a multi-application combo (nApp 2→1) keeps the
+  //    bundle applicable (non-null), so the old null-only signal KEPT an
+  //    over-applied cart that the server then 422-rejects; the anchor is not in the
+  //    freed set so evictBundlesForKey also misses it. Comparing owned nApp against
+  //    the applied nApp catches exactly this. For an unchanged (incl. pricier
+  //    free-choice) cart, owned nApp == applied nApp → no dispatch → no effect loop.
   useEffect(() => {
     for (const promo of state.appliedPromotions) {
       if (promo.type !== 'bundle') continue
       const cfg = promo.bundleConfig
       const applied = state.bundleFreed[promo.id]
-      if (!cfg || !applied) continue
+      const appliedNApp = state.bundleApplications[promo.id]
+      if (!cfg || !applied || appliedNApp == null) continue
       const owned = [
         ...state.cart.filter((c) => !c.isReward),
         ...applied.map((f) => ({
@@ -594,11 +603,11 @@ export default function CashierScreen() {
           subtotal: f.fullPrice * f.quantity,
         })),
       ]
-      if (!bundleStillApplicable(cfg, owned)) {
+      if (shouldRemoveBundle(cfg, owned, appliedNApp)) {
         dispatch({ type: 'REMOVE_BUNDLE', promotionId: promo.id, freed: applied })
       }
     }
-  }, [state.cart, state.appliedPromotions, state.bundleFreed])
+  }, [state.cart, state.appliedPromotions, state.bundleFreed, state.bundleApplications])
 
   const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {

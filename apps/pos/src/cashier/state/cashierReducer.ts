@@ -48,6 +48,12 @@ export interface CashierState {
   // vanish (stock conservation). A reward line whose rewardPromotionId is a key
   // here is a bundle line → restore; otherwise strip as before.
   bundleFreed: Record<string, BundleFreedUnit[]>
+  // Applied nApp per bundle promotion id — the number of complete bundle
+  // applications the bundle was applied at. Kept in LOCK-STEP with bundleFreed
+  // (an id is in both maps or neither). The reactive-removal effect compares the
+  // currently-owned nApp against this to catch anchor-qty reductions in
+  // multi-application combos, which leave bundleFreed over-applied.
+  bundleApplications: Record<string, number>
   // Checkout
   isCheckoutOpen: boolean
   paymentMethod: PaymentMethod
@@ -66,7 +72,7 @@ export type CashierAction =
   | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId?: string; rewardPromotionId?: string } }
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
   | { type: 'CART_REMOVE_PROMO_REWARDS'; rewardPromotionId: string }
-  | { type: 'APPLY_BUNDLE'; promotion: Promotion; freed: BundleFreedUnit[] }
+  | { type: 'APPLY_BUNDLE'; promotion: Promotion; freed: BundleFreedUnit[]; applications: number }
   | { type: 'REMOVE_BUNDLE'; promotionId: string; freed: BundleFreedUnit[] }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
@@ -114,6 +120,7 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   appliedPromoCodes: [],
   promoCodeInput: '',
   bundleFreed: {},
+  bundleApplications: {},
   isCheckoutOpen: false,
   paymentMethod: 'cash',
   amountPaid: '',
@@ -231,24 +238,27 @@ function evictBundlesForKey(
   state: CashierState,
   productId: string,
   variantSize: string,
-): Pick<CashierState, 'cart' | 'appliedPromotions' | 'bundleFreed'> {
+): Pick<CashierState, 'cart' | 'appliedPromotions' | 'bundleFreed' | 'bundleApplications'> {
   const ids = bundlesContainingKey(state.bundleFreed, productId, variantSize)
   if (ids.length === 0) {
     return {
       cart: state.cart,
       appliedPromotions: state.appliedPromotions,
       bundleFreed: state.bundleFreed,
+      bundleApplications: state.bundleApplications,
     }
   }
   let cart = state.cart
   let bundleFreed = state.bundleFreed
+  let bundleApplications = state.bundleApplications
   let appliedPromotions = state.appliedPromotions
   for (const id of ids) {
     cart = restoreBundle(cart, id, bundleFreed[id])
     bundleFreed = omitKey(bundleFreed, id)
+    bundleApplications = omitKey(bundleApplications, id)
     appliedPromotions = appliedPromotions.filter((p) => p.id !== id)
   }
-  return { cart, appliedPromotions, bundleFreed }
+  return { cart, appliedPromotions, bundleFreed, bundleApplications }
 }
 
 // evictAllForExclusive: an incoming exclusive (non-combinable) promo/code
@@ -259,22 +269,34 @@ function evictBundlesForKey(
 // customer-based, not promo-based. Mirrors CLEAR_PROMOTIONS' cart handling.
 function evictAllForExclusive(
   state: CashierState,
-): Pick<CashierState, 'cart' | 'bundleFreed'> {
+): Pick<CashierState, 'cart' | 'bundleFreed' | 'bundleApplications'> {
   const restored = restoreAllBundles(state.cart, state.bundleFreed)
   return {
     cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
     bundleFreed: {},
+    bundleApplications: {},
   }
 }
 
 // omitKey: return a shallow copy of the map without `key` (immutable delete).
-function omitKey(
-  map: Record<string, BundleFreedUnit[]>,
-  key: string,
-): Record<string, BundleFreedUnit[]> {
+function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
   if (!(key in map)) return map
   const { [key]: _removed, ...rest } = map
   return rest
+}
+
+// clearBundleEntry: drop a single bundle id from BOTH bookkeeping maps together,
+// so a freed set can never outlive its applied-nApp count (or vice versa). Every
+// path that clears one entry MUST go through here to keep the two maps in
+// lock-step. Returns the slice of state to spread into the result.
+function clearBundleEntry(
+  state: CashierState,
+  id: string,
+): Pick<CashierState, 'bundleFreed' | 'bundleApplications'> {
+  return {
+    bundleFreed: omitKey(state.bundleFreed, id),
+    bundleApplications: omitKey(state.bundleApplications, id),
+  }
 }
 
 export function cashierReducer(
@@ -356,8 +378,10 @@ export function cashierReducer(
           ? state.appliedPromotions
           : [...state.appliedPromotions, action.promotion],
         // Retain the freed set so any later reward-strip path can restore the
-        // moved paid quantity (stock conservation).
+        // moved paid quantity (stock conservation), plus the applied nApp so the
+        // reactive-removal effect can detect an over-applied (anchor-reduced) cart.
         bundleFreed: { ...state.bundleFreed, [action.promotion.id]: action.freed },
+        bundleApplications: { ...state.bundleApplications, [action.promotion.id]: action.applications },
         activeAdjustment: null,
       }
     }
@@ -371,7 +395,7 @@ export function cashierReducer(
         ...state,
         cart: restoreBundle(state.cart, action.promotionId, freed),
         appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotionId),
-        bundleFreed: omitKey(state.bundleFreed, action.promotionId),
+        ...clearBundleEntry(state, action.promotionId),
       }
     }
 
@@ -443,6 +467,7 @@ export function cashierReducer(
         appliedPromoCodes: [],
         appliedPromotions: [],
         bundleFreed: {},
+        bundleApplications: {},
         activeAdjustment: null,
       }
 
@@ -462,6 +487,7 @@ export function cashierReducer(
         // Restored bundles are no longer applied; drop them + clear their freed set.
         appliedPromotions: state.appliedPromotions.filter((p) => !(p.id in state.bundleFreed)),
         bundleFreed: {},
+        bundleApplications: {},
       }
     }
 
@@ -532,7 +558,7 @@ export function cashierReducer(
           ...state,
           appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotion.id),
           cart,
-          bundleFreed: omitKey(state.bundleFreed, action.promotion.id),
+          ...clearBundleEntry(state, action.promotion.id),
           activeAdjustment: null,
         }
       }
@@ -600,7 +626,7 @@ export function cashierReducer(
         ...state,
         appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id),
         cart,
-        bundleFreed: omitKey(state.bundleFreed, action.id),
+        ...clearBundleEntry(state, action.id),
       }
     }
 
@@ -620,6 +646,7 @@ export function cashierReducer(
         promoCodeInput: '',
         cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
         bundleFreed: {},
+        bundleApplications: {},
       }
     }
 

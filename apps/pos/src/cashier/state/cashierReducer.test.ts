@@ -252,7 +252,7 @@ describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () =>
 
   it('applying a bundle frees the cheapest units and conserves owned quantity', () => {
     const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
-    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed, applications: 1 })
     // 110ml still a paid line at full price
     const p110 = s.cart.find((c) => c.productId === 'p110' && !c.isReward)
     expect(p110?.quantity).toBe(1)
@@ -272,7 +272,7 @@ describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () =>
 
   it('removing the bundle restores the freed units to paid and clears reward lines', () => {
     const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
-    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed, applications: 1 })
     const removed = cashierReducer(applied, { type: 'REMOVE_BUNDLE', promotionId: 'bundle1', freed })
     // no reward lines remain
     expect(removed.cart.filter((c) => c.isReward)).toHaveLength(0)
@@ -298,7 +298,7 @@ describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () =>
     const partialFreed: BundleFreed[] = [
       { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 100000, quantity: 1 },
     ]
-    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const s = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed, applications: 1 })
     const paidAtom = s.cart.find((c) => c.productId === 'atom' && !c.isReward)
     expect(paidAtom?.quantity).toBe(1)
     expect(paidAtom?.subtotal).toBe(225000)
@@ -315,7 +315,7 @@ describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () =>
     const partialFreed: BundleFreed[] = [
       { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
     ]
-    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed, applications: 1 })
     const removed = cashierReducer(applied, { type: 'REMOVE_BUNDLE', promotionId: 'bundle1', freed: partialFreed })
     expect(removed.cart.filter((c) => c.isReward)).toHaveLength(0)
     const atom = removed.cart.find((c) => c.productId === 'atom')
@@ -338,7 +338,7 @@ describe('cashierReducer bundle restore on generic strip paths (stock leak fix)'
   ]
   const applyBundle = () => {
     const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
-    return cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+    return cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed, applications: 1 })
   }
 
   it('APPLY_BUNDLE records the freed set in bundleFreed keyed by promotion id', () => {
@@ -387,6 +387,44 @@ describe('cashierReducer bundle restore on generic strip paths (stock leak fix)'
     expect(s.bundleFreed['bundle1']).toBeUndefined()
   })
 
+  // ── bundleApplications lock-step (applied-nApp bookkeeping) ────────────────
+  // bundleApplications must be populated on APPLY_BUNDLE and cleared in lock-step
+  // with bundleFreed on every strip/eviction path — a freed set must never
+  // outlive its applied-nApp entry (or vice versa), else the reactive-removal
+  // effect can't compare against a stale/missing applied count.
+  it('APPLY_BUNDLE records the applied nApp in bundleApplications keyed by promotion id', () => {
+    const s = applyBundle()
+    expect(s.bundleApplications['bundle1']).toBe(1)
+  })
+
+  it('CLEAR_PROMOTIONS clears bundleApplications to {} in lock-step with bundleFreed', () => {
+    const s = cashierReducer(applyBundle(), { type: 'CLEAR_PROMOTIONS' })
+    expect(s.bundleFreed).toEqual({})
+    expect(s.bundleApplications).toEqual({})
+  })
+
+  it('CART_REMOVE_ITEM eviction drops the id from BOTH bundleFreed and bundleApplications', () => {
+    // Removing a FREED participant (atom) evicts the bundle → no stale entry may
+    // survive in either map.
+    const s = cashierReducer(applyBundle(), {
+      type: 'CART_REMOVE_ITEM',
+      productId: 'atom',
+      variantSize: 'M',
+    })
+    expect(s.bundleFreed['bundle1']).toBeUndefined()
+    expect(s.bundleApplications['bundle1']).toBeUndefined()
+    expect(s.appliedPromotions.map((p) => p.id)).not.toContain('bundle1')
+  })
+
+  it('REMOVE_BUNDLE / REMOVE_PROMOTION clear the bundleApplications entry too', () => {
+    const removed = cashierReducer(applyBundle(), {
+      type: 'REMOVE_BUNDLE', promotionId: 'bundle1', freed,
+    })
+    expect(removed.bundleApplications['bundle1']).toBeUndefined()
+    const removedP = cashierReducer(applyBundle(), { type: 'REMOVE_PROMOTION', id: 'bundle1' })
+    expect(removedP.bundleApplications['bundle1']).toBeUndefined()
+  })
+
   it('regression: SET_CUSTOMER strips a bxgy reward (added extra) but RESTORES the bundle (moved)', () => {
     const withBxgy = cashierReducer(applyBundle(), {
       type: 'CART_ADD_REWARD',
@@ -428,7 +466,7 @@ describe('cashierReducer bundle reducer-edge consistency (item1 + item2)', () =>
   ]
   const applyBundle = () =>
     cashierReducer({ ...CASHIER_INITIAL_STATE, cart: buildCart() }, {
-      type: 'APPLY_BUNDLE', promotion: bundlePromo, freed,
+      type: 'APPLY_BUNDLE', promotion: bundlePromo, freed, applications: 1,
     })
 
   // item1: an exclusive (non-combinable) promo replacing the applied set must
@@ -471,7 +509,7 @@ describe('cashierReducer bundle reducer-edge consistency (item1 + item2)', () =>
     const partialFreed: BundleFreed[] = [
       { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
     ]
-    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed, applications: 1 })
     expect(applied.bundleFreed['bundle1']).toBeDefined()
     // cashier deletes the atom paid line
     const s = cashierReducer(applied, { type: 'CART_REMOVE_ITEM', productId: 'atom', variantSize: 'M' })
@@ -488,7 +526,7 @@ describe('cashierReducer bundle reducer-edge consistency (item1 + item2)', () =>
     const partialFreed: BundleFreed[] = [
       { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
     ]
-    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed, applications: 1 })
     const s = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'atom', variantSize: 'M', quantity: 5 })
     expect(s.bundleFreed['bundle1']).toBeUndefined()
     expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
@@ -503,7 +541,7 @@ describe('cashierReducer bundle reducer-edge consistency (item1 + item2)', () =>
     const partialFreed: BundleFreed[] = [
       { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
     ]
-    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed })
+    const applied = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed: partialFreed, applications: 1 })
     const edited = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'atom', variantSize: 'M', quantity: 1 })
     const s = cashierReducer(edited, { type: 'CLEAR_PROMOTIONS' })
     // bundle already gone at edit time → CLEAR cannot double-restore atom
