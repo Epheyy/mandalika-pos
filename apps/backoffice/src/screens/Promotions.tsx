@@ -34,6 +34,7 @@ const PROMO_TYPE_LABEL: Record<string, string> = {
   bogo: 'BOGO',
   buy_x_get_y: 'Beli-Gratis',
   tiered: 'Bertingkat',
+  bundle: 'Paket Bundel',
 }
 const promoTypeLabel = (t: string): string => PROMO_TYPE_LABEL[t] ?? t
 
@@ -56,6 +57,9 @@ const promoValueLabel = (p: Promotion): string => {
   if (p.type === 'tiered') {
     const n = p.tieredConfig?.tiers?.length ?? 0
     return `${n} tingkat`
+  }
+  if (p.type === 'bundle') {
+    return `Harga paket ${BRAND.currency.format(p.bundleConfig?.bundlePrice ?? 0)}`
   }
   return String(p.value)
 }
@@ -120,7 +124,7 @@ export default function Promotions() {
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
       activeDays: p.activeDays || [], bxgyConfig: p.bxgyConfig ?? undefined,
-      tieredConfig: p.tieredConfig ?? undefined,
+      tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
     setPromoOpen(true)
   }
@@ -146,7 +150,7 @@ export default function Promotions() {
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
       activeDays: p.activeDays || [], startDate: p.startDate || undefined,
       endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
-      tieredConfig: p.tieredConfig ?? undefined,
+      tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
     await prq.refetch()
   }
@@ -159,7 +163,7 @@ export default function Promotions() {
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
       activeDays: p.activeDays || [], startDate: p.startDate || undefined,
       endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
-      tieredConfig: p.tieredConfig ?? undefined,
+      tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
     await prq.refetch()
   }
