@@ -41,6 +41,13 @@ export interface CashierState {
   appliedPromotions: Promotion[]
   appliedPromoCodes: AppliedPromoCode[]
   promoCodeInput: string
+  // Applied bundles' freed sets, keyed by bundle promotion id. A bundle MOVES
+  // units paid→reward (reducing the paid line), unlike bxgy/loyalty rewards which
+  // ADD extra units. Retaining the freed set (with fullPrice) lets EVERY reward-
+  // strip path restore the moved paid quantity, so freed physical units never
+  // vanish (stock conservation). A reward line whose rewardPromotionId is a key
+  // here is a bundle line → restore; otherwise strip as before.
+  bundleFreed: Record<string, BundleFreedUnit[]>
   // Checkout
   isCheckoutOpen: boolean
   paymentMethod: PaymentMethod
@@ -106,6 +113,7 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   appliedPromotions: [],
   appliedPromoCodes: [],
   promoCodeInput: '',
+  bundleFreed: {},
   isCheckoutOpen: false,
   paymentMethod: 'cash',
   amountPaid: '',
@@ -157,6 +165,55 @@ function reducePaidQty(
     if (newQty <= 0) return []
     return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]
   })
+}
+
+// restoreBundle: inverse of a bundle application. Strip this bundle's reward
+// lines and add the freed units back onto their paid lines at full price
+// (merging into an existing paid line, recreating it when it was fully consumed).
+// Pure and catalog-free — fullPrice comes from the retained freed set. Used by
+// REMOVE_BUNDLE and by every generic reward-strip path so a freed physical unit
+// is never dropped without its paid quantity being restored.
+function restoreBundle(
+  cart: CartItem[],
+  promotionId: string,
+  freed: BundleFreedUnit[],
+): CartItem[] {
+  let next = cart.filter((c) => !(c.isReward && c.rewardPromotionId === promotionId))
+  for (const f of freed) {
+    next = upsertCartItem(next, {
+      productId: f.productId,
+      productName: f.productName,
+      variantSize: f.variantSize,
+      price: f.fullPrice,
+      quantity: f.quantity,
+      subtotal: Math.round(f.fullPrice * f.quantity),
+    })
+  }
+  return next
+}
+
+// restoreAllBundles: restore every applied bundle's paid quantity (stripping its
+// reward lines), returning the rebuilt cart. Callers then strip any remaining
+// (non-bundle) reward lines and reset bundleFreed to {}.
+function restoreAllBundles(
+  cart: CartItem[],
+  bundleFreed: Record<string, BundleFreedUnit[]>,
+): CartItem[] {
+  let next = cart
+  for (const [promotionId, freed] of Object.entries(bundleFreed)) {
+    next = restoreBundle(next, promotionId, freed)
+  }
+  return next
+}
+
+// omitKey: return a shallow copy of the map without `key` (immutable delete).
+function omitKey(
+  map: Record<string, BundleFreedUnit[]>,
+  key: string,
+): Record<string, BundleFreedUnit[]> {
+  if (!(key in map)) return map
+  const { [key]: _removed, ...rest } = map
+  return rest
 }
 
 export function cashierReducer(
@@ -237,31 +294,23 @@ export function cashierReducer(
         appliedPromotions: already
           ? state.appliedPromotions
           : [...state.appliedPromotions, action.promotion],
+        // Retain the freed set so any later reward-strip path can restore the
+        // moved paid quantity (stock conservation).
+        bundleFreed: { ...state.bundleFreed, [action.promotion.id]: action.freed },
         activeAdjustment: null,
       }
     }
 
     case 'REMOVE_BUNDLE': {
-      // Inverse of APPLY_BUNDLE: drop this bundle's reward lines and restore the
-      // freed units back onto their paid lines at full price (merging into an
-      // existing paid line, recreating it when it was fully consumed).
-      let cart = state.cart.filter(
-        (c) => !(c.isReward && c.rewardPromotionId === action.promotionId),
-      )
-      for (const f of action.freed) {
-        cart = upsertCartItem(cart, {
-          productId: f.productId,
-          productName: f.productName,
-          variantSize: f.variantSize,
-          price: f.fullPrice,
-          quantity: f.quantity,
-          subtotal: Math.round(f.fullPrice * f.quantity),
-        })
-      }
+      // Inverse of APPLY_BUNDLE: strip this bundle's reward lines and restore the
+      // freed units back onto their paid lines at full price. Prefer the retained
+      // freed set (source of truth) and fall back to the action's for safety.
+      const freed = state.bundleFreed[action.promotionId] ?? action.freed
       return {
         ...state,
-        cart,
+        cart: restoreBundle(state.cart, action.promotionId, freed),
         appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotionId),
+        bundleFreed: omitKey(state.bundleFreed, action.promotionId),
       }
     }
 
@@ -322,19 +371,28 @@ export function cashierReducer(
         adjustInputStr: '',
         appliedPromoCodes: [],
         appliedPromotions: [],
+        bundleFreed: {},
         activeAdjustment: null,
       }
 
-    case 'SET_CUSTOMER':
+    case 'SET_CUSTOMER': {
+      // Reward eligibility is customer-specific; drop reward lines on change/clear.
+      // But a bundle MOVED units off their paid line — restore those to paid first
+      // (else the freed physical units vanish = stock leak), then strip the
+      // remaining (bxgy/loyalty) reward lines which were added extras.
+      const restored = restoreAllBundles(state.cart, state.bundleFreed)
       return {
         ...state,
         selectedCustomer: action.customer,
         customerSearch: action.customer ? '' : state.customerSearch,
         // Points belong to a customer; drop redemption when they change/clear.
         pointsToRedeem: 0,
-        // Reward eligibility is customer-specific; drop reward lines on change/clear.
-        cart: state.cart.filter((c) => !c.isReward),
+        cart: restored.filter((c) => !c.isReward),
+        // Restored bundles are no longer applied; drop them + clear their freed set.
+        appliedPromotions: state.appliedPromotions.filter((p) => !(p.id in state.bundleFreed)),
+        bundleFreed: {},
       }
+    }
 
     case 'SET_CUSTOMER_SEARCH':
       return { ...state, customerSearch: action.search }
@@ -389,14 +447,21 @@ export function cashierReducer(
     case 'APPLY_PROMOTION': {
       const exists = state.appliedPromotions.some((p) => p.id === action.promotion.id)
       if (exists) {
-        // toggle off — also strip any reward lines this promo added (else the
-        // free reward line lingers in the cart with the promo gone).
+        // toggle off — strip this promo's reward lines. A bundle MOVED units off
+        // their paid line, so restore the paid quantity instead of just dropping
+        // the reward (else the freed units vanish). Bxgy/loyalty rewards were
+        // added extras → plain strip.
+        const freed = state.bundleFreed[action.promotion.id]
+        const cart = freed
+          ? restoreBundle(state.cart, action.promotion.id, freed)
+          : state.cart.filter(
+              (c) => !(c.isReward && c.rewardPromotionId === action.promotion.id),
+            )
         return {
           ...state,
           appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotion.id),
-          cart: state.cart.filter(
-            (c) => !(c.isReward && c.rewardPromotionId === action.promotion.id),
-          ),
+          cart,
+          bundleFreed: omitKey(state.bundleFreed, action.promotion.id),
           activeAdjustment: null,
         }
       }
@@ -446,27 +511,40 @@ export function cashierReducer(
       }
     }
 
-    case 'REMOVE_PROMOTION':
+    case 'REMOVE_PROMOTION': {
+      // strip the reward lines this promo gave, so they don't linger when removed.
+      // A bundle MOVED units off their paid line → restore the paid quantity;
+      // bxgy/loyalty rewards were added extras → plain strip.
+      const freed = state.bundleFreed[action.id]
+      const cart = freed
+        ? restoreBundle(state.cart, action.id, freed)
+        : state.cart.filter((c) => !(c.isReward && c.rewardPromotionId === action.id))
       return {
         ...state,
         appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id),
-        // strip the reward lines this promo gave, so they don't linger when removed
-        cart: state.cart.filter((c) => !(c.isReward && c.rewardPromotionId === action.id)),
+        cart,
+        bundleFreed: omitKey(state.bundleFreed, action.id),
       }
+    }
 
     case 'REMOVE_PROMO_CODE':
       return { ...state, appliedPromoCodes: state.appliedPromoCodes.filter((c) => c.code !== action.code) }
 
-    case 'CLEAR_PROMOTIONS':
+    case 'CLEAR_PROMOTIONS': {
+      // Restore every applied bundle's paid quantity first (their units were
+      // MOVED off paid — plain stripping would leak stock), then strip ALL
+      // remaining promo reward lines (keeps loyalty rewards, which have a
+      // rewardConditionId and no rewardPromotionId).
+      const restored = restoreAllBundles(state.cart, state.bundleFreed)
       return {
         ...state,
         appliedPromotions: [],
         appliedPromoCodes: [],
         promoCodeInput: '',
-        // strip ALL promo reward lines (keeps loyalty rewards, which have a
-        // rewardConditionId and no rewardPromotionId).
-        cart: state.cart.filter((c) => !(c.isReward && c.rewardPromotionId)),
+        cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
+        bundleFreed: {},
       }
+    }
 
     case 'OPEN_CHECKOUT':
       return {

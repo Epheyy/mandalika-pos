@@ -324,6 +324,97 @@ describe('cashierReducer APPLY_BUNDLE / REMOVE_BUNDLE (stock-conserving)', () =>
   })
 })
 
+describe('cashierReducer bundle restore on generic strip paths (stock leak fix)', () => {
+  // owner combo: 110ml anchor stays paid; atom + 2ml are MOVED paid→reward @0.
+  const bundlePromo = { id: 'bundle1', name: 'Combo', type: 'bundle', value: 0, isActive: true, createdAt: '' } as any
+  const buildCart = (): CartItem[] => [
+    paidLine('p110', 575000),
+    paidLine('atom', 225000),
+    paidLine('p2ml', 1),
+  ]
+  const freed: BundleFreed[] = [
+    { productId: 'atom', variantSize: 'M', productName: 'atom', fullPrice: 225000, net: 0, quantity: 1 },
+    { productId: 'p2ml', variantSize: 'M', productName: 'p2ml', fullPrice: 1, net: 0, quantity: 1 },
+  ]
+  const applyBundle = () => {
+    const start = { ...CASHIER_INITIAL_STATE, cart: buildCart() }
+    return cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: bundlePromo, freed })
+  }
+
+  it('APPLY_BUNDLE records the freed set in bundleFreed keyed by promotion id', () => {
+    const s = applyBundle()
+    expect(s.bundleFreed['bundle1']).toBeDefined()
+    expect(s.bundleFreed['bundle1']).toHaveLength(2)
+  })
+
+  it('SET_CUSTOMER restores freed bundle units to paid (freed units do not vanish)', () => {
+    const s = cashierReducer(applyBundle(), {
+      type: 'SET_CUSTOMER',
+      customer: { id: 'c1', name: 'Budi' } as never,
+    })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(ownedQty(s.cart, 'p110', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'p2ml', 'M')).toBe(1)
+    expect(s.cart.find((c) => c.productId === 'atom')?.price).toBe(225000)
+    expect(s.selectedCustomer?.id).toBe('c1')
+    expect(s.bundleFreed).toEqual({})
+  })
+
+  it('REMOVE_PROMOTION(bundle) restores freed units to paid and clears its bundleFreed', () => {
+    const s = cashierReducer(applyBundle(), { type: 'REMOVE_PROMOTION', id: 'bundle1' })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(s.cart.find((c) => c.productId === 'atom')?.price).toBe(225000)
+    expect(s.appliedPromotions.map((p) => p.id)).not.toContain('bundle1')
+    expect(s.bundleFreed['bundle1']).toBeUndefined()
+  })
+
+  it('CLEAR_PROMOTIONS restores freed units, empties promotions, clears bundleFreed', () => {
+    const s = cashierReducer(applyBundle(), { type: 'CLEAR_PROMOTIONS' })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'p2ml', 'M')).toBe(1)
+    expect(s.appliedPromotions).toEqual([])
+    expect(s.bundleFreed).toEqual({})
+  })
+
+  it('APPLY_PROMOTION toggle-off of a bundle restores freed units to paid', () => {
+    const s = cashierReducer(applyBundle(), { type: 'APPLY_PROMOTION', promotion: bundlePromo })
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(s.appliedPromotions.map((p) => p.id)).not.toContain('bundle1')
+    expect(s.bundleFreed['bundle1']).toBeUndefined()
+  })
+
+  it('regression: SET_CUSTOMER strips a bxgy reward (added extra) but RESTORES the bundle (moved)', () => {
+    const withBxgy = cashierReducer(applyBundle(), {
+      type: 'CART_ADD_REWARD',
+      item: promoReward('pX', 'M', 'bxgy1'),
+    })
+    const s = cashierReducer(withBxgy, {
+      type: 'SET_CUSTOMER',
+      customer: { id: 'c1', name: 'Budi' } as never,
+    })
+    // bxgy reward stripped without restore (it was an added freebie, not a moved unit)
+    expect(s.cart.find((c) => c.productId === 'pX')).toBeUndefined()
+    expect(s.cart.filter((c) => c.isReward)).toHaveLength(0)
+    // bundle restored to paid
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(s.cart.find((c) => c.productId === 'atom')?.price).toBe(225000)
+  })
+
+  it('does not double-restore: SET_CUSTOMER then CLEAR_PROMOTIONS keeps owned qty at 1', () => {
+    const afterCust = cashierReducer(applyBundle(), {
+      type: 'SET_CUSTOMER',
+      customer: { id: 'c1', name: 'B' } as never,
+    })
+    const s = cashierReducer(afterCust, { type: 'CLEAR_PROMOTIONS' })
+    expect(ownedQty(s.cart, 'atom', 'M')).toBe(1)
+    expect(ownedQty(s.cart, 'p2ml', 'M')).toBe(1)
+  })
+})
+
 describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
   it('adds two reward lines for the same promo (different product/variant)', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, {
