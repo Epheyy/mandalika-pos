@@ -839,6 +839,7 @@ func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
 		   'codeOnly',code_only,
 		   'bxgyConfig',bxgy_config,
 		   'tieredConfig',tiered_config,
+		   'bundleConfig',bundle_config,
 		   'createdAt',created_at) FROM promotions ORDER BY created_at DESC`)
 }
 

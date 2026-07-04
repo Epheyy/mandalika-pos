@@ -149,3 +149,32 @@ func TestValidateTieredAccepts(t *testing.T) {
 		t.Fatalf("valid config rejected: %v", err)
 	}
 }
+
+func TestValidateBundle(t *testing.T) {
+	ok := &BundleConfigInput{
+		Slots: []BundleSlotInput{
+			{ProductKeys: []string{"p110"}, Quantity: 1},
+			{ProductKeys: []string{"atomA", "atomB"}, Quantity: 1},
+		},
+		BundlePrice: 575000, MaxApplications: 0,
+	}
+	if err := validateBundle(ok); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+	cases := []*BundleConfigInput{
+		nil,
+		{Slots: nil, BundlePrice: 1}, // empty slots
+		{Slots: []BundleSlotInput{{ProductKeys: nil, Quantity: 1}}, BundlePrice: 1},           // empty keys
+		{Slots: []BundleSlotInput{{ProductKeys: []string{"p"}, Quantity: 0}}, BundlePrice: 1}, // qty<1
+		{Slots: []BundleSlotInput{{ProductKeys: []string{"p"}, Quantity: 1}}, BundlePrice: 0}, // price<=0
+		{Slots: []BundleSlotInput{ // overlapping key across slots
+			{ProductKeys: []string{"p", "q"}, Quantity: 1},
+			{ProductKeys: []string{"q"}, Quantity: 1},
+		}, BundlePrice: 1},
+	}
+	for i, c := range cases {
+		if err := validateBundle(c); err == nil {
+			t.Fatalf("case %d: expected error, got nil", i)
+		}
+	}
+}

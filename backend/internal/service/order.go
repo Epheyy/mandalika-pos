@@ -696,6 +696,18 @@ func parseBXGYConfig(raw []byte) (*BXGYConfig, error) {
 	return &c, nil
 }
 
+// parseBundleConfig unmarshals the bundle_config jsonb. nil/empty -> (nil, nil).
+func parseBundleConfig(raw []byte) (*BundleConfig, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var c BundleConfig
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return nil, fmt.Errorf("parse bundle_config: %w", err)
+	}
+	return &c, nil
+}
+
 // loadPromoSpec loads an ACTIVE promotion by id, builds its PromoSpec, and returns
 // its combinable + code_only flags and validation violations. found=false on
 // ErrNoRows (caller decides reject-vs-flag by origin).
@@ -706,17 +718,19 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 	var row PromoRow
 	var bxgyRaw []byte
 	var tieredRaw []byte
+	var bundleRaw []byte
 	e := tx.QueryRow(ctx,
 		`SELECT type, value,
 		   COALESCE(applicable_product_ids,'[]'::jsonb),
 		   start_date, end_date, min_purchase,
 		   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
 		   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb),
-		   COALESCE(combinable,false), COALESCE(code_only,false), bxgy_config, tiered_config
+		   COALESCE(combinable,false), COALESCE(code_only,false), bxgy_config, tiered_config,
+		   bundle_config
 		   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
 		Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
 			&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs,
-			&row.Combinable, &codeOnly, &bxgyRaw, &tieredRaw)
+			&row.Combinable, &codeOnly, &bxgyRaw, &tieredRaw, &bundleRaw)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return PromoSpec{}, false, false, nil, false, nil
 	}
@@ -737,6 +751,13 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 			return PromoSpec{}, false, false, nil, false, perr
 		}
 		spec.Tiered = cfg
+	}
+	if spec.Kind == DiscountBundle {
+		cfg, perr := parseBundleConfig(bundleRaw)
+		if perr != nil {
+			return PromoSpec{}, false, false, nil, false, perr
+		}
+		spec.Bundle = cfg
 	}
 	return spec, row.Combinable, codeOnly, ValidatePromo(row, ec), true, nil
 }

@@ -517,6 +517,44 @@ func validateTiered(c *TieredConfigInput) error {
 	return nil
 }
 
+type BundleSlotInput struct {
+	ProductKeys []string `json:"productKeys"`
+	Quantity    int      `json:"quantity"`
+}
+type BundleConfigInput struct {
+	Slots           []BundleSlotInput `json:"slots"`
+	BundlePrice     float64           `json:"bundlePrice"`
+	MaxApplications int               `json:"maxApplications"`
+}
+
+func validateBundle(c *BundleConfigInput) error {
+	if c == nil || len(c.Slots) == 0 {
+		return fmt.Errorf("bundleConfig requires at least one slot")
+	}
+	if c.BundlePrice <= 0 {
+		return fmt.Errorf("bundle bundlePrice must be > 0")
+	}
+	if c.MaxApplications < 0 {
+		return fmt.Errorf("bundle maxApplications must be >= 0")
+	}
+	seen := map[string]bool{}
+	for _, s := range c.Slots {
+		if len(s.ProductKeys) == 0 {
+			return fmt.Errorf("bundle slot requires at least one productKey")
+		}
+		if s.Quantity < 1 {
+			return fmt.Errorf("bundle slot quantity must be >= 1")
+		}
+		for _, k := range s.ProductKeys {
+			if seen[k] {
+				return fmt.Errorf("bundle slots must not overlap on key %q", k)
+			}
+			seen[k] = true
+		}
+	}
+	return nil
+}
+
 func validateBXGY(c *BXGYConfigInput) error {
 	if c == nil {
 		return fmt.Errorf("bxgyConfig required for buy_x_get_y")
@@ -547,26 +585,27 @@ func validateBXGY(c *BXGYConfigInput) error {
 }
 
 type Promotion struct {
-	Name                   string           `json:"name"`
-	Description            string           `json:"description"`
-	Type                   string           `json:"type"`
-	Value                  float64          `json:"value"`
-	MinPurchase            *float64         `json:"minPurchase"`
-	ApplicableProductIDs   []string         `json:"applicableProductIds"`
-	ApplicableVariantKeys  []string         `json:"applicableVariantKeys"`
-	ApplicableVariantSizes []string         `json:"applicableVariantSizes"`
-	OutletIDs              []string         `json:"outletIds"`
-	Combinable             *bool            `json:"combinable"`
-	CombinableWith         []string         `json:"combinableWith"`
-	CodeOnly               bool             `json:"codeOnly"`
-	ActiveFromHour         string           `json:"activeFromHour"`
-	ActiveToHour           string           `json:"activeToHour"`
-	ActiveDays             []int            `json:"activeDays"`
-	IsActive               bool             `json:"isActive"`
-	StartDate              string           `json:"startDate"`
-	EndDate                string           `json:"endDate"`
+	Name                   string             `json:"name"`
+	Description            string             `json:"description"`
+	Type                   string             `json:"type"`
+	Value                  float64            `json:"value"`
+	MinPurchase            *float64           `json:"minPurchase"`
+	ApplicableProductIDs   []string           `json:"applicableProductIds"`
+	ApplicableVariantKeys  []string           `json:"applicableVariantKeys"`
+	ApplicableVariantSizes []string           `json:"applicableVariantSizes"`
+	OutletIDs              []string           `json:"outletIds"`
+	Combinable             *bool              `json:"combinable"`
+	CombinableWith         []string           `json:"combinableWith"`
+	CodeOnly               bool               `json:"codeOnly"`
+	ActiveFromHour         string             `json:"activeFromHour"`
+	ActiveToHour           string             `json:"activeToHour"`
+	ActiveDays             []int              `json:"activeDays"`
+	IsActive               bool               `json:"isActive"`
+	StartDate              string             `json:"startDate"`
+	EndDate                string             `json:"endDate"`
 	BXGYConfig             *BXGYConfigInput   `json:"bxgyConfig"`
 	TieredConfig           *TieredConfigInput `json:"tieredConfig"`
+	BundleConfig           *BundleConfigInput `json:"bundleConfig"`
 }
 
 func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error) {
@@ -577,6 +616,11 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 	}
 	if p.Type == "tiered" {
 		if err := validateTiered(p.TieredConfig); err != nil {
+			return "", err
+		}
+	}
+	if p.Type == "bundle" {
+		if err := validateBundle(p.BundleConfig); err != nil {
 			return "", err
 		}
 	}
@@ -598,18 +642,23 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			b, _ := jsonb(p.TieredConfig)
 			tiered = b
 		}
+		var bundle any
+		if p.Type == "bundle" && p.BundleConfig != nil {
+			b, _ := jsonb(p.BundleConfig)
+			bundle = b
+		}
 		return t.QueryRow(ctx, `
 			INSERT INTO promotions (name, description, type, value, min_purchase,
 			  applicable_product_ids, applicable_variant_keys,
 			  applicable_variant_sizes, outlet_ids, combinable, combinable_with,
 			  active_from_hour, active_to_hour, active_days, is_active,
-			  start_date, end_date, code_only, bxgy_config, tiered_config)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+			  start_date, end_date, code_only, bxgy_config, tiered_config, bundle_config)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 			RETURNING id`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered).Scan(&id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle).Scan(&id)
 	})
 	return id, err
 }
@@ -622,6 +671,11 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 	}
 	if p.Type == "tiered" {
 		if err := validateTiered(p.TieredConfig); err != nil {
+			return err
+		}
+	}
+	if p.Type == "bundle" {
+		if err := validateBundle(p.BundleConfig); err != nil {
 			return err
 		}
 	}
@@ -642,18 +696,23 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			b, _ := jsonb(p.TieredConfig)
 			tiered = b
 		}
+		var bundle any
+		if p.Type == "bundle" && p.BundleConfig != nil {
+			b, _ := jsonb(p.BundleConfig)
+			bundle = b
+		}
 		ct, e := t.Exec(ctx, `
 			UPDATE promotions SET name=$1, description=$2, type=$3, value=$4,
 			  min_purchase=$5, applicable_product_ids=$6, applicable_variant_keys=$7,
 			  applicable_variant_sizes=$8, outlet_ids=$9, combinable=$10,
 			  combinable_with=$11, active_from_hour=$12, active_to_hour=$13,
 			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18,
-			  bxgy_config=$19, tiered_config=$20
-			WHERE id=$21`,
+			  bxgy_config=$19, tiered_config=$20, bundle_config=$21
+			WHERE id=$22`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
