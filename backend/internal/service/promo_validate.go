@@ -23,6 +23,9 @@ const (
 	// SP-Promo-3b reward fulfillment: a reward (buy_x_get_y free/discounted) line is
 	// not on the promo's get-set, or exceeds the cart's earned reward quota.
 	ViolationRewardInvalid PromoViolation = "reward_invalid"
+	// SP-Promo-3b-bundle: a bundle-freed line is not slot-eligible, no complete set
+	// exists, a slot is over-freed, or a cheaper eligible unit was left paid.
+	ViolationBundleInvalid PromoViolation = "bundle_invalid"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.

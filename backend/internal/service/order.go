@@ -194,6 +194,23 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		}
 	}
 
+	// SP-Promo-3b-bundle: validate/reprice bundle-freed lines (server-authoritative),
+	// conserve stock, emit grants. Runs after resolveRewardLines (partitioned by promo
+	// type) and before pricing/stock/order_items so all of them see the corrected lines.
+	bundleGrants, bundleWarnReason, err := s.resolveBundleLines(ctx, tx, &in)
+	if err != nil {
+		return "", false, false, err
+	}
+	if bundleWarnReason != "" {
+		discountWarning = true
+		if discountWarnReason == "" {
+			discountWarnReason = bundleWarnReason
+		} else {
+			discountWarnReason += "," + bundleWarnReason
+		}
+	}
+	rewardGrants = append(rewardGrants, bundleGrants...)
+
 	items := make([]LineItem, len(in.Items))
 	for i, it := range in.Items {
 		items[i] = LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal}
@@ -1085,6 +1102,22 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 		if err != nil {
 			return nil, "", err
 		}
+		if cfg == nil {
+			// Partition: a reward line whose promo isn't buy_x_get_y (e.g. an
+			// SP-Promo-3b-bundle freed line) belongs to its own resolver
+			// (resolveBundleLines) — pass it through untouched here instead of
+			// treating it as an invalid bxgy reward. A genuinely missing promo
+			// (found=false) or a bxgy promo with a nil config still falls through
+			// to the invalid path below.
+			spec, _, _, _, found, e := s.loadPromoSpec(ctx, tx, it.RewardPromotionID, PromoEvalContext{})
+			if e != nil {
+				return nil, "", e
+			}
+			if found && spec.Kind != DiscountBuyXGetY {
+				kept = append(kept, it)
+				continue
+			}
+		}
 		cat, err := loadRewardCatalog(ctx, tx, it.ProductID, it.VariantSize)
 		if err != nil {
 			return nil, "", err
@@ -1126,6 +1159,133 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 		}
 	}
 	in.Items = kept
+
+	warn := ""
+	if len(warns) > 0 {
+		warn = JoinViolations(warns)
+	}
+	return grants, warn, nil
+}
+
+// resolveBundleLines validates each SP-Promo-3b-bundle freed line (IsReward with a
+// bundle-type RewardPromotionID) against its promo's slots, repricing valid lines to
+// the SERVER net (cheapest-first, bundleAllocate) and emitting one grant per unit.
+// Mutates in.Items in place (freed lines' Price/Subtotal only — it NEVER adds or
+// removes physical units, so stock conservation is preserved: the POS already reduced
+// the paid line qty when it added the reward line, and the stock loop decrements each
+// line once regardless of its price). Partitioned from resolveRewardLines by promo
+// type (bundle vs buy_x_get_y). ONLINE invalid → *ErrDiscountRejected{ViolationBundleInvalid};
+// OFFLINE invalid → KEEP the freed line at the client price (it is a physical unit the
+// customer is taking) + warn (never drop). Returns grants (OrderID stamped by caller)
+// and a warn reason (non-empty only for an offline order that kept an unvalidated line).
+func (s *OrderService) resolveBundleLines(ctx context.Context, tx pgx.Tx, in *CreateOrderInput) ([]write.RewardGrantRow, string, error) {
+	// Discover the bundle promos referenced by reward lines (fast exit if none).
+	bundleIDs := map[string]bool{}
+	for _, it := range in.Items {
+		if !it.IsReward || it.RewardPromotionID == "" || bundleIDs[it.RewardPromotionID] {
+			continue
+		}
+		spec, _, _, _, found, err := s.loadPromoSpec(ctx, tx, it.RewardPromotionID, PromoEvalContext{})
+		if err != nil {
+			return nil, "", err
+		}
+		if found && spec.Kind == DiscountBundle {
+			bundleIDs[it.RewardPromotionID] = true
+		}
+	}
+	if len(bundleIDs) == 0 {
+		return nil, "", nil
+	}
+
+	// Paid (non-reward) lines are shared across all bundle promos in this order.
+	var paid []LineItem
+	for _, it := range in.Items {
+		if it.IsReward {
+			continue
+		}
+		paid = append(paid, LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity})
+	}
+
+	var grants []write.RewardGrantRow
+	var warns []PromoViolation
+
+	for promoID := range bundleIDs {
+		spec, _, _, _, _, err := s.loadPromoSpec(ctx, tx, promoID, PromoEvalContext{})
+		if err != nil {
+			return nil, "", err
+		}
+		cfg := spec.Bundle
+
+		// Collect this promo's freed lines (index + catalog name/full price) and expand
+		// to per-unit inputs for the pure helper.
+		type freedLine struct {
+			idx       int
+			name      string
+			fullPrice float64
+			qty       int
+		}
+		var lines []freedLine
+		var units []bundleFreedUnit
+		valid := cfg != nil
+		for i := range in.Items {
+			it := &in.Items[i]
+			if !it.IsReward || it.RewardPromotionID != promoID {
+				continue
+			}
+			cat, err := loadRewardCatalog(ctx, tx, it.ProductID, it.VariantSize)
+			if err != nil {
+				return nil, "", err
+			}
+			if !cat.found {
+				valid = false // unfulfillable variant → invalid bundle
+			}
+			lines = append(lines, freedLine{idx: i, name: cat.name, fullPrice: cat.fullPrice, qty: it.Quantity})
+			for n := 0; n < it.Quantity; n++ {
+				units = append(units, bundleFreedUnit{ProductID: it.ProductID, VariantSize: it.VariantSize, FullPrice: cat.fullPrice})
+			}
+		}
+
+		var nets []float64
+		if valid {
+			var ok bool
+			if nets, ok = bundleFreedNets(cfg, paid, units); !ok {
+				valid = false
+			}
+		}
+
+		if !valid {
+			if !in.Offline {
+				return nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationBundleInvalid}}
+			}
+			// Offline: KEEP the freed lines as-rung (physical units the customer is
+			// taking) and flag the order for admin reconciliation.
+			slog.Warn("keeping unvalidated bundle reward line(s) (offline)", "promotion_id", promoID)
+			warns = append(warns, ViolationBundleInvalid)
+			continue
+		}
+
+		// Reprice each freed line to the SERVER net (Σ of its units' nets) and emit one
+		// grant per unit. `nets` is aligned to `units` (qty-expanded, lines in order).
+		u := 0
+		for _, ln := range lines {
+			it := &in.Items[ln.idx]
+			var sub float64
+			for k := 0; k < ln.qty; k++ {
+				net := nets[u]
+				u++
+				sub += net
+				grants = append(grants, write.RewardGrantRow{
+					PromotionID: promoID, ProductID: it.ProductID,
+					ProductName: ln.name, VariantSize: it.VariantSize,
+					FullPrice: ln.fullPrice, RewardPrice: net, RewardValue: ln.fullPrice - net,
+				})
+			}
+			it.Subtotal = math.Round(sub)
+			if ln.qty > 0 {
+				it.Price = math.Round(sub / float64(ln.qty))
+			}
+		}
+	}
 
 	warn := ""
 	if len(warns) > 0 {

@@ -1415,6 +1415,8 @@ func discountRejectMessage(v []service.PromoViolation) string {
 		return "Promo ini hanya bisa dipakai lewat kode"
 	case service.ViolationRewardInvalid:
 		return "Hadiah promo tidak valid atau melebihi kuota"
+	case service.ViolationBundleInvalid:
+		return "Bundel tidak valid atau syaratnya tidak terpenuhi"
 	default:
 		return "Diskon tidak berlaku"
 	}

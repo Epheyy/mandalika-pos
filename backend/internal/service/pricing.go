@@ -145,6 +145,140 @@ func bundleAllocate(prices []float64, bundlePrice float64, nApp int) []float64 {
 	return nets
 }
 
+// bundleFreedUnit is one physical unit the client marked GRATIS (a reward line's
+// unit) under a bundle promo, carrying its catalog full price + product key.
+type bundleFreedUnit struct {
+	ProductID   string
+	VariantSize string
+	FullPrice   float64
+}
+
+// bundleSlotIndex returns the index of the first slot whose keys match
+// (productID,size), or -1. Save-time rejects overlapping slots, so at most one
+// slot ever matches a given unit.
+func bundleSlotIndex(c *BundleConfig, productID, size string) int {
+	for i, slot := range c.Slots {
+		if keyMatchesLine(slot.ProductKeys, productID, size) {
+			return i
+		}
+	}
+	return -1
+}
+
+// bundleFreedNets is the PURE core of resolveBundleLines (no DB, no tx — unit
+// tested). Given a bundle config, the PAID (non-reward) lines and the qty-expanded
+// freed units (with their catalog full prices), it:
+//
+//	(a) confirms a complete set exists (bundleApplications >= 1), every freed unit
+//	    is slot-eligible, no slot is over-freed, and — the security crux — no PAID
+//	    eligible unit is strictly cheaper than the most expensive FREED unit in the
+//	    same slot (the "free the cheapest" invariant that blocks the free-the-
+//	    expensive-anchor exploit); and
+//	(b) reprices each freed unit via bundleAllocate over the reconstructed CONSUMED
+//	    set (freed units + the cheapest paid anchors needed to complete nApp sets —
+//	    a conservative choice that never over-discounts).
+//
+// Returns per-unit nets aligned to `freed`, ok=false on any illegality. The freed
+// units are placed before anchors of equal price so equal-price ties zero the freed
+// unit (customer-favouring, matches the POS-computed selection).
+func bundleFreedNets(cfg *BundleConfig, paid []LineItem, freed []bundleFreedUnit) (nets []float64, ok bool) {
+	if cfg == nil || len(freed) == 0 {
+		return nil, false
+	}
+
+	// Application count over the combined owned units (bundleApplications ignores
+	// price, so freed units carry their full price harmlessly here).
+	owned := make([]LineItem, 0, len(paid)+len(freed))
+	owned = append(owned, paid...)
+	for _, f := range freed {
+		owned = append(owned, LineItem{ProductID: f.ProductID, VariantSize: f.VariantSize, Price: f.FullPrice, Quantity: 1})
+	}
+	nApp := bundleApplications(cfg, owned)
+	if nApp < 1 {
+		return nil, false
+	}
+
+	// Partition owned units into their (single) matching slot. freedIdx>=0 indexes
+	// `freed`; -1 marks a paid unit.
+	type ownedUnit struct {
+		price    float64
+		freedIdx int
+	}
+	slots := make([][]ownedUnit, len(cfg.Slots))
+	for i, f := range freed {
+		si := bundleSlotIndex(cfg, f.ProductID, f.VariantSize)
+		if si < 0 {
+			return nil, false // freed unit not eligible for any slot (tamper)
+		}
+		slots[si] = append(slots[si], ownedUnit{price: f.FullPrice, freedIdx: i})
+	}
+	for _, p := range paid {
+		si := bundleSlotIndex(cfg, p.ProductID, p.VariantSize)
+		if si < 0 {
+			continue // not part of this bundle
+		}
+		for n := 0; n < p.Quantity; n++ {
+			slots[si] = append(slots[si], ownedUnit{price: p.Price, freedIdx: -1})
+		}
+	}
+
+	// Reconstruct the flat consumed price list (across all slots) + a parallel
+	// freedIdx list, then let bundleAllocate spread the single discount pool.
+	var consumed []float64
+	var consumedFreed []int
+	for si, slot := range cfg.Slots {
+		need := nApp * slot.Quantity
+		var freedUnits, paidUnits []ownedUnit
+		for _, u := range slots[si] {
+			if u.freedIdx >= 0 {
+				freedUnits = append(freedUnits, u)
+			} else {
+				paidUnits = append(paidUnits, u)
+			}
+		}
+		if len(freedUnits) > need {
+			return nil, false // over-freed this slot
+		}
+		// "free the cheapest": a cheaper eligible unit must never be left paid while a
+		// more expensive one is freed.
+		if len(freedUnits) > 0 {
+			maxFreed := 0.0
+			for _, f := range freedUnits {
+				if f.price > maxFreed {
+					maxFreed = f.price
+				}
+			}
+			for _, p := range paidUnits {
+				if p.price < maxFreed {
+					return nil, false
+				}
+			}
+		}
+		sort.SliceStable(paidUnits, func(a, b int) bool { return paidUnits[a].price < paidUnits[b].price })
+		anchorsNeeded := need - len(freedUnits)
+		if anchorsNeeded > len(paidUnits) {
+			return nil, false // not enough real units to complete nApp sets (guard)
+		}
+		for _, f := range freedUnits { // freed first → equal-price ties zero the freed unit
+			consumed = append(consumed, f.price)
+			consumedFreed = append(consumedFreed, f.freedIdx)
+		}
+		for k := 0; k < anchorsNeeded; k++ {
+			consumed = append(consumed, paidUnits[k].price)
+			consumedFreed = append(consumedFreed, -1)
+		}
+	}
+
+	allocated := bundleAllocate(consumed, cfg.BundlePrice, nApp)
+	nets = make([]float64, len(freed))
+	for i, fi := range consumedFreed {
+		if fi >= 0 {
+			nets[fi] = allocated[i]
+		}
+	}
+	return nets, true
+}
+
 // BXGYConfig is the buy_x_get_y rule (stored as promotions.bxgy_config jsonb).
 type BXGYConfig struct {
 	BuyQuantity      int          `json:"buyQuantity"`
