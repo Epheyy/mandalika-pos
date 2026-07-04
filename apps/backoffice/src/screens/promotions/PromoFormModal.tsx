@@ -33,6 +33,14 @@ const DEFAULT_TIERED: { tiers: TierRow[] } = {
   tiers: [{ minSubtotal: 100000, kind: 'percentage', value: 10 }],
 }
 
+type BundleSlotRow = { productKeys: string[]; quantity: number }
+
+const DEFAULT_BUNDLE: { slots: BundleSlotRow[]; bundlePrice: number; maxApplications: number } = {
+  slots: [{ productKeys: [], quantity: 1 }],
+  bundlePrice: 0,
+  maxApplications: 0,
+}
+
 type PromoType = PromotionInput['type']
 const PROMO_TYPES: { value: PromoType; label: string; desc: string }[] = [
   { value: 'percentage', label: 'Persentase (%)', desc: 'Diskon persen dari total belanja' },
@@ -40,6 +48,7 @@ const PROMO_TYPES: { value: PromoType; label: string; desc: string }[] = [
   { value: 'bogo', label: 'Buy 1 Get 1', desc: 'Beli 1 gratis 1 (barang termurah)' },
   { value: 'buy_x_get_y', label: 'Beli X, Gratis/Diskon Y', desc: 'Beli sejumlah barang, dapat hadiah/diskon' },
   { value: 'tiered', label: 'Bertingkat', desc: 'Belanja lebih, hemat lebih (tier)' },
+  { value: 'bundle', label: 'Paket Bundel', desc: 'Beli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS' },
 ]
 
 // Stacked selectable cards replacing the plain type dropdown — each type shows
@@ -123,6 +132,11 @@ export function PromoFormModal({
   const setTiers = (tiers: TierRow[]) =>
     setForm((f) => ({ ...f, tieredConfig: { tiers } }))
 
+  const setBundle = (patch: Partial<typeof DEFAULT_BUNDLE>) =>
+    setForm((f) => ({ ...f, bundleConfig: { ...(f.bundleConfig ?? DEFAULT_BUNDLE), ...patch } }))
+
+  const setSlots = (slots: BundleSlotRow[]) => setBundle({ slots })
+
   // Selecting a type seeds its default config (same logic the old dropdown ran).
   const selectType = (type: PromoType) =>
     setForm((f) => ({
@@ -130,9 +144,11 @@ export function PromoFormModal({
       type,
       bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig,
       tieredConfig: type === 'tiered' ? (f.tieredConfig ?? DEFAULT_TIERED) : f.tieredConfig,
+      bundleConfig: type === 'bundle' ? (f.bundleConfig ?? DEFAULT_BUNDLE) : f.bundleConfig,
     }))
 
   const tiers: TierRow[] = (form.tieredConfig?.tiers ?? []) as TierRow[]
+  const slots: BundleSlotRow[] = (form.bundleConfig?.slots ?? []) as BundleSlotRow[]
 
   const tieredError = (() => {
     if (form.type !== 'tiered') return null
@@ -149,6 +165,24 @@ export function PromoFormModal({
     return null
   })()
 
+  // Mirrors backend write.validateBundle: >=1 slot, each slot has >=1 key and
+  // quantity >= 1, bundlePrice > 0, and no productKey may appear in two slots.
+  const bundleError = (() => {
+    if (form.type !== 'bundle') return null
+    if (slots.length === 0) return 'Harus ada minimal 1 slot.'
+    const seen = new Set<string>()
+    for (const s of slots) {
+      if (!s.productKeys || s.productKeys.length === 0) return 'Setiap slot harus punya minimal 1 produk.'
+      if (s.quantity < 1) return 'Jumlah tiap slot minimal 1.'
+      for (const k of s.productKeys) {
+        if (seen.has(k)) return 'Produk tidak boleh dipakai di lebih dari satu slot.'
+        seen.add(k)
+      }
+    }
+    if (!form.bundleConfig || form.bundleConfig.bundlePrice <= 0) return 'Harga paket harus lebih dari 0.'
+    return null
+  })()
+
   return (
     <Modal
       open={open}
@@ -158,7 +192,7 @@ export function PromoFormModal({
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>Batal</Button>
-          <Button className="flex-1" loading={busy} disabled={!!tieredError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+          <Button className="flex-1" loading={busy} disabled={!!tieredError || !!bundleError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
         </>
       }
     >
@@ -166,7 +200,7 @@ export function PromoFormModal({
         <Input label="Nama Promosi *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         <Textarea label="Deskripsi" value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
         <PromoTypePicker value={form.type} onChange={selectType} />
-        {form.type !== 'bogo' && form.type !== 'buy_x_get_y' && form.type !== 'tiered' && (
+        {form.type !== 'bogo' && form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle' && (
           <Input label="Nilai" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
         )}
         {form.type === 'buy_x_get_y' && (
@@ -253,6 +287,47 @@ export function PromoFormModal({
             >+ Tambah tingkat</Button>
           </div>
         )}
+        {form.type === 'bundle' && (
+          <div className="space-y-3 p-3 bg-gold-50 rounded-xl">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Slot Paket</p>
+            {slots.map((slot, idx) => (
+              <div key={idx} className="space-y-2 p-2.5 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Slot {idx + 1}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSlots(slots.filter((_, i) => i !== idx))}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 text-lg font-bold"
+                    aria-label="Hapus slot"
+                  >×</button>
+                </div>
+                <ProductVariantPicker
+                  products={products}
+                  value={slot.productKeys}
+                  onChange={(next) => setSlots(slots.map((s, i) => (i === idx ? { ...s, productKeys: next } : s)))}
+                />
+                <Input
+                  label="Jumlah"
+                  type="number"
+                  min={1}
+                  value={slot.quantity}
+                  onChange={(e) => setSlots(slots.map((s, i) => (i === idx ? { ...s, quantity: parseInt(e.target.value) || 1 } : s)))}
+                />
+              </div>
+            ))}
+            {bundleError && <p className="text-xs text-red-600 font-semibold">{bundleError}</p>}
+            <Button
+              variant="secondary"
+              onClick={() => setSlots([...slots, { productKeys: [], quantity: 1 }])}
+            >+ Tambah slot</Button>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Harga paket (Rp)" type="number" value={form.bundleConfig?.bundlePrice ?? 0}
+                onChange={(e) => setBundle({ bundlePrice: parseFloat(e.target.value) || 0 })} />
+              <Input label="Maks. kelipatan (0 = tanpa batas)" type="number" value={form.bundleConfig?.maxApplications ?? 0}
+                onChange={(e) => setBundle({ maxApplications: parseInt(e.target.value) || 0 })} />
+            </div>
+          </div>
+        )}
         <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
@@ -273,7 +348,7 @@ export function PromoFormModal({
           <input type="checkbox" checked={form.codeOnly ?? false} onChange={(e) => setForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
           <span className="text-sm font-bold text-gray-900">Hanya via kode (sembunyikan dari panel kasir)</span>
         </label>
-        {form.type !== 'buy_x_get_y' && form.type !== 'tiered' && (
+        {form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle' && (
           <Field label="Varian Spesifik (opsional)">
             <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
               {products.map((p) => (
