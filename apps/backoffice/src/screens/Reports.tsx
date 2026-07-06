@@ -16,6 +16,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import { OrdersPanel } from './Orders'
+import { PromoGrantsTab } from './reports/PromoGrantsTab'
 import { Button } from '../ui/Button'
 import { Input, Select } from '../ui/Field'
 import { Card } from '../ui/Card'
@@ -24,7 +25,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 
-type ReportTab = 'orders' | 'export' | 'shifts'
+type ReportTab = 'orders' | 'export' | 'shifts' | 'grants'
 
 const statusBadge = (st: string) =>
   st === 'completed' ? (
@@ -49,6 +50,7 @@ export default function Reports() {
     if (canViewTransactions) t.push({ id: 'orders', label: 'Transaksi' })
     if (canViewReports) t.push({ id: 'export', label: 'Ekspor' })
     if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
+    if (canViewReports) t.push({ id: 'grants', label: 'Hadiah Promo' })
     return t
   }, [canViewTransactions, canViewReports])
 
@@ -203,17 +205,21 @@ export default function Reports() {
             </Select>
           </>
         )}
-        <Button
-          variant="secondary"
-          onClick={tab === 'export' ? exportTx : exportSh}
-          icon={<Download className="w-4 h-4" />}
-        >
-          Export CSV
-        </Button>
+        {tab !== 'grants' && (
+          <Button
+            variant="secondary"
+            onClick={tab === 'export' ? exportTx : exportSh}
+            icon={<Download className="w-4 h-4" />}
+          >
+            Export CSV
+          </Button>
+        )}
       </Card>
       )}
 
-      {tab !== 'orders' && tab === 'export' ? (
+      {tab === 'grants' && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'export' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -295,7 +301,9 @@ export default function Reports() {
             )}
           </Card>
         </>
-      ) : (
+      )}
+
+      {tab === 'shifts' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
