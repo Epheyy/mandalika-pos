@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Gift } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -37,6 +37,10 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   const [promotionId, setPromotionId] = useState('')
   const [productId, setProductId] = useState('')
   const [page, setPage] = useState(1)
+
+  // Reset to page 1 when the hub narrows the set (date range / outlet), else the
+  // user can be stranded on a now-empty page while summary cards still total.
+  useEffect(() => setPage(1), [dateFrom, dateTo, outletId])
 
   const pq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const prq = usePolledQuery<Product[]>(() => api.listProducts(1, 500).then((r) => r.data), [])

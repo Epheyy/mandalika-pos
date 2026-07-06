@@ -440,10 +440,11 @@ func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	q := r.URL.Query()
+	sc := scope(r)
 	f := read.GrantReportFilters{
 		DateFrom:    q.Get("dateFrom"),
 		DateTo:      q.Get("dateTo"),
-		OutletID:    q.Get("outletId"),
+		OutletID:    sc.OutletID, // scope-clamped: non-admin→their outlet, admin→?outletId/all/header
 		PromotionID: q.Get("promotionId"),
 		ProductID:   q.Get("productId"),
 	}
