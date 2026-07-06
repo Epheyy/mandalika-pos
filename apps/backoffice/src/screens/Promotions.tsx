@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Promotion, DiscountCode, Product, PromotionInput, DiscountCodeInput } from '@mandalika/api'
+import type { Promotion, DiscountCode, Product, PromotionInput, DiscountCodeInput, Outlet } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Edit2, Trash2, Tag, Copy } from 'lucide-react'
@@ -98,9 +98,11 @@ export default function Promotions() {
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const dcq = usePolledQuery<DiscountCode[]>(() => api.listDiscountCodes(), [])
   const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [])
+  const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const promotions = prq.data ?? []
   const codes = dcq.data ?? []
   const products = pq.data ?? []
+  const outlets = ouq.data ?? []
 
   const [tab, setTab] = useState<'promotions' | 'codes'>('promotions')
   const [promoOpen, setPromoOpen] = useState(false)
@@ -349,6 +351,7 @@ export default function Promotions() {
         form={promoForm}
         setForm={setPromoForm}
         products={products}
+        outlets={outlets}
         variantPicker={variantPicker}
         setVariantPicker={setVariantPicker}
         busy={busy}

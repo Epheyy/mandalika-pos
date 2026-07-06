@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
-import type { Product, PromotionInput } from '@mandalika/api'
+import type { Product, PromotionInput, Outlet } from '@mandalika/api'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
@@ -91,6 +91,7 @@ interface PromoFormModalProps {
   form: PromotionInput
   setForm: Dispatch<SetStateAction<PromotionInput>>
   products: Product[]
+  outlets: Outlet[]
   variantPicker: string | null
   setVariantPicker: Dispatch<SetStateAction<string | null>>
   busy: boolean
@@ -104,6 +105,7 @@ export function PromoFormModal({
   form,
   setForm,
   products,
+  outlets,
   variantPicker,
   setVariantPicker,
   busy,
@@ -125,6 +127,13 @@ export function PromoFormModal({
       activeDays: (f.activeDays || []).includes(d)
         ? (f.activeDays || []).filter((x) => x !== d)
         : [...(f.activeDays || []), d],
+    }))
+  const toggleOutlet = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      outletIds: (f.outletIds || []).includes(id)
+        ? (f.outletIds || []).filter((x) => x !== id)
+        : [...(f.outletIds || []), id],
     }))
   const setBxgy = (patch: Partial<typeof DEFAULT_BXGY>) =>
     setForm((f) => ({ ...f, bxgyConfig: { ...(f.bxgyConfig ?? DEFAULT_BXGY), ...patch } }))
@@ -183,6 +192,22 @@ export function PromoFormModal({
     return null
   })()
 
+  const hoursError = (() => {
+    const from = form.activeFromHour || ''
+    const to = form.activeToHour || ''
+    if ((from === '') !== (to === '')) return 'Isi kedua jam aktif atau kosongkan keduanya.'
+    if (from !== '' && to !== '' && from > to)
+      return 'Jam mulai harus lebih awal dari jam selesai (rentang lewat tengah malam tidak didukung).'
+    return null
+  })()
+  const maxAppError = (() => {
+    if (form.type === 'buy_x_get_y' && (form.bxgyConfig?.maxApplications ?? 0) < 0)
+      return 'Maks/transaksi tidak boleh negatif.'
+    if (form.type === 'bundle' && (form.bundleConfig?.maxApplications ?? 0) < 0)
+      return 'Maks. kelipatan tidak boleh negatif.'
+    return null
+  })()
+
   return (
     <Modal
       open={open}
@@ -192,7 +217,7 @@ export function PromoFormModal({
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>Batal</Button>
-          <Button className="flex-1" loading={busy} disabled={!!tieredError || !!bundleError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+          <Button className="flex-1" loading={busy} disabled={!!tieredError || !!bundleError || !!hoursError || !!maxAppError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
         </>
       }
     >
@@ -210,9 +235,10 @@ export function PromoFormModal({
                 onChange={(e) => setBxgy({ buyQuantity: parseInt(e.target.value) || 0 })} />
               <Input label="Dapat (Y)" type="number" value={form.bxgyConfig?.getQuantity ?? 1}
                 onChange={(e) => setBxgy({ getQuantity: parseInt(e.target.value) || 0 })} />
-              <Input label="Maks/transaksi (0=∞)" type="number" value={form.bxgyConfig?.maxApplications ?? 0}
+              <Input label="Maks/transaksi (0=∞)" type="number" min={0} value={form.bxgyConfig?.maxApplications ?? 0}
                 onChange={(e) => setBxgy({ maxApplications: parseInt(e.target.value) || 0 })} />
             </div>
+            {maxAppError && <p className="text-xs text-red-600 font-semibold">{maxAppError}</p>}
             <div className="grid grid-cols-2 gap-3">
               <Select label="Diskon Y" value={form.bxgyConfig?.getDiscountKind ?? 'percentage'}
                 onChange={(e) => setBxgy({ getDiscountKind: e.target.value as 'percentage' | 'fixed' })}>
@@ -323,9 +349,10 @@ export function PromoFormModal({
             <div className="grid grid-cols-2 gap-3">
               <Input label="Harga paket (Rp)" type="number" value={form.bundleConfig?.bundlePrice ?? 0}
                 onChange={(e) => setBundle({ bundlePrice: parseFloat(e.target.value) || 0 })} />
-              <Input label="Maks. kelipatan (0 = tanpa batas)" type="number" value={form.bundleConfig?.maxApplications ?? 0}
+              <Input label="Maks. kelipatan (0 = tanpa batas)" type="number" min={0} value={form.bundleConfig?.maxApplications ?? 0}
                 onChange={(e) => setBundle({ maxApplications: parseInt(e.target.value) || 0 })} />
             </div>
+            {maxAppError && <p className="text-xs text-red-600 font-semibold">{maxAppError}</p>}
           </div>
         )}
         <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
@@ -339,6 +366,20 @@ export function PromoFormModal({
               <button key={d} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(form.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
             ))}
           </div>
+        </Field>
+        <Field label="Outlet (kosong = semua outlet)">
+          <div className="flex gap-1.5 flex-wrap">
+            {outlets.map((o) => (
+              <button key={o.id} type="button" onClick={() => toggleOutlet(o.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(form.outletIds || []).includes(o.id) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{o.name}</button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Jam Aktif (kosong = sepanjang hari)">
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Dari" type="time" value={form.activeFromHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeFromHour: e.target.value }))} />
+            <Input label="Sampai" type="time" value={form.activeToHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeToHour: e.target.value }))} />
+          </div>
+          {hoursError && <p className="text-xs text-red-600 font-semibold mt-1">{hoursError}</p>}
         </Field>
         <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
           <input type="checkbox" checked={form.combinable ?? false} onChange={(e) => setForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
