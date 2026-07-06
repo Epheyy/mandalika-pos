@@ -1794,3 +1794,92 @@ func (r *Repo) RewardGrantsByOrder(ctx context.Context, orderID string) ([]Promo
 		   'fullPrice',full_price,'rewardPrice',reward_price,'rewardValue',reward_value,
 		   'createdAt',created_at) FROM promo_reward_grants WHERE order_id=$1`, orderID)
 }
+
+// GrantReportFilters holds the fixed $1..$5 filter params for the
+// promo-reward-grant report. All fields are optional ("" = no filter).
+// DateFrom/DateTo are WIB (Asia/Jakarta) calendar days.
+type GrantReportFilters struct {
+	DateFrom, DateTo, OutletID, PromotionID, ProductID string
+}
+
+// PromoRewardGrantReport returns a grouped, paginated view of promo reward
+// grants for COMPLETED orders only, plus a summary (totals + by-promotion and
+// by-product breakdowns aggregated over the full filtered set). It returns
+// (summary, page of groups, total group count, error).
+//
+// Day bounds are WIB (Asia/Jakarta): g.created_at is timestamptz/UTC while
+// DateFrom/DateTo are WIB calendar days, so the bounds interpret the bare date
+// as midnight WIB via `AT TIME ZONE 'Asia/Jakarta'`. (This differs from the
+// older Orders report, which compares against the server session tz; WIB is
+// used here so the financial report lines up with local business days.)
+func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters, page, limit int) (api.PromoGrantSummary, []api.PromoRewardGrantGroup, int, error) {
+	var sum api.PromoGrantSummary
+	where := `FROM promo_reward_grants g
+		JOIN orders o     ON o.id = g.order_id AND o.status = 'completed'
+		JOIN promotions p ON p.id = g.promotion_id
+		WHERE ($1 = '' OR g.created_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta')
+		  AND ($2 = '' OR g.created_at <  (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'))
+		  AND ($3 = '' OR o.outlet_id::text = $3)
+		  AND ($4 = '' OR g.promotion_id::text = $4)
+		  AND ($5 = '' OR g.product_id::text = $5)`
+	args := []any{f.DateFrom, f.DateTo, f.OutletID, f.PromotionID, f.ProductID}
+
+	// Summary scalars (over the full filtered set). Fields are pointers, so
+	// scan into locals then take addresses. reward_value is numeric → scan into
+	// float64, narrow to the *float32 field.
+	var tv float64
+	var ti, to int
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(g.reward_value),0), COUNT(*), COUNT(DISTINCT g.order_id) `+where, args...,
+	).Scan(&tv, &ti, &to); err != nil {
+		return sum, nil, 0, err
+	}
+	tvf := float32(tv)
+	sum.TotalValue = &tvf
+	sum.TotalItems = &ti
+	sum.TotalOrders = &to
+
+	// Breakdown by promotion.
+	byPromo, _, err := listJSON[api.PromoGrantBreakdown](ctx, r.Pool,
+		`SELECT json_build_object('promotionId',g.promotion_id,'promotionName',p.name,
+		   'value',SUM(g.reward_value),'items',COUNT(*)) `+where+
+			` GROUP BY g.promotion_id, p.name ORDER BY SUM(g.reward_value) DESC`, args...)
+	if err != nil {
+		return sum, nil, 0, err
+	}
+	sum.ByPromotion = &byPromo
+
+	// Breakdown by product.
+	byProduct, _, err := listJSON[api.PromoGrantBreakdown](ctx, r.Pool,
+		`SELECT json_build_object('productId',g.product_id,'productName',g.product_name,
+		   'variantSize',g.variant_size,'value',SUM(g.reward_value),'items',COUNT(*)) `+where+
+			` GROUP BY g.product_id, g.product_name, g.variant_size ORDER BY SUM(g.reward_value) DESC`, args...)
+	if err != nil {
+		return sum, nil, 0, err
+	}
+	sum.ByProduct = &byProduct
+
+	// Total group count (grouped subquery mirrors the page's GROUP BY).
+	var total int
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM (SELECT 1 `+where+
+			` GROUP BY g.order_id, g.promotion_id, g.product_id, g.variant_size) t`, args...,
+	).Scan(&total); err != nil {
+		return sum, nil, 0, err
+	}
+
+	// Grouped page. $6=limit, $7=offset.
+	rows, _, err := listJSON[api.PromoRewardGrantGroup](ctx, r.Pool,
+		`SELECT json_build_object('orderId',g.order_id,'orderNumber',o.order_number,
+		   'promotionId',g.promotion_id,'promotionName',p.name,
+		   'productId',g.product_id,'productName',g.product_name,'variantSize',g.variant_size,
+		   'quantity',COUNT(*),'fullPrice',MAX(g.full_price),
+		   'valueGivenAway',SUM(g.reward_value),'createdAt',o.created_at) `+where+
+			` GROUP BY g.order_id, o.order_number, g.promotion_id, p.name, g.product_id, g.product_name, g.variant_size, o.created_at
+			  ORDER BY o.created_at DESC LIMIT $6 OFFSET $7`,
+		append(args, limit, off(page, limit))...)
+	if err != nil {
+		return sum, nil, 0, err
+	}
+	return sum, rows, total, nil
+}
