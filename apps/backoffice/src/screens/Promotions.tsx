@@ -22,7 +22,7 @@ import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
 const EMPTY_PROMO: PromotionInput = {
   name: '', description: '', type: 'percentage', value: 0, minPurchase: 0,
   applicableProductIds: [], applicableVariantKeys: [], isActive: true,
-  combinable: false, codeOnly: false, activeFromHour: '', activeToHour: '', activeDays: [],
+  combinable: false, codeOnly: false, outletIds: [], activeFromHour: '', activeToHour: '', activeDays: [],
 }
 const EMPTY_CODE: DiscountCodeInput = {
   code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
@@ -125,7 +125,8 @@ export default function Promotions() {
       startDate: p.startDate || undefined, endDate: p.endDate || undefined,
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
-      activeDays: p.activeDays || [], bxgyConfig: p.bxgyConfig ?? undefined,
+      activeDays: p.activeDays || [], outletIds: p.outletIds ?? [],
+      bxgyConfig: p.bxgyConfig ?? undefined,
       tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
     setPromoOpen(true)
@@ -150,7 +151,8 @@ export default function Promotions() {
       applicableVariantKeys: p.applicableVariantKeys || [], isActive: p.isActive,
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
-      activeDays: p.activeDays || [], startDate: p.startDate || undefined,
+      activeDays: p.activeDays || [], outletIds: p.outletIds ?? [],
+      startDate: p.startDate || undefined,
       endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
       tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
@@ -163,7 +165,8 @@ export default function Promotions() {
       applicableVariantKeys: p.applicableVariantKeys || [], isActive: !p.isActive,
       combinable: p.combinable ?? false, codeOnly: p.codeOnly ?? false,
       activeFromHour: p.activeFromHour || '', activeToHour: p.activeToHour || '',
-      activeDays: p.activeDays || [], startDate: p.startDate || undefined,
+      activeDays: p.activeDays || [], outletIds: p.outletIds ?? [],
+      startDate: p.startDate || undefined,
       endDate: p.endDate || undefined, bxgyConfig: p.bxgyConfig ?? undefined,
       tieredConfig: p.tieredConfig ?? undefined, bundleConfig: p.bundleConfig ?? undefined,
     })
