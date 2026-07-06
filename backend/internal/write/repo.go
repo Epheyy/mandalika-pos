@@ -765,7 +765,11 @@ const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no O,0,1,I
 func randSuffix(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
-		// crypto/rand should never fail; fall back so batch generation can't wedge.
+		// crypto/rand should never fail. This fallback yields a CONSTANT string,
+		// which would mass-collide — but with the ON CONFLICT DO NOTHING insert in
+		// CreateDiscountCodeBatch that just makes every regenerate hit the same
+		// existing row, exhausting retries and cleanly aborting the whole batch
+		// (no partial write, no poisoned tx). Safe, if degenerate.
 		for i := range b {
 			b[i] = byte(i)
 		}
@@ -814,10 +818,12 @@ func validateDiscountCodeBatch(b DiscountCodeBatch) error {
 
 // CreateDiscountCodeBatch generates b.Count unique discount codes server-side and
 // inserts them in a single transaction. Every code shares the batch's settings;
-// only the string differs. A UNIQUE(code) collision (SQLSTATE 23505) regenerates
-// the suffix and retries (up to 10 attempts per code); any other DB error, or
-// retry exhaustion, aborts the whole transaction — the batch is all-or-nothing,
-// never partial.
+// only the string differs. Each INSERT uses ON CONFLICT (code) DO NOTHING so a
+// UNIQUE(code) collision does NOT raise an error (which would poison the shared
+// tx with SQLSTATE 25P02) — it inserts nothing and returns no row. That no-row
+// case (pgx.ErrNoRows) regenerates the suffix and retries (up to 10 attempts per
+// code); any other DB error, or retry exhaustion, aborts the whole transaction —
+// the batch is all-or-nothing, never partial.
 func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch) ([]CreatedCode, error) {
 	if err := validateDiscountCodeBatch(b); err != nil {
 		return nil, err
@@ -834,6 +840,7 @@ func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch)
 					INSERT INTO discount_codes (code, promotion_id, type, value,
 					  min_purchase, usage_limit, is_active, start_date, end_date, combinable)
 					VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+					ON CONFLICT (code) DO NOTHING
 					RETURNING id, code, created_at::text`,
 					code, nullUUID(b.PromotionID), b.Type, b.Value, b.MinPurchase,
 					b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable).
@@ -842,8 +849,7 @@ func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch)
 					inserted = true
 					break
 				}
-				var pgErr *pgconn.PgError
-				if errors.As(e, &pgErr) && pgErr.Code == "23505" { // unique_violation → regenerate
+				if errors.Is(e, pgx.ErrNoRows) { // conflict → no row inserted → regenerate
 					continue
 				}
 				return e // other error → abort tx
