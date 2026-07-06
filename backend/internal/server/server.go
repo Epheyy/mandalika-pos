@@ -265,8 +265,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			})
 
 			// Reports — permission-gated.
-			r.With(mw.RequirePermission("view_reports")).
-				Get("/reports/summary", h.ReportSummary)
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("view_reports"))
+				r.Get("/reports/summary", h.ReportSummary)
+				r.Get("/promo-reward-grants", h.PromoRewardGrants)
+			})
 
 			// Users / roles — admin only.
 			r.Group(func(r chi.Router) {

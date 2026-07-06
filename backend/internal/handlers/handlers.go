@@ -434,6 +434,31 @@ func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
 		})
 }
 
+// PromoRewardGrants returns a grouped, paginated report of promo reward
+// grants (BXGY/free-item giveaways) for completed orders, filterable by date
+// range, outlet, promotion, and product. Gated on view_reports.
+func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query()
+	f := read.GrantReportFilters{
+		DateFrom:    q.Get("dateFrom"),
+		DateTo:      q.Get("dateTo"),
+		OutletID:    q.Get("outletId"),
+		PromotionID: q.Get("promotionId"),
+		ProductID:   q.Get("productId"),
+	}
+	summary, rows, total, err := h.Repo.PromoRewardGrantReport(r.Context(), f, p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.PromoRewardGrantReport{
+		Summary: summary,
+		Data:    rows,
+		Meta:    *meta(total, p, l),
+	})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
