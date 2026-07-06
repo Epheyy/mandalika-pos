@@ -181,6 +181,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/promotions/{id}", h.UpdatePromotion)
 				r.Delete("/promotions/{id}", h.DeletePromotion)
 				r.Post("/discount-codes", h.CreateDiscountCode)
+				r.Post("/discount-codes/batch", h.CreateDiscountCodeBatch)
 				r.Put("/discount-codes/{id}", h.UpdateDiscountCode)
 				r.Delete("/discount-codes/{id}", h.DeleteDiscountCode)
 			})

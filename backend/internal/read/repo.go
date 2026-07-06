@@ -853,6 +853,21 @@ func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, erro
 		   FROM discount_codes ORDER BY created_at DESC`)
 }
 
+// DiscountCodesByIDs re-fetches specific discount codes by id — used after
+// CreateDiscountCodeBatch to build the API response, since api.DiscountCode's
+// nullable.Nullable wrappers are painful/error-prone to hand-assemble. Same
+// json_build_object shape as DiscountCodes(); pgx maps []string → uuid[] with
+// the explicit cast.
+func (r *Repo) DiscountCodesByIDs(ctx context.Context, ids []string) ([]api.DiscountCode, int, error) {
+	return listJSON[api.DiscountCode](ctx, r.Pool,
+		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
+		   'type',type,'value',value,'minPurchase',min_purchase,
+		   'usageLimit',usage_limit,'usageCount',usage_count,'isActive',is_active,
+		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
+		   'createdAt',created_at)
+		   FROM discount_codes WHERE id = ANY($1::uuid[]) ORDER BY created_at DESC`, ids)
+}
+
 func (r *Repo) LoyaltyConditions(ctx context.Context) ([]api.LoyaltyCondition, int, error) {
 	return listJSON[api.LoyaltyCondition](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'name',name,'type',type,'trigger',trigger,

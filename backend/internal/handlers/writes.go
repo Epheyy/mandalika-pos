@@ -190,6 +190,34 @@ func (h *Handlers) DeleteDiscountCode(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.DeleteDiscountCode(r.Context(), chi.URLParam(r, "id")))
 }
 
+// CreateDiscountCodeBatch generates a batch of unique discount codes sharing
+// one set of settings (write.CreateDiscountCodeBatch), then re-fetches the
+// created rows via the read repo (DiscountCodesByIDs) rather than hand-assembling
+// api.DiscountCode — its nullable.Nullable wrappers are painful/error-prone to
+// build by hand and the read repo already serializes them correctly.
+func (h *Handlers) CreateDiscountCodeBatch(w http.ResponseWriter, r *http.Request) {
+	b, ok := decodeWrite[write.DiscountCodeBatch](w, r)
+	if !ok {
+		return
+	}
+	created, err := h.Write.CreateDiscountCodeBatch(r.Context(), b)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err) // validation/generation error → 400 + message
+		return
+	}
+	ids := make([]string, len(created))
+	for i, c := range created {
+		ids[i] = c.ID
+	}
+	rows, _, err := h.Repo.DiscountCodesByIDs(r.Context(), ids)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	h.invalidate(r)
+	writeJSON(w, http.StatusOK, api.DiscountCodeListResponse{Data: rows})
+}
+
 func (h *Handlers) CreateLoyaltyCondition(w http.ResponseWriter, r *http.Request) {
 	c, ok := decodeWrite[write.LoyaltyCondition](w, r)
 	if !ok {
