@@ -92,6 +92,7 @@ export type IngredientOverviewRow = S['IngredientOverviewRow']
 export type IngredientOverviewCell = S['IngredientOverviewCell']
 export type MovementSummaryRow = S['MovementSummaryRow']
 export type MovementSummaryResponse = S['MovementSummaryResponse']
+export type PromoRewardGrantReport = S['PromoRewardGrantReport']
 
 export interface ClientOptions {
   baseUrl: string
@@ -290,6 +291,9 @@ export interface Api {
   startIngredientStockCount: (id: string) => Promise<void>
   saveIngredientStockCount: (id: string, input: IngredientStockCountSaveInput) => Promise<void>
   completeIngredientStockCount: (id: string) => Promise<void>
+
+  // promo reward grants report
+  listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
 
   // recipes / formulas (SP-Recipe-2)
   getRecipeVariantIds: (productId: string) => Promise<string[]>
@@ -676,6 +680,17 @@ export function createClient(opts: ClientOptions): Api {
     },
     completeIngredientStockCount: async (id) => {
       await request('POST', `${API}/ingredient-stock-counts/${id}/complete`)
+    },
+
+    listPromoRewardGrants: (opts) => {
+      const { dateFrom, dateTo, outletId, promotionId, productId, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo) params.dateTo = dateTo
+      if (outletId) params.outletId = outletId
+      if (promotionId) params.promotionId = promotionId
+      if (productId) params.productId = productId
+      return request<PromoRewardGrantReport>('GET', `${API}/promo-reward-grants` + qs(params))
     },
 
     getRecipeVariantIds: (productId) =>
