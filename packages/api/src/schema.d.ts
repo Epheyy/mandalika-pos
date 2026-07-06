@@ -502,6 +502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/promo-reward-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Promo reward giveaway report (grants) */
+        get: operations["listPromoRewardGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/loyalty-conditions": {
         parameters: {
             query?: never;
@@ -2662,6 +2679,40 @@ export interface components {
             rewardValue?: number;
             createdAt?: string;
         };
+        PromoRewardGrantGroup: {
+            orderId?: string;
+            orderNumber?: string;
+            promotionId?: string;
+            promotionName?: string;
+            productId?: string;
+            productName?: string;
+            variantSize?: string;
+            quantity?: number;
+            fullPrice?: number;
+            valueGivenAway?: number;
+            createdAt?: string;
+        };
+        PromoGrantBreakdown: {
+            promotionId?: string;
+            promotionName?: string;
+            productId?: string;
+            productName?: string;
+            variantSize?: string;
+            value?: number;
+            items?: number;
+        };
+        PromoGrantSummary: {
+            totalValue?: number;
+            totalItems?: number;
+            totalOrders?: number;
+            byPromotion?: components["schemas"]["PromoGrantBreakdown"][];
+            byProduct?: components["schemas"]["PromoGrantBreakdown"][];
+        };
+        PromoRewardGrantReport: {
+            summary: components["schemas"]["PromoGrantSummary"];
+            data: components["schemas"]["PromoRewardGrantGroup"][];
+            meta: components["schemas"]["Meta"];
+        };
         BXGYConfig: {
             buyQuantity: number;
             getQuantity: number;
@@ -4433,6 +4484,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    listPromoRewardGrants: {
+        parameters: {
+            query?: {
+                dateFrom?: string;
+                dateTo?: string;
+                outletId?: string;
+                promotionId?: string;
+                productId?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoRewardGrantReport"];
                 };
             };
         };

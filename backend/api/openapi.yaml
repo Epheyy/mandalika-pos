@@ -995,6 +995,45 @@ components:
         rewardPrice: { type: number }
         rewardValue: { type: number }
         createdAt: { type: string }
+    PromoRewardGrantGroup:
+      type: object
+      properties:
+        orderId: { type: string }
+        orderNumber: { type: string }
+        promotionId: { type: string }
+        promotionName: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        quantity: { type: integer }
+        fullPrice: { type: number }
+        valueGivenAway: { type: number }
+        createdAt: { type: string }
+    PromoGrantBreakdown:
+      type: object
+      properties:
+        promotionId: { type: string }
+        promotionName: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        value: { type: number }
+        items: { type: integer }
+    PromoGrantSummary:
+      type: object
+      properties:
+        totalValue: { type: number }
+        totalItems: { type: integer }
+        totalOrders: { type: integer }
+        byPromotion: { type: array, items: { $ref: '#/components/schemas/PromoGrantBreakdown' } }
+        byProduct:   { type: array, items: { $ref: '#/components/schemas/PromoGrantBreakdown' } }
+    PromoRewardGrantReport:
+      type: object
+      required: [summary, data, meta]
+      properties:
+        summary: { $ref: '#/components/schemas/PromoGrantSummary' }
+        data: { type: array, items: { $ref: '#/components/schemas/PromoRewardGrantGroup' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     BXGYConfig:
       type: object
       required: [buyQuantity, getQuantity, getDiscountKind, getDiscountValue]
@@ -2500,6 +2539,25 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
+  /api/v1/promo-reward-grants:
+    get:
+      operationId: listPromoRewardGrants
+      tags: [promotions]
+      summary: Promo reward giveaway report (grants)
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string } }
+        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: promotionId, in: query, schema: { type: string } }
+        - { name: productId, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoRewardGrantReport' }
   /api/v1/loyalty-conditions:
     get:
       operationId: listLoyaltyConditions
