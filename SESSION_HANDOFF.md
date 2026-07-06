@@ -1107,3 +1107,5 @@ SP-Recipe-1 (ingredient inventory subsystem) is DONE & deployed (backend rev 000
 5. **Recipe-level Kategori:** any need for a recipe-level metadata (e.g., perfumery base/middle/top notes) beyond just ingredient lines? Strongly recommend NO for MVP — keep recipe = list of ingredient + qty + notes.
 
 (Spec/plan will live at `docs/superpowers/{specs,plans}/2026-..-recipe-sp2-*`. Migration slot: 0021.)
+
+> **✨ (2026-07-06) — Promo modal UX polish (backoffice-only, commit `2f5de92`, Cloudflare auto-deploy):** compacted the Tambah/Edit Promosi modal to cut scrolling — type picker → **2-col icon cards** (lucide Percent/Banknote/Gift/ShoppingBag/BarChart3/Package), all optional fields (min purchase, dates, aktif hari, outlet, jam aktif, kombinasi, kode, varian) collapsed into a **"Pengaturan Lanjutan" accordion** (auto-opens on edit if populated or on hoursError), **Outlet → expand/collapse multi-select**, kombinasi/kode → single-line toggle rows. Logic/validators/save-gate byte-identical (pure layout). USER will iterate the UX live.
