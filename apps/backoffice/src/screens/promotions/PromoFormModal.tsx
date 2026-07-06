@@ -1,6 +1,16 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import type { Product, PromotionInput, Outlet } from '@mandalika/api'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Percent,
+  Banknote,
+  Gift,
+  ShoppingBag,
+  BarChart3,
+  Package,
+  type LucideIcon,
+} from 'lucide-react'
 import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Input, Select, Textarea, Field } from '../../ui/Field'
@@ -42,23 +52,25 @@ const DEFAULT_BUNDLE: { slots: BundleSlotRow[]; bundlePrice: number; maxApplicat
 }
 
 type PromoType = PromotionInput['type']
-const PROMO_TYPES: { value: PromoType; label: string; desc: string }[] = [
-  { value: 'percentage', label: 'Persentase (%)', desc: 'Diskon persen dari total belanja' },
-  { value: 'fixed', label: 'Nominal (Rp)', desc: 'Potongan rupiah tetap' },
-  { value: 'bogo', label: 'Buy 1 Get 1', desc: 'Beli 1 gratis 1 (barang termurah)' },
-  { value: 'buy_x_get_y', label: 'Beli X, Gratis/Diskon Y', desc: 'Beli sejumlah barang, dapat hadiah/diskon' },
-  { value: 'tiered', label: 'Bertingkat', desc: 'Belanja lebih, hemat lebih (tier)' },
-  { value: 'bundle', label: 'Paket Bundel', desc: 'Beli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS' },
+const PROMO_TYPES: { value: PromoType; label: string; desc: string; icon: LucideIcon }[] = [
+  { value: 'percentage', label: 'Persentase (%)', desc: 'Diskon persen dari total belanja', icon: Percent },
+  { value: 'fixed', label: 'Nominal (Rp)', desc: 'Potongan rupiah tetap', icon: Banknote },
+  { value: 'bogo', label: 'Buy 1 Get 1', desc: 'Beli 1 gratis 1 (barang termurah)', icon: Gift },
+  { value: 'buy_x_get_y', label: 'Beli X, Gratis/Diskon Y', desc: 'Beli sejumlah barang, dapat hadiah/diskon', icon: ShoppingBag },
+  { value: 'tiered', label: 'Bertingkat', desc: 'Belanja lebih, hemat lebih (tier)', icon: BarChart3 },
+  { value: 'bundle', label: 'Paket Bundel', desc: 'Beli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS', icon: Package },
 ]
 
-// Stacked selectable cards replacing the plain type dropdown — each type shows
-// its name + a one-line description so the user knows what it does before picking.
+// Compact 2-column icon cards replacing the plain type dropdown — each type shows
+// an icon + name + a clamped one/two-line description so the user knows what it
+// does before picking, without eating a full row of vertical scroll per type.
 function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: PromoType) => void }) {
   return (
     <Field label="Tipe Promosi">
-      <div role="radiogroup" aria-label="Tipe promosi" className="space-y-1.5">
+      <div role="radiogroup" aria-label="Tipe promosi" className="grid grid-cols-2 gap-1.5">
         {PROMO_TYPES.map((t) => {
           const selected = value === t.value
+          const Icon = t.icon
           return (
             <button
               key={t.value}
@@ -66,17 +78,15 @@ function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: 
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(t.value)}
-              className={`w-full flex items-start gap-2.5 text-left p-3 rounded-xl border-2 transition-colors ${
+              className={`w-full text-left p-2.5 rounded-xl border-2 transition-colors overflow-hidden ${
                 selected ? 'border-gold-600 bg-gold-50' : 'border-gray-200 hover:border-gold-300 hover:bg-gray-50'
               }`}
             >
-              <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-gold-600' : 'border-gray-300'}`}>
-                {selected && <span className="w-2 h-2 rounded-full bg-gold-600" />}
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Icon className={`w-4 h-4 shrink-0 ${selected ? 'text-gold-600' : 'text-gray-400'}`} />
+                <span className="text-xs font-bold text-gray-900 truncate">{t.label}</span>
               </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-gray-900">{t.label}</span>
-                <span className="block text-[11px] text-gray-500">{t.desc}</span>
-              </span>
+              <span className="block text-[11px] text-gray-500 mt-0.5 line-clamp-2">{t.desc}</span>
             </button>
           )
         })}
@@ -112,6 +122,12 @@ export function PromoFormModal({
   onSave,
   onClose,
 }: PromoFormModalProps) {
+  // Local UI-only state: whether the "Pengaturan Lanjutan" accordion and the
+  // outlet multi-select dropdown are expanded. Purely presentational — does not
+  // touch form state, validation, or the save gate.
+  const [advOpen, setAdvOpen] = useState(false)
+  const [outletOpen, setOutletOpen] = useState(false)
+
   const toggleVariant = (pid: string, size: string) => {
     const key = `${pid}::${size}`
     setForm((f) => ({
@@ -207,6 +223,30 @@ export function PromoFormModal({
       return 'Maks. kelipatan tidak boleh negatif.'
     return null
   })()
+
+  // PromoFormModal itself stays mounted across open/close (Modal only unmounts
+  // its own body), so advOpen would otherwise carry over from the previous promo.
+  // Re-derive it every time the modal opens: expand when editing an existing
+  // promo that already has advanced settings, or when a validation error lives
+  // inside the accordion (hoursError) that the user needs to see to unblock save.
+  useEffect(() => {
+    if (!open) return
+    const hasAdvancedContent =
+      !!form.minPurchase ||
+      !!form.startDate ||
+      !!form.endDate ||
+      (form.activeDays?.length ?? 0) > 0 ||
+      (form.outletIds?.length ?? 0) > 0 ||
+      !!form.activeFromHour ||
+      !!form.activeToHour ||
+      !!form.combinable ||
+      !!form.codeOnly ||
+      (form.applicableVariantKeys?.length ?? 0) > 0
+    setAdvOpen(hasAdvancedContent || !!hoursError)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const showVariantPicker = form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle'
 
   return (
     <Modal
@@ -355,71 +395,110 @@ export function PromoFormModal({
             {maxAppError && <p className="text-xs text-red-600 font-semibold">{maxAppError}</p>}
           </div>
         )}
-        <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-          <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
-        </div>
-        <Field label="Aktif Hari (kosong = semua)">
-          <div className="flex gap-1.5 flex-wrap">
-            {DAYS.map((d, i) => (
-              <button key={d} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(form.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Outlet (kosong = semua outlet)">
-          <div className="flex gap-1.5 flex-wrap">
-            {outlets.map((o) => (
-              <button key={o.id} type="button" onClick={() => toggleOutlet(o.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(form.outletIds || []).includes(o.id) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{o.name}</button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Jam Aktif (kosong = sepanjang hari)">
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Dari" type="time" value={form.activeFromHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeFromHour: e.target.value }))} />
-            <Input label="Sampai" type="time" value={form.activeToHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeToHour: e.target.value }))} />
-          </div>
-          {hoursError && <p className="text-xs text-red-600 font-semibold mt-1">{hoursError}</p>}
-        </Field>
-        <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-          <input type="checkbox" checked={form.combinable ?? false} onChange={(e) => setForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-          <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promosi lain</span>
-        </label>
-        <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-          <input type="checkbox" checked={form.codeOnly ?? false} onChange={(e) => setForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-          <span className="text-sm font-bold text-gray-900">Hanya via kode (sembunyikan dari panel kasir)</span>
-        </label>
-        {form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle' && (
-          <Field label="Varian Spesifik (opsional)">
-            <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
-              {products.map((p) => (
-                <div key={p.id}>
-                  <button type="button" onClick={() => setVariantPicker(variantPicker === p.id ? null : p.id)} className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-gray-50 rounded-lg text-left">
-                    <span className="text-sm font-bold text-gray-700">{p.name}</span>
-                    {variantPicker === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                  </button>
-                  {variantPicker === p.id && (
-                    <div className="ml-4 space-y-0.5 mt-0.5">
-                      {p.variants.map((v) => {
-                        const key = `${p.id}::${v.size}`
-                        return (
-                          <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                            <input type="checkbox" checked={(form.applicableVariantKeys || []).includes(key)} onChange={() => toggleVariant(p.id, v.size)} className="accent-gold-600" />
-                            <span className="text-xs text-gray-600">{v.size} — {BRAND.currency.format(v.price)}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Field>
-        )}
+
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
           <span className="text-sm font-bold text-gray-700">Promosi Aktif</span>
         </label>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setAdvOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+          >
+            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Pengaturan Lanjutan (opsional)</span>
+            {advOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
+
+          {advOpen && (
+            <div className="space-y-4 mt-3">
+              <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+                <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+              </div>
+
+              <Field label="Aktif Hari (kosong = semua)">
+                <div className="flex gap-1.5 flex-wrap">
+                  {DAYS.map((d, i) => (
+                    <button key={d} type="button" onClick={() => toggleDay(i)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(form.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field label="Outlet (kosong = semua outlet)">
+                <button
+                  type="button"
+                  onClick={() => setOutletOpen((o) => !o)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-left hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm font-bold text-gray-700">
+                    {(form.outletIds || []).length === 0 ? 'Semua outlet' : `${(form.outletIds || []).length} outlet dipilih`}
+                  </span>
+                  {outletOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                </button>
+                {outletOpen && (
+                  <div className="mt-1 max-h-48 overflow-y-auto space-y-0.5 border border-gray-200 rounded-xl p-2">
+                    {outlets.map((o) => (
+                      <label key={o.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1.5">
+                        <input type="checkbox" checked={(form.outletIds || []).includes(o.id)} onChange={() => toggleOutlet(o.id)} className="accent-gold-600" />
+                        <span className="text-xs text-gray-600">{o.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </Field>
+
+              <Field label="Jam Aktif (kosong = sepanjang hari)">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Dari" type="time" value={form.activeFromHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeFromHour: e.target.value }))} />
+                  <Input label="Sampai" type="time" value={form.activeToHour || ''} onChange={(e) => setForm((f) => ({ ...f, activeToHour: e.target.value }))} />
+                </div>
+                {hoursError && <p className="text-xs text-red-600 font-semibold mt-1">{hoursError}</p>}
+              </Field>
+
+              <label className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <span className="text-sm font-bold text-gray-700">Bisa dikombinasikan dengan promosi lain</span>
+                <input type="checkbox" checked={form.combinable ?? false} onChange={(e) => setForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 shrink-0" />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <span className="text-sm font-bold text-gray-700">Hanya via kode (sembunyikan dari panel kasir)</span>
+                <input type="checkbox" checked={form.codeOnly ?? false} onChange={(e) => setForm((f) => ({ ...f, codeOnly: e.target.checked }))} className="w-4 h-4 accent-gold-600 shrink-0" />
+              </label>
+
+              {showVariantPicker && (
+                <Field label="Varian Spesifik (opsional)">
+                  <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
+                    {products.map((p) => (
+                      <div key={p.id}>
+                        <button type="button" onClick={() => setVariantPicker(variantPicker === p.id ? null : p.id)} className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-gray-50 rounded-lg text-left">
+                          <span className="text-sm font-bold text-gray-700">{p.name}</span>
+                          {variantPicker === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                        </button>
+                        {variantPicker === p.id && (
+                          <div className="ml-4 space-y-0.5 mt-0.5">
+                            {p.variants.map((v) => {
+                              const key = `${p.id}::${v.size}`
+                              return (
+                                <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
+                                  <input type="checkbox" checked={(form.applicableVariantKeys || []).includes(key)} onChange={() => toggleVariant(p.id, v.size)} className="accent-gold-600" />
+                                  <span className="text-xs text-gray-600">{v.size} — {BRAND.currency.format(v.price)}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   )
