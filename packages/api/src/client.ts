@@ -73,6 +73,7 @@ export type CategoryInput = S['CategoryInput']
 export type CustomerInput = S['CustomerInput']
 export type PromotionInput = S['PromotionInput']
 export type DiscountCodeInput = S['DiscountCodeInput']
+export type DiscountCodeBatchInput = S['DiscountCodeBatchInput']
 export type OutletInput = S['OutletInput']
 export type OutletVariantConfig = S['OutletVariantConfig']
 export type OutletConfigItemInput = S['OutletConfigItemInput']
@@ -218,6 +219,7 @@ export interface Api {
   deletePromotion: (id: string) => Promise<void>
   listDiscountCodes: () => Promise<DiscountCode[]>
   createDiscountCode: (input: DiscountCodeInput) => Promise<DiscountCode>
+  createDiscountCodeBatch: (input: DiscountCodeBatchInput) => Promise<DiscountCode[]>
   updateDiscountCode: (id: string, input: DiscountCodeInput) => Promise<DiscountCode>
   deleteDiscountCode: (id: string) => Promise<void>
 
@@ -533,6 +535,8 @@ export function createClient(opts: ClientOptions): Api {
     listDiscountCodes: () => data<DiscountCode[]>('GET', `${API}/discount-codes`),
     createDiscountCode: (input) =>
       data<DiscountCode>('POST', `${API}/discount-codes`, input),
+    createDiscountCodeBatch: (input) =>
+      data<DiscountCode[]>('POST', `${API}/discount-codes/batch`, input),
     updateDiscountCode: (id, input) =>
       data<DiscountCode>('PUT', `${API}/discount-codes/${id}`, input),
     deleteDiscountCode: async (id) => {
