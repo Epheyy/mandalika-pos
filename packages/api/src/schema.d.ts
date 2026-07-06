@@ -502,6 +502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discount-codes/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a batch of discount codes (Backoffice) */
+        post: operations["createDiscountCodeBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promo-reward-grants": {
         parameters: {
             query?: never;
@@ -3337,6 +3354,21 @@ export interface components {
             endDate?: string;
             combinable?: boolean | null;
         };
+        DiscountCodeBatchInput: {
+            count: number;
+            prefix?: string;
+            suffixLength?: number;
+            promotionId?: string;
+            /** @enum {string} */
+            type: "percentage" | "fixed";
+            value: number;
+            minPurchase?: number | null;
+            usageLimit?: number | null;
+            isActive?: boolean;
+            startDate?: string;
+            endDate?: string;
+            combinable?: boolean | null;
+        };
         OutletInput: {
             name: string;
             code?: string;
@@ -4484,6 +4516,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+        };
+    };
+    createDiscountCodeBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountCodeBatchInput"];
+            };
+        };
+        responses: {
+            /** @description Created codes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountCodeListResponse"];
                 };
             };
         };

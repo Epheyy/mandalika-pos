@@ -1786,6 +1786,22 @@ components:
         startDate: { type: string }
         endDate: { type: string }
         combinable: { type: boolean, nullable: true }
+    DiscountCodeBatchInput:
+      type: object
+      required: [type, value, count]
+      properties:
+        count: { type: integer }
+        prefix: { type: string }
+        suffixLength: { type: integer }
+        promotionId: { type: string }
+        type: { type: string, enum: [percentage, fixed] }
+        value: { type: number }
+        minPurchase: { type: number, nullable: true }
+        usageLimit: { type: integer, nullable: true }
+        isActive: { type: boolean }
+        startDate: { type: string }
+        endDate: { type: string }
+        combinable: { type: boolean, nullable: true }
     OutletInput:
       type: object
       required: [name, isActive]
@@ -2536,6 +2552,22 @@ paths:
       responses:
         '200':
           description: discount codes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
+  /api/v1/discount-codes/batch:
+    post:
+      operationId: createDiscountCodeBatch
+      tags: [promotions]
+      summary: Generate a batch of discount codes (Backoffice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscountCodeBatchInput' }
+      responses:
+        '200':
+          description: Created codes
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
