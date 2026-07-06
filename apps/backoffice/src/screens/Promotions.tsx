@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { Promotion, DiscountCode, Product, PromotionInput, DiscountCodeInput, Outlet } from '@mandalika/api'
+import type { Promotion, DiscountCode, Product, PromotionInput, DiscountCodeInput, DiscountCodeBatchInput, Outlet } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Plus, Edit2, Trash2, Tag, Copy } from 'lucide-react'
+import { Plus, Edit2, Trash2, Tag, Copy, Layers } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
@@ -18,6 +18,7 @@ import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 import { PromoFormModal } from './promotions/PromoFormModal'
 import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
+import { DiscountCodeBatchModal } from './promotions/DiscountCodeBatchModal'
 
 const EMPTY_PROMO: PromotionInput = {
   name: '', description: '', type: 'percentage', value: 0, minPurchase: 0,
@@ -26,6 +27,10 @@ const EMPTY_PROMO: PromotionInput = {
 }
 const EMPTY_CODE: DiscountCodeInput = {
   code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
+}
+const EMPTY_BATCH: DiscountCodeBatchInput = {
+  count: 10, prefix: '', suffixLength: 6, type: 'percentage', value: 0, minPurchase: 0,
+  usageLimit: 1, isActive: true, combinable: false, promotionId: undefined,
 }
 
 const PROMO_TYPE_LABEL: Record<string, string> = {
@@ -112,6 +117,8 @@ export default function Promotions() {
   const [codeOpen, setCodeOpen] = useState(false)
   const [editingCode, setEditingCode] = useState<DiscountCode | null>(null)
   const [codeForm, setCodeForm] = useState<DiscountCodeInput>(EMPTY_CODE)
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchForm, setBatchForm] = useState<DiscountCodeBatchInput>(EMPTY_BATCH)
   const [busy, setBusy] = useState(false)
   const [delPromo, setDelPromo] = useState<string | null>(null)
   const [delCode, setDelCode] = useState<string | null>(null)
@@ -201,6 +208,25 @@ export default function Promotions() {
       setBusy(false)
     }
   }
+  const generateBatch = async () => {
+    setBusy(true)
+    try {
+      const created = await api.createDiscountCodeBatch({
+        ...batchForm,
+        prefix: (batchForm.prefix || '').toUpperCase(),
+      })
+      await dcq.refetch()
+      setBatchOpen(false)
+      if (created.length) {
+        exportToCSV(
+          created.map((c) => ({ Kode: c.code, Tipe: c.type, Nilai: c.value, Kuota: c.usageLimit ?? 0 })),
+          'kode-diskon-batch',
+        )
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
   const toggleCode = async (c: DiscountCode) => {
     await api.updateDiscountCode(c.id, {
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
@@ -242,6 +268,15 @@ export default function Promotions() {
               }
               exportDisabled={tab === 'promotions' ? promotions.length === 0 : codes.length === 0}
             />
+            {tab === 'codes' && (
+              <Button
+                variant="secondary"
+                icon={<Layers className="w-4 h-4" />}
+                onClick={() => { setBatchForm({ ...EMPTY_BATCH }); setBatchOpen(true) }}
+              >
+                Buat Massal
+              </Button>
+            )}
             <Button
               icon={<Plus className="w-4 h-4" />}
               onClick={() =>
@@ -371,6 +406,16 @@ export default function Promotions() {
         busy={busy}
         onSave={saveCode}
         onClose={() => setCodeOpen(false)}
+      />
+
+      <DiscountCodeBatchModal
+        open={batchOpen}
+        busy={busy}
+        form={batchForm}
+        setForm={setBatchForm}
+        promotions={promotions}
+        onGenerate={generateBatch}
+        onClose={() => setBatchOpen(false)}
       />
 
       <Modal
