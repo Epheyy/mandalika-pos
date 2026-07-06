@@ -1,6 +1,47 @@
 package write
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestRandSuffix(t *testing.T) {
+	const bad = "O01I"
+	for i := 0; i < 200; i++ {
+		s := randSuffix(8)
+		if len(s) != 8 {
+			t.Fatalf("len: want 8, got %d (%q)", len(s), s)
+		}
+		for _, c := range s {
+			if strings.ContainsRune(bad, c) {
+				t.Fatalf("ambiguous char %q in %q", c, s)
+			}
+			if !strings.ContainsRune("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", c) {
+				t.Fatalf("unexpected char %q in %q", c, s)
+			}
+		}
+	}
+}
+
+func TestValidateDiscountCodeBatch(t *testing.T) {
+	ok := DiscountCodeBatch{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 6}
+	if err := validateDiscountCodeBatch(ok); err != nil {
+		t.Fatalf("valid rejected: %v", err)
+	}
+	bad := []DiscountCodeBatch{
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 0, SuffixLength: 6},   // count<1
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 501, SuffixLength: 6}, // count>500
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 3},  // suffix<4
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 13}, // suffix>12
+		{DiscountCode: DiscountCode{Type: "bogus", Value: 10}, Count: 10, SuffixLength: 6},       // bad type
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 6, Prefix: "toolongprefixxxxx!"}, // prefix invalid
+	}
+	for i, b := range bad {
+		if err := validateDiscountCodeBatch(b); err == nil {
+			t.Fatalf("case %d: expected error", i)
+		}
+	}
+}
 
 func TestVariantBarcode(t *testing.T) {
 	tests := []struct {

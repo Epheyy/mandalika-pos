@@ -4,9 +4,11 @@ package write
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -751,6 +753,112 @@ func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, 
 			Scan(&id)
 	})
 	return id, err
+}
+
+// ── Batch discount-code generation (SP-Code-1) ────────────
+
+const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no O,0,1,I
+
+// randSuffix returns a length-n string over codeAlphabet using crypto/rand.
+// (Unbiased rejection sampling is overkill for a 32-char alphabet; the mod
+// bias here is negligible.)
+func randSuffix(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand should never fail; fall back so batch generation can't wedge.
+		for i := range b {
+			b[i] = byte(i)
+		}
+	}
+	out := make([]byte, n)
+	for i, x := range b {
+		out[i] = codeAlphabet[int(x)%len(codeAlphabet)]
+	}
+	return string(out)
+}
+
+// DiscountCodeBatch embeds DiscountCode for the shared settings applied to every
+// generated code; the embedded Code field is unused/ignored (each code is
+// generated server-side as Prefix + randSuffix(SuffixLength)).
+type DiscountCodeBatch struct {
+	DiscountCode
+	Count        int    `json:"count"`
+	Prefix       string `json:"prefix"`
+	SuffixLength int    `json:"suffixLength"`
+}
+
+// CreatedCode is one successfully-inserted code returned to the caller.
+type CreatedCode struct {
+	ID        string `json:"id"`
+	Code      string `json:"code"`
+	CreatedAt string `json:"createdAt"`
+}
+
+var prefixRe = regexp.MustCompile(`^[A-Z0-9]*$`)
+
+func validateDiscountCodeBatch(b DiscountCodeBatch) error {
+	if b.Count < 1 || b.Count > 500 {
+		return fmt.Errorf("count must be 1..500")
+	}
+	if b.SuffixLength < 4 || b.SuffixLength > 12 {
+		return fmt.Errorf("suffixLength must be 4..12")
+	}
+	if len(b.Prefix) > 16 || !prefixRe.MatchString(strings.ToUpper(b.Prefix)) {
+		return fmt.Errorf("prefix must be alphanumeric, max 16 chars")
+	}
+	if b.Type != "percentage" && b.Type != "fixed" {
+		return fmt.Errorf("type must be percentage or fixed")
+	}
+	return nil
+}
+
+// CreateDiscountCodeBatch generates b.Count unique discount codes server-side and
+// inserts them in a single transaction. Every code shares the batch's settings;
+// only the string differs. A UNIQUE(code) collision (SQLSTATE 23505) regenerates
+// the suffix and retries (up to 10 attempts per code); any other DB error, or
+// retry exhaustion, aborts the whole transaction — the batch is all-or-nothing,
+// never partial.
+func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch) ([]CreatedCode, error) {
+	if err := validateDiscountCodeBatch(b); err != nil {
+		return nil, err
+	}
+	prefix := strings.ToUpper(b.Prefix)
+	out := make([]CreatedCode, 0, b.Count)
+	err := r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
+		for i := 0; i < b.Count; i++ {
+			var id, code, createdAt string
+			inserted := false
+			for attempt := 0; attempt < 10 && !inserted; attempt++ {
+				code = prefix + randSuffix(b.SuffixLength)
+				e := t.QueryRow(ctx, `
+					INSERT INTO discount_codes (code, promotion_id, type, value,
+					  min_purchase, usage_limit, is_active, start_date, end_date, combinable)
+					VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+					RETURNING id, code, created_at::text`,
+					code, nullUUID(b.PromotionID), b.Type, b.Value, b.MinPurchase,
+					b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable).
+					Scan(&id, &code, &createdAt)
+				if e == nil {
+					inserted = true
+					break
+				}
+				var pgErr *pgconn.PgError
+				if errors.As(e, &pgErr) && pgErr.Code == "23505" { // unique_violation → regenerate
+					continue
+				}
+				return e // other error → abort tx
+			}
+			if !inserted {
+				return fmt.Errorf("could not generate a unique code after retries")
+			}
+			out = append(out, CreatedCode{ID: id, Code: code, CreatedAt: createdAt})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *Repo) UpdateDiscountCode(ctx context.Context, id string, d DiscountCode) error {
