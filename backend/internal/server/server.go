@@ -270,6 +270,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("view_reports"))
 				r.Get("/reports/summary", h.ReportSummary)
 				r.Get("/promo-reward-grants", h.PromoRewardGrants)
+				r.Get("/discount-code-report", h.DiscountCodeReport)
 			})
 
 			// Users / roles — admin only.

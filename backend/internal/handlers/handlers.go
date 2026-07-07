@@ -460,6 +460,26 @@ func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// DiscountCodeReport returns a paginated per-code discount-code redemption
+// report (value attributed from orders.discount_breakdown), filterable by
+// date range and outlet. Gated on view_reports.
+func (h *Handlers) DiscountCodeReport(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query()
+	sc := scope(r)
+	f := read.CodeReportFilters{
+		DateFrom: q.Get("dateFrom"),
+		DateTo:   q.Get("dateTo"),
+		OutletID: sc.OutletID, // scope-clamped (non-admin → their outlet; admin → ?outletId/all/header); "" = all
+	}
+	summary, rows, total, err := h.Repo.DiscountCodeReport(r.Context(), f, p, l)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.DiscountCodeReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
