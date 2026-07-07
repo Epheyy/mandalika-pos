@@ -2837,6 +2837,7 @@ export interface components {
             value: number;
             minPurchase?: number | null;
             usageLimit?: number | null;
+            perCustomerLimit?: number | null;
             usageCount: number;
             isActive: boolean;
             startDate?: string | null;
@@ -3386,6 +3387,7 @@ export interface components {
             value: number;
             minPurchase?: number | null;
             usageLimit?: number | null;
+            perCustomerLimit?: number | null;
             isActive: boolean;
             startDate?: string;
             endDate?: string;
@@ -3401,6 +3403,7 @@ export interface components {
             value: number;
             minPurchase?: number | null;
             usageLimit?: number | null;
+            perCustomerLimit?: number | null;
             isActive?: boolean;
             startDate?: string;
             endDate?: string;

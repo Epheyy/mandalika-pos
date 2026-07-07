@@ -1145,6 +1145,7 @@ components:
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         usageLimit: { type: integer, nullable: true }
+        perCustomerLimit: { type: integer, nullable: true }
         usageCount: { type: integer }
         isActive: { type: boolean }
         startDate: { type: string, nullable: true }
@@ -1806,6 +1807,7 @@ components:
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         usageLimit: { type: integer, nullable: true }
+        perCustomerLimit: { type: integer, nullable: true }
         isActive: { type: boolean }
         startDate: { type: string }
         endDate: { type: string }
@@ -1822,6 +1824,7 @@ components:
         value: { type: number }
         minPurchase: { type: number, nullable: true }
         usageLimit: { type: integer, nullable: true }
+        perCustomerLimit: { type: integer, nullable: true }
         isActive: { type: boolean }
         startDate: { type: string }
         endDate: { type: string }
