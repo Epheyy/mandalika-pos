@@ -676,6 +676,7 @@ export default function CashierScreen() {
           outletId: authStore.outletId ?? '',
           subtotal: derived.subtotal,
           hasCustomer: state.selectedCustomer !== null,
+          customerId: state.selectedCustomer?.id,
         },
         promotions,
       )
@@ -701,6 +702,7 @@ export default function CashierScreen() {
       outletId: authStore.outletId ?? '',
       subtotal: derived.subtotal,
       hasCustomer: state.selectedCustomer !== null,
+      customerId: state.selectedCustomer?.id,
     }
     for (const p of state.appliedPromotions) {
       const vs = validatePromo(p, guardCtx)

@@ -23,12 +23,14 @@ export type Violation =
   | 'usage_limit_reached'
   | 'code_only'
   | 'requires_customer'
+  | 'wrong_customer'
 
 export interface PromoEvalContext {
   now: Date
   outletId: string
   subtotal: number
   hasCustomer: boolean
+  customerId?: string
 }
 
 // Fixed WIB offset (UTC+7, no DST) so validation matches the server regardless
@@ -81,6 +83,9 @@ export function validateCode(c: DiscountCode, ctx: PromoEvalContext): Violation[
     v.push('usage_limit_reached')
   }
   if (c.perCustomerLimit != null && !ctx.hasCustomer) v.push('requires_customer')
+  // A code assigned to a specific customer (SP-Code-4) only validates for that
+  // exact customer; a null/undefined cart customer never matches a real id.
+  if (c.customerId != null && c.customerId !== ctx.customerId) v.push('wrong_customer')
   return v
 }
 
@@ -94,6 +99,7 @@ const MESSAGES: Record<Violation, string> = {
   usage_limit_reached: 'Kuota kode diskon sudah habis',
   code_only: 'Promo ini hanya bisa dipakai lewat kode',
   requires_customer: 'Pilih pelanggan dulu untuk kode ini',
+  wrong_customer: 'Kode ini khusus untuk pelanggan tertentu',
 }
 
 export function violationMessage(v: Violation): string {

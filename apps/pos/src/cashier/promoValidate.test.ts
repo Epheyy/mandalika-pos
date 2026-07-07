@@ -84,13 +84,27 @@ describe('validateCode', () => {
     const ctx = { ...baseCtx, hasCustomer: true }
     expect(validateCode(code({ perCustomerLimit: 1 }), ctx)).toEqual([])
   })
+
+  // SP-Code-4 T3: a code assigned to a specific customer (customerId != null)
+  // must only validate for that exact customer.
+  it('assigned + matching customer ok', () => {
+    const ctx = { ...baseCtx, hasCustomer: true, customerId: 'cust-1' }
+    expect(validateCode(code({ customerId: 'cust-1' }), ctx)).toEqual([])
+  })
+  it('assigned + wrong customer', () => {
+    const ctx = { ...baseCtx, hasCustomer: true, customerId: 'cust-1' }
+    expect(validateCode(code({ customerId: 'cust-2' }), ctx)).toEqual(['wrong_customer'])
+  })
+  it('assigned + no customer', () => {
+    expect(validateCode(code({ customerId: 'cust-1' }), baseCtx)).toEqual(['wrong_customer'])
+  })
 })
 
 describe('violationMessage', () => {
   const all: Violation[] = [
     'not_started', 'expired', 'below_min_purchase',
     'wrong_day', 'outside_hours', 'wrong_outlet', 'usage_limit_reached',
-    'code_only', 'requires_customer',
+    'code_only', 'requires_customer', 'wrong_customer',
   ]
   it('returns a non-empty Indonesian string for every violation', () => {
     for (const v of all) {
