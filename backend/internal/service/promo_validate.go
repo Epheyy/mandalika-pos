@@ -30,6 +30,8 @@ const (
 	// and the chosen customer has hit that code's per-customer usage cap (T3 enforces).
 	ViolationRequiresCustomer      PromoViolation = "requires_customer"
 	ViolationPerCustomerCapReached PromoViolation = "per_customer_cap_reached"
+	// SP-Code-4: a customer-assigned code requires the order's chosen customer to match.
+	ViolationWrongCustomer PromoViolation = "wrong_customer"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
@@ -57,6 +59,7 @@ type CodeRow struct {
 	UsageCount         int
 	Combinable         bool
 	PerCustomerLimit   *int
+	CustomerID         *string
 }
 
 // ErrDiscountRejected is returned for an INVALID discount on an ONLINE order so
@@ -146,6 +149,9 @@ func ValidateCode(c CodeRow, ec PromoEvalContext) []PromoViolation {
 	}
 	if c.PerCustomerLimit != nil && !ec.HasCustomer {
 		v = append(v, ViolationRequiresCustomer)
+	}
+	if c.CustomerID != nil && (!ec.HasCustomer || *c.CustomerID != ec.CustomerID) {
+		v = append(v, ViolationWrongCustomer)
 	}
 	return v
 }

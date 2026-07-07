@@ -1449,6 +1449,8 @@ func discountRejectMessage(v []service.PromoViolation) string {
 		return "Kode ini butuh pelanggan terdaftar"
 	case service.ViolationPerCustomerCapReached:
 		return "Pelanggan sudah mencapai batas pemakaian kode ini"
+	case service.ViolationWrongCustomer:
+		return "Kode ini khusus untuk pelanggan tertentu"
 	default:
 		return "Diskon tidak berlaku"
 	}

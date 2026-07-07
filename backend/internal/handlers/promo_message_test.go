@@ -26,6 +26,7 @@ func TestDiscountRejectMessage(t *testing.T) {
 		{"reward invalid", []service.PromoViolation{service.ViolationRewardInvalid}, "Hadiah promo tidak valid atau melebihi kuota"},
 		{"requires customer", []service.PromoViolation{service.ViolationRequiresCustomer}, "Kode ini butuh pelanggan terdaftar"},
 		{"per-customer cap", []service.PromoViolation{service.ViolationPerCustomerCapReached}, "Pelanggan sudah mencapai batas pemakaian kode ini"},
+		{"wrong customer", []service.PromoViolation{service.ViolationWrongCustomer}, "Kode ini khusus untuk pelanggan tertentu"},
 		{"first violation wins", []service.PromoViolation{service.ViolationExpired, service.ViolationBelowMin}, "Kode/promo sudah kadaluarsa"},
 		{"unknown falls back", []service.PromoViolation{service.PromoViolation("bogus")}, "Diskon tidak berlaku"},
 	}

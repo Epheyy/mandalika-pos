@@ -14,6 +14,7 @@ func dptr(y int, m time.Month, d int) *time.Time { t := time.Date(y, m, d, 0, 0,
 
 // fptr is already declared in loyalty_test.go (same package); reuse it here.
 func iptr(i int) *int { return &i }
+func sptr(s string) *string { return &s }
 
 func TestValidatePromo(t *testing.T) {
 	base := ctxAt(2026, 6, 13, 14, 30, 100000, "outlet-a") // Saturday
@@ -52,6 +53,7 @@ func TestValidateCode(t *testing.T) {
 	base := ctxAt(2026, 6, 13, 14, 30, 100000, "outlet-a")
 	baseWithCustomer := base
 	baseWithCustomer.HasCustomer = true
+	baseWithCustomer.CustomerID = "cust-1"
 	tests := []struct {
 		name string
 		row  CodeRow
@@ -68,6 +70,10 @@ func TestValidateCode(t *testing.T) {
 		{"requires customer (capped, no customer)", CodeRow{PerCustomerLimit: iptr(1)}, base, []PromoViolation{ViolationRequiresCustomer}},
 		{"capped with customer ok", CodeRow{PerCustomerLimit: iptr(1)}, baseWithCustomer, nil},
 		{"uncapped no customer ok", CodeRow{}, base, nil},
+		{"assigned + matching customer ok", CodeRow{CustomerID: sptr("cust-1")}, baseWithCustomer, nil},
+		{"assigned + wrong customer", CodeRow{CustomerID: sptr("cust-2")}, baseWithCustomer, []PromoViolation{ViolationWrongCustomer}},
+		{"assigned + no customer", CodeRow{CustomerID: sptr("cust-1")}, base, []PromoViolation{ViolationWrongCustomer}},
+		{"unassigned ok", CodeRow{}, base, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
