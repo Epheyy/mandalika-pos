@@ -17,6 +17,7 @@ import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
 import { OrdersPanel } from './Orders'
 import { PromoGrantsTab } from './reports/PromoGrantsTab'
+import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
 import { Button } from '../ui/Button'
 import { Input, Select } from '../ui/Field'
 import { Card } from '../ui/Card'
@@ -25,7 +26,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 
-type ReportTab = 'orders' | 'export' | 'shifts' | 'grants'
+type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport'
 
 const statusBadge = (st: string) =>
   st === 'completed' ? (
@@ -51,6 +52,7 @@ export default function Reports() {
     if (canViewReports) t.push({ id: 'export', label: 'Ekspor' })
     if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
     if (canViewReports) t.push({ id: 'grants', label: 'Hadiah Promo' })
+    if (canViewReports) t.push({ id: 'codeReport', label: 'Kode Diskon' })
     return t
   }, [canViewTransactions, canViewReports])
 
@@ -205,7 +207,7 @@ export default function Reports() {
             </Select>
           </>
         )}
-        {tab !== 'grants' && (
+        {tab !== 'grants' && tab !== 'codeReport' && (
           <Button
             variant="secondary"
             onClick={tab === 'export' ? exportTx : exportSh}
@@ -218,6 +220,8 @@ export default function Reports() {
       )}
 
       {tab === 'grants' && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'export' && (
         <>
