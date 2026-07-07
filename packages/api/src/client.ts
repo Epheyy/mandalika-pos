@@ -94,6 +94,7 @@ export type IngredientOverviewCell = S['IngredientOverviewCell']
 export type MovementSummaryRow = S['MovementSummaryRow']
 export type MovementSummaryResponse = S['MovementSummaryResponse']
 export type PromoRewardGrantReport = S['PromoRewardGrantReport']
+export type DiscountCodeReport = S['DiscountCodeReport']
 
 export interface ClientOptions {
   baseUrl: string
@@ -296,6 +297,9 @@ export interface Api {
 
   // promo reward grants report
   listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
+
+  // discount code usage report (SP-Code-2)
+  listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>
 
   // recipes / formulas (SP-Recipe-2)
   getRecipeVariantIds: (productId: string) => Promise<string[]>
@@ -695,6 +699,14 @@ export function createClient(opts: ClientOptions): Api {
       if (promotionId) params.promotionId = promotionId
       if (productId) params.productId = productId
       return request<PromoRewardGrantReport>('GET', `${API}/promo-reward-grants` + qs(params))
+    },
+
+    listDiscountCodeReport: (opts) => {
+      const { dateFrom, dateTo, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo) params.dateTo = dateTo
+      return request<DiscountCodeReport>('GET', `${API}/discount-code-report` + qs(params))
     },
 
     getRecipeVariantIds: (productId) =>
