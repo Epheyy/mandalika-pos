@@ -882,6 +882,27 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 
 		codeVio := ValidateCode(row, ec)
 
+		// SP-Code-3: server-only per-customer cap. (requires-customer already handled
+		// by ValidateCode above.) Counted under the FOR UPDATE code-row lock held from
+		// the SELECT above through usage_count++ later in this tx, so it's race-safe.
+		if row.PerCustomerLimit != nil && ec.HasCustomer {
+			keeper, kerr := resolveMergedCustomer(ctx, tx, ec.CustomerID)
+			if kerr != nil {
+				keeper = ec.CustomerID // fall back to the raw id
+			}
+			var used int
+			if e := tx.QueryRow(ctx,
+				`SELECT count(*) FROM orders
+				   WHERE customer_id = $1 AND status = 'completed'
+				     AND jsonb_exists(COALESCE(applied_discount_codes, '[]'::jsonb), $2)`,
+				keeper, code).Scan(&used); e != nil {
+				return nil, nil, nil, "", fmt.Errorf("count per-customer redemptions: %w", e)
+			}
+			if used >= *row.PerCustomerLimit {
+				codeVio = append(codeVio, ViolationPerCustomerCapReached)
+			}
+		}
+
 		// ── LINKED CODE (Model A: code is a key) ──────────────
 		if promotionID != nil && *promotionID != "" {
 			if seen[*promotionID] {
