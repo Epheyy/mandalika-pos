@@ -5,7 +5,7 @@ import { decideApplyCode } from './promoValidate'
 type DiscountCode = components['schemas']['DiscountCode']
 
 const NOW = new Date('2026-06-13T07:30:00Z') // 14:30 WIB Sat
-const ctx = { now: NOW, outletId: 'outlet-a', subtotal: 100000 }
+const ctx = { now: NOW, outletId: 'outlet-a', subtotal: 100000, hasCustomer: false }
 
 function code(partial: Partial<DiscountCode>): DiscountCode {
   return {

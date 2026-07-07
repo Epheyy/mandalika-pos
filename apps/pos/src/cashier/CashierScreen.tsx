@@ -671,7 +671,12 @@ export default function CashierScreen() {
       const decision = decideApplyCode(
         code,
         discountCodes,
-        { now: new Date(), outletId: authStore.outletId ?? '', subtotal: derived.subtotal },
+        {
+          now: new Date(),
+          outletId: authStore.outletId ?? '',
+          subtotal: derived.subtotal,
+          hasCustomer: state.selectedCustomer !== null,
+        },
         promotions,
       )
       if (!decision.ok) {
@@ -695,6 +700,7 @@ export default function CashierScreen() {
       now: new Date(),
       outletId: authStore.outletId ?? '',
       subtotal: derived.subtotal,
+      hasCustomer: state.selectedCustomer !== null,
     }
     for (const p of state.appliedPromotions) {
       const vs = validatePromo(p, guardCtx)

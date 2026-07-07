@@ -22,11 +22,13 @@ export type Violation =
   | 'wrong_outlet'
   | 'usage_limit_reached'
   | 'code_only'
+  | 'requires_customer'
 
 export interface PromoEvalContext {
   now: Date
   outletId: string
   subtotal: number
+  hasCustomer: boolean
 }
 
 // Fixed WIB offset (UTC+7, no DST) so validation matches the server regardless
@@ -78,6 +80,7 @@ export function validateCode(c: DiscountCode, ctx: PromoEvalContext): Violation[
   if (c.usageLimit != null && c.usageLimit > 0 && c.usageCount >= c.usageLimit) {
     v.push('usage_limit_reached')
   }
+  if (c.perCustomerLimit != null && !ctx.hasCustomer) v.push('requires_customer')
   return v
 }
 
@@ -90,6 +93,7 @@ const MESSAGES: Record<Violation, string> = {
   wrong_outlet: 'Tidak berlaku di outlet ini',
   usage_limit_reached: 'Kuota kode diskon sudah habis',
   code_only: 'Promo ini hanya bisa dipakai lewat kode',
+  requires_customer: 'Pilih pelanggan dulu untuk kode ini',
 }
 
 export function violationMessage(v: Violation): string {

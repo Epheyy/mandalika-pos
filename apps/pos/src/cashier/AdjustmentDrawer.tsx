@@ -144,6 +144,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       isValidating={isValidatingCode}
       subtotal={subtotal}
       outletId={outletId}
+      hasCustomer={state.selectedCustomer !== null}
       onSelectPromotion={onSelectPromotion}
       onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
       onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}

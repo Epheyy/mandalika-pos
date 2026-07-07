@@ -14,7 +14,7 @@ type DiscountCode = components['schemas']['DiscountCode']
 // 2026-06-13 14:30 WIB == 2026-06-13 07:30 UTC. Saturday (weekday 6).
 // Constructed as a UTC instant so the test is deterministic on any machine zone.
 const NOW = new Date('2026-06-13T07:30:00Z')
-const baseCtx = { now: NOW, outletId: 'outlet-a', subtotal: 100000 }
+const baseCtx = { now: NOW, outletId: 'outlet-a', subtotal: 100000, hasCustomer: false }
 
 function promo(partial: Partial<Promotion>): Promotion {
   return {
@@ -73,19 +73,24 @@ describe('validateCode', () => {
     { name: 'usage under limit ok', row: { usageLimit: 2, usageCount: 1 }, want: [] },
     { name: 'usage limit zero = unlimited', row: { usageLimit: 0, usageCount: 99 }, want: [] },
     { name: 'nil limit = unlimited', row: { usageCount: 99 }, want: [] },
+    { name: 'requires customer when capped + no customer', row: { perCustomerLimit: 1 }, want: ['requires_customer'] },
   ]
   for (const tc of cases) {
     it(tc.name, () => {
       expect(validateCode(code(tc.row), baseCtx)).toEqual(tc.want)
     })
   }
+  it('capped code passes when a customer is selected', () => {
+    const ctx = { ...baseCtx, hasCustomer: true }
+    expect(validateCode(code({ perCustomerLimit: 1 }), ctx)).toEqual([])
+  })
 })
 
 describe('violationMessage', () => {
   const all: Violation[] = [
     'not_started', 'expired', 'below_min_purchase',
     'wrong_day', 'outside_hours', 'wrong_outlet', 'usage_limit_reached',
-    'code_only',
+    'code_only', 'requires_customer',
   ]
   it('returns a non-empty Indonesian string for every violation', () => {
     for (const v of all) {

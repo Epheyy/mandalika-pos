@@ -19,6 +19,7 @@ interface PromoPanelProps {
   isValidating: boolean
   subtotal: number
   outletId: string
+  hasCustomer: boolean
   onSelectPromotion: (promo: Promotion) => void
   onRemovePromotion: (id: string) => void
   onClearPromotion: () => void
@@ -95,6 +96,7 @@ export const PromoPanel = memo(function PromoPanel({
   isValidating,
   subtotal,
   outletId,
+  hasCustomer,
   onSelectPromotion,
   onRemovePromotion,
   onClearPromotion,
@@ -106,7 +108,7 @@ export const PromoPanel = memo(function PromoPanel({
   onClearPromoCodeError,
 }: PromoPanelProps) {
   const now = new Date()
-  const evalCtx = { now, outletId, subtotal }
+  const evalCtx = { now, outletId, subtotal, hasCustomer }
   // code_only promotions are hidden from the browse panel — they are only
   // reachable by typing the linked discount code (SP-Promo-3c).
   const activePromos = promotions.flatMap((promo) =>
