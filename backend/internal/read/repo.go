@@ -1898,3 +1898,71 @@ func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters,
 	}
 	return sum, rows, total, nil
 }
+
+// CodeReportFilters bounds the DiscountCodeReport query.
+type CodeReportFilters struct{ DateFrom, DateTo, OutletID string }
+
+// DiscountCodeReport attributes discount VALUE per code from the unnested
+// orders.discount_breakdown components whose label matches a real
+// discount_codes.code — NOT orders.discount_amount. Completed orders only.
+// Day bounds are WIB (Asia/Jakarta): o.created_at is timestamptz/UTC while
+// DateFrom/DateTo are WIB calendar days, so the bare date is interpreted as
+// midnight WIB via `AT TIME ZONE 'Asia/Jakarta'`. Status is derived in SQL.
+func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page, limit int) (api.DiscountCodeReportSummary, []api.DiscountCodeReportRow, int, error) {
+	var sum api.DiscountCodeReportSummary
+	where := `FROM orders o
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.discount_breakdown, '[]'::jsonb)) b
+		JOIN discount_codes dc ON dc.code = (b->>'label')
+		LEFT JOIN promotions p ON p.id = dc.promotion_id
+		WHERE o.status = 'completed'
+		  AND ($3 = '' OR o.outlet_id::text = $3)
+		  AND ($1 = '' OR o.created_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta')
+		  AND ($2 = '' OR o.created_at <  (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'))`
+	args := []any{f.DateFrom, f.DateTo, f.OutletID}
+
+	// Summary over the full filtered set. Fields are pointers, so scan into
+	// locals then take addresses. Value is numeric → scan into float64, narrow
+	// to the *float32 field.
+	var tr, dc int
+	var tv float64
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT COUNT(DISTINCT o.id), COALESCE(SUM((b->>'amount')::numeric),0), COUNT(DISTINCT b->>'label') `+where, args...,
+	).Scan(&tr, &tv, &dc); err != nil {
+		return sum, nil, 0, err
+	}
+	trv, tvv, dcv := tr, float32(tv), dc
+	sum.TotalRedemptions = &trv
+	sum.TotalValue = &tvv
+	sum.DistinctCodes = &dcv
+
+	// Total group count (grouped subquery mirrors the page's GROUP BY).
+	var total int
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM (SELECT 1 `+where+` GROUP BY dc.id, b->>'label') t`, args...,
+	).Scan(&total); err != nil {
+		return sum, nil, 0, err
+	}
+
+	// Per-code page. $4=limit, $5=offset.
+	rows, _, err := listJSON[api.DiscountCodeReportRow](ctx, r.Pool,
+		`SELECT json_build_object(
+		   'code', b->>'label',
+		   'promotionName', p.name,
+		   'redemptions', COUNT(DISTINCT o.id),
+		   'valueGiven', SUM((b->>'amount')::numeric),
+		   'usageLimit', dc.usage_limit,
+		   'usageCount', dc.usage_count,
+		   'remaining', CASE WHEN dc.usage_limit IS NULL THEN NULL ELSE dc.usage_limit - dc.usage_count END,
+		   'status', CASE
+		     WHEN NOT dc.is_active THEN 'nonaktif'
+		     WHEN dc.end_date IS NOT NULL AND dc.end_date < (now() AT TIME ZONE 'Asia/Jakarta')::date THEN 'kedaluwarsa'
+		     WHEN dc.usage_limit IS NOT NULL AND dc.usage_count >= dc.usage_limit THEN 'kuota habis'
+		     ELSE 'aktif' END) `+where+`
+		 GROUP BY dc.id, b->>'label', p.name, dc.usage_limit, dc.usage_count, dc.is_active, dc.end_date
+		 ORDER BY SUM((b->>'amount')::numeric) DESC LIMIT $4 OFFSET $5`,
+		append(args, limit, off(page, limit))...)
+	if err != nil {
+		return sum, nil, 0, err
+	}
+	return sum, rows, total, nil
+}
