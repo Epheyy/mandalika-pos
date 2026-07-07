@@ -848,6 +848,7 @@ func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, erro
 		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
 		   'type',type,'value',value,'minPurchase',min_purchase,
 		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
+		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
 		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
 		   'createdAt',created_at)
@@ -864,6 +865,7 @@ func (r *Repo) DiscountCodesByIDs(ctx context.Context, ids []string) ([]api.Disc
 		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
 		   'type',type,'value',value,'minPurchase',min_purchase,
 		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
+		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
 		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
 		   'createdAt',created_at)
