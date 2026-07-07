@@ -2838,6 +2838,8 @@ export interface components {
             minPurchase?: number | null;
             usageLimit?: number | null;
             perCustomerLimit?: number | null;
+            customerId?: string | null;
+            customerName?: string | null;
             usageCount: number;
             isActive: boolean;
             startDate?: string | null;
@@ -3388,6 +3390,7 @@ export interface components {
             minPurchase?: number | null;
             usageLimit?: number | null;
             perCustomerLimit?: number | null;
+            customerId?: string | null;
             isActive: boolean;
             startDate?: string;
             endDate?: string;
