@@ -26,11 +26,11 @@ const EMPTY_PROMO: PromotionInput = {
   combinable: false, codeOnly: false, outletIds: [], activeFromHour: '', activeToHour: '', activeDays: [],
 }
 const EMPTY_CODE: DiscountCodeInput = {
-  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, isActive: true, combinable: false, promotionId: undefined,
+  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, perCustomerLimit: undefined, isActive: true, combinable: false, promotionId: undefined,
 }
 const EMPTY_BATCH: DiscountCodeBatchInput = {
   count: 10, prefix: '', suffixLength: 6, type: 'percentage', value: 0, minPurchase: 0,
-  usageLimit: 1, isActive: true, combinable: false, promotionId: undefined,
+  usageLimit: 1, perCustomerLimit: undefined, isActive: true, combinable: false, promotionId: undefined,
 }
 
 const PROMO_TYPE_LABEL: Record<string, string> = {
@@ -184,7 +184,8 @@ export default function Promotions() {
     setEditingCode(c)
     setCodeForm({
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
-      usageLimit: c.usageLimit || 0, isActive: c.isActive, combinable: c.combinable ?? false,
+      usageLimit: c.usageLimit || 0, perCustomerLimit: c.perCustomerLimit ?? undefined,
+      isActive: c.isActive, combinable: c.combinable ?? false,
       promotionId: c.promotionId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
@@ -230,7 +231,8 @@ export default function Promotions() {
   const toggleCode = async (c: DiscountCode) => {
     await api.updateDiscountCode(c.id, {
       code: c.code, type: c.type, value: c.value, minPurchase: c.minPurchase || 0,
-      usageLimit: c.usageLimit || 0, isActive: !c.isActive, combinable: c.combinable ?? false,
+      usageLimit: c.usageLimit || 0, perCustomerLimit: c.perCustomerLimit ?? undefined,
+      isActive: !c.isActive, combinable: c.combinable ?? false,
       promotionId: c.promotionId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })

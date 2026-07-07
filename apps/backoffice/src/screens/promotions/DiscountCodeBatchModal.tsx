@@ -117,6 +117,14 @@ export function DiscountCodeBatchModal({
           <Input label="Min. Beli" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
           <Input label="Batas Pakai per kode" type="number" value={form.usageLimit || ''} onChange={(e) => setForm((f) => ({ ...f, usageLimit: parseInt(e.target.value) || 0 }))} />
         </div>
+        <Input
+          label="Batas per pelanggan"
+          type="number"
+          min={1}
+          value={form.perCustomerLimit ?? ''}
+          onChange={(e) => setForm((f) => ({ ...f, perCustomerLimit: e.target.value === '' ? undefined : Number(e.target.value) }))}
+          hint="kosong = tak terbatas"
+        />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
           <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
