@@ -1959,7 +1959,7 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 		     WHEN dc.usage_limit IS NOT NULL AND dc.usage_count >= dc.usage_limit THEN 'kuota habis'
 		     ELSE 'aktif' END) `+where+`
 		 GROUP BY dc.id, b->>'label', p.name, dc.usage_limit, dc.usage_count, dc.is_active, dc.end_date
-		 ORDER BY SUM((b->>'amount')::numeric) DESC LIMIT $4 OFFSET $5`,
+		 ORDER BY SUM((b->>'amount')::numeric) DESC, dc.id LIMIT $4 OFFSET $5`,
 		append(args, limit, off(page, limit))...)
 	if err != nil {
 		return sum, nil, 0, err
