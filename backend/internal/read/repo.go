@@ -847,7 +847,8 @@ func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, erro
 	return listJSON[api.DiscountCode](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
 		   'type',type,'value',value,'minPurchase',min_purchase,
-		   'usageLimit',usage_limit,'usageCount',usage_count,'isActive',is_active,
+		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
+		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
 		   'createdAt',created_at)
 		   FROM discount_codes ORDER BY created_at DESC`)
@@ -862,7 +863,8 @@ func (r *Repo) DiscountCodesByIDs(ctx context.Context, ids []string) ([]api.Disc
 	return listJSON[api.DiscountCode](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
 		   'type',type,'value',value,'minPurchase',min_purchase,
-		   'usageLimit',usage_limit,'usageCount',usage_count,'isActive',is_active,
+		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
+		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
 		   'createdAt',created_at)
 		   FROM discount_codes WHERE id = ANY($1::uuid[]) ORDER BY created_at DESC`, ids)

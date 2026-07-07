@@ -729,16 +729,17 @@ func (r *Repo) DeletePromotion(ctx context.Context, id string) error {
 // ── Discount codes ────────────────────────────────────────
 
 type DiscountCode struct {
-	Code        string   `json:"code"`
-	PromotionID string   `json:"promotionId"`
-	Type        string   `json:"type"`
-	Value       float64  `json:"value"`
-	MinPurchase *float64 `json:"minPurchase"`
-	UsageLimit  *int     `json:"usageLimit"`
-	IsActive    bool     `json:"isActive"`
-	StartDate   string   `json:"startDate"`
-	EndDate     string   `json:"endDate"`
-	Combinable  bool     `json:"combinable"` // SP-Promo-3a: may this code stack with other combinable discounts
+	Code             string   `json:"code"`
+	PromotionID      string   `json:"promotionId"`
+	Type             string   `json:"type"`
+	Value            float64  `json:"value"`
+	MinPurchase      *float64 `json:"minPurchase"`
+	UsageLimit       *int     `json:"usageLimit"`
+	IsActive         bool     `json:"isActive"`
+	StartDate        string   `json:"startDate"`
+	EndDate          string   `json:"endDate"`
+	Combinable       bool     `json:"combinable"`       // SP-Promo-3a: may this code stack with other combinable discounts
+	PerCustomerLimit *int     `json:"perCustomerLimit"` // SP-Code-3: max redemptions per customer (nil = unlimited)
 }
 
 func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, error) {
@@ -746,10 +747,12 @@ func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, 
 	err := r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
 		return t.QueryRow(ctx, `
 			INSERT INTO discount_codes (code, promotion_id, type, value,
-			  min_purchase, usage_limit, is_active, start_date, end_date, combinable)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+			  min_purchase, usage_limit, is_active, start_date, end_date, combinable,
+			  per_customer_limit)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
 			d.Code, nullUUID(d.PromotionID), d.Type, d.Value, d.MinPurchase,
-			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable).
+			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable,
+			d.PerCustomerLimit).
 			Scan(&id)
 	})
 	return id, err
@@ -838,12 +841,14 @@ func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch)
 				code = prefix + randSuffix(b.SuffixLength)
 				e := t.QueryRow(ctx, `
 					INSERT INTO discount_codes (code, promotion_id, type, value,
-					  min_purchase, usage_limit, is_active, start_date, end_date, combinable)
-					VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+					  min_purchase, usage_limit, is_active, start_date, end_date, combinable,
+					  per_customer_limit)
+					VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 					ON CONFLICT (code) DO NOTHING
 					RETURNING id, code, created_at::text`,
 					code, nullUUID(b.PromotionID), b.Type, b.Value, b.MinPurchase,
-					b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable).
+					b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable,
+					b.PerCustomerLimit).
 					Scan(&id, &code, &createdAt)
 				if e == nil {
 					inserted = true
@@ -872,9 +877,10 @@ func (r *Repo) UpdateDiscountCode(ctx context.Context, id string, d DiscountCode
 		ct, e := t.Exec(ctx, `
 			UPDATE discount_codes SET code=$1, promotion_id=$2, type=$3, value=$4,
 			  min_purchase=$5, usage_limit=$6, is_active=$7, start_date=$8,
-			  end_date=$9, combinable=$10 WHERE id=$11`,
+			  end_date=$9, combinable=$10, per_customer_limit=$11 WHERE id=$12`,
 			d.Code, nullUUID(d.PromotionID), d.Type, d.Value, d.MinPurchase,
-			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable, id)
+			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable,
+			d.PerCustomerLimit, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
