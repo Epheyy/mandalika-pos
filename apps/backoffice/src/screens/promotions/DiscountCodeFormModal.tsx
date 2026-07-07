@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { Promotion, DiscountCodeInput } from '@mandalika/api'
+import type { Promotion, DiscountCodeInput, Customer } from '@mandalika/api'
 import { RefreshCw } from 'lucide-react'
+import { api } from '../../api'
 import { generateCode } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field, fieldClass } from '../../ui/Field'
@@ -12,6 +14,9 @@ interface DiscountCodeFormModalProps {
   form: DiscountCodeInput
   setForm: Dispatch<SetStateAction<DiscountCodeInput>>
   promotions: Promotion[]
+  /** Display-only name for form.customerId (DiscountCodeInput has no customerName field). */
+  customerName: string
+  onCustomerChange: (id: string | undefined, name: string) => void
   busy: boolean
   onSave: () => void
   onClose: () => void
@@ -23,10 +28,30 @@ export function DiscountCodeFormModal({
   form,
   setForm,
   promotions,
+  customerName,
+  onCustomerChange,
   busy,
   onSave,
   onClose,
 }: DiscountCodeFormModalProps) {
+  // Debounced customer typeahead — mirrors the pattern in Customers.tsx (phoneDupe lookup).
+  const [custQuery, setCustQuery] = useState('')
+  const [custResults, setCustResults] = useState<Customer[]>([])
+
+  useEffect(() => {
+    if (!custQuery.trim()) { setCustResults([]); return }
+    let ignore = false
+    const t = setTimeout(async () => {
+      try {
+        const results = await api.lookupCustomers(custQuery, 10)
+        if (!ignore) setCustResults(results)
+      } catch {
+        if (!ignore) setCustResults([])
+      }
+    }, 250)
+    return () => { clearTimeout(t); ignore = true }
+  }, [custQuery])
+
   return (
     <Modal
       open={open}
@@ -56,6 +81,49 @@ export function DiscountCodeFormModal({
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </Select>
+        <Field label="Khusus pelanggan (opsional)" hint="kosong = bisa dipakai siapa saja">
+          {form.customerId ? (
+            <div className="flex items-center justify-between px-3 py-2.5 bg-gold-50 border border-gold-200 rounded-xl">
+              <span className="text-sm font-bold text-gray-900 truncate">{customerName || form.customerId}</span>
+              <button
+                type="button"
+                onClick={() => onCustomerChange(undefined, '')}
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 text-lg font-bold shrink-0"
+                aria-label="Hapus pelanggan terpilih"
+              >×</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={custQuery}
+                onChange={(e) => setCustQuery(e.target.value)}
+                placeholder="Cari nama / no. HP pelanggan…"
+                aria-label="Cari pelanggan"
+                className={fieldClass}
+              />
+              {custQuery.trim() && (
+                <div className="rounded-lg border border-gray-200 bg-white max-h-44 overflow-auto">
+                  {custResults.length === 0 ? (
+                    <p className="px-3 py-2.5 text-xs text-gray-400">Tidak ada pelanggan cocok.</p>
+                  ) : (
+                    custResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => { onCustomerChange(c.id, c.name); setCustQuery(''); setCustResults([]) }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between items-center border-b border-gray-50 last:border-0"
+                      >
+                        <span className="font-medium text-gray-800">{c.name}</span>
+                        <span className="text-gray-400 text-xs">{c.phone}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </Field>
         <div className="grid grid-cols-2 gap-4">
           <Select
             label="Tipe"

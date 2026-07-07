@@ -26,7 +26,7 @@ const EMPTY_PROMO: PromotionInput = {
   combinable: false, codeOnly: false, outletIds: [], activeFromHour: '', activeToHour: '', activeDays: [],
 }
 const EMPTY_CODE: DiscountCodeInput = {
-  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, perCustomerLimit: undefined, isActive: true, combinable: false, promotionId: undefined,
+  code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, perCustomerLimit: undefined, isActive: true, combinable: false, promotionId: undefined, customerId: undefined,
 }
 const EMPTY_BATCH: DiscountCodeBatchInput = {
   count: 10, prefix: '', suffixLength: 6, type: 'percentage', value: 0, minPurchase: 0,
@@ -117,6 +117,9 @@ export default function Promotions() {
   const [codeOpen, setCodeOpen] = useState(false)
   const [editingCode, setEditingCode] = useState<DiscountCode | null>(null)
   const [codeForm, setCodeForm] = useState<DiscountCodeInput>(EMPTY_CODE)
+  // Display-only name for codeForm.customerId — DiscountCodeInput has no customerName field
+  // (that field only exists on the read-side DiscountCode type), so it's tracked separately.
+  const [codeCustomerName, setCodeCustomerName] = useState<string>('')
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchForm, setBatchForm] = useState<DiscountCodeBatchInput>(EMPTY_BATCH)
   const [busy, setBusy] = useState(false)
@@ -187,8 +190,10 @@ export default function Promotions() {
       usageLimit: c.usageLimit || 0, perCustomerLimit: c.perCustomerLimit ?? undefined,
       isActive: c.isActive, combinable: c.combinable ?? false,
       promotionId: c.promotionId ?? undefined,
+      customerId: c.customerId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
+    setCodeCustomerName(c.customerName ?? '')
     setCodeOpen(true)
   }
   const saveCode = async () => {
@@ -234,6 +239,7 @@ export default function Promotions() {
       usageLimit: c.usageLimit || 0, perCustomerLimit: c.perCustomerLimit ?? undefined,
       isActive: !c.isActive, combinable: c.combinable ?? false,
       promotionId: c.promotionId ?? undefined,
+      customerId: c.customerId ?? undefined,
       startDate: c.startDate || undefined, endDate: c.endDate || undefined,
     })
     await dcq.refetch()
@@ -284,7 +290,7 @@ export default function Promotions() {
               onClick={() =>
                 tab === 'promotions'
                   ? (setEditingPromo(null), setPromoForm({ ...EMPTY_PROMO }), setPromoOpen(true))
-                  : (setEditingCode(null), setCodeForm({ ...EMPTY_CODE }), setCodeOpen(true))
+                  : (setEditingCode(null), setCodeForm({ ...EMPTY_CODE }), setCodeCustomerName(''), setCodeOpen(true))
               }
             >
               {tab === 'promotions' ? 'Tambah Promosi' : 'Tambah Kode'}
@@ -365,6 +371,11 @@ export default function Promotions() {
                             Tertaut: {promotions.find((p) => p.id === c.promotionId)?.name ?? c.promotionId}
                           </p>
                         )}
+                        {c.customerId && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Khusus: {c.customerName ?? '—'}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-3 font-bold text-gray-900 text-sm">{c.type === 'percentage' ? `${c.value}%` : BRAND.currency.format(c.value)}</td>
                       <td className="px-5 py-3 text-sm text-gray-600">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</td>
@@ -405,6 +416,8 @@ export default function Promotions() {
         form={codeForm}
         setForm={setCodeForm}
         promotions={promotions}
+        customerName={codeCustomerName}
+        onCustomerChange={(id, name) => { setCodeForm((f) => ({ ...f, customerId: id })); setCodeCustomerName(name) }}
         busy={busy}
         onSave={saveCode}
         onClose={() => setCodeOpen(false)}
