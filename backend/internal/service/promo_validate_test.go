@@ -50,6 +50,8 @@ func TestValidatePromo(t *testing.T) {
 
 func TestValidateCode(t *testing.T) {
 	base := ctxAt(2026, 6, 13, 14, 30, 100000, "outlet-a")
+	baseWithCustomer := base
+	baseWithCustomer.HasCustomer = true
 	tests := []struct {
 		name string
 		row  CodeRow
@@ -63,6 +65,9 @@ func TestValidateCode(t *testing.T) {
 		{"usage under limit ok", CodeRow{UsageLimit: iptr(2), UsageCount: 1}, base, nil},
 		{"usage limit zero = unlimited", CodeRow{UsageLimit: iptr(0), UsageCount: 99}, base, nil},
 		{"nil limit = unlimited", CodeRow{UsageCount: 99}, base, nil},
+		{"requires customer (capped, no customer)", CodeRow{PerCustomerLimit: iptr(1)}, base, []PromoViolation{ViolationRequiresCustomer}},
+		{"capped with customer ok", CodeRow{PerCustomerLimit: iptr(1)}, baseWithCustomer, nil},
+		{"uncapped no customer ok", CodeRow{}, base, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

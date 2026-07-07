@@ -143,7 +143,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	if in.ClientCreated != nil {
 		saleTime = *in.ClientCreated
 	}
-	promoEvalCtx := PromoEvalContext{SaleTimeWIB: saleTime.In(wib), OutletID: in.OutletID, Subtotal: promoSubtotal}
+	promoEvalCtx := PromoEvalContext{SaleTimeWIB: saleTime.In(wib), OutletID: in.OutletID, Subtotal: promoSubtotal, HasCustomer: in.CustomerID != "", CustomerID: in.CustomerID}
 
 	// SP-Promo-3a: prefer the plural lists; fall back to the singular fields so old
 	// APKs (which send only promotionId/discountCode) keep working during rollout.
@@ -866,9 +866,9 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 		// FOR UPDATE: hold the row lock from validation through usage_count++ later
 		// in this same tx — makes the usage_limit check race-safe.
 		err := tx.QueryRow(ctx,
-			`SELECT id, promotion_id, type, value, start_date, end_date, min_purchase, usage_limit, usage_count, combinable
+			`SELECT id, promotion_id, type, value, start_date, end_date, min_purchase, usage_limit, usage_count, combinable, per_customer_limit
 			   FROM discount_codes WHERE code=$1 AND is_active=true FOR UPDATE`, code).
-			Scan(&id, &promotionID, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount, &row.Combinable)
+			Scan(&id, &promotionID, &kind, &value, &row.StartDate, &row.EndDate, &row.MinPurchase, &row.UsageLimit, &row.UsageCount, &row.Combinable, &row.PerCustomerLimit)
 		if errors.Is(err, pgx.ErrNoRows) {
 			if !offline {
 				return reject([]PromoViolation{ViolationNotFound})

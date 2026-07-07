@@ -26,6 +26,10 @@ const (
 	// SP-Promo-3b-bundle: a bundle-freed line is not slot-eligible, no complete set
 	// exists, a slot is over-freed, or a cheaper eligible unit was left paid.
 	ViolationBundleInvalid PromoViolation = "bundle_invalid"
+	// SP-Code-3: a per-customer-capped code needs a registered customer on the order;
+	// and the chosen customer has hit that code's per-customer usage cap (T3 enforces).
+	ViolationRequiresCustomer      PromoViolation = "requires_customer"
+	ViolationPerCustomerCapReached PromoViolation = "per_customer_cap_reached"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
@@ -33,6 +37,8 @@ type PromoEvalContext struct {
 	SaleTimeWIB time.Time // already in the wib zone
 	OutletID    string
 	Subtotal    float64 // pre-discount sum of line subtotals
+	HasCustomer bool
+	CustomerID  string
 }
 
 // PromoRow / CodeRow are the loaded gating columns (nil/empty = no constraint).
@@ -50,6 +56,7 @@ type CodeRow struct {
 	UsageLimit         *int
 	UsageCount         int
 	Combinable         bool
+	PerCustomerLimit   *int
 }
 
 // ErrDiscountRejected is returned for an INVALID discount on an ONLINE order so
@@ -136,6 +143,9 @@ func ValidateCode(c CodeRow, ec PromoEvalContext) []PromoViolation {
 	// usage_limit of 0 means UNLIMITED (backoffice shows it as ∞), so only enforce > 0.
 	if c.UsageLimit != nil && *c.UsageLimit > 0 && c.UsageCount >= *c.UsageLimit {
 		v = append(v, ViolationUsageLimit)
+	}
+	if c.PerCustomerLimit != nil && !ec.HasCustomer {
+		v = append(v, ViolationRequiresCustomer)
 	}
 	return v
 }
