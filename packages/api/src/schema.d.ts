@@ -536,6 +536,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discount-code-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discount-code redemption report */
+        get: operations["listDiscountCodeReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/loyalty-conditions": {
         parameters: {
             query?: never;
@@ -2730,6 +2747,26 @@ export interface components {
             data: components["schemas"]["PromoRewardGrantGroup"][];
             meta: components["schemas"]["Meta"];
         };
+        DiscountCodeReportRow: {
+            code?: string;
+            promotionName?: string | null;
+            redemptions?: number;
+            valueGiven?: number;
+            usageLimit?: number | null;
+            usageCount?: number;
+            remaining?: number | null;
+            status?: string;
+        };
+        DiscountCodeReportSummary: {
+            totalRedemptions?: number;
+            totalValue?: number;
+            distinctCodes?: number;
+        };
+        DiscountCodeReport: {
+            summary: components["schemas"]["DiscountCodeReportSummary"];
+            data: components["schemas"]["DiscountCodeReportRow"][];
+            meta: components["schemas"]["Meta"];
+        };
         BXGYConfig: {
             buyQuantity: number;
             getQuantity: number;
@@ -4568,6 +4605,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromoRewardGrantReport"];
+                };
+            };
+        };
+    };
+    listDiscountCodeReport: {
+        parameters: {
+            query?: {
+                dateFrom?: string;
+                dateTo?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountCodeReport"];
                 };
             };
         };

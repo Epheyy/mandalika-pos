@@ -1034,6 +1034,30 @@ components:
         summary: { $ref: '#/components/schemas/PromoGrantSummary' }
         data: { type: array, items: { $ref: '#/components/schemas/PromoRewardGrantGroup' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    DiscountCodeReportRow:
+      type: object
+      properties:
+        code: { type: string }
+        promotionName: { type: string, nullable: true }
+        redemptions: { type: integer }
+        valueGiven: { type: number }
+        usageLimit: { type: integer, nullable: true }
+        usageCount: { type: integer }
+        remaining: { type: integer, nullable: true }
+        status: { type: string }
+    DiscountCodeReportSummary:
+      type: object
+      properties:
+        totalRedemptions: { type: integer }
+        totalValue: { type: number }
+        distinctCodes: { type: integer }
+    DiscountCodeReport:
+      type: object
+      required: [summary, data, meta]
+      properties:
+        summary: { $ref: '#/components/schemas/DiscountCodeReportSummary' }
+        data: { type: array, items: { $ref: '#/components/schemas/DiscountCodeReportRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     BXGYConfig:
       type: object
       required: [buyQuantity, getQuantity, getDiscountKind, getDiscountValue]
@@ -2590,6 +2614,22 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PromoRewardGrantReport' }
+  /api/v1/discount-code-report:
+    get:
+      operationId: listDiscountCodeReport
+      tags: [promotions]
+      summary: Discount-code redemption report
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string } }
+        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscountCodeReport' }
   /api/v1/loyalty-conditions:
     get:
       operationId: listLoyaltyConditions
