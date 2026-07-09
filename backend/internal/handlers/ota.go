@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -11,6 +12,10 @@ import (
 )
 
 var errOtaMissingFields = errors.New("version, url, and checksum are required")
+
+// errOtaUnavailable is the generic error surfaced to the PUBLIC /ota/check on a
+// backend fault — the real error is logged, never echoed to an unauth caller.
+var errOtaUnavailable = errors.New("ota check unavailable")
 
 // OtaCheck is the PUBLIC Capgo self-hosted update endpoint. The plugin POSTs
 // AppInfos; we read only platform + version_name and reply with the BARE Capgo
@@ -29,7 +34,9 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	latest, err := h.Repo.LatestOtaRelease(r.Context(), platform)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		// Public endpoint: log the real error, echo only a generic message.
+		slog.Error("ota check: latest release", "platform", platform, "err", err)
+		writeErr(w, http.StatusInternalServerError, errOtaUnavailable)
 		return
 	}
 	writeJSON(w, http.StatusOK, ota.Decide(latest, body.VersionName))
