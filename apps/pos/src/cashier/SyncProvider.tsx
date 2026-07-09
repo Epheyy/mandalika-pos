@@ -16,7 +16,7 @@ import { SyncEngine, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
-import { hideSplash, otaNotifyReady } from '../native'
+import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
 
@@ -106,7 +106,6 @@ export function SyncProvider({
       .finally(() => {
         setReady(true)
         void hideSplash()
-        void otaNotifyReady()
       })
 
     // Poll every 12s: flushes the outbox and refreshes real server

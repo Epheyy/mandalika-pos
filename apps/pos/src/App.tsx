@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth } from './auth'
-import { hideSplash } from './native'
+import { hideSplash, otaNotifyReady } from './native'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
 import logoGold from './assets/logo-gold.png'
@@ -135,8 +135,12 @@ export default function App() {
   // post-login, but the pre-login screen never mounts SyncProvider — so on a
   // fresh/logged-out app the splash covered the WebView forever (blank app).
   // Hide it as soon as React shows anything; SplashScreen.hide() is idempotent.
+  // Also confirm the OTA bundle booted HERE (first render), NOT gated behind the
+  // network sync — Capgo auto-rolls-back a good bundle if notifyAppReady() misses
+  // its ~10s window, so a slow tablet network must not delay the confirm.
   useEffect(() => {
     void hideSplash()
+    void otaNotifyReady()
   }, [])
   if (!ready) {
     return (
