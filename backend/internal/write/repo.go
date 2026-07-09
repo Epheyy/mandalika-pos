@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/ota"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -1090,4 +1091,16 @@ func nullDate(s string) any {
 		return nil
 	}
 	return s
+}
+
+// PublishOtaRelease records a newly published OTA release and returns its id.
+func (r *Repo) PublishOtaRelease(ctx context.Context, in ota.Release, createdBy string) (string, error) {
+	var id string
+	err := r.tx(ctx, "otaReleases", func(t pgx.Tx) error {
+		return t.QueryRow(ctx,
+			`INSERT INTO ota_releases (platform, version, url, checksum, size, created_by)
+			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			in.Platform, in.Version, in.URL, in.Checksum, in.Size, nullUUID(createdBy)).Scan(&id)
+	})
+	return id, err
 }

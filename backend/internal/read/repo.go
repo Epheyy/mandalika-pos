@@ -12,6 +12,7 @@ import (
 	"github.com/oapi-codegen/nullable"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/ota"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -1969,4 +1970,21 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 		return sum, nil, 0, err
 	}
 	return sum, rows, total, nil
+}
+
+// LatestOtaRelease returns the most recently published release for platform,
+// or (nil, nil) when none exists yet.
+func (r *Repo) LatestOtaRelease(ctx context.Context, platform string) (*ota.Release, error) {
+	var rel ota.Release
+	err := r.Pool.QueryRow(ctx,
+		`SELECT platform, version, url, checksum, size
+		   FROM ota_releases WHERE platform=$1 ORDER BY created_at DESC LIMIT 1`, platform).
+		Scan(&rel.Platform, &rel.Version, &rel.URL, &rel.Checksum, &rel.Size)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &rel, nil
 }
