@@ -84,7 +84,13 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/auth/login", ah.Login)
 			r.Post("/auth/refresh", ah.Refresh)
 			r.Post("/auth/logout", ah.Logout)
-			// Public Capgo self-hosted OTA update check (no auth; bare JSON).
+		})
+
+		// Public Capgo self-hosted OTA update check (no auth; bare JSON). Its own
+		// generous per-IP limit (NOT the strict "auth" bucket) so a whole outlet
+		// of tablets polling on app-open behind one NAT can't starve cashier logins.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RateLimit(c, "ota", 120, time.Minute))
 			r.Post("/ota/check", h.OtaCheck)
 		})
 
