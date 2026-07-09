@@ -42,6 +42,12 @@ const config: CapacitorConfig = {
         noDeviceFound: 'Printer tidak ditemukan',
       },
     },
+    CapacitorUpdater: {
+      // The config runs in Node at `cap sync`, so it reads the same build-time
+      // VITE_API_URL the APK workflow injects (falls back to the prod URL).
+      updateUrl: `${process.env.VITE_API_URL ?? 'https://mandalika-pos-538849926142.asia-southeast2.run.app'}/api/v1/ota/check`,
+      autoUpdate: true,
+    },
   },
 }
 

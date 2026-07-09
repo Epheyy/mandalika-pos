@@ -49,3 +49,19 @@ export async function hideSplash(): Promise<void> {
     /* splash plugin unavailable — non-fatal */
   }
 }
+
+/**
+ * Confirm to the Capgo updater that this bundle booted OK. If we never call
+ * this, the plugin auto-rolls-back to the last good bundle after a timeout.
+ * Web/no-op off-device. Dynamically imported so the web build never hard-depends
+ * on the native plugin.
+ */
+export async function otaNotifyReady(): Promise<void> {
+  if (!isNative()) return
+  try {
+    const { CapacitorUpdater } = await import('@capgo/capacitor-updater')
+    await CapacitorUpdater.notifyAppReady()
+  } catch {
+    // plugin absent (e.g. older shell) — ignore
+  }
+}
