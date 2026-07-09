@@ -84,6 +84,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/auth/login", ah.Login)
 			r.Post("/auth/refresh", ah.Refresh)
 			r.Post("/auth/logout", ah.Logout)
+			// Public Capgo self-hosted OTA update check (no auth; bare JSON).
+			r.Post("/ota/check", h.OtaCheck)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -257,6 +259,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/loyalty-conditions", h.CreateLoyaltyCondition)
 				r.Put("/loyalty-conditions/{id}", h.UpdateLoyaltyCondition)
 				r.Delete("/loyalty-conditions/{id}", h.DeleteLoyaltyCondition)
+				r.Post("/ota/publish", h.OtaPublish)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_stock_count"))
