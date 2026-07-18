@@ -857,13 +857,33 @@ the project.
 | Plugins, hooks, effort level | `~/.claude/settings.json` | ❌ user-level |
 | Global rules | `~/.claude/rules/` | ❌ user-level |
 
-**Bottom line:** cloning the repo gives you the code and essentially none of the
-working context. Copy the whole `~/.claude/` directory to the new laptop, or at
-minimum the `projects/…/memory/` folder and `mcp-configs/`.
+The table above is the headline items only — `~/.claude/` also carries `hooks/`,
+`agents/`, `commands/`, `scripts/` (the hook runner), user-level `skills/`,
+`plugins/` (including `installed_plugins.json`, which is what actually wires up
+the plugin MCP servers), and `session-data/` (used by the save/resume-session
+skills). Partial copies lose real functionality.
 
-> Note `~/.claude/projects/` folder names encode the absolute repo path. If you
-> clone to a different location (e.g. `C:\dev\mandalika-pos`), rename the memory
-> folder to match the new path — otherwise the memories won't load.
+**Bottom line:** cloning the repo gives you the code and essentially none of the
+working context. Copy the **whole** `~/.claude/` directory to the new laptop —
+do not cherry-pick subfolders. The active MCP tooling comes from plugins
+(`enabledPlugins` in `settings.json` + `plugins/`), *not* from
+`mcp-configs/mcp-servers.json` alone, so a memory-and-mcp-configs-only copy
+would silently lose hooks, agents, global rules, and all plugin wiring.
+
+Three path/auth traps after copying:
+
+> 1. **`~/.claude/projects/` folder names encode the absolute repo path.** If you
+>    clone to a different location (e.g. `C:\dev\mandalika-pos`), rename the
+>    memory folder to match the new path — otherwise the memories won't load.
+> 2. **`~/.claude/settings.json` contains absolute paths.** The hook entries
+>    reference `C:\Users\MyBook Hype AMD\.claude\scripts\...` verbatim. On a
+>    machine with a different username, every hook fails **silently**. After
+>    copying, search-and-replace the old home directory in `settings.json`.
+> 3. **Auth does not transfer.** Install Claude Code on the new machine and log
+>    in (`claude` → login flow) — credentials aren't in the copied directory.
+>    `~/.claude.json` (note: in the home directory, *outside* `~/.claude/`)
+>    holds project trust/onboarding state; it regenerates on its own and does
+>    not need to be copied.
 
 ### 12.2 The six working rules
 
@@ -958,10 +978,12 @@ unless they say standing. Reads and authenticated smoke tests are lower stakes.
   under `autoMode.allow`.
 - **`gh` CLI** is installed and authenticated, so APK builds can be triggered
   directly.
-- **28 MCP servers** are configured globally (`~/.claude/mcp-configs/`). The ones
-  relevant here: `github`, `context7` (library docs), `playwright`, `filesystem`,
-  `sequential-thinking`, `memory`. Several need their own API keys — carry those
-  across or the servers fail to start.
+- **28 MCP servers** are defined in `~/.claude/mcp-configs/mcp-servers.json`,
+  but the MCP tools actually active in sessions are wired through the
+  **plugins** (see below) — copying `mcp-configs/` alone does not restore them.
+  The ones relevant here: `github`, `context7` (library docs), `playwright`,
+  `filesystem`, `sequential-thinking`, `memory`. Several need their own API
+  keys — carry those across or the servers fail to start.
 - **Plugins enabled:** `ecc`, `superpowers`, `frontend-design`, `code-review`,
   `code-simplifier`, `github`, `playwright`, `context7`, `feature-dev`,
   `commit-commands`, `claude-md-management`, `gopls-lsp`, `security-guidance`.
@@ -1009,7 +1031,7 @@ Each of these cost a real debugging session. They're one file each under
 
 ## First-day checklist
 
-- [ ] **Neon password + `SEED_ADMIN_PASSWORD` rotated** (see [0.5](#05-️-rotate-the-leaked-credentials-first)) and `.claude/settings.local.json` untracked
+- [ ] **Confirm the [0.5](#05-️-rotate-the-leaked-credentials-first) deferred-rotation decision still holds** — rotation was knowingly deferred on 2026-07-18; action it only if a collaborator has since been added or the repo went public
 - [ ] `mandalika-release.jks` copied off the old laptop and backed up
 - [ ] `~/.claude/` copied across (memories + MCP configs) — see [Part 12](#part-12--the-claude-code-setup)
 - [ ] account access confirmed: GitHub, GCP, Neon, Upstash, Cloudflare
