@@ -109,8 +109,16 @@ therefore in the pushed history of `prod-hardening` (commit `34676aa`):
 - the full **Neon connection string** (password included)
 - the deployed **`SEED_ADMIN_PASSWORD`**
 
-The repo is private, which is the only reason this isn't critical. Fix it before
-the code lands on a second machine:
+The repo is private, which is the only reason this isn't critical.
+
+> **DECISION (2026-07-18): accepted, not actioned.** Solo-dev project, private
+> repo, no outside collaborators — the owner has knowingly deferred rotation.
+> **Do not re-raise this as an open task.** Revisit on either trigger:
+> (a) the first additional person is granted repo access — they inherit the Neon
+> test-DB password and the admin password, or (b) the repo is ever made public.
+
+If/when you do action it: rotation is the real fix (the values are already
+pushed, so scrubbing history alone does not undo the exposure):
 
 1. **Rotate both.** Neon console → reset password → update the `DATABASE_URL`
    secret in Secret Manager → `gcloud run deploy`. Same for
