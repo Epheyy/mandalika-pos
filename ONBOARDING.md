@@ -26,6 +26,7 @@ this project. It assumes no prior knowledge of the repo. Follow it top to bottom
 - [Part 9 — Repo map](#part-9--repo-map)
 - [Part 10 — Troubleshooting](#part-10--troubleshooting)
 - [Part 11 — Known documentation traps](#part-11--known-documentation-traps)
+- [Part 12 — The Claude Code setup](#part-12--the-claude-code-setup)
 - [Glossary](#glossary)
 
 ---
@@ -88,6 +89,48 @@ The code is portable; the accounts are not. Make sure you can still log in to:
 
 You do **not** need to copy any secret values by hand — they live in Google Secret
 Manager and GitHub Actions secrets. You only need account access.
+
+### 0.4 The Claude Code working context
+
+If this project is developed with Claude Code, **most of that setup is also
+outside git** — including 18 accumulated memory files holding the working rules,
+the model-routing policy, and every gotcha this project has hit. A clone gets
+none of it.
+
+See [Part 12](#part-12--the-claude-code-setup) for the full inventory and how to
+carry it across. Do this at the same time you copy the keystore.
+
+### 0.5 ⚠️ Rotate the leaked credentials first
+
+`.claude/settings.local.json` **is tracked in git** and its permission allowlist
+captured literal approved commands — including two real secrets, which are
+therefore in the pushed history of `prod-hardening` (commit `34676aa`):
+
+- the full **Neon connection string** (password included)
+- the deployed **`SEED_ADMIN_PASSWORD`**
+
+The repo is private, which is the only reason this isn't critical. Fix it before
+the code lands on a second machine:
+
+1. **Rotate both.** Neon console → reset password → update the `DATABASE_URL`
+   secret in Secret Manager → `gcloud run deploy`. Same for
+   `SEED_ADMIN_PASSWORD`. **Rotation is the actual fix** — the values are already
+   pushed, so scrubbing history alone does not undo the exposure.
+2. Untrack the file (`.claude` is already gitignored, this was an oversight):
+   ```bash
+   git rm --cached .claude/settings.local.json
+   git commit -m "chore: untrack .claude/settings.local.json (contained secrets)"
+   ```
+3. Optional: scrub history with `git filter-repo` or BFG. Lower priority once
+   rotated.
+
+**Why it happened, so it doesn't happen again:** every `Bash(export SECRET=...)`
+command you approve is written verbatim into that allowlist. Never inline a
+secret into a command you approve — inject it from Secret Manager instead:
+
+```bash
+DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL)" go run ./cmd/x
+```
 
 ---
 
@@ -787,6 +830,155 @@ Things in this repo that will mislead you. Trust this list over the documents.
 
 ---
 
+## Part 12 — The Claude Code setup
+
+This project has been developed with **Claude Code**, and a large amount of
+working knowledge lives in that setup rather than in the code. Skip this part if
+you're working without an AI assistant — nothing here is required to build or run
+the project.
+
+### 12.1 What lives where, and what a clone loses
+
+| Thing | Location | In git? |
+|---|---|---|
+| **Project memories** (18 files) | `~/.claude/projects/C--Users-<user>-Downloads-mandalika-pos/memory/` | ❌ user-level |
+| Plan docs | `.claude/plans/` | ❌ gitignored |
+| Project skill (`react-doctor`) | `.claude/skills/react-doctor/` | ❌ gitignored |
+| Permissions + auto-deploy authorization | `.claude/settings.local.json` | ✅ tracked (see [0.5](#05-️-rotate-the-leaked-credentials-first)) |
+| MCP servers (28) + their API keys | `~/.claude/mcp-configs/mcp-servers.json` | ❌ user-level |
+| Plugins, hooks, effort level | `~/.claude/settings.json` | ❌ user-level |
+| Global rules | `~/.claude/rules/` | ❌ user-level |
+
+**Bottom line:** cloning the repo gives you the code and essentially none of the
+working context. Copy the whole `~/.claude/` directory to the new laptop, or at
+minimum the `projects/…/memory/` folder and `mcp-configs/`.
+
+> Note `~/.claude/projects/` folder names encode the absolute repo path. If you
+> clone to a different location (e.g. `C:\dev\mandalika-pos`), rename the memory
+> folder to match the new path — otherwise the memories won't load.
+
+### 12.2 The six working rules
+
+These are expected on **every** task, and are baked into each plan-doc header:
+
+1. **Ask, don't assume** — clarify before guessing.
+2. **Don't touch unrelated** — stay scoped.
+3. **Flag uncertainty** — surface what's unsure; don't paper over it.
+4. **Verify on failure** — investigate; never retry blindly or fake success.
+5. **Show changes** — surface diffs and what actually changed.
+6. **Admit gaps** — state plainly what wasn't done or isn't known.
+
+**Why:** the workflow is an iterative on-device test loop, which only functions if
+reported outcomes are trustworthy. These rules exist to keep the assistant honest
+and scoped rather than optimistically claiming done-ness.
+
+### 12.3 Model routing policy
+
+Review tier is chosen by **what the diff touches**, not how big it is. Earlier
+rules win on conflict.
+
+| Situation | Model |
+|---|---|
+| Touches SyncEngine, stock/inventory, offline outbox, optimistic updates, generated types (`api.gen.go`, `schema.d.ts`), auth, or payments — **even a one-line pattern-copy** | **Opus** |
+| Mechanical / spec-conformance: toggles, copy, styling, docs, config, pattern-copies with no new logic and none of the above | **Haiku** |
+| Unsure which | **Opus** |
+| Implementation work | **Sonnet** |
+| Genuinely trivial standalone (non-review) tasks | **Haiku** |
+
+Two supporting rules:
+
+- **If Haiku flags anything, Opus adjudicates by re-deriving the claim from
+  source.** Never accept *or* dismiss a Haiku finding without independent
+  verification — there has already been at least one false positive.
+- **State the chosen tier + a one-line rationale per task**, so a misroute is
+  visible in the log.
+
+**Why:** the dangerous changes here are small ones. A one-line edit to the sync
+engine or a generated type can break the offline queue or the wire format, and
+sizing review by diff size would route exactly those to the cheapest reviewer.
+
+### 12.4 Deploy-after-work routine
+
+Standing instruction: when a batch is done and green, **push and deploy without
+being asked** — the deployed test environment is the verification surface, not a
+local diff.
+
+1. Commit per logical cluster (both apps `tsc -b` + `pnpm -r build` green first).
+2. `git push origin prod-hardening` → auto-deploys the backoffice.
+3. If `apps/pos` changed → `gh workflow run android-release.yml --ref prod-hardening`.
+   Monitor to success, report the run id and the `gh run download <id>` command.
+4. If `backend/**` changed → `gcloud run deploy`.
+5. Report what deployed, plus a short on-device test checklist for any money-path
+   or visual change.
+
+### 12.5 Verifying against the real (Neon) database
+
+The deployed backend runs on Neon; local dev runs on Docker Postgres. A test that
+*looks* like it hit production may not have.
+
+**The trap:** `config.Load()` uses `godotenv`, which does **not** override an
+already-set variable. So injecting `DATABASE_URL` correctly wins over
+`backend/.env` — but **forget to inject and the test silently runs against local
+Postgres and still passes.** This has already produced a false "verified on Neon"
+result.
+
+```bash
+cd backend
+DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL)" go run ./cmd/<throwaway>
+```
+
+Rules for these throwaway harnesses:
+
+- **Never** print, echo, or write `DATABASE_URL`.
+- Add a hard guard that refuses to run against an `@localhost` URL, so it cannot
+  silently fall back.
+- Be **zero-residue** — defer cleanup, then self-check that no `E2E-*` rows
+  remain. This is the live test database the deployed backend serves.
+- Do **not** call `database.Migrate` against Neon; it is already migrated.
+- **For a migration-bearing change, deploy first**, then run the test — otherwise
+  Neon lacks the new column and you get `column ... does not exist`.
+- Delete the harness afterward; never commit it.
+- Confirm you actually hit Neon by printing the host non-secretly.
+
+Authorization: the user authorized Neon verification, **per-request for writes**
+unless they say standing. Reads and authenticated smoke tests are lower stakes.
+
+### 12.6 Environment and tooling
+
+- **Auto-approved:** `gcloud run deploy mandalika-pos` (including the migrations
+  that run on container boot) is pre-authorized in `.claude/settings.local.json`
+  under `autoMode.allow`.
+- **`gh` CLI** is installed and authenticated, so APK builds can be triggered
+  directly.
+- **28 MCP servers** are configured globally (`~/.claude/mcp-configs/`). The ones
+  relevant here: `github`, `context7` (library docs), `playwright`, `filesystem`,
+  `sequential-thinking`, `memory`. Several need their own API keys — carry those
+  across or the servers fail to start.
+- **Plugins enabled:** `ecc`, `superpowers`, `frontend-design`, `code-review`,
+  `code-simplifier`, `github`, `playwright`, `context7`, `feature-dev`,
+  `commit-commands`, `claude-md-management`, `gopls-lsp`, `security-guidance`.
+- **Effort level:** `xhigh`.
+- **Plan docs** go in `docs/superpowers/plans/` as `YYYY-MM-DD-slice-name.md`, one
+  per feature slice. This is the project's design-history record — write one for
+  any non-trivial slice.
+
+### 12.7 The gotcha memories
+
+Each of these cost a real debugging session. They're one file each under
+`memory/`; summarized here so they survive even if the memory folder doesn't.
+
+| Gotcha | The trap |
+|---|---|
+| **APK builds from origin** | `gh workflow run` builds from origin, not your working tree. Push first or ship stale code. |
+| **Cloudflare frozen lockfile** | Any `package.json` change without regenerating `pnpm-lock.yaml` breaks the Pages build — and backend CI stays green, so you won't notice. |
+| **OpenAPI `nullable` + `$ref`** | `openapi-typescript` silently drops `nullable: true` on `$ref` schemas. TS sees `T \| undefined`. Use `undefined`/omit, not `null`. |
+| **Neon stale connection** | An HTTP 400 on the *first* DB write after idle is a free-tier pooled-connection artifact, not a logic bug. Retry warm. |
+| **Adding a column** | Trace OpenAPI → write struct → INSERT → **UPDATE** → read JSON → form → form-open path. Missing the UPDATE or the open path fails silently. |
+| **Deployment is a test env** | Cloud Run/Neon/Cloudflare holds test data, pre-launch. Deploys and flag toggles are low-stakes; act directly, no disaster-grade ceremony. |
+| **Scale target** | Engineer for 30k–500k customers — that's the design target, not current reality. |
+
+---
+
 ## Glossary
 
 | Term | Meaning |
@@ -809,7 +1001,9 @@ Things in this repo that will mislead you. Trust this list over the documents.
 
 ## First-day checklist
 
+- [ ] **Neon password + `SEED_ADMIN_PASSWORD` rotated** (see [0.5](#05-️-rotate-the-leaked-credentials-first)) and `.claude/settings.local.json` untracked
 - [ ] `mandalika-release.jks` copied off the old laptop and backed up
+- [ ] `~/.claude/` copied across (memories + MCP configs) — see [Part 12](#part-12--the-claude-code-setup)
 - [ ] account access confirmed: GitHub, GCP, Neon, Upstash, Cloudflare
 - [ ] old laptop's `git status` is clean (nothing uncommitted left behind)
 - [ ] Git, Docker Desktop, Go 1.26, Node 22, pnpm 9.15.0 installed
