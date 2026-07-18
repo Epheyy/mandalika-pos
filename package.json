@@ -7,7 +7,8 @@
     "build": "pnpm -r build",
     "lint": "eslint .",
     "dev:pos": "pnpm --filter @mandalika/pos dev",
-    "dev:backoffice": "pnpm --filter @mandalika/backoffice dev"
+    "dev:backoffice": "pnpm --filter @mandalika/backoffice dev",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
