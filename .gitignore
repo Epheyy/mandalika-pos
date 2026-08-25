@@ -42,3 +42,6 @@ Thumbs.db
 .vscode/
 .claude
 
+# Local Git worktrees
+.worktrees/
+
