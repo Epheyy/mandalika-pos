@@ -7,7 +7,7 @@
 
 ## Milestone reached
 
-The durable handoff from `feat/context-handoff-migration` was read completely, the remote stabilization commit was reverified, an isolated sibling worktree was created, dependencies were prepared, baseline checks were run, and the June 2026 audit was compared with the current source. The next action is user approval or revision of the reliability architecture; implementation remains unauthorized.
+The durable handoff from `feat/context-handoff-migration` was read completely, the remote stabilization commit was reverified, an isolated sibling worktree was created, dependencies were prepared, baseline checks were run, and the June 2026 audit was compared with the current source. The user explicitly approved the reliability architecture on 2026-08-25. The next design section is the quota/capacity budget; implementation remains unauthorized.
 
 ## Locked operating requirements
 
@@ -71,7 +71,7 @@ The durable handoff from `feat/context-handoff-migration` was read completely, t
 
 The June audit concluded that the architecture did not require restructuring before launch. That judgment predates the locked requirements for crash-proof acknowledged sales, 60-minute offline operation across multiple financial/inventory workflows, 25+ outlets, and explicit free-tier quota safety. Under the current requirements, native transactional SQLite journaling, idempotent operation envelopes, server-side reconciliation states, and reduced polling/Redis dependence are architectural requirements rather than optional cleanup.
 
-## Proposed reliability architecture awaiting approval
+## Approved reliability architecture
 
 1. Cloud Run is the only remote API/write boundary.
 2. Neon is the canonical ledger for sales, payments, inventory movements, refunds, promotions, loyalty, transfers, counts, and audit history.
@@ -98,8 +98,8 @@ The June audit concluded that the architecture did not require restructuring bef
 
 ## Exact next question
 
-Ask the user:
+Ask the user for the typical daily powered-on/active hours per POS device. This is required to turn fleet polling and request budgets into measured monthly thresholds without assuming operating hours.
 
-> Does this reliability architecture match the intended business behavior, especially that offline sales are completed facts while refunds and all inventory-sensitive operations remain provisional until the server validates them?
+After that answer, present the quota/capacity design with warning, action, and upgrade thresholds.
 
-If approved, present the quota/capacity-budget section next, including measurable warning, action, and provider-upgrade thresholds. Do not implement application changes.
+Do not implement application changes.
