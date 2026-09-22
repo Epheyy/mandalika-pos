@@ -13,7 +13,7 @@ func ctxAt(y int, m time.Month, d, hh, mm int, subtotal float64, outlet string) 
 func dptr(y int, m time.Month, d int) *time.Time { t := time.Date(y, m, d, 0, 0, 0, 0, wib); return &t }
 
 // fptr is already declared in loyalty_test.go (same package); reuse it here.
-func iptr(i int) *int { return &i }
+func iptr(i int) *int       { return &i }
 func sptr(s string) *string { return &s }
 
 func TestValidatePromo(t *testing.T) {

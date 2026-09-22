@@ -10,14 +10,14 @@ import (
 // loadActiveConditions (order.go). Pure Go — no DB types — so the engine is testable.
 type LoyaltyCondition struct {
 	ID, Name, Type, Trigger, RewardType string
-	RewardValue          float64
-	RewardProductIDs     []string
-	CampaignStartDate    *time.Time // date-only; nil for always_on
-	CampaignEndDate      *time.Time
-	ActiveDays           []int // weekday indices, Sunday=0 (matches time.Weekday + JS getDay)
-	ApplicableProductIDs []string
-	MinimumSpend         *float64
-	IsActive             bool
+	RewardValue                         float64
+	RewardProductIDs                    []string
+	CampaignStartDate                   *time.Time // date-only; nil for always_on
+	CampaignEndDate                     *time.Time
+	ActiveDays                          []int // weekday indices, Sunday=0 (matches time.Weekday + JS getDay)
+	ApplicableProductIDs                []string
+	MinimumSpend                        *float64
+	IsActive                            bool
 }
 
 // EvalCustomer is the loyalty-relevant slice of the order's customer (loaded under
@@ -40,9 +40,9 @@ type EvalContext struct {
 // AppliedCondition records one matched condition for the audit table.
 type AppliedCondition struct {
 	ConditionID, Name, Trigger, RewardType string
-	RewardValue       float64
-	RewardProductIDs  []string
-	PointsContributed int // reporting attribution (0 for product_reward / non-winning multiply)
+	RewardValue                            float64
+	RewardProductIDs                       []string
+	PointsContributed                      int // reporting attribution (0 for product_reward / non-winning multiply)
 }
 
 // LoyaltyOutcome is the engine result. FinalEarned(base) computes the order's points.
