@@ -1,25 +1,25 @@
-# Programme progress — 2026-09-22
+# Programme progress — A34e accepted / A34e1 underway
 
-Status summary only; AUDIT_COVERAGE_TRACKER.md is the sole A01–A44 tracker.
-Current packet: **A34E-DEPENDENCY-SECURITY-20260922-01**.
-Authority: AUTH-MANDALIKA-20260919-01.
+Status summary only. docs/AUDIT_COVERAGE_TRACKER.md is the sole A01–A44 tracker.
+Current packet: A34E1-GO-REMEDIATION-20260922-01. AUTH-MANDALIKA-20260919-01.
 
-44 findings remain: 8 P0, 32 P1, 3 P2, 1 P3. A31/T26 remains the only resolved
-parent; 0/8 P0 parents and 0 release gates are closed. There are 17 scoped
-ChatGPT-accepted milestones across 10 findings. E38 records A34d acceptance by
-CG-A34D-HOSTED-PROOF-20260922-01-R1. A34a quality, A34b Docker/race and A34c
-Chromium are hosted-verified at e782c5dfbf3eedefb5d655f6726590dfbea5bf87.
+44 findings remain (8 P0, 32 P1, 3 P2, 1 P3); A31 is the only resolved parent.
+18 scoped accepted milestones span 11 findings. No P0 parent or release gate closes.
+E40 records CG-A34E-DEPENDENCY-SECURITY-20260922-01-R1 acceptance of A34e as an
+implemented, hosted-exercised BLOCKED gate and scoped A38 reachability progress.
+The accepted df70dc2 baseline has 76 policy records, not a clean scan. A34/T29 and
+A38/T33 remain open. All prior scoped acceptances and business decisions persist.
 
-A34e/A38 now has a fresh exact-base inventory, CycloneDX SBOMs, license/advisory
-and Go reachability evidence, pinned fail-closed workflow, supplemental npm PR
-delta, exact expiring exceptions validator and disposable negative proofs.
-The baseline is blocked; no exceptions were created. Narrow JWT/Redis patch
-remediation is included. Final commands, same-SHA hosted statuses and residual
-choices are recorded in the current review packet; an all-five-green checkpoint
-cannot be claimed while dependency findings remain blocking.
+A34e1 implements pgx 5.9.2 and x/text 0.39.0 with six proven MVS support changes.
+Local Go checks and all six isolated PostgreSQL 18.3/race gates pass (142 named
+parent/subtests, zero skips, cleanup verified). Fresh policy records fall 76 -> 69;
+no new blocker appears. Both target called IDs disappear; two chi called IDs remain.
+Same-SHA hosted application workflows and fresh dependency scan are pending.
+The dependency job may stay red for unrelated baseline findings; no exception
+will be manufactured. Final evidence belongs to the current packet.
 
-Full A34/T29 and A38/T33 stay open. A37 continuous/history scanning, A13/A42
-business concurrency, branch protection and A35 APK/OTA provenance remain open.
-Earlier business decisions and all prior scoped acceptances remain. Historical
-stopped DB/cache cleanup remains recorded and untouched. No deployment, Android
-release dispatch, provider/credential or live-data operation belongs to this slice.
+chi ingress trust remains unresolved; no version-only fix. Official SheetJS 0.20.3
+vendoring direction is approved for a later separate slice. rgbcolor owner/legal
+approval remains pending; license/exception state stays unchanged. A37 history
+scanning, A13/A42 concurrency, A35 provenance and branch protection remain separate.
+Historical stopped DB/cache cleanup is untouched. No deployment/live-data work.

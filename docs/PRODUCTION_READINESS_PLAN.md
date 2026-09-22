@@ -686,3 +686,22 @@ wiring waits for a clean/exactly-excepted baseline, as the review requires.
 The current packet carries final scan/hosted results and residual decisions.
 A34/T29, A38/T33, A37, A13/A42 business concurrency, A35 provenance, branch status
 rules and all release gates remain open. Stopped DB/cache cleanup is untouched.
+
+## A34e review accepted; A34e1 Go remediation
+
+CG-A34E-DEPENDENCY-SECURITY-20260922-01-R1 accepts A34e as implemented and
+hosted-exercised while correctly BLOCKED by current dependencies. A38 receives
+scoped reachability-baseline progress; full A34/T29, A38/T33 and every release
+gate remain open. There are18 accepted bounded milestones across11 findings;
+all44 findings remain, A31 alone resolved and0/8 original P0 parents closed.
+
+Apply docs/A34E_REVIEW_DECISIONS.md: no chi version-only repair before ingress
+trust evidence; vendor exact official SheetJS0.20.3 in a later separate slice;
+rgbcolor approval is pending and no license exception is added.
+
+A34e1 targets minimum fixed pgx5.9.2 and x/text0.39.0 with graph-proven MVS support
+only. Capture exact module/sum/graph and govulncheck/policy ID deltas before/after;
+require generated drift, fmt/vet/build/unit checks, all six safe local PostgreSQL
+fixtures and same-SHA hosted quality/backend/postgres/browser success plus a
+completed dependency scan. Unrelated dependency blockers must remain visible.
+No business-source, migration, auth/client-IP, deployment, OTA or live-data change.

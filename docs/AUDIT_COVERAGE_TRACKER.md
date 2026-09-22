@@ -1,10 +1,10 @@
 # Canonical audit coverage tracker — A01–A44
 
-Reconciled 2026-09-19; A34d scoped acceptance and A34e dependency baseline added 2026-09-22 in the same Windows/PowerShell worktree.
+Reconciled 2026-09-19; A34e scoped acceptance and A34e1 remediation added 2026-09-22 in the same Windows/PowerShell worktree.
 Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
-Current verification branch `audit/hosted-proof-20260922`; hosted source HEAD `e782c5dfbf3eedefb5d655f6726590dfbea5bf87`.
+Current verification branch `audit/hosted-proof-20260922`; A34e1 entry HEAD `df70dc2f80c1c89f4155f2a7fd1d5e930ad229cc`.
 Original reconciliation base: `prod-hardening`, `4691c781842f0114acaf2e4371e0d11f0076f553`.
-A34d source remains the accepted historical checkpoint; A34e current verification is recorded below.
+A34d/A34e source checkpoints remain historical evidence; current A34e1 verification is recorded below.
 Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
 This is the **only current finding-status tracker**; findings.json is immutable
 historical input, not a competing live tracker. Plan/draft contain requirements;
@@ -12,13 +12,42 @@ The local-only SESSION_HANDOFF.md and docs/AUDIT_REVIEW_PACKET.md carry the curr
 
 ## Evidence and shared fields (apply to every row)
 
+E40: CG-A34E-DEPENDENCY-SECURITY-20260922-01-R1 scoped-accepts E39 A34e
+as an implemented and hosted-exercised dependency-security baseline/gate that
+correctly remains BLOCKED by the dependency set. A38 reachability-baseline
+progress is scoped accepted. The 76 historical policy records are not a clean
+scan or 76 independent exploits. Counts: 18 accepted bounded milestones across
+11 findings; 44 tracked, A31 sole resolved parent, 0/8 P0 and 0 release gates closed.
+Decisions: chi requires ingress trust evidence, no version-only repair; official
+SheetJS 0.20.3 vendoring is approved for a later separate slice; rgbcolor owner/legal
+approval remains pending and no exception entry is authorized. See
+A34E_REVIEW_DECISIONS.md. Full A34/T29 and A38/T33 remain open.
+
+E41: A34E1-GO-REMEDIATION-20260922-01 updates pgx5.7.1 -> 5.9.2 and
+x/text0.32.0 -> 0.39.0 from exact df70dc2. Six support movements are required
+by the x/text/x/tools MVS graph; no business source or exception change. Fresh
+local policy records fall76 ->69 (Go41 ->34); pgx/x-text called IDs disappear,
+chi's two called IDs remain, no new blocker appears. Local gen/fmt/vet/build/full
+Go checks pass; six isolated Linux PostgreSQL18.3/race fixtures pass142 named
+parent/subtests with zero skips and confirmed cleanup. Windows native and Docker
+host-port attempts were blocked by reserved ports; their failures are retained.
+Same-SHA hosted five-workflow evidence is pending. A34e1 ChatGPT review remains
+pending; full A34/T29, A38/T33 and all release gates remain open.
+
 E39: A34E-DEPENDENCY-SECURITY-20260922-01 implements DEPSEC-INITIAL-20260922.
+Hosted final SHA `df70dc2f80c1c89f4155f2a7fd1d5e930ad229cc`: quality/backend/postgres/browser pass;
+dependency-security run 35705497360 completes but fails on 76 policy records
+(34 npm advisory records, 41 Go records, 1 runtime license). Final inventory:
+441 npm, 137 Go modules. Four Go called IDs remain, versus six at baseline.
+No all-five-green checkpoint exists. Six PostgreSQL Docker/race gates and all
+26 browser scenarios pass with zero skips and confirmed cleanup.
+These result paragraphs are post-proof report after-images, not newly tested source.
 The exact accepted base was inventoried before dependency changes: 436 npm packages,
 7 workspace importers and 137 third-party Go modules, with CycloneDX 1.6 SBOMs,
 public advisory snapshots, license files/expressions and parsed govulncheck calls.
 Baseline policy blocks 79 records (advisory aliases can describe the same issue),
 including one unparseable runtime license. No exception has been added. Narrow JWT
-5.2.1 -> 5.2.2 and Redis 9.7.0 -> 9.7.3 patches are being verified. The independent
+5.2.1 -> 5.2.2 and Redis 9.7.0 -> 9.7.3 patches passed all four established hosted gates. The independent
 fail-closed workflow/evaluator and disposable policy proofs proceed; remaining
 security/license blockers prevent an all-five-green claim. See DEPENDENCY_SECURITY.md
 and the current A34E review packet for actual commands, hosted results and decisions.
@@ -446,11 +475,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–d accepted; A34e dependency gate | Open; E38 accepts hosted checkpoint; E39 dependency baseline blocked; remaining CI/release work open | T29 |
+| A34 | P1 | A34a–e accepted; A34e1 remediation | Open; E40 accepts the implemented/hosted-exercised BLOCKED dependency gate; E41 pgx/x-text locally verified; hosted proof pending; remaining CI/release work open | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e / S6 | Open; E39 fresh full-lock/module baseline, remediation and enforceable policy; security/license blockers remain | T33 |
+| A38 | P2 | A34e / A34e1 / S6 | Open; E40 accepts scoped reachability-baseline progress; E41 pgx/x-text locally verified; hosted proof pending; security/license blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -912,7 +941,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a/b/c/d scoped accepted through E38. E39 implements dependency-security baseline/gate with unresolved blockers; full A34/T29 remains open.
+- **Current disposition:** A34a–e scoped accepted through E40; dependency baseline remains blocked. E41 targets pgx/x-text remediation; full A34/T29 remains open.
 - **Current evidence:** E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
@@ -960,7 +989,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E39 supplies current exact-base npm/Go/license/advisory/reachability evidence; no clean-baseline or full T33 claim.
+- **Current disposition:** Open. E40 scoped-accepts E39 reachability-baseline progress; E41 targets pgx/x-text. No clean-baseline or full T33 claim.
 - **Current evidence:** E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
