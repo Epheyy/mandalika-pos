@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Order } from '@mandalika/api'
+import { fetchAllPages, type Order } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -36,7 +36,7 @@ export function OrdersPanel() {
   const [err, setErr] = useState<string | null>(null)
 
   const q = usePolledQuery<Order[]>(
-    () => api.listOrders({ limit: 500 }).then((r) => r.data),
+    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
     [outletId],
   )
   const orders = q.data ?? []
@@ -76,6 +76,7 @@ export function OrdersPanel() {
   // Detailed export for analysts — one row per order with the discount source
   // (promotion name / code / manual) and structured discount fields.
   const handleExport = () => {
+    if (q.loading || q.error || !q.data) return
     const rows = filtered.map((o) => ({
       'No. Order': o.orderNumber,
       Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
@@ -102,6 +103,7 @@ export function OrdersPanel() {
 
   return (
     <div className="space-y-5">
+      {q.error && <p role="alert" className="text-sm text-red-600">Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {q.error}</p>}
       <p className="text-sm text-gray-500">{filtered.length} transaksi · Total: {BRAND.currency.format(revenue)}</p>
 
       <div className="flex flex-wrap gap-3">
@@ -132,7 +134,7 @@ export function OrdersPanel() {
         <Button
           variant="secondary"
           onClick={handleExport}
-          disabled={filtered.length === 0}
+          disabled={q.loading || !!q.error || !q.data || filtered.length === 0}
           icon={<Download className="w-4 h-4" />}
         >
           Export

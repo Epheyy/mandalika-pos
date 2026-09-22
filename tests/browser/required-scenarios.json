@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "required": [
+    {
+      "id": "BO-SEMANTIC",
+      "finding": "A23",
+      "description": "Bundle/BXGY semantic authoring, invalid Save, edit/duplicate/toggle",
+      "source": "scripts/a24-browser/qualify-backoffice.js"
+    },
+    {
+      "id": "BO-PAGES-CSV",
+      "finding": "A26",
+      "description": "51/201/1000 dashboard/order/product/CSV/shift completeness and filters; page2 failure",
+      "source": "scripts/a26-browser/backoffice-checks.js"
+    },
+    {
+      "id": "BO-PAGES-XLSX",
+      "finding": "A26",
+      "description": "51/201/1000 XLSX rows/totals and page2 failure",
+      "source": "scripts/a26-browser/transactions-checks.js"
+    },
+    {
+      "id": "BO-RACE-SUCCESS",
+      "finding": "A31",
+      "description": "B success survives late multi-page A",
+      "source": "scripts/a31-browser/reports-races.js"
+    },
+    {
+      "id": "BO-RACE-ERROR",
+      "finding": "A31",
+      "description": "B failure survives late multi-page A",
+      "source": "scripts/a31-browser/reports-races.js"
+    },
+    {
+      "id": "POS-PICKERS",
+      "finding": "A23",
+      "description": "Four direct/linked bundle/BXGY cancel/confirm/takeover/removal paths",
+      "source": "scripts/a24-browser/qualify-pos.js"
+    },
+    {
+      "id": "POS-INVALIDATION",
+      "finding": "A23",
+      "description": "Participant edits, clear, legacy invalid direct/linked bundle refusal",
+      "source": "scripts/a24-browser/qualify-pos-boundaries.js"
+    },
+    {
+      "id": "POS-PHYSICAL-QUEUE",
+      "finding": "A23",
+      "description": "Four physical quantity/usage/reward-owner/removal/queue paths",
+      "source": "scripts/a24-browser/physical-queue.js"
+    },
+    {
+      "id": "POS-GUEST",
+      "finding": "A24",
+      "description": "Guest cash/QRIS/generic/restricted/reconfirm/loyalty/registered/reconstruction",
+      "source": "scripts/a24-browser/guest-sales.js"
+    },
+    {
+      "id": "POS-CUSTOMER-CREATE",
+      "finding": "A24",
+      "description": "New synthetic customer_create and linked registered sale",
+      "source": "scripts/a24-browser/add-customer.js"
+    },
+    {
+      "id": "POS-RECAP",
+      "finding": "A26",
+      "description": "401 orders/flows,251 history,complete cache,late failure,offline remount",
+      "source": "scripts/a26-browser/pos-recap.js"
+    },
+    {
+      "id": "S0A-DIAGNOSTICS",
+      "finding": "A02",
+      "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",
+      "source": "apps/pos/tests/failed-diagnostics/main.tsx"
+    },
+    {
+      "id": "S0B-REFUND-RETENTION",
+      "finding": "A06",
+      "description": "Rendered denied refund park/export/reconstruction/original-key retry",
+      "source": "apps/pos/tests/refund-permission/main.tsx"
+    },
+    {
+      "id": "HOOK-01",
+      "finding": "A31",
+      "description": "01 B success then A success",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-02",
+      "finding": "A31",
+      "description": "02 A resolves while B pending",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-03",
+      "finding": "A31",
+      "description": "03 A error after B success",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-04",
+      "finding": "A31",
+      "description": "04 A success after B error",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-05",
+      "finding": "A31",
+      "description": "05 rapid A B C",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-06",
+      "finding": "A31",
+      "description": "06 overlapping same-scope polls",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-07",
+      "finding": "A31",
+      "description": "07a manual then interval",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-08",
+      "finding": "A31",
+      "description": "07b interval then manual",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-09",
+      "finding": "A31",
+      "description": "08 switch clears data and error",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-10",
+      "finding": "A31",
+      "description": "09 unmount pending",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-11",
+      "finding": "A31",
+      "description": "10 stable scope SWR success error refetch",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-12",
+      "finding": "A31",
+      "description": "11 A26 complete multi-page A after B",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "HOOK-13",
+      "finding": "A31",
+      "description": "14 old interval after cleanup cannot start",
+      "source": "apps/backoffice/tests/polling-harness.tsx"
+    }
+  ],
+  "redundant": [
+    {
+      "source": "scripts/a24-browser/guest-gate.js",
+      "covered_by": "POS-GUEST",
+      "reason": "Stronger full guest cash/QRIS capture tests assert checkout and original queue facts."
+    },
+    {
+      "source": "scripts/a26-browser/backoffice-setup.js",
+      "covered_by": [
+        "BO-PAGES-CSV",
+        "BO-PAGES-XLSX"
+      ],
+      "reason": "Setup initial51 export reused; full assertions cover51/201/1000."
+    },
+    {
+      "source": "scripts/a31-browser/hook-races.js",
+      "covered_by": [
+        "HOOK-01",
+        "HOOK-02",
+        "HOOK-03",
+        "HOOK-04",
+        "HOOK-05",
+        "HOOK-06",
+        "HOOK-07",
+        "HOOK-08",
+        "HOOK-09",
+        "HOOK-10",
+        "HOOK-11",
+        "HOOK-12",
+        "HOOK-13"
+      ],
+      "reason": "Each of13 current harness cases has its own required test."
+    }
+  ],
+  "intentionally_manual": [
+    {
+      "scenario": "Android native SQLite/storage/print/share behavior",
+      "reason": "Chromium/synthetic successful storage cannot qualify native durability or hardware."
+    },
+    {
+      "scenario": "Real provider/staging/catalog qualification",
+      "reason": "Network-isolated browser gate intentionally uses synthetic APIs; target preflight and real service qualification remain separate."
+    }
+  ],
+  "support": [
+    {
+      "source": "scripts/a24-browser/setup.js",
+      "classification": "converted synthetic API fixture shared by POS and authoring tests"
+    },
+    {
+      "source": "scripts/a31-browser/inventory.cjs",
+      "classification": "historical caller inventory, not an executable browser scenario"
+    }
+  ]
+}

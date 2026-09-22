@@ -14,6 +14,7 @@ import {
   ToggleLeft, ToggleRight, Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
+import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
@@ -81,6 +82,7 @@ const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
 }
 
 export default function Customers() {
+  const { outletId } = useOutlet()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
@@ -112,7 +114,7 @@ export default function Customers() {
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
   const pq = usePolledQuery<Product[]>(
     () => api.listProducts().then((r) => r.data.filter((p) => p.isActive)),
-    [],
+    [outletId],
   )
   const loyalty = lq.data ?? DEFAULT_LOYALTY
   const conditions = condQ.data ?? []

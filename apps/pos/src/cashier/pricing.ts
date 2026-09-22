@@ -5,6 +5,8 @@
  */
 
 import type { components } from '@mandalika/api'
+import { promotionKeyGroupsOverlap, promotionKeySetsOverlap } from '@mandalika/types'
+import { effectivePromotionSelection } from './promotionSelection'
 import type { AppliedPromoCode } from './promoValidate'
 
 type Promotion = components['schemas']['Promotion']
@@ -24,7 +26,7 @@ export function bundleApplications(
   cfg: BundleConfig | null | undefined,
   items: CartItem[],
 ): number {
-  if (!cfg || cfg.slots.length === 0) return 0
+  if (!cfg || cfg.slots.length === 0 || promotionKeyGroupsOverlap(cfg.slots.map(s => s.productKeys))) return 0
   let n = -1
   for (const slot of cfg.slots) {
     if (slot.quantity < 1 || slot.productKeys.length === 0) return 0
@@ -97,7 +99,7 @@ function bxgyExpand(items: CartItem[], keys: string[], emptyMatchesAll: boolean)
   return prices
 }
 function calcBXGY(cfg: BXGYConfig | null | undefined, items: CartItem[]): number {
-  if (!cfg || cfg.buyQuantity < 1 || cfg.getQuantity < 1) return 0
+  if (!cfg || cfg.buyQuantity < 1 || cfg.getQuantity < 1 || promotionKeySetsOverlap(cfg.buyProductIds ?? [], cfg.getProductIds ?? [])) return 0
   const buyKeys = cfg.buyProductIds ?? []
   const getKeys = cfg.getProductIds ?? []
   let getPool: number[]
@@ -159,7 +161,7 @@ function bxgyBuyUnits(c: BXGYConfig, items: CartItem[]): number {
  * Mirrors Go bxgyRewardDue 1:1.
  */
 export function bxgyRewardDue(cfg: BXGYConfig | null | undefined, items: CartItem[]): number {
-  if (!cfg || (cfg.getProductIds ?? []).length === 0 || cfg.buyQuantity < 1 || cfg.getQuantity < 1)
+  if (!cfg || (cfg.getProductIds ?? []).length === 0 || cfg.buyQuantity < 1 || cfg.getQuantity < 1 || promotionKeySetsOverlap(cfg.buyProductIds ?? [], cfg.getProductIds ?? []))
     return 0
   const maxApp = cfg.maxApplications ?? 0
   let nApp = Math.floor(bxgyBuyUnits(cfg, items) / cfg.buyQuantity)
@@ -311,6 +313,9 @@ export function linkedPromoShape(c: AppliedPromoCode): Promotion {
     value: c.promotion.value,
     applicableProductIds: c.promotion.applicableProductIds ?? null,
     bxgyConfig: c.promotion.bxgyConfig ?? null,
+    tieredConfig: c.promotion.tieredConfig ?? null,
+    bundleConfig: c.promotion.bundleConfig ?? null,
+    combinable: c.combinable,
     isActive: true,
     createdAt: '',
   }
@@ -323,14 +328,13 @@ export function computePricing(input: PricingInput): PricingResult {
     surchargeType,
     discountRunning,
     surchargeRunning,
-    appliedPromotions,
-    appliedPromoCodes,
     settings,
     loyalty,
     hasCustomer,
     pointsRedeemed,
     customerPoints,
   } = input
+  const { appliedPromotions, appliedPromoCodes } = effectivePromotionSelection(input.appliedPromotions, input.appliedPromoCodes)
 
   const subtotal = cart.reduce((s, i) => s + i.subtotal, 0)
 

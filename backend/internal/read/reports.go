@@ -8,7 +8,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
-// ReportSummary aggregates completed/refunded orders in [from,to], outlet-scoped.
+// ReportSummary aggregates current completed/refunded statuses by created_at in
+// [from,to), outlet-scoped. Refunded rows are already excluded from total_sales,
+// so netSales equals totalSales; this is not settlement-time refund accounting.
 // Money/aggregation is server-authoritative (replaces client-side rollups).
 func (r *Repo) ReportSummary(ctx context.Context, sc Scope, from, to time.Time) (api.ReportSummary, error) {
 	args := []any{from, to}
@@ -57,7 +59,7 @@ SELECT json_build_object(
   'outletId',%s,
   'totalSales',agg.total_sales,'totalOrders',agg.total_orders,
   'totalRefunds',agg.total_refunds,
-  'netSales',agg.total_sales-agg.total_refunds,
+  'netSales',agg.total_sales,
   'avgOrderValue',CASE WHEN agg.total_orders>0
      THEN agg.total_sales/agg.total_orders ELSE 0 END,
   'byPaymentMethod',pay.by_pm,'topProducts',prod.top,'dailySales',daily.rows)

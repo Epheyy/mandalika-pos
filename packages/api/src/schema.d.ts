@@ -3219,13 +3219,13 @@ export interface components {
         };
         OpenShiftRequest: {
             outletName?: string | null;
-            startingCash?: number;
+            startingCash: number;
         };
         CloseShiftRequest: {
-            closingCash?: number;
+            closingCash: number;
             countedByMethod?: {
                 [key: string]: number;
-            };
+            } | null;
         };
         CashFlowRequest: {
             shiftId?: string | null;

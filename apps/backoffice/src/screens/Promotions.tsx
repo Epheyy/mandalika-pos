@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Edit2, Trash2, Tag, Copy, Layers } from 'lucide-react'
 import { api } from '../api'
+import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
@@ -16,6 +17,7 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { promotionKeyError } from './promotions/promotionKeyValidation'
 import { PromoFormModal } from './promotions/PromoFormModal'
 import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
 import { DiscountCodeBatchModal } from './promotions/DiscountCodeBatchModal'
@@ -100,9 +102,10 @@ const exportDiscountCodes = async (fmt: 'csv' | 'xlsx') => {
 }
 
 export default function Promotions() {
+  const { outletId } = useOutlet()
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const dcq = usePolledQuery<DiscountCode[]>(() => api.listDiscountCodes(), [])
-  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [])
+  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const promotions = prq.data ?? []
   const codes = dcq.data ?? []
@@ -143,6 +146,8 @@ export default function Promotions() {
   }
   const savePromo = async () => {
     if (!promoForm.name.trim()) return
+    const keyError = promotionKeyError(promoForm)
+    if (keyError) { alert(keyError); return }
     setBusy(true)
     try {
       if (editingPromo) await api.updatePromotion(editingPromo.id, promoForm)

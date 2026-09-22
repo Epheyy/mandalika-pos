@@ -1,0 +1,304 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"math"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+type inputTestRow func(...any) error
+
+func (r inputTestRow) Scan(dest ...any) error { return r(dest...) }
+
+// This fake runs the real CreateOrder body through its first write boundary.
+// It records attempted SQL effects, not PostgreSQL balances or durability.
+type inputTestTx struct {
+	pgx.Tx
+	writes      int
+	commits     int
+	queries     []string
+	existing    string
+	allowWrites bool
+	stock       int
+	taxRate     float64
+	orderArgs   []any
+	key         string
+}
+
+func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	tx.queries = append(tx.queries, sql)
+	return inputTestRow(func(d ...any) error {
+		switch {
+		case strings.Contains(sql, "FROM processed_keys"):
+			tx.key = args[0].(string)
+			if tx.existing != "" {
+				*d[0].(*string) = tx.existing
+				return nil
+			}
+			return pgx.ErrNoRows
+		case strings.Contains(sql, "FROM app_settings"):
+			*d[0].(*bool) = tx.taxRate != 0
+			*d[1].(*float64) = tx.taxRate
+			*d[2].(*bool) = false
+			*d[3].(*string) = "none"
+			return nil
+		case strings.Contains(sql, "FROM loyalty_settings"):
+			*d[0].(*bool) = false
+			*d[1].(*float64) = 0
+			*d[2].(*float64) = 0
+			return nil
+		case strings.Contains(sql, "SELECT stock FROM outlet_variant_stock"):
+			*d[0].(*int) = tx.stock
+			return nil
+		case strings.Contains(sql, "nextval('order_no_seq')"):
+			*d[0].(*int64) = 1
+			return nil
+		case strings.Contains(sql, "INSERT INTO orders"):
+			tx.writes++
+			tx.orderArgs = append([]any(nil), args...)
+			*d[0].(*string) = "accepted-original"
+			return nil
+		default:
+			return errors.New("unexpected synthetic read")
+		}
+	})
+}
+func (tx *inputTestTx) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	tx.writes++
+	if tx.allowWrites {
+		if strings.Contains(sql, "UPDATE outlet_variant_stock") {
+			tx.stock = args[0].(int)
+		}
+		if strings.Contains(sql, "INSERT INTO processed_keys") {
+			tx.key = args[0].(string)
+			tx.existing = args[1].(string)
+		}
+		return pgconn.NewCommandTag("OK"), nil
+	}
+	return pgconn.CommandTag{}, errors.New("synthetic stop at first stock write")
+}
+
+func TestSaleInputDomainsBeforeEffects(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(*CreateOrderInput)
+	}{
+		{"quantity int4 overflow", func(in *CreateOrderInput) { in.Items[0].Quantity = math.MaxInt32 + 1 }},
+		{"negative price", func(in *CreateOrderInput) { in.Items[0].Price = -1 }},
+		{"negative subtotal", func(in *CreateOrderInput) { in.Items[0].Subtotal = -1 }},
+		{"line mismatch", func(in *CreateOrderInput) { in.Items[0].Subtotal = 99999 }},
+		{"price overflow", func(in *CreateOrderInput) { in.Items[0].Price = maxSaleMoney + 1 }},
+		{"subtotal overflow", func(in *CreateOrderInput) { in.Items[0].Subtotal = maxSaleMoney + 1 }},
+		{"product overflow", func(in *CreateOrderInput) {
+			in.Items[0].Price = maxSaleMoney
+			in.Items[0].Quantity = 2
+			in.Items[0].Subtotal = maxSaleMoney
+		}},
+		{"sum overflow", func(in *CreateOrderInput) {
+			in.Items[0].Price = maxSaleMoney
+			in.Items[0].Subtotal = maxSaleMoney
+			in.Items = append(in.Items, in.Items[0])
+		}},
+		{"negative tender", func(in *CreateOrderInput) { in.AmountPaid = -1 }},
+		{"tender overflow", func(in *CreateOrderInput) { in.AmountPaid = maxSaleMoney + 1 }},
+		{"negative discount", func(in *CreateOrderInput) { in.ManualValue = -1 }},
+		{"negative surcharge", func(in *CreateOrderInput) { in.Surcharge = -1 }},
+		{"negative points", func(in *CreateOrderInput) { in.PointsRedeemed = -1 }},
+		{"points int4 overflow", func(in *CreateOrderInput) { in.PointsRedeemed = math.MaxInt32 + 1 }},
+		{"empty method", func(in *CreateOrderInput) { in.PaymentMethod = " \t" }},
+		{"NaN price", func(in *CreateOrderInput) { in.Items[0].Price = math.NaN() }},
+		{"Inf subtotal", func(in *CreateOrderInput) { in.Items[0].Subtotal = math.Inf(1) }},
+		{"NaN tender", func(in *CreateOrderInput) { in.AmountPaid = math.NaN() }},
+		{"Inf discount", func(in *CreateOrderInput) { in.ManualValue = math.Inf(1) }},
+		{"Inf surcharge", func(in *CreateOrderInput) { in.Surcharge = math.Inf(-1) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, flagged := range []bool{false, true} {
+				in := ordinaryInput()
+				tc.change(&in)
+				in.Offline = flagged
+				in.Items[0].IsReward = flagged
+				in.Items[0].IsBundle = flagged
+				tx := &inputTestTx{}
+				_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+				if !errors.Is(err, ErrSaleInput) || dup || tx.writes != 0 || tx.commits != 0 || len(tx.queries) != 1 {
+					t.Fatalf("flagged=%v err=%v tx=%+v", flagged, err, tx)
+				}
+			}
+		})
+	}
+}
+
+func TestSaleInputWireRepresentation(t *testing.T) {
+	for _, raw := range []string{
+		`{"price":0,"quantity":1.5,"subtotal":0}`, `{"price":0,"quantity":"1","subtotal":0}`,
+		`{"price":0,"quantity":9223372036854775808,"subtotal":0}`, `{"price":0,"quantity":null,"subtotal":0}`,
+		`{"quantity":1,"subtotal":0}`, `{"price":null,"quantity":1,"subtotal":0}`,
+		`{"price":0,"quantity":1}`, `{"price":0,"quantity":1,"subtotal":null}`, `null`,
+		`{"price":1e999,"quantity":1,"subtotal":0}`, `{"price":"0","quantity":1,"subtotal":0}`,
+	} {
+		var item OrderItem
+		if err := json.Unmarshal([]byte(raw), &item); err == nil {
+			t.Errorf("accepted %s", raw)
+		}
+	}
+	var item OrderItem
+	if err := json.Unmarshal([]byte(`{"price":0,"quantity":1,"subtotal":0,"isReward":true,"futureField":"legacy tolerated"}`), &item); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaleInputSupportedShapes(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(*CreateOrderInput)
+	}{
+		{"ordinary cash", func(in *CreateOrderInput) {}},
+		{"configured noncash legacy missing tender", func(in *CreateOrderInput) { in.PaymentMethod = "neo_bank"; in.AmountPaid = 0 }},
+		{"guest free", func(in *CreateOrderInput) { in.Items[0].Price = 0; in.Items[0].Subtotal = 0; in.AmountPaid = 0 }},
+		{"loyalty free line", func(in *CreateOrderInput) {
+			in.Items[0].Price = 0
+			in.Items[0].Subtotal = 0
+			in.Items[0].IsReward = true
+			in.Items[0].RewardConditionID = "condition"
+			in.AmountPaid = 0
+		}},
+		{"fully discounted", func(in *CreateOrderInput) { in.ManualKind = DiscountFixed; in.ManualValue = 100000; in.AmountPaid = 0 }},
+		{"static bundle SKU", func(in *CreateOrderInput) { in.Items[0].IsBundle = true }},
+		{"BXGY fractional net", func(in *CreateOrderInput) {
+			in.Items[0].IsReward = true
+			in.Items[0].Price = 333.3333
+			in.Items[0].Quantity = 3
+			in.Items[0].Subtotal = 999.9999
+		}},
+		{"rounded bundle freed line", func(in *CreateOrderInput) {
+			in.Items[0].IsReward = true
+			in.Items[0].Price = 333.3333
+			in.Items[0].Quantity = 3
+			in.Items[0].Subtotal = 1000
+		}},
+		{"decimal price", func(in *CreateOrderInput) {
+			in.Items[0].Price = 10.25
+			in.Items[0].Quantity = 3
+			in.Items[0].Subtotal = 30.75
+		}},
+		{"schema quantity upper bound free", func(in *CreateOrderInput) {
+			in.Items[0].Price = 0
+			in.Items[0].Quantity = math.MaxInt32
+			in.Items[0].Subtotal = 0
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := ordinaryInput()
+			tc.change(&in)
+			if err := ValidateSaleInput(in); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	// Server allocation 1000/3 has rounded unit price 333 but subtotal 1000.
+	resolved := []OrderItem{{Price: 333, Quantity: 3, Subtotal: 1000}}
+	if err := validateSaleItems(resolved, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSaleItems(resolved, true); err == nil {
+		t.Fatal("unexplained captured mismatch accepted")
+	}
+}
+
+func TestSaleInputDerivedArithmeticBeforeEffects(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		price, surcharge, tax float64
+	}{
+		{"sum plus surcharge", maxSaleMoney - 1, 2, 0},
+		{"tax overflow", maxSaleMoney / 2, 0, 200},
+		{"tax nonfinite", 100000, 0, math.Inf(1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := ordinaryInput()
+			in.Items[0].Price = tc.price
+			in.Items[0].Subtotal = tc.price
+			in.Surcharge = tc.surcharge
+			in.SurchargeKind = DiscountFixed
+			tx := &inputTestTx{taxRate: tc.tax}
+			_, _, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+			if !errors.Is(err, ErrSaleInput) || tx.writes != 0 || tx.commits != 0 {
+				t.Fatalf("err=%v tx=%+v", err, tx)
+			}
+		})
+	}
+	if err := validateSalePricing(PricingResult{ManualDiscount: math.Inf(1)}); err == nil {
+		t.Fatal("hidden nonfinite discount accepted")
+	}
+	if err := salePoints("points", float64(math.MaxInt32)+1); err == nil {
+		t.Fatal("points overflow accepted")
+	}
+}
+
+func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
+	for _, offline := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct floor", true: "batch warning"}[offline], func(t *testing.T) {
+			in := ordinaryInput()
+			in.Offline = offline
+			original := append([]OrderItem(nil), in.Items...)
+			tx := &inputTestTx{allowWrites: true, stock: 0, taxRate: 10}
+			begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
+			id, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, begin)
+			wantStock := 0
+			if offline {
+				wantStock = -1
+			}
+			if err != nil || dup || id != "accepted-original" || warn != offline || tx.commits != 1 || tx.stock != wantStock {
+				t.Fatalf("id=%s dup=%v warn=%v err=%v tx=%+v", id, dup, warn, err, tx)
+			}
+			// Current tax raises total; the new validator must not claim a new payment.
+			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 100000 {
+				t.Fatalf("capture/total: %v", tx.orderArgs)
+			}
+			if !reflect.DeepEqual(in.Items, original) {
+				t.Fatal("caller capture mutated")
+			}
+			writes := tx.writes
+			// A simulated lost response: retry the SAME key, then changed malformed input.
+			for _, qty := range []int{1, -1} {
+				in.Items[0].Quantity = qty
+				id, dup, _, err = (&OrderService{}).createOrder(context.Background(), in, begin)
+				if err != nil || !dup || id != "accepted-original" || tx.key != "original-key" || tx.writes != writes || tx.commits != 1 {
+					t.Fatalf("replay=%s %v %v tx=%+v", id, dup, err, tx)
+				}
+			}
+		})
+	}
+}
+func (tx *inputTestTx) Rollback(context.Context) error { return nil }
+func (tx *inputTestTx) Commit(context.Context) error   { tx.commits++; return nil }
+
+func ordinaryInput() CreateOrderInput {
+	return CreateOrderInput{OutletID: "synthetic-outlet", IdempotencyKey: "original-key", PaymentMethod: "cash", AmountPaid: 100000,
+		Items: []OrderItem{{ProductID: "synthetic-product", ProductName: "Synthetic", VariantSize: "110ml", Price: 100000, Quantity: 1, Subtotal: 100000}}}
+}
+
+func TestSaleInputNegativeAndZeroQuantityRegression(t *testing.T) {
+	for _, qty := range []int{-1, 0} {
+		for _, offline := range []bool{false, true} {
+			in := ordinaryInput()
+			in.Items[0].Quantity = qty
+			in.Offline = offline
+			tx := &inputTestTx{}
+			_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+			if err == nil || dup || tx.writes != 0 || tx.commits != 0 {
+				t.Errorf("quantity=%d offline=%v must reject before effects: err=%v dup=%v writes=%d commits=%d", qty, offline, err, dup, tx.writes, tx.commits)
+			}
+		}
+	}
+}

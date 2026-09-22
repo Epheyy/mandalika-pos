@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import type { Tag as TagType, Interaction } from '@mandalika/api'
 import { api } from '../../api'
+import { useOutlet } from '../../outlet'
 import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
@@ -42,13 +43,14 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 export default function CustomerDetail({
   customerId, loyaltyEnabled, onBack, onEdit, onDelete,
 }: CustomerDetailProps) {
+  const { outletId } = useOutlet()
   const cq = usePolledQuery<Customer | null>(
     () => api.getCustomer(customerId).catch(() => null),
     [customerId],
   )
   const oq = usePolledQuery<Order[]>(
     () => api.listOrders({ customerId, limit: 200 }).then((r) => r.data),
-    [customerId],
+    [customerId, outletId],
   )
   const tagsQ = usePolledQuery<TagType[]>(() => api.listTags(), [])
   const allTags = tagsQ.data ?? []

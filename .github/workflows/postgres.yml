@@ -1,0 +1,39 @@
+name: Mandatory PostgreSQL integration
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: go mod download
+        working-directory: backend
+      - name: Runner fail-closed contracts
+        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - name: Six mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
+        run: python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
+      - name: Sanitized fixture lifecycle and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-gate-${{ github.sha }}
+          path: artifacts/postgres/
+          if-no-files-found: warn
+          retention-days: 14

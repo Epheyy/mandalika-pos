@@ -1,0 +1,254 @@
+[
+  {
+    "name": "qualifying 10 percent",
+    "subtotal": 100000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 100000,
+          "kind": "percentage",
+          "value": 10
+        }
+      ]
+    },
+    "discount": 10000,
+    "total": 90000
+  },
+  {
+    "name": "threshold 99999",
+    "subtotal": 99999,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 0,
+    "total": 99999
+  },
+  {
+    "name": "threshold 100000",
+    "subtotal": 100000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 10000,
+    "total": 90000
+  },
+  {
+    "name": "threshold 100001",
+    "subtotal": 100001,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 10000,
+    "total": 90001
+  },
+  {
+    "name": "threshold 199999",
+    "subtotal": 199999,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 10000,
+    "total": 189999
+  },
+  {
+    "name": "threshold 200000",
+    "subtotal": 200000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 30000,
+    "total": 170000
+  },
+  {
+    "name": "threshold 200001",
+    "subtotal": 200001,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 200000,
+          "kind": "percentage",
+          "value": 15
+        },
+        {
+          "minSubtotal": 100000,
+          "kind": "fixed",
+          "value": 10000
+        }
+      ]
+    },
+    "discount": 30000,
+    "total": 170001
+  },
+  {
+    "name": "first tie retained",
+    "subtotal": 100000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "fixed",
+          "value": 500
+        },
+        {
+          "minSubtotal": 0,
+          "kind": "percentage",
+          "value": 10
+        }
+      ]
+    },
+    "discount": 500,
+    "total": 99500
+  },
+  {
+    "name": "half rounding",
+    "subtotal": 100005,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "percentage",
+          "value": 10
+        }
+      ]
+    },
+    "discount": 10001,
+    "total": 90004
+  },
+  {
+    "name": "fractional subtotal",
+    "subtotal": 100.5,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "percentage",
+          "value": 10
+        }
+      ]
+    },
+    "discount": 10,
+    "total": 90.5
+  },
+  {
+    "name": "fixed capped",
+    "subtotal": 5000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "fixed",
+          "value": 999999
+        }
+      ]
+    },
+    "discount": 5000,
+    "total": 0
+  },
+  {
+    "name": "overall percent capped",
+    "subtotal": 5000,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "percentage",
+          "value": 150
+        }
+      ]
+    },
+    "discount": 7500,
+    "total": 0
+  },
+  {
+    "name": "null config",
+    "subtotal": 100000,
+    "config": null,
+    "discount": 0,
+    "total": 100000
+  },
+  {
+    "name": "absent config",
+    "subtotal": 100000,
+    "discount": 0,
+    "total": 100000
+  },
+  {
+    "name": "empty config",
+    "subtotal": 100000,
+    "config": {
+      "tiers": []
+    },
+    "discount": 0,
+    "total": 100000
+  },
+  {
+    "name": "zero subtotal",
+    "subtotal": 0,
+    "config": {
+      "tiers": [
+        {
+          "minSubtotal": 0,
+          "kind": "fixed",
+          "value": 100
+        }
+      ]
+    },
+    "discount": 0,
+    "total": 0
+  }
+]

@@ -1599,16 +1599,19 @@ components:
         reason: { type: string }
     OpenShiftRequest:
       type: object
+      required: [startingCash]
       properties:
         outletName: { type: string, nullable: true }
         startingCash: { type: number }
     CloseShiftRequest:
       type: object
+      required: [closingCash]
       properties:
         closingCash: { type: number }
         # Optional per-method counted cash captured at close (reconciliation).
         countedByMethod:
           type: object
+          nullable: true
           additionalProperties: { type: number }
     CashFlowRequest:
       type: object

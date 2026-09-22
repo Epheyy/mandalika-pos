@@ -1,0 +1,327 @@
+{
+  "products": [
+    {
+      "id": "00000000-0000-4000-8300-000000000001",
+      "name": "00000000-0000-4000-8300-000000000001",
+      "brand": "Fixture",
+      "categoryId": "",
+      "isFeatured": false,
+      "isFavourite": false,
+      "isActive": true,
+      "createdAt": "",
+      "variants": [
+        {
+          "size": "M",
+          "price": 100000,
+          "stock": 100,
+          "sku": "fixture-00000000-0000-4000-8300-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8300-000000000002",
+      "name": "00000000-0000-4000-8300-000000000002",
+      "brand": "Fixture",
+      "categoryId": "",
+      "isFeatured": false,
+      "isFavourite": false,
+      "isActive": true,
+      "createdAt": "",
+      "variants": [
+        {
+          "size": "M",
+          "price": 20000,
+          "stock": 100,
+          "sku": "fixture-00000000-0000-4000-8300-000000000002"
+        }
+      ]
+    }
+  ],
+  "promotions": [
+    {
+      "id": "00000000-0000-4000-8300-000000000003",
+      "name": "buy_x_get_y",
+      "type": "buy_x_get_y",
+      "value": 0,
+      "isActive": true,
+      "codeOnly": true,
+      "createdAt": "",
+      "combinable": true,
+      "bundleConfig": null,
+      "bxgyConfig": {
+        "buyQuantity": 1,
+        "getQuantity": 1,
+        "buyProductIds": [
+          "00000000-0000-4000-8300-000000000001"
+        ],
+        "getProductIds": [
+          "00000000-0000-4000-8300-000000000002"
+        ],
+        "getDiscountKind": "percentage",
+        "getDiscountValue": 50
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8300-000000000004",
+      "name": "bundle",
+      "type": "bundle",
+      "value": 0,
+      "isActive": true,
+      "codeOnly": true,
+      "createdAt": "",
+      "combinable": true,
+      "bundleConfig": {
+        "slots": [
+          {
+            "productKeys": [
+              "00000000-0000-4000-8300-000000000001"
+            ],
+            "quantity": 1
+          },
+          {
+            "productKeys": [
+              "00000000-0000-4000-8300-000000000002"
+            ],
+            "quantity": 1
+          }
+        ],
+        "bundlePrice": 105000
+      },
+      "bxgyConfig": null
+    }
+  ],
+  "cases": [
+    {
+      "name": "buy_x_get_y-direct",
+      "kind": "direct",
+      "promotionId": "00000000-0000-4000-8300-000000000003",
+      "code": "Raw-LF-buy_x_get_y",
+      "expectedTotal": 110000,
+      "expectedRewardNet": 10000,
+      "expectedQuantities": {
+        "00000000-0000-4000-8300-000000000001": 1,
+        "00000000-0000-4000-8300-000000000002": 1
+      },
+      "expectedGrants": 1,
+      "item": {
+        "type": "order",
+        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000101",
+        "payload": {
+          "items": [
+            {
+              "productId": "00000000-0000-4000-8300-000000000001",
+              "productName": "00000000-0000-4000-8300-000000000001",
+              "variantSize": "M",
+              "price": 100000,
+              "quantity": 1,
+              "subtotal": 100000
+            },
+            {
+              "productId": "00000000-0000-4000-8300-000000000002",
+              "productName": "00000000-0000-4000-8300-000000000002",
+              "variantSize": "M",
+              "price": 10000,
+              "quantity": 1,
+              "subtotal": 10000,
+              "isReward": true,
+              "rewardPromotionId": "00000000-0000-4000-8300-000000000003"
+            }
+          ],
+          "paymentMethod": "cash",
+          "amountPaid": 110000,
+          "promotionIds": [
+            "00000000-0000-4000-8300-000000000003"
+          ],
+          "discountCodes": [],
+          "promotionId": "00000000-0000-4000-8300-000000000003",
+          "discountCode": null,
+          "discountLabel": "buy_x_get_y",
+          "discountBreakdown": [
+            {
+              "label": "buy_x_get_y",
+              "kind": "buy_x_get_y",
+              "value": 0,
+              "amount": 0
+            }
+          ],
+          "orderUuid": "00000000-0000-4000-8300-000000000101",
+          "deviceId": "00000000-0000-4000-8300-000000000099"
+        }
+      }
+    },
+    {
+      "name": "buy_x_get_y-code",
+      "kind": "code",
+      "promotionId": "00000000-0000-4000-8300-000000000003",
+      "code": "Raw-LF-buy_x_get_y",
+      "expectedTotal": 110000,
+      "expectedRewardNet": 10000,
+      "expectedQuantities": {
+        "00000000-0000-4000-8300-000000000001": 1,
+        "00000000-0000-4000-8300-000000000002": 1
+      },
+      "expectedGrants": 1,
+      "item": {
+        "type": "order",
+        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000102",
+        "payload": {
+          "items": [
+            {
+              "productId": "00000000-0000-4000-8300-000000000001",
+              "productName": "00000000-0000-4000-8300-000000000001",
+              "variantSize": "M",
+              "price": 100000,
+              "quantity": 1,
+              "subtotal": 100000
+            },
+            {
+              "productId": "00000000-0000-4000-8300-000000000002",
+              "productName": "00000000-0000-4000-8300-000000000002",
+              "variantSize": "M",
+              "price": 10000,
+              "quantity": 1,
+              "subtotal": 10000,
+              "isReward": true,
+              "rewardPromotionId": "00000000-0000-4000-8300-000000000003"
+            }
+          ],
+          "paymentMethod": "cash",
+          "amountPaid": 110000,
+          "promotionIds": [],
+          "discountCodes": [
+            "Raw-LF-buy_x_get_y"
+          ],
+          "promotionId": null,
+          "discountCode": "Raw-LF-buy_x_get_y",
+          "discountLabel": "Raw-LF-buy_x_get_y",
+          "discountBreakdown": [
+            {
+              "label": "Raw-LF-buy_x_get_y",
+              "kind": "buy_x_get_y",
+              "value": 0,
+              "amount": 0
+            }
+          ],
+          "orderUuid": "00000000-0000-4000-8300-000000000102",
+          "deviceId": "00000000-0000-4000-8300-000000000099"
+        }
+      }
+    },
+    {
+      "name": "bundle-direct",
+      "kind": "direct",
+      "promotionId": "00000000-0000-4000-8300-000000000004",
+      "code": "Raw-LF-bundle",
+      "expectedTotal": 105000,
+      "expectedRewardNet": 5000,
+      "expectedQuantities": {
+        "00000000-0000-4000-8300-000000000001": 1,
+        "00000000-0000-4000-8300-000000000002": 1
+      },
+      "expectedGrants": 1,
+      "item": {
+        "type": "order",
+        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000103",
+        "payload": {
+          "items": [
+            {
+              "productId": "00000000-0000-4000-8300-000000000001",
+              "productName": "00000000-0000-4000-8300-000000000001",
+              "variantSize": "M",
+              "price": 100000,
+              "quantity": 1,
+              "subtotal": 100000
+            },
+            {
+              "productId": "00000000-0000-4000-8300-000000000002",
+              "productName": "00000000-0000-4000-8300-000000000002",
+              "variantSize": "M",
+              "price": 5000,
+              "quantity": 1,
+              "subtotal": 5000,
+              "isReward": true,
+              "rewardPromotionId": "00000000-0000-4000-8300-000000000004"
+            }
+          ],
+          "paymentMethod": "cash",
+          "amountPaid": 105000,
+          "promotionIds": [
+            "00000000-0000-4000-8300-000000000004"
+          ],
+          "discountCodes": [],
+          "promotionId": "00000000-0000-4000-8300-000000000004",
+          "discountCode": null,
+          "discountLabel": "bundle",
+          "discountBreakdown": [
+            {
+              "label": "bundle",
+              "kind": "bundle",
+              "value": 0,
+              "amount": 0
+            }
+          ],
+          "orderUuid": "00000000-0000-4000-8300-000000000103",
+          "deviceId": "00000000-0000-4000-8300-000000000099"
+        }
+      }
+    },
+    {
+      "name": "bundle-code",
+      "kind": "code",
+      "promotionId": "00000000-0000-4000-8300-000000000004",
+      "code": "Raw-LF-bundle",
+      "expectedTotal": 105000,
+      "expectedRewardNet": 5000,
+      "expectedQuantities": {
+        "00000000-0000-4000-8300-000000000001": 1,
+        "00000000-0000-4000-8300-000000000002": 1
+      },
+      "expectedGrants": 1,
+      "item": {
+        "type": "order",
+        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000104",
+        "payload": {
+          "items": [
+            {
+              "productId": "00000000-0000-4000-8300-000000000001",
+              "productName": "00000000-0000-4000-8300-000000000001",
+              "variantSize": "M",
+              "price": 100000,
+              "quantity": 1,
+              "subtotal": 100000
+            },
+            {
+              "productId": "00000000-0000-4000-8300-000000000002",
+              "productName": "00000000-0000-4000-8300-000000000002",
+              "variantSize": "M",
+              "price": 5000,
+              "quantity": 1,
+              "subtotal": 5000,
+              "isReward": true,
+              "rewardPromotionId": "00000000-0000-4000-8300-000000000004"
+            }
+          ],
+          "paymentMethod": "cash",
+          "amountPaid": 105000,
+          "promotionIds": [],
+          "discountCodes": [
+            "Raw-LF-bundle"
+          ],
+          "promotionId": null,
+          "discountCode": "Raw-LF-bundle",
+          "discountLabel": "Raw-LF-bundle",
+          "discountBreakdown": [
+            {
+              "label": "Raw-LF-bundle",
+              "kind": "bundle",
+              "value": 0,
+              "amount": 0
+            }
+          ],
+          "orderUuid": "00000000-0000-4000-8300-000000000104",
+          "deviceId": "00000000-0000-4000-8300-000000000099"
+        }
+      }
+    }
+  ]
+}

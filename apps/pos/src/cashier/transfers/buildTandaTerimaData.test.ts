@@ -60,7 +60,8 @@ describe('buildTandaTerimaData', () => {
   })
 
   it('falls back to dest.name when entire receiverLetterhead is null', () => {
-    const t2 = { ...baseTransfer, receiverLetterhead: null } as Transfer
+    // Deliberate legacy null outside the generated optional-only field contract.
+    const t2 = { ...baseTransfer, receiverLetterhead: null } as unknown as Transfer
     const d = buildTandaTerimaData(t2, 'X')
     expect(d.receiverHeaderLines[0]).toBe('Mandalika PMS')
   })

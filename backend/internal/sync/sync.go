@@ -4,6 +4,7 @@
 package sync
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,20 +161,29 @@ type Caller struct {
 	OutletID    string
 	UserID      string
 	DisplayName string
+	// Server-derived from authenticated request claims; never from a batch body.
+	CanRefund bool `json:"-"`
 }
 
 // ProcessBatch flushes outbox items in order, one at a time, each idempotent.
 // A failed item does not abort the batch — POS retries it next flush.
 func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) (BatchResult, error) {
+	return processBatch(ctx, c, items, e.processOne, e.Version)
+}
+
+func processBatch(ctx context.Context, c Caller, items []BatchItem,
+	process func(context.Context, Caller, BatchItem) ItemResult,
+	version func(context.Context, string) (VersionInfo, error),
+) (BatchResult, error) {
 	out := BatchResult{Results: make([]ItemResult, 0, len(items))}
 	for _, it := range items {
-		res := e.processOne(ctx, c, it)
+		res := process(ctx, c, it)
 		out.Results = append(out.Results, res)
 		if res.Status != "error" {
 			out.Processed++
 		}
 	}
-	vi, err := e.Version(ctx, c.OutletID)
+	vi, err := version(ctx, c.OutletID)
 	if err != nil {
 		return out, err
 	}
@@ -182,6 +192,18 @@ func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) 
 }
 
 func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemResult {
+	return e.processOneWithRefund(ctx, c, it, e.Orders.Refund)
+}
+
+// Keep the refund mutation boundary injectable for isolated authorization tests.
+func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund func(context.Context, string, string, string) error) ItemResult {
+	return e.processOneWithCommands(ctx, c, it, refund, e.Orders.CreateOrder)
+}
+
+func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchItem,
+	refund func(context.Context, string, string, string) error,
+	createOrder func(context.Context, service.CreateOrderInput) (string, bool, bool, error),
+) ItemResult {
 	r := ItemResult{IdempotencyKey: it.IdempotencyKey}
 	fail := func(err error) ItemResult { r.Status = "error"; r.Error = err.Error(); return r }
 
@@ -222,7 +244,7 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 			ClientCreated:     p.ClientCreatedAt,
 			Offline:           true,
 		}
-		id, dup, warn, err := e.Orders.CreateOrder(ctx, in)
+		id, dup, warn, err := createOrder(ctx, in)
 		if err != nil {
 			return fail(err)
 		}
@@ -234,6 +256,9 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		}
 		return r
 	case "refund":
+		if !c.CanRefund {
+			return fail(errors.New("Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
+		}
 		var p struct {
 			OrderID string `json:"orderId"`
 			Reason  string `json:"reason"`
@@ -241,17 +266,14 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(err)
 		}
-		if err := e.Orders.Refund(ctx, c.OutletID, p.OrderID, p.Reason); err != nil {
+		if err := refund(ctx, c.OutletID, p.OrderID, p.Reason); err != nil {
 			return fail(err)
 		}
 		r.Status, r.OrderID = "ok", p.OrderID
 		return r
 	case "shift_open":
-		var p struct {
-			OutletName   string  `json:"outletName"`
-			StartingCash float64 `json:"startingCash"`
-		}
-		if err := json.Unmarshal(it.Payload, &p); err != nil {
+		p, err := service.DecodeOpenShift(bytes.NewReader(it.Payload))
+		if err != nil {
 			return fail(err)
 		}
 		id, err := e.Orders.OpenShift(ctx, service.OpenShiftInput{
@@ -265,12 +287,8 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 		r.Status, r.OrderID = "ok", id
 		return r
 	case "shift_close":
-		var p struct {
-			ShiftID         string             `json:"shiftId"`
-			ClosingCash     float64            `json:"closingCash"`
-			CountedByMethod map[string]float64 `json:"countedByMethod"`
-		}
-		if err := json.Unmarshal(it.Payload, &p); err != nil {
+		p, err := service.DecodeCloseShift(bytes.NewReader(it.Payload), true)
+		if err != nil {
 			return fail(err)
 		}
 		if err := e.Orders.CloseShift(ctx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod); err != nil {

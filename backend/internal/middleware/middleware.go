@@ -62,17 +62,9 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 func RequirePermission(perm string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role, _ := r.Context().Value(auth.CtxRole).(string)
-			if role == "admin" {
+			if auth.HasPermission(r.Context(), perm) {
 				next.ServeHTTP(w, r)
 				return
-			}
-			perms, _ := r.Context().Value(auth.CtxPerms).([]string)
-			for _, p := range perms {
-				if p == perm {
-					next.ServeHTTP(w, r)
-					return
-				}
 			}
 			httpx.Err(w, http.StatusForbidden, "missing permission: "+perm)
 		})

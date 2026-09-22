@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, type OutboxType } from './outbox'
+import { Outbox, type OutboxItem, type OutboxType } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -249,13 +249,13 @@ export class SyncEngine {
   }
 
   /**
-   * Record the parked (dead-lettered) items to a durable local debug log, then
-   * drop them from the queue so the "sync failed" state clears. Returns a JSON
-   * string of what was discarded so the cashier can send it to support. The log
-   * is kept (capped) for later debugging via {@link syncLog}.
+   * Build shareable diagnostics without resolving or changing parked operations.
+   * Detach the JSON-compatible queue data before redaction/formatting so even
+   * nested diagnostic edits cannot change the original retry payloads.
+   * Only the separate support log is capped; the operational outbox is untouched.
    */
-  discardFailed(): string {
-    const dead = this.outbox.discardDeadLettered()
+  buildFailedSyncDiagnostics(): string {
+    const dead = JSON.parse(JSON.stringify(this.outbox.deadLettered())) as OutboxItem[]
     if (dead.length) {
       const now = new Date().toISOString()
       const log = readJSON<unknown[]>(this.kv, SYNC_LOG_KEY, [])
@@ -271,7 +271,6 @@ export class SyncEngine {
         })
       }
       writeJSON(this.kv, SYNC_LOG_KEY, log.slice(-200)) // keep last 200
-      this.events.onOutboxChange?.(this.outbox.count())
     }
     const redacted = dead.map((d) => ({ ...d, payload: redactPayload(d.payload) }))
     return JSON.stringify(redacted, null, 2)

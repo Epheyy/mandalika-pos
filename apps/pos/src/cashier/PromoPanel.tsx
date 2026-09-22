@@ -15,6 +15,7 @@ interface PromoPanelProps {
   appliedPromoCodes: AppliedPromoCode[]
   cart: CartItem[]
   bundleFreed: Record<string, BundleFreedUnit[]>
+  selectionCart?: (promo: Promotion) => CartItem[]
   promoCodeInput: string
   isValidating: boolean
   subtotal: number
@@ -92,6 +93,7 @@ export const PromoPanel = memo(function PromoPanel({
   appliedPromoCodes,
   cart,
   bundleFreed,
+  selectionCart,
   promoCodeInput,
   isValidating,
   subtotal,
@@ -136,7 +138,7 @@ export const PromoPanel = memo(function PromoPanel({
 
   const codeSavings = (c: AppliedPromoCode) => {
     if (c.promotion) {
-      return calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
+      return appliedSavings(linkedPromoShape(c))
     }
     return c.type === 'percentage'
       ? Math.round(subtotal * (c.value / 100))
@@ -300,6 +302,10 @@ export const PromoPanel = memo(function PromoPanel({
               </p>
               <div className="space-y-2">
                 {activePromos.map(({ promo, violations }) => {
+                  // Preview after takeover/exclusive restoration, as the shared
+                  // executor does. A linked bundle must not disable its direct
+                  // counterpart merely because its paid units were moved.
+                  const candidateCart = selectionCart?.(promo) ?? cart
                   const gatingInvalid = violations.length > 0
                   const savings = gatingInvalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
                   // buy_x_get_y has a CART precondition (the buy/get items must be
@@ -315,7 +321,7 @@ export const PromoPanel = memo(function PromoPanel({
                     !gatingInvalid &&
                     promo.type === 'buy_x_get_y' &&
                     (isSeparateSet
-                      ? bxgyRewardDue(promo.bxgyConfig, cart.filter((c) => !c.isReward)) < 1
+                      ? bxgyRewardDue(promo.bxgyConfig, candidateCart.filter((c) => !c.isReward)) < 1
                       : savings <= 0)
                   // A bundle has a CART precondition (each slot's product keys must
                   // be present in the required quantity) gating can't see: grey it
@@ -323,7 +329,7 @@ export const PromoPanel = memo(function PromoPanel({
                   const bundleUnmet =
                     !gatingInvalid &&
                     promo.type === 'bundle' &&
-                    bundleApplications(promo.bundleConfig, cart.filter((c) => !c.isReward)) < 1
+                    bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward)) < 1
                   const invalid = gatingInvalid || bxgyUnmet || bundleUnmet
                   const reason = gatingInvalid
                     ? violationMessage(violations[0])

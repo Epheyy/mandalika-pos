@@ -4,9 +4,9 @@
  * Mirrors the SP-CRM-9 "Hadiah Loyalti" picker (CheckoutPanel) + the SP-CRM-9b
  * drill-down presentation + the SP-CRM-9c `· Stok N` annotation, but keyed on a
  * promotion instead of a loyalty condition. The cashier picks `due` reward units
- * (each pick = one CART_ADD_REWARD line carrying rewardPromotionId); the same
- * variant may be picked multiple times. Confirm dispatches the picked lines +
- * adds the promo to appliedPromotions; Cancel applies nothing.
+ * (each pick = one reward unit carrying rewardPromotionId); the same
+ * variant may be picked multiple times. Confirm atomically applies aggregated
+ * lines and the pending direct/code owner; Cancel applies nothing.
  *
  * DISPLAY ONLY — the server re-derives entitlement from paid lines, prices the
  * reward at net, and records the grant. The net price shown here mirrors

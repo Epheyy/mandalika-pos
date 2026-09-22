@@ -4,10 +4,14 @@
  * Pure reducer + typed actions — no side effects here.
  */
 
+import { promotionHasKeyOverlap } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 export type { AppliedPromoCode } from '../promoValidate'
 import type { AppliedPromoCode } from '../promoValidate'
 import type { BundleFreedUnit } from '../bundle'
+import { upsertCartItem, reducePaidQty, restoreBundle, restoreAllBundles, omitKey, clearBundleEntry, evictAllForExclusive, removePromotionEffect } from '../promotionEffects'
+import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice } from '../promotionFulfillment'
+import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
@@ -73,6 +77,7 @@ export type CashierAction =
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
   | { type: 'CART_REMOVE_PROMO_REWARDS'; rewardPromotionId: string }
   | { type: 'APPLY_BUNDLE'; promotion: Promotion; freed: BundleFreedUnit[]; applications: number }
+  | { type: 'APPLY_FULFILLMENT'; owner: PromotionOwner; products: components['schemas']['Product'][]; choice?: FulfillmentChoice }
   | { type: 'REMOVE_BUNDLE'; promotionId: string; freed: BundleFreedUnit[] }
   | { type: 'CART_CLEAR' }
   | { type: 'SET_CUSTOMER'; customer: Customer | null }
@@ -136,83 +141,6 @@ function hasNonCombinablePromotion(promotions: Promotion[]): boolean {
   return promotions.some((p) => !p.combinable)
 }
 
-function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
-  const idx = cart.findIndex(
-    (c) =>
-      c.productId === item.productId &&
-      c.variantSize === item.variantSize &&
-      !c.isReward,
-  )
-  if (idx >= 0) {
-    const existing = cart[idx]
-    const newQty = existing.quantity + item.quantity
-    const updated: CartItem = {
-      ...existing,
-      quantity: newQty,
-      price: item.price,
-      subtotal: Math.round(newQty * item.price),
-    }
-    return [...cart.slice(0, idx), updated, ...cart.slice(idx + 1)]
-  }
-  return [...cart, item]
-}
-
-// reducePaidQty: decrement a PAID (non-reward) line's quantity by `dec`, removing
-// the line when it reaches 0. Reward lines of the same product are untouched.
-// Used by APPLY_BUNDLE to move freed units off their paid line.
-function reducePaidQty(
-  cart: CartItem[],
-  productId: string,
-  variantSize: string,
-  dec: number,
-): CartItem[] {
-  return cart.flatMap((c) => {
-    if (c.isReward || c.productId !== productId || c.variantSize !== variantSize) return [c]
-    const newQty = c.quantity - dec
-    if (newQty <= 0) return []
-    return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]
-  })
-}
-
-// restoreBundle: inverse of a bundle application. Strip this bundle's reward
-// lines and add the freed units back onto their paid lines at full price
-// (merging into an existing paid line, recreating it when it was fully consumed).
-// Pure and catalog-free — fullPrice comes from the retained freed set. Used by
-// REMOVE_BUNDLE and by every generic reward-strip path so a freed physical unit
-// is never dropped without its paid quantity being restored.
-function restoreBundle(
-  cart: CartItem[],
-  promotionId: string,
-  freed: BundleFreedUnit[],
-): CartItem[] {
-  let next = cart.filter((c) => !(c.isReward && c.rewardPromotionId === promotionId))
-  for (const f of freed) {
-    next = upsertCartItem(next, {
-      productId: f.productId,
-      productName: f.productName,
-      variantSize: f.variantSize,
-      price: f.fullPrice,
-      quantity: f.quantity,
-      subtotal: Math.round(f.fullPrice * f.quantity),
-    })
-  }
-  return next
-}
-
-// restoreAllBundles: restore every applied bundle's paid quantity (stripping its
-// reward lines), returning the rebuilt cart. Callers then strip any remaining
-// (non-bundle) reward lines and reset bundleFreed to {}.
-function restoreAllBundles(
-  cart: CartItem[],
-  bundleFreed: Record<string, BundleFreedUnit[]>,
-): CartItem[] {
-  let next = cart
-  for (const [promotionId, freed] of Object.entries(bundleFreed)) {
-    next = restoreBundle(next, promotionId, freed)
-  }
-  return next
-}
-
 // bundlesContainingKey: ids of applied bundles whose FREED set includes a unit
 // matching (productId, variantSize). Catalog-free — reads only the stored freed
 // set. Used to evict a bundle before a cart edit touches one of its participants.
@@ -238,12 +166,13 @@ function evictBundlesForKey(
   state: CashierState,
   productId: string,
   variantSize: string,
-): Pick<CashierState, 'cart' | 'appliedPromotions' | 'bundleFreed' | 'bundleApplications'> {
+): Pick<CashierState, 'cart' | 'appliedPromotions' | 'appliedPromoCodes' | 'bundleFreed' | 'bundleApplications'> {
   const ids = bundlesContainingKey(state.bundleFreed, productId, variantSize)
   if (ids.length === 0) {
     return {
       cart: state.cart,
       appliedPromotions: state.appliedPromotions,
+      appliedPromoCodes: state.appliedPromoCodes,
       bundleFreed: state.bundleFreed,
       bundleApplications: state.bundleApplications,
     }
@@ -252,58 +181,32 @@ function evictBundlesForKey(
   let bundleFreed = state.bundleFreed
   let bundleApplications = state.bundleApplications
   let appliedPromotions = state.appliedPromotions
+  let appliedPromoCodes = state.appliedPromoCodes
   for (const id of ids) {
     cart = restoreBundle(cart, id, bundleFreed[id])
     bundleFreed = omitKey(bundleFreed, id)
     bundleApplications = omitKey(bundleApplications, id)
     appliedPromotions = appliedPromotions.filter((p) => p.id !== id)
+    appliedPromoCodes = appliedPromoCodes.filter((c) => c.promotion?.id !== id)
   }
-  return { cart, appliedPromotions, bundleFreed, bundleApplications }
-}
-
-// evictAllForExclusive: an incoming exclusive (non-combinable) promo/code
-// replaces the whole applied set. Any applied bundle MOVED units off their paid
-// line, so restore them first (else ghost Rp0 reward lines + a stale freed entry
-// linger), then strip every remaining promo reward line (bxgy extras). Loyalty
-// rewards (rewardConditionId, no rewardPromotionId) survive — they're
-// customer-based, not promo-based. Mirrors CLEAR_PROMOTIONS' cart handling.
-function evictAllForExclusive(
-  state: CashierState,
-): Pick<CashierState, 'cart' | 'bundleFreed' | 'bundleApplications'> {
-  const restored = restoreAllBundles(state.cart, state.bundleFreed)
-  return {
-    cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
-    bundleFreed: {},
-    bundleApplications: {},
-  }
-}
-
-// omitKey: return a shallow copy of the map without `key` (immutable delete).
-function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
-  if (!(key in map)) return map
-  const { [key]: _removed, ...rest } = map
-  return rest
-}
-
-// clearBundleEntry: drop a single bundle id from BOTH bookkeeping maps together,
-// so a freed set can never outlive its applied-nApp count (or vice versa). Every
-// path that clears one entry MUST go through here to keep the two maps in
-// lock-step. Returns the slice of state to spread into the result.
-function clearBundleEntry(
-  state: CashierState,
-  id: string,
-): Pick<CashierState, 'bundleFreed' | 'bundleApplications'> {
-  return {
-    bundleFreed: omitKey(state.bundleFreed, id),
-    bundleApplications: omitKey(state.bundleApplications, id),
-  }
+  return { cart, appliedPromotions, appliedPromoCodes, bundleFreed, bundleApplications }
 }
 
 export function cashierReducer(
   state: CashierState,
   action: CashierAction,
 ): CashierState {
+  // Drop redundant draft selections before removal as well as application, so
+  // removing a winner cannot revive a hidden code. Cart ownership is unchanged.
+  const effective = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
+  if (effective.appliedPromotions !== state.appliedPromotions || effective.appliedPromoCodes !== state.appliedPromoCodes) {
+    state = { ...state, ...effective }
+  }
   switch (action.type) {
+    case 'APPLY_FULFILLMENT': {
+      const plan = planPromotionFulfillment(state, action.owner, action.products, action.choice)
+      return plan.kind === 'ready' ? plan.next : state
+    }
     case 'CART_ADD_ITEM':
       return { ...state, cart: upsertCartItem(state.cart, action.item) }
 
@@ -340,6 +243,9 @@ export function cashierReducer(
       }
 
     case 'CART_REMOVE_PROMO_REWARDS':
+      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.rewardPromotionId)) {
+        return removePromotionEffect(state, action.rewardPromotionId)
+      }
       return {
         ...state,
         cart: state.cart.filter(
@@ -348,6 +254,11 @@ export function cashierReducer(
       }
 
     case 'APPLY_BUNDLE': {
+      if (promotionHasKeyOverlap(action.promotion)) return state
+      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.promotion.id)) {
+        state = removePromotionEffect(state, action.promotion.id)
+      }
+      state = { ...state, appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== action.promotion.id) }
       // Reprice the cheapest consumed units into reward lines: reduce each
       // matching PAID line by the freed qty (dropping it at 0) and add an
       // isReward line at the bundleAllocate net. Stock-conserving — a freed unit
@@ -386,18 +297,8 @@ export function cashierReducer(
       }
     }
 
-    case 'REMOVE_BUNDLE': {
-      // Inverse of APPLY_BUNDLE: strip this bundle's reward lines and restore the
-      // freed units back onto their paid lines at full price. Prefer the retained
-      // freed set (source of truth) and fall back to the action's for safety.
-      const freed = state.bundleFreed[action.promotionId] ?? action.freed
-      return {
-        ...state,
-        cart: restoreBundle(state.cart, action.promotionId, freed),
-        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotionId),
-        ...clearBundleEntry(state, action.promotionId),
-      }
-    }
+    case 'REMOVE_BUNDLE':
+      return removePromotionEffect(state, action.promotionId)
 
     case 'CART_REMOVE_ITEM': {
       // If this key participates in an applied bundle's freed set, remove that
@@ -486,6 +387,8 @@ export function cashierReducer(
         cart: restored.filter((c) => !c.isReward),
         // Restored bundles are no longer applied; drop them + clear their freed set.
         appliedPromotions: state.appliedPromotions.filter((p) => !(p.id in state.bundleFreed)),
+        appliedPromoCodes: state.appliedPromoCodes.filter(c => !c.promotion ||
+          (c.promotion.type !== 'bundle' && !(c.promotion.type === 'buy_x_get_y' && (c.promotion.bxgyConfig?.getProductIds ?? []).length > 0))),
         bundleFreed: {},
         bundleApplications: {},
       }
@@ -542,6 +445,14 @@ export function cashierReducer(
       return { ...state, promoCodeInput: action.value }
 
     case 'APPLY_PROMOTION': {
+      if (promotionHasKeyOverlap(action.promotion)) return state
+      // Direct identity wins before testing exclusivity against unrelated offers.
+      // A physical code-owned effect must be undone before direct installation.
+      // The screen uses APPLY_FULFILLMENT to recompute and commit physical takeover.
+      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.promotion.id)) {
+        state = removePromotionEffect(state, action.promotion.id)
+      }
+      state = { ...state, appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== action.promotion.id) }
       const exists = state.appliedPromotions.some((p) => p.id === action.promotion.id)
       if (exists) {
         // toggle off — strip this promo's reward lines. A bundle MOVED units off
@@ -585,8 +496,8 @@ export function cashierReducer(
     }
 
     case 'APPLY_PROMO_CODE': {
-      const exists = state.appliedPromoCodes.some((c) => c.code === action.code.code)
-      if (exists) {
+      if (action.code.promotion && promotionHasKeyOverlap(action.code.promotion)) return state
+      if (isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, action.code)) {
         return { ...state, promoCodeInput: '', activeAdjustment: null }
       }
       const incomingExclusive = !action.combinable
@@ -614,24 +525,14 @@ export function cashierReducer(
       }
     }
 
-    case 'REMOVE_PROMOTION': {
-      // strip the reward lines this promo gave, so they don't linger when removed.
-      // A bundle MOVED units off their paid line → restore the paid quantity;
-      // bxgy/loyalty rewards were added extras → plain strip.
-      const freed = state.bundleFreed[action.id]
-      const cart = freed
-        ? restoreBundle(state.cart, action.id, freed)
-        : state.cart.filter((c) => !(c.isReward && c.rewardPromotionId === action.id))
-      return {
-        ...state,
-        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id),
-        cart,
-        ...clearBundleEntry(state, action.id),
-      }
-    }
+    case 'REMOVE_PROMOTION':
+      return removePromotionEffect(state, action.id)
 
-    case 'REMOVE_PROMO_CODE':
+    case 'REMOVE_PROMO_CODE': {
+      const selected = state.appliedPromoCodes.find(c => c.code === action.code)
+      if (selected?.promotion) return removePromotionEffect(state, selected.promotion.id)
       return { ...state, appliedPromoCodes: state.appliedPromoCodes.filter((c) => c.code !== action.code) }
+    }
 
     case 'CLEAR_PROMOTIONS': {
       // Restore every applied bundle's paid quantity first (their units were

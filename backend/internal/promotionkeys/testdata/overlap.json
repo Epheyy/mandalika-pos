@@ -1,0 +1,14 @@
+[
+  {"name":"whole-whole","left":["P"],"right":["P"],"overlap":true},
+  {"name":"variant-variant","left":["P|M"],"right":["P|M"],"overlap":true},
+  {"name":"whole-variant","left":["P"],"right":["P|M"],"overlap":true},
+  {"name":"variant-whole","left":["P|M"],"right":["P"],"overlap":true},
+  {"name":"different-variants","left":["P|M"],"right":["P|L"],"overlap":false},
+  {"name":"different-products","left":["P"],"right":["Q|M"],"overlap":false},
+  {"name":"alternatives-cover","left":["Q","P"],"right":["R","P|M"],"overlap":true},
+  {"name":"alternatives-disjoint","left":["Q","P|M"],"right":["R","P|L"],"overlap":false},
+  {"name":"prefix-is-not-product","left":["P"],"right":["PP|M"],"overlap":false},
+  {"name":"case-sensitive","left":["P|M"],"right":["P|m"],"overlap":false},
+  {"name":"same-set-mode","left":["P"],"right":[],"overlap":false},
+  {"name":"buy-complement-mode","left":[],"right":["P|M"],"overlap":false}
+]

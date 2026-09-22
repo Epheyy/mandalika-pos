@@ -18,8 +18,6 @@ interface CustomerPickerProps {
   onNewFormChange: (field: 'name' | 'phone' | 'email', value: string) => void
   onSaveNew: () => void
   earnedPoints: number
-  /** Checkout was attempted without a customer — show a required hint. */
-  required?: boolean
   /** Switch to add-new, prefilling name/phone from the search query. */
   onAddNewFromSearch: (query: string) => void
   /** Error from the last save attempt (shown in the add form). */
@@ -42,7 +40,6 @@ export const CustomerPicker = memo(function CustomerPicker({
   onNewFormChange,
   onSaveNew,
   earnedPoints,
-  required,
   onAddNewFromSearch,
   errorText,
   loyaltyEnabled,
@@ -157,16 +154,9 @@ export const CustomerPicker = memo(function CustomerPicker({
         </div>
       ) : (
         <div className="relative">
-          {required && (
-            <p className="text-[11px] font-semibold text-red-600 mb-1">
-              Pelanggan wajib dipilih sebelum checkout
-            </p>
-          )}
           <div className="flex gap-2">
             <input
-              className={`flex-1 text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
-                required ? 'border-red-300' : 'border-gray-200'
-              }`}
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
               placeholder="Cari nama / no. telepon…"
               aria-label="Cari nama atau nomor telepon pelanggan"
               value={customerSearch}

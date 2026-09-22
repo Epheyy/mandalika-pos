@@ -8,23 +8,19 @@
  * All data is server-sourced. Brand gold comes free — index.css remaps the
  * indigo palette to gold, so the indigo-* classes here render gold.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
 import { api } from '../api'
 import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
-import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
+import { loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
 type Order = components['schemas']['Order']
-type ShiftResponse = components['schemas']['ShiftResponse']
-type ShiftListResponse = components['schemas']['ShiftListResponse']
-type CashFlowListResponse = components['schemas']['CashFlowListResponse']
-type OrderListResponse = components['schemas']['OrderListResponse']
 type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean }
 
 interface Breakdown {
@@ -148,8 +144,12 @@ function ShiftRecapPanelBody({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [histPage, setHistPage] = useState(1)
+  const selectionRequest = useRef(0)
   const [selected, setSelected] = useState<Shift | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Order[]>([])
+  const [selectedFlows, setSelectedFlows] = useState<CashFlow[]>([])
+  const [selectedStale, setSelectedStale] = useState(false)
+  const [selectedError, setSelectedError] = useState<string | null>(null)
   const [loadingSelected, setLoadingSelected] = useState(false)
   // Portrait: the right detail pane is a full-screen overlay instead of a
   // squished third column. Opened on shift-select (Riwayat) or via a button
@@ -162,73 +162,32 @@ function ShiftRecapPanelBody({
   // Keyed by payment-method id; only filled keys are sent on close.
   const [counted, setCounted] = useState<Record<string, number>>({})
 
-  const flowsFor = useCallback(async (shiftId: string): Promise<CashFlow[]> => {
-    const r = await api.request<CashFlowListResponse>(
-      'GET', `/api/v1/cash-flows?shiftId=${encodeURIComponent(shiftId)}&limit=200`,
-    )
-    return r.data ?? []
-  }, [])
-
-  const ordersFor = useCallback(async (shiftId: string): Promise<Order[]> => {
-    const r = await api.request<OrderListResponse>(
-      'GET', `/api/v1/orders?shiftId=${encodeURIComponent(shiftId)}&page=1&limit=1000`,
-    )
-    return r.data ?? []
-  }, [])
-
   const loadRekap = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const r = await api.request<ShiftResponse>('GET', '/api/v1/shifts/current')
-      const s = r.data ?? null
-      let flows: CashFlow[] = []
-      let orders: Order[] = []
-      if (s) {
-        flows = await flowsFor(s.id)
-        orders = await ordersFor(s.id)
-      }
-      setCurrentShift(s)
+      const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
+      setCurrentShift(shift)
       setCurrentFlows(flows)
-      setLive(s ? aggregate(orders) : null)
-      setCounted((s?.countedByMethod as Record<string, number> | null | undefined) ?? {})
-      setIsStale(false)
-      cacheWrite('rekap:current', { shift: s, flows, orders })
+      setLive(shift ? aggregate(orders) : null)
+      setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
+      setIsStale(stale)
     } catch (e: unknown) {
-      // Offline: rebuild the recap from the last online snapshot.
-      const cached = cacheRead<{ shift: Shift | null; flows: CashFlow[]; orders: Order[] }>('rekap:current')
-      if (cached) {
-        setCurrentShift(cached.shift)
-        setCurrentFlows(cached.flows)
-        setLive(cached.shift ? aggregate(cached.orders) : null)
-        setIsStale(true)
-        setError(null)
-      } else {
-        setError(e instanceof Error ? e.message : 'Gagal memuat rekap')
-      }
+      setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
       setIsLoading(false)
     }
-  }, [flowsFor, ordersFor])
+  }, [])
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const r = await api.request<ShiftListResponse>('GET', '/api/v1/shifts?page=1&limit=500')
-      const data = r.data ?? []
+      const { data, stale } = await loadRecapHistory(api)
       setHistory(data)
-      setIsStale(false)
-      cacheWrite('rekap:history', data)
+      setIsStale(stale)
     } catch (e: unknown) {
-      const cached = cacheRead<Shift[]>('rekap:history')
-      if (cached) {
-        setHistory(cached)
-        setIsStale(true)
-        setError(null)
-      } else {
-        setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift')
-      }
+      setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift lengkap')
     } finally {
       setIsLoading(false)
     }
@@ -237,6 +196,7 @@ function ShiftRecapPanelBody({
   // Switching tabs clears the previous tab's transient view state (selected
   // history shift, detail overlay, status messages) before the new tab loads.
   const changeTab = (next: Tab) => {
+    selectionRequest.current++
     setSelected(null)
     setShowMobileDetail(false)
     setPrintMsg(null)
@@ -251,19 +211,25 @@ function ShiftRecapPanelBody({
   }, [tab, loadRekap, loadHistory])
 
   const selectHistoryShift = async (s: Shift) => {
+    const request = ++selectionRequest.current
     setSelected(s)
     setShowMobileDetail(true)
     setSelectedOrders([])
+    setSelectedFlows([])
+    setSelectedStale(false)
+    setSelectedError(null)
     setLoadingSelected(true)
     try {
-      const o = await ordersFor(s.id)
-      setSelectedOrders(o)
-      cacheWrite(`rekap:orders:${s.id}`, o)
-    } catch {
-      // Offline: show the cached orders for this shift if we have them.
-      setSelectedOrders(cacheRead<Order[]>(`rekap:orders:${s.id}`) ?? [])
+      const { data, stale } = await loadHistoricalRecap(api, s.id)
+      if (request !== selectionRequest.current) return
+      setSelectedOrders(data.orders)
+      setSelectedFlows(data.flows)
+      setSelectedStale(stale)
+    } catch (e: unknown) {
+      if (request !== selectionRequest.current) return
+      setSelectedError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
-      setLoadingSelected(false)
+      if (request === selectionRequest.current) setLoadingSelected(false)
     }
   }
 
@@ -394,7 +360,7 @@ function ShiftRecapPanelBody({
       <div className="flex-1 flex flex-col overflow-hidden sm:border-r border-gray-200 min-w-0 bg-gray-50">
         {isStale && !error && (
           <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 text-center flex-shrink-0">
-            {OFFLINE_NOTICE}
+            {RECAP_STALE_NOTICE}
           </div>
         )}
         {isLoading ? (
@@ -638,7 +604,7 @@ function ShiftRecapPanelBody({
           <button type="button" onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
           <span className="font-bold text-gray-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
         </div>
-        {tab === 'rekapan' ? (
+        {tab === 'rekapan' && (isLoading || error) ? <p className="p-4 text-sm text-gray-500">{isLoading ? 'Memuat data lengkap…' : 'Rekap lengkap belum tersedia.'}</p> : tab === 'rekapan' ? (
           <div className="p-4 space-y-4">
             <div>
               <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
@@ -731,8 +697,8 @@ function ShiftRecapPanelBody({
               })),
               totalRecorded: b.totalSales,
               totalCounted: hasCounted ? countedTotal : null,
-              cashIn: null,
-              cashOut: null,
+              cashIn: selectedFlows.filter((f) => !isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
+              cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
               gross: b.gross,
               refundTotal: b.refundTotal,
               refundCount: b.refundCount,
@@ -752,7 +718,7 @@ function ShiftRecapPanelBody({
                     <p className="font-black text-gray-900">Rekapan - {outletName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
                   </div>
-                  {!loadingSelected && (
+                  {!loadingSelected && !selectedError && (
                     <button type="button" onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
                       className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 transition-all">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
@@ -764,7 +730,8 @@ function ShiftRecapPanelBody({
                   <p className={`text-xs ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
                 )}
 
-                {loadingSelected ? (
+                {selectedStale && <p role="status" className="text-xs text-amber-700">{RECAP_STALE_NOTICE}</p>}
+                {selectedError ? <p role="alert" className="text-sm text-red-600">{selectedError}</p> : loadingSelected ? (
                   <div className="py-4 text-center">
                     <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mx-auto" />
                   </div>
@@ -822,6 +789,10 @@ function ShiftRecapPanelBody({
                       </div>
                     </div>
 
+                    <div>
+                      {sumRow('Kas Masuk', formatRupiah(recapData.cashIn ?? 0))}
+                      {sumRow('Kas Keluar', formatRupiah(recapData.cashOut ?? 0))}
+                    </div>
                     {/* Products + variants sold this shift. */}
                     <div>
                       <p className="text-xs font-black text-gray-900 mb-2">Produk Terjual</p>

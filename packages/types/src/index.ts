@@ -1,3 +1,5 @@
+export { promotionKeysOverlap, promotionKeySetsOverlap, promotionKeyGroupsOverlap, promotionHasKeyOverlap } from './promotionKeys'
+
 /** Variant size stored for a single-unit product (no real variant). Internal sentinel — never shown to a human. */
 export const SINGLE_UNIT_SIZE = 'Satuan'
 

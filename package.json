@@ -8,10 +8,22 @@
     "lint": "eslint .",
     "dev:pos": "pnpm --filter @mandalika/pos dev",
     "dev:backoffice": "pnpm --filter @mandalika/backoffice dev",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "npx react-doctor@latest",
+    "quality:ci": "corepack pnpm install --frozen-lockfile && corepack pnpm quality",
+    "quality": "corepack pnpm test:ci && corepack pnpm typecheck:ci && corepack pnpm build:ci && corepack pnpm gen:check",
+    "test:ci": "corepack pnpm --filter @mandalika/pos test && corepack pnpm --filter @mandalika/backoffice test && corepack pnpm --filter @mandalika/sync test && corepack pnpm --filter @mandalika/printer test",
+    "typecheck:ci": "tsc -p apps/pos/tsconfig.json && tsc -p apps/backoffice/tsconfig.json && tsc -p packages/sync/tsconfig.json && tsc -p packages/printer/tsconfig.json && tsc -p packages/api/tsconfig.json && tsc -p packages/types/tsconfig.json && corepack pnpm typecheck:tests",
+    "typecheck:tests": "tsc -p apps/pos/tsconfig.tests.json && tsc -p apps/backoffice/tsconfig.tests.json && corepack pnpm typecheck:browser",
+    "build:ci": "corepack pnpm --filter @mandalika/pos build && corepack pnpm --filter @mandalika/backoffice build",
+    "gen:check": "node scripts/check-api-schema.mjs",
+    "browser:ci": "node scripts/ci/browser-gate.mjs",
+    "browser:install": "playwright install chromium",
+    "typecheck:browser": "tsc -p tests/browser/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.14",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -19,5 +31,6 @@
     "globals": "^17.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0"
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }

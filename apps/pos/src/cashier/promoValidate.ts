@@ -117,6 +117,8 @@ export interface LinkedPromotionInfo {
   applicableProductIds?: string[] | null
   isBOGO: boolean
   bxgyConfig?: Promotion['bxgyConfig']
+  tieredConfig?: Promotion['tieredConfig']
+  bundleConfig?: Promotion['bundleConfig']
 }
 
 export interface AppliedPromoCode {
@@ -175,6 +177,8 @@ export function decideApplyCode(
           applicableProductIds: promo.applicableProductIds,
           isBOGO: promo.type === 'bogo',
           bxgyConfig: promo.bxgyConfig ?? null,
+          tieredConfig: promo.tieredConfig ?? null,
+          bundleConfig: promo.bundleConfig ?? null,
         },
       },
     }

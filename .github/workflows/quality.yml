@@ -1,0 +1,29 @@
+name: JS/TS Quality
+
+# No path/branch filters: app/package/lockfile/schema/workflow changes all run.
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable repository pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+      - name: Frozen install, tests, source/test types, builds and API drift
+        run: corepack pnpm quality:ci
+      # React Doctor is a separate advisory workflow, not this blocking gate.

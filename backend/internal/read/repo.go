@@ -156,13 +156,13 @@ func (r *Repo) Products(ctx context.Context, sc Scope, page, limit int) ([]api.P
 		return listJSON[api.Product](ctx, r.Pool,
 			`SELECT `+obj+`, count(*) OVER() AS total
 			   FROM products p WHERE true`+sellableWhere(sc)+`
-			   ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
+			   ORDER BY p.created_at DESC, p.id DESC LIMIT $1 OFFSET $2`,
 			limit, off(page, limit))
 	}
 	return listJSON[api.Product](ctx, r.Pool,
 		`SELECT `+obj+`, count(*) OVER() AS total
 		   FROM products p WHERE true`+availabilityWhere(sc, 1)+sellableWhere(sc)+`
-		   ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		   ORDER BY p.created_at DESC, p.id DESC LIMIT $2 OFFSET $3`,
 		sc.OutletID, limit, off(page, limit))
 }
 
@@ -1013,7 +1013,7 @@ func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, 
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s
-	  ORDER BY o.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY o.created_at DESC, o.id DESC LIMIT $%d OFFSET $%d`,
 		orderObj, where, len(args)-1, len(args))
 	return listJSON[api.Order](ctx, r.Pool, sql, args...)
 }
@@ -1047,7 +1047,7 @@ func (r *Repo) Shifts(ctx context.Context, sc Scope, page, limit int) ([]api.Shi
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM shifts s %s
-	  ORDER BY s.opened_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY s.opened_at DESC, s.id DESC LIMIT $%d OFFSET $%d`,
 		shiftObj, where, len(args)-1, len(args))
 	return listJSON[api.Shift](ctx, r.Pool, sql, args...)
 }
@@ -1298,7 +1298,7 @@ func (r *Repo) CashFlows(ctx context.Context, s Scope, shiftID string, page, lim
 	  'description',cf.description,'cashierId',cf.cashier_id,
 	  'cashierName',cf.cashier_name,'createdAt',cf.created_at),
 	  count(*) OVER() AS total FROM cash_flows cf %s
-	  ORDER BY cf.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY cf.created_at DESC, cf.id DESC LIMIT $%d OFFSET $%d`,
 		where, len(args)-1, len(args))
 	return listJSON[api.CashFlow](ctx, r.Pool, sql, args...)
 }

@@ -1,0 +1,59 @@
+name: Mandatory Chromium browser gate
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable repository pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm exec playwright install --with-deps chromium
+      - run: corepack pnpm typecheck:browser
+      - name: Required synthetic Chromium scenarios
+        run: corepack pnpm browser:ci
+      - name: Synthetic failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-${{ github.sha }}
+          path: |
+            artifacts/browser/**/gate.json
+            artifacts/browser/**/scenarios.json
+            artifacts/browser/**/junit.xml
+            artifacts/browser/**/network.jsonl
+            artifacts/browser/**/processes.jsonl
+            artifacts/browser/**/failures/**/trace.zip
+            artifacts/browser/**/failures/**/*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Synthetic completion summary (including successful runs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-summary-${{ github.sha }}
+          path: |
+            artifacts/browser/**/gate.json
+            artifacts/browser/**/scenarios.json
+            artifacts/browser/**/junit.xml
+            artifacts/browser/**/network.jsonl
+            artifacts/browser/**/processes.jsonl
+          if-no-files-found: warn
+          retention-days: 7

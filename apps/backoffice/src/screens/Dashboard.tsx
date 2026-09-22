@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
+import { fetchAllPages } from '@mandalika/api'
 import type { Order, Product, Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -63,16 +64,16 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('7d')
 
   const oq = usePolledQuery<Order[]>(
-    () => api.listOrders({ limit: 500 }).then((r) => r.data),
+    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
     [outletId],
   )
   const pq = usePolledQuery<Product[]>(
-    () => api.listProducts(1, 500).then((r) => r.data),
+    () => fetchAllPages((page, limit) => api.listProducts(page, limit)),
     [outletId],
   )
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [outletId])
 
-  if (oq.loading)
+  if (oq.loading || pq.loading)
     return (
       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -80,6 +81,8 @@ export default function Dashboard() {
         ))}
       </div>
     )
+
+  if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-red-600">Gagal memuat data lengkap. {oq.error || pq.error}</p>
 
   const orders = oq.data ?? []
   const products = pq.data ?? []
@@ -117,6 +120,7 @@ export default function Dashboard() {
         actions={<Tabs value={period} onChange={setPeriod} tabs={PERIOD_TABS} />}
       />
 
+      {(oq.error || pq.error) && <p role="alert" className="text-sm text-red-600">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Penjualan"

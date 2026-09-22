@@ -43,7 +43,7 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   useEffect(() => setPage(1), [dateFrom, dateTo, outletId])
 
   const pq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
-  const prq = usePolledQuery<Product[]>(() => api.listProducts(1, 500).then((r) => r.data), [])
+  const prq = usePolledQuery<Product[]>(() => api.listProducts(1, 500).then((r) => r.data), [outletId])
   const rq = usePolledQuery<Report>(
     () =>
       api.listPromoRewardGrants({

@@ -17,6 +17,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/ota"
+	"github.com/mandalika/pos-backend/internal/promotionkeys"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -541,7 +542,9 @@ func validateBundle(c *BundleConfigInput) error {
 		return fmt.Errorf("bundle maxApplications must be >= 0")
 	}
 	seen := map[string]bool{}
+	groups := make([][]string, 0, len(c.Slots))
 	for _, s := range c.Slots {
+		groups = append(groups, s.ProductKeys)
 		if len(s.ProductKeys) == 0 {
 			return fmt.Errorf("bundle slot requires at least one productKey")
 		}
@@ -554,6 +557,9 @@ func validateBundle(c *BundleConfigInput) error {
 			}
 			seen[k] = true
 		}
+	}
+	if promotionkeys.GroupsOverlap(groups) {
+		return fmt.Errorf("bundle slots must not overlap in product/variant coverage")
 	}
 	return nil
 }
@@ -579,7 +585,7 @@ func validateBXGY(c *BXGYConfigInput) error {
 	}
 	for _, g := range c.GetProductIDs {
 		for _, b := range c.BuyProductIDs {
-			if g == b {
+			if promotionkeys.Overlap(g, b) {
 				return fmt.Errorf("bxgy buy/get sets must not overlap")
 			}
 		}

@@ -7,6 +7,7 @@ import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import type { CashierState, CashierAction } from './state/cashierReducer'
 import { PromoPanel } from './PromoPanel'
+import { promotionPreviewCart } from './promotionFulfillment'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -140,6 +141,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       appliedPromoCodes={state.appliedPromoCodes}
       cart={state.cart}
       bundleFreed={state.bundleFreed}
+      selectionCart={(promo) => promotionPreviewCart(state, promo)}
       promoCodeInput={state.promoCodeInput}
       isValidating={isValidatingCode}
       subtotal={subtotal}

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"math"
 	"sort"
+
+	"github.com/mandalika/pos-backend/internal/promotionkeys"
 )
 
 // Money is whole-rupiah (IDR has no minor unit in this system). The legacy
@@ -78,11 +80,26 @@ type BundleConfig struct {
 	MaxApplications int          `json:"maxApplications"`
 }
 
+func bundleKeysOverlap(c *BundleConfig) bool {
+	if c == nil {
+		return false
+	}
+	groups := make([][]string, 0, len(c.Slots))
+	for _, slot := range c.Slots {
+		groups = append(groups, slot.ProductKeys)
+	}
+	return promotionkeys.GroupsOverlap(groups)
+}
+
+func bxgyKeysOverlap(c *BXGYConfig) bool {
+	return c != nil && promotionkeys.SetsOverlap(c.BuyProductIDs, c.GetProductIDs)
+}
+
 // bundleApplications reports how many complete sets `items` supports, capped by
 // MaxApplications (0 = unlimited). Save-time validation rejects overlapping
 // slots, so per-slot unit counting never double-claims a unit.
 func bundleApplications(c *BundleConfig, items []LineItem) int {
-	if c == nil || len(c.Slots) == 0 {
+	if c == nil || len(c.Slots) == 0 || bundleKeysOverlap(c) {
 		return 0
 	}
 	n := -1
@@ -184,7 +201,7 @@ func bundleSlotIndex(c *BundleConfig, productID, size string) int {
 // units are placed before anchors of equal price so equal-price ties zero the freed
 // unit (customer-favouring, matches the POS-computed selection).
 func bundleFreedNets(cfg *BundleConfig, paid []LineItem, freed []bundleFreedUnit) (nets []float64, ok bool) {
-	if cfg == nil || len(freed) == 0 {
+	if cfg == nil || len(freed) == 0 || bundleKeysOverlap(cfg) {
 		return nil, false
 	}
 
@@ -375,7 +392,7 @@ func bxgyExpand(items []LineItem, keys []string, emptyMatchesAll bool) []float64
 }
 
 func calcBXGY(c *BXGYConfig, items []LineItem) float64 {
-	if c == nil || c.BuyQuantity < 1 || c.GetQuantity < 1 {
+	if c == nil || c.BuyQuantity < 1 || c.GetQuantity < 1 || bxgyKeysOverlap(c) {
 		slog.Warn("buy_x_get_y: invalid config, 0 discount", "config", c)
 		return 0
 	}
@@ -448,7 +465,7 @@ func bxgyBuyUnits(c *BXGYConfig, items []LineItem) int {
 
 // bxgyRewardDue is the number of reward units the cart earns (separate-set only).
 func bxgyRewardDue(c *BXGYConfig, items []LineItem) int {
-	if c == nil || len(c.GetProductIDs) == 0 || c.BuyQuantity < 1 || c.GetQuantity < 1 {
+	if c == nil || len(c.GetProductIDs) == 0 || c.BuyQuantity < 1 || c.GetQuantity < 1 || bxgyKeysOverlap(c) {
 		return 0
 	}
 	nApp := bxgyBuyUnits(c, items) / c.BuyQuantity

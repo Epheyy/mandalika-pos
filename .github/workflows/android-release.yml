@@ -8,11 +8,29 @@ on:
         required: true
         default: "https://mandalika-pos-538849926142.asia-southeast2.run.app"
 
+permissions:
+  contents: read
+
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
+  database:
+    uses: ./.github/workflows/postgres.yml
+
+  backend:
+    uses: ./.github/workflows/backend.yml
+
+  browser:
+    uses: ./.github/workflows/browser.yml
+
   build:
+    needs: [quality, database, backend, browser]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4

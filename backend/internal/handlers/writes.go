@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -931,11 +932,18 @@ type createOrderBody struct {
 }
 
 func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	h.createOrder(w, r, h.caller, h.OrderSvc.CreateOrder)
+}
+
+func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
+	resolveCaller func(*http.Request) (callerID, error),
+	create func(context.Context, service.CreateOrderInput) (string, bool, bool, error),
+) {
 	body, ok := decodeWrite[createOrderBody](w, r)
 	if !ok {
 		return
 	}
-	c, _ := h.caller(r)
+	c, _ := resolveCaller(r)
 	if c.outletID == "" {
 		httpx.Err(w, http.StatusForbidden, "no active outlet")
 		return
@@ -968,7 +976,7 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PointsRedeemed:    body.PointsRedeemed,
 		Notes:             body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
-	id, _, _, err := h.OrderSvc.CreateOrder(r.Context(), in)
+	id, _, _, err := create(r.Context(), in)
 	if err != nil {
 		var rej *service.ErrDiscountRejected
 		if errors.As(err, &rej) {
@@ -1054,13 +1062,20 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		OutletName   string  `json:"outletName"`
-		StartingCash float64 `json:"startingCash"`
+	h.openShift(w, r, h.caller, h.OrderSvc.OpenShift)
+}
+
+func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
+	resolveCaller func(*http.Request) (callerID, error),
+	open func(context.Context, service.OpenShiftInput) (string, error),
+) {
+	body, err := service.DecodeOpenShift(r.Body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
 	}
-	_ = httpx.DecodeLoose(r, &body)
-	c, _ := h.caller(r)
-	id, err := h.OrderSvc.OpenShift(r.Context(), service.OpenShiftInput{
+	c, _ := resolveCaller(r)
+	id, err := open(r.Context(), service.OpenShiftInput{
 		OutletID: c.outletID, OutletName: body.OutletName,
 		CashierID: c.userID, CashierName: c.name, StartingCash: body.StartingCash,
 	})
@@ -1074,13 +1089,20 @@ func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) CloseShift(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		ClosingCash     float64            `json:"closingCash"`
-		CountedByMethod map[string]float64 `json:"countedByMethod"`
+	h.closeShift(w, r, h.caller, h.OrderSvc.CloseShift)
+}
+
+func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
+	resolveCaller func(*http.Request) (callerID, error),
+	close func(context.Context, string, string, float64, map[string]float64) error,
+) {
+	body, err := service.DecodeCloseShift(r.Body, false)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
 	}
-	_ = httpx.DecodeLoose(r, &body)
-	c, _ := h.caller(r)
-	if err := h.OrderSvc.CloseShift(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash, body.CountedByMethod); err != nil {
+	c, _ := resolveCaller(r)
+	if err := close(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash, body.CountedByMethod); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -1258,21 +1280,28 @@ func (h *Handlers) SyncPull(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) SyncBatch(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Items []syncpkg.BatchItem `json:"items"`
-	}
-	if err := httpx.DecodeLoose(r, &body); err != nil {
+	h.syncBatch(w, r, h.caller, h.Sync.ProcessBatch)
+}
+
+// Keep the trusted HTTP mapping testable without a database identity lookup.
+func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
+	resolveCaller func(*http.Request) (callerID, error),
+	process func(context.Context, syncpkg.Caller, []syncpkg.BatchItem) (syncpkg.BatchResult, error),
+) {
+	items, err := decodeBatchEnvelope(r.Body)
+	if err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	c, _ := h.caller(r)
+	c, _ := resolveCaller(r)
 	if c.outletID == "" {
 		httpx.Err(w, http.StatusForbidden, "no active outlet")
 		return
 	}
-	res, err := h.Sync.ProcessBatch(r.Context(), syncpkg.Caller{
+	res, err := process(r.Context(), syncpkg.Caller{
 		OutletID: c.outletID, UserID: c.userID, DisplayName: c.name,
-	}, body.Items)
+		CanRefund: auth.HasPermission(r.Context(), "process_refund"),
+	}, items)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

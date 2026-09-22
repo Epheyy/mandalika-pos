@@ -107,6 +107,11 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 // data) returns the canonical stored order and never double-inserts (plan §5).
 // Returns the order id, whether it was a duplicate, and a stock warning flag.
 func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (orderID string, dup bool, stockWarning bool, err error) {
+	return s.createOrder(ctx, in, s.Pool.Begin)
+}
+
+// The transaction seam keeps command-boundary regression tests isolated.
+func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, begin func(context.Context) (pgx.Tx, error)) (orderID string, dup bool, stockWarning bool, err error) {
 	if len(in.Items) == 0 {
 		return "", false, false, ErrNoItems
 	}
@@ -114,7 +119,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		return "", false, false, ErrNoOutlet
 	}
 
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := begin(ctx)
 	if err != nil {
 		return "", false, false, err
 	}
@@ -131,6 +136,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return "", false, false, fmt.Errorf("idempotency check: %w", err)
 	}
+	// Known receipts retain the existing replay path above. Validate every NEW
+	// command before any business write, irrespective of transport/offline flags.
+	if err := ValidateSaleInput(in); err != nil {
+		return "", false, false, err
+	}
+	// Reward resolution compacts/reprices in place; retain the caller's capture.
+	in.Items = append([]OrderItem(nil), in.Items...)
 
 	// SP-Promo-1: validate the applied discount against its stored rules. Subtotal
 	// (pre-discount) is needed for min_purchase; saleTime (WIB) for date/hour/day
@@ -210,6 +222,16 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		}
 	}
 	rewardGrants = append(rewardGrants, bundleGrants...)
+	if err := validateSaleItems(in.Items, false); err != nil {
+		return "", false, false, err
+	}
+	for _, grant := range rewardGrants {
+		for _, value := range []float64{grant.FullPrice, grant.RewardPrice, grant.RewardValue} {
+			if err := saleMoney("rewardGrant", value); err != nil {
+				return "", false, false, err
+			}
+		}
+	}
 
 	items := make([]LineItem, len(in.Items))
 	for i, it := range in.Items {
@@ -223,6 +245,14 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
 		HasCustomer: in.CustomerID != "",
 	})
+	if err := validateSalePricing(res); err != nil {
+		return "", false, false, err
+	}
+	if loyEnabled && in.CustomerID != "" {
+		if err := salePoints("basePoints", math.Floor(res.Total/1000)*pointsPerK); err != nil {
+			return "", false, false, err
+		}
+	}
 
 	// Loyalty redemption (P1-E): authoritative rupiah value from
 	// loyalty_settings.redemption_rate, clamped to the customer's available
@@ -259,12 +289,19 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			pointsRedeemed = balanceBefore
 		}
 		redeemAmount = float64(pointsRedeemed) * redemptionRate
+		// This intermediate is capped to total below; preserve the existing cap.
+		if math.IsNaN(redeemAmount) || math.IsInf(redeemAmount, 0) || redeemAmount < 0 {
+			return "", false, false, saleInputError("redemptionAmount", "tidak valid")
+		}
 		if redeemAmount > res.Total {
 			redeemAmount = res.Total
 			pointsRedeemed = int(res.Total / redemptionRate)
 		}
 	}
 	finalTotal := res.Total - redeemAmount
+	if err := saleMoney("finalTotal", finalTotal); err != nil {
+		return "", false, false, err
+	}
 
 	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
@@ -293,6 +330,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 			SaleDate: saleTime.In(wib), Customer: evalCust,
 		})
 		finalEarned = outcome.FinalEarned(base)
+	}
+	if err := salePoints("finalEarned", math.Round(float64(base)*outcome.BestMultiplier)+float64(outcome.FlatBonus)); err != nil {
+		return "", false, false, err
+	}
+	if hasLoyaltyCustomer {
+		if err := salePoints("balanceAfterEarn", float64(balanceBefore)+float64(finalEarned)); err != nil {
+			return "", false, false, err
+		}
+		if err := salePoints("balanceAfterRedemption", float64(balanceBefore)+float64(finalEarned)-float64(pointsRedeemed)); err != nil {
+			return "", false, false, err
+		}
 	}
 
 	// Per-outlet stock decrement under row lock (FOR UPDATE). Stock lives in
@@ -785,7 +833,14 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 		}
 		spec.Bundle = cfg
 	}
-	return spec, row.Combinable, codeOnly, ValidatePromo(row, ec), true, nil
+	vio = ValidatePromo(row, ec)
+	if spec.Kind == DiscountBundle && bundleKeysOverlap(spec.Bundle) {
+		vio = append(vio, ViolationBundleInvalid)
+	}
+	if spec.Kind == DiscountBuyXGetY && bxgyKeysOverlap(spec.BXGY) {
+		vio = append(vio, ViolationRewardInvalid)
+	}
+	return spec, row.Combinable, codeOnly, vio, true, nil
 }
 
 // resolvePromos turns the applied promotion ids + discount codes into authoritative
@@ -1147,6 +1202,16 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 				kept = append(kept, it)
 				continue
 			}
+		}
+		if bxgyKeysOverlap(cfg) {
+			if !in.Offline {
+				return nil, "", &ErrDiscountRejected{Violations: []PromoViolation{ViolationRewardInvalid}}
+			}
+			// Already captured physical units: retain original price/quantity and
+			// flag review. Do not fabricate a validated grant or drop the line.
+			kept = append(kept, it)
+			warns = append(warns, ViolationRewardInvalid)
+			continue
 		}
 		cat, err := loadRewardCatalog(ctx, tx, it.ProductID, it.VariantSize)
 		if err != nil {

@@ -15,6 +15,7 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Input, Select, Textarea, Field } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { promotionKeyError } from './promotionKeyValidation'
 import { ProductVariantPicker } from '../customers/ProductVariantPicker'
 
 const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
@@ -182,6 +183,7 @@ export function PromoFormModal({
   const tiers: TierRow[] = (form.tieredConfig?.tiers ?? []) as TierRow[]
   const slots: BundleSlotRow[] = (form.bundleConfig?.slots ?? []) as BundleSlotRow[]
 
+  const keyError = promotionKeyError(form)
   const tieredError = (() => {
     if (form.type !== 'tiered') return null
     if (tiers.length === 0) return 'Harus ada minimal 1 tingkat.'
@@ -248,7 +250,7 @@ export function PromoFormModal({
   const STEPS = ['Umum', 'Jenis Promosi', 'Lokasi & Ketentuan']
   // Per-step error flags so the sidebar can flag whichever step holds a
   // validation error — reuses the existing validators, no new ones.
-  const stepHasError = [!!hoursError, !!tieredError || !!bundleError || !!maxAppError, false]
+  const stepHasError = [!!hoursError, !!keyError || !!tieredError || !!bundleError || !!maxAppError, false]
 
   return (
     <Modal
@@ -265,7 +267,7 @@ export function PromoFormModal({
           {step < 2 ? (
             <Button className="flex-1" onClick={() => setStep(step + 1)}>Lanjutkan</Button>
           ) : (
-            <Button className="flex-1" loading={busy} disabled={!!tieredError || !!bundleError || !!hoursError || !!maxAppError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+            <Button className="flex-1" loading={busy} disabled={!!keyError || !!tieredError || !!bundleError || !!hoursError || !!maxAppError} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           )}
         </>
       }
@@ -372,6 +374,7 @@ export function PromoFormModal({
                 <Button variant="secondary" onClick={() => setBxgy({ getDiscountKind: 'percentage', getDiscountValue: 100 })}>Gratis</Button>
               </div>
             </div>
+            {keyError && <p className="text-xs text-red-600 font-semibold" role="alert">{keyError}</p>}
             <Field label="Produk Beli (kosong = semua produk)">
               <ProductVariantPicker products={products} value={form.bxgyConfig?.buyProductIds ?? []}
                 onChange={(next) => setBxgy({ buyProductIds: next })} />
@@ -462,6 +465,7 @@ export function PromoFormModal({
                 />
               </div>
             ))}
+            {keyError && <p className="text-xs text-red-600 font-semibold" role="alert">{keyError}</p>}
             {bundleError && <p className="text-xs text-red-600 font-semibold">{bundleError}</p>}
             <Button
               variant="secondary"

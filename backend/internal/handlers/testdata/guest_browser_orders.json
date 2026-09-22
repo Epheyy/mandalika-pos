@@ -1,0 +1,143 @@
+[
+  {
+    "name": "guest-cash",
+    "item": {
+      "idempotencyKey": "f2531387-dda1-4308-8d70-f43dd6572974:faf698f5-e9b0-46cb-8b65-a919e8787330",
+      "type": "order",
+      "payload": {
+        "orderNumber": "SYN-O0006",
+        "items": [
+          {
+            "productId": "00000000-0000-4000-8300-000000000001",
+            "productName": "Synthetic Scent",
+            "variantSize": "M",
+            "price": 100000,
+            "quantity": 1,
+            "subtotal": 100000
+          }
+        ],
+        "paymentMethod": "cash",
+        "amountPaid": 100000,
+        "customerId": null,
+        "customerName": null,
+        "salesmanId": null,
+        "salesmanName": null,
+        "discountType": null,
+        "discountValue": null,
+        "surchargeValue": null,
+        "surchargeType": null,
+        "promotionIds": [],
+        "discountCodes": [],
+        "promotionId": null,
+        "discountCode": null,
+        "discountLabel": null,
+        "discountBreakdown": null,
+        "pointsRedeemed": null,
+        "notes": null,
+        "shiftId": "00000000-0000-4000-8300-000000000080",
+        "orderUuid": "faf698f5-e9b0-46cb-8b65-a919e8787330",
+        "deviceId": "f2531387-dda1-4308-8d70-f43dd6572974",
+        "clientCreatedAt": "2026-09-21T03:22:40.301Z"
+      },
+      "seq": 6,
+      "status": "failed",
+      "clientCreatedAt": "2026-09-21T03:22:40.301Z",
+      "lastError": "Synthetic retain-only transport",
+      "attempts": 1
+    }
+  },
+  {
+    "name": "guest-qris",
+    "item": {
+      "idempotencyKey": "f2531387-dda1-4308-8d70-f43dd6572974:5e0b6d3c-0499-4174-b7ee-9ea69b863c40",
+      "type": "order",
+      "payload": {
+        "orderNumber": "SYN-O0007",
+        "items": [
+          {
+            "productId": "00000000-0000-4000-8300-000000000001",
+            "productName": "Synthetic Scent",
+            "variantSize": "M",
+            "price": 100000,
+            "quantity": 1,
+            "subtotal": 100000
+          }
+        ],
+        "paymentMethod": "qris",
+        "amountPaid": 100000,
+        "customerId": null,
+        "customerName": null,
+        "salesmanId": null,
+        "salesmanName": null,
+        "discountType": null,
+        "discountValue": null,
+        "surchargeValue": null,
+        "surchargeType": null,
+        "promotionIds": [],
+        "discountCodes": [],
+        "promotionId": null,
+        "discountCode": null,
+        "discountLabel": null,
+        "discountBreakdown": null,
+        "pointsRedeemed": null,
+        "notes": null,
+        "shiftId": "00000000-0000-4000-8300-000000000080",
+        "orderUuid": "5e0b6d3c-0499-4174-b7ee-9ea69b863c40",
+        "deviceId": "f2531387-dda1-4308-8d70-f43dd6572974",
+        "clientCreatedAt": "2026-09-21T03:22:41.130Z"
+      },
+      "seq": 7,
+      "status": "failed",
+      "clientCreatedAt": "2026-09-21T03:22:41.130Z",
+      "lastError": "Synthetic retain-only transport",
+      "attempts": 1
+    }
+  },
+  {
+    "name": "registered-preserved",
+    "item": {
+      "idempotencyKey": "f2531387-dda1-4308-8d70-f43dd6572974:574c701a-9d25-4687-a7aa-aa302eee8680",
+      "type": "order",
+      "payload": {
+        "orderNumber": "SYN-O0014",
+        "items": [
+          {
+            "productId": "00000000-0000-4000-8300-000000000001",
+            "productName": "Synthetic Scent",
+            "variantSize": "M",
+            "price": 100000,
+            "quantity": 1,
+            "subtotal": 100000
+          }
+        ],
+        "paymentMethod": "qris",
+        "amountPaid": 100000,
+        "customerId": "00000000-0000-4000-8300-000000000081",
+        "customerName": "Synthetic Customer",
+        "salesmanId": null,
+        "salesmanName": null,
+        "discountType": null,
+        "discountValue": null,
+        "surchargeValue": null,
+        "surchargeType": null,
+        "promotionIds": [],
+        "discountCodes": [],
+        "promotionId": null,
+        "discountCode": null,
+        "discountLabel": null,
+        "discountBreakdown": null,
+        "pointsRedeemed": null,
+        "notes": null,
+        "shiftId": "00000000-0000-4000-8300-000000000080",
+        "orderUuid": "574c701a-9d25-4687-a7aa-aa302eee8680",
+        "deviceId": "f2531387-dda1-4308-8d70-f43dd6572974",
+        "clientCreatedAt": "2026-09-21T03:22:48.967Z"
+      },
+      "seq": 14,
+      "status": "failed",
+      "clientCreatedAt": "2026-09-21T03:22:48.967Z",
+      "lastError": "Synthetic retain-only transport",
+      "attempts": 1
+    }
+  }
+]

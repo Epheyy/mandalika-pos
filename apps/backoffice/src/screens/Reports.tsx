@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { fetchAllPages } from '@mandalika/api'
 import type { Order, Shift, Outlet } from '@mandalika/api'
 import {
   format,
@@ -64,8 +65,8 @@ export default function Reports() {
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
 
-  const oq = usePolledQuery<Order[]>(() => api.listOrders({ limit: 500 }).then((r) => r.data), [outletId])
-  const sq = usePolledQuery<Shift[]>(() => api.listShifts({ limit: 500 }).then((r) => r.data), [outletId])
+  const oq = usePolledQuery<Order[]>(() => fetchAllPages((page, limit) => api.listOrders({ page, limit })), [outletId])
+  const sq = usePolledQuery<Shift[]>(() => fetchAllPages((page, limit) => api.listShifts({ page, limit })), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const orders = oq.data ?? []
   const shifts = sq.data ?? []
@@ -97,7 +98,7 @@ export default function Reports() {
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   const exportTx = () =>
-    exportToCSV(
+    !oq.loading && !oq.error && oq.data && exportToCSV(
       fOrders.map((o) => ({
         'No. Order': o.orderNumber,
         Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
@@ -125,7 +126,7 @@ export default function Reports() {
     )
 
   const exportSh = () =>
-    exportToCSV(
+    !sq.loading && !sq.error && sq.data && exportToCSV(
       fShifts.map((s) => ({
         Kasir: s.cashierName,
         Outlet: outletName(s.outletId),
@@ -163,6 +164,12 @@ export default function Reports() {
         }
       />
 
+      {((tab === 'export' && oq.error) || (tab === 'shifts' && sq.error)) && (
+        <p role="alert" className="text-sm text-red-600">
+          Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {tab === 'export' ? oq.error : sq.error}
+        </p>
+      )}
+      {((tab === 'export' && oq.loading) || (tab === 'shifts' && sq.loading)) && <p role="status">Memuat data lengkap…</p>}
       {tab === 'orders' && <OrdersPanel />}
 
       {tab !== 'orders' && (
@@ -211,6 +218,7 @@ export default function Reports() {
           <Button
             variant="secondary"
             onClick={tab === 'export' ? exportTx : exportSh}
+            disabled={tab === 'export' ? oq.loading || !!oq.error || !oq.data : sq.loading || !!sq.error || !sq.data}
             icon={<Download className="w-4 h-4" />}
           >
             Export CSV
@@ -223,7 +231,7 @@ export default function Reports() {
 
       {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
-      {tab === 'export' && (
+      {tab === 'export' && oq.data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -307,7 +315,7 @@ export default function Reports() {
         </>
       )}
 
-      {tab === 'shifts' && (
+      {tab === 'shifts' && sq.data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[

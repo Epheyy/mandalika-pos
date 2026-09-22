@@ -29,21 +29,21 @@ node_modules/
 # Build output
 dist/
 
-# Environment variables (NEVER commit — JWT/DB/Cloudinary secrets)
+# Environment variables (NEVER commit â€” JWT/DB/Cloudinary secrets)
 .env
 .env.local
 .env.*.local
 .env.production
 
-# Android release signing (NEVER commit — leak/loss is unrecoverable)
+# Android release signing (NEVER commit â€” leak/loss is unrecoverable)
 *.jks
 *.keystore
 keystore.properties
 
-# Local DB backup artifacts (contain customer data — PII)
+# Local DB backup artifacts (contain customer data â€” PII)
 backups/
 
-# Firestore cutover artifacts (Phase F — contain PII, delete after cutover)
+# Firestore cutover artifacts (Phase F â€” contain PII, delete after cutover)
 export.json
 dump-firestore.mjs
 
@@ -64,3 +64,13 @@ Thumbs.db
 
 # Playwright MCP local artifacts
 .playwright-mcp/
+
+# Synthetic Playwright CI artifacts (never browser binaries/profiles)
+artifacts/browser/
+
+# A34d: local secrets, review relay and fixture artifacts are never snapshot inputs
+.env*
+SESSION_HANDOFF.md
+review-inbox/
+artifacts/
+**/__pycache__/

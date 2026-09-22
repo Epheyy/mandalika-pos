@@ -38,14 +38,18 @@ import { SyncStatus } from '../components/SyncStatus'
 import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
+import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
+import { buildPromotionMetadata } from './promotionMetadata'
 import { applyPendingStock, stockFor } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
-import { calcPromoDiscount, linkedPromoShape, bxgyRewardDue, bxgyRewardOptions, bundleApplications, keyMatchesLine, type BXGYRewardOption } from './pricing'
+import { calcPromoDiscount, bxgyRewardDue } from './pricing'
+import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
 import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
 import { BundleSlotPicker } from './BundleSlotPicker'
-import { computeBundleFreed, shouldRemoveBundle, type BundleAssignment } from './bundle'
+import type { BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
+import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
 import { track } from '../lib/activityLog'
 import logoGold from '../assets/logo-gold.png'
 
@@ -156,8 +160,6 @@ export default function CashierScreen() {
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
   const [shiftPrompt, setShiftPrompt] = useState(false)
-  // Raised when checkout is attempted with no customer (customer is required).
-  const [customerRequired, setCustomerRequired] = useState(false)
   const printer = usePrinter()
   const lastReceipt = useRef<ReceiptData | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
@@ -240,22 +242,8 @@ export default function CashierScreen() {
   >([])
   const [rewardsLoading, setRewardsLoading] = useState(false)
 
-  // SP-Promo-3b reward fulfillment: separate-set buy_x_get_y reward picker.
-  // Holds the promo + resolved options + reward units due while the cashier
-  // chooses which variant(s) to take.
-  const [bxgyReward, setBxgyReward] = useState<{
-    promo: components['schemas']['Promotion']
-    options: BXGYRewardOption[]
-    due: number
-  } | null>(null)
-
-  // SP-Promo-3b-bundle: slot picker for a bundle with AMBIGUOUS slots (more
-  // eligible cart units than a slot needs). Holds the promo + its config while
-  // the cashier chooses which units fill each ambiguous slot.
-  const [bundlePicker, setBundlePicker] = useState<{
-    promo: components['schemas']['Promotion']
-    cfg: NonNullable<components['schemas']['Promotion']['bundleConfig']>
-  } | null>(null)
+  // Pending picker context has no effect on the sale until confirmed.
+  const [pendingFulfillment, setPendingFulfillment] = useState<(Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: components['schemas']['Product'][] }) | null>(null)
 
   useEffect(() => {
     if (
@@ -368,14 +356,7 @@ export default function CashierScreen() {
     // Non-blocking sync: a pending backoffice update never blocks a sale —
     // the order queues and flushes; the SyncStatus chip nudges the cashier.
     if (!ensureShift()) return
-    if (!state.selectedCustomer) {
-      // Customer is mandatory — surface the picker instead of checkout.
-      setCustomerRequired(true)
-      setIsAddingCustomer(false)
-      dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' })
-      return
-    }
-    setCustomerRequired(false)
+    if (state.cart.length === 0) return
     dispatch({ type: 'OPEN_CHECKOUT', defaultMethod })
   }
 
@@ -394,6 +375,7 @@ export default function CashierScreen() {
     product: { id: string; name: string },
     variant: { size: string; price: number },
   ) => {
+    if (!state.selectedCustomer || !loyalty.enabled || !offlineData.isOnline) return
     dispatch({
       type: 'CART_ADD_REWARD',
       item: {
@@ -412,202 +394,38 @@ export default function CashierScreen() {
   const handleClearReward = (conditionId: string) =>
     dispatch({ type: 'CART_REMOVE_REWARD', rewardConditionId: conditionId })
 
-  // SP-Promo-3b: selecting a promotion. For SEPARATE-SET buy_x_get_y the saving
-  // is a reward giveaway, not an in-place discount — applying must resolve which
-  // reward variant(s) the paid cart earns. One option + exactly one unit due →
-  // auto-add; otherwise open the picker. Toggling OFF an already-applied promo
-  // (or any non-separate-set promo) falls through to the plain reducer toggle,
-  // which the reactive-removal effect cleans reward lines for.
-  const handleSelectPromotion = (
-    promo: components['schemas']['Promotion'],
-  ) => {
-    // SP-Promo-3b-bundle: a bundle MOVES paid units into reward lines. Toggling
-    // an already-applied bundle off falls through to the plain reducer toggle
-    // (which restores). Applying: if any slot has more eligible units than it
-    // needs, the cashier picks which fill it (free choice) → open the picker;
-    // otherwise the consumed set is unambiguous → compute + apply directly.
-    if (promo.type === 'bundle') {
-      const bundleAlreadyApplied = state.appliedPromotions.some((p) => p.id === promo.id)
-      if (bundleAlreadyApplied) {
-        dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
-        return
-      }
-      const bcfg = promo.bundleConfig
-      if (!bcfg) return
-      const paidLines = state.cart.filter((c) => !c.isReward)
-      const nApp = bundleApplications(bcfg, paidLines)
-      if (nApp < 1) return // gate should have blocked this; defensive no-op
-      const ambiguous = bcfg.slots.some((slot) => {
-        const need = nApp * slot.quantity
-        const units = paidLines.reduce(
-          (n, it) =>
-            keyMatchesLine(slot.productKeys, it.productId, it.variantSize)
-              ? n + it.quantity
-              : n,
-          0,
-        )
-        return units > need
-      })
-      if (ambiguous) {
-        setBundlePicker({ promo, cfg: bcfg })
-        return
-      }
-      const freed = computeBundleFreed(bcfg, paidLines)
-      if (!freed) return
-      dispatch({ type: 'APPLY_BUNDLE', promotion: promo, freed, applications: nApp })
-      return
-    }
-    const cfg = promo.bxgyConfig
-    const isSeparateSet =
-      promo.type === 'buy_x_get_y' && (cfg?.getProductIds ?? []).length > 0
-    const isApplied = state.appliedPromotions.some((p) => p.id === promo.id)
-    if (!isSeparateSet || isApplied) {
-      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
-      return
-    }
-    const paidLines = state.cart.filter((c) => !c.isReward)
-    const due = bxgyRewardDue(cfg, paidLines)
-    if (due < 1) return // gate should have blocked this; defensive no-op
-    const options = bxgyRewardOptions(cfg, displayProducts)
-    if (options.length === 1 && due === 1) {
-      const o = options[0]
-      dispatch({
-        type: 'CART_ADD_REWARD',
-        item: {
-          productId: o.productId,
-          productName: o.productName,
-          variantSize: o.variantSize,
-          price: o.net,
-          quantity: 1,
-          subtotal: o.net,
-          isReward: true,
-          rewardPromotionId: promo.id,
-        },
-      })
-      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
-      return
-    }
-    setBxgyReward({ promo, options, due })
+  // Direct and linked selections share one planning/commit path. The reducer
+  // repeats planning against current state so picker confirmation is atomic.
+  const applySelection = (owner: PromotionOwner) => {
+    const plan = planPromotionFulfillment(state, owner, displayProducts)
+    if (plan.kind === 'toggle') dispatch({ type: 'APPLY_PROMOTION', promotion: plan.promotion })
+    else if (plan.kind === 'simple') {
+      if (owner.kind === 'direct') dispatch({ type: 'APPLY_PROMOTION', promotion: owner.promotion })
+      else dispatch({ type: 'APPLY_PROMO_CODE', code: owner.code, combinable: !!owner.code.combinable })
+    } else if (plan.kind === 'ready') dispatch({ type: 'APPLY_FULFILLMENT', owner, products: displayProducts })
+    else if (plan.kind === 'bxgy-picker' || plan.kind === 'bundle-picker') {
+      setPendingFulfillment({ ...plan, products: displayProducts })
+    } else if (owner.kind === 'code') showToast('Syarat promo belum terpenuhi')
   }
 
-  // Confirm from the reward picker: aggregate picks by (productId, variantSize) so
-  // that repeated selections of the same variant become a single qty-N line rather
-  // than N qty-1 lines. First clear any existing reward lines for this promo so
-  // re-confirming replaces rather than accumulates, then dispatch the aggregated
-  // lines, then mark the promo applied.
+  const handleSelectPromotion = (promotion: components['schemas']['Promotion']) => applySelection({ kind: 'direct', promotion })
+
   const handleBxgyRewardConfirm = (picks: BxgyRewardPick[]) => {
-    if (!bxgyReward) return
-    const promoId = bxgyReward.promo.id
-    // Remove stale reward lines for this promo before adding the fresh set.
-    dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promoId })
-    // Aggregate picks: same (productId, variantSize) → qty-N line.
-    const agg = new Map<string, { pick: BxgyRewardPick; count: number }>()
-    for (const p of picks) {
-      const key = `${p.productId}|${p.variantSize}`
-      const entry = agg.get(key)
-      if (entry) {
-        entry.count += 1
-      } else {
-        agg.set(key, { pick: p, count: 1 })
-      }
-    }
-    for (const { pick: p, count } of agg.values()) {
-      dispatch({
-        type: 'CART_ADD_REWARD',
-        item: {
-          productId: p.productId,
-          productName: p.productName,
-          variantSize: p.variantSize,
-          price: p.net,
-          quantity: count,
-          subtotal: p.net * count,
-          isReward: true,
-          rewardPromotionId: promoId,
-        },
-      })
-    }
-    dispatch({ type: 'APPLY_PROMOTION', promotion: bxgyReward.promo })
-    setBxgyReward(null)
+    if (pendingFulfillment?.kind !== 'bxgy-picker') return
+    dispatch({ type: 'APPLY_FULFILLMENT', owner: pendingFulfillment.owner, products: pendingFulfillment.products, choice: { kind: 'bxgy', picks } })
+    setPendingFulfillment(null)
   }
 
-  // SP-Promo-3b reactive removal: if the paid cart drops below the buy criteria
-  // for an applied separate-set buy_x_get_y promo (items removed after applying),
-  // strip its reward lines. When nothing is due any more, drop the promo too.
-  // Compares UNITS (sum of quantities) not line count so qty-N lines are handled
-  // correctly. Keyed on the cart so it re-runs whenever paid lines change.
-  useEffect(() => {
-    const paidLines = state.cart.filter((c) => !c.isReward)
-    for (const promo of state.appliedPromotions) {
-      const cfg = promo.bxgyConfig
-      if (promo.type !== 'buy_x_get_y' || (cfg?.getProductIds ?? []).length === 0)
-        continue
-      const due = bxgyRewardDue(cfg, paidLines)
-      const rewardUnits = state.cart
-        .filter((c) => c.isReward && c.rewardPromotionId === promo.id)
-        .reduce((sum, c) => sum + c.quantity, 0)
-      if (due < rewardUnits) {
-        dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promo.id })
-        if (due === 0) dispatch({ type: 'REMOVE_PROMOTION', id: promo.id })
-      }
-    }
-  }, [state.cart, state.appliedPromotions])
-
-  // Confirm from the bundle slot picker: compute the freed set honoring the
-  // cashier's per-slot choice, then apply it. Empty/invalid → no-op close.
   const handleBundlePickerConfirm = (assignment: BundleAssignment) => {
-    if (!bundlePicker) return
-    const paidLines = state.cart.filter((c) => !c.isReward)
-    const freed = computeBundleFreed(bundlePicker.cfg, paidLines, assignment)
-    if (freed) {
-      // nApp is assignment-independent (counts units per slot), so recompute it
-      // from the pre-apply paid lines to record the applied application count.
-      const nApp = bundleApplications(bundlePicker.cfg, paidLines)
-      dispatch({ type: 'APPLY_BUNDLE', promotion: bundlePicker.promo, freed, applications: nApp })
-    }
-    setBundlePicker(null)
+    if (pendingFulfillment?.kind !== 'bundle-picker') return
+    dispatch({ type: 'APPLY_FULFILLMENT', owner: pendingFulfillment.owner, products: pendingFulfillment.products, choice: { kind: 'bundle', assignment } })
+    setPendingFulfillment(null)
   }
 
-  // SP-Promo-3b-bundle reactive removal: a bundle MOVED paid units into reward
-  // lines. Reconstruct the owned set = current paid lines + this bundle's freed
-  // units restored at full price, then key the decision on the APPLIED nApp:
-  // remove iff the currently-owned applications drop BELOW the count the bundle
-  // was applied at (shouldRemoveBundle).
-  //
-  // Why nApp and not applicability(null) or freed-COUNT:
-  //  - Freed count reflects the cashier's per-slot free-choice (a pricier eligible
-  //    unit may be freed while a cheaper one stays paid); a cheapest-first recompute
-  //    would wrongly report a shrink. nApp is assignment-independent → safe.
-  //  - Plain participant edits (remove item / set qty on a unit IN the freed set)
-  //    are already handled by the reducer's evictBundlesForKey. But reducing an
-  //    ANCHOR slot's paid qty in a multi-application combo (nApp 2→1) keeps the
-  //    bundle applicable (non-null), so the old null-only signal KEPT an
-  //    over-applied cart that the server then 422-rejects; the anchor is not in the
-  //    freed set so evictBundlesForKey also misses it. Comparing owned nApp against
-  //    the applied nApp catches exactly this. For an unchanged (incl. pricier
-  //    free-choice) cart, owned nApp == applied nApp → no dispatch → no effect loop.
+  // Whole-owner cleanup: a removed physical effect must not leave a used code.
   useEffect(() => {
-    for (const promo of state.appliedPromotions) {
-      if (promo.type !== 'bundle') continue
-      const cfg = promo.bundleConfig
-      const applied = state.bundleFreed[promo.id]
-      const appliedNApp = state.bundleApplications[promo.id]
-      if (!cfg || !applied || appliedNApp == null) continue
-      const owned = [
-        ...state.cart.filter((c) => !c.isReward),
-        ...applied.map((f) => ({
-          productId: f.productId,
-          productName: f.productName,
-          variantSize: f.variantSize,
-          price: f.fullPrice,
-          quantity: f.quantity,
-          subtotal: f.fullPrice * f.quantity,
-        })),
-      ]
-      if (shouldRemoveBundle(cfg, owned, appliedNApp)) {
-        dispatch({ type: 'REMOVE_BUNDLE', promotionId: promo.id, freed: applied })
-      }
-    }
-  }, [state.cart, state.appliedPromotions, state.bundleFreed, state.bundleApplications])
+    for (const id of invalidPhysicalPromotionIds(state)) dispatch({ type: 'REMOVE_PROMOTION', id })
+  }, [state.cart, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.bundleApplications])
 
   const handleAddCustomer = () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
@@ -642,7 +460,6 @@ export default function CashierScreen() {
       setLocalCustomers((prev) => [created, ...prev])
       dispatch({ type: 'SET_CUSTOMER', customer: created })
       setIsAddingCustomer(false)
-      setCustomerRequired(false)
       setNewCustomerForm({ name: '', phone: '', email: '' })
     } finally {
       setIsSavingCustomer(false)
@@ -685,7 +502,12 @@ export default function CashierScreen() {
         return
       }
       setPromoCodeError(null)
-      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: decision.code.combinable ?? false })
+      if (isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, decision.code)) {
+        showToast('Promo sudah aktif')
+        dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: !!decision.code.combinable })
+        return
+      }
+      applySelection({ kind: 'code', code: decision.code })
     } finally {
       setIsValidatingCode(false)
     }
@@ -693,6 +515,19 @@ export default function CashierScreen() {
 
   const handleConfirmPayment = () => {
     if (state.isProcessing) return
+    // Re-confirm a clean total if a stale customer benefit survives a UI transition.
+    if (!state.selectedCustomer && (state.pointsToRedeem > 0 || state.cart.some(c => c.isReward && c.rewardConditionId))) {
+      dispatch({ type: 'SET_CUSTOMER', customer: null })
+      showToast('Manfaat loyalti dibatalkan: pilih pelanggan terlebih dahulu')
+      return
+    }
+    const invalidPhysical = invalidPhysicalPromotionIds(state)
+    if (invalidPhysical.length) {
+      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id })
+      showToast('Promo dibatalkan: syarat barang berubah')
+      return
+    }
+    const { appliedPromotions, appliedPromoCodes } = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
     // Re-guard: a promo/code valid when picked can lapse while the cart sits open
     // (hour/day boundary) or fall below min_purchase (items removed). Block + clear
     // the offending discount so the cashier re-confirms a clean total. This keeps
@@ -704,7 +539,7 @@ export default function CashierScreen() {
       hasCustomer: state.selectedCustomer !== null,
       customerId: state.selectedCustomer?.id,
     }
-    for (const p of state.appliedPromotions) {
+    for (const p of appliedPromotions) {
       const vs = validatePromo(p, guardCtx)
       if (vs.length > 0) {
         showToast(`Promo dibatalkan: ${violationMessage(vs[0])}`)
@@ -745,7 +580,7 @@ export default function CashierScreen() {
       if (!p.isActive) continue
       if (!activePromoById.has(p.id)) activePromoById.set(p.id, p)
     }
-    for (const c of state.appliedPromoCodes) {
+    for (const c of appliedPromoCodes) {
       const dc = activeCodeByName.get(c.code.toUpperCase())
       if (!dc) {
         showToast('Kode diskon dibatalkan: Kode tidak ditemukan')
@@ -755,7 +590,7 @@ export default function CashierScreen() {
       const vs = validateCode(dc, guardCtx)
       if (vs.length > 0) {
         showToast(`Kode diskon dibatalkan: ${violationMessage(vs[0])}`)
-        dispatch({ type: 'CLEAR_PROMOTIONS' })
+        dispatch({ type: 'REMOVE_PROMO_CODE', code: c.code })
         return
       }
       // SP-Promo-3c: for linked codes, also re-validate the linked promotion
@@ -776,9 +611,9 @@ export default function CashierScreen() {
       }
     }
     if (
-      state.appliedPromotions.length + state.appliedPromoCodes.length > 1 &&
-      (state.appliedPromotions.some((p) => !p.combinable) ||
-        state.appliedPromoCodes.some((c) => !c.combinable))
+      appliedPromotions.length + appliedPromoCodes.length > 1 &&
+      (appliedPromotions.some((p) => !p.combinable) ||
+        appliedPromoCodes.some((c) => !c.combinable))
     ) {
       showToast('Promo/Kode diskon dibatalkan: tidak bisa digabung')
       dispatch({ type: 'CLEAR_PROMOTIONS' })
@@ -788,30 +623,7 @@ export default function CashierScreen() {
     try {
       // Client-authoritative number: receipt == history, generated on-device.
       const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId)
-      // Itemize each applied discount (manual + promo can stack) with its own
-      // nominal, so history/exports show each line instead of one collapsed total.
-      const discountBreakdown = [
-        derived.manualDiscountAmount > 0 && {
-          label: 'Diskon Manual',
-          kind: state.appliedDiscountType,
-          value: state.discountRunning,
-          amount: derived.manualDiscountAmount,
-        },
-        ...state.appliedPromotions.map((p) => ({
-          label: p.name, kind: p.type, value: p.value,
-          amount: calcPromoDiscount(p, state.cart, derived.subtotal),
-        })),
-        ...state.appliedPromoCodes.map((c) => ({
-          label: c.code,
-          kind: c.promotion ? c.promotion.type : c.type,
-          value: c.promotion ? c.promotion.value : c.value,
-          amount: c.promotion
-            ? calcPromoDiscount(linkedPromoShape(c), state.cart, derived.subtotal)
-            : c.type === 'percentage'
-              ? Math.round(derived.subtotal * (c.value / 100))
-              : Math.min(c.value, derived.subtotal),
-        })),
-      ].filter(Boolean)
+      const promotionMetadata = buildPromotionMetadata(state, derived)
       const { orderUuid } = engine.enqueue('order', {
         orderNumber: orderNo,
         items: state.cart,
@@ -825,18 +637,7 @@ export default function CashierScreen() {
         discountValue: state.discountRunning > 0 ? state.discountRunning : null,
         surchargeValue: state.surchargeRunning > 0 ? state.surchargeRunning : null,
         surchargeType: state.surchargeRunning > 0 ? state.appliedSurchargeType : null,
-        // SP-Promo-3a: send plural arrays; keep singular = first for back-compat
-        promotionIds: state.appliedPromotions.map((p) => p.id),
-        discountCodes: state.appliedPromoCodes.map((c) => c.code),
-        discountCode: state.appliedPromoCodes[0]?.code ?? null,
-        promotionId: state.appliedPromotions[0]?.id ?? null,
-        // Denormalized discount source for analytics: promotion name › code ›
-        // manual. Persisted on the order so history/exports show what applied.
-        discountLabel:
-          state.appliedPromotions[0]?.name ??
-          state.appliedPromoCodes[0]?.code ??
-          (state.discountRunning > 0 ? 'Diskon Manual' : null),
-        discountBreakdown: discountBreakdown.length ? discountBreakdown : null,
+        ...promotionMetadata,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,
@@ -970,10 +771,8 @@ export default function CashierScreen() {
   // Drawer shortcut: open Settings scrolled to a section.
   const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
 
-  // Failed-sync escape hatch: record the stuck items to the local debug log,
-  // share them (native share / clipboard) so support can debug, then dismiss
-  // them from the queue so a poison item can't block the cashier.
-  const handleSendLog = () => {
+  // Sharing diagnostics leaves failed operations available for explicit retry.
+  const handleExportLog = async () => {
     // Report to the server error log too (covers the case where the items
     // dead-lettered while offline and weren't auto-reported yet).
     const dead = engine.deadLettered()
@@ -985,20 +784,8 @@ export default function CashierScreen() {
         outletName: snapshot.outletName,
       })))
     }
-    const text = offlineData.discardFailed()
-    const blob = `Mandalika POS — Sync Log\n${new Date().toISOString()}\n\n${text}`
-    void (async () => {
-      try {
-        if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ title: 'Mandalika POS Sync Log', text: blob })
-        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(blob)
-        }
-      } catch {
-        /* user cancelled share / clipboard blocked — log is already saved locally */
-      }
-    })()
-    showToast('Log disimpan & sinkron gagal ditutup')
+    const outcome = await shareFailedSyncDiagnostics(offlineData.buildFailedSyncDiagnostics)
+    showToast(diagnosticExportMessages[outcome])
   }
 
   // Android hardware Back: close the top-most surface instead of exiting.
@@ -1062,7 +849,7 @@ export default function CashierScreen() {
             failed={offlineData.failed} wall={offlineData.wall}
             isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
-            onRetryFailed={offlineData.retryFailed} onSendLog={handleSendLog}
+            onRetryFailed={offlineData.retryFailed} onExportLog={() => { void handleExportLog() }}
           />
           <button type="button"
             onClick={() => setShowMenu(true)}
@@ -1103,13 +890,12 @@ export default function CashierScreen() {
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
             newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
             onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-            onSelect={(c) => { dispatch({ type: 'SET_CUSTOMER', customer: c }); setCustomerRequired(false) }}
+            onSelect={(c) => dispatch({ type: 'SET_CUSTOMER', customer: c })}
             onClear={() => dispatch({ type: 'SET_CUSTOMER', customer: null })}
             onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
             onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
             onSaveNew={() => void handleAddCustomer()}
             earnedPoints={derived.earnedPoints}
-            required={customerRequired}
             onAddNewFromSearch={handleAddNewFromSearch}
             errorText={customerError}
             loyaltyEnabled={loyalty.enabled}
@@ -1307,25 +1093,25 @@ export default function CashierScreen() {
         />
       )}
 
-      {bxgyReward && (
+      {pendingFulfillment?.kind === 'bxgy-picker' && (
         <BxgyRewardModal
-          promo={bxgyReward.promo}
-          options={bxgyReward.options}
-          due={bxgyReward.due}
+          promo={pendingFulfillment.promo}
+          options={pendingFulfillment.options}
+          due={pendingFulfillment.due}
           stockProducts={displayProducts}
           onConfirm={handleBxgyRewardConfirm}
-          onCancel={() => setBxgyReward(null)}
+          onCancel={() => setPendingFulfillment(null)}
         />
       )}
 
-      {bundlePicker && (
+      {pendingFulfillment?.kind === 'bundle-picker' && (
         <BundleSlotPicker
-          cfg={bundlePicker.cfg}
-          cart={state.cart}
-          promoName={bundlePicker.promo.name}
+          cfg={pendingFulfillment.cfg}
+          cart={pendingFulfillment.cart}
+          promoName={pendingFulfillment.promo.name}
           stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
           onConfirm={handleBundlePickerConfirm}
-          onCancel={() => setBundlePicker(null)}
+          onCancel={() => setPendingFulfillment(null)}
         />
       )}
 
