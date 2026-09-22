@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mandalika.invalid/schemas/dependency-exceptions-v1.json",
+  "title": "DEPSEC-INITIAL-20260922 exact reviewed exceptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "security",
+    "licenses"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "policy_id": {
+      "const": "DEPSEC-INITIAL-20260922"
+    },
+    "security": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "ecosystem",
+          "package",
+          "version_range",
+          "scope",
+          "reachability",
+          "reason",
+          "compensating_control",
+          "owner",
+          "reviewer",
+          "created",
+          "expires",
+          "remediation",
+          "review_reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ecosystem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version_range": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reachability": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "compensating_control": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "created": {
+            "type": "string",
+            "minLength": 1,
+            "format": "date"
+          },
+          "expires": {
+            "type": "string",
+            "minLength": 1,
+            "format": "date"
+          },
+          "remediation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "review_reference": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "licenses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ecosystem",
+          "package",
+          "version",
+          "expression",
+          "scope",
+          "distribution_context",
+          "reviewer",
+          "decision",
+          "review_date",
+          "review_reference"
+        ],
+        "properties": {
+          "ecosystem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "distribution_context": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "review_date": {
+            "type": "string",
+            "minLength": 1,
+            "format": "date"
+          },
+          "review_reference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "review_by": {
+            "type": "string",
+            "minLength": 1,
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}

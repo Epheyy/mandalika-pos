@@ -641,3 +641,48 @@ Known external integrations receive branch-scoped deployment safeguards while
 quality/backend/PostgreSQL/browser remain mandatory. No release dispatch/OTA,
 live data or credential operations belong to this checkpoint. A13/A42 actual
 business concurrency, dependency/security/status/provenance gates remain open.
+
+## A34d hosted proof — A34D-HOSTED-PROOF-20260922-01
+
+The explicitly staged complete programme snapshot is published on
+`audit/hosted-proof-20260922`. Final source commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87` passes quality,
+backend, postgres and browser on the same SHA. The initial gofmt failure is
+preserved; its correction changes formatting only. Hosted proof covers the
+accepted Node 22/frozen-lockfile quality definition, the backend gen/vet/fmt/build/
+race baseline, six Docker PostgreSQL 18.3 fixtures (142 PASS events, zero skips),
+and pinned Chromium (26/26, zero skips, clean network and cleanup).
+
+A34c scoped ChatGPT acceptance is recorded in canonical tracker E36. A34d E37
+awaits review; it does not close A34/T29 or any release gate. A13/A42 true business
+concurrency, dependencies/SBOM/license/advisories, A37 secret scanning, required
+statuses and A35 APK/OTA provenance remain separate work. No signing, deployment,
+live-data or credential operation occurred. The historical stopped DB/cache
+cleanup remains untouched. Post-proof documentation is a local review after-image,
+not another source revision claimed tested by these runs.
+
+Next bounded proposal: A34e dependency/security baseline inventory and a pinned
+SBOM/license/advisory gate design using this complete source SHA. Keep A37 secret
+scanning and A13/A42 concurrency as explicit workstreams; do not silently treat
+generic Go race mode as business concurrency coverage. Consequential policy to
+review: advisory severity/reachability thresholds, acceptable licence policy and
+exception ownership/expiry; investigate the current evidence before enforcement.
+
+## A34e dependency security — current continuation
+
+CG-A34D-HOSTED-PROOF-20260922-01-R1 scoped-accepts A34d's exact e782c5d hosted
+checkpoint. Canonical tracker E38 records 17 scoped acceptances across 10 findings;
+A31 remains the sole resolved parent, all 44 findings and all eight P0 parents stay
+tracked, and no release gate closes.
+
+A34e/A38 applies DEPSEC-INITIAL-20260922. Exact-base inventory precedes dependency
+edits. Node/Go graph, CycloneDX SBOMs, licenses, public advisories and Go called
+symbols are retained. A reusable full-baseline gate, supplemental npm PR delta,
+empty reviewed-exception register and disposable negative proofs are implemented.
+JWT/Redis receive narrow patch fixes. Remaining policy blockers are not waived:
+proxy trust, SheetJS distribution/remediation and rgbcolor license evidence need
+precise follow-up. No broad license-family policy is invented. Android dependency
+wiring waits for a clean/exactly-excepted baseline, as the review requires.
+
+The current packet carries final scan/hosted results and residual decisions.
+A34/T29, A38/T33, A37, A13/A42 business concurrency, A35 provenance, branch status
+rules and all release gates remain open. Stopped DB/cache cleanup is untouched.

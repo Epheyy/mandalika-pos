@@ -1,14 +1,51 @@
 # Canonical audit coverage tracker — A01–A44
 
-Reconciled 2026-09-19; A34c scoped acceptance and A34d hosted snapshot preparation added 2026-09-22 in the same Windows/PowerShell worktree.
+Reconciled 2026-09-19; A34d scoped acceptance and A34e dependency baseline added 2026-09-22 in the same Windows/PowerShell worktree.
 Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
-Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+Current verification branch `audit/hosted-proof-20260922`; hosted source HEAD `e782c5dfbf3eedefb5d655f6726590dfbea5bf87`.
+Original reconciliation base: `prod-hardening`, `4691c781842f0114acaf2e4371e0d11f0076f553`.
+A34d source remains the accepted historical checkpoint; A34e current verification is recorded below.
 Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
 This is the **only current finding-status tracker**; findings.json is immutable
 historical input, not a competing live tracker. Plan/draft contain requirements;
-SESSION_HANDOFF.md carries the current review packet.
+The local-only SESSION_HANDOFF.md and docs/AUDIT_REVIEW_PACKET.md carry the current review packet.
 
 ## Evidence and shared fields (apply to every row)
+
+E39: A34E-DEPENDENCY-SECURITY-20260922-01 implements DEPSEC-INITIAL-20260922.
+The exact accepted base was inventoried before dependency changes: 436 npm packages,
+7 workspace importers and 137 third-party Go modules, with CycloneDX 1.6 SBOMs,
+public advisory snapshots, license files/expressions and parsed govulncheck calls.
+Baseline policy blocks 79 records (advisory aliases can describe the same issue),
+including one unparseable runtime license. No exception has been added. Narrow JWT
+5.2.1 -> 5.2.2 and Redis 9.7.0 -> 9.7.3 patches are being verified. The independent
+fail-closed workflow/evaluator and disposable policy proofs proceed; remaining
+security/license blockers prevent an all-five-green claim. See DEPENDENCY_SECURITY.md
+and the current A34E review packet for actual commands, hosted results and decisions.
+A34/T29, A38/T33 and every release gate remain open. No new parent is resolved.
+
+E38: CG-A34D-HOSTED-PROOF-20260922-01-R1 scoped-accepts E37 A34d. The quality,
+Docker PostgreSQL/race and Chromium gates are hosted-verified on exact final SHA
+`e782c5dfbf3eedefb5d655f6726590dfbea5bf87`. All four run IDs and the prior failed
+run remain historical evidence. Counts: 44 findings, 17 scoped accepted milestones
+across 10 findings, A31 sole resolved parent, 0/8 P0 parents and 0 release gates closed.
+
+E37: A34D-HOSTED-PROOF-20260922-01 establishes actual Ubuntu hosted proof on complete source
+commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87`, tree `831e7af08fafbb8f1d420d4bac0e94fbe9313e72`.
+All four push workflows passed on that same SHA: quality 35699002536, backend
+35699002529, postgres 35699002539, browser 35699002524. Node 22/frozen-lockfile
+quality passes 347 tests (one existing optional DB-response replay skip), all
+source/test typechecks, production bundles and generated TS drift. Backend passes
+gen/vet/gofmt/build/go test ./... -race. Default Docker PostgreSQL 18.3 passes all
+six named gates, 142 parent/subtest PASS events, zero skips, verified target/data
+directory/empty schemas and confirmed cleanup. Pinned Chromium passes 26/26,
+zero skips, zero unexpected network requests, confirmed process/port cleanup.
+Initial backend run 35698564930 failed gofmt; four formatting-only corrections
+were locally tested, explicitly staged and normally committed/pushed. Earlier run
+IDs and logs remain evidence. No test/guard/race/network/cleanup weakening.
+E36 A34c acceptance remains scoped; A34d hosted proof now awaits ChatGPT review.
+Full A34/T29 and every release gate remain open. No deployment/release dispatch.
+See A34D_VERIFICATION.json and A34D_HOSTED_SUMMARY.json.
 
 E36: CG-A34C-BROWSER-CI-20260922-01-R1 scoped-accepts E35 A34c as implemented
 and locally verified. Review checked144 payloads/18 replayed files and registry
@@ -409,11 +446,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a JS/TS + A34b mandatory PostgreSQL CI | Open; E32 accepts A34a; E33 native local DB verified, review/hosted/concurrency/browser/security pending | T29 |
+| A34 | P1 | A34a–d accepted; A34e dependency gate | Open; E38 accepts hosted checkpoint; E39 dependency baseline blocked; remaining CI/release work open | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | S6 | Needs current behavioral revalidation; source matches audit | T33 |
+| A38 | P2 | A34e / S6 | Open; E39 fresh full-lock/module baseline, remediation and enforceable policy; security/license blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -875,14 +912,14 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** E32 A34a accepted; E34 A34b scoped accepted as implemented/locally verified, hosted Docker/race pending. E36 A34c scoped accepted locally; hosted proof pending. A34d snapshot/hosted verification in progress. Full A34/T29 open.
-- **Current evidence:** E31/E33 artifacts preserved. E35 adds browser.yml, pinned Playwright1.63.0/Chromium1243, ordinary tests/browser tests/registry/reporter and scripts/ci/browser-gate.mjs. A34C_CLEAN_RUN.json, A34C_NEGATIVE_GATES.json, A34C_SCENARIO_INVENTORY.json and A34C_VERIFICATION.json report actual results and boundaries.
-- **Authority / decision:** CG-A34B-POSTGRES-CI-20260921-01-R1 and owner instruction under AUTH-MANDALIKA-20260919-01. Preserve accepted behavior, guards and all existing policy; no provider/live/signing credentials in quality jobs.
+- **Current disposition:** A34a/b/c/d scoped accepted through E38. E39 implements dependency-security baseline/gate with unresolved blockers; full A34/T29 remains open.
+- **Current evidence:** E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
+- **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
 - **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Android signing needs quality/database/backend/browser, all checking caller SHA. Existing quality/PostgreSQL/backend/React Doctor workflows unchanged; JS package gate additionally typechecks browser tests.
 - **Required result:** All26 registered browser scenarios discovered/executed/PASS exactly once with no skip/fixme/focused test. Synthetic loopback-only strict servers, default external denial, bounded startup/tests/processes, confirmed owned cleanup and synthetic-only failure artifacts. Existing six named PG guards/mandatory runner preserved.
 - **Acceptance:** A34c24 review scenarios mapped in A34C_VALIDATION_MATRIX.md. Final browser26/26 zero skips,7/7 negative proofs, confirmed process/port cleanup and external request interception. JS quality347 PASS,1 existing optional PostgreSQL response-replay SKIP; source/test types, both production builds and TS schema drift pass. No production business change; real hook harness gains optional single-case selector only.
-- **Execution / residual risk:** Local Windows Node24/Chromium proof is not hosted Ubuntu Node22 proof. A34b hosted Docker/race pending. A13/A42 true DB concurrency absent. Reviewed complete source snapshot/hosted run, dependency/SBOM/license/advisory, secret scanning, full APK/OTA provenance/debug and branch protection remain open. Native Android/hardware/provider scenarios intentionally manual/separate. No signing, deployment, commit/push or release closure. Historical stopped DB/cache cleanup unchanged and not bypassed.
+- **Execution / residual risk:** Hosted source proof now supplied by E37; no full A34 or release closure. A13/A42 genuine business DB concurrency, dependency/SBOM/license/advisory gates, A37 secret scanning/history exposure, branch protection/required statuses and A35 APK/OTA provenance remain open. Native Android/hardware/provider qualification remains separate. The optional BO DB-response replay and other opt-in/manual checks retain their disclosed limits. Historical stopped DB/cache cleanup remains local, excluded and not bypassed. Post-proof reporting after-images are uncommitted and do not change the verified executable SHA.
 
 ### A35 — OTA and native release gates do not yet protect a financial-journal migration
 
@@ -923,14 +960,14 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/backoffice/package.json:1-34`; `apps/backoffice/src/lib/csvUtils.ts:1-124`; `backend/go.mod:1-46`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
-- **Authority / decision:** AUDIT_REPORT A38 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: Q02.
+- **Current disposition:** Open. E39 supplies current exact-base npm/Go/license/advisory/reachability evidence; no clean-baseline or full T33 claim.
+- **Current evidence:** E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
+- **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
 - **Dependencies / slice:** A34; proposed S6. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: lockfile/advisory review; XLSX import changes reachability.
 - **Required result:** Run current lockfile-based advisory and license checks in CI, verify reachability, upgrade or replace affected dependencies through the vendor-supported distribution path, and retest generated contracts/native plugins. Record justified exceptions instead of claiming all dependencies clean.
 - **Acceptance:** T33. Produce a dated dependency/SBOM report tied to the release lockfiles, with reachable findings fixed or an approved risk exception and regression evidence.
-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
+- **Execution / residual risk:** E39: safe JWT/Redis patch remediation plus pinned gate tooling; remaining called/high-risk findings and rgbcolor declaration require further work. Final hosted results and exact SHA belong to the current packet. Native/provider/major architectural choices remain separate. No release gate closes; exceptions register remains empty.
 
 ### A39 — CSV import corrupts escaped quotes and multiline fields
 

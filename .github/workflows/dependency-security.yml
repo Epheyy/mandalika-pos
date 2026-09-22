@@ -1,0 +1,63 @@
+name: dependency-security
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.8'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned parsers without package lifecycle execution
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+          corepack pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install pinned official Go scanners
+        env:
+          GOTOOLCHAIN: go1.26.8
+          GOENV: 'off'
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/google/licenseclassifier/v2/tools/identify_license@v2.0.0
+      - name: Prove fail-closed policy in disposable copies
+        run: python scripts/ci/dependency_security_test.py
+      - name: Full dependency baseline and PR delta
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          args=()
+          if [ -n "$PR_BASE_SHA" ]; then args+=(--delta-base "$PR_BASE_SHA"); fi
+          python scripts/ci/dependency_security.py scan --sha "$SOURCE_SHA" --output artifacts/dependency-security "${args[@]}"
+      # Runner only publishes after the artifact guard succeeds for every document.
+      # No raw stderr, environment, caches, source, auth or provider/signing data.
+      - name: Upload guarded public dependency evidence
+        if: ${{ always() && hashFiles('artifacts/dependency-security/manifest.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-${{ github.sha }}
+          path: artifacts/dependency-security/*.json
+          retention-days: 14
+          if-no-files-found: error

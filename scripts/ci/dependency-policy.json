@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "DEPSEC-INITIAL-20260922",
+  "generator_version": "1.0.0",
+  "tools": {
+    "pnpm": "9.15.0",
+    "go": "go1.26.8",
+    "govulncheck": "v1.8.0",
+    "licenseclassifier": "v2.0.0",
+    "yaml": "2.9.1",
+    "semver": "7.8.5",
+    "spdx-expression-parse": "5.0.0"
+  },
+  "security": {
+    "blocking_severities": ["high", "critical"],
+    "blocking_scopes": ["runtime", "build"],
+    "malicious_compromised_known_exploited_blocks": true,
+    "called_go_symbol_blocks": true,
+    "unknown_runtime_classification_blocks": true,
+    "moderate_low": "report-only unless exploitation or direct high-impact evidence elevates risk"
+  },
+  "licenses": {
+    "deny_licenses": [],
+    "missing_unknown_unparseable_custom_unreviewed_blocks": true,
+    "named_spdx": "report for policy review; no invented license-family approval or denial"
+  },
+  "sources": {
+    "npm": "https://registry.npmjs.org",
+    "osv": "https://api.osv.dev/v1",
+    "govulncheck": "https://vuln.go.dev",
+    "kev": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+  },
+  "unavailable_source": "fail; never classify an unavailable scan as clean",
+  "scope_method": "pnpm workspace graph: production roots runtime; validation/build/test tooling build. Go source/package/tool import evidence; unused module-graph-only entries development-only. No precise JS call reachability inferred from presence.",
+  "authority": "CG-A34D-HOSTED-PROOF-20260922-01-R1 / AUTH-MANDALIKA-20260919-01"
+}
