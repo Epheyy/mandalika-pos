@@ -23,6 +23,8 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@9.15.0 --activate
+      - name: Verify reviewed local vendor bytes before installation
+        run: python scripts/ci/dependency_vendor.py
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm exec playwright install --with-deps chromium
       - run: corepack pnpm typecheck:browser

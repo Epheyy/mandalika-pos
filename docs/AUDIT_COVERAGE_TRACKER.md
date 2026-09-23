@@ -1,16 +1,35 @@
 # Canonical audit coverage tracker — A01–A44
 
-Reconciled 2026-09-19; A34e1 scoped acceptance and A34e2 remediation added 2026-09-23 in the same Windows/PowerShell worktree.
+Reconciled 2026-09-19; A34e2 scoped acceptance and A34e3 vendoring added 2026-09-23 in the same Windows/PowerShell worktree.
 Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
-Current verification branch `audit/hosted-proof-20260922`; A34e2 entry HEAD `feb0048de2a577bf8e5b2d9243944ce115aa3a29`.
+Current verification branch `audit/hosted-proof-20260922`; A34e3 entry HEAD `76cc02b2fec813ee534a998c9a45ff9cde5db9f4`.
 Original reconciliation base: `prod-hardening`, `4691c781842f0114acaf2e4371e0d11f0076f553`.
-A34d/A34e source checkpoints remain historical evidence; current A34e2 verification is recorded below.
+A34d/A34e source checkpoints remain historical evidence; current A34e3 verification is recorded below.
 Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
 This is the **only current finding-status tracker**; findings.json is immutable
 historical input, not a competing live tracker. Plan/draft contain requirements;
 The local-only SESSION_HANDOFF.md and docs/AUDIT_REVIEW_PACKET.md carry the current review packet.
 
 ## Evidence and shared fields (apply to every row)
+
+E44: CG-A34E2-XCRYPTO-20260923-01-R1 scoped-accepts A34e2 x/crypto remediation
+at 76cc02b2fec813ee534a998c9a45ff9cde5db9f4. Accepted milestones: 20 across the
+same 11 findings. All 44 findings retained; A31 sole resolved parent; 0/8 P0
+parents and zero release gates close. Full A34/T29 and A38/T33 stay open.
+The stored-hash parser characterization is a separate A07 authentication / A09
+input-hardening residual, not a permanent approval of unsupported versions or
+zero-parameter panics. Replace characterization assertions when that separately
+reviewed rejection contract is implemented; no parser changes in A34e3.
+
+E45: A34E3-SHEETJS-20260923-01 vendors official xlsx 0.20.3, SHA256
+8dc73fc3b00203e72d176e85b50938627c7b086e607c682e8d3c22c02bb99fe8, preserving npm
+advisory identity and explicit distribution provenance. Local clean frozen
+install, exporter compatibility, 26 browser scenarios and quality gate pass.
+22 vendor tests cover archive/digest/identity/graph/advisory/license/delta guards.
+Both fresh full scans report 48 blocking records: vendor xlsx still matches the
+two open-ended OSV records. No suppression or exception; applicability review
+is required, with exact publisher/range/hash evidence. Hosted verification is
+pending. See docs/A34E3_SHEETJS_REMEDIATION.md. No parent or release gate closes.
 
 E42: CG-A34E1-GO-REMEDIATION-20260922-01-R1 scoped-accepts E41 A34e1
 pgx/x-text remediation and its exact feb0048 hosted checkpoint. Count: 19 accepted
@@ -23,12 +42,22 @@ E43: A34E2-XCRYPTO-20260923-01 starts from feb0048 on the same verification
 branch. Exact x/crypto target v0.56.0, supporting graph changes only, pre-upgrade
 Argon2id fixture and password/parser compatibility required. OpenPGP GO-2026-5932
 is no-fixed and must remain visible; no policy/exception change. Local gen/fmt/vet/build and510 ordinary Go PASS events complete (six opt-in
-DB skips separately covered by six mandatory PostgreSQL18.3/race gates,
+DB skips separately covered by six mandatory PostgreSQL 18.3/race gates,
 142 named PASS/zero skips/verified cleanup).19 password compatibility PASS
 events and a failing disposable fixture mutation establish old/new hash parity.
-Fresh full scans reduce blockers69 ->48, removing21 blocking x/crypto records
-and29 known-fixed advisory records; no new blocker or called finding appears.
-OpenPGP remains blocked, no OpenPGP imports. Same-SHA hosted proof is pending.
+Fresh full scans reduce blockers 69 -> 48, removing21 blocking x/crypto records
+and 29 known-fixed advisory records; no new blocker or called finding appears.
+OpenPGP remains blocked, no OpenPGP imports.
+Final hosted SHA `76cc02b2fec813ee534a998c9a45ff9cde5db9f4` passes quality 35811155308,
+backend 35811155301, postgres 35811155452 and browser 35811155310. The default
+PostgreSQL 18.3 Docker/race runner passes all six gates, 142 named parent/subtests,
+zero skips, verified target identity and cleanup. Chromium passes 26/26, zero
+skips/unexpected network requests, confirmed browser/Vite cleanup. Dependency
+run 35811155324 completes a fresh committed-input scan and correctly FAILS on 48
+blocker records, identical to the local blocking set. No new called finding;
+GO-2026-5932 remains visible, module-level and unimported. These hosted outcome
+paragraphs are uncommitted reporting after-images of the tested executable source.
+A34e2 ChatGPT review is pending; A34/T29, A38/T33 and every release gate stay open.
 The existing malformed stored-hash parser does not validate numeric versions and
 panics on zero rounds/threads; capture this limitation without fixing it in the
 dependency slice. See docs/A34E2_XCRYPTO_SCOPE.md; production parser hardening is
@@ -503,11 +532,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e1 accepted; A34e2 remediation | Open; E42 accepts pgx/x-text; E43 x/crypto in progress; dependency gate remains BLOCKED; remaining CI/release work open | T29 |
+| A34 | P1 | A34a–e2 accepted; A34e3 vendoring | Open; E44 accepts x/crypto; E45 vendor/scanner work locally verified, hosted pending; dependency gate BLOCKED; CI/release residuals open | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e / A34e1 / A34e2 / S6 | Open; E42 accepts pgx/x-text; E43 x/crypto in progress; security/license blockers remain | T33 |
+| A38 | P2 | A34e–e3 / S6 | Open; E44 accepts x/crypto; E45 vendor coverage locally verified; advisory applicability and security/license blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -622,6 +651,11 @@ safeguard is removed, and shared terminal identity is not fresh TL approval.
 - **Execution / residual risk:** S0b-01–14 coverage and limits remain in historical S0B_VERIFICATION.json and the immutable S0b bundle. Scope/order SQL was read but not exercised against PostgreSQL; handler Store.ByID enrichment and mutation/version dependencies use narrow test seams. No real backend-to-device end-to-end run, native durability, receipt recovery, live revocation or launch evidence. Existing retry lastError may change normally; no complete error journal is added. Reason/body-validation parity (A43), every-role/every-mutation T06, secure capture authority and recovery remain open. No commit/PR/deployment or approved release exception.
 
 ### A07 — Refresh rotation and revocation do not have a durable, atomic authority model
+
+Additional bounded residual (E44): harden stored-password parsing with explicit
+version/parameter rejection; coordinate with A09. Existing A34e2 characterization
+assertions must change with that reviewed contract, not freeze current defects.
+No implementation in the SheetJS slice.
 
 - **Original priority / evidence:** P1; historical class: Confirmed static; concurrency/recovery tests pending.
 - **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.

@@ -720,3 +720,15 @@ advisory delta, local Go/password tests, six real PostgreSQL/race gates and four
 same-SHA hosted application passes plus a completed dependency scan. Record
 existing stored-hash parser limitations separately; do not expand this update
 into parser hardening. Return to SheetJS only after the A34e2 ChatGPT review.
+
+
+## A34e2 accepted; A34e3 vendor coverage
+
+E44 records scoped A34e2 acceptance (20 milestones / 11 findings), with the
+stored-hash parser residual linked to A07/A09 for separate rejection hardening.
+A34e3 uses the official versioned xlsx 0.20.3 artifact through a pinned repository
+file dependency and preserves scanner identity, licenses, SBOM, advisory queries
+and digest-sensitive PR deltas. Archive/install negatives and real workbook
+exports are required alongside same-SHA gates. Any feed/publisher applicability
+conflict remains blocked pending review; do not rename or suppress the component.
+No A14 import or A27/A28 behavior change. See A34E3_SHEETJS_REMEDIATION.md.

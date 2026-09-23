@@ -61,15 +61,18 @@ Unavailable providers, malformed output, unpinned tools, unresolved graph edges,
 incomplete OSV pages or changing dependency inputs fail closed. A scan cannot
 establish absence of undisclosed malware. No application `.env` or live DB is used.
 
-PR protection compares exact base/head lock package identities and applies the
-reviewed High/Critical/malicious delta policy. It supplements the full baseline.
+PR protection compares exact base/head lock identities, integrity and vendor provenance
+hashes and applies the reviewed vulnerability and license delta policy. Registry-to-file
+and same-version/different-distribution changes remain visible. It supplements the full baseline.
 Go changes always receive the full module/reachability scan; a separate Go PR
 delta classifier is not implemented.
 
 ## Running and reviewing
 
-Install the repository frozen lockfile; put the two pinned Go scanner binaries
-on PATH. Run `python scripts/ci/dependency_security_test.py`, then
+Run `python scripts/ci/dependency_vendor.py` before installing the frozen lockfile;
+put the two pinned Go scanner binaries on PATH. Run
+`python scripts/ci/dependency_security_test.py` and
+`python scripts/ci/dependency_vendor_test.py`, then
 `python scripts/ci/dependency_security.py scan --sha <40-character-HEAD> --output <new-directory>`.
 For a PR add `--delta-base <exact-base-SHA>`. Source must be the specified checkout.
 `--evidence` replays already captured evidence for review/testing; hosted CI never
@@ -87,3 +90,31 @@ They cover severity, exploitation, Go called findings, report-only behavior,
 licenses, exact/expired/unrelated exceptions, PR deltas and credential rejection.
 Full A34/T29, A38, A37, A13/A42 concurrency, A35 provenance and release gates remain
 open until their separate acceptance requirements are met.
+
+## Reviewed local distributions (A34e3)
+
+The Backoffice installs `xlsx` / `0.20.3` from the explicitly pinned official
+`vendor/sheetjs/xlsx-0.20.3.tgz`. The adjacent provenance records HTTPS source,
+retrieval time, bytes, SHA-256, SRI, original manifest and actual license-file
+hashes. This is locally pinned evidence, not a publisher signature.
+
+The stdlib pre-install check inspects archive members in memory without extracting
+or running them. Repository-vendor path containment, symlinks/junctions, duplicate
+paths/manifests, unsafe members, size bounds, manifest/license identity and byte
+pins are checked. Frozen pnpm installation independently checks locked integrity.
+The collector revalidates all pins against the lock, records actual dependency/
+peer metadata and fails unresolved edges. Registry validation remains active.
+
+Inventory and CycloneDX keep `pkg:npm/xlsx@0.20.3`, runtime scope and the ordinary
+advisory query, with separate distribution URL/digest/locator properties. Vendor
+bytes/provenance, all workspace manifests, lockfile and Go inputs are hashed and
+checked for changes during capture. There is no registry fallback for vendor
+collection. Missing inputs/provider coverage fail closed. The current package has
+no consumer dependency edges; its publisher devDependencies are retained as metadata,
+not installed application dependencies. Embedded code is not claimed independently
+inventoried by these package-level SBOMs.
+
+The 22 vendor tests supplement the existing policy CLI proofs. Quality and browser
+workflows validate vendor bytes before installation; the security job additionally
+uses `--ignore-scripts`. Existing advisory overmatches remain blocking under the
+unchanged policy until separately reviewed; see A34E3_SHEETJS_REMEDIATION.md.

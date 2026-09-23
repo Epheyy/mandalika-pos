@@ -16,6 +16,8 @@ import tempfile
 from dependency_capture import capture
 from dependency_inventory import findings, go_inventory, license_inventory, load, node_inventory, sbom
 from dependency_policy import HERE, ROOT, PolicyError, check_artifact, evaluate
+from dependency_vendor import changed_components, source_inputs
+from dependency_policy import helper
 
 
 def publish(output, documents):
@@ -41,12 +43,13 @@ def assess(raw, root, output, sha, parser_root, delta_base=None):
     vulnerabilities, scanner = findings(raw, components)
     policy = load(HERE / "dependency-policy.json")
     register = load(root / "scripts/ci/dependency-exceptions.json")
-    inputs = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ["pnpm-lock.yaml", "backend/go.mod", "backend/go.sum"]}
+    inputs = source_inputs(root, load(raw / "lock.json"))
     if (root / ".git").exists():
         dirty = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", *inputs], cwd=root, timeout=30).returncode
         if dirty not in {0, 1}:
             raise PolicyError("Cannot establish source input identity")
-        source_kind = "committed-inputs" if dirty == 0 else "working-tree-inputs-based-on-sha"
+        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", "--", *inputs], cwd=root, capture_output=True, timeout=30)
+        source_kind = "committed-inputs" if dirty == 0 and tracked.returncode == 0 else "working-tree-inputs-based-on-sha"
     else:
         source_kind = "explicit-archive-inputs"
     result = evaluate(vulnerabilities, licenses, register, policy, parser_root=parser_root)
@@ -56,19 +59,27 @@ def assess(raw, root, output, sha, parser_root, delta_base=None):
             result["blocking"].append({"id": "SCOPE-UNKNOWN", "package": c["package"], "version": c["version"], "reasons": ["unclassified locked component"]})
     delta = {"status": "not-a-PR", "note": "Full current-lock baseline is always enforced"}
     if delta_base:
-        from dependency_policy import helper
         previous = subprocess.run(["git", "show", f"{delta_base}:pnpm-lock.yaml"], cwd=root, capture_output=True, timeout=60)
         if previous.returncode:
             raise PolicyError("PR base lockfile unavailable; delta cannot be declared clean")
         old = helper("lock", previous.stdout.decode("utf-8"), parser_root)["packages"]
-        introduced = {x["key"] for x in node["components"]} - set(old)
-        delta_findings = [x for x in vulnerabilities if x["ecosystem"] == "npm" and x["package"] + "@" + x["version"] in introduced]
+        old_provenance = {}
+        for c in node["components"]:
+            if c.get("provenance_path"):
+                blob = subprocess.run(["git", "show", f"{delta_base}:{c['provenance_path']}"], cwd=root, capture_output=True, timeout=30)
+                if blob.returncode == 0:
+                    old_provenance[c["provenance_path"]] = hashlib.sha256(blob.stdout).hexdigest()
+        introduced = changed_components(old, node["components"], old_provenance)
+        identities = {(c["package"], c["version"]) for c in introduced}
+        delta_findings = [x for x in vulnerabilities if x["ecosystem"] == "npm" and (x["package"], x["version"]) in identities]
         # Full register already validated; exact exceptions are applied by the baseline.
         suppressed = {(x["id"], x["package"], x["version"]) for x in result["suppressed"]}
         delta_findings = [x for x in delta_findings if (x["id"], x["package"], x["version"]) not in suppressed]
         empty = {"schema_version": 1, "policy_id": policy["id"], "security": [], "licenses": []}
-        delta = evaluate(delta_findings, [], empty, policy, parser_root=parser_root, delta=True)
-        delta["introduced_npm_versions"] = sorted(introduced)
+        delta_licenses = [x for x in licenses if x["ecosystem"] == "npm" and (x["package"], x["version"]) in identities]
+        delta = evaluate(delta_findings, delta_licenses, empty, policy, parser_root=parser_root, delta=True)
+        delta["introduced_npm_versions"] = sorted(name + "@" + version for name, version in identities)
+        delta["changed_distributions"] = [{k: c[k] for k in ["key", "package", "version", "integrity", "tarball_sha256"]} for c in introduced]
         delta["base_sha"] = delta_base
         result["blocking"].extend(delta["blocking"])
     result["status"] = "fail" if result["blocking"] else "pass"
@@ -122,10 +133,11 @@ def main():
         raise PolicyError("Requested source SHA differs from checkout")
     with tempfile.TemporaryDirectory(prefix="mandalika-depsec-raw-") as temporary:
         raw = Path(temporary) / "raw"
-        inputs = [args.root / "pnpm-lock.yaml", args.root / "backend/go.mod", args.root / "backend/go.sum"]
-        before = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
+        lock = helper("lock", (args.root / "pnpm-lock.yaml").read_text(encoding="utf8"), args.parser_root.resolve())
+        before = source_inputs(args.root.resolve(), lock)
         capture(args.root.resolve(), raw, args.parser_root.resolve())
-        if before != {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}:
+        after_lock = helper("lock", (args.root / "pnpm-lock.yaml").read_text(encoding="utf8"), args.parser_root.resolve())
+        if before != source_inputs(args.root.resolve(), after_lock):
             raise PolicyError("Dependency inputs changed during collection")
         return assess(raw, args.root.resolve(), args.output.resolve(), args.sha, args.parser_root.resolve(), args.delta_base)
 

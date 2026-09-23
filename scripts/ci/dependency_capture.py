@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 
 from dependency_policy import PolicyError, helper, json_stream
+from dependency_vendor import vendor_evidence
 
 
 def write(path, data):
@@ -53,8 +54,12 @@ def run(args, cwd, env, output, accepted=(0,), timeout=300):
     return result.stdout.decode("utf-8")
 
 
-def node_evidence(key, package):
+def node_evidence(key, package, root=None):
     name, version = key.rsplit("@", 1)
+    if version.startswith("file:"):
+        if root is None:
+            raise PolicyError("Vendor evidence requires an explicit repository root")
+        return vendor_evidence(root, key, package)
     resolution = package["resolution"]
     metadata = request_json("https://registry.npmjs.org/" + urllib.parse.quote(name, safe="") + "/" + version)
     tarball = metadata["dist"]["tarball"]
@@ -137,7 +142,7 @@ def capture(root, raw, parser_root):
             raise PolicyError("pnpm scanner version mismatch")
         run(["corepack", "pnpm", "audit", "--json", "--registry=https://registry.npmjs.org"], root, env, raw / "pnpm-audit.json", accepted=(0, 1))
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        evidence = list(pool.map(lambda pair: node_evidence(*pair), lock["packages"].items()))
+        evidence = list(pool.map(lambda pair: node_evidence(*pair, root=root), lock["packages"].items()))
     write(raw / "node-package-evidence.json", evidence)
     backend = root / "backend"
     for filename, args in [

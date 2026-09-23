@@ -16,7 +16,7 @@
     {
       "id": "BO-PAGES-XLSX",
       "finding": "A26",
-      "description": "51/201/1000 XLSX rows/totals and page2 failure",
+      "description": "51/201/1000 real XLSX downloads, filters/totals, typed Unicode/text cells, library identity and page2 failure",
       "source": "scripts/a26-browser/transactions-checks.js"
     },
     {

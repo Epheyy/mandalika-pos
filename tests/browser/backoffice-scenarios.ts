@@ -1,5 +1,10 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+const xlsxRequire = createRequire(path.resolve('apps/backoffice/package.json'))
+const workbookReader = xlsxRequire('xlsx')
 
 export const setupBackoffice = async (page: ScenarioPage) => {
   await page.unrouteAll({behavior:'wait'});
@@ -16,7 +21,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
     else if(path.endsWith('/outlets')) data=[{id:'outlet-a',name:'A26 Outlet',isActive:true}];
-    else if(path.endsWith('/orders')) data=Array.from({length:state.count},(_,i)=>order(i));
+    else if(path.endsWith('/orders')) data=Array.from({length:state.count},(_,i)=>state.order(i));
     else if(path.endsWith('/shifts')) data=Array.from({length:state.count},(_,i)=>({id:`shift-${i}`,outletId:'outlet-a',cashierName:`Cashier ${i}`,status:'closed',openedAt:now,closedAt:now,startingCash:0,closingCash:1000,totalSales:1000,totalOrders:1,cashSales:1000,cardSales:0,transferSales:0,qrisSales:0}));
     else if(path.endsWith('/products')) data=Array.from({length:201},(_,i)=>({id:`p-${i}`,name:`Product ${i}`,isActive:true,variants:[{size:'M',price:1000,stock:i===200?0:100}]}));
     const total=Array.isArray(data)?data.length:1;
@@ -79,28 +84,79 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   return results;
 }
 
-export const transactionsChecks = async (page: ScenarioPage) =>{
-  const results: any[]=[];
-  for(const n of [51,201,1000]) {
+export const transactionsChecks = async (page: ScenarioPage) => {
+  const results: any[] = [];
+  const baseOrder = page.__a26.order;
+  const textIds = ['0000123', '=1+1', '+628123', '@SUM(A1)', '-123'];
+  page.__a26.order = i => ({...baseOrder(i), orderNumber: textIds[i] ?? `A26-${i}`,
+    cashierName: 'Ni Luh Äyu 香 🌺', customerName: i % 2 ? 'Pelanggan Montréal' : null,
+    discountLabel: 'Melati 110 ml + Mawar 10 ml', discountValue: i % 2 ? 0 : undefined});
+  // setupBackoffice's legacy CSV capture stubs belong to the old document.
+  // Reload restores the real browser Blob/download path for this scenario.
+  await page.reload();
+  if (workbookReader.version !== '0.20.3') throw Error('Node readback resolved wrong SheetJS');
+  let downloads = 0;
+  page.on('download', () => downloads++);
+  const capture = async () => {
+    const waiting = page.waitForEvent('download');
+    await page.getByRole('button',{name:'Export',exact:true}).click();
+    const download = await waiting;
+    const stream = await download.createReadStream();
+    if (!stream || await download.failure()) throw Error('XLSX download failed');
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    const bytes = Buffer.concat(chunks);
+    const book = workbookReader.read(bytes);
+    if (book.SheetNames.join() !== 'Data') throw Error('Worksheet name changed');
+    const sheet = book.Sheets.Data;
+    const rows = workbookReader.utils.sheet_to_json(sheet);
+    const headers = workbookReader.utils.sheet_to_json(sheet,{header:1})[0];
+    const expectedHeaders = ['No. Order','Tanggal','Status','Pembayaran','Kasir','Pelanggan','Jumlah Item','Subtotal','Diskon','Sumber Diskon','Tipe Diskon','Nilai Diskon','Rincian Diskon','Pajak','Total'];
+    if (JSON.stringify(headers) !== JSON.stringify(expectedHeaders)) throw Error('XLSX column contract changed');
+    return {sheet,rows,filename:download.suggestedFilename(),bytes:bytes.length};
+  };
+  for (const n of [51,201,1000]) {
     page.__a26.count=n;
     await page.getByRole('button',{name:'Dashboard',exact:true}).click();
     await page.getByRole('button',{name:'Laporan',exact:true}).click();
     await page.getByText(`${n} transaksi · Total:`,{exact:false}).waitFor();
-    await page.evaluate(()=>{window.__a26blobs=[];URL.createObjectURL=(b:any)=>{window.__a26blobs.push(b);return 'blob:synthetic';};});
-    await page.getByRole('button',{name:'Export',exact:true}).click();
-    const rows=await page.evaluate(async()=>{
+    const browserVersion=await page.evaluate(async()=>{
       const url=performance.getEntriesByType('resource').map(e=>e.name).find(n=>n.includes('/xlsx.js'));
-      const XLSX=await import(url!);
-      const wb=XLSX.read(await window.__a26blobs[0].arrayBuffer());
-      return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      if(!url)throw Error('Application XLSX module missing');
+      return (await import(url)).version;
     });
-    if(rows.length!==n||rows.reduce((s,r)=>s+r.Total,0)!==n*1000)throw new Error('incomplete XLSX');
-    results.push({n,xlsxRows:rows.length,total:rows.reduce((s,r)=>s+r.Total,0)});
+    if(browserVersion!=='0.20.3')throw Error('Application resolved wrong SheetJS');
+    const {rows,sheet,filename,bytes}=await capture();
+    if(rows.length!==n||rows.reduce((sum,row)=>sum+row.Total,0)!==n*1000)throw Error('incomplete XLSX');
+    const cells: any[]=[];
+    for(let i=0;i<textIds.length;i++){
+      const row=rows[i],source=page.__a26.order(i),address=`A${i+2}`;
+      const dateParts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(source.createdAt));
+      const part=(name:string)=>dateParts.find(p=>p.type===name)!.value;
+      const expectedDate=`${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
+      if(row['No. Order']!==textIds[i]||row.Tanggal!==expectedDate||row.Kasir!==source.cashierName||row.Pelanggan!==(source.customerName??'')||row['Jumlah Item']!==1||row['Sumber Diskon']!==source.discountLabel)throw Error('typed/Unicode/date value changed');
+      if(sheet[address].t!=='s'||sheet[address].f!==undefined||sheet[`O${i+2}`].t!=='n'||sheet[`B${i+2}`].t!=='s')throw Error('identifier/amount/date cell type changed');
+      cells.push({id:sheet[address],date:sheet[`B${i+2}`],amount:sheet[`O${i+2}`],row});
+    }
+    await page.getByLabel('Filter pembayaran').selectOption('qris');
+    const qris=await capture();
+    if(qris.rows.length!==Math.floor(n/2)||qris.rows.some(r=>r.Pembayaran!=='qris'))throw Error('XLSX payment filter changed');
+    await page.getByLabel('Filter pembayaran').selectOption('');
+    await page.getByLabel('Cari order / kasir / pelanggan').fill('0000123');
+    const single=await capture();if(single.rows.length!==1||single.rows[0]['No. Order']!=='0000123')throw Error('single-row/search export changed');
+    await page.getByLabel('Cari order / kasir / pelanggan').fill('');
+    await page.getByLabel('Filter status').selectOption('refunded');
+    if(!await page.getByRole('button',{name:'Export',exact:true}).isDisabled())throw Error('empty/status export enabled');
+    await page.getByLabel('Filter status').selectOption('');
+    const body=(await page.locator('main').innerText()).replace(/\s/g,'');
+    if(!body.includes(`Rp${(n*1000).toLocaleString('id-ID')}`))throw Error('rendered total changed');
+    results.push({n,xlsxRows:rows.length,total:rows.reduce((sum,row)=>sum+row.Total,0),filename,bytes,browserVersion,readerVersion:workbookReader.version,readerEntry:xlsxRequire.resolve('xlsx'),cells,qrisRows:qris.rows.length,singleRows:single.rows.length,emptyDisabled:true});
   }
   page.__a26.fail='/api/v1/orders';
   await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor({timeout:20000});
-  if(!(await page.getByRole('button',{name:'Export',exact:true}).isDisabled()))throw new Error('failure enabled export');
-  results.push({laterFailure:'visible error; XLSX disabled; complete snapshot retained'});
+  if(!await page.getByRole('button',{name:'Export',exact:true}).isDisabled())throw Error('failure enabled export');
+  if(downloads!==9)throw Error('unexpected/partial download count');
+  results.push({laterFailure:'visible error; real XLSX download disabled; complete snapshot retained',downloads});
   page.__a26.fail=null;
   return results;
 }

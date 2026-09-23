@@ -1,26 +1,26 @@
-# Programme progress — A34e1 accepted; A34e2 underway
+# Programme progress — A34e2 accepted; A34e3 locally verified
 
-Status summary only; docs/AUDIT_COVERAGE_TRACKER.md is the sole A01–A44 tracker.
-Current packet: A34E2-XCRYPTO-20260923-01. AUTH-MANDALIKA-20260919-01.
+Authority: AUTH-MANDALIKA-20260919-01. Current packet: A34E3-SHEETJS-20260923-01.
+The canonical docs/AUDIT_COVERAGE_TRACKER.md remains the only finding tracker.
 
-CG-A34E1-GO-REMEDIATION-20260922-01-R1 scoped-accepts A34e1 at feb0048.
-19 accepted bounded milestones span 11 findings. All 44 remain tracked
-(8 P0 / 32 P1 / 3 P2 / 1 P3); A31 alone is resolved; 0/8 P0 parents and
-0 release gates close. Full A34/T29 and A38/T33 remain open.
+CG-A34E2-XCRYPTO-20260923-01-R1 accepts A34e2 at 76cc02b. There are now 20
+accepted bounded milestones across the same 11 findings. All 44 findings remain;
+A31 alone is resolved. Zero of eight P0 parents and zero release gates close.
+Full A34/T29, A38/T33 and A14 remain open.
 
-A34e2 implements x/crypto v0.56.0 with eight required module-graph movements.
-Capture a deterministic actual pre-upgrade Argon2id hash; prove legacy/new
-password verification, rejection, encoding/parameter and malformed-parser
-compatibility. No credential migration or rehash. The existing parser's numeric
-version and zero-cost-parameter limitations are characterized, not repaired.
+A34e3 vendors official SheetJS 0.20.3 with pinned bytes and Apache-2.0 evidence,
+retains actual xlsx identity in inventory/SBOM/advisories, hashes vendor inputs,
+and checks dependency/distribution deltas. Eight old exclusive transitive package
+nodes disappear because the new manifest declares no consumer dependencies;
+this is a graph change, not proof about all embedded code or vulnerabilities.
 
-Fresh scans reduce blocker records69 ->48:21 blocking x/crypto records and
-29 known-fixed advisory records disappear; no new blocker.19 password tests
-and510 ordinary Go PASS events complete; six opt-in skips are separately
-covered by all six PostgreSQL18.3/race fixtures,142 named PASS/zero skips and
-verified cleanup. Hosted same-SHA verification is pending.
-GO-2026-5932 is no-fixed OpenPGP and stays visible under unchanged policy.
-chi ingress trust and rgbcolor owner/legal approval remain unresolved; no
-exceptions. After ChatGPT review of A34e2, return to approved official
-SheetJS 0.20.3 vendoring. No unrelated dependency/business/deployment work.
-Historical stopped DB/cache cleanup stays untouched.
+Local clean frozen install and quality pass; 22 vendor safety/coverage tests and
+26 required browser scenarios pass. Real XLSX downloads preserve 51/201/1000
+rows, filters/totals, Unicode, identifiers/date/number types, formula-like text,
+single/empty behavior and later-page failure disablement. Hosted proof pending.
+
+Fresh baseline and after scans both report 48 blockers. The two SheetJS advisories
+still match vendor 0.20.3 through open-ended OSV ranges; raw evidence and publisher
+fixed-version claims are retained for applicability review. No exception or policy
+change. chi ingress, rgbcolor legal choice, OpenPGP policy and password-parser
+hardening remain separate. Historical stopped cleanup is untouched.

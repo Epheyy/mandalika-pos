@@ -4,8 +4,7 @@ Packet: A34E2-XCRYPTO-20260923-01. Authority: AUTH-MANDALIKA-20260919-01.
 Review input: CG-A34E1-GO-REMEDIATION-20260922-01-R1.
 Entry: feb0048de2a577bf8e5b2d9243944ce115aa3a29, audit/hosted-proof-20260922.
 
-A34e1 is scoped ChatGPT accepted. A34e2 is implemented, locally verified, awaiting hosted
-verification and subsequent ChatGPT review.
+A34e1 is scoped ChatGPT accepted. A34e2 is implemented and locally+hosted verified, pending ChatGPT review.
 A34/T29, A38/T33 and every release gate remain open.
 
 ## Exact dependency scope
@@ -76,17 +75,28 @@ empty; no policy change or exception makes the dependency job green.
 
 ## Verification
 
-Local make gen-check, gofmt, vet, build and ordinary Go tests pass under Go1.26.8.
+Local make gen-check, gofmt, vet, build and ordinary Go tests pass under Go 1.26.8.
 Ordinary tests record 510 PASS events and the six opt-in DB skips; these skips
 are not database evidence. Password-only tests record 19 PASS, zero skips.
-The six isolated PostgreSQL18.3 gates pass142 named parent/subtests with race,
+The six isolated PostgreSQL 18.3 gates pass 142 named parent/subtests with race,
 zero skips and verified fixture/container cleanup. A disposable network-none
 Linux container uses the unchanged guarded native runner and fixed loopback
 ports, with no published ports. Verified public module caches permit network-off
 execution; module checksums and TLS are not bypassed. First fixture-image build
 failed because BuildKit interpreted a bare image SHA as a registry name; using
 the existing local tag after matching its exact identity corrected the launcher.
-That setup failure is retained. Hosted verification remains pending. Raw commands, working directories, exit statuses, exact module graphs,
+That setup failure is retained.
+
+Final hosted SHA `76cc02b2fec813ee534a998c9a45ff9cde5db9f4` passes quality 35811155308,
+backend 35811155301, postgres 35811155452 and browser 35811155310. The default
+PostgreSQL 18.3 Docker/race runner passes all six gates, 142 named parent/subtests,
+zero skips, verified target identity and cleanup. Chromium passes 26/26, zero
+skips/unexpected network requests, confirmed browser/Vite cleanup. Dependency
+run 35811155324 completes a fresh committed-input scan and correctly FAILS on 48
+blocker records, identical to the local blocking set. No new called finding;
+GO-2026-5932 remains visible, module-level and unimported. These hosted outcome
+paragraphs are uncommitted reporting after-images of the tested executable source.
+A34e2 ChatGPT review is pending; A34/T29, A38/T33 and every release gate stay open. Raw commands, working directories, exit statuses, exact module graphs,
 scanner messages, policy records, fixture capture and negative proof are bundled.
 
 Historical stopped DB/cache cleanup remains untouched. New fixture resources are
@@ -94,3 +104,9 @@ owned and identity-checked. No native/customer/production target is contacted.
 After ChatGPT review, the next bounded work is the already-approved official
 SheetJS 0.20.3 vendoring slice. chi ingress trust and rgbcolor owner/legal approval
 remain unresolved; this dependency update does not decide either.
+
+## Subsequent review — 2026-09-23
+
+CG-A34E2-XCRYPTO-20260923-01-R1 scoped-accepts this exact checkpoint.
+20 accepted milestones across 11 findings; no parent or release closure. The
+stored-hash characterization residual is linked to A07/A09 for separate hardening.

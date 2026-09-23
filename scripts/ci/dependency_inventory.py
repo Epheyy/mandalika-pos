@@ -18,8 +18,9 @@ def load(path):
 def node_inventory(raw):
     lock = load(raw / "lock.json")
     packages, snapshots, importers = lock["packages"], lock["snapshots"], lock["importers"]
-    evidence = {x["key"]: x for x in load(raw / "node-package-evidence.json")}
-    if set(evidence) != set(packages):
+    records = load(raw / "node-package-evidence.json")
+    evidence = {x["key"]: x for x in records}
+    if len(evidence) != len(records) or set(evidence) != set(packages):
         raise PolicyError("npm package evidence does not cover exact lockfile")
     nodes = {}
     edges = {}
@@ -34,6 +35,27 @@ def node_inventory(raw):
                 raise PolicyError("Unresolved pnpm transitive edge")
             children.append(child)
         edges[key] = children
+        if evidence[base].get("distribution_kind") == "official-vendor-tarball":
+            manifest = evidence[base]["package_manifest"]
+            required = manifest.get("dependencies", {}) | manifest.get("optionalDependencies", {})
+            resolved = snapshot.get("dependencies", {}) | snapshot.get("optionalDependencies", {})
+            if not set(required).issubset(resolved):
+                raise PolicyError("Vendor manifest dependency edge missing from lock snapshot")
+            peers = manifest.get("peerDependencies", {})
+            for name in peers:
+                optional = manifest.get("peerDependenciesMeta", {}).get(name, {}).get("optional", False)
+                if name not in resolved and not optional:
+                    raise PolicyError("Vendor peer dependency edge unresolved")
+            for name, version in resolved.items():
+                if name not in required and name not in peers:
+                    raise PolicyError("Unexpected vendor dependency edge")
+                child = evidence[(name + "@" + version).split("(")[0]]
+                if child["name"] != name:
+                    raise PolicyError("Vendor dependency edge identity mismatch")
+                expected = required.get(name, peers.get(name))
+                match = helper("ranges", [{"version": child["version"], "range": expected}])[0]
+                if expected != "*" and (not match["valid"] or not match["matches"]):
+                    raise PolicyError("Vendor dependency edge version conflicts with manifest")
         nodes.setdefault(base, {"scopes": set(), "paths": [], "direct": [], "snapshots": []})["snapshots"].append(key)
     for workspace, importer in importers.items():
         for group in ("dependencies", "optionalDependencies", "devDependencies"):
@@ -125,6 +147,8 @@ def license_inventory(components):
 
 def findings(raw, components):
     index = {(x["ecosystem"], x["package"], x["version"]): x for x in components}
+    if len(index) != len(components):
+        raise PolicyError("Ambiguous advisory identity across component distributions")
     records = {x["id"]: x for x in load(raw / "osv-records.json")}
     audit = load(raw / "pnpm-audit.json")
     if not isinstance(audit.get("advisories"), dict) or "metadata" not in audit:
@@ -151,6 +175,9 @@ def findings(raw, components):
     queries = load(raw / "osv-query.json")
     if len(queries["queries"]) != len(queries["results"]) or len(queries["queries"]) != len(components):
         raise PolicyError("OSV inventory/response count mismatch")
+    queried = [(q["package"]["ecosystem"], q["package"]["name"], q["version"]) for q in queries["queries"]]
+    if len(set(queried)) != len(queried) or set(queried) != set(index):
+        raise PolicyError("OSV queries do not cover exact component identities")
     for query, response in zip(queries["queries"], queries["results"]):
         component = index[(query["package"]["ecosystem"], query["package"]["name"], query["version"])]
         for finding in response.get("vulns", []):
@@ -194,7 +221,7 @@ def sbom(inventory, licenses, sha, timestamp, parser_root):
     for c in components:
         kind = "npm" if c["ecosystem"] == "npm" else "golang"
         ref = f"pkg:{kind}/{quote(c['package'], safe='/')}@{quote(c['version'], safe='')}"
-        refs[c["package"] + "@" + c["version"]] = ref
+        refs[c.get("key", c["package"] + "@" + c["version"])] = ref
         license, valid = license_by_key[(c["ecosystem"], c["package"], c["version"])]
         row = {"type": "library", "bom-ref": ref, "name": c["package"], "version": c["version"], "purl": ref,
                "scope": "required" if c["scope"] in {"runtime", "build"} else "optional",
@@ -202,6 +229,11 @@ def sbom(inventory, licenses, sha, timestamp, parser_root):
         row["licenses"] = [{"expression": license["expression"]}] if valid else [{"license": {"name": license["expression"]}}]
         if c.get("tarball_sha256"):
             row["hashes"] = [{"alg": "SHA-256", "content": c["tarball_sha256"]}]
+        if c.get("distribution_kind") == "official-vendor-tarball":
+            row["externalReferences"] = [{"type": "distribution", "url": c["tarball"],
+                                           "hashes": [{"alg": "SHA-256", "content": c["tarball_sha256"]}]}]
+            row["properties"].extend({"name": "mandalika:" + field.replace("_", "-"), "value": c[field]}
+                                     for field in ["distribution_kind", "key", "local_path", "integrity", "provenance_sha256"])
         rows.append(row)
     edges = collections.defaultdict(set)
     if "snapshot_edges" in inventory:

@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify reviewed local vendor bytes before installation
+        run: python scripts/ci/dependency_vendor.py
       - name: Install pinned parsers without package lifecycle execution
         run: |
           corepack enable
@@ -42,7 +44,9 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           go install github.com/google/licenseclassifier/v2/tools/identify_license@v2.0.0
       - name: Prove fail-closed policy in disposable copies
-        run: python scripts/ci/dependency_security_test.py
+        run: |
+          python scripts/ci/dependency_security_test.py
+          python scripts/ci/dependency_vendor_test.py
       - name: Full dependency baseline and PR delta
         env:
           SOURCE_SHA: ${{ github.sha }}
