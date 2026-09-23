@@ -154,3 +154,12 @@ fresh sources. `dependency_applicability_test.py` adds16 focused tests/real CLI
 negative proofs, alongside unchanged vendor22 and policy19 tests. Exact LF checkout
 of provenance/register plus byte-preserved evidence prevents platform line-ending
 conversion from changing reviewed identities. No signature or general safety claim.
+
+## Tar consumer regression
+
+The exact @capacitor/cli@8.3.4>tar override pins7.5.21 inside the parent's ^7.5.3
+range. Ordinary pnpm9 transitive update did not move the lock. No root tar import
+is added. Canonical quality runs scripts/ci/tar-consumer-test.cjs after installation;
+it resolves tar from the actual Capacitor manifest and tests the installed template
+helper plus tiny archive regressions in bounded children. Full native workflows
+and general extraction byte/entry quotas are not claimed by these tests.

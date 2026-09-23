@@ -1,16 +1,34 @@
 # Canonical audit coverage tracker — A01–A44
 
-Reconciled 2026-09-19; A34e3 scoped acceptance and A34e4 applicability added 2026-09-23 in the same Windows/PowerShell worktree.
+Reconciled 2026-09-19; A34e4 scoped acceptance and A34e5 tar remediation added 2026-09-23 in the same Windows/PowerShell worktree.
 Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
-Current verification branch `audit/hosted-proof-20260922`; A34e4 entry HEAD `de7352fa5fb0cf877e869b1c65040a2731969ccb`.
+Current verification branch `audit/hosted-proof-20260922`; A34e5 entry HEAD `31080a4b40515369bd050d1eb13150d04fa21971`.
 Original reconciliation base: `prod-hardening`, `4691c781842f0114acaf2e4371e0d11f0076f553`.
-A34d/A34e source checkpoints remain historical evidence; current A34e4 verification is recorded below.
+A34d/A34e source checkpoints remain historical evidence; current A34e5 verification is recorded below.
 Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
 This is the **only current finding-status tracker**; findings.json is immutable
 historical input, not a competing live tracker. Plan/draft contain requirements;
 The local-only SESSION_HANDOFF.md and docs/AUDIT_REVIEW_PACKET.md carry the current review packet.
 
 ## Evidence and shared fields (apply to every row)
+
+E48: CG-A34E4-SHEETJS-APPLICABILITY-20260923-01-R1 scoped-accepts E47 exact
+SheetJS advisory applicability at 31080a4. Progress:22 accepted milestones across
+11 findings. All44 retained; A31 remains the sole resolved parent;0/8 original P0
+parents and0 release gates closed. A34/T29,A38/T33 remain open. Review limits and
+2026-10-23T00:00:00Z deadline are unchanged; no risk/license exception.
+
+E49: A34E5-TAR-20260923-01 updates only the existing Capacitor CLI8.3.4 -> tar
+edge from7.5.15 to7.5.21, within its declared ^7.5.3 range. Exact parent-scoped
+pnpm override follows a documented no-op ordinary pnpm9 update trial. No other
+locked package/version or tar child changes. Clean frozen install proves the
+parent's own resolution and actual extractTemplate behavior. Six bounded archive
+checks pass after reproducing the old replacement timeout, long-path stack failure
+and ignored ratio threshold. Local quality/vendor22/policy19/applicability16 pass.
+Fresh local scan: raw blockers48->45, actionable46->43, reviewed2,exceptions0.
+Three targeted blocking IDs and three additional Moderate report-only tar IDs
+are removed; no new/changed unrelated finding. No static count enforced.
+Hosted verification pending; A34e5 review pending. See A34E5_TAR_REMEDIATION.md.
 
 E46: CG-A34E3-SHEETJS-20260923-01-R1 scoped-accepts E45 official SheetJS
 vendoring, scanner coverage and supplied XLSX qualification at de7352f. Accepted
@@ -24,8 +42,13 @@ lock,manifest,provenance,material advisory/risk fingerprints and review deadline
 Archived real CLI replay:48 unadjusted/46 actionable/2 reviewed-not-affected/0 risk
 exceptions. PR replay:50 raw occurrences ->46 actionable;4 assessed occurrences
 represent the same2 identities. Raw findings/OSV/SBOM preserved; other46 unchanged.
-Local focused/vendor/policy/quality pass; hosted verification pending. A34e4 review
-pending, no parent or release gate closes. See A34E4_SHEETJS_APPLICABILITY.md.
+Local focused/vendor/policy/quality pass. Final hosted SHA
+31080a4b40515369bd050d1eb13150d04fa21971: quality35822121487,backend35822121506,
+PostgreSQL35822121575,browser35822121515 pass; six Docker18.3/race fixtures and
+26 browser scenarios have zero skips and verified cleanup. Fresh dependency-security
+35822121570 completes RED: raw48/actionable46/reviewed2/exceptions0; source hashes
+match committed inputs. A34e4 review pending; no parent/release closure.
+See A34E4_SHEETJS_APPLICABILITY.md and the current packet.
 
 E44: CG-A34E2-XCRYPTO-20260923-01-R1 scoped-accepts A34e2 x/crypto remediation
 at 76cc02b2fec813ee534a998c9a45ff9cde5db9f4. Accepted milestones: 20 across the
@@ -551,11 +574,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e3 accepted; A34e4 applicability | Open; E46 accepts vendoring; E47 reviewed applicability implemented/locally verified, hosted pending; unrelated dependency/CI/release blockers remain | T29 |
+| A34 | P1 | A34a–e4 accepted; A34e5 tar remediation | Open; E48 accepts applicability; E49 tar patch locally verified, hosted/review pending; other dependency/CI/release blockers remain | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e–e4 / S6 | Open; E46 vendor coverage accepted; E47 exact applicability implemented, review pending; raw48/actionable46 in archived replay, unrelated security/license blockers remain | T33 |
+| A38 | P2 | A34e–e5 / S6 | Open; E48 exact applicability accepted; E49 tar patch removes three blockers and three report-only IDs, unrelated security/license blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -1022,8 +1045,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a–e3 scoped accepted through E46 (21 milestones across11 findings). E47 A34e4 is implemented/locally verified, hosted/review pending; archived raw48/actionable46 remain BLOCKED. Full A34/T29 remains open.
-- **Current evidence:** E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
+- **Current disposition:** A34a–e4 scoped accepted through E48 (22 milestones/11 findings). E49 tar remediation locally verified, hosted/review pending. Full A34/T29 remains open.
+- **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
 - **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Android signing needs quality/database/backend/browser, all checking caller SHA. Existing quality/PostgreSQL/backend/React Doctor workflows unchanged; JS package gate additionally typechecks browser tests.
@@ -1070,8 +1093,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E40 baseline, E42 pgx/x-text and E44 x/crypto scoped acceptances retained. E46 accepts E45 vendor coverage; E47 implements the approved exact applicability. Archived raw48/actionable46; no clean-baseline or full T33 claim.
-- **Current evidence:** E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
+- **Current disposition:** Open. E48 exact SheetJS applicability accepted; E49 tar remediation locally verified, hosted/review pending. Fresh local raw45/actionable43 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
+- **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
 - **Dependencies / slice:** A34; proposed S6. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: lockfile/advisory review; XLSX import changes reachability.

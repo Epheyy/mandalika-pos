@@ -1619,3 +1619,17 @@ use identical baseline/PR projection. Evidence changes and nonmatching artifacts
 keep normal enforcement. No package-wide ignore or policy/license downgrade.
 The canonical tracker and A34E4_SHEETJS_APPLICABILITY.md hold results/residuals;
 parent findings and release gates stay open. No broader remediation bundled.
+
+A34e4 final verification (2026-09-23): commit31080a4, four application workflows
+pass; fresh security scan completes with48 raw/46 actionable/2 reviewed-not-affected
+and zero exceptions. The two exact SheetJS decisions are review-pending implementation;
+21 milestones remain accepted. No parent/release gate closure or next-family upgrade.
+
+## A34e5 tar checkpoint — 2026-09-23
+
+E48 accepts A34e4 exact applicability:22 milestones/11 findings. E49 changes only
+Capacitor CLI8.3.4's tar edge to7.5.21 with a scoped override, clean installed-parent
+proof and six bounded archive regressions in canonical quality. Local raw blocker
+48->45/actionable46->43 delta retains SheetJS reviewed2/exceptions0. Hosted proof
+and A34e5 review pending. All44 findings, existing business decisions and release
+gates remain; no native/platform upgrade or next-family remediation is included.
