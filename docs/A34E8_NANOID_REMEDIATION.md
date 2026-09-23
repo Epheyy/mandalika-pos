@@ -77,3 +77,27 @@ hosted Docker18.3/race evidence will be recorded separately.
 Four previously denied installation-copy deletions remain untouched. Prior two
 A34e7 copies and new two A34e8 copies are retained without a deletion attempt;
 this is distinct from a new policy block. Historical stopped DB cleanup unchanged.
+
+## Final hosted proof — 2026-09-23
+
+Source `4cd7f89d857d64b0ae265605c9a25d39185522ac`, tree `c62232f832865e7954849268f49a2d14e7a3ac76`.
+Quality35843981412,backend35843981448,PostgreSQL35843981371,browser35843981343
+succeed on this exact SHA. Hosted Node22 passes all16Nano ID cases and prior
+20brace/10XML/6tar checks. Backendgen/vet/fmt/build/race passes. Docker18.3/race:
+6fixtures,142named passes,zero skips,verified identity and cleanup. Chromium26/26,
+zero skips,no unexpected external requests,owned processes/ports cleaned.
+Fresh security35843981401 completes RED:23raw/21actionable/2reviewed/0exceptions.
+Committed input hashes match; hosted normalized findings equal local after-scan.
+Only the two targeted Nano ID IDs disappear; no unrelated finding changes.
+A34e8 implemented/locally+hosted verified; ChatGPT review pending. A34e7 accepted;
+25accepted milestones/same11findings,all44retained,A31alone resolved. A34/T29,
+A38/T33 and every release gate remain open. Post-proof documentation is a local
+after-image, distinct from the hosted executable snapshot. No deployment dispatch.
+Four denied installation copies untouched;A34e7/A34e8 copies retained without
+new deletion attempts. No disk fixtures from Nano ID tests; children reaped.
+
+## Scoped review acceptance — 2026-09-23
+
+CG-A34E8-NANOID-20260923-01-R1 accepts this bounded milestone at4cd7f89.
+26accepted milestones/same11findings. Review limits retained; all44parents remain,
+A31alone resolved,A34/A38 and release gates open. Historical execution above unchanged.

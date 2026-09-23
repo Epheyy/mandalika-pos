@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? undefined : process.argv[i + 1]; };
 const root = path.resolve(option('--root') || process.cwd());
 const rr = createRequire(path.join(root, 'package.json'));
-const parentFile = fs.realpathSync(path.join(root, 'node_modules/.pnpm/postcss@8.5.14/node_modules/postcss/package.json'));
+const { parentFile, contexts } = require('./postcss-context.cjs')(root);
 const pr = createRequire(parentFile);
 const parent = JSON.parse(fs.readFileSync(parentFile));
 const file = pr.resolve('nanoid/package.json');
@@ -118,7 +118,7 @@ if (option('--worker')) {
     return { name, exit: child.status, signal: child.signal, error: child.error?.code,
       stdout: child.stdout, stderr: child.stderr, cleanup: 'child-reaped; no disk fixtures' };
   });
-  const report = { parent: parent.name, range: parent.dependencies.nanoid, selected: manifest.version,
+  const report = { parent: parent.name, contexts, range: parent.dependencies.nanoid, selected: manifest.version,
     manifest: file, actualCaller: 'non-secure CJS constant6; not attacker-controlled size', limits, results };
   if (option('--output')) fs.writeFileSync(option('--output'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));

@@ -1695,6 +1695,35 @@ E54: CG-A34E7-BRACE-EXPANSION-20260923-01-R1 scoped accepts A34e7 at1e76b42.
 E55: A34E8-NANOID-20260923-01 updates PostCSS's compatible Nano ID edge3.3.12
 ->3.3.18.16bounded cases pass; corrected before-final6pass/10fail. Fresh local
 25->23raw/23->21actionable,reviewed2/exceptions0. Exactly2targeted IDs removed;
-no new/changed unrelated records. Hosted proof/review pending. A34/T29,A38/T33
+no new/changed unrelated records. Hosted proof verified; ChatGPT review pending. A34/T29,A38/T33
 and all release gates stay open. See A34E8_NANOID_REMEDIATION.md.
 Earlier checkpoint sections preserve historical evidence; this section is current.
+
+## Final hosted proof — 2026-09-23
+
+Source `4cd7f89d857d64b0ae265605c9a25d39185522ac`, tree `c62232f832865e7954849268f49a2d14e7a3ac76`.
+Quality35843981412,backend35843981448,PostgreSQL35843981371,browser35843981343
+succeed on this exact SHA. Hosted Node22 passes all16Nano ID cases and prior
+20brace/10XML/6tar checks. Backendgen/vet/fmt/build/race passes. Docker18.3/race:
+6fixtures,142named passes,zero skips,verified identity and cleanup. Chromium26/26,
+zero skips,no unexpected external requests,owned processes/ports cleaned.
+Fresh security35843981401 completes RED:23raw/21actionable/2reviewed/0exceptions.
+Committed input hashes match; hosted normalized findings equal local after-scan.
+Only the two targeted Nano ID IDs disappear; no unrelated finding changes.
+A34e8 implemented/locally+hosted verified; ChatGPT review pending. A34e7 accepted;
+25accepted milestones/same11findings,all44retained,A31alone resolved. A34/T29,
+A38/T33 and every release gate remain open. Post-proof documentation is a local
+after-image, distinct from the hosted executable snapshot. No deployment dispatch.
+Four denied installation copies untouched;A34e7/A34e8 copies retained without
+new deletion attempts. No disk fixtures from Nano ID tests; children reaped.
+
+## Current A34e9 checkpoint — 2026-09-23
+
+E56: CG-A34E8-NANOID-20260923-01-R1 scoped accepts A34e8 at4cd7f89.
+26accepted milestones/same11findings;all44retained,A31alone resolved.
+E57: A34E9-POSTCSS-20260923-01 updates actual Vite->PostCSS8.5.23, preserving
+Nano ID3.3.18 and all16worker assertions through real consumer resolution.
+15PostCSS cases pass;3targeted before-fix read/propagation failures. Freshlocal
+23->22raw/21->20actionable/30->29report-only;reviewed2/exceptions0. OneHigh and
+oneModerate PostCSS record removed,no unrelated change. Hosted/review pending.
+FullA34/T29,A38/T33 and every release gate open. Earlier checkpoints are historical.
