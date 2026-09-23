@@ -1,5 +1,16 @@
 # Canonical audit coverage tracker — A01–A44
 
+## Current A34e7 checkpoint — 2026-09-23
+
+E52: CG-A34E6-XMLDOM-20260923-01-R1 accepts A34e6 at36d3d3a.
+24 accepted milestones across the same11findings; all44 retained,A31 alone resolved.
+E53: A34E7-BRACE-EXPANSION-20260923-01 implements compatible1.1.18/2.1.4/5.0.9
+through their actual minimatch parents.20bounded checks pass;5before-fix failures.
+Fresh local34->25raw/32->23actionable,reviewed2/exceptions0;9records removed,no new.
+Hosted proof and ChatGPT review pending. A34/T29,A38/T33 and release gates open.
+Prior checkpoint sections retain historical evidence; this section is current.
+
+
 ## Current A34e6 checkpoint — 2026-09-23
 
 E50: CG-A34E5-TAR-20260923-01-R1 scoped accepts A34e5 at095dcff.
@@ -7,7 +18,7 @@ E50: CG-A34E5-TAR-20260923-01-R1 scoped accepts A34e5 at095dcff.
 E51: A34E6-XMLDOM-20260923-01 implements compatible plist3.1.1 -> xmldom0.9.12.
 Ten bounded real-parent/parser checks pass; seven old-version failures reproduced.
 Fresh local45->34raw/43->32actionable,reviewed2/exceptions0;13IDs removed,no new IDs.
-Hosted proof and ChatGPT acceptance pending. A34/T29,A38/T33/release gates remain open.
+Hosted36d3d3a verified:fourgreen + completed security34raw/32actionable. ChatGPT acceptance pending; A34/T29,A38/T33/release gates remain open.
 See A34E6_XMLDOM_REMEDIATION.md and current packet; prior checkpoints below are historical.
 
 
@@ -592,11 +603,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e5 accepted; A34e6 xmldom remediation | Open; E50 accepts tar; E51 xmldom locally verified, hosted/review pending; other gates remain | T29 |
+| A34 | P1 | A34a–e6 accepted; A34e7 brace patches | Open; E52 accepts xmldom; E53 brace patches locally verified, hosted/review pending; other gates remain | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e–e5 / S6 | Open; E50 tar accepted; E51 xmldom removes11blockers/2reports locally; unrelated blockers remain | T33 |
+| A38 | P2 | A34e–e5 / S6 | Open; E52 xmldom accepted; E53 brace patches remove9matches locally; unrelated blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -1063,7 +1074,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a–e5 scoped accepted through E50 (23 milestones/11 findings). E51 xmldom locally verified; hosted/review pending. Full A34/T29 remains open.
+- **Current disposition:** A34a–e6 scoped accepted through E52 (24 milestones/11 findings). E53 brace patches locally verified; hosted/review pending. Full A34/T29 remains open.
 - **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
@@ -1111,7 +1122,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E50 tar accepted; E51 xmldom locally verified, hosted/review pending. Fresh local raw34/actionable32 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
+- **Current disposition:** Open. E52 xmldom accepted; E53 brace patches locally verified, hosted/review pending. Fresh local raw25/actionable23 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
 - **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.

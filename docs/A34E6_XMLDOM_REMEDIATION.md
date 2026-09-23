@@ -3,7 +3,8 @@
 Packet A34E6-XMLDOM-20260923-01; AUTH-MANDALIKA-20260919-01.
 Entry095dcff509efeeab0b23dc48bc94e3caf6d71210; same audit/hosted-proof-20260922.
 CG-A34E5-TAR-20260923-01-R1 accepts A34e5:23 accepted milestones/11 findings.
-A34e6 implemented and locally verified; hosted proof and ChatGPT review pending.
+A34e6 implemented and hosted-verified at36d3d3a; scoped accepted by
+CG-A34E6-XMLDOM-20260923-01-R1. See final proof below.
 All44 findings remain; A31 sole resolved parent. A34/T29,A38/T33/release gates open.
 
 ## Minimal resolution and actual consumers
@@ -83,3 +84,30 @@ rerun for this Node-only leaf; required current hosted equivalents remain mandat
 Residuals: chi trust, rgbcolor license, no-fixed OpenPGP treatment, password parser,
 A13/A42 concurrency,A37 history/secret scanning,A35 native provenance and all other
 parent/release requirements. No policy exception or new applicability rule.
+
+Post-proof cleanup note: automatic approval review blocked the first bounded
+PowerShell removal of new A34e6 resolution-copy/clean-frozen directories, stating
+"blocked by policy". Both remain under mandalika-a34e6-hdf5gekv; no retry/bypass.
+Prior A34e5 copies were untouched. All tiny XML fixtures were cleaned successfully.
+
+## Final hosted verification — 2026-09-23
+
+Final source `36d3d3abd146949c922d7bd6a32312ff50eca4e6`, tree `0806541d8d9c2d3ae9223a897a110c93c8d1d9db`.
+Quality35834359162/backend35834359922/PostgreSQL35834359187/browser35834359063
+all succeed on this SHA. Hosted Node22 passes10XML+6tar cases. Docker18.3/race:
+6gates/142named passes/zero skips/identity+cleanup verified. Chromium26/26passes,
+zero skips,no unexpected external access,process/port cleanup confirmed.
+Backendgen/vet/fmt/build/race and quality frozen/types/build/schema pass.
+Fresh security35834359219 completes RED:34raw/32actionable/2reviewed/0exceptions.
+Source-input hashes match committed blobs; normalized findings equal local after.
+No new/changed unrelated finding. A34e6 implemented and hosted-verified;ChatGPT
+review pending.23accepted milestones;all44 retained,A31 alone resolved.
+A34/A38/release gates open. Post-proof documentation is a local reporting after-image;
+all executable source matches the hosted commit. New install-copy cleanup was also
+policy-blocked; prior A34e5 copies untouched; no deletion retry or bypass.
+
+## Scoped acceptance
+
+CG-A34E6-XMLDOM-20260923-01-R1 accepts this bounded change at36d3d3a.
+24 accepted milestones across the same11findings. XML/native/resource limits and
+retained installation-copy cleanup restrictions remain. No parent or gate closes.

@@ -1647,3 +1647,27 @@ range is locally verified with10bounded cases and full quality. Fresh scan
 34raw/32actionable/2reviewed/0exceptions;13family IDs removed,no new findings.
 Hosted proof/review pending. No parent/gate closure; all44 retained,A31 alone resolved.
 Prior blocked installation-copy cleanup remains untouched.
+
+## Final hosted verification — 2026-09-23
+
+Final source `36d3d3abd146949c922d7bd6a32312ff50eca4e6`, tree `0806541d8d9c2d3ae9223a897a110c93c8d1d9db`.
+Quality35834359162/backend35834359922/PostgreSQL35834359187/browser35834359063
+all succeed on this SHA. Hosted Node22 passes10XML+6tar cases. Docker18.3/race:
+6gates/142named passes/zero skips/identity+cleanup verified. Chromium26/26passes,
+zero skips,no unexpected external access,process/port cleanup confirmed.
+Backendgen/vet/fmt/build/race and quality frozen/types/build/schema pass.
+Fresh security35834359219 completes RED:34raw/32actionable/2reviewed/0exceptions.
+Source-input hashes match committed blobs; normalized findings equal local after.
+No new/changed unrelated finding. A34e6 implemented and hosted-verified;ChatGPT
+review pending.23accepted milestones;all44 retained,A31 alone resolved.
+A34/A38/release gates open. Post-proof documentation is a local reporting after-image;
+all executable source matches the hosted commit. New install-copy cleanup was also
+policy-blocked; prior A34e5 copies untouched; no deletion retry or bypass.
+
+## A34e7 current checkpoint
+
+E52 accepts A34e6:24milestones/11findings. E53 compatible brace-expansion patches
+on3existing lines pass20bounded tests and quality. Fresh local25raw/23actionable/
+2reviewed/0exceptions;9matched records removed. Hosted/review pending;no gate closes.
+All44 parents remain,A31alone resolved. Existing business policies and denied
+installation-copy cleanup restrictions remain. See A34E7_BRACE_EXPANSION_REMEDIATION.md.
