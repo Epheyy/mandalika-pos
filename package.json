@@ -10,7 +10,7 @@
     "dev:backoffice": "pnpm --filter @mandalika/backoffice dev",
     "doctor": "npx react-doctor@latest",
     "quality:ci": "python scripts/ci/dependency_vendor.py && corepack pnpm install --frozen-lockfile && corepack pnpm quality",
-    "quality": "python scripts/ci/dependency_vendor_test.py && node scripts/ci/tar-consumer-test.cjs && corepack pnpm test:ci && corepack pnpm typecheck:ci && corepack pnpm build:ci && corepack pnpm gen:check",
+    "quality": "python scripts/ci/dependency_vendor_test.py && node scripts/ci/tar-consumer-test.cjs && node scripts/ci/xmldom-consumer-test.cjs && corepack pnpm test:ci && corepack pnpm typecheck:ci && corepack pnpm build:ci && corepack pnpm gen:check",
     "test:ci": "corepack pnpm --filter @mandalika/pos test && corepack pnpm --filter @mandalika/backoffice test && corepack pnpm --filter @mandalika/sync test && corepack pnpm --filter @mandalika/printer test",
     "typecheck:ci": "tsc -p apps/pos/tsconfig.json && tsc -p apps/backoffice/tsconfig.json && tsc -p packages/sync/tsconfig.json && tsc -p packages/printer/tsconfig.json && tsc -p packages/api/tsconfig.json && tsc -p packages/types/tsconfig.json && corepack pnpm typecheck:tests",
     "typecheck:tests": "tsc -p apps/pos/tsconfig.tests.json && tsc -p apps/backoffice/tsconfig.tests.json && corepack pnpm typecheck:browser",
@@ -39,7 +39,8 @@
   "packageManager": "pnpm@9.15.0",
   "pnpm": {
     "overrides": {
-      "@capacitor/cli@8.3.4>tar": "7.5.21"
+      "@capacitor/cli@8.3.4>tar": "7.5.21",
+      "plist@3.1.1>@xmldom/xmldom": "0.9.12"
     }
   }
 }

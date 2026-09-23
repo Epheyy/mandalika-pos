@@ -4,7 +4,7 @@ Packet A34E5-TAR-20260923-01. Authority AUTH-MANDALIKA-20260919-01.
 Entry SHA31080a4b40515369bd050d1eb13150d04fa21971, branch audit/hosted-proof-20260922.
 A34e4 accepted by CG-A34E4-SHEETJS-APPLICABILITY-20260923-01-R1:22 milestones across
 11 findings. All44 retained; A31 sole resolved parent; no P0/release closure.
-This slice is implemented/locally verified; hosted verification and review pending.
+This slice is implemented and hosted-verified; ChatGPT review is pending.
 
 ## Consumer and exact change
 
@@ -96,3 +96,30 @@ Publisher advisory sources:
 
 Version-bound fix/test source, metadata, hashes, command logs and limits are in the
 current review bundle. The first three fixes begin at7.5.18,7.5.19 and7.5.21 respectively.
+
+## Final hosted proof — 2026-09-23
+
+Final SHA095dcff509efeeab0b23dc48bc94e3caf6d71210, tree b4fc45b624f84861df0d4c0eedf65e10d4372c9e.
+Quality35829981276, backend35829981337, PostgreSQL35829981241 and browser35829981258
+pass on this same SHA. Six mandatory Docker18.3/race fixtures have142 passed test
+events,zero skips,verified identity/cleanup. Chromium passes26/26,zero skips,clean
+network and process/port cleanup. Hosted Node22 also passes the six new tar cases.
+Fresh dependency-security35829981221 completes RED for remaining findings:
+raw45/actionable43/reviewed2/exceptions0. Source-input hashes match the commit;
+three targeted blocking IDs and three Moderate IDs are gone,with no new or changed
+unrelated normalized finding. No failed intermediate hosted run.
+
+A34e5 is now implemented and hosted-verified,review pending. Accepted milestones
+remain22. Post-proof documentation is an uncommitted reporting after-image; all
+executable files remain exactly the tested SHA. Full A34/A38 and release gates open.
+
+Automatic approval review blocked removal of the two owned temporary dependency
+installation copies, giving only "blocked by policy". They remain in the task's
+temporary directory; no bypass was attempted. This is separate from the six tiny
+archive fixtures and child processes,whose cleanup succeeded,and from the historical
+stopped database cleanup,which remains untouched. See disposable-cleanup.json.
+
+## Scoped acceptance — CG-A34E5-TAR-20260923-01-R1
+
+Accepted within supplied evidence at095dcff;23 milestones/same11 findings.
+Native/full resource-safety and cleanup limitations remain. No parent/gate closes.
