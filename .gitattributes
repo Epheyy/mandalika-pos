@@ -1,0 +1,4 @@
+vendor/sheetjs/*.provenance.json text eol=lf
+scripts/ci/dependency-applicability*.json text eol=lf
+scripts/ci/applicability-evidence/*.json -text
+scripts/ci/fixtures/applicability-baseline.json -text

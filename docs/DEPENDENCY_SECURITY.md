@@ -118,3 +118,39 @@ The 22 vendor tests supplement the existing policy CLI proofs. Quality and brows
 workflows validate vendor bytes before installation; the security job additionally
 uses `--ignore-scripts`. Existing advisory overmatches remain blocking under the
 unchanged policy until separately reviewed; see A34E3_SHEETJS_REMEDIATION.md.
+
+## Reviewed applicability (A34e4)
+
+`dependency-applicability.json` and its strict schema contain only the two
+CG-A34E3-SHEETJS-20260923-01-R1 decisions. This is not the exceptions register.
+Before assessment the scanner validates the real local artifact, frozen lock,
+manifest and provenance. The decision requires the exact npm identity/distribution,
+SHA256/SRI, provenance digest, advisory ID/explicit alias, material OSV fingerprint,
+normalized risk evidence and the review window. Schema semantics additionally bind
+the specific advisory/CVE/fix/source/reviewer/deadline relationships.
+
+Reviewed OSV/publisher snapshots remain hashed evidence. The semantic fingerprint
+includes id,aliases,details,affected,withdrawn,severity,database_specific,summary,
+references; object keys and set-array order are normalized, range event order is
+retained. Modified timestamps alone do not decide applicability. The risk fingerprint
+covers severity/source/scope/reachability/range/call/import/exploitation flags.
+Current evidence is compared with frozen reviewed fingerprints, never repinned from
+a fresh feed. There is no automatic HTML scrape/renewal. Re-review is required by
+2026-10-23T00:00:00Z, and changed captured publisher evidence is rejected by digest.
+
+`findings.json`, OSV and SBOM remain raw. New `raw-policy-result.json`,
+`assessed-findings.json` and `applicability-result.json` expose unadjusted/assessed
+baseline and PR counts, unique identities and enforcement occurrences. Existing
+`policy-result.json.blocking` is actionable; `reviewed_not_affected` is explicit
+and distinct from `suppressed`. Risk/license policy and exceptions stay unchanged.
+Absent/inactive decisions retain normal policy; malformed records fail the scan;
+expired/materially mismatched records retain raw enforcement with review-required.
+Upstream-corrected/withdrawn matches are not fabricated. No standard VEX claim.
+
+The scanner hashes rule source/schema/register/policy/evidence inputs alongside
+lock/vendor files, checks them across collection, and guards all uploaded reports.
+Frozen `--evidence` replay is marked archived-raw-replay; hosted CI still captures
+fresh sources. `dependency_applicability_test.py` adds16 focused tests/real CLI
+negative proofs, alongside unchanged vendor22 and policy19 tests. Exact LF checkout
+of provenance/register plus byte-preserved evidence prevents platform line-ending
+conversion from changing reviewed identities. No signature or general safety claim.

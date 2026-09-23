@@ -47,6 +47,7 @@ jobs:
         run: |
           python scripts/ci/dependency_security_test.py
           python scripts/ci/dependency_vendor_test.py
+          python scripts/ci/dependency_applicability_test.py
       - name: Full dependency baseline and PR delta
         env:
           SOURCE_SHA: ${{ github.sha }}

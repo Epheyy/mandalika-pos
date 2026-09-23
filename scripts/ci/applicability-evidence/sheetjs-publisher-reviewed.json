@@ -1,0 +1,41 @@
+{
+  "sources": [
+    {
+      "id": "publisher-2023",
+      "url": "https://cdn.sheetjs.com/advisories/CVE-2023-30533",
+      "checked_date": "2026-09-23",
+      "summary": "Affected through0.19.2; upgrade0.19.3+. Export-only is separately described as unaffected."
+    },
+    {
+      "id": "publisher-2024",
+      "url": "https://cdn.sheetjs.com/advisories/CVE-2024-22363",
+      "checked_date": "2026-09-23",
+      "summary": "Affected through0.20.1; upgrade0.20.2+."
+    },
+    {
+      "id": "osv-2023",
+      "url": "https://osv.dev/vulnerability/GHSA-4r6h-8v6p-xvw6",
+      "checked_date": "2026-09-23",
+      "summary": "Open-ended SEMVER machine range; details and database-specific note describe vendor fixed boundary."
+    },
+    {
+      "id": "osv-2024",
+      "url": "https://osv.dev/vulnerability/GHSA-5pgg-2g8v-p4x9",
+      "checked_date": "2026-09-23",
+      "summary": "Same range conflict. Cached web modified date differs from incoming raw record; do not claim fresh raw API equality."
+    },
+    {
+      "id": "osv-schema",
+      "url": "https://ossf.github.io/osv-schema/",
+      "checked_date": "2026-09-23",
+      "summary": "Introduced0 without upper endpoint describes all versions; database-specific metadata is not an automatic fixed event."
+    },
+    {
+      "id": "vendor-install",
+      "url": "https://docs.sheetjs.com/docs/getting-started/installation/nodejs/",
+      "checked_date": "2026-09-23",
+      "summary": "Official vendor0.20.3 tarball and local vendoring instructions."
+    }
+  ],
+  "basis": "Public primary-source page reads; raw captured OSV records are the user-supplied evidence. No independent publisher signature, fresh binary redownload or CVE exploit test performed."
+}

@@ -1,0 +1,3679 @@
+{
+  "source_commit": "de7352fa5fb0cf877e869b1c65040a2731969ccb",
+  "source_policy_sha256": "e5801a143e7e8fd92fc4f3e97f7e521d664f133e64fbf3c0c8372d3fd271b2d9",
+  "extraction": "Exact blocking and suppressed arrays. Nonblocking reported and complete license-results arrays omitted from this focused fixture; full archived source supplied in review bundle.",
+  "policy": {
+    "policy_id": "DEPSEC-INITIAL-20260922",
+    "status": "fail",
+    "blocking": [
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-27p8-2357-5qqv",
+        "aliases": [
+          "CVE-2026-83608"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.15"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.14",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-27p8-2357-5qqv/GHSA-27p8-2357-5qqv.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-27p8-2357-5qqv/GHSA-27p8-2357-5qqv.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-27p8-2357-5qqv/GHSA-27p8-2357-5qqv.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:03.913503797Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-3px3-54cx-rmw9",
+        "aliases": [
+          "CVE-2026-83609"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-3px3-54cx-rmw9/GHSA-3px3-54cx-rmw9.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:03.928359851Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-4w3w-2rp5-g8jm",
+        "aliases": [
+          "CVE-2026-83605"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.11"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.10",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-4w3w-2rp5-g8jm/GHSA-4w3w-2rp5-g8jm.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.14"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.13",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-4w3w-2rp5-g8jm/GHSA-4w3w-2rp5-g8jm.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-4w3w-2rp5-g8jm/GHSA-4w3w-2rp5-g8jm.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T20:45:04.329504975Z",
+        "affected_range": ">=0.9.0 <=0.9.10",
+        "fixed_range": ">=0.9.11",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-6mj3-qw4j-hgrw",
+        "aliases": [
+          "CVE-2026-83612"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0-beta.1"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-6mj3-qw4j-hgrw/GHSA-6mj3-qw4j-hgrw.json",
+              "last_known_affected_version_range": "<= 0.9.11"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:03.941065869Z",
+        "affected_range": ">=0.9.0-beta.1 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-8344-3jmq-59r6",
+        "aliases": [
+          "CVE-2026-83613"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.15"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-8344-3jmq-59r6/GHSA-8344-3jmq-59r6.json",
+              "last_known_affected_version_range": "<= 0.8.14"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-8344-3jmq-59r6/GHSA-8344-3jmq-59r6.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-8344-3jmq-59r6/GHSA-8344-3jmq-59r6.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:25:58.513143Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-93r5-fhx6-vmg9",
+        "aliases": [
+          "CVE-2026-83614"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.15"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.14",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-93r5-fhx6-vmg9/GHSA-93r5-fhx6-vmg9.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-93r5-fhx6-vmg9/GHSA-93r5-fhx6-vmg9.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.3.0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-93r5-fhx6-vmg9/GHSA-93r5-fhx6-vmg9.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:04.187745360Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-965w-775f-mr7g",
+        "aliases": [
+          "CVE-2026-83615"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.15"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.14",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-965w-775f-mr7g/GHSA-965w-775f-mr7g.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-965w-775f-mr7g/GHSA-965w-775f-mr7g.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.1.5"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-965w-775f-mr7g/GHSA-965w-775f-mr7g.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:04.889305067Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-c7q8-3ch8-vqpv",
+        "aliases": [
+          "CVE-2026-83616"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.15"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.14",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-c7q8-3ch8-vqpv/GHSA-c7q8-3ch8-vqpv.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-c7q8-3ch8-vqpv/GHSA-c7q8-3ch8-vqpv.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-c7q8-3ch8-vqpv/GHSA-c7q8-3ch8-vqpv.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:04.899638684Z",
+        "affected_range": ">=0.9.0 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-g53g-w8rj-fmg7",
+        "aliases": [
+          "CVE-2026-83606"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0-beta.9"
+                  },
+                  {
+                    "fixed": "0.9.11"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.10",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-g53g-w8rj-fmg7/GHSA-g53g-w8rj-fmg7.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T20:45:04.316950373Z",
+        "affected_range": ">=0.9.0-beta.9 <=0.9.10",
+        "fixed_range": ">=0.9.11",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-vr34-hp96-76pp",
+        "aliases": [
+          "CVE-2026-83618"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.10"
+                  },
+                  {
+                    "fixed": "0.9.12"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.11",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-vr34-hp96-76pp/GHSA-vr34-hp96-76pp.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:15:04.901097321Z",
+        "affected_range": ">=0.9.10 <=0.9.11",
+        "fixed_range": ">=0.9.12",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "@xmldom/xmldom",
+        "version": "0.9.10",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-w2rr-34g9-rvrj",
+        "aliases": [
+          "CVE-2026-83607"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.9.0"
+                  },
+                  {
+                    "fixed": "0.9.11"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.9.10",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-w2rr-34g9-rvrj/GHSA-w2rr-34g9-rvrj.json"
+            }
+          },
+          {
+            "package": {
+              "name": "@xmldom/xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/%40xmldom/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.7.0"
+                  },
+                  {
+                    "fixed": "0.8.14"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.8.13",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-w2rr-34g9-rvrj/GHSA-w2rr-34g9-rvrj.json"
+            }
+          },
+          {
+            "package": {
+              "name": "xmldom",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xmldom"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "last_affected": "0.6.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-w2rr-34g9-rvrj/GHSA-w2rr-34g9-rvrj.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T20:45:05.335320315Z",
+        "affected_range": ">=0.9.0 <=0.9.10",
+        "fixed_range": ">=0.9.11",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "1.1.14",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-3jxr-9vmj-r5cp",
+        "aliases": [
+          "CVE-2026-13149"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "5.0.7"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.2"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:10.092354944Z",
+        "affected_range": "<1.1.16",
+        "fixed_range": ">=1.1.16",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "1.1.14",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-mh99-v99m-4gvg",
+        "aliases": [
+          "CVE-2026-14257"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.8"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.17"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:12.282849322Z",
+        "affected_range": "<1.1.17",
+        "fixed_range": ">=1.1.17",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "1.1.14",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-rgw5-rvv9-x895",
+        "aliases": [
+          "CVE-2026-69152"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.4"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.6"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.9"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:14.535270857Z",
+        "affected_range": "<1.1.18",
+        "fixed_range": ">=1.1.18",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "2.1.0",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-3jxr-9vmj-r5cp",
+        "aliases": [
+          "CVE-2026-13149"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "5.0.7"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.2"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:10.092354944Z",
+        "affected_range": ">=2.0.0 <2.1.2",
+        "fixed_range": ">=2.1.2",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "2.1.0",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-mh99-v99m-4gvg",
+        "aliases": [
+          "CVE-2026-14257"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.8"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.17"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:12.282849322Z",
+        "affected_range": ">=2.0.0 <2.1.3",
+        "fixed_range": ">=2.1.3",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "2.1.0",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-rgw5-rvv9-x895",
+        "aliases": [
+          "CVE-2026-69152"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.4"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.6"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.9"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:14.535270857Z",
+        "affected_range": ">=2.0.0 <2.1.4",
+        "fixed_range": ">=2.1.4",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "5.0.6",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-3jxr-9vmj-r5cp",
+        "aliases": [
+          "CVE-2026-13149"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "5.0.7"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.2"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3jxr-9vmj-r5cp/GHSA-3jxr-9vmj-r5cp.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:10.092354944Z",
+        "affected_range": ">=3.0.0 <5.0.7",
+        "fixed_range": ">=5.0.7",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "5.0.6",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-mh99-v99m-4gvg",
+        "aliases": [
+          "CVE-2026-14257"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.8"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.17"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-mh99-v99m-4gvg/GHSA-mh99-v99m-4gvg.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:12.282849322Z",
+        "affected_range": ">=4.0.0 <5.0.8",
+        "fixed_range": ">=5.0.8",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "brace-expansion",
+        "version": "5.0.6",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-rgw5-rvv9-x895",
+        "aliases": [
+          "CVE-2026-69152"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.1.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "2.0.0"
+                  },
+                  {
+                    "fixed": "2.1.4"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.0.6"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          },
+          {
+            "package": {
+              "name": "brace-expansion",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/brace-expansion"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.0.9"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-rgw5-rvv9-x895/GHSA-rgw5-rvv9-x895.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:14.535270857Z",
+        "affected_range": ">=4.0.0 <5.0.9",
+        "fixed_range": ">=5.0.9",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "browserslist",
+        "version": "4.28.2",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-73wf-gq98-2v4g",
+        "aliases": [
+          "CVE-2026-73088"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "browserslist",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/browserslist"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "4.28.7"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 4.28.6",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-73wf-gq98-2v4g/GHSA-73wf-gq98-2v4g.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:15.295037659Z",
+        "affected_range": "<=4.28.6",
+        "fixed_range": ">=4.28.7",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "browserslist",
+        "version": "4.28.2",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-c83g-rgw3-j3cx",
+        "aliases": [
+          "CVE-2026-73089"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "browserslist",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/browserslist"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "4.28.7"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 4.28.6",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-c83g-rgw3-j3cx/GHSA-c83g-rgw3-j3cx.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:54.622936829Z",
+        "affected_range": "<=4.28.6",
+        "fixed_range": ">=4.28.7",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "js-yaml",
+        "version": "4.1.1",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-2883-xcg3-v3hh",
+        "aliases": [
+          "CVE-2026-84375"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "4.3.2"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-2883-xcg3-v3hh/GHSA-2883-xcg3-v3hh.json"
+            }
+          },
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.15.2"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-2883-xcg3-v3hh/GHSA-2883-xcg3-v3hh.json"
+            }
+          }
+        ],
+        "modified": "2026-09-08T21:30:05.575808098Z",
+        "affected_range": ">=4.0.0 <4.3.2",
+        "fixed_range": ">=4.3.2",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "js-yaml",
+        "version": "4.1.1",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-52cp-r559-cp3m",
+        "aliases": [
+          "CVE-2026-59869"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.15.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-52cp-r559-cp3m/GHSA-52cp-r559-cp3m.json"
+            }
+          },
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "4.3.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-52cp-r559-cp3m/GHSA-52cp-r559-cp3m.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:12.263307536Z",
+        "affected_range": ">=4.0.0 <4.3.0",
+        "fixed_range": ">=4.3.0",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "js-yaml",
+        "version": "4.1.1",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-5p4m-2wfm-xmqj",
+        "aliases": [],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "4.3.1"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-5p4m-2wfm-xmqj/GHSA-5p4m-2wfm-xmqj.json"
+            }
+          },
+          {
+            "package": {
+              "name": "js-yaml",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/js-yaml"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "3.0.0"
+                  },
+                  {
+                    "fixed": "3.15.1"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-5p4m-2wfm-xmqj/GHSA-5p4m-2wfm-xmqj.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:53.407436483Z",
+        "affected_range": ">=4.0.0 <4.3.1",
+        "fixed_range": ">=4.3.1",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "nanoid",
+        "version": "3.3.12",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-28wg-ghj8-5hjv",
+        "aliases": [
+          "CVE-2026-67214"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "nanoid",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/nanoid"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "3.3.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-28wg-ghj8-5hjv/GHSA-28wg-ghj8-5hjv.json"
+            }
+          },
+          {
+            "package": {
+              "name": "nanoid",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/nanoid"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.1.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-28wg-ghj8-5hjv/GHSA-28wg-ghj8-5hjv.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:51.191256883Z",
+        "affected_range": "<3.3.16",
+        "fixed_range": ">=3.3.16",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "nanoid",
+        "version": "3.3.12",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-2v37-7h3g-55p8",
+        "aliases": [
+          "CVE-2026-67213"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "nanoid",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/nanoid"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "3.3.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-2v37-7h3g-55p8/GHSA-2v37-7h3g-55p8.json"
+            }
+          },
+          {
+            "package": {
+              "name": "nanoid",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/nanoid"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "4.0.0"
+                  },
+                  {
+                    "fixed": "5.1.6"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-2v37-7h3g-55p8/GHSA-2v37-7h3g-55p8.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:51.243328986Z",
+        "affected_range": "<3.3.18",
+        "fixed_range": ">=3.3.18",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "postcss",
+        "version": "8.5.14",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-r28c-9q8g-f849",
+        "aliases": [
+          "CVE-2026-73646"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "postcss",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/postcss"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "8.5.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 8.5.17",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-r28c-9q8g-f849/GHSA-r28c-9q8g-f849.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:52.854537677Z",
+        "affected_range": "<=8.5.17",
+        "fixed_range": ">=8.5.18",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "tar",
+        "version": "7.5.15",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-23hp-3jrh-7fpw",
+        "aliases": [
+          "CVE-2026-59873"
+        ],
+        "severity": "critical",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "tar",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/tar"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "7.5.19"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 7.5.18",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-23hp-3jrh-7fpw/GHSA-23hp-3jrh-7fpw.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:09.781853040Z",
+        "affected_range": "<=7.5.18",
+        "fixed_range": ">=7.5.19",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "tar",
+        "version": "7.5.15",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-8x88-c5mf-7j5w",
+        "aliases": [
+          "CVE-2026-59874"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "tar",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/tar"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "7.5.18"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 7.5.17",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-8x88-c5mf-7j5w/GHSA-8x88-c5mf-7j5w.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:11.200904859Z",
+        "affected_range": "<=7.5.17",
+        "fixed_range": ">=7.5.18",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "tar",
+        "version": "7.5.15",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-r292-9mhp-454m",
+        "aliases": [
+          "CVE-2026-73566"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "tar",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/tar"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "7.5.21"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 7.5.20",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-r292-9mhp-454m/GHSA-r292-9mhp-454m.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:11.855710545Z",
+        "affected_range": "<=7.5.20",
+        "fixed_range": ">=7.5.21",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "vite",
+        "version": "8.0.13",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GHSA-fx2h-pf6j-xcff",
+        "aliases": [
+          "CVE-2026-53571"
+        ],
+        "severity": "high",
+        "source": "pnpm+OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "vite",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/vite"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "8.0.0"
+                  },
+                  {
+                    "fixed": "8.0.16"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 8.0.15",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-fx2h-pf6j-xcff/GHSA-fx2h-pf6j-xcff.json"
+            }
+          },
+          {
+            "package": {
+              "name": "vite",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/vite"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "7.0.0"
+                  },
+                  {
+                    "fixed": "7.3.5"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-fx2h-pf6j-xcff/GHSA-fx2h-pf6j-xcff.json",
+              "last_known_affected_version_range": "<= 7.3.4"
+            }
+          },
+          {
+            "package": {
+              "name": "vite",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/vite"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "6.4.3"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 6.4.2",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-fx2h-pf6j-xcff/GHSA-fx2h-pf6j-xcff.json"
+            }
+          },
+          {
+            "package": {
+              "name": "vite-plus",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/vite-plus"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.1.24"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-fx2h-pf6j-xcff/GHSA-fx2h-pf6j-xcff.json",
+              "last_known_affected_version_range": "<= 0.1.23"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:49.380121960Z",
+        "affected_range": ">=8.0.0 <=8.0.15",
+        "fixed_range": ">=8.0.16",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "xlsx",
+        "version": "0.20.3",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-4r6h-8v6p-xvw6",
+        "aliases": [
+          "CVE-2023-30533"
+        ],
+        "severity": "high",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "xlsx",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xlsx"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "< 0.19.3",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/04/GHSA-4r6h-8v6p-xvw6/GHSA-4r6h-8v6p-xvw6.json"
+            }
+          }
+        ],
+        "modified": "2025-09-19T15:23:40Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "xlsx",
+        "version": "0.20.3",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-5pgg-2g8v-p4x9",
+        "aliases": [
+          "CVE-2024-22363"
+        ],
+        "severity": "high",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "xlsx",
+              "ecosystem": "npm",
+              "purl": "pkg:npm/xlsx"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "< 0.20.2",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2024/04/GHSA-5pgg-2g8v-p4x9/GHSA-5pgg-2g8v-p4x9.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:49:18.872216794Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-mmfr-pmjx-hw9w",
+        "aliases": [
+          "CVE-2026-76905",
+          "GO-2026-6274"
+        ],
+        "severity": "high",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.10.0"
+                  },
+                  {
+                    "fixed": "0.141.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-mmfr-pmjx-hw9w/GHSA-mmfr-pmjx-hw9w.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:14.378983908Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-r277-6w6q-xmqw",
+        "aliases": [
+          "CVE-2026-73501",
+          "GO-2026-6095"
+        ],
+        "severity": "critical",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.144.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "last_known_affected_version_range": "<= 0.143.0",
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-r277-6w6q-xmqw/GHSA-r277-6w6q-xmqw.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:52.909683602Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-wq9g-9vfc-cfq9",
+        "aliases": [
+          "CVE-2025-30153",
+          "GO-2025-3533"
+        ],
+        "severity": "high",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.131.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2025/03/GHSA-wq9g-9vfc-cfq9/GHSA-wq9g-9vfc-cfq9.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:50:23.380607590Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GHSA-xhj3-7xw9-vr34",
+        "aliases": [
+          "CVE-2026-77354",
+          "GO-2026-6275"
+        ],
+        "severity": "high",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.124.0"
+                  },
+                  {
+                    "fixed": "0.142.0"
+                  }
+                ]
+              }
+            ],
+            "database_specific": {
+              "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-xhj3-7xw9-vr34/GHSA-xhj3-7xw9-vr34.json"
+            }
+          }
+        ],
+        "modified": "2026-09-10T03:51:14.784950330Z",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GO-2025-3533",
+        "aliases": [
+          "CVE-2025-30153",
+          "GHSA-wq9g-9vfc-cfq9"
+        ],
+        "severity": "high",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.131.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "github.com/getkin/kin-openapi/openapi3filter",
+                  "symbols": [
+                    "ValidateParameter",
+                    "ValidateRequest",
+                    "ValidateRequestBody",
+                    "ValidateResponse",
+                    "ValidationHandler.ServeHTTP",
+                    "csvBodyDecoder",
+                    "joinValues",
+                    "multipartBodyDecoder",
+                    "plainBodyDecoder",
+                    "urlencodedBodyDecoder",
+                    "yamlBodyDecoder",
+                    "zipFileBodyDecoder"
+                  ]
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2025-3533.json"
+            }
+          }
+        ],
+        "modified": "2026-02-04T03:18:30.751325Z",
+        "called": false,
+        "imported": false,
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ],
+        "fixed_version": "v0.131.0",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GO-2026-6095",
+        "aliases": [
+          "CVE-2026-73501",
+          "GHSA-r277-6w6q-xmqw"
+        ],
+        "severity": "critical",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.144.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "symbols": [
+                    "ValidationHandler.Load"
+                  ],
+                  "path": "github.com/getkin/kin-openapi/openapi3filter"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6095.json"
+            }
+          }
+        ],
+        "modified": "2026-09-06T03:25:56.746350332Z",
+        "called": false,
+        "imported": false,
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ],
+        "fixed_version": "v0.144.0",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GO-2026-6274",
+        "aliases": [
+          "CVE-2026-76905",
+          "GHSA-mmfr-pmjx-hw9w"
+        ],
+        "severity": "high",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.10.0"
+                  },
+                  {
+                    "fixed": "0.141.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "github.com/getkin/kin-openapi/openapi3filter",
+                  "symbols": [
+                    "ConvertErrors",
+                    "ValidationErrorEncoder.Encode",
+                    "convertParseError"
+                  ]
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6274.json"
+            }
+          }
+        ],
+        "modified": "2026-09-02T16:10:54.034711828Z",
+        "called": false,
+        "imported": false,
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ],
+        "fixed_version": "v0.141.0",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/getkin/kin-openapi",
+        "version": "v0.127.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GO-2026-6275",
+        "aliases": [
+          "CVE-2026-77354",
+          "GHSA-xhj3-7xw9-vr34"
+        ],
+        "severity": "high",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/getkin/kin-openapi",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/getkin/kin-openapi"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0.124.0"
+                  },
+                  {
+                    "fixed": "0.142.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "github.com/getkin/kin-openapi/openapi3filter",
+                  "symbols": [
+                    "MultipartBodyDecoder",
+                    "UrlencodedBodyDecoder",
+                    "ValidateParameter",
+                    "ValidateRequest",
+                    "ValidateRequestBody",
+                    "ValidateResponse",
+                    "ValidationHandler.ServeHTTP",
+                    "cookieParamDecoder.DecodeObject",
+                    "headerParamDecoder.DecodeObject",
+                    "pathParamDecoder.DecodeObject",
+                    "sliceMapToSlice",
+                    "urlValuesDecoder.DecodeObject"
+                  ]
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6275.json"
+            }
+          }
+        ],
+        "modified": "2026-09-02T22:10:54.719995799Z",
+        "called": false,
+        "imported": false,
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ],
+        "fixed_version": "v0.142.0",
+        "reasons": [
+          "High/Critical runtime/build/CI finding"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/go-chi/chi/v5",
+        "version": "v5.1.0",
+        "scope": "runtime",
+        "reachability": "runtime_reachable",
+        "id": "GO-2026-5775",
+        "aliases": [
+          "CVE-2026-72817",
+          "GHSA-9g5q-2w5x-hmxf"
+        ],
+        "severity": "unknown",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/go-chi/chi/v5",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/go-chi/chi/v5"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "5.3.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "github.com/go-chi/chi/v5/middleware",
+                  "symbols": [
+                    "RealIP"
+                  ]
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-5775.json"
+            }
+          }
+        ],
+        "modified": "2026-08-15T05:19:13.029024907Z",
+        "called": true,
+        "imported": true,
+        "trace": [
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5/middleware",
+            "function": "RealIP",
+            "position": {
+              "filename": "middleware/realip.go",
+              "offset": 1265,
+              "line": 31,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "chain",
+            "position": {
+              "filename": "chain.go",
+              "offset": 1420,
+              "line": 43,
+              "column": 38
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "Handler",
+            "receiver": "Middlewares",
+            "position": {
+              "filename": "chain.go",
+              "offset": 429,
+              "line": 13,
+              "column": 31
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "handle",
+            "receiver": "*Mux",
+            "position": {
+              "filename": "mux.go",
+              "offset": 13538,
+              "line": 415,
+              "column": 39
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "Get",
+            "receiver": "*Mux",
+            "position": {
+              "filename": "mux.go",
+              "offset": 5240,
+              "line": 162,
+              "column": 11
+            }
+          },
+          {
+            "module": "github.com/mandalika/pos-backend",
+            "package": "github.com/mandalika/pos-backend/internal/server",
+            "function": "New",
+            "position": {
+              "filename": "internal/server/server.go",
+              "offset": 2061,
+              "line": 61,
+              "column": 7
+            }
+          }
+        ],
+        "fixed_version": "v5.3.0",
+        "reasons": [
+          "govulncheck called/reachable symbol",
+          "unclassified production severity/reachability"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "github.com/go-chi/chi/v5",
+        "version": "v5.1.0",
+        "scope": "runtime",
+        "reachability": "runtime_reachable",
+        "id": "GO-2026-5777",
+        "aliases": [
+          "CVE-2026-72816",
+          "GHSA-rjr7-jggh-pgcp"
+        ],
+        "severity": "unknown",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "github.com/go-chi/chi/v5",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/github.com/go-chi/chi/v5"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "5.3.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "github.com/go-chi/chi/v5/middleware",
+                  "symbols": [
+                    "RealIP"
+                  ]
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-5777.json"
+            }
+          }
+        ],
+        "modified": "2026-08-15T05:19:15.756579600Z",
+        "called": true,
+        "imported": true,
+        "trace": [
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5/middleware",
+            "function": "RealIP",
+            "position": {
+              "filename": "middleware/realip.go",
+              "offset": 1265,
+              "line": 31,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "chain",
+            "position": {
+              "filename": "chain.go",
+              "offset": 1420,
+              "line": 43,
+              "column": 38
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "Handler",
+            "receiver": "Middlewares",
+            "position": {
+              "filename": "chain.go",
+              "offset": 429,
+              "line": 13,
+              "column": 31
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "handle",
+            "receiver": "*Mux",
+            "position": {
+              "filename": "mux.go",
+              "offset": 13538,
+              "line": 415,
+              "column": 39
+            }
+          },
+          {
+            "module": "github.com/go-chi/chi/v5",
+            "version": "v5.1.0",
+            "package": "github.com/go-chi/chi/v5",
+            "function": "Get",
+            "receiver": "*Mux",
+            "position": {
+              "filename": "mux.go",
+              "offset": 5240,
+              "line": 162,
+              "column": 11
+            }
+          },
+          {
+            "module": "github.com/mandalika/pos-backend",
+            "package": "github.com/mandalika/pos-backend/internal/server",
+            "function": "New",
+            "position": {
+              "filename": "internal/server/server.go",
+              "offset": 2061,
+              "line": 61,
+              "column": 7
+            }
+          }
+        ],
+        "fixed_version": "v5.3.0",
+        "reasons": [
+          "govulncheck called/reachable symbol",
+          "unclassified production severity/reachability"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "golang.org/x/crypto",
+        "version": "v0.56.0",
+        "scope": "runtime",
+        "reachability": "runtime_present_unproven",
+        "id": "GO-2026-5932",
+        "aliases": [],
+        "severity": "unknown",
+        "source": "govulncheck",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "golang.org/x/crypto",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/golang.org/x/crypto"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "golang.org/x/crypto/openpgp"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/packet"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/armor"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/clearsign"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/errors"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/elgamal"
+                },
+                {
+                  "path": "golang.org/x/crypto/openpgp/s2k"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-5932.json"
+            }
+          }
+        ],
+        "modified": "2026-07-10T05:44:31.101996029Z",
+        "called": false,
+        "imported": false,
+        "trace": [
+          {
+            "module": "golang.org/x/crypto",
+            "version": "v0.56.0"
+          }
+        ],
+        "fixed_version": null,
+        "reasons": [
+          "unclassified production severity/reachability"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "golang.org/x/mod",
+        "version": "v0.38.0",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GO-2026-6179",
+        "aliases": [
+          "BIT-golang-2026-56865",
+          "CVE-2026-56865"
+        ],
+        "severity": "unknown",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "toolchain",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/toolchain"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "cmd/go"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6179.json"
+            }
+          },
+          {
+            "package": {
+              "name": "golang.org/x/mod",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/golang.org/x/mod"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.40.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "symbols": [
+                    "tileHashReader.ReadHashes"
+                  ],
+                  "path": "golang.org/x/mod/sumdb/tlog"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6179.json"
+            }
+          }
+        ],
+        "modified": "2026-08-19T12:25:40.780492871Z",
+        "reasons": [
+          "unclassified production severity/reachability"
+        ]
+      },
+      {
+        "ecosystem": "Go",
+        "package": "golang.org/x/mod",
+        "version": "v0.38.0",
+        "scope": "build",
+        "reachability": "build_executed",
+        "id": "GO-2026-6180",
+        "aliases": [
+          "BIT-golang-2026-56864",
+          "CVE-2026-56864"
+        ],
+        "severity": "unknown",
+        "source": "OSV",
+        "known_exploited": false,
+        "malicious": false,
+        "affected": [
+          {
+            "package": {
+              "name": "toolchain",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/toolchain"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "cmd/go"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6180.json"
+            }
+          },
+          {
+            "package": {
+              "name": "golang.org/x/mod",
+              "ecosystem": "Go",
+              "purl": "pkg:golang/golang.org/x/mod"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.40.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "symbols": [
+                    "Client.Lookup"
+                  ],
+                  "path": "golang.org/x/mod/sumdb"
+                }
+              ]
+            },
+            "database_specific": {
+              "source": "https://vuln.go.dev/ID/GO-2026-6180.json"
+            }
+          }
+        ],
+        "modified": "2026-08-19T12:25:49.995487491Z",
+        "reasons": [
+          "unclassified production severity/reachability"
+        ]
+      },
+      {
+        "ecosystem": "npm",
+        "package": "rgbcolor",
+        "version": "1.0.1",
+        "scope": "runtime",
+        "expression": "MIT OR SEE LICENSE IN FEEL-FREE.md",
+        "evidence_present": true,
+        "missing_referenced_terms": false,
+        "license_files": [
+          {
+            "path": "package/FEEL-FREE.md",
+            "sha256": "b5aa5b115427980bda4fb6cecdff9f6eab4adafae5ab3aeaf00e0a9ca7f0c780",
+            "bytes": 256
+          },
+          {
+            "path": "package/LICENSE.md",
+            "sha256": "86045408b01f66f9319a2fe7bc7f7e115f272956ac44d2d840fc00127124a78c",
+            "bytes": 1182
+          }
+        ],
+        "distribution_context": "locked application/workspace build; legal compatibility not inferred",
+        "status": "blocked_unknown",
+        "id": "LICENSE-EVIDENCE",
+        "reasons": [
+          "license classification incomplete"
+        ]
+      }
+    ],
+    "suppressed": [],
+    "reported": [],
+    "license_results": []
+  }
+}

@@ -1,0 +1,80 @@
+[
+  {
+    "ecosystem": "npm",
+    "package": "xlsx",
+    "version": "0.20.3",
+    "scope": "runtime",
+    "reachability": "runtime_present_unproven",
+    "id": "GHSA-4r6h-8v6p-xvw6",
+    "aliases": [
+      "CVE-2023-30533"
+    ],
+    "severity": "high",
+    "source": "OSV",
+    "known_exploited": false,
+    "malicious": false,
+    "affected": [
+      {
+        "package": {
+          "name": "xlsx",
+          "ecosystem": "npm",
+          "purl": "pkg:npm/xlsx"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              }
+            ]
+          }
+        ],
+        "database_specific": {
+          "last_known_affected_version_range": "< 0.19.3",
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/04/GHSA-4r6h-8v6p-xvw6/GHSA-4r6h-8v6p-xvw6.json"
+        }
+      }
+    ],
+    "modified": "2025-09-19T15:23:40Z"
+  },
+  {
+    "ecosystem": "npm",
+    "package": "xlsx",
+    "version": "0.20.3",
+    "scope": "runtime",
+    "reachability": "runtime_present_unproven",
+    "id": "GHSA-5pgg-2g8v-p4x9",
+    "aliases": [
+      "CVE-2024-22363"
+    ],
+    "severity": "high",
+    "source": "OSV",
+    "known_exploited": false,
+    "malicious": false,
+    "affected": [
+      {
+        "package": {
+          "name": "xlsx",
+          "ecosystem": "npm",
+          "purl": "pkg:npm/xlsx"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              }
+            ]
+          }
+        ],
+        "database_specific": {
+          "last_known_affected_version_range": "< 0.20.2",
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2024/04/GHSA-5pgg-2g8v-p4x9/GHSA-5pgg-2g8v-p4x9.json"
+        }
+      }
+    ],
+    "modified": "2026-09-10T03:49:18.872216794Z"
+  }
+]

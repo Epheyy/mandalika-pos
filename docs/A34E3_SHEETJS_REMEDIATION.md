@@ -4,8 +4,8 @@ Packet: A34E3-SHEETJS-20260923-01. Authority: AUTH-MANDALIKA-20260919-01.
 Incoming review: CG-A34E2-XCRYPTO-20260923-01-R1. Entry SHA:
 76cc02b2fec813ee534a998c9a45ff9cde5db9f4 on audit/hosted-proof-20260922.
 
-A34e2 is scoped accepted (20 milestones / same 11 findings). A34e3 is locally
-verified and awaiting hosted proof/review. A34/T29, A38/T33, A14 and every release
+A34e2 is scoped accepted (20 milestones / same 11 findings). A34e3 is locally and hosted
+verified, awaiting ChatGPT review. A34/T29, A38/T33, A14 and every release
 gate stay open. All 44 findings remain tracked; A31 alone is resolved.
 
 ## Source and installed identity
@@ -91,3 +91,48 @@ chi ingress, kin-openapi, rgbcolor legal approval and OpenPGP remain visible.
 No deployment, Android/OTA, live-data changes, historical rewrites, exception,
 provider/credential changes or stopped-cleanup bypass. Full concurrency, secret
 history scanning, branch protection and release provenance remain separate.
+
+## Hosted proof and reporting boundary
+
+Final pushed SHA: de7352fa5fb0cf877e869b1c65040a2731969ccb; tree 4ff434471aa18829de471f59b1cdd17b0d991ade.
+
+| Workflow | Run | Result |
+|---|---:|---|
+| JS/TS Quality | [35817402212](https://github.com/Epheyy/mandalika-pos/actions/runs/35817402212) | success |
+| Mandatory Chromium browser gate | [35817402181](https://github.com/Epheyy/mandalika-pos/actions/runs/35817402181) | success |
+| Mandatory PostgreSQL integration | [35817402363](https://github.com/Epheyy/mandalika-pos/actions/runs/35817402363) | success |
+| backend | [35817402195](https://github.com/Epheyy/mandalika-pos/actions/runs/35817402195) | success |
+| dependency-security | [35817402219](https://github.com/Epheyy/mandalika-pos/actions/runs/35817402219) | failure |
+
+All five runs use the same final SHA. The dependency scan completes (not unavailable):
+433 npm/137 Go modules,82 advisory records,48 blocking records,zero suppressions.
+All12 source-input hashes, including vendor/provenance, match committed blobs.
+PostgreSQL uses Docker18.3/race, six gates/142 named passes/zero skips and verified
+identity/cleanup. Hosted browser26/26,zero skips,unexpected network requests or
+surviving processes. BO-PAGES-XLSX confirms nine real workbook downloads. Backend
+passes generated drift/vet/gofmt/build/race; quality uses Node22/frozen lockfile.
+No intermediate hosted correction was needed. This expected dependency-policy red
+run is retained; it is not an all-five-green result.
+
+Post-proof report/tracker/progress after-images remain local documentation changes;
+executable files match the hosted commit. Review inbox/raw history/ZIPs and the
+append-only session handoff are excluded from Git. Twenty accepted milestones stay
+unchanged until ChatGPT reviews A34e3. No GitHub deployment records found for SHA;
+external provider configuration was not changed or asserted exhaustively known.
+
+## Executed PR-delta proof
+
+The actual fresh scanner CLI with --delta-base76cc02b also completes and identifies
+only the xlsx0.20.3 vendor distribution as changed, retaining both advisory IDs.
+Its combined policy result contains50 enforcement records:48 baseline plus the
+same two PR-delta records, not50 distinct blockers or two new vulnerabilities.
+This is separate from the hosted push baseline of48. See pr-policy/delta-result.json
+and pr-scan-command.json; no PR was opened or release workflow dispatched.
+
+## Scoped acceptance — CG-A34E3-SHEETJS-20260923-01-R1
+
+A34e3 is accepted within the supplied vendoring/scanner/export/hosted limits.
+21 milestones across11 findings; all44 retained,A31 alone resolved,no P0/release
+closure. Q-A34e3-01 is answered: two exact-artifact applicability decisions may
+proceed in A34e4. The preceding48-blocker results remain their historical results;
+new raw-versus-assessed reporting belongs to A34E4_SHEETJS_APPLICABILITY.md.

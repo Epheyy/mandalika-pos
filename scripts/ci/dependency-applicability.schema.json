@@ -1,0 +1,182 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Exact reviewed SheetJS applicability (not risk exceptions)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "subject",
+    "decisions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "subject": {
+      "const": {
+        "ecosystem": "npm",
+        "package": "xlsx",
+        "version": "0.20.3",
+        "purl": "pkg:npm/xlsx@0.20.3",
+        "distribution_kind": "official-vendor-tarball",
+        "path": "vendor/sheetjs/xlsx-0.20.3.tgz",
+        "source_url": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+        "sha256": "8dc73fc3b00203e72d176e85b50938627c7b086e607c682e8d3c22c02bb99fe8",
+        "integrity": "sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==",
+        "bytes": 2409319,
+        "provenance_sha256": "ffa08a4114b33b8f73250ffef615445566aca07678e7a918b304cebfd0c4bc6f"
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "advisory_id",
+          "explicit_aliases",
+          "assessment",
+          "rationale",
+          "publisher_fixed_from",
+          "publisher_source",
+          "reviewed_at",
+          "review_by",
+          "active",
+          "reviewer",
+          "osv_source",
+          "captured_at",
+          "semantic_sha256",
+          "risk_sha256",
+          "evidence_sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "SJ-AP-CVE-2023-30533",
+              "SJ-AP-CVE-2024-22363"
+            ]
+          },
+          "advisory_id": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "GHSA-4r6h-8v6p-xvw6",
+              "GHSA-5pgg-2g8v-p4x9"
+            ]
+          },
+          "explicit_aliases": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "CVE-2023-30533",
+                "CVE-2024-22363"
+              ]
+            }
+          },
+          "assessment": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "not_affected_for_exact_reviewed_artifact"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "publisher_fixed_from": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "0.19.3",
+              "0.20.2"
+            ]
+          },
+          "publisher_source": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "https://cdn.sheetjs.com/advisories/CVE-2023-30533",
+              "https://cdn.sheetjs.com/advisories/CVE-2024-22363"
+            ]
+          },
+          "reviewed_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "review_by": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "ChatGPT review CG-A34E3-SHEETJS-20260923-01-R1"
+            ]
+          },
+          "osv_source": {
+            "type": "string",
+            "minLength": 1,
+            "enum": [
+              "https://api.osv.dev/v1/vulns/GHSA-4r6h-8v6p-xvw6",
+              "https://api.osv.dev/v1/vulns/GHSA-5pgg-2g8v-p4x9"
+            ]
+          },
+          "captured_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "semantic_sha256": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "risk_sha256": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "evidence_sha256": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sheetjs-findings-reviewed.json",
+              "sheetjs-osv-reviewed.json",
+              "sheetjs-publisher-reviewed.json"
+            ],
+            "properties": {
+              "sheetjs-findings-reviewed.json": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sheetjs-osv-reviewed.json": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sheetjs-publisher-reviewed.json": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      },
+      "uniqueItems": true
+    }
+  }
+}

@@ -1,26 +1,24 @@
-# Programme progress — A34e2 accepted; A34e3 locally verified
+# Programme progress — A34e3 accepted; A34e4 locally verified
 
-Authority: AUTH-MANDALIKA-20260919-01. Current packet: A34E3-SHEETJS-20260923-01.
-The canonical docs/AUDIT_COVERAGE_TRACKER.md remains the only finding tracker.
+Authority AUTH-MANDALIKA-20260919-01. Current packet A34E4-SHEETJS-APPLICABILITY-20260923-01.
+Canonical status remains docs/AUDIT_COVERAGE_TRACKER.md.
 
-CG-A34E2-XCRYPTO-20260923-01-R1 accepts A34e2 at 76cc02b. There are now 20
-accepted bounded milestones across the same 11 findings. All 44 findings remain;
-A31 alone is resolved. Zero of eight P0 parents and zero release gates close.
-Full A34/T29, A38/T33 and A14 remain open.
+CG-A34E3-SHEETJS-20260923-01-R1 accepts the exact de7352f vendoring/scanner/XLSX
+milestone.21 accepted milestones across the same11 findings;44 retained,A31 sole
+resolved parent,0/8 original P0 parents and0 release gates closed. A34/A38 stay open.
 
-A34e3 vendors official SheetJS 0.20.3 with pinned bytes and Apache-2.0 evidence,
-retains actual xlsx identity in inventory/SBOM/advisories, hashes vendor inputs,
-and checks dependency/distribution deltas. Eight old exclusive transitive package
-nodes disappear because the new manifest declares no consumer dependencies;
-this is a graph change, not proof about all embedded code or vulnerabilities.
+A34e4 implements two hash-bound publisher-fixed applicability decisions, separately
+from risk exceptions. Archived CLI baseline:48 raw blockers ->46 actionable +2
+reviewed-not-affected,0 exceptions. Archived PR path:50 raw enforcement occurrences
+->46 actionable +4 assessment occurrences representing2 identities. Raw sources
+and SBOM unchanged; no upgrade or new vulnerability fix is claimed by this count.
 
-Local clean frozen install and quality pass; 22 vendor safety/coverage tests and
-26 required browser scenarios pass. Real XLSX downloads preserve 51/201/1000
-rows, filters/totals, Unicode, identifiers/date/number types, formula-like text,
-single/empty behavior and later-page failure disablement. Hosted proof pending.
+Local applicability16 tests,existing vendor22/policy19 tests and quality pass.
+Fresh hosted proof pending; no static fresh count is required. Expiry after
+2026-10-23T00:00:00Z or material mismatch restores ordinary enforcement.
+A34e4 remains review pending, and every parent/release gate remains open.
 
-Fresh baseline and after scans both report 48 blockers. The two SheetJS advisories
-still match vendor 0.20.3 through open-ended OSV ranges; raw evidence and publisher
-fixed-version claims are retained for applicability review. No exception or policy
-change. chi ingress, rgbcolor legal choice, OpenPGP policy and password-parser
-hardening remain separate. Historical stopped cleanup is untouched.
+Unrelated blockers and work remain: chi ingress trust,rgbcolor legal decision,
+OpenPGP treatment,password parser,A13/A42 concurrency,A37 scanning,A35 provenance,
+A14 import and the other launch-critical financial/durability workstreams.
+No dependency upgrade, deployment, Android/OTA or live-data work in this slice.

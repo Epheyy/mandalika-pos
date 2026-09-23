@@ -732,3 +732,14 @@ and digest-sensitive PR deltas. Archive/install negatives and real workbook
 exports are required alongside same-SHA gates. Any feed/publisher applicability
 conflict remains blocked pending review; do not rename or suppress the component.
 No A14 import or A27/A28 behavior change. See A34E3_SHEETJS_REMEDIATION.md.
+
+## A34e3 accepted; A34e4 exact applicability
+
+E46 records CG-A34E3-SHEETJS-20260923-01-R1 scoped acceptance (21 milestones/11
+findings). E47 implements the reviewed two-advisory assessment, binding actual
+xlsx0.20.3 bytes/provenance/lock, approved source evidence and a 2026-10-23 re-review
+deadline. Preserve raw findings and separate reviewed-not-affected from exceptions;
+use identical baseline/PR projection. Evidence changes and nonmatching artifacts
+keep normal enforcement. No package-wide ignore or policy/license downgrade.
+The canonical tracker and A34E4_SHEETJS_APPLICABILITY.md hold results/residuals;
+parent findings and release gates stay open. No broader remediation bundled.

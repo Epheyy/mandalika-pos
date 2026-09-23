@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "subject": {
+    "ecosystem": "npm",
+    "package": "xlsx",
+    "version": "0.20.3",
+    "purl": "pkg:npm/xlsx@0.20.3",
+    "distribution_kind": "official-vendor-tarball",
+    "path": "vendor/sheetjs/xlsx-0.20.3.tgz",
+    "source_url": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "sha256": "8dc73fc3b00203e72d176e85b50938627c7b086e607c682e8d3c22c02bb99fe8",
+    "integrity": "sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==",
+    "bytes": 2409319,
+    "provenance_sha256": "ffa08a4114b33b8f73250ffef615445566aca07678e7a918b304cebfd0c4bc6f"
+  },
+  "decisions": [
+    {
+      "decision_id": "SJ-AP-CVE-2023-30533",
+      "advisory_id": "GHSA-4r6h-8v6p-xvw6",
+      "explicit_aliases": [
+        "CVE-2023-30533"
+      ],
+      "assessment": "not_affected_for_exact_reviewed_artifact",
+      "rationale": "Publisher fixed-version guidance places official 0.20.3 outside this advisory; machine OSV range remains open-ended.",
+      "publisher_fixed_from": "0.19.3",
+      "publisher_source": "https://cdn.sheetjs.com/advisories/CVE-2023-30533",
+      "reviewed_at": "2026-09-23",
+      "review_by": "2026-10-23T00:00:00Z",
+      "active": true,
+      "reviewer": "ChatGPT review CG-A34E3-SHEETJS-20260923-01-R1",
+      "osv_source": "https://api.osv.dev/v1/vulns/GHSA-4r6h-8v6p-xvw6",
+      "captured_at": "2026-09-23",
+      "semantic_sha256": "8a1154d2a7ab450e6ea20a235652d039a6386a2ff20b2345b2cad15402a383f0",
+      "risk_sha256": "10643aeeead32a98336587da1a835f9620ab7d7f75cb1c0670b6914dcc435b46",
+      "evidence_sha256": {
+        "sheetjs-findings-reviewed.json": "dc25700451953eb81e65ee7e2612db79ef09f675a4d2ed52bfe79de5da7492bf",
+        "sheetjs-osv-reviewed.json": "5394fc207b2dc6e990a94c15f9371a4067731f7fb1961e5fa5de7877c36bc877",
+        "sheetjs-publisher-reviewed.json": "e8a5e39e7dac944ed01ab008df4d37e69cac9c1f9a929fafabcb3720e5f7bed4"
+      }
+    },
+    {
+      "decision_id": "SJ-AP-CVE-2024-22363",
+      "advisory_id": "GHSA-5pgg-2g8v-p4x9",
+      "explicit_aliases": [
+        "CVE-2024-22363"
+      ],
+      "assessment": "not_affected_for_exact_reviewed_artifact",
+      "rationale": "Publisher fixed-version guidance places official 0.20.3 outside this advisory; machine OSV range remains open-ended.",
+      "publisher_fixed_from": "0.20.2",
+      "publisher_source": "https://cdn.sheetjs.com/advisories/CVE-2024-22363",
+      "reviewed_at": "2026-09-23",
+      "review_by": "2026-10-23T00:00:00Z",
+      "active": true,
+      "reviewer": "ChatGPT review CG-A34E3-SHEETJS-20260923-01-R1",
+      "osv_source": "https://api.osv.dev/v1/vulns/GHSA-5pgg-2g8v-p4x9",
+      "captured_at": "2026-09-23",
+      "semantic_sha256": "34dafb2b712234a2987b58300697ffe2454a742df23eb08e67e71b5f2fac6512",
+      "risk_sha256": "10643aeeead32a98336587da1a835f9620ab7d7f75cb1c0670b6914dcc435b46",
+      "evidence_sha256": {
+        "sheetjs-findings-reviewed.json": "dc25700451953eb81e65ee7e2612db79ef09f675a4d2ed52bfe79de5da7492bf",
+        "sheetjs-osv-reviewed.json": "5394fc207b2dc6e990a94c15f9371a4067731f7fb1961e5fa5de7877c36bc877",
+        "sheetjs-publisher-reviewed.json": "e8a5e39e7dac944ed01ab008df4d37e69cac9c1f9a929fafabcb3720e5f7bed4"
+      }
+    }
+  ]
+}
