@@ -1,0 +1,16 @@
+{
+  "encoded": "$argon2id$v=19$m=65536,t=1,p=4$AAECAwQFBgcICQoLDA0ODw$zC+wOXCBVou/mdcsd39Z6tvIUEMyh/yTcxbTPabrAxk",
+  "parameters": {
+    "key_bytes": 32,
+    "memory": 65536,
+    "salt_bytes": 16,
+    "threads": 4,
+    "time": 1,
+    "version": 19
+  },
+  "salt_hex": "000102030405060708090a0b0c0d0e0f",
+  "schema_version": 1,
+  "source_go": "go1.26.8",
+  "source_module": "golang.org/x/crypto v0.46.0",
+  "synthetic_input": "synthetic-A34e2-password-compatibility-only"
+}

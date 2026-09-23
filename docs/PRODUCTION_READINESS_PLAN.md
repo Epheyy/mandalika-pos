@@ -705,3 +705,18 @@ require generated drift, fmt/vet/build/unit checks, all six safe local PostgreSQ
 fixtures and same-SHA hosted quality/backend/postgres/browser success plus a
 completed dependency scan. Unrelated dependency blockers must remain visible.
 No business-source, migration, auth/client-IP, deployment, OTA or live-data change.
+
+
+## A34e1 scoped acceptance; A34e2 x/crypto continuation
+
+E42 accepts A34e1 under CG-A34E1-GO-REMEDIATION-20260922-01-R1 (19 bounded
+milestones, 11 findings; parents/release gates open). Execute A34e2 before the
+already-approved SheetJS slice, per docs/A34E2_XCRYPTO_SCOPE.md. Target x/crypto
+v0.56.0 plus proven MVS support only. Keep actual pre-upgrade synthetic Argon2id
+fixture, encoded parameters, verification/rejection and malformed-hash behavior.
+No credential migration, policy exception or business change. Preserve no-fixed
+OpenPGP GO-2026-5932 and demonstrate actual imports/calls. Require fresh module/
+advisory delta, local Go/password tests, six real PostgreSQL/race gates and four
+same-SHA hosted application passes plus a completed dependency scan. Record
+existing stored-hash parser limitations separately; do not expand this update
+into parser hardening. Return to SheetJS only after the A34e2 ChatGPT review.

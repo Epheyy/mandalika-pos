@@ -65,7 +65,13 @@ fixture runner must establish their actual named PASS results separately.
 
 Six isolated local PostgreSQL gates PASS with race enabled, 142 named
 parent/subtest PASS events, zero skips, and verified fixture/container cleanup.
-The final hosted checkpoint is pending; no hosted result is claimed yet. The Windows native fixture attempt failed before tests:
+Final hosted commit `feb0048de2a577bf8e5b2d9243944ce115aa3a29` passes quality, backend,
+PostgreSQL and browser. The fresh hosted dependency job completes and correctly
+fails on the same 69 records. PostgreSQL Docker/race passes all six gates and 142
+named parent/subtests; Chromium passes26/26 with zero skips, zero unexpected
+network requests and confirmed cleanup. The current packet lists run URLs.
+This result paragraph is an uncommitted report after-image, not an additional
+untested executable change. The Windows native fixture attempt failed before tests:
 the OS reserves ports 56419–56518, including all six expected fixture ports.
 PostgreSQL reports bind permission denied; cleanup verifies removal and closed
 port. The test guards and OS reservations are preserved. The default local Docker
@@ -80,3 +86,10 @@ The current review packet supplies actual commands, exits, raw sanitized results
 module graphs, scanner traces, lifecycle evidence and final same-SHA hosted status.
 No A34/T29, A38/T33, P0 parent or release gate closes. ChatGPT review of A34e1
 remains pending. See the canonical coverage tracker for all 44 findings.
+
+## Subsequent review disposition — 2026-09-23
+
+CG-A34E1-GO-REMEDIATION-20260922-01-R1 scoped-accepts the above A34e1
+checkpoint. This supersedes the earlier review-pending disposition without
+changing historical evidence. Full A34/T29, A38/T33 and release gates remain open.
+The immediate next slice is A34e2, followed by SheetJS after its review.
