@@ -4,7 +4,7 @@ Packet A34E7-BRACE-EXPANSION-20260923-01; AUTH-MANDALIKA-20260919-01.
 Entry 36d3d3abd146949c922d7bd6a32312ff50eca4e6 on audit/hosted-proof-20260922.
 A34e6 scoped accepted by CG-A34E6-XMLDOM-20260923-01-R1: 24 milestones across
 11 findings. All 44 parents retained; A31 alone resolved. A34/A38 and gates open.
-A34e7 is implemented and locally verified; hosted proof and ChatGPT review pending.
+A34e7 is implemented and hosted-verified; ChatGPT review pending.
 
 ## Resolution and real consumers
 
@@ -93,3 +93,26 @@ real Redocly/openapi-typescript schema drift. Policy19/applicability16 pass.
 Local Go/DB not repeated for this Node-only leaf; mandatory unchanged hosted gates
 must pass on the final SHA. No native/device qualification, signing/deploy/OTA,
 live data, password parser, Go/chi/rgbcolor/OpenPGP policy or A14 changes.
+
+## Final hosted checkpoint — 2026-09-23
+
+Source `1e76b42755bfe6f827905d465ec1e49bc461f8d0`, tree `f81f55057670110fd17cdcce97a6d01371d2f9a7`. Quality35839087570,
+backend35839087581,PostgreSQL35839087627,browser35839087589 all succeed on this SHA.
+Hosted Node22:20brace+10XML+6tar cases pass;349app tests with1existing optional replay
+skip. Types/build/schema pass. Backendgen/vet/fmt/build/race passes. Docker18.3/race:
+6gates,142named passes,zero skips,identity/cleanup verified. Browser26/26,zero skips,
+clean network/owned-process/port state. Fresh security35839087632 completes RED:
+25raw/23actionable/2reviewed/0exceptions. Input hashes match committed blobs; hosted
+normalized findings equal local after-scan. No new/changed unrelated finding.
+A34e7 implemented and hosted-verified;ChatGPT review pending.24accepted milestones,
+all44 retained,A31alone resolved,A34/A38/release gates open. Post-proof documentation
+is local reporting,distinct from the committed executable snapshot.
+Four previously denied install copies untouched;two new install copies retained for
+review/reproduction without a deletion attempt. Tiny fixtures/processes cleaned.
+
+## Scoped review acceptance — 2026-09-23
+
+CG-A34E7-BRACE-EXPANSION-20260923-01-R1 accepts this bounded milestone at
+1e76b42755bfe6f827905d465ec1e49bc461f8d0. Progress25 accepted/11findings.
+Feed severity discrepancy remains a source-quality note, not policy weakening.
+Historical results above are preserved; A34/A38 and release gates stay open.

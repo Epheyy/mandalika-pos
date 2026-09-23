@@ -1671,3 +1671,30 @@ on3existing lines pass20bounded tests and quality. Fresh local25raw/23actionable
 2reviewed/0exceptions;9matched records removed. Hosted/review pending;no gate closes.
 All44 parents remain,A31alone resolved. Existing business policies and denied
 installation-copy cleanup restrictions remain. See A34E7_BRACE_EXPANSION_REMEDIATION.md.
+
+## Final hosted checkpoint — 2026-09-23
+
+Source `1e76b42755bfe6f827905d465ec1e49bc461f8d0`, tree `f81f55057670110fd17cdcce97a6d01371d2f9a7`. Quality35839087570,
+backend35839087581,PostgreSQL35839087627,browser35839087589 all succeed on this SHA.
+Hosted Node22:20brace+10XML+6tar cases pass;349app tests with1existing optional replay
+skip. Types/build/schema pass. Backendgen/vet/fmt/build/race passes. Docker18.3/race:
+6gates,142named passes,zero skips,identity/cleanup verified. Browser26/26,zero skips,
+clean network/owned-process/port state. Fresh security35839087632 completes RED:
+25raw/23actionable/2reviewed/0exceptions. Input hashes match committed blobs; hosted
+normalized findings equal local after-scan. No new/changed unrelated finding.
+A34e7 implemented and hosted-verified;ChatGPT review pending.24accepted milestones,
+all44 retained,A31alone resolved,A34/A38/release gates open. Post-proof documentation
+is local reporting,distinct from the committed executable snapshot.
+Four previously denied install copies untouched;two new install copies retained for
+review/reproduction without a deletion attempt. Tiny fixtures/processes cleaned.
+
+## Current A34e8 checkpoint — 2026-09-23
+
+E54: CG-A34E7-BRACE-EXPANSION-20260923-01-R1 scoped accepts A34e7 at1e76b42.
+25 accepted milestones across the same11findings; all44 remain,A31 alone resolved.
+E55: A34E8-NANOID-20260923-01 updates PostCSS's compatible Nano ID edge3.3.12
+->3.3.18.16bounded cases pass; corrected before-final6pass/10fail. Fresh local
+25->23raw/23->21actionable,reviewed2/exceptions0. Exactly2targeted IDs removed;
+no new/changed unrelated records. Hosted proof/review pending. A34/T29,A38/T33
+and all release gates stay open. See A34E8_NANOID_REMEDIATION.md.
+Earlier checkpoint sections preserve historical evidence; this section is current.
