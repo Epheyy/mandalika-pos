@@ -1,5 +1,22 @@
 # Canonical audit coverage tracker — A01–A44
 
+## Current A34e10 checkpoint — 2026-09-24
+
+E58: CG-A34E9-POSTCSS-20260923-01-R1 accepts A34e9 at 79403f2 within its
+supplied evidence. 27 accepted milestones across the same 11 findings. All 44
+parents remain; A31 alone is resolved. A34/T29, A38/T33 and every release gate open.
+E9-REPORT-01 corrects active evidence: before-corrected 12/3; before-final 11/4
+includes a separate Vite path fixture failure; after-final and clean 15/15.
+A new exact-final-harness replay on the qualified old graph is 12/3; original
+logs are retained. See A34E10_BROWSERSLIST_REMEDIATION.md for hashes and limits.
+E59: A34E10-BROWSERSLIST-20260924-01 implements compatible Browserslist 4.28.7
+and four required minimum data updates. 15 checks pass active and clean; old
+qualified graph 8 pass / 7 targeted failures. Fresh local security: 20 raw /
+18 actionable / 29 report-only / 2 reviewed / 0 exceptions. Two Browserslist
+High IDs disappear; the existing Moderate baseline-browser-mapping record
+only changes selected version. Hosted proof and ChatGPT review pending.
+Earlier sections are historical checkpoints, not current acceptance counters.
+
 ## Current A34e9 checkpoint — 2026-09-23
 
 E56: CG-A34E8-NANOID-20260923-01-R1 scoped accepts A34e8 at4cd7f89.
@@ -8,7 +25,7 @@ E57: A34E9-POSTCSS-20260923-01 updates actual Vite->PostCSS8.5.23, preserving
 Nano ID3.3.18 and all16worker assertions through real consumer resolution.
 15PostCSS cases pass;3targeted before-fix read/propagation failures. Freshlocal
 23->22raw/21->20actionable/30->29report-only;reviewed2/exceptions0. OneHigh and
-oneModerate PostCSS record removed,no unrelated change. Hosted/review pending.
+oneModerate PostCSS record removed,no unrelated change. Hosted verified;review pending.
 FullA34/T29,A38/T33 and every release gate open. Earlier checkpoints are historical.
 
 
@@ -628,11 +645,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e8 accepted; A34e9 PostCSS patch | Open; E56 accepts Nano ID; E57 PostCSS locally verified, hosted/review pending; other gates remain | T29 |
+| A34 | P1 | A34a–e8 accepted; A34e9 PostCSS patch | Open; E56 accepts Nano ID; E57 PostCSS hosted-verified, review pending; other gates remain | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e–e7 / S6 | Open; E56 Nano ID accepted; E57 PostCSS removes1blocker/1report locally; unrelated blockers remain | T33 |
+| A38 | P2 | A34e–e9 / S6 | Open; E56 Nano ID accepted; E57 PostCSS removes1blocker/1report locally and hosted; unrelated blockers remain | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -1099,7 +1116,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a–e8 scoped accepted through E56 (26 milestones/11 findings). E57 PostCSS locally verified; hosted/review pending. Full A34/T29 remains open.
+- **Current disposition:** A34a–e8 scoped accepted through E56 (26 milestones/11 findings). E57 PostCSS hosted-verified; review pending. Full A34/T29 remains open.
 - **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
@@ -1147,7 +1164,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E56 Nano ID accepted; E57 PostCSS locally verified, hosted/review pending. Fresh local raw22/actionable20 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
+- **Current disposition:** Open. E56 Nano ID accepted; E57 PostCSS hosted-verified, review pending. Fresh local/hosted raw22/actionable20 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
 - **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
@@ -1245,3 +1262,20 @@ A38/T33 and every release gate remain open. Post-proof documentation is a local
 after-image, distinct from the hosted executable snapshot. No deployment dispatch.
 Four denied installation copies untouched;A34e7/A34e8 copies retained without
 new deletion attempts. No disk fixtures from Nano ID tests; children reaped.
+
+## Final hosted proof — 2026-09-23
+
+Source `79403f23e63a3560a43a4c8845b91ff9102cfe96`, tree `c12e2c2228819ed126f90304c41b84b4d16461f8`. Quality35848841958,
+backend35848841933,PostgreSQL35848841864,browser35848841866 all succeed
+on this exact SHA. Hosted Node22 passes15PostCSS+16Nano ID+20brace+10XML+6tar.
+Backendgenerateddrift/vet/gofmt/build/race passes. Docker18.3/race:6fixtures,
+142namedpasses,zero skips,identity and cleanup verified. Chromium26/26,zero skips,
+clean network/owned-process/port state. Fresh security35848842086 completes RED:
+22raw/20actionable/29report-only/2reviewed/0exceptions. Committed input hashes match;
+hosted normalized findings equal local after-scan. Exactly1High blocker and1Moderate
+report-only PostCSS record removed; no other record changes. Nano ID3.3.18 covered.
+A34e9 implemented/locally+hosted verified; ChatGPT review pending.26accepted milestones
+across11findings; all44 remain,A31alone resolved,A34/A38 and every release gate open.
+Post-proof docs are local reporting after-images, separate from tested executables.
+Four denied installation copies untouched; prior/new retained copies not deleted.
+Owned tiny fixtures/processes cleaned. No signing/deployment/OTA/live operation.

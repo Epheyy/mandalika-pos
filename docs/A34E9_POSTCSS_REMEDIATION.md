@@ -4,7 +4,7 @@ Packet A34E9-POSTCSS-20260923-01; AUTH-MANDALIKA-20260919-01.
 Entry4cd7f89d857d64b0ae265605c9a25d39185522ac, audit/hosted-proof-20260922.
 CG-A34E8-NANOID-20260923-01-R1 scoped accepts A34e8:26milestones/same11findings.
 All44parents remain;A31alone resolved. A34/T29,A38/T33 and release gates open.
-A34e9 implemented and locally verified; hosted proof and ChatGPT review pending.
+A34e9 scoped accepted by CG-A34E9-POSTCSS-20260923-01-R1 (E58).
 
 ## Compatible graph and real consumer
 
@@ -52,7 +52,11 @@ unsafeMap exists upstream but is never enabled by this change or these fixtures.
 Same/nested directory maps; relative traversal; absolute and relative no-from;
 non-map suffix,missing/invalid map;map:false;inline;explicit object/trusted path;
 prev:false;Unicode/comment/custom-property/at-rule/diagnostic/plugin;real Vite build.
-Corrected identical before/after:12pass/3fail before;15/15 fixed and clean.
+E9-REPORT-01: archived before-corrected.json is 12 pass / 3 fail;
+before-final.json is 11 pass / 4 fail, including a separate Vite path fixture
+failure. Archived after-final and clean are 15/15. The original artifacts
+are unchanged. A34e10 separately replays the exact final path-normalized
+harness against authenticated old PostCSS bytes: 12/3, with source hashes.
 All3old cases read the owned sibling map twice (Input+process), load its map and
 propagate SYNTHETIC_OUTSIDE. Fixed performs zero named reads and no propagation.
 The passthrough observer records actual fs reads without blocking/faking results.
@@ -87,3 +91,20 @@ concurrency/native/release and live operations remain out of scope. Local full q
 and policy checks plus same-SHA four hosted application passes and completedfresh
 security assessment are required; red security due unrelated blockers is expected.
 Local Go/DB need not repeat for this Node leaf; hosted Docker18.3/race remains mandatory.
+
+## Final hosted proof — 2026-09-23
+
+Source `79403f23e63a3560a43a4c8845b91ff9102cfe96`, tree `c12e2c2228819ed126f90304c41b84b4d16461f8`. Quality35848841958,
+backend35848841933,PostgreSQL35848841864,browser35848841866 all succeed
+on this exact SHA. Hosted Node22 passes15PostCSS+16Nano ID+20brace+10XML+6tar.
+Backendgenerateddrift/vet/gofmt/build/race passes. Docker18.3/race:6fixtures,
+142namedpasses,zero skips,identity and cleanup verified. Chromium26/26,zero skips,
+clean network/owned-process/port state. Fresh security35848842086 completes RED:
+22raw/20actionable/29report-only/2reviewed/0exceptions. Committed input hashes match;
+hosted normalized findings equal local after-scan. Exactly1High blocker and1Moderate
+report-only PostCSS record removed; no other record changes. Nano ID3.3.18 covered.
+A34e9 implemented/locally+hosted verified; ChatGPT review pending.26accepted milestones
+across11findings; all44 remain,A31alone resolved,A34/A38 and every release gate open.
+Post-proof docs are local reporting after-images, separate from tested executables.
+Four denied installation copies untouched; prior/new retained copies not deleted.
+Owned tiny fixtures/processes cleaned. No signing/deployment/OTA/live operation.
