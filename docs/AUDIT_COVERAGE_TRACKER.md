@@ -1,5 +1,23 @@
 # Canonical audit coverage tracker — A01–A44
 
+## Current A34e12 checkpoint — 2026-09-24
+
+E62: CG-A34E11-JSYAML-20260924-01-R1 accepts A34e11 at7d2ab47 within supplied
+limits, including EXACT project-qualified Redocly1.34.14 -> js-yaml4.3.2 override.
+Not range-satisfied, publisher approved or a blanket pin bypass. Consumer/generator
+tests preserved.29accepted milestones across the same11findings; all44 parents
+retained; A31 alone resolved; A34/T29,A38/T33 and every release gate open.
+E11-REPORT-01 corrected: before-tests18/12; before-final17/13 includes unrelated
+missing-flat-config fixture; fixed active/clean30/30. Original logs unchanged.
+E9 remains closed; neither evidence correction adds a milestone.
+E63: A34E12-VITE-20260924-01 qualifies Vite8.0.16/Rolldown1.0.3 and minimal
+support graph. Three supervised groups pass active/clean; real Windows NTFS ADS
+and actual8.3 alias vectors are blocked after qualified old-version reproduction.
+UNC evidence is exact-source/extracted-pure-predicate only, with no UNC I/O/editor.
+Local quality passes; security16raw/14actionable/27report-only/2reviewed/0exceptions.
+Only Vite's oneHigh + oneModerate records disappear. Hosted proof pending.
+Earlier checkpoints are historical; A34e12 is not yet ChatGPT-accepted.
+
 ## Current A34e11 checkpoint — 2026-09-24
 
 E60: CG-A34E10-BROWSERSLIST-20260924-01-R1 accepts A34e10 at 4f63473.
@@ -8,8 +26,9 @@ corrected evidence, not an extra milestone or parent. No new E9 replay required.
 All 44 parents retained; A31 alone resolved. A34/T29, A38/T33 and release gates open.
 E61: A34E11-JSYAML-20260924-01 locally verifies js-yaml4.3.2 through both
 ESLint/eslintrc and Redocly/OpenAPI. Exact Redocly pin override is documented,
-not claimed range-satisfied.30/30 active/clean; old18/12. Fresh scan17raw/15actionable/
-28report-only/2reviewed/0exceptions;3High+1Moderate IDs removed. Hosted proof pending.
+not claimed range-satisfied.30/30 active/clean; before-tests18/12, before-final17/13
+(extra missing-flat-config fixture; corrected by E11-REPORT-01). Fresh scan17raw/15actionable/
+28report-only/2reviewed/0exceptions;3High+1Moderate IDs removed. Hosted proof verified below; ChatGPT review pending.
 Earlier checkpoints are historical. The next slice is not yet accepted.
 
 ## Current A34e10 checkpoint — 2026-09-24
@@ -1317,3 +1336,29 @@ No signing, deployment, OTA or live operation.
 | Mandatory PostgreSQL integration | [35950742279](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742279) | success |
 | JS/TS Quality | [35950742254](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742254) | success |
 | Mandatory Chromium browser gate | [35950742274](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742274) | success |
+
+## Final A34e11 hosted proof — 2026-09-24
+
+Source `7d2ab470fa4edfa78c9ee8f3c435587590681e81`, tree `72682d1e8f74a14891e93360b8dfab762e961bda`, audit/hosted-proof-20260922.
+Quality/backend/PostgreSQL/browser succeed on this exact SHA. HostedNode22 passes
+30 js-yaml +15 Browserslist +15 PostCSS +16 NanoID and prior accepted checks.
+Backend generated drift/vet/gofmt/build/race passes. DockerPostgreSQL18.3/race:
+6 fixtures, 142 named passes, zero skips, verified identity/cleanup.
+Chromium26/26, zero skips, clean network/owned processes/ports. Fresh security
+completes RED: 17 raw / 15 actionable /28report-only/2reviewed/0exceptions.
+Source input hashes match commit; hosted normalized findings equal local. Removed
+three High and one Moderate js-yaml IDs; no new/changed unrelated record.
+A34e11 locally/hosted verified, ChatGPT review pending. A34e10 accepted; E9-REPORT-01
+closed as corrected evidence only.28accepted milestones/same11findings;all44parents
+retained,A31alone resolved. A34/T29,A38/T33 and every release gate stay open.
+Post-proof docs are local reporting after-images, not another executable revision.
+Previously denied cleanup targets untouched; two new install copies retained.
+No signing, deployment, OTA, live data or business policy change.
+
+| Workflow | Run | Result |
+|---|---|---|
+| backend | [35953693676](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693676) | success |
+| Mandatory PostgreSQL integration | [35953693549](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693549) | success |
+| dependency-security | [35953693547](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693547) | failure |
+| JS/TS Quality | [35953693570](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693570) | success |
+| Mandatory Chromium browser gate | [35953693545](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693545) | success |

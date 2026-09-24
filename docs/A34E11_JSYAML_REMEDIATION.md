@@ -4,7 +4,8 @@ Packet A34E11-JSYAML-20260924-01; AUTH-MANDALIKA-20260919-01.
 Entry 4f6347346ac738e9ac4c7c295dd26351e1cd9e94, audit/hosted-proof-20260922.
 E60 accepts A34e10:28 milestones across11findings. E9-REPORT-01 closed as corrected
 evidence, no additional replay or milestone. All44 retained; A31 alone resolved.
-A34/T29, A38/T33 and every release gate open. A34e11 awaits hosted proof/review.
+A34/T29, A38/T33 and every release gate open. A34e11 scoped accepted by
+CG-A34E11-JSYAML-20260924-01-R1; historical hosted checkpoint retained below.
 
 ## Resolution and exact-parent-pin qualification
 
@@ -18,7 +19,9 @@ parent's real schema/API/bundle operations and actual repository generator. Thes
 on old, clean candidate and active candidate graphs; no source incompatibility found.
 The resolver records rangeSatisfied=false for Redocly and only permits this exact
 qualified parent/declared/selected combination. No general range bypass is introduced.
-This engineering choice and its evidence remain visible for ChatGPT review.
+The exact project-qualified Redocly1.34.14 -> js-yaml4.3.2 override is accepted
+by CG-A34E11-JSYAML-20260924-01-R1. This is neither publisher/range approval
+nor a blanket pin bypass; consumer/generator qualification remains mandatory.
 
 Ordinary targeted transitive update in isolation did not change the lock hash.
 Two version-scoped parent overrides select the single js-yaml4.3.2 installation.
@@ -54,7 +57,10 @@ the dependency scanner is a separate package. No Go parser or business source ch
 ## Tests and exact inference limits
 
 30 supervised cases:13 core cases through each actual parent plus4consumer cases.
-Final authentic old4.1.1:18pass/12fail. Fixed active and frozen:30/30. The12 failures
+E11-REPORT-01 correction: before-tests.json is18pass/12fail; before-final.json
+is17pass/13fail, including one unrelated missing flat ESLint configuration fixture.
+The final run must not be called18/12. Original logs remain unchanged; no new replay.
+Fixed active and frozen:30/30. The12 dependency-focused failures
 repeat six boundaries through two paths: merge budget, empty-source budget, omap source,
 limit defaults/source charges, depth default and merge-work default. They are not12
 vulnerabilities. !!omap finite correctness passes old/new; its complexity repair is
@@ -104,7 +110,7 @@ Thresholds, empty exceptions, exact SheetJS bytes/provenance/two assessments and
 | YJ12 | default depth/merge proof, atomic failure/subsequent load, bounded cleanup |
 | YJ13 | three High + one Moderate IDs removed; full raw/assessed inventory retained |
 | YJ14 | mandatory30-case harness plus all prior quality/security tests pass |
-| YJ15 | hosted same-SHA verification pending |
+| YJ15 | hosted same-SHA verification passes below |
 | YJ16 | explicit staged hashes/tree, trigger/secret scan, current packet/manifest |
 
 ## Residuals
@@ -116,3 +122,29 @@ smoke and established quality are distinct. WindowsNode24 local proof is distinc
 from hostedNode22. Prior denied installation-copy deletions/stopped database cleanup
 untouched; two new isolated install copies retained without deletion. No signing,
 deployment, OTA, live data, business policy or release gate change.
+
+## Final A34e11 hosted proof — 2026-09-24
+
+Source `7d2ab470fa4edfa78c9ee8f3c435587590681e81`, tree `72682d1e8f74a14891e93360b8dfab762e961bda`, audit/hosted-proof-20260922.
+Quality/backend/PostgreSQL/browser succeed on this exact SHA. HostedNode22 passes
+30 js-yaml +15 Browserslist +15 PostCSS +16 NanoID and prior accepted checks.
+Backend generated drift/vet/gofmt/build/race passes. DockerPostgreSQL18.3/race:
+6 fixtures, 142 named passes, zero skips, verified identity/cleanup.
+Chromium26/26, zero skips, clean network/owned processes/ports. Fresh security
+completes RED: 17 raw / 15 actionable /28report-only/2reviewed/0exceptions.
+Source input hashes match commit; hosted normalized findings equal local. Removed
+three High and one Moderate js-yaml IDs; no new/changed unrelated record.
+A34e11 locally/hosted verified, ChatGPT review pending. A34e10 accepted; E9-REPORT-01
+closed as corrected evidence only.28accepted milestones/same11findings;all44parents
+retained,A31alone resolved. A34/T29,A38/T33 and every release gate stay open.
+Post-proof docs are local reporting after-images, not another executable revision.
+Previously denied cleanup targets untouched; two new install copies retained.
+No signing, deployment, OTA, live data or business policy change.
+
+| Workflow | Run | Result |
+|---|---|---|
+| backend | [35953693676](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693676) | success |
+| Mandatory PostgreSQL integration | [35953693549](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693549) | success |
+| dependency-security | [35953693547](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693547) | failure |
+| JS/TS Quality | [35953693570](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693570) | success |
+| Mandatory Chromium browser gate | [35953693545](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693545) | success |
