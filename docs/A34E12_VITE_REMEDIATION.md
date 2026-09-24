@@ -3,7 +3,9 @@
 Packet A34E12-VITE-20260924-01; AUTH-MANDALIKA-20260919-01.
 Entry7d2ab470fa4edfa78c9ee8f3c435587590681e81; audit/hosted-proof-20260922.
 E62 accepts A34e11 with exact project-qualified Redocly override;29milestones
-across11findings. E63 is the current implementation, awaiting hosted proof/review.
+across11findings. E63 was hosted verified and is scoped accepted by CG-A34E12-VITE-20260924-01-R1.
+E64 records acceptance:30milestones/11findings. E11 reporting correction closed;
+no extra replay or milestone; E9 stays closed. Historical evidence limits remain.
 All44parents retained; A31 alone resolved; A34/A38 and every release gate open.
 
 ## Resolution and provenance
@@ -25,7 +27,7 @@ and all15optional native/WASM bindings1.0.1->1.0.3. tinyglobby0.2.17 is added fo
 Vite's raised minimum;0.2.16 remains for other consumers. No optional OS is pruned.
 All native metadata/SRI match lock; Windowsx64 and Linuxx64GNU archive bytes/SRI
 are independently verified. Actual Windows native module loads in the server test
-and its SHA256 matches the official binary. Hosted Linux comparison is pending.
+and its SHA256 matches the official binary. Hosted Linux native hash matches below.
 
 A first normal targeted lock update also selected newer compatible helper/CSS
 versions. These unnecessary movements were removed using exact-parent scoped,
@@ -91,7 +93,7 @@ replay skipped; all established source/test typechecks, both production builds a
 API regeneration drift pass. YAML30, Browserslist15, PostCSS15, NanoID16, brace20,
 XML10, tar6, vendor22 remain. Policy19/applicability16 pass independently. Build
 chunk-size warnings remain advisory; no byte-identical bundler output claim.
-Hosted browser, Go/race and six PostgreSQL fixtures are pending on final source SHA.
+Hosted browser, Go/race and six PostgreSQL fixtures pass on the final source SHA below.
 
 E11-REPORT-01 is corrected in active documents without replay: before-tests18/12;
 before-final17/13 includes one unrelated missing flat ESLint config fixture;
@@ -141,6 +143,43 @@ signing/deployment/OTA/live-data change. Unrelated local bytes remain preserved.
 | VT13 | Each security case has external time/resource bounds, owned fixtures and honest OS/coverage limits. — verified within documented evidence limits |
 | VT14 | Inventory/SBOM/advisory/native graph remains complete; exact High/Moderate ID delta distinguished. — verified within documented evidence limits |
 | VT15 | E11 attribution corrected, original logs unchanged; E9 remains closed; no extra milestone. — verified within documented evidence limits |
-| VT16 | Quality/backend/race/six PostgreSQL/browser pass on same final SHA, fresh completed security assessment. — pending hosted/final packet |
+| VT16 | Quality/backend/race/six PostgreSQL/browser pass on same final SHA, fresh completed security assessment. — verified within documented evidence limits |
 | VT17 | Prior dependency fixes, SheetJS review validity, zero exceptions, denied cleanup targets and unrelated work preserved. — verified within documented evidence limits |
-| VT18 | Explicit staged allowlist, no-deployment safeguards, exact diffs/tests/source hashes, limits and compact current ZIP. — pending hosted/final packet |
+| VT18 | Explicit staged allowlist, no-deployment safeguards, exact diffs/tests/source hashes, limits and compact current ZIP. — verified within documented evidence limits |
+
+## Final A34e12 hosted proof — 2026-09-24
+
+Source `bc738ace71e2d86f39ff810aa525550d5adabd7d`, tree `a0636fc3f73d6eceddcf3f848917fc2488fe218b`, audit/hosted-proof-20260922.
+Quality/backend/PostgreSQL/browser succeed on this exact SHA. HostedNode22 passes
+three Vite groups plus YAML30, Browserslist15, PostCSS15, NanoID16 and prior checks.
+Hosted Linux executes normal server/transforms/HMR/denial/source guards; Windows
+ADS/8.3 is explicitly platform-not-applicable there. Separate local WindowsNTFS
+old/fixed proof supplies that qualification. The actually loaded LinuxRolldown
+binary hash matches the independently verified official1.0.3 archive.
+Backend generated drift/vet/gofmt/build/race passes. DockerPostgreSQL18.3/race:
+6fixtures, 142 named passes, zero skips, verified identities/cleanup.
+Chromium26/26, zero skips, clean network/owned processes/ports. Fresh security
+completes RED: 16raw/14actionable/27report-only/2reviewed/0exceptions.
+Source input hashes match commit; hosted normalized findings equal local. Removed
+oneHigh and oneModerate Vite record only. All unrelated records remain unchanged.
+A34e12 locally/hosted verified, ChatGPT review pending. A34e11 scoped accepted:
+29milestones/same11findings; all44parents retained; A31 alone resolved.
+A34/T29,A38/T33 and every release gate remain open. E11-REPORT-01 corrected;
+E9 stays closed. Post-proof docs are local reporting after-images; implementation
+matches hosted SHA. No intermediate failed application workflow for this slice.
+Denied cleanup targets untouched; new install copies retained. No deployment,
+signing, OTA, live data or business-policy change.
+
+| Workflow | Run | Result |
+|---|---|---|
+| backend | [35957157697](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157697) | success |
+| Mandatory PostgreSQL integration | [35957157788](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157788) | success |
+| dependency-security | [35957157726](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157726) | failure |
+| JS/TS Quality | [35957157736](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157736) | success |
+| Mandatory Chromium browser gate | [35957157951](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157951) | success |
+
+Build comparison (historical old log versus current, not a fresh old rebuild):
+119/3445 modules transformed and CSS asset names/sizes retained; POS main515.74kB
+rounded unchanged; Backoffice main1352.63->1352.54kB. JS asset hashes change with
+the bundler patch; same dynamic-import/chunk warnings remain. No material size
+regression observed; browser behavior, not binary equality, is the acceptance check.

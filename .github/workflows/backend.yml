@@ -32,4 +32,6 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)"
       - run: go build ./...
+      - name: Bounded offline x/mod consumer regressions
+        run: python3 ../scripts/ci/xmod-consumer-test.py
       - run: go test ./... -race

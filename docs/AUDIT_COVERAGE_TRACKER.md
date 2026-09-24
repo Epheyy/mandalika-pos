@@ -1,5 +1,24 @@
 # Canonical audit coverage tracker — A01–A44
 
+## Current A34e13 checkpoint — 2026-09-24
+
+E64: CG-A34E12-VITE-20260924-01-R1 accepts A34e12 atbc738ac within its actual
+Windows/Linux/pure-editor evidence limits. E11-REPORT-01 is closed as corrected
+attribution; original logs preserved, no extra replay/milestone. E9 stays closed.
+30accepted milestones across the same11findings. All44parents remain; A31 alone
+resolved; original8P0 parents, A34/T29,A38/T33 and all release gates stay open.
+E65: A34E13-XMOD-20260924-01 qualifies x/mod0.40.0, requiring x/tools0.49.0,
+x/net0.58.0 and telemetry20260811. Real generatorv2.4.1 and generated contracts
+preserved. Test-only offline lookup/tile regressions: old3pass/2behavioral failures,
+fixed5/5. Fresh scan14raw/12actionable/27report-only/2reviewed/0exceptions; only
+GO-2026-6179/6180 records removed. Six local native18.3 PostgreSQL gates pass,
+142named tests, zero skips, verified identity/cleanup; local CGO-disabled/no-race.
+Default localGo is1.26.2, distinct from scanner/hosted1.26.8. Existing cached1.26.8
+was selected per process for this work; no persistent/global toolchain change.
+Fresh patched-toolchain downloads in owned cache match preserved initial bytes;
+this does not establish historical cache integrity or a POS runtime exploit.
+Hosted same-SHA proof pending. Earlier checkpoints remain historical.
+
 ## Current A34e12 checkpoint — 2026-09-24
 
 E62: CG-A34E11-JSYAML-20260924-01-R1 accepts A34e11 at7d2ab47 within supplied
@@ -15,7 +34,7 @@ support graph. Three supervised groups pass active/clean; real Windows NTFS ADS
 and actual8.3 alias vectors are blocked after qualified old-version reproduction.
 UNC evidence is exact-source/extracted-pure-predicate only, with no UNC I/O/editor.
 Local quality passes; security16raw/14actionable/27report-only/2reviewed/0exceptions.
-Only Vite's oneHigh + oneModerate records disappear. Hosted proof pending.
+Only Vite's oneHigh + oneModerate records disappear. Hosted proof verified below; ChatGPT review pending.
 Earlier checkpoints are historical; A34e12 is not yet ChatGPT-accepted.
 
 ## Current A34e11 checkpoint — 2026-09-24
@@ -1147,8 +1166,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a–e8 scoped accepted through E56 (26 milestones/11 findings). E57 PostCSS hosted-verified; review pending. Full A34/T29 remains open.
-- **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
+- **Current disposition:** A34a–e12 scoped accepted through E64 (30 milestones/11 findings). E65 x/mod locally verified; hosted proof and ChatGPT review pending. Full A34/T29 remains open.
+- **Current evidence:** E63 A34E12-VITE-20260924-01 at bc738ace71e2d86f39ff810aa525550d5adabd7d supplies current Vite graph/Windows/pure-editor/hosted/scanner evidence; E62 accepts A34e11 and corrects E11-REPORT-01. E47 exact applicability at31080a4 remains historical evidence. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
 - **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Android signing needs quality/database/backend/browser, all checking caller SHA. Existing quality/PostgreSQL/backend/React Doctor workflows unchanged; JS package gate additionally typechecks browser tests.
@@ -1195,8 +1214,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E56 Nano ID accepted; E57 PostCSS hosted-verified, review pending. Fresh local/hosted raw22/actionable20 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
-- **Current evidence:** E47 exact applicability and same-SHA hosted proof at 31080a4 in the current packet. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
+- **Current disposition:** Open. A34e12 accepted by E64; E65 x/mod locally verified, hosted/review pending. Fresh local raw14/actionable12/report-only27 with reviewed2 and zero exceptions. No clean-baseline or full T33 claim.
+- **Current evidence:** E63 A34E12-VITE-20260924-01 at bc738ace71e2d86f39ff810aa525550d5adabd7d supplies current Vite graph/Windows/pure-editor/hosted/scanner evidence; E62 accepts A34e11 and corrects E11-REPORT-01. E47 exact applicability at31080a4 remains historical evidence. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
 - **Dependencies / slice:** A34; proposed S6. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: lockfile/advisory review; XLSX import changes reachability.
@@ -1362,3 +1381,34 @@ No signing, deployment, OTA, live data or business policy change.
 | dependency-security | [35953693547](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693547) | failure |
 | JS/TS Quality | [35953693570](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693570) | success |
 | Mandatory Chromium browser gate | [35953693545](https://github.com/Epheyy/mandalika-pos/actions/runs/35953693545) | success |
+
+## Final A34e12 hosted proof — 2026-09-24
+
+Source `bc738ace71e2d86f39ff810aa525550d5adabd7d`, tree `a0636fc3f73d6eceddcf3f848917fc2488fe218b`, audit/hosted-proof-20260922.
+Quality/backend/PostgreSQL/browser succeed on this exact SHA. HostedNode22 passes
+three Vite groups plus YAML30, Browserslist15, PostCSS15, NanoID16 and prior checks.
+Hosted Linux executes normal server/transforms/HMR/denial/source guards; Windows
+ADS/8.3 is explicitly platform-not-applicable there. Separate local WindowsNTFS
+old/fixed proof supplies that qualification. The actually loaded LinuxRolldown
+binary hash matches the independently verified official1.0.3 archive.
+Backend generated drift/vet/gofmt/build/race passes. DockerPostgreSQL18.3/race:
+6fixtures, 142 named passes, zero skips, verified identities/cleanup.
+Chromium26/26, zero skips, clean network/owned processes/ports. Fresh security
+completes RED: 16raw/14actionable/27report-only/2reviewed/0exceptions.
+Source input hashes match commit; hosted normalized findings equal local. Removed
+oneHigh and oneModerate Vite record only. All unrelated records remain unchanged.
+A34e12 locally/hosted verified, ChatGPT review pending. A34e11 scoped accepted:
+29milestones/same11findings; all44parents retained; A31 alone resolved.
+A34/T29,A38/T33 and every release gate remain open. E11-REPORT-01 corrected;
+E9 stays closed. Post-proof docs are local reporting after-images; implementation
+matches hosted SHA. No intermediate failed application workflow for this slice.
+Denied cleanup targets untouched; new install copies retained. No deployment,
+signing, OTA, live data or business-policy change.
+
+| Workflow | Run | Result |
+|---|---|---|
+| backend | [35957157697](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157697) | success |
+| Mandatory PostgreSQL integration | [35957157788](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157788) | success |
+| dependency-security | [35957157726](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157726) | failure |
+| JS/TS Quality | [35957157736](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157736) | success |
+| Mandatory Chromium browser gate | [35957157951](https://github.com/Epheyy/mandalika-pos/actions/runs/35957157951) | success |
