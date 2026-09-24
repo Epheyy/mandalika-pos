@@ -10,7 +10,7 @@
     "dev:backoffice": "pnpm --filter @mandalika/backoffice dev",
     "doctor": "npx react-doctor@latest",
     "quality:ci": "python scripts/ci/dependency_vendor.py && corepack pnpm install --frozen-lockfile && corepack pnpm quality",
-    "quality": "python scripts/ci/dependency_vendor_test.py && node scripts/ci/tar-consumer-test.cjs && node scripts/ci/xmldom-consumer-test.cjs && node scripts/ci/brace-consumer-test.cjs && node scripts/ci/nanoid-consumer-test.cjs && node scripts/ci/postcss-consumer-test.cjs && node scripts/ci/browserslist-consumer-test.cjs && corepack pnpm test:ci && corepack pnpm typecheck:ci && corepack pnpm build:ci && corepack pnpm gen:check",
+    "quality": "python scripts/ci/dependency_vendor_test.py && node scripts/ci/tar-consumer-test.cjs && node scripts/ci/xmldom-consumer-test.cjs && node scripts/ci/brace-consumer-test.cjs && node scripts/ci/nanoid-consumer-test.cjs && node scripts/ci/postcss-consumer-test.cjs && node scripts/ci/browserslist-consumer-test.cjs && node scripts/ci/jsyaml-consumer-test.cjs && corepack pnpm test:ci && corepack pnpm typecheck:ci && corepack pnpm build:ci && corepack pnpm gen:check",
     "test:ci": "corepack pnpm --filter @mandalika/pos test && corepack pnpm --filter @mandalika/backoffice test && corepack pnpm --filter @mandalika/sync test && corepack pnpm --filter @mandalika/printer test",
     "typecheck:ci": "tsc -p apps/pos/tsconfig.json && tsc -p apps/backoffice/tsconfig.json && tsc -p packages/sync/tsconfig.json && tsc -p packages/printer/tsconfig.json && tsc -p packages/api/tsconfig.json && tsc -p packages/types/tsconfig.json && corepack pnpm typecheck:tests",
     "typecheck:tests": "tsc -p apps/pos/tsconfig.tests.json && tsc -p apps/backoffice/tsconfig.tests.json && corepack pnpm typecheck:browser",
@@ -50,7 +50,9 @@
       "browserslist@4.28.7>baseline-browser-mapping": "2.10.44",
       "browserslist@4.28.7>caniuse-lite": "1.0.30001806",
       "browserslist@4.28.7>electron-to-chromium": "1.5.393",
-      "browserslist@4.28.7>node-releases": "2.0.51"
+      "browserslist@4.28.7>node-releases": "2.0.51",
+      "@eslint/eslintrc@3.3.5>js-yaml": "4.3.2",
+      "@redocly/openapi-core@1.34.14>js-yaml": "4.3.2"
     }
   }
 }

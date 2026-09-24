@@ -3,7 +3,7 @@
 Packet A34E10-BROWSERSLIST-20260924-01. AUTH-MANDALIKA-20260919-01.
 Entry SHA 79403f23e63a3560a43a4c8845b91ff9102cfe96; audit/hosted-proof-20260922.
 A34e9 accepted: 27 milestones / 11 findings. All 44 retained; A31 alone resolved.
-A34/T29, A38/T33 and release gates open. A34e10 awaits hosted proof and review.
+A34/T29, A38/T33 and release gates open. A34e10 hosted-verified below; ChatGPT review pending.
 
 ## Minimal graph and publisher evidence
 
@@ -98,7 +98,7 @@ artifact/assessments/expiry, policy and empty exception register preserved.
 | BL12 | finding-delta.json, coverage-proof.json; two IDs gone, data record retained |
 | BL13 | prior checks remain green; preserved-inputs.json |
 | BL14 | mandatory quality integration; full quality + policy/applicability pass |
-| BL15 | hosted same-SHA proof pending; explicit staging and trigger audit required |
+| BL15 | hosted same-SHA proof verified below; explicit staging and trigger audit pass |
 | BL16 | current packet/manifest, E9 correction and residuals retained |
 
 Full repository lint is not claimed: the relevant real-config synthetic ESLint
@@ -108,3 +108,35 @@ Four previously denied installation copies and stopped database cleanup remain
 untouched. Prior/new isolated installation copies retained without deletion;
 only this harness's tiny owned fixtures use normal cleanup. No deployment,
 Android/OTA/live data, chi/rgbcolor/OpenPGP/password/A14 or policy changes.
+
+## Final A34e10 hosted proof — 2026-09-24
+
+Commit `4f6347346ac738e9ac4c7c295dd26351e1cd9e94`, tree `a1f437a7433dee752d9acdeef89ca72fa462544d`, branch audit/hosted-proof-20260922.
+All four application workflows succeed on this exact SHA. Node22 quality passes
+15 Browserslist + 15 PostCSS + 16 Nano ID and prior dependency/application checks.
+Backend gen/vet/fmt/build/race passes. Docker PostgreSQL18.3/race: six fixtures,
+142 named passes, zero skips, verified identities and cleanup.
+Chromium26/26, zero skips, no unexpected external requests, clean owned processes/ports.
+Fresh security completes RED for remaining blockers: 20 raw / 18 actionable /
+2 reviewed / 0 exceptions. Hosted normalized findings equal local; source hashes match.
+Two Browserslist High IDs removed. Existing Moderate baseline-browser-mapping finding
+remains with only its selected version changed. Publisher severity disagreement retained.
+A34e10 implemented and locally/hosted verified, ChatGPT review pending. A34e9 accepted;
+27 accepted milestones / 11 findings. All44 retained; A31 alone resolved. A34/A38 and
+all release gates remain open. Post-proof documentation is a local reporting after-image.
+Denied cleanup targets untouched; new installation copies retained without deletion.
+No signing, deployment, OTA or live operation.
+
+| Workflow | Run | Result |
+|---|---|---|
+| backend | [35950742331](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742331) | success |
+| dependency-security | [35950742289](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742289) | failure |
+| Mandatory PostgreSQL integration | [35950742279](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742279) | success |
+| JS/TS Quality | [35950742254](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742254) | success |
+| Mandatory Chromium browser gate | [35950742274](https://github.com/Epheyy/mandalika-pos/actions/runs/35950742274) | success |
+
+## Scoped review acceptance — E60
+
+CG-A34E10-BROWSERSLIST-20260924-01-R1 accepts this slice at 4f63473.
+E9-REPORT-01 closed as corrected evidence; no extra milestone or parent closure.
+28 milestones across 11 findings; all44 retained, A31 alone resolved; gates open.
