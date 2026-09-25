@@ -1,0 +1,29 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Owned codegen qualification",
+    "version": "1"
+  },
+  "paths": {
+    "/owned/\"; KB_PATH_SENTINEL\n//": {
+      "get": {
+        "operationId": "owned",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

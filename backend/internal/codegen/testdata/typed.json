@@ -1,0 +1,182 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Owned codegen qualification",
+    "version": "1"
+  },
+  "paths": {
+    "/receipts/{id}": {
+      "get": {
+        "operationId": "getReceipt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "qty",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Count",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "run",
+            "in": "cookie",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "empty"
+          },
+          "400": {
+            "description": "bad",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "name",
+          "count",
+          "kind"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "香水",
+              "Mandalika"
+            ],
+            "x-enum-varnames": [
+              "Scent",
+              "Mandalika"
+            ]
+          },
+          "optional": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "extras": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "combined": {
+            "allOf": [
+              {
+                "type": "string"
+              },
+              {
+                "minLength": 1
+              }
+            ]
+          },
+          "union": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Cash"
+              },
+              {
+                "$ref": "#/components/schemas/Transfer"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "method",
+              "mapping": {
+                "cash": "#/components/schemas/Cash",
+                "transfer": "#/components/schemas/Transfer"
+              }
+            }
+          }
+        }
+      },
+      "Amount": {
+        "type": "number",
+        "minimum": 0
+      },
+      "Cash": {
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "received": {
+            "type": "number"
+          }
+        }
+      },
+      "Transfer": {
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

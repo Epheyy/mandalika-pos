@@ -82,7 +82,8 @@ class Applicability(unittest.TestCase):
         for name in ("go-license-classifier.json", "go-license-files.json"):
             write(self.raw / name, [])
         write(self.raw / "toolchain.json", {"version": "go1.26.8"})
-        write(self.raw / "govulncheck.json", {"config": {"scanner_version": "v1.8.0", "go_version": "go1.26.8"}})
+        from dependency_go_targets_test import synthetic_go_evidence
+        synthetic_go_evidence(self.root, self.raw)
         write(self.raw / "pnpm-audit.json", {"advisories": {}, "metadata": {}})
         write(self.raw / "cisa-kev.json", {"vulnerabilities": []})
         write(self.raw / "osv-records.json", self.records)

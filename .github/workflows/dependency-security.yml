@@ -45,6 +45,7 @@ jobs:
           go install github.com/google/licenseclassifier/v2/tools/identify_license@v2.0.0
       - name: Prove fail-closed policy in disposable copies
         run: |
+          python scripts/ci/dependency_go_targets_test.py
           python scripts/ci/dependency_security_test.py
           python scripts/ci/dependency_vendor_test.py
           python scripts/ci/dependency_applicability_test.py

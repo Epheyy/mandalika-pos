@@ -23,7 +23,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.8'
           cache-dependency-path: backend/go.sum
       - run: go mod download
       - name: OpenAPI drift gate
@@ -32,6 +32,8 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)"
       - run: go build ./...
+      - name: Required validated codegen and contract gate
+        run: python3 ../scripts/ci/codegen_gate.py
       - name: Bounded offline x/mod consumer regressions
         run: python3 ../scripts/ci/xmod-consumer-test.py
       - run: go test ./... -race

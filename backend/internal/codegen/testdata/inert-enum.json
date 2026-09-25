@@ -1,0 +1,41 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Owned codegen qualification",
+    "version": "1"
+  },
+  "paths": {
+    "/owned": {
+      "get": {
+        "operationId": "owned",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tone"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Tone": {
+        "type": "string",
+        "enum": [
+          "ordinary",
+          "\"; KB_ENUM_SENTINEL\n//"
+        ],
+        "x-enum-varnames": [
+          "Ordinary",
+          "Quoted"
+        ]
+      }
+    }
+  }
+}

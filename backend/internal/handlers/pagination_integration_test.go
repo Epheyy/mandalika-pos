@@ -192,4 +192,6 @@ func TestPaginationPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	qualifyContractConsumers(t, ctx, pool)
+
 }

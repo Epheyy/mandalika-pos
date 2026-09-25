@@ -41,7 +41,7 @@ def assess(raw, root, output, sha, parser_root, delta_base=None, *, replay=False
     node, go = node_inventory(raw), go_inventory(raw)
     components = node["components"] + go["components"]
     licenses = license_inventory(components)
-    vulnerabilities, scanner = findings(raw, components)
+    vulnerabilities, scanner = findings(raw, components, root)
     policy = load(root / "scripts/ci/dependency-policy.json")
     register = load(root / "scripts/ci/dependency-exceptions.json")
     lock = load(raw / "lock.json")
@@ -114,10 +114,11 @@ def assess(raw, root, output, sha, parser_root, delta_base=None, *, replay=False
                  "go.cdx.json": sbom(go, licenses, sha, timestamp, parser_root),
                  "pnpm-audit.json": load(raw / "pnpm-audit.json"), "osv-query.json": load(raw / "osv-query.json"),
                  "osv-records.json": load(raw / "osv-records.json"),
+                 "go-targets.json": scanner,
                  "govulncheck.json": __import__("dependency_policy").json_stream((raw / "govulncheck.json").read_text(encoding="utf-8")),
                  "kev-match-source.json": load(raw / "cisa-kev.json"),
                  "scan.json": {"source_sha": sha, "source_kind": source_kind, "source_input_sha256": inputs, "generated_at": timestamp, "policy_id": policy["id"], "tools": policy["tools"],
-                               "govulncheck_config": scanner, "npm_count": len(node["components"]), "go_module_count": len(go["components"]),
+                               "govulncheck_config": {t["id"]: t["config"] for t in scanner["targets"]}, "npm_count": len(node["components"]), "go_module_count": len(go["components"]),
                                "advisory_count": len(vulnerabilities), "blocker_records": len(result["blocking"]),
                                "applicability_counts": applicability["combined_occurrences"],
                                "evidence_mode": "archived-raw-replay" if replay else "fresh-collection",

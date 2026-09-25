@@ -18,6 +18,7 @@ import urllib.request
 
 from dependency_policy import PolicyError, helper, json_stream
 from dependency_vendor import vendor_evidence
+from dependency_go_targets import required_targets, source_identity, digest, validate_target
 
 
 def write(path, data):
@@ -163,7 +164,20 @@ def capture(root, raw, parser_root):
     if version != "go1.26.8":
         raise PolicyError("Go toolchain mismatch")
     write(raw / "toolchain.json", {"version": version, "license": "BSD-3-Clause", "license_sha256": hashlib.sha256((Path(goroot) / "LICENSE").read_bytes()).hexdigest()})
-    run(["govulncheck", "-json", "./..."], backend, env, raw / "govulncheck.json", timeout=600)
+    targets = required_targets(root)
+    source_before = source_identity(root)
+    modules = json_stream((raw / "go-modules.json").read_text(encoding="utf8"))
+    target_runs = []
+    for target in targets:
+        filename = "govulncheck.json" if target["id"] == "application" else "govulncheck-" + target["id"] + ".json"
+        text = run(["govulncheck", "-json", *target["patterns"]], backend, env, raw / filename, timeout=600)
+        validate_target(text, target, modules)
+        target_runs.append({"id": target["id"], "patterns": target["patterns"], "status": "completed", "exit": 0,
+                            "output": filename, "sha256": digest(raw / filename), "bytes": (raw / filename).stat().st_size})
+    if source_before != source_identity(root):
+        raise PolicyError("Go source changed during target scans")
+    write(raw / "go-targets.json", {"schema_version": 1, "required": targets, "runs": target_runs,
+                                  "source_sha256": source_before, "modules_sha256": digest(raw / "go-modules.json")})
     with tempfile.TemporaryDirectory(prefix="mandalika-depsec-license-") as directory:
         mapping = []
         for module in json_stream((raw / "go-download.json").read_text(encoding="utf-8")):

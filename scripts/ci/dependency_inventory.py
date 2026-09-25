@@ -145,7 +145,7 @@ def license_inventory(components):
     return result
 
 
-def findings(raw, components):
+def findings(raw, components, root):
     index = {(x["ecosystem"], x["package"], x["version"]): x for x in components}
     if len(index) != len(components):
         raise PolicyError("Ambiguous advisory identity across component distributions")
@@ -194,22 +194,33 @@ def findings(raw, components):
                 raise PolicyError("npm advisory cannot be mapped to exact inventory")
             add(advisory["github_advisory_id"], component, advisory.get("cves", []), advisory["severity"], "pnpm+OSV",
                 affected_range=advisory["vulnerable_versions"], fixed_range=advisory["patched_versions"])
-    config, go_findings = govuln_findings((raw / "govulncheck.json").read_text(encoding="utf-8"))
-    if config["scanner_version"] != "v1.8.0":
-        raise PolicyError("Unpinned govulncheck result")
+    from dependency_go_targets import load_targets
+    manifest, targets, go_findings = load_targets(raw, root)
+    # Each canonical advisory/module/version receives every target trace. A
+    # module/imported observation can never erase earlier called evidence.
     for f in sorted(go_findings, key=lambda x: x["called"]):
         component = index.get(("Go", f["package"], f["version"]))
         if f["package"] == "stdlib":
-            component = {"ecosystem": "Go", "package": "stdlib", "version": f["version"] or config["go_version"], "scope": "runtime", "reachability": "runtime_present_unproven"}
+            component = {"ecosystem": "Go", "package": "stdlib", "version": f["version"], "scope": "runtime", "reachability": "runtime_present_unproven"}
         if component is None:
             raise PolicyError("govulncheck module cannot be mapped")
         osv = records.get(f["id"], {})
         aliases = osv.get("aliases", [])
         severity = next((severity_by_id[x] for x in [f["id"]] + aliases if x in severity_by_id), "unknown")
-        add(f["id"], component, aliases, severity, "govulncheck", called=f["called"], imported=f["imported"],
-            trace=f["trace"], fixed_version=f["fixed_version"],
-            reachability="runtime_reachable" if f["called"] else component["reachability"])
-    return list(result.values()), config
+        key = (f["id"], "Go", component["package"], component["version"])
+        previous = result.get(key, {})
+        called = previous.get("called", False) or f["called"]
+        imported = previous.get("imported", False) or f["imported"]
+        traces = previous.get("target_traces", []) + [{k: f[k] for k in ["target", "role", "called", "imported", "trace"]}]
+        # ./... includes build commands and tests. Do not label these calls as
+        # deployed runtime merely because they occur in the application scan.
+        reachability = component["reachability"]
+        if called and component["scope"] == "build":
+            reachability = "build_executed"
+        add(f["id"], component, aliases, severity, "govulncheck", called=called, imported=imported,
+            trace=f["trace"], target_traces=traces, fixed_version=f["fixed_version"], reachability=reachability)
+    return list(result.values()), {"manifest": manifest, "targets": targets}
+
 
 
 def sbom(inventory, licenses, sha, timestamp, parser_root):

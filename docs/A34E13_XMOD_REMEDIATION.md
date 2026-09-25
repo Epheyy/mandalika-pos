@@ -1,5 +1,7 @@
 # A34e13 x/mod remediation
 
+Scoped accepted by CG-A34E13-XMOD-20260924-01-R1 (E66). Progress is now31 milestones across11 findings; all44 parents and release boundaries remain. Prior execution/review-pending statements below are historical, with original evidence preserved. E9/E11 remain closed. This accepts the selected module work, not the default local Go executable or historical cache integrity.
+
 A34E13-XMOD-20260924-01; AUTH-MANDALIKA-20260919-01.
 Entrybc738ace71e2d86f39ff810aa525550d5adabd7d, audit/hosted-proof-20260922.
 E64 accepts A34e12 within Windows/Linux/pure-editor limits. E11-REPORT-01 closes
@@ -137,6 +139,44 @@ source/cache copies retained. No signing/deployment/OTA/live-data operation.
 ## Current validation boundary
 
 Hosted same-SHA quality/backend/race/PostgreSQL/browser and fresh security are
-pending. The final packet supplies actual results, exact staged manifest/tree,
+verified below. The final packet supplies actual results, exact staged manifest/tree,
 no-deployment trigger audit, source/input hashes and all commands/limits. Scoped
 A34e13 review remains pending; no parent or release acceptance inferred.
+
+## Final A34e13 hosted proof — 2026-09-24
+
+Source `63c74711ecb5f5a26641c748f324d2ff72c8a67d`, tree `d7cb7d14799e610745458af74c669fee4108e72d`, branch audit/hosted-proof-20260922.
+Quality/backend/PostgreSQL/browser pass on this exact SHA. Backend Go1.26.8 passes
+generated drift, vet, gofmt, build, bounded offline x/mod5/5 with zero skips and
+owned cleanup, and full ordinary race tests. Hosted DockerPostgreSQL18.3/race:
+6fixtures, 142 named passes, zero skips, verified identities and cleanup.
+Chromium26/26, zero skips, confirmed owned processes/ports closed and no unexpected
+network requests. Node22 quality retains all accepted dependency/application gates,
+including NanoID16/PostCSS15/Browserslist15/YAML30/Vite3 groups.
+Fresh security completes RED: 14raw/12actionable/27report-only/
+2reviewed-not-affected/0risk exceptions. Source hashes match this commit;
+normalized hosted findings equal local. Exactly GO-2026-6179 and GO-2026-6180 leave
+the selected x/mod records; no new/changed unrelated normalized findings.
+A34e13 locally/hosted verified, ChatGPT review pending. E64 accepts A34e12 and closes
+E11-REPORT-01 as corrected attribution, original logs preserved; E9 stays closed.
+30accepted milestones/same11findings. All44parents retained; A31 alone resolved.
+A34/T29,A38/T33, original8P0 parents and every release gate remain open.
+
+Default local Go1.26.2 remains distinct from the existing cached1.26.8 executable
+selected only per process for this work. No global/persistent Go change, incident
+clearance or demonstrated POS exploit claim. The bounded runner rejects Go<1.26.6.
+Independent scanner binaries/pins are unchanged. Local PostgreSQL is non-race;
+hosted Linux supplies race verification. Initial unchanged XML5s quality timeout
+and initial unused-schema generator fixture are preserved; corrected fixture and
+serial quality pass. No intermediate failed application hosted run in this slice.
+Post-proof documentation is a local after-image; executable source matches hosted
+commit. Denied cleanup targets/stopped DB cleanup untouched. No deployment,
+signing, OTA, live-data, policy, exception or business-behavior change.
+
+| Workflow | Run | Result |
+|---|---|---|
+| Mandatory PostgreSQL integration | [35966319941](https://github.com/Epheyy/mandalika-pos/actions/runs/35966319941) | success |
+| JS/TS Quality | [35966320066](https://github.com/Epheyy/mandalika-pos/actions/runs/35966320066) | success |
+| dependency-security | [35966320002](https://github.com/Epheyy/mandalika-pos/actions/runs/35966320002) | failure |
+| backend | [35966319909](https://github.com/Epheyy/mandalika-pos/actions/runs/35966319909) | success |
+| Mandatory Chromium browser gate | [35966319918](https://github.com/Epheyy/mandalika-pos/actions/runs/35966319918) | success |

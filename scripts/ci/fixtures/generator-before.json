@@ -1,0 +1,1558 @@
+{
+  "source_packet": "A34E14B-CODEGEN-20260924-01",
+  "source_sha256": "25b28a3b82f6687432ff0035d90249e051d77bbb7e973e996c06c90ace1f54b9",
+  "messages": [
+    {
+      "config": {
+        "protocol_version": "v1.0.0",
+        "scanner_name": "govulncheck",
+        "scanner_version": "v1.8.0",
+        "db": "https://vuln.go.dev",
+        "db_last_modified": "2026-09-16T18:00:43Z",
+        "go_version": "go1.26.8",
+        "scan_level": "symbol",
+        "scan_mode": "source"
+      }
+    },
+    {
+      "SBOM": {
+        "go_version": "go1.26.8",
+        "modules": [
+          {
+            "path": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1"
+          },
+          {
+            "path": "github.com/dprotaso/go-yit",
+            "version": "v0.0.0-20220510233725-9ba8df137936"
+          },
+          {
+            "path": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          },
+          {
+            "path": "github.com/go-openapi/jsonpointer",
+            "version": "v0.21.0"
+          },
+          {
+            "path": "github.com/go-openapi/swag",
+            "version": "v0.23.0"
+          },
+          {
+            "path": "github.com/invopop/yaml",
+            "version": "v0.3.1"
+          },
+          {
+            "path": "github.com/josharian/intern",
+            "version": "v1.0.0"
+          },
+          {
+            "path": "github.com/mailru/easyjson",
+            "version": "v0.7.7"
+          },
+          {
+            "path": "github.com/mohae/deepcopy",
+            "version": "v0.0.0-20170929034955-c48cc78d4826"
+          },
+          {
+            "path": "github.com/perimeterx/marshmallow",
+            "version": "v1.1.5"
+          },
+          {
+            "path": "github.com/speakeasy-api/openapi-overlay",
+            "version": "v0.9.0"
+          },
+          {
+            "path": "github.com/vmware-labs/yaml-jsonpath",
+            "version": "v0.3.2"
+          },
+          {
+            "path": "golang.org/x/mod",
+            "version": "v0.40.0"
+          },
+          {
+            "path": "golang.org/x/sync",
+            "version": "v0.22.0"
+          },
+          {
+            "path": "golang.org/x/text",
+            "version": "v0.41.0"
+          },
+          {
+            "path": "golang.org/x/tools",
+            "version": "v0.49.0"
+          },
+          {
+            "path": "gopkg.in/yaml.v2",
+            "version": "v2.4.0"
+          },
+          {
+            "path": "gopkg.in/yaml.v3",
+            "version": "v3.0.1"
+          },
+          {
+            "path": "stdlib",
+            "version": "v1.26.8"
+          }
+        ],
+        "roots": [
+          "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen"
+        ]
+      }
+    },
+    {
+      "progress": {
+        "message": "Fetching vulnerabilities from the database..."
+      }
+    },
+    {
+      "progress": {
+        "message": "Checking the code against the vulnerabilities..."
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2025-3533",
+        "fixed_version": "v0.131.0",
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6095",
+        "fixed_version": "v0.144.0",
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6112",
+        "fixed_version": "v0.144.0",
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6274",
+        "fixed_version": "v0.141.0",
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6275",
+        "fixed_version": "v0.142.0",
+        "trace": [
+          {
+            "module": "github.com/getkin/kin-openapi",
+            "version": "v0.127.0"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util"
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "UpdateDefaults",
+            "receiver": "Configuration",
+            "position": {
+              "filename": "pkg/codegen/configuration.go",
+              "offset": 2893,
+              "line": 94,
+              "column": 24
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9943,
+              "line": 263,
+              "column": 42
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util",
+            "function": "ParseCommandLineList",
+            "position": {
+              "filename": "pkg/util/inputmapping.go",
+              "offset": 1008,
+              "line": 34,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "updateConfigFromFlags",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 14171,
+              "line": 404,
+              "column": 76
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9215,
+              "line": 237,
+              "column": 34
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util",
+            "function": "IsMediaTypeJson",
+            "position": {
+              "filename": "pkg/util/isjson.go",
+              "offset": 50,
+              "line": 8,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "GenerateResponseDefinitions",
+            "position": {
+              "filename": "pkg/codegen/operations.go",
+              "offset": 25452,
+              "line": 800,
+              "column": 29
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "Generate",
+            "position": {
+              "filename": "pkg/codegen/codegen.go",
+              "offset": 7658,
+              "line": 256,
+              "column": 48
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 11347,
+              "line": 307,
+              "column": 31
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util",
+            "function": "LoadSwaggerWithOverlay",
+            "position": {
+              "filename": "pkg/util/loader.go",
+              "offset": 1044,
+              "line": 39,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 10726,
+              "line": 294,
+              "column": 45
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "LowercaseFirstCharacter",
+            "position": {
+              "filename": "pkg/codegen/utils.go",
+              "offset": 5158,
+              "line": 190,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "detectPackageName",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 13629,
+              "line": 389,
+              "column": 51
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9975,
+              "line": 265,
+              "column": 29
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "init",
+            "position": {
+              "filename": "pkg/codegen/codegen.go",
+              "offset": 587,
+              "line": 15,
+              "column": 1
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "init",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 717,
+              "line": 28,
+              "column": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "errExit",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 831,
+              "line": 32,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 6038,
+              "line": 140,
+              "column": 10
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "newConfigFromOldConfig",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 17766,
+              "line": 529,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9689,
+              "line": 253,
+              "column": 37
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "Generate",
+            "position": {
+              "filename": "pkg/codegen/codegen.go",
+              "offset": 3194,
+              "line": 114,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 11347,
+              "line": 307,
+              "column": 31
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main$1",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 8137,
+              "line": 194,
+              "column": 14
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "flag",
+            "function": "Visit",
+            "receiver": "*FlagSet",
+            "position": {
+              "filename": "src/flag/flag.go",
+              "offset": 12419,
+              "line": 472,
+              "column": 5
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "flag",
+            "function": "Visit",
+            "position": {
+              "filename": "src/flag/flag.go",
+              "offset": 12615,
+              "line": 479,
+              "column": 19
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 8136,
+              "line": 194,
+              "column": 13
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "updateConfigFromFlags",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 13852,
+              "line": 397,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9215,
+              "line": 237,
+              "column": 34
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util",
+            "function": "ParseCommandlineMap",
+            "position": {
+              "filename": "pkg/util/inputmapping.go",
+              "offset": 370,
+              "line": 12,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "updateConfigFromFlags",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 15034,
+              "line": 430,
+              "column": 52
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9215,
+              "line": 237,
+              "column": 34
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "Validate",
+            "receiver": "Configuration",
+            "position": {
+              "filename": "pkg/codegen/configuration.go",
+              "offset": 1463,
+              "line": 34,
+              "column": 24
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 10099,
+              "line": 270,
+              "column": 25
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/util",
+            "function": "init",
+            "position": {
+              "filename": "pkg/util/inputmapping.go",
+              "offset": 0,
+              "line": 1,
+              "column": 1
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "init",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 772,
+              "line": 29,
+              "column": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "SortedSchemaKeys$1",
+            "position": {
+              "filename": "pkg/codegen/utils.go",
+              "offset": 10995,
+              "line": 369,
+              "column": 19
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "sort",
+            "function": "pdqsort_func",
+            "position": {
+              "filename": "src/sort/zsortfunc.go",
+              "offset": 2997,
+              "line": 108,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "sort",
+            "function": "Slice",
+            "position": {
+              "filename": "src/sort/slice.go",
+              "offset": 847,
+              "line": 29,
+              "column": 14
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "NewMethodSet",
+            "position": {
+              "filename": "src/go/types/methodset.go",
+              "offset": 5825,
+              "line": 204,
+              "column": 12
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "selector",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/call.go",
+              "offset": 31952,
+              "line": 943,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "typInternal",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/typexpr.go",
+              "offset": 8540,
+              "line": 273,
+              "column": 17
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "declaredType",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/typexpr.go",
+              "offset": 6212,
+              "line": 193,
+              "column": 26
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "typeDecl",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/decl.go",
+              "offset": 17103,
+              "line": 568,
+              "column": 28
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "objDecl",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/decl.go",
+              "offset": 4952,
+              "line": 159,
+              "column": 17
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "missingMethod",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/lookup.go",
+              "offset": 15626,
+              "line": 453,
+              "column": 18
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "hasAllMethods",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/lookup.go",
+              "offset": 18462,
+              "line": 533,
+              "column": 29
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "implements",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/instantiate.go",
+              "offset": 10195,
+              "line": 283,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "assignableTo",
+            "receiver": "*operand",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 10131,
+              "line": 364,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "assignableTo$3",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 11736,
+              "line": 421,
+              "column": 29
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "is",
+            "receiver": "*_TypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 4380,
+              "line": 140,
+              "column": 11
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "IsComparable",
+            "receiver": "*_TypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 1965,
+              "line": 49,
+              "column": 13
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "comparableType",
+            "position": {
+              "filename": "src/go/types/predicates.go",
+              "offset": 6779,
+              "line": 192,
+              "column": 60
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "intersectTermLists",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 11509,
+              "line": 337,
+              "column": 21
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "computeInterfaceTypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 10495,
+              "line": 308,
+              "column": 47
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "iface",
+            "receiver": "*TypeParam",
+            "position": {
+              "filename": "src/go/types/typeparam.go",
+              "offset": 4697,
+              "line": 148,
+              "column": 26
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "Underlying",
+            "receiver": "*TypeParam",
+            "position": {
+              "filename": "src/go/types/typeparam.go",
+              "offset": 3464,
+              "line": 100,
+              "column": 16
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "operandString",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 5999,
+              "line": 201,
+              "column": 30
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "String",
+            "receiver": "*operand",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 7295,
+              "line": 265,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "handleMethods",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 18503,
+              "line": 674,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "printArg",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 20223,
+              "line": 750,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "doPrintln",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 32507,
+              "line": 1218,
+              "column": 13
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "Fprintln",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 9206,
+              "line": 305,
+              "column": 13
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 5759,
+              "line": 127,
+              "column": 16
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "GenerateBodyDefinitions$1",
+            "position": {
+              "filename": "pkg/codegen/operations.go",
+              "offset": 24539,
+              "line": 774,
+              "column": 30
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "sort",
+            "function": "pdqsort_func",
+            "position": {
+              "filename": "src/sort/zsortfunc.go",
+              "offset": 2997,
+              "line": 108,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "sort",
+            "function": "Slice",
+            "position": {
+              "filename": "src/sort/slice.go",
+              "offset": 847,
+              "line": 29,
+              "column": 14
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "NewMethodSet",
+            "position": {
+              "filename": "src/go/types/methodset.go",
+              "offset": 5825,
+              "line": 204,
+              "column": 12
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "selector",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/call.go",
+              "offset": 31952,
+              "line": 943,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "typInternal",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/typexpr.go",
+              "offset": 8540,
+              "line": 273,
+              "column": 17
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "declaredType",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/typexpr.go",
+              "offset": 6212,
+              "line": 193,
+              "column": 26
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "typeDecl",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/decl.go",
+              "offset": 17103,
+              "line": 568,
+              "column": 28
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "objDecl",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/decl.go",
+              "offset": 4952,
+              "line": 159,
+              "column": 17
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "missingMethod",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/lookup.go",
+              "offset": 15626,
+              "line": 453,
+              "column": 18
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "hasAllMethods",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/lookup.go",
+              "offset": 18462,
+              "line": 533,
+              "column": 29
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "implements",
+            "receiver": "*Checker",
+            "position": {
+              "filename": "src/go/types/instantiate.go",
+              "offset": 10195,
+              "line": 283,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "assignableTo",
+            "receiver": "*operand",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 10131,
+              "line": 364,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "assignableTo$3",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 11736,
+              "line": 421,
+              "column": 29
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "is",
+            "receiver": "*_TypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 4380,
+              "line": 140,
+              "column": 11
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "IsComparable",
+            "receiver": "*_TypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 1965,
+              "line": 49,
+              "column": 13
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "comparableType",
+            "position": {
+              "filename": "src/go/types/predicates.go",
+              "offset": 6779,
+              "line": 192,
+              "column": 60
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "intersectTermLists",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 11509,
+              "line": 337,
+              "column": 21
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "computeInterfaceTypeSet",
+            "position": {
+              "filename": "src/go/types/typeset.go",
+              "offset": 10495,
+              "line": 308,
+              "column": 47
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "iface",
+            "receiver": "*TypeParam",
+            "position": {
+              "filename": "src/go/types/typeparam.go",
+              "offset": 4697,
+              "line": 148,
+              "column": 26
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "Underlying",
+            "receiver": "*TypeParam",
+            "position": {
+              "filename": "src/go/types/typeparam.go",
+              "offset": 3464,
+              "line": 100,
+              "column": 16
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "operandString",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 5999,
+              "line": 201,
+              "column": 30
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "go/types",
+            "function": "String",
+            "receiver": "*operand",
+            "position": {
+              "filename": "src/go/types/operand.go",
+              "offset": 7295,
+              "line": 265,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "handleMethods",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 18503,
+              "line": 674,
+              "column": 25
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "printArg",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 20223,
+              "line": 750,
+              "column": 22
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "doPrintln",
+            "receiver": "*pp",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 32507,
+              "line": 1218,
+              "column": 13
+            }
+          },
+          {
+            "module": "stdlib",
+            "version": "v1.26.8",
+            "package": "fmt",
+            "function": "Fprintln",
+            "position": {
+              "filename": "src/fmt/print.go",
+              "offset": 9206,
+              "line": 305,
+              "column": 13
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 5759,
+              "line": 127,
+              "column": 16
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen",
+            "function": "ToCamelCase",
+            "position": {
+              "filename": "pkg/codegen/utils.go",
+              "offset": 6113,
+              "line": 224,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "detectPackageName",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 13649,
+              "line": 389,
+              "column": 71
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9975,
+              "line": 265,
+              "column": 29
+            }
+          }
+        ]
+      }
+    },
+    {
+      "finding": {
+        "osv": "GO-2026-6016",
+        "fixed_version": "v2.7.1",
+        "trace": [
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "detectPackageName",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 12643,
+              "line": 359,
+              "column": 6
+            }
+          },
+          {
+            "module": "github.com/oapi-codegen/oapi-codegen/v2",
+            "version": "v2.4.1",
+            "package": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+            "function": "main",
+            "position": {
+              "filename": "cmd/oapi-codegen/oapi-codegen.go",
+              "offset": 9975,
+              "line": 265,
+              "column": 29
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
