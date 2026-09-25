@@ -161,12 +161,22 @@ func (s *optionalStub) SignUpload(_ context.Context, r api.SignUploadRequestObje
 }
 
 func TestAllApprovedOptionalAdapters(t *testing.T) {
+	// Exercise each adapter's real schema, not a common object whose fields may
+	// simply be ignored by unrelated body types.
+	bodies := map[string][2]string{
+		"OpenShift":            {`{"startingCash":0}`, `{"startingCash":25,"outletName":"Owned outlet"}`},
+		"CloseShift":           {`{"closingCash":0,"countedByMethod":{}}`, `{"closingCash":25,"countedByMethod":{"cash":25}}`},
+		"CompleteStockCount":   {`{"items":[]}`, `{"items":[{"actualQty":0,"difference":0,"frozenQty":0,"productId":"owned","productName":"Owned item","sku":"OWNED","variantSize":"M"}]}`},
+		"Logout":               {`{"refresh":""}`, `{"refresh":"synthetic"}`},
+		"RestoreRecipeVersion": {`{"expectedCurrentVersionId":"00000000-0000-0000-0000-000000000000"}`, `{"expectedCurrentVersionId":"00000000-0000-4000-8000-000000000001"}`},
+		"SignUpload":           {`{"folder":""}`, `{"folder":"owned"}`},
+	}
 	for _, method := range []string{"OpenShift", "CloseShift", "CompleteStockCount", "Logout", "RestoreRecipeVersion", "SignUpload"} {
 		t.Run(method, func(t *testing.T) {
 			for _, b := range []struct {
 				name, body      string
 				called, nilBody bool
-			}{{"EOF", "", true, true}, {"whitespace", " \n\t", true, true}, {"object", "{}", true, false}, {"null", "null", true, false}, {"zero", `{"startingCash":0,"openingCash":0,"actualCash":0,"items":[]}`, true, false}, {"populated", `{"startingCash":25,"actualCash":25,"closingCash":25,"folder":"owned","refreshToken":"synthetic","refresh":"synthetic"}`, true, false}, {"malformed", "{", false, false}} {
+			}{{"EOF", "", true, true}, {"whitespace", " \n\t", true, true}, {"object", "{}", true, false}, {"null", "null", true, false}, {"zero", bodies[method][0], true, false}, {"populated", bodies[method][1], true, false}, {"malformed", "{", false, false}} {
 				t.Run(b.name, func(t *testing.T) {
 					body := b.body
 					if b.name == "whitespace" {
@@ -184,6 +194,18 @@ func TestAllApprovedOptionalAdapters(t *testing.T) {
 					m.Call(args)
 					if stub.called != b.called || (stub.called && stub.nilBody != b.nilBody) {
 						t.Fatalf("dispatch called=%v nil=%v", stub.called, stub.nilBody)
+					}
+					if b.name == "zero" || b.name == "populated" {
+						var want, got any
+						if err := json.Unmarshal([]byte(body), &want); err != nil {
+							t.Fatal(err)
+						}
+						if err := json.Unmarshal(stub.body, &got); err != nil {
+							t.Fatal(err)
+						}
+						if !reflect.DeepEqual(want, got) {
+							t.Fatalf("decoded body lost fields: want=%s got=%s", body, stub.body)
+						}
 					}
 					if w.Code < 400 {
 						t.Fatal("stub result interpreted as business success")
