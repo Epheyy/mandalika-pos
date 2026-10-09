@@ -32,7 +32,13 @@ func transferTransition(from, action string) (string, error) {
 			return "cancelled", nil
 		}
 	}
-	return "", fmt.Errorf("aksi tidak diizinkan dari status '%s'", from)
+	return "", errTransitionDenied(from)
+}
+
+// errTransitionDenied is the domain error for an action applied in a status that
+// does not allow it. Also returned when a guarded status UPDATE matches no row.
+func errTransitionDenied(from string) error {
+	return fmt.Errorf("aksi tidak diizinkan dari status '%s'", from)
 }
 
 // transferDiff is received minus sent (negative = shortfall, positive = surplus).

@@ -9,8 +9,8 @@ python3 -B scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
 
 The default runner requires a working Docker engine and Go. It pulls
 `postgres:18.3`, records the resolved image ID/digest, and creates each container
-using that immutable ID. Six fixtures run sequentially, one fresh tmpfs cluster
-per named Go integration test. Ports 56439–56444 must be unused. Only
+using that immutable ID. Seven fixtures run sequentially, one fresh tmpfs cluster
+per named Go integration test. Ports 56439–56445 must be unused. Only
 `127.0.0.1` is published. Each fixture has its own generated synthetic password,
 exact database/user, and explicit unique PGDATA. There is no `.env`, live DSN,
 shared database, or provider-secret fallback.

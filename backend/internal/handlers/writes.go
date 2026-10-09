@@ -59,6 +59,11 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Err(w, http.StatusNotFound, "not found")
 		return
 	}
+	if errors.Is(err, write.ErrBusy) {
+		// Lock conflict/deadlock: nothing was applied, safe to retry. Clean message only.
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return

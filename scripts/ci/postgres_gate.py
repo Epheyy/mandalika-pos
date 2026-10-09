@@ -31,6 +31,7 @@ GATES = (
     ("LF", "TestLinkedFulfillmentPostgres", 56442, "lf"),
     ("A26", "TestPaginationPostgres", 56443, "a26"),
     ("A27", "TestReportSummaryPostgres", 56444, "a27"),
+    ("TR", "TestTransferConcurrencyPostgres", 56445, "tr"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type TransferItemInput struct {
@@ -95,11 +96,13 @@ func insertTransferItems(ctx context.Context, tx pgx.Tx, id string, items []Tran
 	return nil
 }
 
+// loadTransfer reads the transfer row WITH a row lock. Every state-changing path
+// must call it first: lock order is the transfer row, then stock rows.
 func loadTransfer(ctx context.Context, q pgx.Tx, id string) (transferRow, error) {
 	var t transferRow
 	e := q.QueryRow(ctx,
 		`SELECT status, source_outlet_id, source_warehouse_id, dest_outlet_id, dest_warehouse_id
-		   FROM transfers WHERE id=$1`, id).Scan(
+		   FROM transfers WHERE id=$1 FOR UPDATE`, id).Scan(
 		&t.status, &t.srcOutlet, &t.srcWarehouse, &t.dstOutlet, &t.dstWarehouse)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return t, ErrNotFound
@@ -107,9 +110,12 @@ func loadTransfer(ctx context.Context, q pgx.Tx, id string) (transferRow, error)
 	return t, e
 }
 
+// transferLines returns lines sorted by (product_id, variant_size) so stock rows
+// are always locked in one deterministic order (no deadlocks between transfers).
 func transferLines(ctx context.Context, q pgx.Tx, id string) ([]transferLine, error) {
 	rows, e := q.Query(ctx,
-		`SELECT product_id, variant_size, sent_qty FROM transfer_items WHERE transfer_id=$1`, id)
+		`SELECT product_id, variant_size, sent_qty FROM transfer_items WHERE transfer_id=$1
+		  ORDER BY product_id, variant_size`, id)
 	if e != nil {
 		return nil, e
 	}
@@ -147,25 +153,47 @@ func addStockDelta(ctx context.Context, q pgx.Tx, outletID, warehouseID *string,
 	return e
 }
 
-// currentStock reads on-hand for one leg (0 when no row yet).
-func currentStock(ctx context.Context, q pgx.Tx, outletID, warehouseID *string, productID, size string) (int, error) {
-	var n int
+// errInsufficientStock is the domain error when a send would overdraw the source.
+var errInsufficientStock = fmt.Errorf("stok tidak cukup untuk dikirim")
+
+// deductStockGuarded atomically subtracts qty from the source leg only if enough
+// is on hand (a missing stock row counts as 0). Check and write are one statement,
+// so concurrent sends from the same source cannot both pass the guard.
+func deductStockGuarded(ctx context.Context, q pgx.Tx, outletID, warehouseID *string, productID, size string, qty int) error {
+	var ct pgconn.CommandTag
 	var e error
 	if outletID != nil {
-		e = q.QueryRow(ctx,
-			`SELECT COALESCE(stock,0) FROM outlet_variant_stock
-			  WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3`,
-			*outletID, productID, size).Scan(&n)
+		ct, e = q.Exec(ctx,
+			`UPDATE outlet_variant_stock SET stock = stock - $4
+			  WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 AND stock >= $4`,
+			*outletID, productID, size, qty)
 	} else {
-		e = q.QueryRow(ctx,
-			`SELECT COALESCE(stock,0) FROM warehouse_variant_stock
-			  WHERE warehouse_id=$1 AND product_id=$2 AND variant_size=$3`,
-			*warehouseID, productID, size).Scan(&n)
+		ct, e = q.Exec(ctx,
+			`UPDATE warehouse_variant_stock SET stock = stock - $4
+			  WHERE warehouse_id=$1 AND product_id=$2 AND variant_size=$3 AND stock >= $4`,
+			*warehouseID, productID, size, qty)
 	}
-	if errors.Is(e, pgx.ErrNoRows) {
-		return 0, nil
+	if e != nil {
+		return e
 	}
-	return n, e
+	if ct.RowsAffected() != 1 {
+		return errInsufficientStock
+	}
+	return nil
+}
+
+// guardedStatusUpdate runs a status UPDATE whose WHERE ends in `id=$1 AND status=$2`
+// and requires exactly one row. The row lock already serializes callers; this makes
+// a lost race fail closed with the same error as any invalid transition.
+func guardedStatusUpdate(ctx context.Context, q pgx.Tx, from, sql, id string, extra ...any) error {
+	ct, e := q.Exec(ctx, sql, append([]any{id, from}, extra...)...)
+	if e != nil {
+		return e
+	}
+	if ct.RowsAffected() != 1 {
+		return errTransitionDenied(from)
+	}
+	return nil
 }
 
 // CreateTransfer records a draft (no stock movement, no version bump).
@@ -199,9 +227,9 @@ func (r *Repo) UpdateTransferDraft(ctx context.Context, id string, t TransferCre
 	if e := validateItems(t.Items); e != nil {
 		return e
 	}
-	return r.noBumpTx(ctx, func(tx pgx.Tx) error {
+	return mapBusy(r.noBumpTx(ctx, func(tx pgx.Tx) error {
 		var status string
-		e := tx.QueryRow(ctx, `SELECT status FROM transfers WHERE id=$1`, id).Scan(&status)
+		e := tx.QueryRow(ctx, `SELECT status FROM transfers WHERE id=$1 FOR UPDATE`, id).Scan(&status)
 		if errors.Is(e, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -218,12 +246,16 @@ func (r *Repo) UpdateTransferDraft(ctx context.Context, id string, t TransferCre
 			return e
 		}
 		return insertTransferItems(ctx, tx, id, t.Items)
-	})
+	}))
 }
 
 // SendTransfer deducts each line from the source (guarding against oversend),
 // marks the transfer in_transit, and bumps the source outlet leg if any.
 func (r *Repo) SendTransfer(ctx context.Context, id string) error {
+	return mapBusy(r.sendTransfer(ctx, id))
+}
+
+func (r *Repo) sendTransfer(ctx context.Context, id string) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -241,26 +273,14 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 	if e != nil {
 		return e
 	}
-	// Oversend guard is read-then-write (currentStock then addStockDelta), not an
-	// atomic guarded decrement. That is a deliberate, accepted choice for the
-	// single-admin backoffice: two concurrent sends from the same source could
-	// race the guard. If concurrent same-source sends become possible (e.g. a
-	// future multi-device flow), switch this to `UPDATE ... SET stock = stock -
-	// $qty WHERE stock >= $qty` and check the affected rows instead.
+	// Atomic guarded decrement per line (lines are sorted, see transferLines).
 	for _, l := range lines {
-		have, e := currentStock(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size)
-		if e != nil {
-			return e
-		}
-		if have < l.sent {
-			return fmt.Errorf("stok tidak cukup untuk dikirim")
-		}
-		if e := addStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size, -l.sent); e != nil {
+		if e := deductStockGuarded(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size, l.sent); e != nil {
 			return e
 		}
 	}
-	if _, e := tx.Exec(ctx,
-		`UPDATE transfers SET status='in_transit', sent_at=now() WHERE id=$1`, id); e != nil {
+	if e := guardedStatusUpdate(ctx, tx, t.status,
+		`UPDATE transfers SET status='in_transit', sent_at=now() WHERE id=$1 AND status=$2`, id); e != nil {
 		return e
 	}
 	// SP4: stamp the surat jalan number now that the transfer is in_transit
@@ -285,6 +305,10 @@ func (r *Repo) SendTransfer(ctx context.Context, id string) error {
 // each line's difference (received - sent), requires a discrepancy reason when
 // any line differs, completes the transfer, and bumps the dest outlet leg if any.
 func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
+	return mapBusy(r.receiveTransfer(ctx, id, rcv, meta))
+}
+
+func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -357,11 +381,11 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 			return e
 		}
 	}
-	if _, e := tx.Exec(ctx,
-		`UPDATE transfers SET status='completed', received_at=now(), discrepancy_reason=$1,
-		   received_by=$2, received_via=$3, received_idempotency_key=$4 WHERE id=$5`,
-		nullStr(rcv.DiscrepancyReason), nullUUID(meta.ReceivedBy),
-		nullStr(meta.ReceivedVia), nullStr(meta.IdempotencyKey), id); e != nil {
+	if e := guardedStatusUpdate(ctx, tx, t.status,
+		`UPDATE transfers SET status='completed', received_at=now(), discrepancy_reason=$3,
+		   received_by=$4, received_via=$5, received_idempotency_key=$6 WHERE id=$1 AND status=$2`,
+		id, nullStr(rcv.DiscrepancyReason), nullUUID(meta.ReceivedBy),
+		nullStr(meta.ReceivedVia), nullStr(meta.IdempotencyKey)); e != nil {
 		return e
 	}
 	if t.dstOutlet != nil {
@@ -389,6 +413,10 @@ func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferRecei
 // CancelTransfer voids a draft (no stock effect) or reverses an in_transit
 // transfer (restore each line's sent qty to the source, bump source outlet leg).
 func (r *Repo) CancelTransfer(ctx context.Context, id string) error {
+	return mapBusy(r.cancelTransfer(ctx, id))
+}
+
+func (r *Repo) cancelTransfer(ctx context.Context, id string) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -418,8 +446,8 @@ func (r *Repo) CancelTransfer(ctx context.Context, id string) error {
 			}
 		}
 	}
-	if _, e := tx.Exec(ctx,
-		`UPDATE transfers SET status='cancelled', cancelled_at=now() WHERE id=$1`, id); e != nil {
+	if e := guardedStatusUpdate(ctx, tx, t.status,
+		`UPDATE transfers SET status='cancelled', cancelled_at=now() WHERE id=$1 AND status=$2`, id); e != nil {
 		return e
 	}
 	return tx.Commit(ctx)

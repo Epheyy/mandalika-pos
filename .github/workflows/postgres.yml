@@ -27,7 +27,7 @@ jobs:
         working-directory: backend
       - name: Runner fail-closed contracts
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
-      - name: Six mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
+      - name: Seven mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
         run: python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
       - name: Sanitized fixture lifecycle and test evidence
         if: always()
