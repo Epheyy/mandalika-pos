@@ -31,10 +31,14 @@ transfer receipt = first valid wins, second → review; all tablets at 0 pending
 sync-changing deploys while pre-launch. Still open: who resolves needs-review refunds (head
 office vs outlet TL).
 
-**Refund permission (read-only Neon query, 2026-10-10):** every account effectively holds
-`process_refund` (Administrator = admin role; Yasmine/cashier BSD, Anggun/manager BSD,
-test/manager PMS = explicit rows). So the audit branch's batch-refund denial (A06) denies
-nobody today. 7 refunded orders total, 6 under "test", 1 unattributed (no `refunded_by`
+**Refund permission (read-only query of the TEST Neon DB, 4 accounts, 2026-10-10):** all 4
+effectively hold `process_refund` (Administrator = admin role; Yasmine/cashier BSD,
+Anggun/manager BSD, test/manager PMS = explicit rows). The real fleet is not on this DB yet.
+No role grants it by default: backoffice user creation stores only what is ticked in
+`PermissionPicker` ("Proses Refund"), and the Firestore import (`fsmigrate/tables.go:264-268`)
+copies each user's old permissions as-is. **Merge-prep item:** any real cashier without the
+row can refund today via `/sync/batch` but will be denied after the A06 merge — audit the
+real accounts' permissions before go-live (feeds decision 8). 7 refunded orders total, 6 under "test", 1 unattributed (no `refunded_by`
 column exists — refunder isn't recorded). Administrator has 149 unexpired refresh tokens
 (tokens accumulate / shared login) — worth a cleanup + token-reuse review later.
 
