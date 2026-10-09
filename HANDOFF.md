@@ -9,11 +9,12 @@ Last updated: 2026-10-10 by Claude (Opus 5.5).
 
 ## Now
 
-- **Live:** Cloud Run `mandalika-pos` revision `00082-yig` (100%, tag `a13`), built from
-  `prod-hardening` @ `7fa5541` = merged audit work + **P0 slice 1 (A13 transfer locking)**,
-  deployed 2026-10-10. Backoffice on Cloudflare from `fe52d6e` (A13 is backend-only).
-  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00080-noh=100`
-  (00080-noh = merged audit work without A13; 00078-yey = pre-merge, tag `a34test`).
+- **Live:** Cloud Run `mandalika-pos` revision `00084-rav` (100%, tag `a11`), built from
+  `prod-hardening` @ `7c432ec` = merged audit work + P0 slices 1 (A13) and 2 (A11), deployed
+  2026-10-10. Migration 0045 (`operation_receipts`, additive) applied. Backoffice on Cloudflare
+  from `fe52d6e` (slices 1–2 are backend-only).
+  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00082-yig=100`
+  (safe: 0045 only adds a table; 00082-yig = A13 without A11; 00080-noh = merge only).
 - **Develop on `prod-hardening`** (local checkout switched 2026-10-10).
 - **Shipped 2026-10-10:** client-IP spoofing fix (A34e15: no chi RealIP, `TRUSTED_PROXY_HOPS=1`,
   IPv6 /64 buckets, normalized login email) + per-account failed-login cap (30 / 15 min).
@@ -69,7 +70,16 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
 3. ~~Backend deploy~~ done. ~~P0 slice 1 (A13)~~ done 2026-10-10: transfer row lock, guarded
    status updates, atomic guarded send decrement (sorted lines), lock-conflict retry
    (3 attempts) + clean 409 `ErrBusy`; PostgreSQL gate TR (11 subtests, fails on old code).
-   **Next: P0 slice 2 — A11 operation receipts** (needs a migration; drain tablet queue first).
+   ~~P0 slice 2 (A11)~~ done 2026-10-10: `operation_receipts` + `RunWithReceipt` make
+   refund / shift_open / shift_close / cash_flow / customer_create exactly-once on
+   `/sync/batch` (replay returns the original result; mismatch = clean conflict); migrations
+   now run each file under `pg_advisory_xact_lock` (pooler-safe). PostgreSQL gate OR.
+   CI gate image now pulled from `public.ecr.aws/docker/library/postgres:18.3` (Docker Hub
+   rate limits blocked it).
+   **Next: P0 slice 3 — error contract** (`ItemResult.code` + `retryable`, additive, backend).
+   Follow-ups: no pruning job for `operation_receipts`; OR test goroutines use t.Fatalf;
+   cold start ~1–3 s slower (locked per-file migration check); shift opens from two
+   different keys at one outlet still both succeed.
    Small follow-ups: ingredient transfer sends don't sort lines (rare deadlock → raw 400 text);
    `/sync/version` 500 for outlet-less accounts.
 

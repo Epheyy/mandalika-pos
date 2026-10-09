@@ -919,7 +919,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A08 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T06 |
 | A09 | P0 | S0c | Open; input/numeric containment scoped review accepted | T07 (C01–C12 bounded evidence) |
 | A10 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
-| A11 | P0 | S1 | Needs current behavioral revalidation; source matches audit | T08 |
+| A11 | P0 | S1 | FIXED for /sync/batch 2026-10-10 (`03bc7e7`,`7c432ec`; rev 00084-rav; mig 0045): operation receipts; PG gate OR fails on old code. Direct HTTP routes + orders' processed_keys fingerprint not covered | T08 |
 | A12 | P1 | S3 | Needs current behavioral revalidation; source matches audit | T09 |
 | A13 | P0 | S3 | FIXED 2026-10-10 (`21e7426`,`7fa5541`; rev 00082-yig): row lock + guarded transitions + atomic send decrement; PG gate TR fails on old code | T10 |
 | A14 | P1 | S3 | Source-confirmed open; runtime unverified; clarified design / owner decisions pending | T11a–T11n; I01–I23 (including original T11 replay) |
