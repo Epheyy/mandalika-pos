@@ -60,8 +60,10 @@ export default function Reports() {
   const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
   const [tab, setTab] = useState<ReportTab>(defaultTab)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10))
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  // Local calendar date: the range below is built with local startOfDay/endOfDay, so a
+  // UTC date (toISOString) would default to yesterday between 00:00–07:00 WIB.
+  const [dateFrom, setDateFrom] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
 

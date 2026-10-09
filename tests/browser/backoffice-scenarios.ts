@@ -66,7 +66,9 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     await page.locator('select').filter({has:page.locator('option[value="qris"]')}).selectOption('');
     await page.locator('input[type=date]').first().fill('2099-01-01');
     check((await page.locator('main').innerText()).includes('0 transaksi'),'date filter');
-    await page.locator('input[type=date]').first().fill(new Date().toISOString().slice(0,10));
+    // Restore "today" in the browser's timezone (Asia/Jakarta), matching the Reports default.
+    const localToday=await page.evaluate(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;});
+    await page.locator('input[type=date]').first().fill(localToday);
     await page.getByRole('button',{name:'Shift',exact:true}).click();
     const shifts=await capture();check(shifts.split('\n').length-1===n,'shift CSV');
     results.push({n,csvRows,shiftCsvRows:n,reportTotal:n*1000,filteredQris:Math.floor(n/2),dashboard,requests:page.__a26.calls});
