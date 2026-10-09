@@ -32,6 +32,8 @@ Pick the reviewer by what the change **touches**, not by its size.
 | implementer | Sonnet 5.5, medium | Writing code and tests |
 | scout / chore | Haiku 5.5, low | Search, reading, summaries, copy/style/docs/config with no new logic |
 
+- These roles exist as subagents in `.claude/agents/` with model and effort pinned; dispatch
+  them by name.
 - Opus re-derives any Haiku finding from source before accepting or dismissing it.
 - Announce "tier + effort + one-line reason" before each delegated task.
 - Read `SESSION_HANDOFF.md` by section (it is very large), never whole.

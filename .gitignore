@@ -53,7 +53,9 @@ Thumbs.db
 
 # VS Code
 .vscode/
-.claude
+# Keep local Claude settings private; share only the project subagents.
+.claude/*
+!.claude/agents/
 
 
 # TS build info
