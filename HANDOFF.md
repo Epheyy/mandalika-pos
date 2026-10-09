@@ -9,11 +9,11 @@ Last updated: 2026-10-10 by Claude (Opus 5.5).
 
 ## Now
 
-- **Live:** Cloud Run `mandalika-pos` revision `00080-noh` (100%, tag `merge`), built from
-  `prod-hardening` @ `fe52d6e` (the merged audit work), deployed 2026-10-10 after the owner
-  confirmed the test tablet at 0 pending. Backoffice live on Cloudflare from the same commit.
-  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00078-yey=100`
-  (00078-yey = pre-merge build incl. the A34 fix; reachable via tag `a34test`).
+- **Live:** Cloud Run `mandalika-pos` revision `00082-yig` (100%, tag `a13`), built from
+  `prod-hardening` @ `7fa5541` = merged audit work + **P0 slice 1 (A13 transfer locking)**,
+  deployed 2026-10-10. Backoffice on Cloudflare from `fe52d6e` (A13 is backend-only).
+  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00080-noh=100`
+  (00080-noh = merged audit work without A13; 00078-yey = pre-merge, tag `a34test`).
 - **Develop on `prod-hardening`** (local checkout switched 2026-10-10).
 - **Shipped 2026-10-10:** client-IP spoofing fix (A34e15: no chi RealIP, `TRUSTED_PROXY_HOPS=1`,
   IPv6 /64 buckets, normalized login email) + per-account failed-login cap (30 / 15 min).
@@ -66,8 +66,12 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
      chi upgrade; build-only npm (brace-expansion, source-map-js); rgbcolor licence evidence.
    - **Scaling:** backoffice now loads all order pages on every 12 s poll and errors
      ("Data berubah saat dimuat") if rows change mid-load — fine for 1 tablet, not for 26.
-3. ~~Backend deploy~~ done (00080-noh). **Next: P0 slice 1 — A13 transfer locking**, then
-   slices in plan order (`docs/plans/2026-10-10-p0-remediation-plan.md`).
+3. ~~Backend deploy~~ done. ~~P0 slice 1 (A13)~~ done 2026-10-10: transfer row lock, guarded
+   status updates, atomic guarded send decrement (sorted lines), lock-conflict retry
+   (3 attempts) + clean 409 `ErrBusy`; PostgreSQL gate TR (11 subtests, fails on old code).
+   **Next: P0 slice 2 — A11 operation receipts** (needs a migration; drain tablet queue first).
+   Small follow-ups: ingredient transfer sends don't sort lines (rare deadlock → raw 400 text);
+   `/sync/version` 500 for outlet-less accounts.
 
 ## Known gaps (not P0)
 
