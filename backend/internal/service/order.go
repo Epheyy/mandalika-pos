@@ -1497,11 +1497,14 @@ func recordDupCandidate(ctx context.Context, tx pgx.Tx, id, phone string) error 
 	err = sp.QueryRow(ctx,
 		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at ASC, id ASC LIMIT 1`,
 		phone, id).Scan(&existingID)
-	if errors.Is(err, pgx.ErrNoRows) || existingID == "" {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
+	}
+	if existingID == "" {
+		return nil
 	}
 	if _, err = sp.Exec(ctx,
 		`INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)

@@ -22,7 +22,7 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-IMAGE = "postgres:18.3"
+IMAGE = "public.ecr.aws/docker/library/postgres:18.3"  # official image via AWS mirror (no Docker Hub anonymous pull limits)
 PACKAGE = "github.com/mandalika/pos-backend/internal/handlers"
 GATES = (
     ("S0C", "TestSaleInputPostgres", 56439, "s0c"),
