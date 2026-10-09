@@ -577,7 +577,17 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := s.RefundTx(ctx, tx, outletID, orderID, reason); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// RefundTx is Refund inside a caller-owned transaction (the caller commits or
+// rolls back). Used by the keyed /sync/batch path so the refund and its
+// operation receipt commit atomically.
+func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderID, reason string) error {
+	var err error
 	var status, orderNumber string
 	var custID *string
 	var discountCode *string
@@ -595,7 +605,7 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		return err
 	}
 	if status == "refunded" {
-		return tx.Commit(ctx) // already refunded — idempotent
+		return nil // already refunded — idempotent
 	}
 	if _, err = tx.Exec(ctx,
 		`UPDATE orders SET status='refunded', refund_reason=$1, refunded_at=now()
@@ -696,7 +706,7 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 		}
 	}
 
-	return tx.Commit(ctx)
+	return nil
 }
 
 // combinabilityViolation enforces the boolean gate: more than one discount may
@@ -1439,8 +1449,25 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 	if in.Name == "" || in.Phone == "" {
 		return "", errors.New("customer requires name and phone")
 	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+	id, err := s.CreateCustomerTx(ctx, tx, in)
+	if err != nil {
+		return "", err
+	}
+	return id, tx.Commit(ctx)
+}
+
+// CreateCustomerTx is CreateCustomer inside a caller-owned transaction.
+func (s *OrderService) CreateCustomerTx(ctx context.Context, tx pgx.Tx, in CreateCustomerInput) (string, error) {
+	if in.Name == "" || in.Phone == "" {
+		return "", errors.New("customer requires name and phone")
+	}
 	var id string
-	err := s.Pool.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		INSERT INTO customers (id, name, phone, email)
 		VALUES (COALESCE(NULLIF($1,'')::uuid, gen_random_uuid()), $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE
@@ -1452,20 +1479,36 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 	}
 	// SP-CRM-3: if another customer already has this phone, record a duplicate
 	// candidate for the future backoffice merge tool. Best-effort — never blocks
-	// the create (the in-flight order depends on it). The customer row is still
-	// created with the client id, so the order's customerId stays consistent.
-	var existingID string
-	if derr := s.Pool.QueryRow(ctx,
-		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at ASC, id ASC LIMIT 1`,
-		in.Phone, id).Scan(&existingID); derr == nil && existingID != "" {
-		if _, execErr := s.Pool.Exec(ctx,
-			`INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
-			 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, id, existingID, in.Phone); execErr != nil {
-			slog.Warn("dup candidate insert failed (best-effort)",
-				"new_id", id, "existing_id", existingID, "err", execErr)
-		}
+	// the create (the in-flight order depends on it). Runs in a savepoint so a
+	// failure here cannot abort the surrounding transaction.
+	if dupErr := recordDupCandidate(ctx, tx, id, in.Phone); dupErr != nil {
+		slog.Warn("dup candidate insert failed (best-effort)", "new_id", id, "err", dupErr)
 	}
 	return id, nil
+}
+
+func recordDupCandidate(ctx context.Context, tx pgx.Tx, id, phone string) error {
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer sp.Rollback(ctx)
+	var existingID string
+	err = sp.QueryRow(ctx,
+		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at ASC, id ASC LIMIT 1`,
+		phone, id).Scan(&existingID)
+	if errors.Is(err, pgx.ErrNoRows) || existingID == "" {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err = sp.Exec(ctx,
+		`INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
+		 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, id, existingID, phone); err != nil {
+		return err
+	}
+	return sp.Commit(ctx)
 }
 
 func nullStr(s string) any {

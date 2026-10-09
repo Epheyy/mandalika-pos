@@ -27,7 +27,15 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 		return "", err
 	}
 	defer tx.Rollback(ctx)
+	id, err := s.OpenShiftTx(ctx, tx, in)
+	if err != nil {
+		return "", err
+	}
+	return id, tx.Commit(ctx)
+}
 
+// OpenShiftTx is OpenShift inside a caller-owned transaction.
+func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftInput) (string, error) {
 	var n int
 	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`,
@@ -38,7 +46,7 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 		return "", ErrShiftOpen
 	}
 	var id string
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		INSERT INTO shifts (outlet_id, outlet_name, cashier_id, cashier_name,
 		  status, opened_at, starting_cash)
 		VALUES ($1,$2,$3,$4,'open',now(),$5) RETURNING id`,
@@ -47,7 +55,7 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 	if err != nil {
 		return "", err
 	}
-	return id, tx.Commit(ctx)
+	return id, nil
 }
 
 // CloseShift is server-reconciled: totals are recomputed from the shift's
@@ -56,6 +64,19 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 // close (reconciliation "Terhitung"); nil/empty leaves any existing value
 // untouched so a re-close (idempotent retry) never wipes it.
 func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string, closingCash float64, counted map[string]float64) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err := s.CloseShiftTx(ctx, tx, outletID, shiftID, closingCash, counted); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// CloseShiftTx is CloseShift inside a caller-owned transaction.
+func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, shiftID string, closingCash float64, counted map[string]float64) error {
 	var countedJSON []byte
 	if len(counted) > 0 {
 		b, err := json.Marshal(counted)
@@ -65,14 +86,8 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 		countedJSON = b
 	}
 
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
 	var status string
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT status FROM shifts WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
 		shiftID, outletID).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -82,7 +97,7 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 		return err
 	}
 	if status == "closed" {
-		return tx.Commit(ctx)
+		return nil
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE shifts s SET
@@ -108,10 +123,7 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 		) a
 		WHERE s.id=$1 AND s.outlet_id=$2`,
 		shiftID, outletID, closingCash, countedJSON)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return err
 }
 
 type CashFlowInput struct {
@@ -125,8 +137,17 @@ type CashFlowInput struct {
 }
 
 func (s *OrderService) AddCashFlow(ctx context.Context, in CashFlowInput) (string, error) {
+	return addCashFlow(ctx, s.Pool, in)
+}
+
+// AddCashFlowTx is AddCashFlow inside a caller-owned transaction.
+func (s *OrderService) AddCashFlowTx(ctx context.Context, tx pgx.Tx, in CashFlowInput) (string, error) {
+	return addCashFlow(ctx, tx, in)
+}
+
+func addCashFlow(ctx context.Context, q rowQueryRower, in CashFlowInput) (string, error) {
 	var id string
-	err := s.Pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		INSERT INTO cash_flows (outlet_id, shift_id, type, amount, description,
 		  cashier_id, cashier_name, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,

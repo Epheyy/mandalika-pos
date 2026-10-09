@@ -182,7 +182,7 @@ func TestShiftDecodePostgres(t *testing.T) {
 	}
 	for _, transport := range []string{"direct", "batch"} {
 		t.Run("valid/"+transport, func(t *testing.T) {
-			for _, tc := range []struct {
+			for i, tc := range []struct {
 				amount  float64
 				counted string
 			}{{0, ""}, {125.25, `,"countedByMethod":null`}, {-1.25, `,"countedByMethod":{}`}, {0, `,"countedByMethod":{"cash":0,"custom_BANK":1.25}`}} {
@@ -194,7 +194,7 @@ func TestShiftDecodePostgres(t *testing.T) {
 						t.Fatalf("%d %s", w.Code, w.Body.String())
 					}
 				} else {
-					w := request("/sync/batch", `{"items":[{"type":"shift_open","idempotencyKey":"valid-open","payload":`+openBody+`}]}`, token, "")
+					w := request("/sync/batch", fmt.Sprintf(`{"items":[{"type":"shift_open","idempotencyKey":"valid-open-%d","payload":`, i)+openBody+`}]}`, token, "")
 					if w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"ok"`) {
 						t.Fatalf("%d %s", w.Code, w.Body.String())
 					}
@@ -212,7 +212,7 @@ func TestShiftDecodePostgres(t *testing.T) {
 						t.Fatalf("%d %s", w.Code, w.Body.String())
 					}
 				} else {
-					w := request("/sync/batch", `{"items":[{"type":"shift_close","idempotencyKey":"valid-close","payload":`+closeBody+`}]}`, token, "")
+					w := request("/sync/batch", fmt.Sprintf(`{"items":[{"type":"shift_close","idempotencyKey":"valid-close-%d","payload":`, i)+closeBody+`}]}`, token, "")
 					if w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"ok"`) {
 						t.Fatalf("%d %s", w.Code, w.Body.String())
 					}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -47,15 +48,25 @@ func Connect(ctx context.Context, url string) (*DB, error) {
 
 func (d *DB) Close() { d.Pool.Close() }
 
+// migrationLockKey is the transaction-scoped advisory lock that serializes
+// schema changes across instances (Cloud Run can run many at once). It must be
+// transaction-scoped: DATABASE_URL points at a PgBouncer transaction-mode pooler,
+// where session-level locks would leak across clients.
+const migrationLockKey int64 = 7261950045001
+
 // Migrate applies any embedded *.sql files not yet recorded in schema_migrations.
 // Filenames are applied in lexical order (e.g. 0001_init.sql, 0002_*.sql).
+// Each file runs in its own transaction that first takes the advisory lock and
+// then re-checks schema_migrations, so concurrent starters apply a file once.
 func (d *DB) Migrate(ctx context.Context) error {
-	_, err := d.Pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			name text PRIMARY KEY,
-			applied_at timestamptz NOT NULL DEFAULT now()
-		)`)
-	if err != nil {
+	if err := d.inLockedTx(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			CREATE TABLE IF NOT EXISTS schema_migrations (
+				name text PRIMARY KEY,
+				applied_at timestamptz NOT NULL DEFAULT now()
+			)`)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -72,35 +83,44 @@ func (d *DB) Migrate(ctx context.Context) error {
 	sort.Strings(names)
 
 	for _, name := range names {
-		var exists bool
-		if err := d.Pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE name=$1)`, name,
-		).Scan(&exists); err != nil {
-			return err
-		}
-		if exists {
-			continue
-		}
 		sqlBytes, err := migrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
 			return err
 		}
-		tx, err := d.Pool.Begin(ctx)
-		if err != nil {
+		if err := d.inLockedTx(ctx, func(tx pgx.Tx) error {
+			var exists bool
+			if err := tx.QueryRow(ctx,
+				`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE name=$1)`, name,
+			).Scan(&exists); err != nil {
+				return err
+			}
+			if exists {
+				return nil
+			}
+			if _, err := tx.Exec(ctx, string(sqlBytes)); err != nil {
+				return fmt.Errorf("migration %s: %w", name, err)
+			}
+			_, err := tx.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1)`, name)
 			return err
-		}
-		if _, err := tx.Exec(ctx, string(sqlBytes)); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO schema_migrations (name) VALUES ($1)`, name); err != nil {
-			_ = tx.Rollback(ctx)
-			return err
-		}
-		if err := tx.Commit(ctx); err != nil {
+		}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// inLockedTx runs fn in a transaction holding the migration advisory lock.
+func (d *DB) inLockedTx(ctx context.Context, fn func(pgx.Tx) error) error {
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationLockKey); err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

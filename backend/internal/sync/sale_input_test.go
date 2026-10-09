@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	"reflect"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestSaleInputBatchMappingAndIndependentResults(t *testing.T) {
 	r, err := processBatch(context.Background(), Caller{OutletID: "trusted-outlet", UserID: "trusted-user"}, items,
 		func(ctx context.Context, c Caller, it BatchItem) ItemResult {
 			return (&Engine{}).processOneWithCommands(ctx, c, it,
-				func(context.Context, string, string, string) error { refundCalls++; return nil },
+				func(context.Context, pgx.Tx, string, string, string) error { refundCalls++; return nil },
 				func(_ context.Context, in service.CreateOrderInput) (string, bool, bool, error) {
 					calls++
 					if in.OutletID != "trusted-outlet" || in.CashierID != "trusted-user" || !in.Offline {

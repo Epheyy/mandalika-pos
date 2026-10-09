@@ -25,10 +25,13 @@ type Engine struct {
 	Read   *read.Repo
 	Orders *service.OrderService
 	Write  *write.Repo
+	// Receipts gives refund, shift_open, shift_close, cash_flow and customer_create
+	// exactly-once semantics per idempotency key (A11). Nil runs them unkeyed.
+	Receipts service.ReceiptRunner
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
-	return &Engine{Pool: p, Read: rd, Orders: os, Write: wr}
+	return &Engine{Pool: p, Read: rd, Orders: os, Write: wr, Receipts: service.PoolReceiptRunner(p)}
 }
 
 type VersionInfo struct {
@@ -192,16 +195,56 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 }
 
 func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemResult {
-	return e.processOneWithRefund(ctx, c, it, e.Orders.Refund)
+	return e.processOneWithRefund(ctx, c, it, e.Orders.RefundTx)
+}
+
+// refundFunc runs a refund inside the transaction that also holds the item's
+// operation receipt.
+type refundFunc func(ctx context.Context, tx pgx.Tx, outletID, orderID, reason string) error
+
+// receiptOutcome is the stored result of a keyed write. Every type replays as
+// status "ok" with the same orderId the first attempt returned.
+type receiptOutcome struct {
+	OrderID string `json:"orderId"`
+}
+
+// keyed runs effect exactly once for it.IdempotencyKey (A11): a retry after a lost
+// response replays the first attempt's orderId instead of applying the write
+// again. The key is bound to the item type, the caller's outlet and the payload.
+func (e *Engine) keyed(ctx context.Context, c Caller, it BatchItem, effect func(tx pgx.Tx) (string, error)) (string, error) {
+	run := e.Receipts
+	if run == nil {
+		run = func(_ context.Context, _ service.ReceiptClaim, f service.ReceiptEffect) (json.RawMessage, bool, error) {
+			out, err := f(nil)
+			return out, false, err
+		}
+	}
+	raw, _, err := run(ctx, service.ReceiptClaim{
+		Key: it.IdempotencyKey, OpType: it.Type, Scope: c.OutletID, Payload: it.Payload,
+	}, func(tx pgx.Tx) (json.RawMessage, error) {
+		id, err := effect(tx)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(receiptOutcome{OrderID: id})
+	})
+	if err != nil {
+		return "", err
+	}
+	var out receiptOutcome
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	return out.OrderID, nil
 }
 
 // Keep the refund mutation boundary injectable for isolated authorization tests.
-func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund func(context.Context, string, string, string) error) ItemResult {
+func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund refundFunc) ItemResult {
 	return e.processOneWithCommands(ctx, c, it, refund, e.Orders.CreateOrder)
 }
 
 func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchItem,
-	refund func(context.Context, string, string, string) error,
+	refund refundFunc,
 	createOrder func(context.Context, service.CreateOrderInput) (string, bool, bool, error),
 ) ItemResult {
 	r := ItemResult{IdempotencyKey: it.IdempotencyKey}
@@ -266,20 +309,25 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(err)
 		}
-		if err := refund(ctx, c.OutletID, p.OrderID, p.Reason); err != nil {
+		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			return p.OrderID, refund(ctx, tx, c.OutletID, p.OrderID, p.Reason)
+		})
+		if err != nil {
 			return fail(err)
 		}
-		r.Status, r.OrderID = "ok", p.OrderID
+		r.Status, r.OrderID = "ok", id
 		return r
 	case "shift_open":
 		p, err := service.DecodeOpenShift(bytes.NewReader(it.Payload))
 		if err != nil {
 			return fail(err)
 		}
-		id, err := e.Orders.OpenShift(ctx, service.OpenShiftInput{
-			OutletID: c.OutletID, OutletName: p.OutletName,
-			CashierID: c.UserID, CashierName: c.DisplayName,
-			StartingCash: p.StartingCash,
+		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			return e.Orders.OpenShiftTx(ctx, tx, service.OpenShiftInput{
+				OutletID: c.OutletID, OutletName: p.OutletName,
+				CashierID: c.UserID, CashierName: c.DisplayName,
+				StartingCash: p.StartingCash,
+			})
 		})
 		if err != nil {
 			return fail(err)
@@ -291,10 +339,13 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err != nil {
 			return fail(err)
 		}
-		if err := e.Orders.CloseShift(ctx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod); err != nil {
+		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			return p.ShiftID, e.Orders.CloseShiftTx(ctx, tx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod)
+		})
+		if err != nil {
 			return fail(err)
 		}
-		r.Status, r.OrderID = "ok", p.ShiftID
+		r.Status, r.OrderID = "ok", id
 		return r
 	case "cash_flow":
 		var p struct {
@@ -306,10 +357,12 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(err)
 		}
-		id, err := e.Orders.AddCashFlow(ctx, service.CashFlowInput{
-			OutletID: c.OutletID, ShiftID: p.ShiftID, Type: p.Type,
-			Amount: p.Amount, Description: p.Description,
-			CashierID: c.UserID, CashierName: c.DisplayName,
+		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			return e.Orders.AddCashFlowTx(ctx, tx, service.CashFlowInput{
+				OutletID: c.OutletID, ShiftID: p.ShiftID, Type: p.Type,
+				Amount: p.Amount, Description: p.Description,
+				CashierID: c.UserID, CashierName: c.DisplayName,
+			})
 		})
 		if err != nil {
 			return fail(err)
@@ -326,8 +379,10 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(err)
 		}
-		id, err := e.Orders.CreateCustomer(ctx, service.CreateCustomerInput{
-			ID: p.CustomerID, Name: p.Name, Phone: p.Phone, Email: p.Email,
+		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			return e.Orders.CreateCustomerTx(ctx, tx, service.CreateCustomerInput{
+				ID: p.CustomerID, Name: p.Name, Phone: p.Phone, Email: p.Email,
+			})
 		})
 		if err != nil {
 			return fail(err)
