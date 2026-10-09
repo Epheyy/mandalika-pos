@@ -1,0 +1,79 @@
+diff --git a/apps/backoffice/tests/polling-harness.html b/apps/backoffice/tests/polling-harness.html
+new file mode 100644
+--- /dev/null
++++ b/apps/backoffice/tests/polling-harness.html
+@@ -0,0 +1 @@
++<!doctype html><html><body><div id="root"></div><script type="module" src="./polling-harness.tsx"></script></body></html>
+diff --git a/apps/backoffice/tests/polling-harness.tsx b/apps/backoffice/tests/polling-harness.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/backoffice/tests/polling-harness.tsx
+@@ -0,0 +1,68 @@
++import { act } from 'react'
++import { createRoot } from 'react-dom/client'
++import { usePolledQuery, type PolledQuery } from '../src/hooks/usePolledQuery'
++import { fetchAllPages } from '../../../packages/api/src/pagination'
++
++// Real React/DOM and production hook; only request completion and interval firing are controlled.
++;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
++const results: { name: string; passed: boolean; error?: string }[] = []
++const equal = (actual: unknown, expected: unknown) => {
++  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`${JSON.stringify(actual)} != ${JSON.stringify(expected)}`)
++}
++function deferred<T>() {
++  let resolve!: (v: T) => void, reject!: (e: Error) => void
++  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
++  return { promise, resolve, reject }
++}
++async function test(name: string, scenario: (h: Awaited<ReturnType<typeof harness>>) => Promise<void>) {
++  const h = await harness()
++  try { await scenario(h); results.push({name, passed:true}) }
++  catch(e) { results.push({name, passed:false, error:String(e)}) }
++  finally { await h.cleanup() }
++}
++async function harness() {
++  const host = document.createElement('div'); document.body.append(host)
++  const root = createRoot(host)
++  const intervals: (() => void)[] = []
++  const originalSet = window.setInterval, originalClear = window.clearInterval
++  window.setInterval = ((fn: () => void) => { intervals.push(fn); return intervals.length }) as typeof window.setInterval
++  window.clearInterval = (() => {}) as typeof window.clearInterval
++  let current!: PolledQuery<unknown>, renders = 0, mounted = true
++  const requests: ReturnType<typeof deferred<unknown>>[] = []
++  const fetcher = () => { const d=deferred<unknown>(); requests.push(d); return d.promise }
++  function Probe({scope, load}: {scope:string; load:()=>Promise<unknown>}) {
++    current = usePolledQuery(load, [scope]); renders++
++    return <output>{JSON.stringify({data:current.data,error:current.error,loading:current.loading})}</output>
++  }
++  const render = async (scope:string, load=fetcher) => { await act(async()=>root.render(<Probe scope={scope} load={load}/>)) }
++  const state = () => ({data:current.data,error:current.error,loading:current.loading})
++  const settle = async (i:number, value:unknown, fail=false) => { await act(async()=>{ if(fail)requests[i].reject(new Error(String(value)));else requests[i].resolve(value) }) }
++  const poll = async (i=intervals.length-1) => { await act(async()=>intervals[i]()) }
++  const manual = async () => { await act(async()=>{void current.refetch()}) }
++  const unmount = async () => { await act(async()=>root.unmount());mounted=false }
++  const cleanup = async () => { if(mounted)await unmount();window.setInterval=originalSet;window.clearInterval=originalClear;host.remove() }
++  return {render,state,settle,poll,manual,unmount,cleanup,requests,renders:()=>renders}
++}
++export async function run() {
++  results.length=0
++  await test('01 B success then A success',async h=>{await h.render('A');await h.render('B');await h.settle(1,'B');await h.settle(0,'A');equal(h.state(),{data:'B',error:null,loading:false})})
++  await test('02 A resolves while B pending',async h=>{await h.render('A');await h.render('B');await h.settle(0,'A');equal(h.state(),{error:null,loading:true});await h.settle(1,'B')})
++  await test('03 A error after B success',async h=>{await h.render('A');await h.render('B');await h.settle(1,'B');await h.settle(0,'A error',true);equal(h.state(),{data:'B',error:null,loading:false})})
++  await test('04 A success after B error',async h=>{await h.render('A');await h.render('B');await h.settle(1,'B error',true);await h.settle(0,'A');equal(h.state(),{error:'B error',loading:false})})
++  await test('05 rapid A B C',async h=>{await h.render('A');await h.render('B');await h.render('C');await h.settle(2,'C');await h.settle(0,'A');await h.settle(1,'B');equal(h.state().data,'C')})
++  await test('06 overlapping same-scope polls',async h=>{await h.render('A');await h.settle(0,'seed');await h.poll();await h.poll();await h.settle(2,'new');await h.settle(1,'old');equal(h.state(),{data:'new',error:null,loading:false})})
++  await test('07a manual then interval',async h=>{await h.render('A');await h.manual();await h.poll();await h.settle(2,'poll');await h.settle(1,'manual');await h.settle(0,'initial');equal(h.state().data,'poll')})
++  await test('07b interval then manual',async h=>{await h.render('A');await h.poll();await h.manual();await h.settle(2,'manual');await h.settle(1,'poll error',true);await h.settle(0,'initial');equal(h.state(),{data:'manual',error:null,loading:false})})
++  await test('08 switch clears data and error',async h=>{await h.render('A');await h.settle(0,'A');await h.poll();await h.settle(1,'A error',true);await h.render('B');equal(h.state(),{error:null,loading:true})})
++  await test('09 unmount pending',async h=>{await h.render('A');await h.unmount();const n=h.renders();await h.settle(0,'A');equal(h.renders(),n);await h.manual();equal(h.requests.length,1)})
++  await test('10 stable scope SWR success error refetch',async h=>{await h.render('A');await h.settle(0,'seed');await h.render('A');equal(h.requests.length,1);await h.poll();equal(h.state(),{data:'seed',error:null,loading:false});await h.settle(1,'error',true);equal(h.state(),{data:'seed',error:'error',loading:false});await h.manual();await h.settle(2,'fresh');equal(h.state(),{data:'fresh',error:null,loading:false})})
++  await test('11 A26 complete multi-page A after B',async h=>{
++    const late=deferred<{data:{id:string}[];meta:{page:number;limit:number;total:number}}>();const pages:number[]=[]
++    const a=()=>fetchAllPages(async(page,limit)=>{pages.push(page);return page===1?{data:Array.from({length:200},(_,i)=>({id:`A${i}`})),meta:{page,limit,total:201}}:late.promise})
++    const b=()=>fetchAllPages(async(page,limit)=>({data:[{id:'B'}],meta:{page,limit,total:1}}))
++    await h.render('A',a);equal(pages,[1,2]);await h.render('B',b);equal(h.state().data,[{id:'B'}]);await act(async()=>late.resolve({data:[{id:'A200'}],meta:{page:2,limit:200,total:201}}));equal(h.state(),{data:[{id:'B'}],error:null,loading:false})
++  })
++  await test('14 old interval after cleanup cannot start',async h=>{await h.render('A');await h.render('B');await h.poll(0);equal(h.requests.length,2);await h.settle(1,'B');await h.settle(0,'A');equal(h.state().data,'B')})
++  return {environment:'real React 19 and Chromium DOM, controlled promises/interval callbacks',results,passed:results.filter(r=>r.passed).length,total:results.length}
++}
++Object.assign(window,{runPollingTests:run})

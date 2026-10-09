@@ -1,0 +1,692 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; A34a scoped acceptance and A34b mandatory PostgreSQL CI added 2026-09-21 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; A34b scoped acceptance and A34c hosted browser CI added 2026-09-21 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,23 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E35: A34C-BROWSER-CI-20260921-01 adds ordinary pinned Playwright tests and a
++mandatory reusable browser workflow. Registry26/26 pass, zero skips; seven actual
++negative gates reject assertion/missing/skip/browser/readiness/network/only failures.
++Both strict-loopback Vite processes and Chromium exit in positive/negative runs.
++Synthetic API/auth only; external requests denied. Shared quality passes347 tests,
++with one disclosed existing optional DB-page replay skip; all types/builds/schema
++checks pass. Android needs quality/database/backend/browser at caller SHA. No
++production business edits. See A34C_VERIFICATION.json and required-scenarios.json.
++Implemented / locally verified / ChatGPT review and hosted Ubuntu proof pending.
++
++E34: CG-A34B-POSTGRES-CI-20260921-01-R1 scoped-accepts E33 A34b as implemented
++and locally verified. Review checked86 payloads,7 replayed files and CI structure;
++it did not rerun PostgreSQL/Docker. Hosted Ubuntu Docker/race remains pending.
++Full A34/T29 and all release gates open; A31/T26 resolution preserved. Counts:
++44 findings,1 resolved parent,0/8 P0 parents,0 gates,15 accepted milestones across
++10 findings. The prior policy-blocked cache cleanup remains local/excluded.
+ 
+ E33: A34B-POSTGRES-CI-20260921-01 adds mandatory reusable PostgreSQL CI:
+ six fresh PG18.3 fixtures, preserved target guards, named PASS/no-SKIP proof,
+@@ -850,14 +867,14 @@
+ ### A34 — CI does not enforce the full financial and client reliability baseline
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
+-- **Current disposition:** E32 scoped-accepts A34a. E33 A34b mandatory PostgreSQL CI implemented / locally verified with native PG18.3; review and hosted proof pending. Full A34/T29 open.
+-- **Current evidence:** E31 artifacts retained; E33 adds postgres.yml, reusable backend.yml, Android quality/database/backend dependencies, scripts/ci/postgres_gate.py + tests/README. A34B_GATE_INVENTORY.json matches all six current entrypoints; A34B_CLEAN_RUN.json, A34B_NEGATIVE_GATES.json, A34B_WORKFLOW_ANALYSIS.json and A34B_VERIFICATION.json preserve results and limits.
+-- **Authority / decision:** CG-A34A-CI-20260921-01-R1 and current owner instruction under AUTH-MANDALIKA-20260919-01. Preserve existing guards, policies and scoped acceptances; no live/provider/signing secrets or business-concurrency redesign.
+-- **Plan coverage:** explicit S0h/A34a and A34b continuations in plan/draft; deterministic JS/TS plus mandatory synthetic DB gates are distinct from full release qualification.
+-- **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Codex implements/verifies, ChatGPT reviews, owner decides consequential policy/release. Existing backend baseline commands preserved and reusable; Android signing waits for all three gates at caller SHA.
+-- **Required result:** Six exact named integration tests must actually PASS without skips against fresh synthetic PG18.3 fixtures. Exact loopback/port/db/user, SHOW data_directory, empty schema, no .env fallback, bounded timeouts, owned finally cleanup. Fail on unavailable runtime, target mismatch, skip/assertion, readiness timeout or uncertain cleanup.
+-- **Acceptance:** A34b22 review cases mapped in A34B_VALIDATION_MATRIX.md. Six real gates pass locally; five required negative proofs plus directory mismatch fail correctly; unit contracts verify uncertain cleanup overrides PASS. One stale S0c disjoint-set fixture corrected without weakening financial assertions or target checks.
+-- **Execution / residual risk:** Local Windows PG18.3/Go1.26.2 native result is not hosted Ubuntu/Docker/race evidence. Docker Linux engine unavailable; local CGO/C compiler unavailable. Hosted run, A13/A42 true business concurrency, hosted browser, dependency/SBOM/license/advisory, secret scanning, full APK/OTA provenance/debug and branch protection remain open. Six tests remain opt-in outside the new mandatory runner. No signed artifact, deployment, commit/push or release closure. Prior stopped DB cleanup remains untouched; new Python cache removal was policy-blocked and cache retained.
++- **Current disposition:** E32 A34a accepted; E34 A34b scoped accepted as implemented/locally verified, hosted Docker/race pending. E35 A34c implemented/locally verified, ChatGPT and hosted proof pending. Full A34/T29 open.
++- **Current evidence:** E31/E33 artifacts preserved. E35 adds browser.yml, pinned Playwright1.63.0/Chromium1243, ordinary tests/browser tests/registry/reporter and scripts/ci/browser-gate.mjs. A34C_CLEAN_RUN.json, A34C_NEGATIVE_GATES.json, A34C_SCENARIO_INVENTORY.json and A34C_VERIFICATION.json report actual results and boundaries.
++- **Authority / decision:** CG-A34B-POSTGRES-CI-20260921-01-R1 and owner instruction under AUTH-MANDALIKA-20260919-01. Preserve accepted behavior, guards and all existing policy; no provider/live/signing credentials in quality jobs.
++- **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
++- **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Android signing needs quality/database/backend/browser, all checking caller SHA. Existing quality/PostgreSQL/backend/React Doctor workflows unchanged; JS package gate additionally typechecks browser tests.
++- **Required result:** All26 registered browser scenarios discovered/executed/PASS exactly once with no skip/fixme/focused test. Synthetic loopback-only strict servers, default external denial, bounded startup/tests/processes, confirmed owned cleanup and synthetic-only failure artifacts. Existing six named PG guards/mandatory runner preserved.
++- **Acceptance:** A34c24 review scenarios mapped in A34C_VALIDATION_MATRIX.md. Final browser26/26 zero skips,7/7 negative proofs, confirmed process/port cleanup and external request interception. JS quality347 PASS,1 existing optional PostgreSQL response-replay SKIP; source/test types, both production builds and TS schema drift pass. No production business change; real hook harness gains optional single-case selector only.
++- **Execution / residual risk:** Local Windows Node24/Chromium proof is not hosted Ubuntu Node22 proof. A34b hosted Docker/race pending. A13/A42 true DB concurrency absent. Reviewed complete source snapshot/hosted run, dependency/SBOM/license/advisory, secret scanning, full APK/OTA provenance/debug and branch protection remain open. Native Android/hardware/provider scenarios intentionally manual/separate. No signing, deployment, commit/push or release closure. Historical stopped DB/cache cleanup unchanged and not bypassed.
+ 
+ ### A35 — OTA and native release gates do not yet protect a financial-journal migration
+ 
+diff --git a/docs/AUDIT_RECONCILIATION_EVIDENCE.json b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+--- a/docs/AUDIT_RECONCILIATION_EVIDENCE.json
++++ b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+@@ -1,10 +1,10 @@
+ {
+   "schema_version": 2,
+   "latest_milestone": {
+-    "packet_id": "A34B-POSTGRES-CI-20260921-01",
++    "packet_id": "A34C-BROWSER-CI-20260921-01",
+     "date": "2026-09-21",
+     "authorization": "AUTH-MANDALIKA-20260919-01",
+-    "reply_id": "CG-A34A-CI-20260921-01-R1",
++    "reply_id": "CG-A34B-POSTGRES-CI-20260921-01-R1",
+     "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+     "branch": "prod-hardening",
+     "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
+@@ -74,12 +74,14 @@
+       "A34"
+     ],
+     "evidence": [
+-      "E32",
+-      "E33"
+-    ],
+-    "verification_file": "A34B_VERIFICATION.json",
+-    "closure": "A34a scoped accepted; A34b local native verified, review/hosted pending. Full A34/T29 and all release gates open; A31/T26 stays resolved.",
+-    "historical_evidence": "Prior objects unchanged; historical source/test results are not claimed as current runtime verification."
++      "E34",
++      "E35"
++    ],
++    "verification_file": "A34C_VERIFICATION.json",
++    "closure": "A34b scoped accepted locally, hosted Docker/race pending. A34c implemented/locally verified, ChatGPT/hosted pending. Full A34/T29 and all release gates open; A31/T26 remains resolved.",
++    "historical_evidence": "Prior objects unchanged; historical source/test results are not claimed as current runtime verification.",
++    "accepted_milestones": 15,
++    "accepted_findings": 10
+   },
+   "prior_documentation_milestone_MA_20260919_01": {
+     "date": "2026-09-19",
+@@ -1590,5 +1592,86 @@
+     "resolved_original_findings": [
+       "A31"
+     ]
++  },
++  "prior_milestone_A34B_POSTGRES_CI_20260921_01": {
++    "packet_id": "A34B-POSTGRES-CI-20260921-01",
++    "date": "2026-09-21",
++    "authorization": "AUTH-MANDALIKA-20260919-01",
++    "reply_id": "CG-A34A-CI-20260921-01-R1",
++    "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
++    "branch": "prod-hardening",
++    "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
++    "tracker_ids": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A05",
++      "A06",
++      "A07",
++      "A08",
++      "A09",
++      "A10",
++      "A11",
++      "A12",
++      "A13",
++      "A14",
++      "A15",
++      "A16",
++      "A17",
++      "A18",
++      "A19",
++      "A20",
++      "A21",
++      "A22",
++      "A23",
++      "A24",
++      "A25",
++      "A26",
++      "A27",
++      "A28",
++      "A29",
++      "A30",
++      "A31",
++      "A32",
++      "A33",
++      "A34",
++      "A35",
++      "A36",
++      "A37",
++      "A38",
++      "A39",
++      "A40",
++      "A41",
++      "A42",
++      "A43",
++      "A44"
++    ],
++    "priority_counts": {
++      "P0": 8,
++      "P1": 32,
++      "P2": 3,
++      "P3": 1
++    },
++    "original_p0": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A06",
++      "A09",
++      "A11",
++      "A13"
++    ],
++    "changed_findings": [
++      "A34"
++    ],
++    "evidence": [
++      "E32",
++      "E33"
++    ],
++    "verification_file": "A34B_VERIFICATION.json",
++    "closure": "A34a scoped accepted; A34b local native verified, review/hosted pending. Full A34/T29 and all release gates open; A31/T26 stays resolved.",
++    "historical_evidence": "Prior objects unchanged; historical source/test results are not claimed as current runtime verification."
+   }
+ }
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -589,3 +589,40 @@
+ blocks this slice. Prior stopped DB cleanup policy block remains untouched. New
+ Python cache deletion was also policy-blocked; retained cache is excluded from
+ review artifacts. Only fresh owned DB fixtures from this slice were cleaned.
++
++
++### Current continuation — A34C-BROWSER-CI-20260921-01
++
++E34 records CG-A34B-POSTGRES-CI-20260921-01-R1 scoped acceptance of A34b
++as implemented/locally verified. Hosted Docker/race remains pending. Counts are
++44 findings,1 resolved parent(A31),0 P0 parents/gates and15 accepted milestones
++across10 findings. Standing AUTH-MANDALIKA-20260919-01 remains in effect.
++
++E35 implements the A34c mandatory Chromium browser gate: pinned Playwright1.63.0,
++26 required ordinary tests, discovery/completion checks for missing/skipped/failed
++cases, strict loopback Vite servers, synthetic APIs/auth and default external
++network denial. Existing accepted A23/A24/A26/A31 journeys and S0a/S0b rendered
++retention harnesses are covered. Real hook harness gains a case selector; business
++source stays unchanged. Manual native/provider residuals are explicitly inventoried.
++
++Final local26/26 zero skips and seven actual negative probes pass with confirmed
++process/port cleanup. JS quality347 pass plus one existing optional DB-page replay
++skip; source/test types, both builds and TS schema regeneration pass. Evidence is
++in A34C_VERIFICATION.json, A34C_VALIDATION_MATRIX.md and the scenario registry.
++Android signing now needs quality/database/backend/browser at the same caller SHA;
++none receives signing/provider secrets. A34a/b workflows are preserved.
++
++A34c is implemented/locally verified, ChatGPT and hosted proof pending. Full
++A34/T29 and all release gates stay open. Local Windows Node24 Chromium does not
++qualify hosted Ubuntu Node22, native storage, providers or DB business concurrency.
++No genuine A13/A42 concurrency tests were added. Dependency/SBOM/license/advisory,
++secret scanning, required-status configuration and full APK/OTA provenance remain.
++Historical stopped DB and Python-cache cleanup remain untouched/excluded.
++
++Next bounded work: prepare one reviewed complete source snapshot for hosted
++quality/backend/PostgreSQL/browser proof. Inventory all currently untracked
++programme implementation/fixtures, separate review-only archives, inspect actual
++push/deployment triggers and preserve local decisions before publishing. Use
++standing authority with release safeguards; do not push an incomplete HEAD-only
++subset or interpret a green synthetic gate as release approval. Genuine A13/A42
++business-concurrency design/verification stays a separate bounded task.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -1465,3 +1465,40 @@
+ blocks this slice. Prior stopped DB cleanup policy block remains untouched. New
+ Python cache deletion was also policy-blocked; retained cache is excluded from
+ review artifacts. Only fresh owned DB fixtures from this slice were cleaned.
++
++
++### Current continuation — A34C-BROWSER-CI-20260921-01
++
++E34 records CG-A34B-POSTGRES-CI-20260921-01-R1 scoped acceptance of A34b
++as implemented/locally verified. Hosted Docker/race remains pending. Counts are
++44 findings,1 resolved parent(A31),0 P0 parents/gates and15 accepted milestones
++across10 findings. Standing AUTH-MANDALIKA-20260919-01 remains in effect.
++
++E35 implements the A34c mandatory Chromium browser gate: pinned Playwright1.63.0,
++26 required ordinary tests, discovery/completion checks for missing/skipped/failed
++cases, strict loopback Vite servers, synthetic APIs/auth and default external
++network denial. Existing accepted A23/A24/A26/A31 journeys and S0a/S0b rendered
++retention harnesses are covered. Real hook harness gains a case selector; business
++source stays unchanged. Manual native/provider residuals are explicitly inventoried.
++
++Final local26/26 zero skips and seven actual negative probes pass with confirmed
++process/port cleanup. JS quality347 pass plus one existing optional DB-page replay
++skip; source/test types, both builds and TS schema regeneration pass. Evidence is
++in A34C_VERIFICATION.json, A34C_VALIDATION_MATRIX.md and the scenario registry.
++Android signing now needs quality/database/backend/browser at the same caller SHA;
++none receives signing/provider secrets. A34a/b workflows are preserved.
++
++A34c is implemented/locally verified, ChatGPT and hosted proof pending. Full
++A34/T29 and all release gates stay open. Local Windows Node24 Chromium does not
++qualify hosted Ubuntu Node22, native storage, providers or DB business concurrency.
++No genuine A13/A42 concurrency tests were added. Dependency/SBOM/license/advisory,
++secret scanning, required-status configuration and full APK/OTA provenance remain.
++Historical stopped DB and Python-cache cleanup remain untouched/excluded.
++
++Next bounded work: prepare one reviewed complete source snapshot for hosted
++quality/backend/PostgreSQL/browser proof. Inventory all currently untracked
++programme implementation/fixtures, separate review-only archives, inspect actual
++push/deployment triggers and preserve local decisions before publishing. Use
++standing authority with release safeguards; do not push an incomplete HEAD-only
++subset or interpret a green synthetic gate as release approval. Genuine A13/A42
++business-concurrency design/verification stays a separate bounded task.
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,126 +1,131 @@
+-# Current review packet — A34B-POSTGRES-CI-20260921-01
++# Current review packet — A34C-BROWSER-CI-20260921-01
+ 
+ Kind: MILESTONE_REVIEW. Date:2026-09-21, Asia/Jakarta.
+-Responds to **CG-A34A-CI-20260921-01-R1**, resolved at:
+-`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A34A-CI-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A34A-CI-20260921-01.md`.
++Responds to **CG-A34B-POSTGRES-CI-20260921-01-R1**, resolved at:
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A34B-POSTGRES-CI-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A34B-POSTGRES-CI-20260921-01.md`.
+ READ_FIRST, named reply and sibling PROGRAMME_PROGRESS.md were read in full.
+-Standing authority **AUTH-MANDALIKA-20260919-01**; no new routine approval needed.
++Standing authority **AUTH-MANDALIKA-20260919-01** remains in effect.
+ 
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch: `prod-hardening`; HEAD: `4691c781842f0114acaf2e4371e0d11f0076f553`.
+-Existing dirty/untracked programme work preserved; incremental before-images and
+-full entry/current status are in A34B_REPOSITORY_STATE.json. No commit/push,
+-deployment, signing, live data, credentials or provider changes.
++The current dirty/untracked worktree is the implementation baseline. Exact entry
++and current state/hashes are in A34C_REPOSITORY_STATE.json. No commit/push, signing,
++deployment, real login, live-data or provider/credential changes were performed.
+ 
+ ## Disposition
+ 
+-**E32 records scoped ChatGPT acceptance of A34a deterministic JS/TS CI.**
+-Review verified65 payload hashes,9 file patch replays and workflow structure,
+-without independently rerunning runtime checks. Its original evidence remains.
++**E34 records scoped ChatGPT acceptance of A34b as implemented and locally verified.**
++The incoming review verified86 payloads and7 replayed files; it did not rerun
++PostgreSQL/Docker. Hosted Ubuntu Docker/race proof remains pending.
+ 
+-**E33: A34b mandatory PostgreSQL CI implemented and locally verified through the
+-native PostgreSQL18.3 adapter; ChatGPT review and hosted Docker/race proof pending.**
+-Full A34/T29 and all release gates remain open. A31/T26 stays resolved. All44
+-findings remain tracked at8P0/32P1/3P2/1P3;1 resolved parent,0/8 P0 parents,
+-0 release gates;14 scoped accepted milestones across10 findings.
+-A01/A02/A03/A04/A06/A09/A11/A13 dispositions are unchanged. No Q01–Q10 policy,
+-Q08 stock warning, captured offline facts or prior scoped acceptance is replaced.
++**E35: A34c hosted-browser CI is implemented and locally verified; ChatGPT review
++and hosted Ubuntu proof remain pending.** Full A34/T29 and every release gate
++stay open. A31/T26 remains resolved. All44 findings retain their original priority
++mix(8P0/32P1/3P2/1P3):1 resolved parent,0/8 P0 parents,0 gates,15 scoped accepted
++milestones across10 findings. Original P0 dispositions and business decisions,
++including Q08/captured offline facts, are preserved.
+ 
+-## Implementation and exact boundary
++## Implementation
+ 
+-- New reusable `postgres.yml` invokes one checked-in Python standard-library
+-  runner on every push/PR and workflow_call. Six named integration tests run
+-  sequentially with a fresh PostgreSQL18.3 fixture each; no DSN/live fallback.
+-- Hosted adapter uses postgres:18.3 resolved to an immutable image ID, uniquely
+-  labelled container, tmpfs data, loopback-only expected host port, random synthetic
+-  credentials and explicit unique PGDATA. Native adapter uses newly-created marked
+-  temp roots and the same target/event/lifecycle contract; it is explicitly selected.
+-- Exact version/host/port/database/user, SHOW data_directory and empty public
+-  schema precede mutations. All six original test guard prefixes are unchanged.
+-  Startup, individual commands, Go timeout and process-tree timeout are bounded.
+-- `go test -json -count=1` must report the named RUN/PASS, package PASS and no
+-  child SKIP/FAIL. A zero process status with a skipped test fails the runner.
+-  Finally cleanup verifies ownership, removal and closed port; uncertainty fails
+-  and stops further gates. Passwords/DSNs never enter lifecycle/log artifacts.
+-- Android signed build now needs **quality, database, backend**, all at callerSHA.
+-  Existing backend commands/path triggers remain; workflow_call, exact checkout,
+-  contents-read and timeout were added. No signing secrets are forwarded.
+-  Accepted JS/TS quality and advisory React Doctor files are byte-preserved.
++- Playwright test1.63.0 is exact-pinned in package/lock, using its Chromium1243
++  (Chrome153.0.8010.12); no system-browser fallback or checked-in browser binaries.
++- Ordinary checked-in TypeScript Playwright tests replace execution of historical
++  unsafe-eval snippets. Registry26 required tests cover the seven requested groups,
++  S0a diagnostic rendering and S0b parked refund retention. Compound journey
++  subcases and synthetic queue/receipt evidence are attached per test. Hook tests
++  have13 independent IDs; registry removal cannot silently remove a test too.
++- The canonical runner verifies discovery and completion. Missing/duplicate/
++  unregistered IDs, skip/fixme, unexecuted/failed/expected-failure cases and focused
++  tests fail. `forbidOnly` is unconditional; retries0, workers1, maxFailures1.
++- Real POS/Backoffice Vite configurations run on strict127.0.0.1:5183/5184 with
++  env-file loading disabled and a fixed intercepted synthetic API origin.
++  Contexts start empty with explicitly fake auth/data. Service workers are blocked.
++  Unexpected external HTTP/WebSocket access and unhandled synthetic API requests
++  fail even if application code swallows the error. Only exact local Vite sockets
++  are permitted. The remote decorative logo is substituted with an inline image
++  by a test-only Vite transform; production brand source remains unchanged.
++- Managed web servers, Chromium finally cleanup, bounded startup/test/process/job
++  timeouts and owned PID/closed-port checks make cleanup uncertainty a failure.
++  Existing port occupants are never reused/killed. Abrupt host loss/SIGKILL remains
++  an explicit disposable-runner limitation, not a successful result.
++- New browser.yml runs on every PR/push and workflow_call at caller SHA. Android
++  signing hard-depends on **quality, database, backend, browser**. No reusable job
++  receives signing/provider secrets. Existing four workflows remain byte-preserved;
++  package quality additionally typechecks the new browser tests.
++- Failure upload is a seven-day allowlist of synthetic trace/screenshot/JSON/JUnit/
++  network/process evidence. No real storageState/profile/provider data is uploaded.
+ 
+-One necessary **test-only compatibility correction** was discovered by making the
+-old opt-in S0c gate mandatory: its separate-set BXGY fixture used the same product
+-in both buy/get sets, which the accepted A23 semantic defense correctly rejects422.
+-The synthetic reward product is now distinct; grant/net/quantity/subtotal assertions
+-are unchanged. A formerly unscoped stock assertion now selects the original
+-outlet/product/variant after the fixture gained a second stock row. No production
+-business logic or integration target guard was changed.
++**Production business source is unchanged.** The existing test-only React hook
++harness gains an optional case selector; its default all-case behavior remains.
++Historical snippet/evidence files remain intact. No new business behavior or policy
++was invented to satisfy a test. Browser isolation is not a host-level firewall.
+ 
+ ## Actual verification
+ 
+ | Check | Result |
+ |---|---|
+-| Six real PostgreSQL18.3 gates | Exit0;6 named tests,142 parent/child PASS events, zero skips/fails. Each started empty and cleaned. |
+-| S0c / S0d / BE / LF / A26 / A27 |11 /6 /39 /57 /12 /17 PASS events respectively, including each parent. LF includes semantic and guest helpers. |
+-| Five required negatives | Missing runtime, wrong target, namedSKIP with Go exit0, controlled assertion, readiness timeout: real runner exit1 for expected cause. |
+-| Extra data-directory proof | Unchanged Go directory guard rejects; no tables/migrations; runner exit1 and clean teardown. |
+-| Final runner contracts |9/9 pass, including cleanup-uncertainty failure precedence and Docker command/ownership checks. Mock checks are labelled as such. |
+-| Backend baseline | vet, gofmt(empty output), build and ordinary Go tests pass; those ordinary tests still skip DB gates without fixture env. |
+-| Generator | Active make gen-check exit2 because existing dirty generated file differs from HEAD; regeneration is byte-identical to entry. Same command passes in disposable current-source index. Active index/source untouched. |
+-| Workflow analysis | Installed js-yaml parse and trigger/needs/SHA/no-secret assertions pass. |
++| Final canonical browser command | Exit0;26 discovered/26 executed/26 PASS, zero skips/fixmes. |
++| Backoffice | Semantic authoring/edit/duplicate/toggle;51/201/1000 CSV/XLSX/dashboard/filter/failure; both late-A/B races pass. |
++| POS | Direct/linked bundle/BXGY picker/cancel/confirm/takeover/removal/invalidation/clear; physical quantity/usage/raw code metadata pass. |
++| Guest and recap | Cash/QRIS/generic/restricted/reconfirm/loyalty-clear/registered/new-customer/reconstruction;401 orders/401flows/251history/cache/offline remount pass. |
++| Hook/diagnostics/refund retention |13 actual React hook races; repeated/cancel/failed diagnostics; parked refund export/reconstruct/original-key retry pass. |
++| Required negative proofs |7/7 real gate exits1: browser assertion, missing ID, skipped tests, missing Chromium, readiness timeout, external request, test.only. |
++| Cleanup/network | Final positive and every negative confirm owned processes gone and both ports closed. Positive blocked0. External probe is aborted and still fails. |
++| Shared JS/TS quality | Exit0; POS258, Backoffice49(+1 optional skip), sync33, printer7. All source/excluded-test/browser types, both builds and schema drift pass. |
++| Workflow/lock analysis | Installed js-yaml parse and exact trigger/SHA/dependency/no-secret/pin assertions pass. |
+ 
+-Every command, cwd, exit status and failure is recorded in A34B_VERIFICATION.json,
+-A34B_BACKEND_CHECKS.json, A34B_SNAPSHOT_GEN_UNITS.json, lifecycle JSON and sanitized
+-Go JSONL. A34B_VALIDATION_MATRIX.md maps all22 review scenarios. Negative probes
+-modified only disposable copies, restored those copies and verified active hashes.
++The optional Backoffice `paginationPostgres.test.ts` replay needs
++MANDALIKA_A26_PAGES and is skipped by the pre-existing quality baseline when that
++file is absent. It is not a required browser test. The separate mandatory DB gate
++is preserved; its historical results are not relabeled current evidence.
+ 
+-Initial failures are retained: Windows daemon pipe inheritance (fixed by waiting
+-on the launcher with file-backed capture), stale BXGY fixture, and its unscoped
+-stock query. The optional directory-negative checker initially expected another
+-error string; original runner rejection/no-mutation/cleanup already worked. The
+-checker was corrected and the existing evidence reclassified; no fake rerun claim.
++Exact commands/cwd/exits/results and initial failures are in A34C_VERIFICATION.json,
++A34C_NEGATIVE_GATES.json and A34C_evidence/. Final results include per-scenario
++synthetic queue/receipt/conservation data. Seven negative probes altered only a
++separate installed disposable copy; every mutation was restored and active hashes
++were verified. The readiness proof uses a3s Backoffice-only deadline and finishes
++with cleanup in about11s. The checked-in normal startup deadline is45s per server.
+ 
+-## Qualification limits and safety
++Initial failures are retained: converted-code type errors; ESM JSON import;
++network enforcement exposing Vite sockets/public logo; synthetic auth seeded too
++late. A repeated initial fixture-failure run was stopped through only its owned
++process tree and cleanup was confirmed. Corrections were confined to test fixtures.
++A UTF8 evidence-reader error was also corrected. No failed run is called passing.
+ 
+-Local: Windows, Go1.26.2, PostgreSQL18.3, Python3.14, explicit --no-race.
+-Docker CLI exists but Desktop Linux daemon is unavailable; actual default runner
+-fails closed. Its startup attempt never became ready; only the owned waiting CLI
+-was stopped. No Docker positive run or resolved image digest is available here.
+-Local -race exits2 (CGO0/no C compiler). CI is configured for Ubuntu, Python3.12,
+-Docker18.3 and race by default; no hosted Actions execution is claimed.
++## Limits and review request
+ 
+-No true A13 transfer/A42 cross-command database-concurrency tests exist in current
+-source. The sole t.Parallel match is pure ingredient-transfer input validation.
+-Sequential duplicate replay and Go race instrumentation do not establish business
+-concurrency. These findings and A34 concurrency qualification stay open.
++Local proof is Windows/Node24.14.1/pnpm9.15.0/pinned Chromium. Hosted workflow uses
++Ubuntu/Node22 and `playwright install --with-deps chromium`; it has not run here.
++No actionlint/native Android/provider test or new PostgreSQL/Go race run is claimed.
++Existing dependency deprecation and large-build-chunk warnings remain visible;
++A29 compression is unchanged. Dynamic synthetic fixture records retain explicit
++permissive typing; browser test files are included in the real quality typecheck.
+ 
+-Hosted browser CI, dependency/SBOM/license/advisory gates, secret scanning, branch
+-protection and full APK/OTA provenance/debug gating remain outside this slice.
+-Accepted JS full quality was not rerun merely for dependency wiring. No production
+-readiness or release gate is claimed. Test redaction is bounded, not A37 closure.
++Manual residuals: native SQLite/durability/hardware share/printing, real provider/
++catalog qualification. Synthetic browser transports do not prove Go authorization
++or DB effects; S0a/S0b rendered storage and transport limits remain explicit.
++A13/A42 genuine overlapping business-concurrency tests remain absent/open.
++Dependency/SBOM/license/advisory gates, secret scanning, branch protection,
++full APK/OTA provenance/debug and actual hosted execution remain open.
++Historical stopped S0c DB cleanup and A34b policy-blocked Python-cache deletion
++remain untouched/excluded; neither was bypassed.
+ 
+-Historical stopped test-database cleanup remains recorded and untouched. New
+-synthetic fixtures were removed by their owned finally logic. Automatic approval
+-review separately blocked a PowerShell removal of newly generated Python cache
+-files with reason “blocked by policy”; cache retained, no bypass, excluded from ZIP.
++No consequential policy question blocks this bounded milestone. ChatGPT review
++should assess scenario completeness, fail-closed runner/network/cleanup behavior,
++synthetic artifact boundary and wiring within these actual evidence limits.
++Do not close full A34/T29 or any release gate from this packet.
+ 
+-## Review request and next bounded work
++Next bounded work: prepare one reviewed complete source snapshot for hosted
++quality/backend/PostgreSQL/browser proof. Inventory current untracked programme
++source/fixtures and actual deploy triggers before publishing; exclude review-only
++archives/secret material without losing necessary code. Obtain actual hosted
++Node22/Ubuntu/Docker/race evidence on that snapshot. Keep true A13/A42 business
++concurrency separate. This is a verification checkpoint, not a new generic phase
++permission request or production release claim.
+ 
+-No unresolved business/policy decision blocks this milestone. Review the actual
+-fail-closed contract, unchanged guards, isolated fixture correction, local adapter
+-proof and hosted evidence limits. Do not close full A34/T29 or A13/A42.
+-
+-Next bounded implementation: **A34c hosted browser gate** for existing synthetic
+-browser harnesses, with explicit scenario completion, failure when a harness is
+-unavailable/skipped, bounded processes and sanitized artifacts. Evidence should
+-include an actual clean browser run, a controlled failing scenario and Android
+-release dependency analysis. Keep genuine DB concurrency in its own A13/A42 slice.
+-Hosted JS/TS+DB+backend execution must also be obtained on an eventual reviewed
+-complete source snapshot; current untracked programme fixtures must be included
+-when preparing that snapshot, not lost by packaging only HEAD.
+-
+-One compact ZIP: **A34B-POSTGRES-CI-20260921-01_REVIEW_BUNDLE.zip**. It contains the
+-exact incremental implementation/docs diffs, raw before/after files, relevant new
+-source/tests, six-gate inventory, clean/lifecycle/negative evidence, workflow/secret
+-analysis, concurrency classification, tracker delta and SHA256/size manifest.
+-Current packet is byte-identical inside the archive. Old archives and the historical
+-handoff suffix are preserved. No automatic message to ChatGPT was sent.
++Archive: **A34C-BROWSER-CI-20260921-01_REVIEW_BUNDLE.zip**. Exact incremental
++implementation/docs patches, raw before/after files, registry/inventory, clean and
++negative logs/results, cleanup/network proof, relevant harness source, tracker
++delta and SHA256/size manifest are included. The packet inside is byte-identical.
++Old review archives and the historical handoff suffix remain preserved. No automatic
++message to ChatGPT was sent.
+diff --git a/docs/A34C_VALIDATION_MATRIX.md b/docs/A34C_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/A34C_VALIDATION_MATRIX.md
+@@ -0,0 +1,45 @@
++# A34c verification matrix
++
++Packet: A34C-BROWSER-CI-20260921-01. Reply: CG-A34B-POSTGRES-CI-20260921-01-R1.
++All runtime statements below use this turn's local source; hosted proof is pending.
++
++| Review acceptance | Actual evidence |
++|---|---|
++|1 Inventory | Required registry26;18 historical source/helper paths inventoried. S0a/S0b included; redundant/manual entries explicit. |
++|2 Discovery | Canonical gate actual26 equals independent required26 exactly once. |
++|3 Execution | Final26 PASS,0 skips/fixmes; completion reporter verifies status and expectedStatus. |
++|4 BO semantics | BO-SEMANTIC:5 key vectors plus real picker edit/duplicate/toggle; invalid save makes0 write calls; valid mechanics preserved. |
++|5 BO pagination | BO-PAGES-CSV/XLSX:51/201/1000 rows/totals, Dashboard complete product low-stock, payment/status/date filters; page2 failures disable export. |
++|6–7 Outlet races | BO-RACE-SUCCESS/ERROR each hold outletA page2 of201, publishB then finishA; B state persists. |
++|8–9 Fulfillment | POS-PICKERS10 records, POS-INVALIDATION9, POS-PHYSICAL-QUEUE4; direct/linked bundle/BXGY, conservation, raw code, promotion reward owner. |
++|10–11 Guests | POS-GUEST10 records incl same-storage reconstruction; null identity/no loyalty, generic codes, restricted rejection, clear/reconfirm and registered preserved. Separate new-customer queue link test. |
++|12 Recap | POS-RECAP:401 orders/flows,251 history, selected historical shift index60 with401 orders/401 flows; late-page error retains full cache and real offline panel remount reconstructs. |
++|13 Hook |13 individually required real React/DOM cases through actual production usePolledQuery; A26 whole-cohort race included. |
++|14 External | Disposable browser fetch to unexpected.invalid aborted; network evidence captures URL; error-swallowing does not prevent gate exit1. |
++|15 Skip/missing | Separate missing-ID and all-required-skipped probes exit1. Completion records every skipped/not-passed ID. No implicit pass from process success. |
++|16 Only | Actual test.only fails discovery via forbidOnly; no browser/servers started. |
++|17 Assertion | Actual rendered title intentionally mismatches; exit1; screenshot/trace retained; remaining unexecuted tests also fail completion. |
++|18 Chromium absent | Empty browser location has no executable; exit1 without download/system fallback; Vite cleanup confirmed. |
++|19 Readiness | Backoffice never listens in disposable copy,3s timeout; about11s whole runner; owned processes gone and ports closed. |
++|20 Credentials | Fixed nonfunctional synthetic identities/tokens; app env loading disabled; child env allowlist; no real login/service calls. |
++|21 Artifacts | Synthetic-only fixture trace/screenshot, JSON/JUnit allowlist; seven-day upload on failure only; no profile/storageState file. |
++|22 Android | Parsed needs=[quality,database,backend,browser], no bypass conditional; all checkout callerSHA; no secrets inherited. |
++|23 Prior CI | quality/postgres/backend/React Doctor workflows byte-preserved; shared package quality adds browser typecheck and passes. |
++|24 Business source | No production business edit. Existing test harness case selector and test-server decorative asset substitution only. |
++
++Additional required rendered checks: S0a five diagnostic outcomes preserve2 original
++operations and reconstructed visibility; S0b denies5 attempts, exports/reconstructs
++same record, then manually retries original key and simulates one mutation.
++These are browser fixtures, not PostgreSQL-backed authorization proof.
++
++Quality baseline:347 PASS; one pre-existing optional A26 PostgreSQL page replay SKIP
++because MANDALIKA_A26_PAGES is absent. No required browser scenario skipped. Both
++production bundles/types/schema pass. Generated schema bytes and unrelated entry
++files preserved. See A34C_ARTIFACT_CHECKS.json for patch/hash/tracker checks.
++
++Seven negative proofs are actual checked-in gate runs in a disposable installed
++copy, not mocked exit codes. Mutation restoration and active-source preservation
++are asserted. Normal45s/server,120s/test,900s/suite,960s/outer,25min/job limits remain.
++Linux process-group cleanup and hosted system dependency installation are source
++reviewed, not locally executed on Windows. Abrupt SIGKILL/host loss cannot run finally.
++No claim of full A34/T29, A13/A42 business concurrency, native/provider or release closure.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,134 @@
++# Current review packet — A34C-BROWSER-CI-20260921-01
++
++Kind: MILESTONE_REVIEW. Date:2026-09-21, Asia/Jakarta.
++Responds to **CG-A34B-POSTGRES-CI-20260921-01-R1**, resolved at:
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A34B-POSTGRES-CI-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A34B-POSTGRES-CI-20260921-01.md`.
++READ_FIRST, named reply and sibling PROGRAMME_PROGRESS.md were read in full.
++Standing authority **AUTH-MANDALIKA-20260919-01** remains in effect.
++
++Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
++Branch: `prod-hardening`; HEAD: `4691c781842f0114acaf2e4371e0d11f0076f553`.
++The current dirty/untracked worktree is the implementation baseline. Exact entry
++and current state/hashes are in A34C_REPOSITORY_STATE.json. No commit/push, signing,
++deployment, real login, live-data or provider/credential changes were performed.
++
++## Disposition
++
++**E34 records scoped ChatGPT acceptance of A34b as implemented and locally verified.**
++The incoming review verified86 payloads and7 replayed files; it did not rerun
++PostgreSQL/Docker. Hosted Ubuntu Docker/race proof remains pending.
++
++**E35: A34c hosted-browser CI is implemented and locally verified; ChatGPT review
++and hosted Ubuntu proof remain pending.** Full A34/T29 and every release gate
++stay open. A31/T26 remains resolved. All44 findings retain their original priority
++mix(8P0/32P1/3P2/1P3):1 resolved parent,0/8 P0 parents,0 gates,15 scoped accepted
++milestones across10 findings. Original P0 dispositions and business decisions,
++including Q08/captured offline facts, are preserved.
++
++## Implementation
++
++- Playwright test1.63.0 is exact-pinned in package/lock, using its Chromium1243
++  (Chrome153.0.8010.12); no system-browser fallback or checked-in browser binaries.
++- Ordinary checked-in TypeScript Playwright tests replace execution of historical
++  unsafe-eval snippets. Registry26 required tests cover the seven requested groups,
++  S0a diagnostic rendering and S0b parked refund retention. Compound journey
++  subcases and synthetic queue/receipt evidence are attached per test. Hook tests
++  have13 independent IDs; registry removal cannot silently remove a test too.
++- The canonical runner verifies discovery and completion. Missing/duplicate/
++  unregistered IDs, skip/fixme, unexecuted/failed/expected-failure cases and focused
++  tests fail. `forbidOnly` is unconditional; retries0, workers1, maxFailures1.
++- Real POS/Backoffice Vite configurations run on strict127.0.0.1:5183/5184 with
++  env-file loading disabled and a fixed intercepted synthetic API origin.
++  Contexts start empty with explicitly fake auth/data. Service workers are blocked.
++  Unexpected external HTTP/WebSocket access and unhandled synthetic API requests
++  fail even if application code swallows the error. Only exact local Vite sockets
++  are permitted. The remote decorative logo is substituted with an inline image
++  by a test-only Vite transform; production brand source remains unchanged.
++- Managed web servers, Chromium finally cleanup, bounded startup/test/process/job
++  timeouts and owned PID/closed-port checks make cleanup uncertainty a failure.
++  Existing port occupants are never reused/killed. Abrupt host loss/SIGKILL remains
++  an explicit disposable-runner limitation, not a successful result.
++- New browser.yml runs on every PR/push and workflow_call at caller SHA. Android
++  signing hard-depends on **quality, database, backend, browser**. No reusable job
++  receives signing/provider secrets. Existing four workflows remain byte-preserved;
++  package quality additionally typechecks the new browser tests.
++- Failure upload is a seven-day allowlist of synthetic trace/screenshot/JSON/JUnit/
++  network/process evidence. No real storageState/profile/provider data is uploaded.
++
++**Production business source is unchanged.** The existing test-only React hook
++harness gains an optional case selector; its default all-case behavior remains.
++Historical snippet/evidence files remain intact. No new business behavior or policy
++was invented to satisfy a test. Browser isolation is not a host-level firewall.
++
++## Actual verification
++
++| Check | Result |
++|---|---|
++| Final canonical browser command | Exit0;26 discovered/26 executed/26 PASS, zero skips/fixmes. |
++| Backoffice | Semantic authoring/edit/duplicate/toggle;51/201/1000 CSV/XLSX/dashboard/filter/failure; both late-A/B races pass. |
++| POS | Direct/linked bundle/BXGY picker/cancel/confirm/takeover/removal/invalidation/clear; physical quantity/usage/raw code metadata pass. |
++| Guest and recap | Cash/QRIS/generic/restricted/reconfirm/loyalty-clear/registered/new-customer/reconstruction;401 orders/401flows/251history/cache/offline remount pass. |
++| Hook/diagnostics/refund retention |13 actual React hook races; repeated/cancel/failed diagnostics; parked refund export/reconstruct/original-key retry pass. |
++| Required negative proofs |7/7 real gate exits1: browser assertion, missing ID, skipped tests, missing Chromium, readiness timeout, external request, test.only. |
++| Cleanup/network | Final positive and every negative confirm owned processes gone and both ports closed. Positive blocked0. External probe is aborted and still fails. |
++| Shared JS/TS quality | Exit0; POS258, Backoffice49(+1 optional skip), sync33, printer7. All source/excluded-test/browser types, both builds and schema drift pass. |
++| Workflow/lock analysis | Installed js-yaml parse and exact trigger/SHA/dependency/no-secret/pin assertions pass. |
++
++The optional Backoffice `paginationPostgres.test.ts` replay needs
++MANDALIKA_A26_PAGES and is skipped by the pre-existing quality baseline when that
++file is absent. It is not a required browser test. The separate mandatory DB gate
++is preserved; its historical results are not relabeled current evidence.
++
++Exact commands/cwd/exits/results and initial failures are in A34C_VERIFICATION.json,
++A34C_NEGATIVE_GATES.json and A34C_evidence/. Final results include per-scenario
++synthetic queue/receipt/conservation data. Seven negative probes altered only a
++separate installed disposable copy; every mutation was restored and active hashes
++were verified. The readiness proof uses a3s Backoffice-only deadline and finishes
++with cleanup in about11s. The checked-in normal startup deadline is45s per server.
++
++Initial failures are retained: converted-code type errors; ESM JSON import;
++network enforcement exposing Vite sockets/public logo; synthetic auth seeded too
++late. A repeated initial fixture-failure run was stopped through only its owned
++process tree and cleanup was confirmed. Corrections were confined to test fixtures.
++A UTF8 evidence-reader error was also corrected. No failed run is called passing.
++
++## Limits and review request
++
++Local proof is Windows/Node24.14.1/pnpm9.15.0/pinned Chromium. Hosted workflow uses
++Ubuntu/Node22 and `playwright install --with-deps chromium`; it has not run here.
++No actionlint/native Android/provider test or new PostgreSQL/Go race run is claimed.
++Existing dependency deprecation and large-build-chunk warnings remain visible;
++A29 compression is unchanged. Dynamic synthetic fixture records retain explicit
++permissive typing; browser test files are included in the real quality typecheck.
++
++Manual residuals: native SQLite/durability/hardware share/printing, real provider/
++catalog qualification. Synthetic browser transports do not prove Go authorization
++or DB effects; S0a/S0b rendered storage and transport limits remain explicit.
++A13/A42 genuine overlapping business-concurrency tests remain absent/open.
++Dependency/SBOM/license/advisory gates, secret scanning, branch protection,
++full APK/OTA provenance/debug and actual hosted execution remain open.
++Historical stopped S0c DB cleanup and A34b policy-blocked Python-cache deletion
++remain untouched/excluded; neither was bypassed.
++
++No consequential policy question blocks this bounded milestone. ChatGPT review
++should assess scenario completeness, fail-closed runner/network/cleanup behavior,
++synthetic artifact boundary and wiring within these actual evidence limits.
++Do not close full A34/T29 or any release gate from this packet.
++
++Next bounded work: prepare one reviewed complete source snapshot for hosted
++quality/backend/PostgreSQL/browser proof. Inventory current untracked programme
++source/fixtures and actual deploy triggers before publishing; exclude review-only
++archives/secret material without losing necessary code. Obtain actual hosted
++Node22/Ubuntu/Docker/race evidence on that snapshot. Keep true A13/A42 business
++concurrency separate. This is a verification checkpoint, not a new generic phase
++permission request or production release claim.
++
++Archive: **A34C-BROWSER-CI-20260921-01_REVIEW_BUNDLE.zip**. Exact incremental
++implementation/docs patches, raw before/after files, registry/inventory, clean and
++negative logs/results, cleanup/network proof, relevant harness source, tracker
++delta and SHA256/size manifest are included. The packet inside is byte-identical.
++Old review archives and the historical handoff suffix remain preserved. No automatic
++message to ChatGPT was sent.
++
++---
++

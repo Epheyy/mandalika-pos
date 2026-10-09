@@ -1,0 +1,44 @@
+{
+  "yaml_parser": "installed js-yaml4.1.1",
+  "parsed": true,
+  "assertions": "pass",
+  "canonical_command": "corepack pnpm quality:ci",
+  "triggers": [
+    "push",
+    "pull_request",
+    "workflow_call"
+  ],
+  "path_branch_filters": "none: apps/packages/lockfile/OpenAPI/workflows and all other changes included",
+  "android": {
+    "quality": {
+      "uses": "./.github/workflows/quality.yml"
+    },
+    "needs": "quality",
+    "checkout": "both github.sha",
+    "secrets": "not forwarded; signing secrets only in dependent build job"
+  },
+  "backend_commands": [
+    "go mod download",
+    "make gen-check",
+    "go vet ./...",
+    "test -z \"$(gofmt -l .)\"",
+    "go build ./...",
+    "go test ./... -race"
+  ],
+  "react_doctor": "unchanged advisory separate workflow",
+  "reference": "https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows",
+  "same_commit_basis": "Same-repository relative reusable workflow selected from caller commit; github context is caller; both checkouts pin github.sha",
+  "limits": "Structural parse/assertions only, not actionlint or hosted Actions execution. No push, release, branch protection or secrets changes.",
+  "local_runtime": {
+    "node": "24.14.1",
+    "pnpm": "9.15.0",
+    "ci_node": "22",
+    "hosted_node22_run": false
+  },
+  "hard_dependency_outcomes": {
+    "quality_failure": "build skipped by needs default success condition",
+    "quality_cancelled": "build cannot start",
+    "quality_skipped": "build cannot start",
+    "quality_success": "build eligible, still subject to its own setup/build/sign/verify steps"
+  }
+}

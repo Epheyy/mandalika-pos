@@ -1,0 +1,137 @@
+{
+  "packet_id": "A34E15C-READINESS-20260929-01",
+  "interpretation": "Completion is of this bounded evidence task, not passage of operational gates.",
+  "rows": [
+    {
+      "id": "RD01",
+      "requirement": "Entry source/tree/index, exact allowlisted before-images and preservation",
+      "disposition": "complete",
+      "evidence": [
+        "entry.json",
+        "preservation.json"
+      ]
+    },
+    {
+      "id": "RD02",
+      "requirement": "Dated prior evidence reused without another model replay",
+      "disposition": "complete",
+      "evidence": [
+        "evidence/reused/",
+        "EVIDENCE_INDEX.json"
+      ]
+    },
+    {
+      "id": "RD03",
+      "requirement": "Named read, selected scope, status and access limit",
+      "disposition": "complete",
+      "evidence": [
+        "evidence/current-service.json",
+        "evidence/builds-digest-window.json",
+        "evidence/apk-download-timeout.json",
+        "evidence/apk-download-final.json",
+        "evidence/ota-objects.json"
+      ]
+    },
+    {
+      "id": "RD04",
+      "requirement": "Exact digest/build/archive provenance and known-different classification",
+      "disposition": "complete",
+      "evidence": [
+        "evidence/source-integrity.json",
+        "evidence/source-comparison.json"
+      ]
+    },
+    {
+      "id": "RD05",
+      "requirement": "Deployed, accepted and future source separated",
+      "disposition": "complete-with-external-input",
+      "evidence": [
+        "READINESS_EVIDENCE.json#source_columns",
+        "X01"
+      ]
+    },
+    {
+      "id": "RD06",
+      "requirement": "API/native-OTA artifacts immutable; contents versus declarations",
+      "disposition": "complete-with-stated-limits",
+      "evidence": [
+        "evidence/apk-release.json",
+        "evidence/apk-release-identity.json",
+        "evidence/client-source-artifact-correlation.json"
+      ]
+    },
+    {
+      "id": "RD07",
+      "requirement": "Installed coverage evidenced or explicitly unknown",
+      "disposition": "complete-unknown-preserved",
+      "evidence": [
+        "READINESS_EVIDENCE.json#fleet",
+        "X04"
+      ]
+    },
+    {
+      "id": "RD08",
+      "requirement": "Separate API/native-OTA transition and paired rollback",
+      "disposition": "complete-design-not-commissioned",
+      "evidence": [
+        "READINESS_EVIDENCE.json#phases",
+        "X04",
+        "X05"
+      ]
+    },
+    {
+      "id": "RD09",
+      "requirement": "Thirteen existing routes annotated; unavailable != empty",
+      "disposition": "complete-with-access-gaps",
+      "evidence": [
+        "READINESS_EVIDENCE.json#routes",
+        "X03"
+      ]
+    },
+    {
+      "id": "RD10",
+      "requirement": "Actual domain/owner/budget facts or exact acquisition",
+      "disposition": "complete-external-input-required",
+      "evidence": [
+        "X01",
+        "X02"
+      ]
+    },
+    {
+      "id": "RD11",
+      "requirement": "IAP conditional; no repeated research/probes",
+      "disposition": "complete",
+      "evidence": [
+        "review/Q_IS_01_IAP_REVIEW.md"
+      ]
+    },
+    {
+      "id": "RD12",
+      "requirement": "Four readiness boundaries; no circular future-test prerequisite",
+      "disposition": "complete",
+      "evidence": [
+        "READINESS_EVIDENCE.json#phases"
+      ]
+    },
+    {
+      "id": "RD13",
+      "requirement": "New helper tests/doc consistency, preservation, no broader test claim",
+      "disposition": "complete-local-only",
+      "evidence": [
+        "evidence/helper-final.json",
+        "evidence/helper-final.txt",
+        "evidence/doc-consistency.json",
+        "preservation.json"
+      ]
+    },
+    {
+      "id": "RD14",
+      "requirement": "One bounded acquisition result; programme status preserved",
+      "disposition": "complete",
+      "evidence": [
+        "A34E15C_READINESS_REVIEW_PACKET.md",
+        "READINESS_EVIDENCE.json#external_inputs"
+      ]
+    }
+  ]
+}

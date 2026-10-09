@@ -1,0 +1,749 @@
+diff --git a/backend/internal/auth/permissions.go b/backend/internal/auth/permissions.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/auth/permissions.go
+@@ -0,0 +1,19 @@
++package auth
++
++import "context"
++
++// HasPermission uses the authenticated request's token claims, not a fresh
++// database permission lookup. Preserve the existing technical-admin bypass.
++func HasPermission(ctx context.Context, permission string) bool {
++	role, _ := ctx.Value(CtxRole).(string)
++	if role == "admin" {
++		return true
++	}
++	permissions, _ := ctx.Value(CtxPerms).([]string)
++	for _, p := range permissions {
++		if p == permission {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/backend/internal/auth/permissions_test.go b/backend/internal/auth/permissions_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/auth/permissions_test.go
+@@ -0,0 +1,41 @@
++package auth
++
++import (
++	"context"
++	"testing"
++)
++
++func TestHasPermissionSnapshot(t *testing.T) {
++	for _, tc := range []struct {
++		name       string
++		role       any
++		perms      any
++		permission string
++		want       bool
++	}{
++		{"missing", nil, nil, "process_refund", false},
++		{"empty", "", []string{}, "process_refund", false},
++		{"invalid claims types", 1, "process_refund", "process_refund", false},
++		{"cashier allowed", "cashier", []string{"process_refund"}, "process_refund", true},
++		{"cashier unrelated permission", "cashier", []string{"create_order"}, "process_refund", false},
++		{"technical admin bypass", "admin", nil, "process_refund", true},
++		{"TL is not technical admin", "tl", nil, "process_refund", false},
++		{"admin is case sensitive", "Admin", nil, "process_refund", false},
++		{"other permission allowed", "cashier", []string{"create_order"}, "create_order", true},
++		{"refund cannot grant other permission", "cashier", []string{"process_refund"}, "create_order", false},
++		{"existing predicate does not require a role", nil, []string{"process_refund"}, "process_refund", true},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.Background()
++			if tc.role != nil {
++				ctx = context.WithValue(ctx, CtxRole, tc.role)
++			}
++			if tc.perms != nil {
++				ctx = context.WithValue(ctx, CtxPerms, tc.perms)
++			}
++			if got := HasPermission(ctx, tc.permission); got != tc.want {
++				t.Fatalf("got %v, want %v", got, tc.want)
++			}
++		})
++	}
++}
+diff --git a/backend/internal/middleware/middleware.go b/backend/internal/middleware/middleware.go
+--- a/backend/internal/middleware/middleware.go
++++ b/backend/internal/middleware/middleware.go
+@@ -62,17 +62,9 @@
+ func RequirePermission(perm string) func(http.Handler) http.Handler {
+ 	return func(next http.Handler) http.Handler {
+ 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-			role, _ := r.Context().Value(auth.CtxRole).(string)
+-			if role == "admin" {
++			if auth.HasPermission(r.Context(), perm) {
+ 				next.ServeHTTP(w, r)
+ 				return
+-			}
+-			perms, _ := r.Context().Value(auth.CtxPerms).([]string)
+-			for _, p := range perms {
+-				if p == perm {
+-					next.ServeHTTP(w, r)
+-					return
+-				}
+ 			}
+ 			httpx.Err(w, http.StatusForbidden, "missing permission: "+perm)
+ 		})
+diff --git a/backend/internal/middleware/permissions_test.go b/backend/internal/middleware/permissions_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/middleware/permissions_test.go
+@@ -0,0 +1,42 @@
++package middleware
++
++import (
++	"context"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++
++	"github.com/mandalika/pos-backend/internal/auth"
++)
++
++func TestRequirePermissionPreservesOtherPermissionRules(t *testing.T) {
++	for _, tc := range []struct {
++		name, role, required string
++		perms                []string
++		allowed              bool
++	}{
++		{"refund allowed", "cashier", "process_refund", []string{"process_refund"}, true},
++		{"refund denied", "cashier", "process_refund", []string{"create_order"}, false},
++		{"other allowed", "cashier", "create_order", []string{"create_order"}, true},
++		{"other denied", "cashier", "manage_stock", []string{"process_refund"}, false},
++		{"admin bypass for other permission", "admin", "manage_stock", nil, true},
++		{"empty context", "", "process_refund", nil, false},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.WithValue(context.Background(), auth.CtxRole, tc.role)
++			ctx = context.WithValue(ctx, auth.CtxPerms, tc.perms)
++			calls := 0
++			h := RequirePermission(tc.required)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls++; w.WriteHeader(http.StatusNoContent) }))
++			w := httptest.NewRecorder()
++			h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/synthetic", nil).WithContext(ctx))
++			if tc.allowed {
++				if w.Code != http.StatusNoContent || calls != 1 {
++					t.Fatalf("status=%d calls=%d", w.Code, calls)
++				}
++			} else if w.Code != http.StatusForbidden || calls != 0 || !strings.Contains(w.Body.String(), "missing permission: "+tc.required) {
++				t.Fatalf("status=%d calls=%d body=%s", w.Code, calls, w.Body.String())
++			}
++		})
++	}
++}
+diff --git a/backend/internal/handlers/writes.go b/backend/internal/handlers/writes.go
+--- a/backend/internal/handlers/writes.go
++++ b/backend/internal/handlers/writes.go
+@@ -1,6 +1,7 @@
+ package handlers
+ 
+ import (
++	"context"
+ 	"encoding/json"
+ 	"errors"
+ 	"net/http"
+@@ -1258,6 +1259,14 @@
+ }
+ 
+ func (h *Handlers) SyncBatch(w http.ResponseWriter, r *http.Request) {
++	h.syncBatch(w, r, h.caller, h.Sync.ProcessBatch)
++}
++
++// Keep the trusted HTTP mapping testable without a database identity lookup.
++func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
++	resolveCaller func(*http.Request) (callerID, error),
++	process func(context.Context, syncpkg.Caller, []syncpkg.BatchItem) (syncpkg.BatchResult, error),
++) {
+ 	var body struct {
+ 		Items []syncpkg.BatchItem `json:"items"`
+ 	}
+@@ -1265,13 +1274,14 @@
+ 		httpx.Err(w, http.StatusBadRequest, "invalid body")
+ 		return
+ 	}
+-	c, _ := h.caller(r)
++	c, _ := resolveCaller(r)
+ 	if c.outletID == "" {
+ 		httpx.Err(w, http.StatusForbidden, "no active outlet")
+ 		return
+ 	}
+-	res, err := h.Sync.ProcessBatch(r.Context(), syncpkg.Caller{
++	res, err := process(r.Context(), syncpkg.Caller{
+ 		OutletID: c.outletID, UserID: c.userID, DisplayName: c.name,
++		CanRefund: auth.HasPermission(r.Context(), "process_refund"),
+ 	}, body.Items)
+ 	if err != nil {
+ 		writeErr(w, http.StatusInternalServerError, err)
+diff --git a/backend/internal/handlers/sync_permission_test.go b/backend/internal/handlers/sync_permission_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/handlers/sync_permission_test.go
+@@ -0,0 +1,128 @@
++package handlers
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/mandalika/pos-backend/internal/auth"
++	"github.com/mandalika/pos-backend/internal/config"
++	mw "github.com/mandalika/pos-backend/internal/middleware"
++	syncpkg "github.com/mandalika/pos-backend/internal/sync"
++)
++
++func TestSyncBatchAuthenticatedMapping(t *testing.T) {
++	// Synthetic signing material only. No configuration loading or DB connection.
++	secret := []byte("S0B-SYNTHETIC-TEST-KEY-NOT-A-PRODUCTION-SECRET")
++	issue := func(role string, perms []string, ttl time.Duration) string {
++		t.Helper()
++		token, err := auth.IssueAccess(secret, ttl, "real-cashier", role, "outlet-a", perms)
++		if err != nil {
++			t.Fatal(err)
++		}
++		return token
++	}
++	// The old valid token deliberately keeps its permission after a new token
++	// for the same identity is issued without it. No live revocation is implied.
++	oldToken := issue("cashier", []string{"process_refund"}, time.Hour)
++	refreshedToken := issue("cashier", nil, time.Hour)
++	for _, tc := range []struct {
++		name, token, outlet string
++		status              int
++		allowed             bool
++		wantOutlet          string
++	}{
++		{"old valid permission snapshot", oldToken, "", 200, true, "outlet-a"},
++		{"refreshed without permission", refreshedToken, "", 200, false, "outlet-a"},
++		{"same outlet header", oldToken, "outlet-a", 200, true, "outlet-a"},
++		{"cashier cannot select another outlet", oldToken, "outlet-b", 403, false, ""},
++		{"technical admin active outlet", issue("admin", nil, time.Hour), "outlet-b", 200, true, "outlet-b"},
++		{"TL needs permission", issue("tl", nil, time.Hour), "", 200, false, "outlet-a"},
++		{"missing token", "", "", 401, false, ""},
++		{"invalid token", "invalid.synthetic.token", "", 401, false, ""},
++		{"expired token", issue("cashier", []string{"process_refund"}, -time.Hour), "", 401, false, ""},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			calls, resolutions := 0, 0
++			h := &Handlers{}
++			wrapped := mw.RequireAuth(&config.Config{AccessSecret: secret})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				h.syncBatch(w, r, func(r *http.Request) (callerID, error) {
++					// Only Store.ByID enrichment is replaced; the real HTTP body
++					// decoder, capability mapping and authentication middleware run.
++					resolutions++
++					uid, _ := r.Context().Value(auth.CtxUserID).(string)
++					outlet, _ := r.Context().Value(auth.CtxOutletID).(string)
++					return callerID{userID: uid, outletID: outlet, name: "Synthetic Cashier"}, nil
++				}, func(_ context.Context, c syncpkg.Caller, items []syncpkg.BatchItem) (syncpkg.BatchResult, error) {
++					calls++
++					if c.CanRefund != tc.allowed || c.UserID != "real-cashier" || c.OutletID != tc.wantOutlet || c.DisplayName != "Synthetic Cashier" {
++						t.Fatalf("trusted mapping=%+v", c)
++					}
++					if len(items) != 1 || items[0].Type != "refund" || items[0].IdempotencyKey != "original-key" || !strings.Contains(string(items[0].Payload), "alreadyPaid") {
++						t.Fatalf("items=%+v", items)
++					}
++					// This test captures trusted arguments. Dispatch behavior is
++					// independently tested at the actual refund invocation boundary.
++					return syncpkg.BatchResult{Results: []syncpkg.ItemResult{}}, nil
++				})
++			}))
++			body := `{"role":"admin","permissions":["process_refund"],"CanRefund":true,"outletId":"forged","items":[{"type":"refund","idempotencyKey":"original-key","CanRefund":true,"payload":{"orderId":"original-order","role":"admin","permissions":["process_refund"],"alreadyPaid":true,"approvedBy":"historical-spv","clientCreatedAt":"2020-01-01","outletId":"forged"}}]}`
++			req := httptest.NewRequest(http.MethodPost, "/sync/batch", strings.NewReader(body))
++			if tc.token != "" {
++				req.Header.Set("Authorization", "Bearer "+tc.token)
++			}
++			if tc.outlet != "" {
++				req.Header.Set("X-Outlet-Id", tc.outlet)
++			}
++			w := httptest.NewRecorder()
++			wrapped.ServeHTTP(w, req)
++			if w.Code != tc.status {
++				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
++			}
++			wantCalls := 0
++			if tc.status == 200 {
++				wantCalls = 1
++				var decoded map[string]json.RawMessage
++				if err := json.Unmarshal(w.Body.Bytes(), &decoded); err != nil || decoded["data"] == nil {
++					t.Fatalf("envelope=%s err=%v", w.Body.String(), err)
++				}
++			}
++			if calls != wantCalls || resolutions != wantCalls {
++				t.Fatalf("calls=%d resolutions=%d", calls, resolutions)
++			}
++			// Compare the existing direct middleware with this exact token/scope.
++			directCalls := 0
++			direct := mw.RequireAuth(&config.Config{AccessSecret: secret})(mw.RequirePermission("process_refund")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { directCalls++; w.WriteHeader(204) })))
++			dw := httptest.NewRecorder()
++			direct.ServeHTTP(dw, req.Clone(context.Background()))
++			wantStatus, wantDirect := tc.status, 0
++			if tc.status == 200 {
++				wantStatus = 403
++				if tc.allowed {
++					wantStatus, wantDirect = 204, 1
++				}
++			}
++			if dw.Code != wantStatus || directCalls != wantDirect {
++				t.Fatalf("direct status=%d calls=%d", dw.Code, directCalls)
++			}
++		})
++	}
++}
++
++func TestSyncBatchEmptyActiveOutletStillDenied(t *testing.T) {
++	h := &Handlers{}
++	w := httptest.NewRecorder()
++	h.syncBatch(w, httptest.NewRequest(http.MethodPost, "/sync/batch", strings.NewReader(`{"items":[]}`)),
++		func(*http.Request) (callerID, error) { return callerID{}, nil },
++		func(context.Context, syncpkg.Caller, []syncpkg.BatchItem) (syncpkg.BatchResult, error) {
++			t.Fatal("empty scope reached dispatch")
++			return syncpkg.BatchResult{}, nil
++		})
++	if w.Code != 403 {
++		t.Fatalf("status=%d", w.Code)
++	}
++}
+diff --git a/backend/internal/sync/sync.go b/backend/internal/sync/sync.go
+--- a/backend/internal/sync/sync.go
++++ b/backend/internal/sync/sync.go
+@@ -160,20 +160,29 @@
+ 	OutletID    string
+ 	UserID      string
+ 	DisplayName string
++	// Server-derived from authenticated request claims; never from a batch body.
++	CanRefund bool `json:"-"`
+ }
+ 
+ // ProcessBatch flushes outbox items in order, one at a time, each idempotent.
+ // A failed item does not abort the batch — POS retries it next flush.
+ func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) (BatchResult, error) {
++	return processBatch(ctx, c, items, e.processOne, e.Version)
++}
++
++func processBatch(ctx context.Context, c Caller, items []BatchItem,
++	process func(context.Context, Caller, BatchItem) ItemResult,
++	version func(context.Context, string) (VersionInfo, error),
++) (BatchResult, error) {
+ 	out := BatchResult{Results: make([]ItemResult, 0, len(items))}
+ 	for _, it := range items {
+-		res := e.processOne(ctx, c, it)
++		res := process(ctx, c, it)
+ 		out.Results = append(out.Results, res)
+ 		if res.Status != "error" {
+ 			out.Processed++
+ 		}
+ 	}
+-	vi, err := e.Version(ctx, c.OutletID)
++	vi, err := version(ctx, c.OutletID)
+ 	if err != nil {
+ 		return out, err
+ 	}
+@@ -182,6 +191,11 @@
+ }
+ 
+ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemResult {
++	return e.processOneWithRefund(ctx, c, it, e.Orders.Refund)
++}
++
++// Keep the refund mutation boundary injectable for isolated authorization tests.
++func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund func(context.Context, string, string, string) error) ItemResult {
+ 	r := ItemResult{IdempotencyKey: it.IdempotencyKey}
+ 	fail := func(err error) ItemResult { r.Status = "error"; r.Error = err.Error(); return r }
+ 
+@@ -234,6 +248,9 @@
+ 		}
+ 		return r
+ 	case "refund":
++		if !c.CanRefund {
++			return fail(errors.New("Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
++		}
+ 		var p struct {
+ 			OrderID string `json:"orderId"`
+ 			Reason  string `json:"reason"`
+@@ -241,7 +258,7 @@
+ 		if err := json.Unmarshal(it.Payload, &p); err != nil {
+ 			return fail(err)
+ 		}
+-		if err := e.Orders.Refund(ctx, c.OutletID, p.OrderID, p.Reason); err != nil {
++		if err := refund(ctx, c.OutletID, p.OrderID, p.Reason); err != nil {
+ 			return fail(err)
+ 		}
+ 		r.Status, r.OrderID = "ok", p.OrderID
+diff --git a/backend/internal/sync/refund_permission_test.go b/backend/internal/sync/refund_permission_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/sync/refund_permission_test.go
+@@ -0,0 +1,162 @@
++package sync
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"net/http"
++	"net/http/httptest"
++	"reflect"
++	"strings"
++	"testing"
++
++	"github.com/mandalika/pos-backend/internal/auth"
++	mw "github.com/mandalika/pos-backend/internal/middleware"
++	"github.com/mandalika/pos-backend/internal/service"
++)
++
++// This same assertion runs before and after containment. The fake is the actual
++// dispatch's refund invocation boundary, not evidence of PostgreSQL effects.
++func TestRefundPermissionParityRegression(t *testing.T) {
++	ctx := context.WithValue(context.Background(), auth.CtxRole, "cashier")
++	ctx = context.WithValue(ctx, auth.CtxPerms, []string{"create_order"})
++	directCalls := 0
++	direct := mw.RequirePermission("process_refund")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { directCalls++ }))
++	w := httptest.NewRecorder()
++	direct.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/orders/order-original/refund", nil).WithContext(ctx))
++	if w.Code != http.StatusForbidden || directCalls != 0 {
++		t.Fatalf("direct: status=%d calls=%d", w.Code, directCalls)
++	}
++	batchCalls := 0
++	e := &Engine{}
++	result := e.processOneWithRefund(ctx, Caller{OutletID: "outlet-original", UserID: "cashier-original"}, BatchItem{
++		Type: "refund", IdempotencyKey: "refund-original-key",
++		Payload: json.RawMessage(`{"orderId":"order-original","reason":"sealed return"}`),
++	}, func(context.Context, string, string, string) error { batchCalls++; return nil })
++	if result.Status != "error" || result.IdempotencyKey != "refund-original-key" || batchCalls != 0 {
++		t.Fatalf("batch must deny before refund mutation: result=%+v refundCalls=%d", result, batchCalls)
++	}
++}
++
++const permissionMessage = "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."
++
++func TestRefundPermissionDispatch(t *testing.T) {
++	for _, tc := range []struct {
++		name, role  string
++		permissions []string
++		allowed     bool
++	}{
++		{"cashier allowed", "cashier", []string{"process_refund"}, true},
++		{"technical admin", "admin", nil, true},
++		{"cashier denied", "cashier", []string{"create_order"}, false},
++		{"empty authority", "", nil, false},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.WithValue(context.Background(), auth.CtxRole, tc.role)
++			ctx = context.WithValue(ctx, auth.CtxPerms, tc.permissions)
++			caller := Caller{OutletID: "active-outlet", UserID: "original-user", CanRefund: auth.HasPermission(ctx, "process_refund")}
++			// Every untrusted assertion is deliberately stronger than the real caller.
++			item := BatchItem{Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"original-order","reason":"original reason","role":"admin","permissions":["process_refund"],"CanRefund":true,"alreadyPaid":true,"approvedBy":"historical-supervisor","clientCreatedAt":"2020-01-01T00:00:00Z","outletId":"forged-outlet","userId":"forged-user"}`)}
++			original := append([]byte(nil), item.Payload...)
++			calls := 0
++			result := (&Engine{}).processOneWithRefund(ctx, caller, item, func(_ context.Context, outlet, order, reason string) error {
++				calls++
++				if outlet != "active-outlet" || order != "original-order" || reason != "original reason" {
++					t.Fatalf("scope/arguments changed: %s %s %s", outlet, order, reason)
++				}
++				return nil
++			})
++			if result.IdempotencyKey != item.IdempotencyKey || !reflect.DeepEqual([]byte(item.Payload), original) {
++				t.Fatal("original evidence changed")
++			}
++			if tc.allowed {
++				if calls != 1 || result.Status != "ok" || result.OrderID != "original-order" {
++					t.Fatalf("allowed result=%+v calls=%d", result, calls)
++				}
++			} else if calls != 0 || result.Status != "error" || result.Error != permissionMessage || result.OrderID != "" {
++				t.Fatalf("denied result=%+v calls=%d", result, calls)
++			}
++		})
++	}
++}
++
++func TestRefundScopeFailurePropagatesWithoutSuccess(t *testing.T) {
++	// The real service's outlet/order SQL remains unchanged. This checks only
++	// scoped argument forwarding and propagation of its existing failure.
++	result := (&Engine{}).processOneWithRefund(context.Background(), Caller{OutletID: "outlet-a", CanRefund: true}, BatchItem{
++		Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"order-in-b","reason":"sealed"}`),
++	}, func(_ context.Context, outlet, order, _ string) error {
++		if outlet != "outlet-a" || order != "order-in-b" {
++			t.Fatal("scope changed")
++		}
++		return service.ErrOrderClosed
++	})
++	if result.Status != "error" || result.Error != service.ErrOrderClosed.Error() || result.IdempotencyKey != "original-key" {
++		t.Fatalf("result=%+v", result)
++	}
++}
++
++func TestMixedBatchPreservesIndependentResults(t *testing.T) {
++	items := []BatchItem{
++		{Type: "order", IdempotencyKey: "first", Payload: json.RawMessage(`{}`)},
++		{Type: "refund", IdempotencyKey: "denied", Payload: json.RawMessage(`{"orderId":"original-order"}`)},
++		{Type: "customer_create", IdempotencyKey: "last", Payload: json.RawMessage(`{}`)},
++	}
++	var seen []string
++	refundCalls, versionCalls := 0, 0
++	result, err := processBatch(context.Background(), Caller{OutletID: "active-outlet"}, items,
++		func(ctx context.Context, caller Caller, item BatchItem) ItemResult {
++			seen = append(seen, item.IdempotencyKey)
++			if item.Type == "refund" {
++				return (&Engine{}).processOneWithRefund(ctx, caller, item, func(context.Context, string, string, string) error { refundCalls++; return nil })
++			}
++			// Independent successes are synthetic, not order/customer DB coverage.
++			return ItemResult{IdempotencyKey: item.IdempotencyKey, Status: "ok"}
++		}, func(_ context.Context, outlet string) (VersionInfo, error) {
++			versionCalls++
++			if outlet != "active-outlet" {
++				t.Fatal("wrong version scope")
++			}
++			return VersionInfo{Version: 7}, nil
++		})
++	if err != nil || result.Processed != 2 || result.Version != 7 || refundCalls != 0 || versionCalls != 1 {
++		t.Fatalf("result=%+v err=%v refundCalls=%d versionCalls=%d", result, err, refundCalls, versionCalls)
++	}
++	if !reflect.DeepEqual(seen, []string{"first", "denied", "last"}) || len(result.Results) != 3 {
++		t.Fatalf("seen=%v results=%v", seen, result.Results)
++	}
++	for i, status := range []string{"ok", "error", "ok"} {
++		if result.Results[i].Status != status || result.Results[i].IdempotencyKey != items[i].IdempotencyKey {
++			t.Fatalf("item %d=%+v", i, result.Results[i])
++		}
++	}
++}
++
++func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
++	for _, typ := range []string{"refund", "order", "shift_open", "shift_close", "cash_flow", "customer_create", "transfer_receive"} {
++		result := (&Engine{}).processOne(context.Background(), Caller{}, BatchItem{Type: typ, IdempotencyKey: typ, Payload: json.RawMessage(`{`)})
++		if result.Status != "error" || result.IdempotencyKey != typ {
++			t.Fatalf("%s result=%+v", typ, result)
++		}
++		if typ == "refund" {
++			if result.Error != permissionMessage {
++				t.Fatal(result.Error)
++			}
++		} else if result.Error == permissionMessage || result.Error == "" {
++			t.Fatalf("refund permission leaked into %s", typ)
++		}
++	}
++	// A capability cannot be deserialized from any spelling in a body.
++	var caller Caller
++	if err := json.Unmarshal([]byte(`{"CanRefund":true,"canRefund":true,"role":"admin"}`), &caller); err != nil {
++		t.Fatal(err)
++	}
++	if caller.CanRefund {
++		t.Fatal("deserialized refund authority")
++	}
++	// Existing allowed service failures must stay non-success under the same key.
++	r := (&Engine{}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, string, string, string) error { return errors.New("synthetic service rejection") })
++	if r.Status != "error" || r.IdempotencyKey != "same" || !strings.Contains(r.Error, "service rejection") {
++		t.Fatalf("result=%+v", r)
++	}
++}
+diff --git a/packages/sync/src/engine.refund-permission.test.ts b/packages/sync/src/engine.refund-permission.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/sync/src/engine.refund-permission.test.ts
+@@ -0,0 +1,92 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import { MAX_ATTEMPTS, type OutboxItem } from './outbox'
++import { refundPermissionError, refundPermissionFixture } from './testFixtures/refundPermission'
++
++function captured(item: OutboxItem) {
++  const { status: _status, attempts: _attempts, lastError: _lastError, ...evidence } = item
++  return evidence
++}
++
++beforeEach(() => { vi.stubGlobal('navigator', { onLine: true }) })
++afterEach(() => { vi.unstubAllGlobals() })
++
++describe('A06 permission containment: retained refund delivery failures', () => {
++  it('retains capture evidence through five denials, repeated export, reconstruction and original-key retry', async () => {
++    const onDeadLetter = vi.fn()
++    const f = refundPermissionFixture({ onDeadLetter })
++    const ack = vi.spyOn(f.engine.outbox, 'ack')
++    const discard = vi.spyOn(f.engine.outbox, 'discard')
++    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
++      const result = await f.engine.flush()
++      expect(result?.processed).toBe(0)
++      expect(result?.results).toEqual([{ idempotencyKey: f.original.idempotencyKey, status: 'error', error: refundPermissionError }])
++      expect(f.engine.outbox.all()).toHaveLength(1)
++      expect(captured(f.engine.outbox.all()[0])).toEqual(captured(f.original))
++      expect(f.engine.outbox.all()[0]).toMatchObject({ status: 'failed', attempts: attempt, lastError: refundPermissionError })
++      expect(f.engine.pendingCount()).toBe(attempt < MAX_ATTEMPTS ? 1 : 0)
++      expect(f.engine.deadLettered()).toHaveLength(attempt < MAX_ATTEMPTS ? 0 : 1)
++    }
++    expect(ack).not.toHaveBeenCalled()
++    expect(discard).not.toHaveBeenCalled()
++    expect(f.delivery.mutationCalls).toBe(0)
++    expect(onDeadLetter).toHaveBeenCalledTimes(1)
++    const parked = structuredClone(f.engine.outbox.all())
++    const stored = f.store.get('mandalika.pos.outbox')
++    for (let n = 0; n < 2; n++) {
++      expect(JSON.parse(f.engine.buildFailedSyncDiagnostics())).toEqual(parked)
++      expect(f.engine.outbox.all()).toEqual(parked)
++      expect(f.store.get('mandalika.pos.outbox')).toBe(stored)
++    }
++    const reconstructed = f.reconstruct()
++    expect(reconstructed.outbox.all()).toEqual(parked)
++    expect(reconstructed.pendingCount()).toBe(0)
++    expect(reconstructed.deadLettered()).toHaveLength(1)
++    expect(await reconstructed.flush()).toBeNull() // parked does not auto-retry
++    expect(f.sent).toHaveLength(5)
++    f.delivery.permission = true // same synthetic identity/scope, no recapture
++    reconstructed.retryFailed()
++    await vi.waitFor(() => expect(reconstructed.outbox.all()).toEqual([]))
++    expect(f.delivery.mutationCalls).toBe(1)
++    expect(f.sent).toHaveLength(6)
++    for (const items of f.sent) {
++      expect(items).toEqual([{ type: 'refund', idempotencyKey: f.original.idempotencyKey, payload: f.original.payload }])
++    }
++  })
++
++  it('keeps an ambiguous prior commit unresolved when later delivery is denied', async () => {
++    const f = refundPermissionFixture()
++    f.delivery.permission = true
++    f.delivery.loseNextResponse = true
++    expect(await f.engine.flush()).toBeNull()
++    expect(f.delivery.mutationCalls).toBe(1) // simulated commit, not a real payout
++    expect(f.engine.outbox.all()[0].lastError).toContain('response lost')
++    const ack = vi.spyOn(f.engine.outbox, 'ack')
++    const discard = vi.spyOn(f.engine.outbox, 'discard')
++    f.delivery.permission = false
++    for (let i = 1; i < MAX_ATTEMPTS; i++) await f.engine.flush()
++    expect(f.engine.deadLettered()).toHaveLength(1)
++    expect(f.engine.outbox.all()[0].attempts).toBe(5)
++    expect(captured(f.engine.outbox.all()[0])).toEqual(captured(f.original))
++    expect(f.engine.outbox.all()[0].lastError).toBe(refundPermissionError)
++    // lastError follows existing retry semantics; it is not a full error journal.
++    expect(ack).not.toHaveBeenCalled()
++    expect(discard).not.toHaveBeenCalled()
++    expect(f.delivery.mutationCalls).toBe(1)
++    expect(f.reconstruct().outbox.all()).toEqual(f.engine.outbox.all())
++  })
++
++  it('acknowledges independent mixed-batch successes while retaining the denied original refund', async () => {
++    const f = refundPermissionFixture()
++    f.engine.outbox.add('customer_create', 'independent-customer', { name: 'Synthetic' })
++    const result = await f.engine.flush()
++    expect(result?.processed).toBe(1)
++    expect(result?.results.map(({ idempotencyKey, status }) => ({ idempotencyKey, status }))).toEqual([
++      { idempotencyKey: f.original.idempotencyKey, status: 'error' },
++      { idempotencyKey: 'independent-customer', status: 'ok' },
++    ])
++    expect(f.engine.outbox.all()).toHaveLength(1)
++    expect(captured(f.engine.outbox.all()[0])).toEqual(captured(f.original))
++    expect(f.engine.pendingCount()).toBe(1)
++    expect(f.delivery.mutationCalls).toBe(0)
++  })
++})
+diff --git a/packages/sync/src/testFixtures/refundPermission.ts b/packages/sync/src/testFixtures/refundPermission.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/sync/src/testFixtures/refundPermission.ts
+@@ -0,0 +1,49 @@
++// Synthetic request contract and successful memory KV for S0b tests/harness.
++// This is neither a backend authorization implementation nor durable native IO.
++import { SyncEngine, type ApiLike, type SyncEvents } from '../engine'
++import type { OutboxItem } from '../outbox'
++import type { KV } from '../storage'
++
++export const refundPermissionError = 'Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang.'
++
++type Item = Pick<OutboxItem, 'type' | 'idempotencyKey' | 'payload'>
++
++export function refundPermissionFixture(events: SyncEvents = {}) {
++  const original: OutboxItem = {
++    type: 'refund', idempotencyKey: 'synthetic-device:original-refund',
++    payload: { orderId: 'original-sale', reason: 'sealed return',
++      clientCreatedAt: '2026-09-15T01:23:45.000Z',
++      capturedEvidence: { marker: 'preserve-only-what-was-captured', amount: 125000 },
++    },
++    seq: 42, status: 'pending', clientCreatedAt: '2026-09-15T01:23:45.000Z',
++  }
++  const store = new Map([['mandalika.pos.outbox', JSON.stringify([original])]])
++  const kv: KV = {
++    get: (key) => store.get(key) ?? null,
++    set: (key, value) => { store.set(key, value) },
++    remove: (key) => { store.delete(key) },
++  }
++  const delivery = { permission: false, loseNextResponse: false, mutationCalls: 0 }
++  const sent: Item[][] = []
++  const api: ApiLike = {
++    async request<T>(method: string, path: string, body?: unknown): Promise<T> {
++      if (method !== 'POST' || path !== '/api/v1/sync/batch') throw new Error('Unexpected synthetic request')
++      const { items } = body as { items: Item[] }
++      sent.push(structuredClone(items))
++      const results = items.map((item) => {
++        if (item.type === 'refund' && !delivery.permission) {
++          return { idempotencyKey: item.idempotencyKey, status: 'error', error: refundPermissionError }
++        }
++        if (item.type === 'refund') delivery.mutationCalls++
++        return { idempotencyKey: item.idempotencyKey, status: 'ok' }
++      })
++      if (delivery.loseNextResponse) {
++        delivery.loseNextResponse = false
++        throw new Error('Synthetic response lost after simulated commit')
++      }
++      return { data: { results, processed: results.filter((item) => item.status === 'ok').length, version: 0 } } as T
++    },
++  }
++  const reconstruct = () => new SyncEngine(api, events, kv)
++  return { original, store, kv, delivery, sent, reconstruct, engine: reconstruct() }
++}
+diff --git a/apps/pos/tests/refund-permission/index.html b/apps/pos/tests/refund-permission/index.html
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/tests/refund-permission/index.html
+@@ -0,0 +1,3 @@
++<!doctype html>
++<html lang="en"><head><meta charset="UTF-8"><title>S0b local retention check</title></head>
++<body><div id="root"></div><script type="module" src="./main.tsx"></script></body></html>
+diff --git a/apps/pos/tests/refund-permission/main.tsx b/apps/pos/tests/refund-permission/main.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/tests/refund-permission/main.tsx
+@@ -0,0 +1,37 @@
++// Local-only UI fixture: no fetch, token, real customer data or device storage.
++import { useState } from 'react'
++import { createRoot } from 'react-dom/client'
++import { refundPermissionFixture } from '../../../../packages/sync/src/testFixtures/refundPermission'
++import { SyncStatus } from '../../src/components/SyncStatus'
++
++const fixture = refundPermissionFixture()
++let engine = fixture.engine
++
++function Harness() {
++  const [, refresh] = useState(0)
++  const [exports, setExports] = useState(0)
++  const [reconstructions, setReconstructions] = useState(0)
++  const [remount, setRemount] = useState(0)
++  const update = () => refresh((n) => n + 1)
++  const denyFive = async () => { for (let n = 0; n < 5; n++) await engine.flush(); update() }
++  const reconstruct = () => { engine = fixture.reconstruct(); setRemount((n) => n + 1); setReconstructions((n) => n + 1) }
++  const retry = async () => { engine.retryFailed(); await engine.flush(); update() }
++  return <main>
++    <h1>S0b synthetic refund retention</h1>
++    <p>Successful memory storage and synthetic API only. No live database or native durability claim.</p>
++    <button onClick={() => { void denyFive() }}>Deliver five permission denials</button>
++    <button onClick={reconstruct}>Reconstruct from same storage</button>
++    <button onClick={() => { fixture.delivery.permission = true; update() }}>Restore synthetic permission</button>
++    <SyncStatus key={remount} isOnline={true} pendingCount={engine.pendingCount()} failed={engine.deadLettered()}
++      wall={engine.getWall()} isResyncing={false} onResync={() => {}} onFlush={() => { void engine.flush().then(update) }}
++      onRetryFailed={() => { void retry() }} onExportLog={() => { engine.buildFailedSyncDiagnostics(); setExports((n) => n + 1) }} />
++    <pre aria-label="Retention evidence">{JSON.stringify({
++      exports, reconstructions, permission: fixture.delivery.permission,
++      pending: engine.pendingCount(), failed: engine.deadLettered().length,
++      retained: engine.outbox.all(), deliveries: fixture.sent,
++      simulatedMutationCalls: fixture.delivery.mutationCalls,
++    }, null, 2)}</pre>
++  </main>
++}
++
++createRoot(document.getElementById('root')!).render(<Harness />)

@@ -1,0 +1,380 @@
+[
+  {
+    "path": ".claude/plans/so-this-entire-thing-mellow-lake.md",
+    "bytes": 19163,
+    "sha256": "000af723407cdc8571d5751e4dfcf6e80af06a718a905ab02d33c834189dcf7a",
+    "git_blob_sha1": "bb3885ee80b89d4af91f0f9e74d0cb3a7403dbdb"
+  },
+  {
+    "path": ".github/workflows/android-release.yml",
+    "bytes": 2450,
+    "sha256": "c413d61e5dabfac165607a3409dc8f336df35bd81d65dd211f1a1f89e41c03ec",
+    "git_blob_sha1": "f1b6bc7602b4992a6e0f151ad4aac5a6e8f7332e"
+  },
+  {
+    "path": ".github/workflows/backend.yml",
+    "bytes": 668,
+    "sha256": "622c736d16793b1f452e25eb0e85945eb4b47f187a8edab8520e4764939b1699",
+    "git_blob_sha1": "76dce81889b8d91423b40dc6a004df6e4cc33753"
+  },
+  {
+    "path": ".github/workflows/react-doctor.yml",
+    "bytes": 2388,
+    "sha256": "163c3e5123e79ad6b3d932289e9d10707e4f8bf0734f7c2000b2b6685e5873a9",
+    "git_blob_sha1": "f541b92ccf2396325d91a972f4d62c9226e81064"
+  },
+  {
+    "path": "ONBOARDING.md",
+    "bytes": 46890,
+    "sha256": "f263a5f656c1c57506cc297cd8fc1b4aef983efdd31d16d49fec7a9b097e3574",
+    "git_blob_sha1": "259c247f3bb2aaa04f6712b56457ab81cb75efe1"
+  },
+  {
+    "path": "README.md",
+    "bytes": 2425,
+    "sha256": "8dc9e0ee2281acb3324624fbe6eb7e1377cc626f616ea4dc90e3a90ae094374d",
+    "git_blob_sha1": "7dbf7ebf3b2a3d84ad526bc47810d1d211331b8b"
+  },
+  {
+    "path": "RUNBOOK.md",
+    "bytes": 12380,
+    "sha256": "bdf66ea5968dcd334145f63014f034a218aa6fb86d3e3d6f14f253c53be3ab97",
+    "git_blob_sha1": "981e930c1f1653aec5f6f5a49a872597f464c430"
+  },
+  {
+    "path": "apps/backoffice/package.json",
+    "bytes": 813,
+    "sha256": "1b4d2a47e658bd21a2e26b45bef7866cd4a58f9f2b88e19e16da210192bb1bb6",
+    "git_blob_sha1": "aa5221fb07587a2450952fa209e4b2f8fb2cfa36"
+  },
+  {
+    "path": "apps/backoffice/src/hooks/usePolledQuery.ts",
+    "bytes": 2374,
+    "sha256": "da763e59c664f23e5aabbb39bf2f7ab002dc9d33322de4c2e681d878e83ce102",
+    "git_blob_sha1": "2f617f470e132eb65fe4fb72c222df0462777620"
+  },
+  {
+    "path": "apps/backoffice/src/lib/csvUtils.ts",
+    "bytes": 3799,
+    "sha256": "e58070ed2ca57fd9d41ebabc73f46faa5cd20a89ed9175c790f8deb4198a275c",
+    "git_blob_sha1": "ae90acae6691f4f54a47c80786ce454d89113cd4"
+  },
+  {
+    "path": "apps/backoffice/src/screens/Dashboard.tsx",
+    "bytes": 10821,
+    "sha256": "6a5b8783c3e4dd6d84285e2dffe84ee0b35898868db69b83ebb485e6d83affe8",
+    "git_blob_sha1": "23815589d4dca0d52872735e082f33cdb0662763"
+  },
+  {
+    "path": "apps/backoffice/src/screens/Reports.tsx",
+    "bytes": 16373,
+    "sha256": "ab3917d0be7188fb6eec9fc41d3ab9e98d47edc851f0a7cd8d2691a8f1fcf813",
+    "git_blob_sha1": "cc0fd5b5996c56c0613ec289e3e342e88574c9a9"
+  },
+  {
+    "path": "apps/pos/android/app/src/main/AndroidManifest.xml",
+    "bytes": 2737,
+    "sha256": "c53a8f1395ad51451201975c927a84f5cee5647cd33b14d591ee23795ff475fc",
+    "git_blob_sha1": "6982033952bb215aa982bf601864e35249034657"
+  },
+  {
+    "path": "apps/pos/capacitor.config.ts",
+    "bytes": 2218,
+    "sha256": "ee1f3902561b9173ec4964388627a0999dc3129d94827aa4a0c515ba4e17e825",
+    "git_blob_sha1": "42f55aab8e9377abeabc08dd3e303eb98bbae9f1"
+  },
+  {
+    "path": "apps/pos/src/App.tsx",
+    "bytes": 7912,
+    "sha256": "8a7b41489e37a8d590bb40481d17359c998b5ccc661deba71f63b024515be544",
+    "git_blob_sha1": "bbd9a1b3394e08bfe527855cec93d724efcba23c"
+  },
+  {
+    "path": "apps/pos/src/auth.tsx",
+    "bytes": 3163,
+    "sha256": "3cac6699785ed3795a51cd6b42f92486ad2a65ffd5b7f18d889eedf03c958233",
+    "git_blob_sha1": "d859bddd46d730790f047179f03e1bc5ad887925"
+  },
+  {
+    "path": "apps/pos/src/cashier/CashierScreen.tsx",
+    "bytes": 60695,
+    "sha256": "21acf11dfa867a7827d81e0dbaf14ed8d85916855eedf60e72126731118a14ac",
+    "git_blob_sha1": "a81d805b579bdbb16f7f882698f690e8f5b90e46"
+  },
+  {
+    "path": "apps/pos/src/cashier/CheckoutPanel.tsx",
+    "bytes": 20841,
+    "sha256": "7434895d76d90d25c47033291d12351be9c44f6ef70a506ab628fc52aa55cfdb",
+    "git_blob_sha1": "19d10812af39b152ebfdc175b1a86ecf25b20924"
+  },
+  {
+    "path": "apps/pos/src/cashier/OrderHistoryPanel.tsx",
+    "bytes": 14677,
+    "sha256": "613253d76ab4a60d2edaa0d0c2d7f87fd891d8058dccd53b3c1f242ca413c5e3",
+    "git_blob_sha1": "581b37d2cca00804ae69b4bf26bd7e44176a44c7"
+  },
+  {
+    "path": "apps/pos/src/cashier/ShiftRecapPanel.tsx",
+    "bytes": 44328,
+    "sha256": "e6c55792213a2007bf310b5c5f65a44f12c7b1948f952d499bfed1682993c203",
+    "git_blob_sha1": "75550bf959abe4ac6144f69318da624d11d74e74"
+  },
+  {
+    "path": "apps/pos/src/cashier/SyncProvider.tsx",
+    "bytes": 4603,
+    "sha256": "72f170f7f57a39d505886c274eb8bcda93bdb9b500b0a086f15ca6defa8bacb9",
+    "git_blob_sha1": "766318ca8be4230e1b8b23c64606a26b54a31109"
+  },
+  {
+    "path": "apps/pos/src/cashier/pricing.ts",
+    "bytes": 14132,
+    "sha256": "3bdd186151ef0134be5626e1b8ec0fe1b470221e2484f2d7d51557d89b7fcf04",
+    "git_blob_sha1": "14903bfd558ebf19ac06a35e47957500f96afe0a"
+  },
+  {
+    "path": "apps/pos/src/cashier/promoValidate.ts",
+    "bytes": 7162,
+    "sha256": "1b7520a6421857a431c76543c642f59092d60bc11be36d52b59884f439566ffa",
+    "git_blob_sha1": "d993fad07024e451f1348d43f6da4bec13d882f8"
+  },
+  {
+    "path": "apps/pos/src/components/OutletSwitcher.tsx",
+    "bytes": 3595,
+    "sha256": "94cc5f7198a224729817c810238b8b09cabc96a11f19eeb08b8a2e35777ef4e0",
+    "git_blob_sha1": "b8996a2d40e966a26e76f702fe8065ce764c225e"
+  },
+  {
+    "path": "apps/pos/src/hooks/useShift.ts",
+    "bytes": 3239,
+    "sha256": "753386c009eb9e5e971b4b897aabc382f37e11f82b3282160f47f0ffa540e0c4",
+    "git_blob_sha1": "9506011cd53d88d6d8c3cd237c7d4c575647be29"
+  },
+  {
+    "path": "apps/pos/src/lib/errorReporter.ts",
+    "bytes": 3061,
+    "sha256": "237a3245ab5d92fc959228e5e8c9415b2a8a5de3a7d8f35bb6005ae624bbdf8d",
+    "git_blob_sha1": "68a868eb5726f330dc94f447f9dafd6eb5e9b256"
+  },
+  {
+    "path": "apps/pos/src/main.tsx",
+    "bytes": 861,
+    "sha256": "2cd577e050178fcbbd0473479b5733fae4896d00048af397995509c1f9532f9a",
+    "git_blob_sha1": "d527472fb294e73acf07bc533520adfbb4ec6583"
+  },
+  {
+    "path": "backend/cmd/server/main.go",
+    "bytes": 1660,
+    "sha256": "7f04a2e515764a76c69ec825c191369f17ffc2f032df66259cd52a03e0cc88d2",
+    "git_blob_sha1": "af3858bd3015969ef258e5d2fc566cede245b476"
+  },
+  {
+    "path": "backend/go.mod",
+    "bytes": 1772,
+    "sha256": "d1edc27bd0ba177550e3f290b74255418ea8a2caa84074fa81d0a96a671dccd4",
+    "git_blob_sha1": "e2c7e09beb462928f0bcc58a53c0fb7af8f8a171"
+  },
+  {
+    "path": "backend/internal/auth/handlers.go",
+    "bytes": 4220,
+    "sha256": "55bf623529e83e96486e848a5f063bb6988816e393e71cee62b9587f1d3c1f55",
+    "git_blob_sha1": "7c1664b660b5d1f7fa979617e29e4411e733d729"
+  },
+  {
+    "path": "backend/internal/auth/store.go",
+    "bytes": 5893,
+    "sha256": "0bb803485649eb44dddbe5597556360c738dff5ce83d7caec2af2552a8fba934",
+    "git_blob_sha1": "dda045d5f54351000175d767bad9a672be8bf871"
+  },
+  {
+    "path": "backend/internal/cache/cache.go",
+    "bytes": 1829,
+    "sha256": "7a12ba2669efd527986f6a32a95a428bbb4c72720769826069eacdaabe02b1bc",
+    "git_blob_sha1": "987a7c5c7aeb76df09d0e0501e274581e549733b"
+  },
+  {
+    "path": "backend/internal/db/db.go",
+    "bytes": 2784,
+    "sha256": "a517bbb1280340e519bdb67d60e99eaf7111a11af89b2b0db714fe7487d67315",
+    "git_blob_sha1": "ca15c407e1203a8344b7073fa4138de48de08480"
+  },
+  {
+    "path": "backend/internal/handlers/handlers.go",
+    "bytes": 15222,
+    "sha256": "24df6da3933f97ee472b37d1a68256005f8ef8d5ff99db381ffa23293fc168e5",
+    "git_blob_sha1": "94127d599b2dff82f6ce4e42fcf062e2376bce83"
+  },
+  {
+    "path": "backend/internal/handlers/writes.go",
+    "bytes": 47758,
+    "sha256": "7c2d62827026cf60ce6128b1e518e18ac8e4c0a6899140f00b323a41341380a4",
+    "git_blob_sha1": "02774d583c052577ca6e4fe13d247885fa79a171"
+  },
+  {
+    "path": "backend/internal/httpx/httpx.go",
+    "bytes": 1324,
+    "sha256": "e4322d3b21d7c6b8a853d5ff2eed99722cd8fa379498c22f07fefe6794bbf051",
+    "git_blob_sha1": "eb7552a2623911a9cb7d8794ce6027c8c1032d4b"
+  },
+  {
+    "path": "backend/internal/middleware/middleware.go",
+    "bytes": 3121,
+    "sha256": "dd8e4ba869fed991bb63622ac95c6cbf94ec23ffcb16f66c23bfa928b33612ab",
+    "git_blob_sha1": "9ed210794f3dd38022c79b9bdc8d3fdaa436c0b0"
+  },
+  {
+    "path": "backend/internal/ota/decide.go",
+    "bytes": 1227,
+    "sha256": "3b4537275e439521f603a47700f668dd74a8a222f895523db585034a15b7bb51",
+    "git_blob_sha1": "19246ed21f9ec0c48a5fa863db0a932a347fdbcf"
+  },
+  {
+    "path": "backend/internal/read/repo.go",
+    "bytes": 85004,
+    "sha256": "dd8ad976edac803c028a6f1f5c061f2ba5602d371e55367f3958f490a7759547",
+    "git_blob_sha1": "b561a9b555202a45e840ee8aa0e63fda6696a3f0"
+  },
+  {
+    "path": "backend/internal/read/reports.go",
+    "bytes": 2552,
+    "sha256": "ebd3bfd019684240c9daa0b1051b5c161d20480e83c095040710a8f7c0364765",
+    "git_blob_sha1": "c0e0bb702400ba6d20da1fe65ddee0ab01e9b1ca"
+  },
+  {
+    "path": "backend/internal/server/server.go",
+    "bytes": 14865,
+    "sha256": "32db71b90b857542355897703eb4d76dd7e2a6936947a6303de6367148302965",
+    "git_blob_sha1": "ae6e660dfc4825b788c858a76ed5a78dbf7cf8b1"
+  },
+  {
+    "path": "backend/internal/service/order.go",
+    "bytes": 54784,
+    "sha256": "1d64eae88162307826b37d63f68c8f803346544b65f5ec37ee43a2930b883c73",
+    "git_blob_sha1": "ded975a424a4fa10203acc81daefa5372317e892"
+  },
+  {
+    "path": "backend/internal/service/pricing.go",
+    "bytes": 19090,
+    "sha256": "d5029a59869273dd56cc731e8fc45c0d0c216126655863a1d592af8066595a6e",
+    "git_blob_sha1": "1be79014d84febd18dbc6370847405bdb7d96c2b"
+  },
+  {
+    "path": "backend/internal/service/shift.go",
+    "bytes": 4135,
+    "sha256": "bfbd6cf75e5dcee62763d3905890327cf8e1ae46f92601d4721de19c6d5f6a64",
+    "git_blob_sha1": "4e9bb6ad49a67798165ee7c64bd28b1e01f42722"
+  },
+  {
+    "path": "backend/internal/sync/sync.go",
+    "bytes": 15366,
+    "sha256": "4260ea05e7ca677000359a848aa6a376ffd75c7adad506d1ed573fc41f653533",
+    "git_blob_sha1": "d394e6ad984af0b53ca33174e431b6c5bb76f139"
+  },
+  {
+    "path": "backend/internal/write/ingredient_stockcount.go",
+    "bytes": 6925,
+    "sha256": "004c8e26e4a297acaea9b99ed56434d1ff57924508246f14f3f0e58f4a1f051e",
+    "git_blob_sha1": "bb3e3556bf8659248f11753b35b80b63a9fcf5fd"
+  },
+  {
+    "path": "backend/internal/write/ingredient_transfer.go",
+    "bytes": 10211,
+    "sha256": "0c9ab28f030cffb8ec28c96ae2e24542b220cb1a6aa6b940c08b833c5f34902b",
+    "git_blob_sha1": "f5d1fe31b16aa3086b620fbda0599529dbc51988"
+  },
+  {
+    "path": "backend/internal/write/merge.go",
+    "bytes": 10542,
+    "sha256": "af4769b302fe114006d8116ec2bc7d87f2b3963bd13df7fb1a17ef93cd53f7ab",
+    "git_blob_sha1": "ddae618f8388f8d2f1b4b65bdbb1b0005f4fab22"
+  },
+  {
+    "path": "backend/internal/write/points.go",
+    "bytes": 2485,
+    "sha256": "b6f67da8180459310129cf9e5cea7d6708097ce64ba5dd9a75f79bfd333a292d",
+    "git_blob_sha1": "669529e1e471d81e7007a4b05c05214edb5cb6ed"
+  },
+  {
+    "path": "backend/internal/write/stockcount.go",
+    "bytes": 8888,
+    "sha256": "fc47477d86adb150305a97cf3b3791dc15c1a0108261f26f45d24a726e340936",
+    "git_blob_sha1": "471617c367e6e410626aacbdeea534292835fea7"
+  },
+  {
+    "path": "backend/internal/write/transfer.go",
+    "bytes": 12955,
+    "sha256": "a37b29d2b01ef9c95f977e0caafcbf731c2ad5f2c11e544bc3fa369202146826",
+    "git_blob_sha1": "73422261f7f80a5233741854321ea02fe4145d94"
+  },
+  {
+    "path": "backend/internal/write/warehouse.go",
+    "bytes": 7682,
+    "sha256": "9521102fbf2ccae72ca9dd93680bf0c1676f796860b0be0d025e5d7ec9e23e8e",
+    "git_blob_sha1": "d9f554551c3e2d865e5af4704ed342224b8e5af5"
+  },
+  {
+    "path": "docs/PRODUCTION_READINESS_DRAFT.md",
+    "bytes": 79740,
+    "sha256": "5335e77519695521a66b5ad813eeace2f38efa5848b4cec9d1da70a2e83252a3",
+    "git_blob_sha1": "dc69e1c0f34fee0cfac680a0d06afe1c93b2f611"
+  },
+  {
+    "path": "docs/PRODUCTION_READINESS_PLAN.md",
+    "bytes": 15973,
+    "sha256": "8921837f824b1ad13589bec64eb10aa1193a75fa720903802d32e053e9372f89",
+    "git_blob_sha1": "6ee5b25b43f1ad32169921516c992d6d653c728d"
+  },
+  {
+    "path": "packages/api/src/client.ts",
+    "bytes": 37540,
+    "sha256": "2590399ea45623cc63ddd0afa63aa139c641dbacb26f526fadd13213777625ca",
+    "git_blob_sha1": "77bd85390430c72b998d3aa236a1f9de8a296065"
+  },
+  {
+    "path": "packages/sync/package.json",
+    "bytes": 490,
+    "sha256": "07e25b230af0730b36c560ec20a765820ccd1bb0e37c4610f2fb61e4c907a8ba",
+    "git_blob_sha1": "dbcef275c791e8e86e9934f38e158fb6b8aa2a62"
+  },
+  {
+    "path": "packages/sync/src/engine.ts",
+    "bytes": 16048,
+    "sha256": "46c444fe26b177c332cbb747884d186df3f7839867ba2b012d32e2788727db1d",
+    "git_blob_sha1": "ae106d7b0e23149a37cd5a1e294e58945f6dee0e"
+  },
+  {
+    "path": "packages/sync/src/outbox.ts",
+    "bytes": 4540,
+    "sha256": "a03e3e1a5a89d566eefcff480c7779ae202885a48df32e98aa5874fb2e613994",
+    "git_blob_sha1": "826bfeb83a2bb6c3f10040002b345a3455683f38"
+  },
+  {
+    "path": "packages/sync/src/pin.ts",
+    "bytes": 436,
+    "sha256": "9278403269edfb69f7eba799a7c2e1d0b0a5bf605d74903ff023d9c99f46eef0",
+    "git_blob_sha1": "dfe7e7c0d38912c417a825ae5b1159409e1bb30c"
+  },
+  {
+    "path": "packages/sync/src/storage.ts",
+    "bytes": 4086,
+    "sha256": "a26e5e04bac45579a84a57c71d77256f4e168d13cafe603b8ae2cf6cf6c5bc1b",
+    "git_blob_sha1": "1cfeceedc732143eefbf89450c4c7873b1d71254"
+  },
+  {
+    "path": "scripts/db-backup.sh",
+    "bytes": 965,
+    "sha256": "7db7e066c9c4d34d7806328a859320d9f994d1c11270e5c5281ce066b9cb3fc4",
+    "git_blob_sha1": "b0e597332053d3ad91ebe4419913dff1f6d89170"
+  },
+  {
+    "path": "scripts/db-restore.sh",
+    "bytes": 985,
+    "sha256": "bf9660e3599286a1d78a3bb9955862ab9b838c2694a217fc56c5ff193c7d49f9",
+    "git_blob_sha1": "277891a77e3ccb319f14426af082bce1dbccccd6"
+  },
+  {
+    "path": "scripts/ota-release.sh",
+    "bytes": 4482,
+    "sha256": "b4898aadc5b6aebd4b81ad6d16beb1980d2fddf2c75be9204bf3fffbbc8611ef",
+    "git_blob_sha1": "d7a60bfe26df284a929455a6510f852f62d4b395"
+  }
+]

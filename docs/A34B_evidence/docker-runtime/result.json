@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "runtime": "docker",
+  "race": true,
+  "expected_gates": [
+    "TestSaleInputPostgres",
+    "TestShiftDecodePostgres",
+    "TestBatchEnvelopePostgres",
+    "TestLinkedFulfillmentPostgres",
+    "TestPaginationPostgres",
+    "TestReportSummaryPostgres"
+  ],
+  "gates": [],
+  "status": "fail",
+  "go_version": "go version go1.26.2 windows/amd64",
+  "error": "docker exit 1: \nfailed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.\n",
+  "duration_seconds": 0.301
+}

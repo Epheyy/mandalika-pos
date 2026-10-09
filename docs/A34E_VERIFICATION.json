@@ -1,0 +1,149 @@
+{
+  "packet": "A34E-DEPENDENCY-SECURITY-20260922-01",
+  "base_sha": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+  "final_sha": "df70dc2f80c1c89f4155f2a7fd1d5e930ad229cc",
+  "commands": [
+    {
+      "command": "corepack pnpm audit --json --registry=https://registry.npmjs.org",
+      "cwd": "<exact e782c5d archive>",
+      "exit": 1,
+      "result": "56 advisory entries: 1 critical,33 high,17 moderate,5 low; retained before dependency edits"
+    },
+    {
+      "command": "go list -mod=readonly -m -json all; go mod graph; go mod download -json all; go list -mod=readonly -deps -test -json ./... github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen; go list -mod=readonly -deps -json ./cmd/server",
+      "cwd": "<exact e782c5d archive>/backend",
+      "exit": 0,
+      "result": "138 modules including main;137 third-party;11 direct; full graph/import/checksum evidence; commands executed individually, not as a shell chain"
+    },
+    {
+      "command": "govulncheck -json ./... (pinned v1.8.0, Go1.26.8)",
+      "cwd": "<exact e782c5d archive>/backend",
+      "exit": 0,
+      "result": "53 finding messages;6 distinct called advisory IDs; zero status did not mean clean"
+    },
+    {
+      "command": "go-licenses report --include_tests --ignore github.com/mandalika/pos-backend ./... github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen (v2.0.1)",
+      "cwd": "<exact e782c5d archive>/backend",
+      "exit": 0,
+      "result": "Auxiliary compiled/tool CSV; incomplete module graph and nullable header classified unknown. Final inventory instead classifies all module root license evidence with pinned classifier -headers."
+    },
+    {
+      "command": "identify_license -headers -tasks 4 -json <output> <disposable-license-only-directory> (v2.0.0)",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "139 baseline module license files classified; no private source copied"
+    },
+    {
+      "command": "dependency_security.py scan --evidence <raw-baseline> --sha e782c5dfbf3eedefb5d655f6726590dfbea5bf87 --root <exact archive> --parser-root <pinned tools> --output <baseline-packet>",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 1,
+      "result": "436 npm,137 Go modules;79 blocking policy records; exact input hashes recorded"
+    },
+    {
+      "command": "corepack pnpm add -Dw --save-exact --ignore-scripts yaml@2.9.1 semver@7.8.5 spdx-expression-parse@5.0.0 spdx-license-ids@3.0.24",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "Pinned gate tooling only; optional Vite yaml peer and one semver transitive edge changed under pnpm resolution; no application JS dependency version upgraded"
+    },
+    {
+      "command": "go get github.com/golang-jwt/jwt/v5@v5.2.2 github.com/redis/go-redis/v9@v9.7.3",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "exit": 0,
+      "result": "Two module patch versions and four new go.sum lines; unrelated discovery checksums restored to entry bytes"
+    },
+    {
+      "command": "python scripts/ci/dependency_security_test.py",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "19 tests passed;18 real CLI disposable negative/positive case records plus empty-govuln parser test; active script hashes unchanged"
+    },
+    {
+      "command": "corepack pnpm quality:ci",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "347 PASS,1 pre-existing optional BO captured-page replay skip; all source/test/browser types,app builds,generated TS schema pass; local Node24, hosted Node22 authoritative"
+    },
+    {
+      "command": "go test ./... (GOTOOLCHAIN=go1.26.8,GOENV=off)",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "exit": 0,
+      "result": "Installed-tooling local Go baseline; opt-in database tests not activated here; hosted mandatory six-gate run supplies DB/race proof"
+    },
+    {
+      "command": "node --check scripts/ci/depsec_helper.cjs; python -m py_compile <five dependency Python files>; git diff --check",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "Commands individually checked; no source syntax/whitespace failure"
+    },
+    {
+      "command": "python scripts/ci/dependency_security.py scan --sha e782c5dfbf3eedefb5d655f6726590dfbea5bf87 --output <local-verified-report>",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 1,
+      "result": "441 npm/137 Go;76 policy records. Working-tree patch snapshot based on e782c5d, not committed e782 source; superseded by final hosted scan."
+    },
+    {
+      "command": "node <independent Ajv6.15.0 schema verifier> <CycloneDX1.6 schemas> <baseline/final-directory>",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "All four SBOMs structurally validate; unused iri-reference/idn-email schema formats ignored, no such data fields emitted"
+    },
+    {
+      "command": "git diff --cached --name-status; staged path/text scan; git write-tree",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "20 explicitly allowlisted paths;268 excluded/preserved;zero pattern hits;tree019f4572828beb5ced2342ca343820e9f8a4c60d"
+    },
+    {
+      "command": "git commit -m \"[CF-Pages-Skip] ci: add dependency security baseline and narrow Go patches\"; git push origin audit/hosted-proof-20260922",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "exit": 0,
+      "result": "Normal commit and push; no force, deployment or release dispatch"
+    }
+  ],
+  "hosted_summary": "A34E_HOSTED_SUMMARY.json",
+  "baseline": {
+    "npm": 436,
+    "workspaces": 7,
+    "go_modules": 137,
+    "npm_advisories": 56,
+    "osv_records": 125,
+    "policy_blocking_records": 79,
+    "called_go_ids": [
+      "GO-2025-3540",
+      "GO-2025-3553",
+      "GO-2026-5004",
+      "GO-2026-5775",
+      "GO-2026-5777",
+      "GO-2026-5970"
+    ]
+  },
+  "final": {
+    "npm": 441,
+    "workspaces": 7,
+    "go_modules": 137,
+    "advisory_records": 128,
+    "osv_records": 121,
+    "policy_blocking_records": 76,
+    "security_npm_records": 34,
+    "security_go_records": 41,
+    "license_blockers": 1,
+    "called_go_ids": [
+      "GO-2026-5004",
+      "GO-2026-5775",
+      "GO-2026-5777",
+      "GO-2026-5970"
+    ]
+  },
+  "limitations": [
+    "No all-five-green checkpoint: unresolved blockers, empty exceptions",
+    "Advisory aliases can represent the same underlying vulnerability; counts are records, not independent exploit count",
+    "No local PostgreSQL/native/provider live access for this slice; actual hosted Docker/race and browser proof supplied",
+    "Optional BO DB-response replay remains skipped; mandatory six DB gates and26 browser scenarios have0 skips",
+    "Go and JS scanner dependencies themselves are pinned/provenanced but not a complete separate scanner-tool module closure",
+    "PR delta policy proven locally; no actual PR event exercised, push workflow exercised",
+    "Fresh provider snapshots recorded within hosted collection window; exact per-request timestamps not retained",
+    "SBOM schema verification is local independent validation; not a separate hosted schema-validation step",
+    "Full A34/A38/A37/A13/A42/A35 and release decisions remain open"
+  ],
+  "collection_correction": "Early local full Go-module discovery added graph-only checksums. They were removed while preserving entry checksums and intended four patch checksums. Final collector downloads in a disposable module copy, uses source -mod=readonly, and checks dependency input hashes before/after. No fixture/live DB cleanup performed."
+}

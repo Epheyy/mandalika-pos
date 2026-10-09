@@ -1,0 +1,69 @@
+[
+  {
+    "name": "Backoffice suite",
+    "command": "node node_modules/vitest/vitest.mjs run",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+    "exit": 0,
+    "seconds": 4.28,
+    "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  4 passed | 1 skipped (5)\n      Tests  49 passed | 1 skipped (50)\n   Start at  14:17:03\n   Duration  3.56s (transform 792ms, setup 0ms, import 4.43s, tests 69ms, environment 1ms)\n\n"
+  },
+  {
+    "name": "App typechecks",
+    "command": "node node_modules/typescript/bin/tsc -b apps/pos apps/backoffice --pretty false",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+    "exit": 0,
+    "seconds": 10.19,
+    "output": ""
+  },
+  {
+    "name": "Browser harness typecheck",
+    "command": "node node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --lib ES2022,DOM,DOM.Iterable tests/polling-harness.tsx",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+    "exit": 0,
+    "seconds": 0.92,
+    "output": ""
+  },
+  {
+    "name": "Backoffice suite including retained A26 PostgreSQL response fixture replay",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+    "command": "node node_modules/vitest/vitest.mjs run",
+    "environment": {
+      "MANDALIKA_A26_PAGES": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A26_POSTGRES_PAGES.json"
+    },
+    "exit": 0,
+    "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  5 passed (5)\n      Tests  50 passed (50)\n   Start at  14:17:52\n   Duration  3.56s (transform 703ms, setup 0ms, import 4.09s, tests 85ms, environment 1ms)\n\n",
+    "limit": "Replays previously captured synthetic PostgreSQL responses; no fresh database execution in A31."
+  },
+  {
+    "name": "Before-fix hook races",
+    "tool": "mcp__playwright__browser_run_code_unsafe",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+    "command": "Navigate /tests/polling-harness.html; wait for runPollingTests; page.evaluate(() => window.runPollingTests())",
+    "exit": null,
+    "results": "1 passed, 12 failed before production edit",
+    "evidence": "A31_BEFORE_FIX_BROWSER.json"
+  },
+  {
+    "name": "Final hook races",
+    "tool": "mcp__playwright__browser_run_code_unsafe",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+    "command": "Reload /tests/polling-harness.html; wait for runPollingTests; page.evaluate(() => window.runPollingTests())",
+    "exit": null,
+    "results": "13/13 passed",
+    "evidence": "A31_HOOK_BROWSER.json"
+  },
+  {
+    "name": "Rendered Reports races",
+    "tool": "mcp__playwright__browser_run_code_unsafe",
+    "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+    "command": "filename scripts/a31-browser/reports-races.js",
+    "exit": null,
+    "results": "2/2 passed; no assertion exception",
+    "evidence": "A31_REPORTS_BROWSER.json"
+  },
+  {
+    "name": "Fixture/environment limitations",
+    "exit": null,
+    "results": "Real browser synthetic HTTP only; no fresh database/native/backend/provider verification. Initial optional PostgreSQL replay skipped for missing env, then run successfully with retained fixture. No dependencies installed. Earlier cleanup policy block unchanged."
+  }
+]

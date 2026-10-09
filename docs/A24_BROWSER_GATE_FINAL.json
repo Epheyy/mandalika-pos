@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "### Result\n{\"guestCheckoutOpened\":true}\n### Ran Playwright code\n```js\nawait (async(page)=>{\r\n await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();\r\n await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');\r\n await page.getByRole('button',{name:'Bayar',exact:true}).click();\r\n if(await page.getByRole('heading',{name:'Konfirmasi Pembayaran',exact:true}).count()!==1)throw Error('A24: ordinary guest with active shift cannot open checkout');\r\n return {guestCheckoutOpened:true};\r\n})(page);\n```\n### Events\n- New console entries: .playwright-mcp\\console-2026-09-21T03-06-49-506Z.log#L51-L52"
+    }
+  ]
+}

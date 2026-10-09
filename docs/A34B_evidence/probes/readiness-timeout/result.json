@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "runtime": "native",
+  "race": false,
+  "expected_gates": [
+    "TestSaleInputPostgres",
+    "TestShiftDecodePostgres",
+    "TestBatchEnvelopePostgres",
+    "TestLinkedFulfillmentPostgres",
+    "TestPaginationPostgres",
+    "TestReportSummaryPostgres"
+  ],
+  "gates": [
+    {
+      "gate": "S0C",
+      "test": "TestSaleInputPostgres",
+      "stage": "readiness",
+      "status": "fail",
+      "host": "127.0.0.1",
+      "port": 56439,
+      "database": "mandalika_s0c_synthetic",
+      "user": "s0c_test",
+      "fixture_id": "7be4a50c06394ac6a24e7fa098361767",
+      "cleanup": "removed-and-port-closed",
+      "expected_data_directory": "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\Temp\\mandalika-pg-ci-my59e_oz\\data",
+      "error": "readiness deadline exceeded",
+      "duration_seconds": 14.204
+    }
+  ],
+  "status": "fail",
+  "go_version": "go version go1.26.2 windows/amd64",
+  "postgres_version": "psql (PostgreSQL) 18.3",
+  "error": "TestSaleInputPostgres failed at readiness; see sanitized lifecycle evidence",
+  "duration_seconds": 14.446
+}

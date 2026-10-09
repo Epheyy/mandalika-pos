@@ -1,0 +1,119 @@
+{
+  "packet_id": "A34B-POSTGRES-CI-20260921-01",
+  "tracker_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "A06",
+    "A07",
+    "A08",
+    "A09",
+    "A10",
+    "A11",
+    "A12",
+    "A13",
+    "A14",
+    "A15",
+    "A16",
+    "A17",
+    "A18",
+    "A19",
+    "A20",
+    "A21",
+    "A22",
+    "A23",
+    "A24",
+    "A25",
+    "A26",
+    "A27",
+    "A28",
+    "A29",
+    "A30",
+    "A31",
+    "A32",
+    "A33",
+    "A34",
+    "A35",
+    "A36",
+    "A37",
+    "A38",
+    "A39",
+    "A40",
+    "A41",
+    "A42",
+    "A43",
+    "A44"
+  ],
+  "priorities": {
+    "P0": 8,
+    "P1": 32,
+    "P2": 3,
+    "P3": 1
+  },
+  "detailed_rows_changed": [
+    "A34"
+  ],
+  "original_p0_detailed_rows_unchanged": true,
+  "A31_T26_resolution_preserved": true,
+  "implementation_test_config_doc_files": 7,
+  "application_business_source_changed": false,
+  "fixture_change": "S0c synthetic compatibility only; all six guard prefixes unchanged",
+  "quality_and_react_doctor_byte_preserved": true,
+  "go_generated_byte_preserved": true,
+  "unchanged_entry_files": 853,
+  "handoff_history_preserved": true,
+  "old_bundle_unchanged": true,
+  "fresh_fixture_roots_remaining": 0,
+  "diff_replay": [
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34b-replay-mop_612k",
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A34B_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34b-replay-mop_612k",
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A34B_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34b-replay-mop_612k",
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A34B_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34b-replay-mop_612k",
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A34B_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    }
+  ],
+  "review": "Local source/guard/workflow/assertion review; no independent agent or hosted execution claimed",
+  "secret_boundary": "Allowlist excludes env, binaries, native stores, cache and full historical handoff; runtime proof files scanned for connection URIs/password values. Bounded check, not A37 completion"
+}

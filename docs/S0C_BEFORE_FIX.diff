@@ -1,0 +1,91 @@
+diff --git a/backend/internal/service/order.go b/backend/internal/service/order.go
+--- a/backend/internal/service/order.go
++++ b/backend/internal/service/order.go
+@@ -107,6 +107,11 @@
+ // data) returns the canonical stored order and never double-inserts (plan §5).
+ // Returns the order id, whether it was a duplicate, and a stock warning flag.
+ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (orderID string, dup bool, stockWarning bool, err error) {
++	return s.createOrder(ctx, in, s.Pool.Begin)
++}
++
++// The transaction seam keeps command-boundary regression tests isolated.
++func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, begin func(context.Context) (pgx.Tx, error)) (orderID string, dup bool, stockWarning bool, err error) {
+ 	if len(in.Items) == 0 {
+ 		return "", false, false, ErrNoItems
+ 	}
+@@ -114,7 +119,7 @@
+ 		return "", false, false, ErrNoOutlet
+ 	}
+ 
+-	tx, err := s.Pool.Begin(ctx)
++	tx, err := begin(ctx)
+ 	if err != nil {
+ 		return "", false, false, err
+ 	}
+diff --git a/backend/internal/service/order_input_test.go b/backend/internal/service/order_input_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/service/order_input_test.go
+@@ -0,0 +1,62 @@
++package service
++
++import (
++	"context"
++	"errors"
++	"strings"
++	"testing"
++
++	"github.com/jackc/pgx/v5"
++	"github.com/jackc/pgx/v5/pgconn"
++)
++
++type inputTestRow func(...any) error
++func (r inputTestRow) Scan(dest ...any) error { return r(dest...) }
++
++// This fake runs the real CreateOrder body through its first write boundary.
++// It records attempted SQL effects, not PostgreSQL balances or durability.
++type inputTestTx struct {
++	pgx.Tx
++	writes int
++	commits int
++	queries []string
++	existing string
++}
++func (tx *inputTestTx) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
++	tx.queries = append(tx.queries, sql)
++	return inputTestRow(func(d ...any) error {
++		switch {
++		case strings.Contains(sql, "FROM processed_keys"):
++			if tx.existing != "" { *d[0].(*string) = tx.existing; return nil }; return pgx.ErrNoRows
++		case strings.Contains(sql, "FROM app_settings"):
++			*d[0].(*bool) = false; *d[1].(*float64) = 0; *d[2].(*bool) = false; *d[3].(*string) = "none"; return nil
++		case strings.Contains(sql, "FROM loyalty_settings"):
++			*d[0].(*bool) = false; *d[1].(*float64) = 0; *d[2].(*float64) = 0; return nil
++		default: return errors.New("unexpected synthetic read")
++		}
++	})
++}
++func (tx *inputTestTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
++	tx.writes++
++	return pgconn.CommandTag{}, errors.New("synthetic stop at first stock write")
++}
++func (tx *inputTestTx) Rollback(context.Context) error { return nil }
++func (tx *inputTestTx) Commit(context.Context) error { tx.commits++; return nil }
++
++func ordinaryInput() CreateOrderInput {
++	return CreateOrderInput{OutletID: "synthetic-outlet", IdempotencyKey: "original-key", PaymentMethod: "cash", AmountPaid: 100000,
++		Items: []OrderItem{{ProductID: "synthetic-product", ProductName: "Synthetic", VariantSize: "110ml", Price: 100000, Quantity: 1, Subtotal: 100000}}}
++}
++
++func TestSaleInputNegativeAndZeroQuantityRegression(t *testing.T) {
++	for _, qty := range []int{-1, 0} {
++		for _, offline := range []bool{false, true} {
++			in := ordinaryInput(); in.Items[0].Quantity = qty; in.Offline = offline
++			tx := &inputTestTx{}
++			_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
++			if err == nil || dup || tx.writes != 0 || tx.commits != 0 {
++				t.Errorf("quantity=%d offline=%v must reject before effects: err=%v dup=%v writes=%d commits=%d", qty, offline, err, dup, tx.writes, tx.commits)
++			}
++		}
++	}
++}

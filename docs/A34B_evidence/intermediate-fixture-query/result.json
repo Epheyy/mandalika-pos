@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "runtime": "native",
+  "race": false,
+  "expected_gates": [
+    "TestSaleInputPostgres",
+    "TestShiftDecodePostgres",
+    "TestBatchEnvelopePostgres",
+    "TestLinkedFulfillmentPostgres",
+    "TestPaginationPostgres",
+    "TestReportSummaryPostgres"
+  ],
+  "gates": [
+    {
+      "gate": "S0C",
+      "test": "TestSaleInputPostgres",
+      "stage": "test",
+      "status": "fail",
+      "host": "127.0.0.1",
+      "port": 56439,
+      "database": "mandalika_s0c_synthetic",
+      "user": "s0c_test",
+      "fixture_id": "214a417037f84861828d09775a523185",
+      "cleanup": "removed-and-port-closed",
+      "expected_data_directory": "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\Temp\\mandalika-pg-ci-pu7wqj4t\\data",
+      "actual_data_directory": "C:/Users/MyBook Hype AMD/AppData/Local/Temp/mandalika-pg-ci-pu7wqj4t/data",
+      "server_version_num": "180003",
+      "public_tables_before": 0,
+      "identity": "verified",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./internal/handlers",
+        "-run",
+        "^TestSaleInputPostgres$",
+        "-count=1",
+        "-json",
+        "-timeout=180s"
+      ],
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "result": {
+        "status": "fail",
+        "exit_code": 1,
+        "named_actions": [
+          "run",
+          "output",
+          "output",
+          "output",
+          "fail"
+        ],
+        "passed_tests": [
+          "TestSaleInputPostgres/invalid_effects/direct",
+          "TestSaleInputPostgres/invalid_effects/batch",
+          "TestSaleInputPostgres/valid/cash",
+          "TestSaleInputPostgres/valid/bca",
+          "TestSaleInputPostgres/valid/free",
+          "TestSaleInputPostgres/valid/full-discount",
+          "TestSaleInputPostgres/valid/static-bundle",
+          "TestSaleInputPostgres/invalid_monetary_effects",
+          "TestSaleInputPostgres/server_reward_and_bundle_allocations"
+        ],
+        "failed_or_skipped": [
+          "TestSaleInputPostgres/mixed_batch_trusted_mapping_shortage_quote_and_retries",
+          "TestSaleInputPostgres",
+          "<package>"
+        ],
+        "package_pass": false
+      },
+      "log": "S0C.go-test.jsonl",
+      "public_tables_after": 66,
+      "error": "named integration test did not PASS without skips/failures",
+      "duration_seconds": 18.966
+    }
+  ],
+  "status": "fail",
+  "go_version": "go version go1.26.2 windows/amd64",
+  "postgres_version": "psql (PostgreSQL) 18.3",
+  "error": "TestSaleInputPostgres failed at test; see sanitized lifecycle evidence",
+  "duration_seconds": 19.235
+}

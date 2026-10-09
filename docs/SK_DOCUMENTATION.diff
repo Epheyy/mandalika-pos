@@ -1,0 +1,660 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; LP05 acceptance and linked-fulfillment evidence added 2026-09-20 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; linked-fulfillment acceptance and semantic-key evidence added 2026-09-21 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,31 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E20: A23-SEMANTIC-KEYS-20260921-01 implements semantic disjoint-key validation
++across shared TS authoring/POS and Go write/runtime/preflight paths. Twelve shared
++vectors cover whole/variant overlap, exact overlap, distinct variants/products,
++case/prefix distinctions and existing empty-set BXGY modes. Before-fix Go authoring /
++runtime and POS regressions failed; final POS241, Backoffice19, sync33, both app
++and explicit new-test types, affected Go packages pass. Isolated PostgreSQL18.3:
++22 Create/Update authoring vectors, eight online rejections with unchanged business
++rows, eight offline captures retaining original quantity/price/warnings and retry
++identity, eight prior valid fulfillment cases and one read-only diagnostic pass.
++Preflight flags active/inactive legacy overlap; actual CLI reports two intentionally
++invalid synthetic rows among14. No live catalog checked. Both new clusters stopped
++and retained. Source/results/limits: SK_VALIDATION_MATRIX.md / SK_VERIFICATION.json.
++This is local verification pending ChatGPT review, not parent or release closure.
++
++E19: Owner-relayed ChatGPT acceptance on 2026-09-21 scoped-accepts E18 linked
++bundle/BXGY fulfillment within its supplied evidence limits. No separate reply file
++or reply ID was supplied this turn; do not invent one. The same relay resolves
++Q-LF-01: slots and explicit BXGY buy/get sets already must be semantically disjoint.
++Original specs, write validators, first-slot service assumptions and picker confirm
++this. Reject overlapping coverage; do not build an overlapping-slot allocator.
++P means all P variants; P|M means exactly M. Preserve distinct P|M/P|L, old queues,
++physical facts, the impossible-move guard and Q08. E20 implements this bounded
++validation class. Earlier evidence entries remain historical milestone records;
++E19/E20 and the detailed A23 row are current. A23/T21 and all release gates stay open.
+ 
+ E18: A23-LINKED-FULFILLMENT-20260920-01 implements linked bundle/separate-set
+ BXGY fulfillment with raw code selection/usage ownership and promotion-ID physical
+@@ -242,7 +267,7 @@
+ | A20 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T18 |
+ | A21 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T19 |
+ | A22 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T20 |
+-| A23 | P1 | A23-linked-promotion-parity / linked-fulfillment | Open; mapper/LP05 scoped accepted; linked fulfillment locally verified, review pending | T21 |
++| A23 | P1 | A23 semantic promotion-key validation | Open; mapper/LP05/linked fulfillment scoped accepted; semantic validation locally verified, review pending | T21 |
+ | A24 | P1 | S0e | Needs current behavioral revalidation; source matches audit | T22 |
+ | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
+ | A26 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T23 |
+@@ -583,14 +608,15 @@
+ ### A23 — A linked tiered promotion loses its tier configuration in POS pricing
+ 
+ - **Original priority / evidence:** P1; historical class: Reproduced.
+-- **Current disposition:** E15 mapper and E17 LP05 identity containment scoped accepted. E18 A23-linked-fulfillment implemented/locally verified, awaiting current ChatGPT review. Full A23/T21 open.
+-- **Current evidence:** E18 actual selection/planner/reducer/pricing/metadata/enqueue paths, linkedFulfillment.test.ts and shared client-generated linked_fulfillment_orders.json. Code remains the effective metadata owner; physical lines/maps use promotion ID. Isolated TestLinkedFulfillmentPostgres verifies both request routes, direct/code-only parity, stock/grants/usage and same-key retries. Existing tiered goldens and LP05 regressions preserved. Six entry failures and two intermediate edge failures are explicitly retained; final27 focused tests pass.
+-- **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A23-LP05-20260920-01-R1 answers Q-LP05-02 with owner-separated fulfillment, pure picker preview/cancel and atomic confirm/takeover. Q-LP05-01 direct-first/first-code/no-resurrection remains. Existing eligibility, raw code provenance, business policies and Q08 remain; the new overclaim guard compares cart-owned quantity, not stock availability.
++- **Current disposition:** E15 mapper, E17 LP05 identity containment and E19 linked-fulfillment scoped accepted. E20 semantic promotion-key validation locally verified, awaiting ChatGPT review. Full A23/T21 open.
++- **Current evidence:** Shared 12-vector Go/TS contract; Backoffice real Save-button render and callback guard; independent Repo.CreatePromotion/UpdatePromotion; POS direct/code planner plus legacy reducer actions; backend bundle/BXGY quota resolution; read-only all-row diagnostic. E20 isolated DB checks 22 authoring vectors, eight online no-effect rejections, eight captured-offline retained-price/quantity/warning/retry cases, eight prior valid cases and preflight. Existing LF fixture, tiered goldens and LP05 tests preserved. See SK_VALIDATION_MATRIX.md and SK_COMPATIBILITY.json.
++- **Authority / decision:** AUTH-MANDALIKA-20260919-01 and owner-relayed ChatGPT direction 2026-09-21 resolve Q-LF-01 as semantic validation of the existing disjoint domain. No general overlapping-slot allocator. Earlier Q-LP05-01/02, raw code ownership and Q08 stock warning/override unchanged. Offline semantic-overlap facts retain original lines/prices with review warnings; no fabricated validated grant.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Contracts evidence model. **Draft mapping:** §Scent exchanges (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A10,A09,A29; mapper/LP05 accepted; A23-linked-fulfillment locally verified. Broader allocation/versioned-quote parity remains open (historical alias S0d unrelated to S0d-shift-decode). Owner: Codex execution / ChatGPT review / owner consequential decisions. Existing captured/queued events remain untouched.
++- **Dependencies / slice:** A10,A09,A29; mapper/LP05/linked fulfillment accepted within evidence. E20 contains this semantic-key class only; broader versioned-quote parity remains open. Owner: Codex execution / ChatGPT review / owner consequential decisions. No historical promotion/outbox rewrite.
+ - **Required result:** Carry the full versioned promotion shape through selection, validation, pricing and captured quote. Build parity vectors for direct vs linked tiered, bundles, rewards, stacking, caps and eligible-item allocations.
+ - **Acceptance:** T21. The same rule/version/cart has the same allocation and total through direct and code-linked paths; server reconciliation preserves the captured business fact if an old client differs.
+-- **Execution / residual risk:** E18 matrix maps all24 requested scenarios; live UI/native cancellation/durability/provider/race tests not run. Shared existing allocator processes overlapping slots independently; one paid unit could yield two freed units. New commit guard rejects that impossible move without altering the sale, but general disjoint allocation/overlap validation and backend overlap parity remain Q-LF-01, unimplemented. Complete catalog/type/configuration and captured-quote parity not claimed. No historical repricing, quote/receipt migration, resource compression, backend production rewrite or release claim.
++- **Execution / residual risk:** E20 POS241/BO19/sync33, types, Go and47 isolated database leaf scenarios pass. No live/staging row scan, native/browser interaction, concurrency/Redis, complete malformed-config/schema validation or release qualification. New CLI reports overlaps/uninspectable key shapes using READ ONLY/REPEATABLE READ; no automatic repair. Repository structured fixture scan found no unexpected positive overlap; intentional negative tests retained. Same-slot alternatives remain union semantics and previous exact-duplicate write rejection remains. Broader malformed/missing BXGY offline drop behavior is unchanged outside the newly retained semantic-overlap branch; residual captured-fact work stays open. A29 resource compression, quote migration and loyalty are separate. Existing impossible-move guard remains.
++
+ 
+ ### A24 — Guest sales are blocked despite the accepted policy
+ 
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -7,8 +7,9 @@
+ S0c A09-input-numeric is scoped review accepted under CG-S0C-20260920-01-R1.
+ S0d outer-envelope correction and the narrow A23 tieredConfig mapper are scoped
+ review accepted by CG-S0D-ENVELOPE-A23-20260920-01-R1. LP05 identity containment
+-is scoped accepted by CG-A23-LP05-20260920-01-R1. A23-linked-fulfillment is locally
+-verified in A23-LINKED-FULFILLMENT-20260920-01, awaiting review. Parent findings and release gates remain open. Historical scoped
++is scoped accepted by CG-A23-LP05-20260920-01-R1. A23-linked-fulfillment
++is scoped ChatGPT accepted via the owner relay of 2026-09-21. Semantic promotion-key
++validation is locally verified in A23-SEMANTIC-KEYS-20260921-01, awaiting review. Parent findings and release gates remain open. Historical scoped
+ authority statements below record their own runs; they do not restrict future phases.
+ Policy source: [decision draft](PRODUCTION_READINESS_DRAFT.md). This document
+ consolidates accepted decisions without treating proposed technical controls as
+@@ -424,7 +425,7 @@
+ remains A29/A09/A10 work, not bundled into this slice. Full A23/T21, A43/T25 and all
+ release gates remain open; other A01–A44 dispositions are unchanged.
+ 
+-### Current continuation — A23-LINKED-FULFILLMENT-20260920-01
++### Historical continuation — A23-LINKED-FULFILLMENT-20260920-01
+ 
+ E17 records scoped LP05 acceptance; E18 implements Q-LP05-02 Option A. Linked
+ codes retain selection/usage ownership while promotion IDs own physical lines and
+@@ -444,3 +445,30 @@
+ that dependent allocator. Add browser/native picker qualification separately. Keep
+ A29 resource compression, A10/A11 quote/receipt migration and loyalty work separate.
+ Full A23/T21 and all release gates remain open. No generic execution approval needed.
++
++### Current continuation — A23-SEMANTIC-KEYS-20260921-01
++
++E19 records the owner-relayed scoped acceptance of linked fulfillment. The latest
++Q-LF-01 direction supersedes the prior proposed general allocator: bundle slots
++and explicit BXGY buy/get sets are already disjoint by design. E20 validates their
++semantic coverage across Backoffice, write methods, POS and server. P covers all
++variants, P|size exactly one. Distinct variants remain allowed. Existing impossible
++moves are still guarded. No historical row or queued-sale rewrites.
++
++Online invalid mechanics reject with existing bundle/reward errors before new
++business effects. Captured offline overlapping bundle/BXGY lines keep quantity,
++price, provenance and warning/review treatment; no unearned validated grants.
++The narrow new BXGY branch prevents this validation class from dropping a captured
++physical line. Other invalid/missing mechanics and quote/receipt issues stay open.
++
++Final POS241, BO19, sync33, app/test types and affected Go pass. Isolated PostgreSQL
++covers47 leaf scenarios including22 authoring vectors,16 invalid online/offline
++cases, eight unchanged valid fulfillment cases and read-only preflight. Two new
++clusters stopped/retained; old cleanup block untouched. Full evidence/limits in
++SK_VALIDATION_MATRIX.md, SK_VERIFICATION.json, SK_COMPATIBILITY.json.
++
++Concrete next work: review E20; use the read-only PROMOTION_KEY_PREFLIGHT.md process
++on an identified staging/release snapshot and retain a target-specific report;
++qualify actual browser/native authoring/picker workflows separately. No clean live
++catalog claim. Remediation of any flagged historical rule needs explicit reviewed
++handling, never an automatic edit. A23/T21, A43/T25 and all release gates remain open.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -12,6 +12,31 @@
+ supersede earlier proposals. Execution authority comes from the standing record above.
+ 
+ ## Decision record
++
++### September 21 — linked-fulfillment acceptance and Q-LF-01 resolution
++
++The owner relayed ChatGPT scoped acceptance of A23-LINKED-FULFILLMENT-20260920-01
++within supplied evidence limits (E19). No separate response file/ID was supplied.
++A23/T21 and all parent/release gates remain open.
++
++**Q-LF-01 resolved: enforce the existing disjoint domain, do not implement a general
++overlapping-slot allocator.** Original bundle/BXGY specs, write validation, service
++first-slot assumptions and ProductVariantPicker confirm the gap is semantic key
++coverage. P intersects P and every P|size; P|M intersects itself but not P|L; different
++products are disjoint. Comparisons stay exact and case-sensitive. Alternatives
++within one slot are a union; only cross-slot coverage conflicts. BXGY empty get
++retains same-set mode; empty buy retains the complement of explicit get keys.
++
++E20 implements this same validation class at authoring and execution boundaries,
++with read-only legacy diagnostics. No overlapping catalog capability or allocation
++redesign. The impossible-move guard, Q08 and physical ownership/usage provenance
++remain intact. Offline captured semantic-overlap lines keep their price/quantity
++and warning/review evidence; online new requests reject. No queue/promotion-row
++rewrites or unearned validated grants. Other invalid/missing configs, A29 resource
++compression, versioned quote/receipt and loyalty work remain separate/open.
++
++The earlier Q-LF-01 allocator proposal below is historical and superseded by this
++explicit direction; it must not be implemented as the next step.
+ 
+ ### September 20 — LP05 acceptance and linked-fulfillment owner contract
+ 
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,119 +1,124 @@
+-# Current review packet — A23-LINKED-FULFILLMENT-20260920-01
++# Current review packet — A23-SEMANTIC-KEYS-20260921-01
+ 
+-Responds to **CG-A23-LP05-20260920-01-R1**, responding to A23-LP05-20260920-01.
+-Standing authority: AUTH-MANDALIKA-20260919-01. READ_FIRST then named review read
+-in full; all four incoming manifest payloads verified. Resolved review:
+-`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A23-LP05-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_A23-LP05-20260920-01.md`.
++Responds to the owner's 2026-09-21 relay of ChatGPT review of
++A23-LINKED-FULFILLMENT-20260920-01. No named new reply file or ID was provided;
++this message is the current decision source. Standing AUTH-MANDALIKA-20260919-01.
++Root `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`; branch `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`. Same worktree, earlier dirty work
++preserved, no branch/index/HEAD change or fresh remote verification.
+ 
+-Root `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`; branch `prod-hardening`;
+-HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`, preserving prior dirty/untracked
+-work. No branch/index/HEAD change or fresh remote check. Entry/current inventories,
+-hashes and preserved files: LF_REPOSITORY_STATE.json.
++## Disposition and resolved direction
+ 
+-## Outcome
++**E19: linked bundle/BXGY fulfillment scoped ChatGPT accepted** within its supplied
++evidence limits, as relayed by the owner. Earlier mapper/LP05/S0a–S0d acceptances
++remain. A23/T21 and all release gates stay open.
+ 
+-**E17: LP05 identity containment scoped ChatGPT accepted.** Prior tiered-mapper
+-and outer-envelope acceptances retained. Independent review verified prior63
+-payloads, packet identity, diff replay and static wiring, not Windows/SQL reruns.
++**Q-LF-01: resolved as semantic validation of an existing disjoint domain.** The
++original bundle design explicitly rejects overlapping slots, and service counting /
++first-slot assignment assumes that. BXGY explicitly requires disjoint buy/get sets.
++ProductVariantPicker already defines P as every variant and P|size as exactly one.
++The old raw-string checks missed P versus P|M in either order. Distinct P|M/P|L
++and different products remain valid. No general overlapping-slot allocator is built.
++The previous allocator proposal is historical and superseded in active decisions.
+ 
+-**E18: A23-linked-fulfillment implemented, locally verified, current review pending.**
+-Code remains the selection/usage owner; promotion ID owns reward lines and bundle
+-maps. Linked snapshot now includes bundleConfig. Direct and linked paths share
+-allocation and picker execution. Preview/cancel has no sale effect; confirm uses
+-current reducer state and commits owner/physical effect together. Direct takeover
+-restores/removes the old effect before recomputing. Removal, participant edits,
+-reactive invalidation, exclusivity, clear and existing customer cleanup remove the
+-right owner and prevent ghost codes or repeated restoration. Raw code provenance
+-and historical queued operations are preserved.
++## E20 — implementation and behavior
+ 
+-Browse eligibility previews the restored cart for takeover; linked bundle chips use
+-retained bundle savings. Existing allocators/pricing rules are reused. Pure physical
+-helpers moved out of reducer to share conservation logic. No fake direct entry,
+-backend production edit, quote/receipt migration, A29 compression or loyalty redesign.
++One shared TS semantic key contract serves Backoffice/POS; the Go equivalent serves
++write validation, runtime and diagnostic, using the same twelve checked-in vectors.
++Exact case-sensitive spelling is preserved, without normalization/catalog lookup.
++Within-slot alternatives stay union semantics; existing exact duplicate write checks
++are retained. Empty BXGY get stays same-set; empty buy stays the get-set complement.
+ 
+-## Actual verification and evidence
++Backoffice disables Save with an actionable message and checks again before its
++API call. Backend CreatePromotion/UpdatePromotion independently reject semantic
++overlap before transaction/mutation. POS shared direct/code planner and legacy
++reducer entry points refuse invalid mechanics before owner/usage/physical changes.
++Reactive current-cart invalidation uses the same contract; historical queues are
++untouched. Existing impossible-move commit guard remains as defense in depth.
+ 
+-- **Six entry regressions failed**, then pass after correction: snapshot, actual
+-  linked fulfillment sequence and seeded physical-owner cleanup. Original assertions
+-  preserved; the two fulfillment test drivers now call the same new planner/action
+-  as the screen. Original source and exact before-fix patch supplied.
+-- **Two additional edge regressions failed**, then pass: stale bundle choice would
+-  substitute a different bottle, and independent overlapping slots could free two
+-  units from one paid unit. Commit guards leave original sale unchanged. Intermediate
+-  source/tests and guard diff retained; no shared allocation algorithm redesign.
+-- Final **27 focused tests; 231 POS tests; 33 sync tests** pass. POS app and explicit
+-  new-test typechecks pass. Initial test-only type errors (fixture fields and mock
+-  parameter annotations) fixed with real generated types; failure outputs retained.
+-- Affected Go handlers/service/sync suites pass, including existing tier goldens.
+-- **Eight PostgreSQL18.3 cases pass**: direct/batch requests x direct/code ownership x
+-  BXGY/bundle. Actual client-generated fixtures have matching goods/prices, one grant,
+-  +1 code use only for linked selections. Two exact-body/key retries acknowledge the
+-  original key and preserve all eight business-table snapshots.
+-- Successful KV queue/reconstruction/response-loss tests retain code-only metadata,
+-  physical lines and original key/body. Historical parked duplicate record remains
+-  serialized byte-identical. Shared fixture is generated from actual helpers/enqueue;
+-  only volatile time is omitted from its deterministic golden, not from real queues.
++Server bundle counting/resolution rejects invalid coverage before first-slot
++assignment; direct and linked online commands use existing bundle_invalid /
++reward_invalid rejection. Captured offline bundle lines retain existing warning /
++review semantics. A narrow BXGY semantic-overlap branch likewise keeps captured
++price/quantity instead of dropping the reward. No validated reward grant is invented;
++existing raw-code usage/provenance is recorded once for a captured code-owned sale.
++Other invalid/missing config paths remain outside this bounded correction.
+ 
+-LF_VERIFICATION.json has exact commands/cwd/exits/output, session completions,
+-failures and skipped checks. LF_VALIDATION_MATRIX.md maps all24 review scenarios,
+-picker cancel/confirm, metadata and physical quantity results to their actual layers.
+-No browser gesture/native device, storage power-loss, provider, Redis, concurrency,
+-post-commit readback-failure or release qualification. Picker behavior is verified
+-through extracted pure execution helpers and source wiring, as allowed by the review.
+-No independent review agent was used; this is Codex local verification/self-review.
++Read-only `cmd/promotion-key-preflight` scans active and inactive stored configs in
++a READ ONLY/REPEATABLE READ transaction, with explicit target and no .env/migration
++or auto-remediation. It reuses Go key semantics and reports conflicts/uninspectable
++key structures. See PROMOTION_KEY_PREFLIGHT.md and SK_COMPATIBILITY.json.
+ 
+-## Fixture safeguards
++## Verification
+ 
+-Two fresh loopback-only synthetic clusters under the turn's temporary directory,
+-fixed database/user/port allowlist, verified data_directory and empty schema before
+-45 existing migrations. First run passed; fresh second fixture reran stronger retry
+-acknowledgement assertions. Both stopped and retained; no live database or .env used.
+-Previous S0c/S0d/BE clusters remain historically recorded stopped/retained, not freshly
+-process-verified. The stopped S0c cleanup policy block was not retried or bypassed.
+-No dependencies installed, credentials changed, commit/push or deployment.
++- Before-fix Go authoring/runtime and POS regressions reproduced semantic overlap
++  acceptance, first-slot bundle acceptance and reward creation. Initial POS fixture
++  masked BXGY with an empty catalog; the corrected fixture reproduced both failures
++  before implementation. Exact initial tests/diff and output are included.
++- Final **241 POS tests,19 Backoffice tests,33 sync tests**, app/test typechecks,
++  affected Go packages pass. Existing tiered, identity and linked-fulfillment vectors
++  remain green; original queue fixture is byte-preserved.
++- **47 isolated PostgreSQL leaf scenarios pass:**22 real Create/Update vectors,
++  eight existing valid direct/batch fulfillment cases, eight invalid online422
++  cases with unchanged business rows, eight captured-offline cases retaining
++  price1234/qty1 plus paid qty1/total101234, and one read-only diagnostic.
++- Offline captures retain review warnings and raw code, decrement the two physical
++  units once, create no validated invalid grant, and preserve effects on original-key
++  retry. New valid distinct-variant selections preserve direct/code pricing and
++  metadata. Parked legacy queue identity/payload/time/attempt/error remains byte-equal.
++- The actual preflight executable reports two deliberately seeded invalid rows
++  among14, including one inactive (expected exit1). Missing target gives exit2.
++- Backoffice's real Save button was server-rendered with a test-controlled final
++  wizard step; this is not browser gesture qualification. Authoring callback wiring
++  was source-reviewed. POS uses real pure planner/reducer/pricing/queue modules.
+ 
+-## Tracker delta
++SK_VERIFICATION.json contains actual commands/cwd/exits/output and all test failures
++and corrections. SK_VALIDATION_MATRIX.md details each requirement and layer. The
++first DB run used an incorrect machine-code assertion against the existing localized
++HTTP error; corrected tests passed on a fresh second cluster. Temporary Unicode
++comment corruption from Windows decoding was restored from entry evidence; final
++Go checks reran. No application envelope or unrelated behavior was changed to pass.
+ 
+-Only detailed **A23** changes, plus shared E17/E18 evidence and its index row.
+-All44 IDs and priorities remain: 8 P0 / 32 P1 / 3 P2 / 1 P3. All original P0 parents
+-A01/A02/A03/A04/A06/A09/A11/A13 remain open; their dispositions are unchanged.
+-A23/T21 remains open. A43/T25, A29 resource safety and every release gate remain open.
+-Existing policies, explicit legacy unknowns, Q08 stock warning/override and approved
+-S0a/S0b/S0c/S0d/mapper/LP05 work are preserved. New overclaim guard checks cart-owned
+-units; it does not prohibit permitted stock-shortage sales. Sanitized Q08 excerpts
+-and complete tracker/reconciliation evidence included as context.
++## Compatibility, safeguards and residuals
+ 
+-## Q-LF-01 — overlapping bundle slots, non-blocking for this containment
++Structured repository fixture scan:10 JSON files,2 mechanics objects, no overlap.
++Three preexisting intentional negative fixtures use exact overlapping keys; they
++remain. Targeted source inspection found no positive fixture relying on semantic
++overlap, but does not prove arbitrary generated rules are absent. No live or staging
++promotion rows were queried. Two synthetic invalid rows are test evidence only.
+ 
+-Evidence: computeBundleFreed constructs an eligible pool independently for each
+-slot. With one paid buy/M unit, two slots each requiring that same key and bundle
+-price0, it emits one freed group of quantity2. The first new execution implementation
+-would commit two physical units. A regression reproduced it; the final commit guard
+-rejects that impossible freed set without installing code/direct owner or moving
+-goods. Stale-picker substitution is independently contained. Allocator and backend
+-overlap behavior remain unchanged and are not qualified by the eight DB fixtures.
++Two new allowlisted loopback PostgreSQL18.3 clusters verified empty schema and
++data_directory before45 unchanged migrations. Both stopped/retained. The previously
++blocked S0c cleanup was not retried or bypassed. No dependencies installed, live data,
++credentials/provider changes, migration development, commit/push or deployment.
+ 
+-Options: A) define globally disjoint consumed units across slots and share the
+-allocation contract/vectors across Go and TS; B) reject overlapping rule definitions
+-at configuration time, with explicit treatment of already published rules. Recommend
+-A as the target, beginning with a bounded design/fixture pass that establishes
+-actual rule reachability and compatibility. B changes accepted catalog capability
+-and must not be silently imposed. No A29 resource rewrite or historical repricing
+-is implied by either direction.
++No browser/native E2E, storage power-loss, concurrency/Redis, exhaustive malformed-
++config/catalog validation or release claim. Full captured-quote/receipt parity and
++other invalid BXGY line retention remain open. No A29 compression or loyalty work.
+ 
+-Requested ChatGPT review: assess the linked-fulfillment diff/evidence and the
+-overlap contract recommendation. Concrete next work: trace enabled rule shapes,
+-specify disjoint-consumption/cancellation/replay vectors, and then implement only
+-the reviewed allocator direction. Browser/native picker qualification remains a
+-separate verification task. No generic phase-authorization request is needed.
++Only detailed A23 status changes, plus E19/E20/index. All44 findings and priorities
++remain8 P0/32 P1/3 P2/1 P3. Original P0 parents A01/A02/A03/A04/A06/A09/A11/A13,
++A23/T21, A43/T25 and every release gate remain open. Business decisions and Q08
++stock warning/override are preserved.
++
++## Review and concrete next work
++
++Requested ChatGPT review: E20 semantic contract, boundary coverage and the narrow
++offline BXGY captured-fact branch. No new consequential business choice is needed
++for this slice; the explicit disjoint-domain direction was confirmed by source.
++Next bounded work is a target-specific read-only staging/catalog preflight and
++browser/native qualification of authoring and physical picker flows. Any discovered
++legacy config remediation needs a concrete evidence-based handling decision; do not
++silently repair historical rows or implement the superseded allocator proposal.
+ 
+ ## Delivery
+ 
+-One current `A23-LINKED-FULFILLMENT-20260920-01_REVIEW_BUNDLE.zip` contains exact
+-incremental source/docs diffs, entry and edge regressions, all changed/new source
+-and tests, before/after images, actual commands/results/limits, shared queue/SQL
+-fixtures, conservation matrix, full tracker, incoming review and SHA-256 manifest.
+-LF_ARTIFACT_CHECKS.json records preservation, diff replay and archive checks.
+-Diffs target this turn's entry snapshot, not bare HEAD. SESSION's new current
+-prefix is included; its historical suffix stays byte-preserved locally and is
+-omitted from the archive. Earlier identified review ZIPs/logs remain unchanged.
++One current `A23-SEMANTIC-KEYS-20260921-01_REVIEW_BUNDLE.zip`: exact incremental
++implementation/documentation/before-fix diffs; changed/new source/tests; before and
++after images; shared contract and queue fixtures; command outputs/limits; full
++tracker/reconciliation/Q08 context; compatibility/preflight results; SHA256 manifest.
++Diffs apply to this turn's entry snapshot, not bare HEAD. SESSION's new prefix is
++included, historical suffix byte-preserved locally and omitted from the ZIP. Earlier
++identified review ZIPs/logs are immutable. SK_ARTIFACT_CHECKS.json records patch
++replay, preservation, coverage and archive checks. This is local self-review, not
++invented independent agent or ChatGPT acceptance of E20.
+diff --git a/docs/SK_VALIDATION_MATRIX.md b/docs/SK_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/SK_VALIDATION_MATRIX.md
+@@ -0,0 +1,95 @@
++# Semantic promotion keys — A23-SEMANTIC-KEYS-20260921-01
++
++Authority: AUTH-MANDALIKA-20260919-01; owner's 2026-09-21 relay accepts linked
++fulfillment within evidence and directs semantic disjoint-key validation. No new
++reply file/ID was supplied. E19 acceptance / E20 local implementation are distinct.
++
++## Contract and source trace
++
++- Bundle design: docs/superpowers/specs/2026-07-02-promo-sp3b-bundle-design.md,
++  decisions9, sections2/3: save-time disjoint slots justify independent counts.
++- BXGY design: 2026-06-22-promo-sp3b-buy-x-get-y-design.md, decisions2/7 and
++  validation: disjoint explicit buy/get sets, composite keys, empty-get same-set.
++- ProductVariantPicker.tsx explicitly gives whole-product selection all variants
++  and clears its variant selections; a variant selection clears whole-product.
++- Before-fix write.validateBundle and validateBXGY compared raw strings; both
++  CreatePromotion/UpdatePromotion already called these before opening a transaction.
++- Service bundleSlotIndex assigned the first matching slot; bundleFreedNets now
++  rejects an overlapping config before that assumption is used. No new allocator.
++- Shared TS package/types and Go internal/promotionkeys implement one contract,
++  checked against the same twelve JSON vectors. Case-sensitive, no normalization.
++
++| Required behavior | Actual evidence |
++|---|---|
++| P/P and P\|M/P\|M reject | Shared vectors; Go write tests and real database Create/Update; POS both owner/action paths |
++| P/P\|M and reverse reject | Before-fix Go authoring/runtime and POS failures; shared vectors; DB both orientations |
++| P\|M/P\|L and distinct products stay valid | Shared vectors, actual Create/Update, POS bundle/BXGY physical execution and code metadata |
++| Backoffice rejects before save | Real shared authoring guard; actual modal Save button server-rendered with final wizard step selected; callback checks again before API |
++| Backend independently rejects create/update | Real Repo methods, nil-pool no-dispatch guards and isolated PostgreSQL row/content-version snapshots |
++| POS direct/code legacy invalid rule is inert | Real planner/APPLY_FULFILLMENT plus legacy APPLY_PROMOTION/APPLY_PROMO_CODE/APPLY_BUNDLE; same state/cart, no owner/usage intent |
++| Client impossible-move guard retained | Entry guard block byte-equivalent; existing negative regression retained; no allocator expansion |
++| Backend invalid bundle fails before first-slot resolution | Pure bundleApplications and bundleFreedNets regression; online direct HTTP422 through real auth/service/SQL |
++| Online no new money/stock/grant/code/key effects | Eight cases: bundle/BXGY x direct/code selection x key orientation; eight complete business-table snapshots unchanged |
++| Captured offline facts preserved | Eight batch cases: original reward price1234, qty1 plus paid qty1, total/paid101234, two stock units, warning, raw code provenance, original-key retry unchanged |
++| Offline invalid semantic BXGY reward is not dropped | New narrow resolver branch; reward_invalid warning, original price/subtotal/quantity retained, no validated grant |
++| One code use; no invalid grant | Offline code-owned capture increments usage once; direct increments zero; invalid mechanics create zero validated grants; retries preserve all rows |
++| BXGY whole/variant cross-set overlap rejects | Same shared vectors and both authoring/execution layers; exact overlap remains rejected |
++| Same-set / empty-buy complement remain valid | Go/TS shared vectors, existing pricing/reward tests, actual DB authoring vectors |
++| Existing valid physical fulfillment remains green | All earlier LF tests, unchanged shared queue fixture and eight real DB direct/batch x direct/code x bundle/BXGY cases |
++| Queued historical evidence unchanged | Same successful KV reconstructed parked legacy operation byte-equal; all33 existing sync tests; sync source unchanged |
++| Stored-config release diagnostic read-only | READ ONLY/REPEATABLE READ scan, before/after DB equality; actual executable flags active+inactive deliberately invalid rows |
++| Repository compatibility inventory | SK_COMPATIBILITY.json: ten entry JSON files, two mechanics objects, no overlaps; three known intentional negative source fixtures; dynamic/source-search limits explicit |
++
++The Backoffice form test changes only the initial wizard step through a React hook
++mock; validators and rendered Save button are real. It is not a browser-click or
++native-device test. The page's secondary save callback is source-traced, not a
++browser/API integration test. Backend authoring tests invoke real Repo methods;
++sale tests invoke real authenticated HTTP handlers and PostgreSQL.
++
++Direct HTTP creates online commands; batch hardcodes offline origin in current
++source. Tests retain that trusted route mapping, not a payload-controlled origin.
++The eight tables compared are orders, order_items, outlet_variant_stock,
++product_variants, discount_codes, promo_reward_grants, point_transactions and
++processed_keys. Authoring also compares promotions and content_versions.
++
++## Commands, failures and final results
++
++SK_VERIFICATION.json preserves exact cwd/commands/tool exits/output and session
++completion. Initial Go regressions fail both semantic directions and unsafe
++runtime counts/first-slot acceptance. Initial POS run had an empty catalog masking
++BXGY; after correcting that fixture both bundle/BXGY cases failed before code edits.
++The recorded second before-fix POS output is tool-truncated, explicitly retained.
++
++Final: POS241/241 (13 files), Backoffice19/19 (3), sync33/33 (10), both app typechecks,
++explicit new-test types, affected Go packages pass. The database harness passes47
++leaf scenarios:22 authoring,8 prior valid,8 online invalid,8 offline captured,1 scan.
++No individual tests were removed to obtain green results. Old opt-in DB suites skip
++in the ordinary Go run; their historical isolated runs are not current verification.
++
++Intermediate test corrections: shared fixture path was one directory too high;
++pricing fixture needed loyalty fields; parked counts are dead-letter counts, not
++automatic pending counts; linked fixture needed isBOGO; HTTP assertion needed the
++existing localized error message rather than an absent machine code. First DB run
++failed that message assertion; final run used a fresh empty cluster. None required
++changing the application error envelope. Local encoding review restored original
++Unicode comments after a Windows-default decoding error; final source was checked
++against entry and affected Go tests rerun. No incidental encoding changes remain.
++
++Preflight executable exits1 when it finds the two seeded overlaps (expected),2 for
++missing explicit target (expected). The first PowerShell no-target invocation
++reported wrapper1; a follow-up propagated $LASTEXITCODE and verified native2.
++
++## Safeguards and limits
++
++Installed PostgreSQL18.3 only; same allowlisted synthetic database/user and loopback
++port56442, new task-specific directories, checked data_directory and empty public
++schema before45 unchanged migrations. Both new clusters stopped/retained. Previously
++blocked S0c cleanup was not attempted; prior clusters were not touched. No live DB,
++.env, installs, migration edits, credentials/provider changes, commit/push/deploy.
++
++No live/staging legacy-row inventory, browser/native gestures, power-loss durability,
++concurrency/Redis, exhaustive malformed-config validation or release qualification.
++Preflight checks semantic overlap and uninspectable key structures, not every
++catalog/schema/money invariant. Other missing/invalid BXGY offline line-drop paths
++remain outside this new semantic-overlap branch and require separate review.
++A23/T21, A10 quote/receipt work, A29 resource safety and all release gates stay open.
+diff --git a/docs/PROMOTION_KEY_PREFLIGHT.md b/docs/PROMOTION_KEY_PREFLIGHT.md
+new file mode 100644
+--- /dev/null
++++ b/docs/PROMOTION_KEY_PREFLIGHT.md
+@@ -0,0 +1,34 @@
++# Read-only promotion key preflight
++
++Introduced by A23-SEMANTIC-KEYS-20260921-01. This diagnoses the existing disjoint
++bundle-slot / explicit BXGY buy-get contract; it does not migrate or repair data.
++
++Use installed Go tooling from `backend` to build `./cmd/promotion-key-preflight`.
++Set `PROMOTION_PREFLIGHT_DSN` explicitly to the reviewed target through the normal
++secret-handling mechanism, preferably using a database role with SELECT access.
++Run the compiled executable and retain its JSON output with target/date/HEAD evidence.
++Do not put a password in a review packet. No .env, default target, migration or write
++path is used. A 30-second context bounds the scan, in a READ ONLY / REPEATABLE READ
++transaction. All bundle/BXGY rows are read, including inactive rules.
++
++Exit codes: **0** = no findings in this overlap check; **1** = findings requiring
++review; **2** = unavailable/incomplete scan or output failure. In PowerShell, propagate
++the native status with `exit $LASTEXITCODE` when recording the command's exit code.
++An unsuccessful scan is never evidence of a clean catalog.
++
++Each finding contains promotion ID/type/active state, zero-based group indices and
++the two conflicting keys. Bundle groups are slot indices; BXGY group0 is buy and
++group1 is get. `uninspectable_config` means the key structure could not be read.
++Key comparison is exact and case-sensitive. `P` covers all P variants; `P|M` and
++`P|L` are disjoint. Same-slot alternatives form a union. Empty BXGY get means
++same-set; empty buy means the complement of get. No normalization or catalog lookup.
++
++This is not a complete schema, money, quantity, catalog-existence or release check.
++Zero overlap findings do not close A23/T21. Review flagged configurations explicitly;
++do not automatically rewrite old promotion rows, historical sales or outbox payloads.
++
++Current verification used only a fresh isolated synthetic PostgreSQL18.3 fixture:
++14 rows inspected; two deliberately seeded overlaps found, one inactive. Actual
++CLI output is in SK_PREFLIGHT_SYNTHETIC.json. Read-only before/after database
++snapshots were equal. No live/staging legacy-row inventory is claimed. Both new
++test clusters are stopped and retained; prior cleanup policy blocks remain untouched.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,127 @@
++# Current review packet — A23-SEMANTIC-KEYS-20260921-01
++
++Responds to the owner's 2026-09-21 relay of ChatGPT review of
++A23-LINKED-FULFILLMENT-20260920-01. No named new reply file or ID was provided;
++this message is the current decision source. Standing AUTH-MANDALIKA-20260919-01.
++Root `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`; branch `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`. Same worktree, earlier dirty work
++preserved, no branch/index/HEAD change or fresh remote verification.
++
++## Disposition and resolved direction
++
++**E19: linked bundle/BXGY fulfillment scoped ChatGPT accepted** within its supplied
++evidence limits, as relayed by the owner. Earlier mapper/LP05/S0a–S0d acceptances
++remain. A23/T21 and all release gates stay open.
++
++**Q-LF-01: resolved as semantic validation of an existing disjoint domain.** The
++original bundle design explicitly rejects overlapping slots, and service counting /
++first-slot assignment assumes that. BXGY explicitly requires disjoint buy/get sets.
++ProductVariantPicker already defines P as every variant and P|size as exactly one.
++The old raw-string checks missed P versus P|M in either order. Distinct P|M/P|L
++and different products remain valid. No general overlapping-slot allocator is built.
++The previous allocator proposal is historical and superseded in active decisions.
++
++## E20 — implementation and behavior
++
++One shared TS semantic key contract serves Backoffice/POS; the Go equivalent serves
++write validation, runtime and diagnostic, using the same twelve checked-in vectors.
++Exact case-sensitive spelling is preserved, without normalization/catalog lookup.
++Within-slot alternatives stay union semantics; existing exact duplicate write checks
++are retained. Empty BXGY get stays same-set; empty buy stays the get-set complement.
++
++Backoffice disables Save with an actionable message and checks again before its
++API call. Backend CreatePromotion/UpdatePromotion independently reject semantic
++overlap before transaction/mutation. POS shared direct/code planner and legacy
++reducer entry points refuse invalid mechanics before owner/usage/physical changes.
++Reactive current-cart invalidation uses the same contract; historical queues are
++untouched. Existing impossible-move commit guard remains as defense in depth.
++
++Server bundle counting/resolution rejects invalid coverage before first-slot
++assignment; direct and linked online commands use existing bundle_invalid /
++reward_invalid rejection. Captured offline bundle lines retain existing warning /
++review semantics. A narrow BXGY semantic-overlap branch likewise keeps captured
++price/quantity instead of dropping the reward. No validated reward grant is invented;
++existing raw-code usage/provenance is recorded once for a captured code-owned sale.
++Other invalid/missing config paths remain outside this bounded correction.
++
++Read-only `cmd/promotion-key-preflight` scans active and inactive stored configs in
++a READ ONLY/REPEATABLE READ transaction, with explicit target and no .env/migration
++or auto-remediation. It reuses Go key semantics and reports conflicts/uninspectable
++key structures. See PROMOTION_KEY_PREFLIGHT.md and SK_COMPATIBILITY.json.
++
++## Verification
++
++- Before-fix Go authoring/runtime and POS regressions reproduced semantic overlap
++  acceptance, first-slot bundle acceptance and reward creation. Initial POS fixture
++  masked BXGY with an empty catalog; the corrected fixture reproduced both failures
++  before implementation. Exact initial tests/diff and output are included.
++- Final **241 POS tests,19 Backoffice tests,33 sync tests**, app/test typechecks,
++  affected Go packages pass. Existing tiered, identity and linked-fulfillment vectors
++  remain green; original queue fixture is byte-preserved.
++- **47 isolated PostgreSQL leaf scenarios pass:**22 real Create/Update vectors,
++  eight existing valid direct/batch fulfillment cases, eight invalid online422
++  cases with unchanged business rows, eight captured-offline cases retaining
++  price1234/qty1 plus paid qty1/total101234, and one read-only diagnostic.
++- Offline captures retain review warnings and raw code, decrement the two physical
++  units once, create no validated invalid grant, and preserve effects on original-key
++  retry. New valid distinct-variant selections preserve direct/code pricing and
++  metadata. Parked legacy queue identity/payload/time/attempt/error remains byte-equal.
++- The actual preflight executable reports two deliberately seeded invalid rows
++  among14, including one inactive (expected exit1). Missing target gives exit2.
++- Backoffice's real Save button was server-rendered with a test-controlled final
++  wizard step; this is not browser gesture qualification. Authoring callback wiring
++  was source-reviewed. POS uses real pure planner/reducer/pricing/queue modules.
++
++SK_VERIFICATION.json contains actual commands/cwd/exits/output and all test failures
++and corrections. SK_VALIDATION_MATRIX.md details each requirement and layer. The
++first DB run used an incorrect machine-code assertion against the existing localized
++HTTP error; corrected tests passed on a fresh second cluster. Temporary Unicode
++comment corruption from Windows decoding was restored from entry evidence; final
++Go checks reran. No application envelope or unrelated behavior was changed to pass.
++
++## Compatibility, safeguards and residuals
++
++Structured repository fixture scan:10 JSON files,2 mechanics objects, no overlap.
++Three preexisting intentional negative fixtures use exact overlapping keys; they
++remain. Targeted source inspection found no positive fixture relying on semantic
++overlap, but does not prove arbitrary generated rules are absent. No live or staging
++promotion rows were queried. Two synthetic invalid rows are test evidence only.
++
++Two new allowlisted loopback PostgreSQL18.3 clusters verified empty schema and
++data_directory before45 unchanged migrations. Both stopped/retained. The previously
++blocked S0c cleanup was not retried or bypassed. No dependencies installed, live data,
++credentials/provider changes, migration development, commit/push or deployment.
++
++No browser/native E2E, storage power-loss, concurrency/Redis, exhaustive malformed-
++config/catalog validation or release claim. Full captured-quote/receipt parity and
++other invalid BXGY line retention remain open. No A29 compression or loyalty work.
++
++Only detailed A23 status changes, plus E19/E20/index. All44 findings and priorities
++remain8 P0/32 P1/3 P2/1 P3. Original P0 parents A01/A02/A03/A04/A06/A09/A11/A13,
++A23/T21, A43/T25 and every release gate remain open. Business decisions and Q08
++stock warning/override are preserved.
++
++## Review and concrete next work
++
++Requested ChatGPT review: E20 semantic contract, boundary coverage and the narrow
++offline BXGY captured-fact branch. No new consequential business choice is needed
++for this slice; the explicit disjoint-domain direction was confirmed by source.
++Next bounded work is a target-specific read-only staging/catalog preflight and
++browser/native qualification of authoring and physical picker flows. Any discovered
++legacy config remediation needs a concrete evidence-based handling decision; do not
++silently repair historical rows or implement the superseded allocator proposal.
++
++## Delivery
++
++One current `A23-SEMANTIC-KEYS-20260921-01_REVIEW_BUNDLE.zip`: exact incremental
++implementation/documentation/before-fix diffs; changed/new source/tests; before and
++after images; shared contract and queue fixtures; command outputs/limits; full
++tracker/reconciliation/Q08 context; compatibility/preflight results; SHA256 manifest.
++Diffs apply to this turn's entry snapshot, not bare HEAD. SESSION's new prefix is
++included, historical suffix byte-preserved locally and omitted from the ZIP. Earlier
++identified review ZIPs/logs are immutable. SK_ARTIFACT_CHECKS.json records patch
++replay, preservation, coverage and archive checks. This is local self-review, not
++invented independent agent or ChatGPT acceptance of E20.
++
++---
++

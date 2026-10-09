@@ -1,0 +1,236 @@
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -2,8 +2,9 @@
+ 
+ Preserve existing user/global working agreements and local changes.
+ For production readiness, read `MASTER_AUDIT_HANDOFF.md`, the latest section of
+-`SESSION_HANDOFF.md`, and `docs/PRODUCTION_READINESS_PLAN.md`.
+-`docs/AUDIT_COVERAGE_TRACKER.md` is the sole current A01–A44 status tracker.
++`SESSION_HANDOFF.md` when present locally, and `docs/PRODUCTION_READINESS_PLAN.md`.
++The session handoff/review inbox are local relay material, excluded from Git snapshots.
++`docs/AUDIT_COVERAGE_TRACKER.md` is the sole current A01â€“A44 status tracker.
+ 
+ Apply `CHATGPT_CODEX_WORKFLOW.md` to all findings and consequential questions,
+ using the master's full-audit scope rather than the narrower bootstrap prompt.
+@@ -15,7 +16,7 @@
+ are not current authority or verification. No automatic communication bridge.
+ 
+ Standing authority: follow `docs/PROGRAMME_EXECUTION_AUTHORITY.md`
+-(AUTH-MANDALIKA-20260919-01) for the full A01–A44 programme. Do not ask
++(AUTH-MANDALIKA-20260919-01) for the full A01â€“A44 programme. Do not ask
+ for repeated phase/slice execution approval. Apply the ChatGPT review /
+ Codex execution workflow; escalate genuine unresolved decisions with evidence.
+ Preserve business invariants, local work and release verification gates.
+--- a/README.md
++++ b/README.md
+@@ -1,9 +1,9 @@
+-# Mandalika POS — development and production-readiness planning
++# Mandalika POS â€” development and production-readiness planning
+ 
+ This project is in development/polishing, not declared production-ready.
+ Start with [MASTER_AUDIT_HANDOFF.md](MASTER_AUDIT_HANDOFF.md), the current
+-[session handoff](SESSION_HANDOFF.md), [readiness plan](docs/PRODUCTION_READINESS_PLAN.md)
+-and [canonical A01–A44 tracker](docs/AUDIT_COVERAGE_TRACKER.md).
++[readiness plan](docs/PRODUCTION_READINESS_PLAN.md)
++and [canonical A01â€“A44 tracker](docs/AUDIT_COVERAGE_TRACKER.md).
+ Use [CHATGPT_CODEX_WORKFLOW.md](CHATGPT_CODEX_WORKFLOW.md) for review/execution.
+ Legacy deployment notes and phase completion claims are historical evidence;
+ they do not close current audit findings or grant deployment authority.
+@@ -26,8 +26,8 @@
+ checks after installation; `quality:ci` is the canonical fresh-checkout entry point.
+ 
+ `.github/workflows/quality.yml` runs on PRs/pushes and is reused by Android release.
+-Signing waits for that gate at the same caller SHA; no signing secrets are passed
+-to quality. React Doctor remains separate and advisory. This baseline does not run
++Signing waits for quality, backend, PostgreSQL and browser gates at the same
++caller SHA; no signing secrets are forwarded to these jobs. React Doctor remains separate and advisory. This baseline does not run
+ opt-in PostgreSQL or browser scenarios, qualify native/OTA artifacts, configure
+ branch protection or close the wider production-release gates. See the canonical
+ A34 tracker entry for remaining work.
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,14 +1,41 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; A34b scoped acceptance and A34c hosted browser CI added 2026-09-21 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; A34c scoped acceptance and A34d hosted snapshot preparation added 2026-09-22 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+-Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
++Current verification branch `audit/hosted-proof-20260922`; hosted source HEAD `e782c5dfbf3eedefb5d655f6726590dfbea5bf87`.
++Original reconciliation base: `prod-hardening`, `4691c781842f0114acaf2e4371e0d11f0076f553`.
++The post-proof reporting edits are local after-images, not additional hosted source changes.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+ This is the **only current finding-status tracker**; findings.json is immutable
+ historical input, not a competing live tracker. Plan/draft contain requirements;
+-SESSION_HANDOFF.md carries the current review packet.
++The local-only SESSION_HANDOFF.md and docs/AUDIT_REVIEW_PACKET.md carry the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E37: A34D-HOSTED-PROOF-20260922-01 establishes actual Ubuntu hosted proof on complete source
++commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87`, tree `831e7af08fafbb8f1d420d4bac0e94fbe9313e72`.
++All four push workflows passed on that same SHA: quality 35699002536, backend
++35699002529, postgres 35699002539, browser 35699002524. Node 22/frozen-lockfile
++quality passes 347 tests (one existing optional DB-response replay skip), all
++source/test typechecks, production bundles and generated TS drift. Backend passes
++gen/vet/gofmt/build/go test ./... -race. Default Docker PostgreSQL 18.3 passes all
++six named gates, 142 parent/subtest PASS events, zero skips, verified target/data
++directory/empty schemas and confirmed cleanup. Pinned Chromium passes 26/26,
++zero skips, zero unexpected network requests, confirmed process/port cleanup.
++Initial backend run 35698564930 failed gofmt; four formatting-only corrections
++were locally tested, explicitly staged and normally committed/pushed. Earlier run
++IDs and logs remain evidence. No test/guard/race/network/cleanup weakening.
++E36 A34c acceptance remains scoped; A34d hosted proof now awaits ChatGPT review.
++Full A34/T29 and every release gate remain open. No deployment/release dispatch.
++See A34D_VERIFICATION.json and A34D_HOSTED_SUMMARY.json.
++
++E36: CG-A34C-BROWSER-CI-20260922-01-R1 scoped-accepts E35 A34c as implemented
++and locally verified. Review checked144 payloads/18 replayed files and registry
++structure, without rerunning Chromium/Actions. A34a/b prior acceptances remain.
++Hosted Ubuntu/Node22 proof pending; full A34/T29 and release gates open. Counts:
++44 findings,1 resolved parent(A31),0/8 P0 parents,0 gates,16 scoped milestones
++across10 findings. A34d now prepares an explicitly staged complete source snapshot
++for audit/hosted-proof-20260922 under AUTH-MANDALIKA-20260919-01.
+ 
+ E35: A34C-BROWSER-CI-20260921-01 adds ordinary pinned Playwright tests and a
+ mandatory reusable browser workflow. Registry26/26 pass, zero skips; seven actual
+@@ -867,14 +894,14 @@
+ ### A34 — CI does not enforce the full financial and client reliability baseline
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
+-- **Current disposition:** E32 A34a accepted; E34 A34b scoped accepted as implemented/locally verified, hosted Docker/race pending. E35 A34c implemented/locally verified, ChatGPT and hosted proof pending. Full A34/T29 open.
+-- **Current evidence:** E31/E33 artifacts preserved. E35 adds browser.yml, pinned Playwright1.63.0/Chromium1243, ordinary tests/browser tests/registry/reporter and scripts/ci/browser-gate.mjs. A34C_CLEAN_RUN.json, A34C_NEGATIVE_GATES.json, A34C_SCENARIO_INVENTORY.json and A34C_VERIFICATION.json report actual results and boundaries.
+-- **Authority / decision:** CG-A34B-POSTGRES-CI-20260921-01-R1 and owner instruction under AUTH-MANDALIKA-20260919-01. Preserve accepted behavior, guards and all existing policy; no provider/live/signing credentials in quality jobs.
++- **Current disposition:** A34a/b/c remain scoped ChatGPT accepted. E37 supplies actual four-workflow Ubuntu proof for the complete final source SHA; A34d review pending. Full A34/T29 open.
++- **Current evidence:** E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
++- **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
+ - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
+ - **Dependencies / slice:** A01,A11,A35 remain broader prerequisites. Android signing needs quality/database/backend/browser, all checking caller SHA. Existing quality/PostgreSQL/backend/React Doctor workflows unchanged; JS package gate additionally typechecks browser tests.
+ - **Required result:** All26 registered browser scenarios discovered/executed/PASS exactly once with no skip/fixme/focused test. Synthetic loopback-only strict servers, default external denial, bounded startup/tests/processes, confirmed owned cleanup and synthetic-only failure artifacts. Existing six named PG guards/mandatory runner preserved.
+ - **Acceptance:** A34c24 review scenarios mapped in A34C_VALIDATION_MATRIX.md. Final browser26/26 zero skips,7/7 negative proofs, confirmed process/port cleanup and external request interception. JS quality347 PASS,1 existing optional PostgreSQL response-replay SKIP; source/test types, both production builds and TS schema drift pass. No production business change; real hook harness gains optional single-case selector only.
+-- **Execution / residual risk:** Local Windows Node24/Chromium proof is not hosted Ubuntu Node22 proof. A34b hosted Docker/race pending. A13/A42 true DB concurrency absent. Reviewed complete source snapshot/hosted run, dependency/SBOM/license/advisory, secret scanning, full APK/OTA provenance/debug and branch protection remain open. Native Android/hardware/provider scenarios intentionally manual/separate. No signing, deployment, commit/push or release closure. Historical stopped DB/cache cleanup unchanged and not bypassed.
++- **Execution / residual risk:** Hosted source proof now supplied by E37; no full A34 or release closure. A13/A42 genuine business DB concurrency, dependency/SBOM/license/advisory gates, A37 secret scanning/history exposure, branch protection/required statuses and A35 APK/OTA provenance remain open. Native Android/hardware/provider qualification remains separate. The optional BO DB-response replay and other opt-in/manual checks retain their disclosed limits. Historical stopped DB/cache cleanup remains local, excluded and not bypassed. Post-proof reporting after-images are uncommitted and do not change the verified executable SHA.
+ 
+ ### A35 — OTA and native release gates do not yet protect a financial-journal migration
+ 
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -626,3 +626,43 @@
+ standing authority with release safeguards; do not push an incomplete HEAD-only
+ subset or interpret a green synthetic gate as release approval. Genuine A13/A42
+ business-concurrency design/verification stays a separate bounded task.
++
++
++### Current continuation — A34D-HOSTED-PROOF-20260922-01
++
++E36 records scoped acceptance of A34c by CG-A34C-BROWSER-CI-20260922-01-R1:
++16 accepted bounded milestones across10 findings, A31 alone resolved, all44
++findings and original8 P0 parents retained; all release gates remain open.
++A34a/b/c hosted proof is pending until all four workflows pass on one final SHA.
++A34d prepares audit/hosted-proof-20260922 using an explicit reviewed allowlist,
++staged SHA256/tree manifest and staged-text scan. Sensitive/local settings and
++review relay/evidence are excluded and retained locally; no history rewrite.
++Known external integrations receive branch-scoped deployment safeguards while
++quality/backend/PostgreSQL/browser remain mandatory. No release dispatch/OTA,
++live data or credential operations belong to this checkpoint. A13/A42 actual
++business concurrency, dependency/security/status/provenance gates remain open.
++
++## A34d hosted proof — A34D-HOSTED-PROOF-20260922-01
++
++The explicitly staged complete programme snapshot is published on
++`audit/hosted-proof-20260922`. Final source commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87` passes quality,
++backend, postgres and browser on the same SHA. The initial gofmt failure is
++preserved; its correction changes formatting only. Hosted proof covers the
++accepted Node 22/frozen-lockfile quality definition, the backend gen/vet/fmt/build/
++race baseline, six Docker PostgreSQL 18.3 fixtures (142 PASS events, zero skips),
++and pinned Chromium (26/26, zero skips, clean network and cleanup).
++
++A34c scoped ChatGPT acceptance is recorded in canonical tracker E36. A34d E37
++awaits review; it does not close A34/T29 or any release gate. A13/A42 true business
++concurrency, dependencies/SBOM/license/advisories, A37 secret scanning, required
++statuses and A35 APK/OTA provenance remain separate work. No signing, deployment,
++live-data or credential operation occurred. The historical stopped DB/cache
++cleanup remains untouched. Post-proof documentation is a local review after-image,
++not another source revision claimed tested by these runs.
++
++Next bounded proposal: A34e dependency/security baseline inventory and a pinned
++SBOM/license/advisory gate design using this complete source SHA. Keep A37 secret
++scanning and A13/A42 concurrency as explicit workstreams; do not silently treat
++generic Go race mode as business concurrency coverage. Consequential policy to
++review: advisory severity/reachability thresholds, acceptable licence policy and
++exception ownership/expiry; investigate the current evidence before enforcement.
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -1502,3 +1502,43 @@
+ standing authority with release safeguards; do not push an incomplete HEAD-only
+ subset or interpret a green synthetic gate as release approval. Genuine A13/A42
+ business-concurrency design/verification stays a separate bounded task.
++
++
++### Current continuation — A34D-HOSTED-PROOF-20260922-01
++
++E36 records scoped acceptance of A34c by CG-A34C-BROWSER-CI-20260922-01-R1:
++16 accepted bounded milestones across10 findings, A31 alone resolved, all44
++findings and original8 P0 parents retained; all release gates remain open.
++A34a/b/c hosted proof is pending until all four workflows pass on one final SHA.
++A34d prepares audit/hosted-proof-20260922 using an explicit reviewed allowlist,
++staged SHA256/tree manifest and staged-text scan. Sensitive/local settings and
++review relay/evidence are excluded and retained locally; no history rewrite.
++Known external integrations receive branch-scoped deployment safeguards while
++quality/backend/PostgreSQL/browser remain mandatory. No release dispatch/OTA,
++live data or credential operations belong to this checkpoint. A13/A42 actual
++business concurrency, dependency/security/status/provenance gates remain open.
++
++## A34d hosted proof — A34D-HOSTED-PROOF-20260922-01
++
++The explicitly staged complete programme snapshot is published on
++`audit/hosted-proof-20260922`. Final source commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87` passes quality,
++backend, postgres and browser on the same SHA. The initial gofmt failure is
++preserved; its correction changes formatting only. Hosted proof covers the
++accepted Node 22/frozen-lockfile quality definition, the backend gen/vet/fmt/build/
++race baseline, six Docker PostgreSQL 18.3 fixtures (142 PASS events, zero skips),
++and pinned Chromium (26/26, zero skips, clean network and cleanup).
++
++A34c scoped ChatGPT acceptance is recorded in canonical tracker E36. A34d E37
++awaits review; it does not close A34/T29 or any release gate. A13/A42 true business
++concurrency, dependencies/SBOM/license/advisories, A37 secret scanning, required
++statuses and A35 APK/OTA provenance remain separate work. No signing, deployment,
++live-data or credential operation occurred. The historical stopped DB/cache
++cleanup remains untouched. Post-proof documentation is a local review after-image,
++not another source revision claimed tested by these runs.
++
++Next bounded proposal: A34e dependency/security baseline inventory and a pinned
++SBOM/license/advisory gate design using this complete source SHA. Keep A37 secret
++scanning and A13/A42 concurrency as explicit workstreams; do not silently treat
++generic Go race mode as business concurrency coverage. Consequential policy to
++review: advisory severity/reachability thresholds, acceptable licence policy and
++exception ownership/expiry; investigate the current evidence before enforcement.
+--- a/docs/PROGRAMME_PROGRESS.md
++++ b/docs/PROGRAMME_PROGRESS.md
+@@ -0,0 +1,26 @@
++# Programme progress — 2026-09-22
++
++Status summary only; `AUDIT_COVERAGE_TRACKER.md` remains the sole A01–A44 tracker.
++Current packet: **A34D-HOSTED-PROOF-20260922-01**. Standing authority: AUTH-MANDALIKA-20260919-01.
++
++44 findings remain: 8 P0, 32 P1, 3 P2 and 1 P3. A31/T26 is the only resolved
++parent finding. Zero of eight P0 parents and zero release gates are closed.
++There are 16 scoped ChatGPT-accepted milestones across 10 findings, including
++A34c accepted as implemented/locally verified by CG-A34C-BROWSER-CI-20260922-01-R1.
++
++A34d complete-source hosted proof is now implemented and verified, awaiting
++ChatGPT review: commit `e782c5dfbf3eedefb5d655f6726590dfbea5bf87` on `audit/hosted-proof-20260922` passes all four
++required hosted workflows. PostgreSQL: six gates / 142 PASS events / zero skips /
++race enabled / verified cleanup. Browser: 26/26 / zero skips / clean network and
++processes. Quality: Node 22, frozen lockfile, 347 PASS plus one disclosed optional
++DB-response replay skip; all types/builds/schema pass. Backend: gen/vet/fmt/build/race
++pass after one documented formatting-only correction. Full A34/T29 stays open.
++
++Original business decisions, all prior scoped acceptances, A23/T21, A24/T22,
++A26/T23, A27/T24 and Q09/A28 limits remain unchanged. A13/A42 business concurrency,
++dependency/security gates, branch protection and APK/OTA provenance remain open.
++Historical stopped test-database/cache cleanup remains recorded and untouched.
++
++These post-proof reporting files are local uncommitted after-images. Hosted run
++claims apply to the exact source commit above. See AUDIT_REVIEW_PACKET.md for
++run links, staging provenance, limitations and the proposed next bounded work.

@@ -1,0 +1,881 @@
+{
+  "captured_before_edit": true,
+  "workspaces": [
+    {
+      "path": ".",
+      "name": "mandalika-pos",
+      "scripts": {
+        "build": "pnpm -r build",
+        "lint": "eslint .",
+        "dev:pos": "pnpm --filter @mandalika/pos dev",
+        "dev:backoffice": "pnpm --filter @mandalika/backoffice dev",
+        "doctor": "npx react-doctor@latest"
+      },
+      "tests": [],
+      "harnesses": [],
+      "tsconfig": {
+        "files": [],
+        "references": [
+          {
+            "path": "./apps/pos"
+          },
+          {
+            "path": "./apps/backoffice"
+          },
+          {
+            "path": "./packages/types"
+          },
+          {
+            "path": "./packages/api"
+          }
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "apps/backoffice",
+      "name": "@mandalika/backoffice",
+      "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "preview": "vite preview",
+        "test": "vitest run"
+      },
+      "tests": [
+        "apps/backoffice/src/screens/pagination.test.ts",
+        "apps/backoffice/src/screens/paginationPostgres.test.ts",
+        "apps/backoffice/src/screens/customers/mergeTypes.test.ts",
+        "apps/backoffice/src/screens/promotions/promotionKeyForm.test.ts",
+        "apps/backoffice/src/screens/promotions/promotionKeyValidation.test.ts"
+      ],
+      "harnesses": [
+        "apps/backoffice/tests/polling-harness.tsx"
+      ],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "useDefineForClassFields": true,
+          "lib": [
+            "ES2022",
+            "DOM",
+            "DOM.Iterable"
+          ],
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "jsx": "react-jsx",
+          "strict": true,
+          "noUnusedLocals": true,
+          "noUnusedParameters": true,
+          "noEmit": true,
+          "skipLibCheck": true,
+          "resolveJsonModule": true,
+          "isolatedModules": true
+        },
+        "include": [
+          "src"
+        ],
+        "exclude": [
+          "src/**/*.test.ts"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "apps/pos",
+      "name": "@mandalika/pos",
+      "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "test": "vitest run",
+        "preview": "vite preview",
+        "cap:sync": "cap sync",
+        "cap:add:android": "cap add android",
+        "cap:add:ios": "cap add ios",
+        "cap:open:android": "cap open android"
+      },
+      "tests": [
+        "apps/pos/src/cashier/applyPromoCode.test.ts",
+        "apps/pos/src/cashier/bundle.test.ts",
+        "apps/pos/src/cashier/guestSale.test.ts",
+        "apps/pos/src/cashier/linkedFulfillment.test.ts",
+        "apps/pos/src/cashier/linkedTierParity.test.ts",
+        "apps/pos/src/cashier/pricing.test.ts",
+        "apps/pos/src/cashier/promotionIdentity.test.ts",
+        "apps/pos/src/cashier/promoValidate.test.ts",
+        "apps/pos/src/cashier/recapData.test.ts",
+        "apps/pos/src/cashier/scan.test.ts",
+        "apps/pos/src/cashier/semanticPromotionKeys.test.ts",
+        "apps/pos/src/cashier/stock.test.ts",
+        "apps/pos/src/lib/failedSyncDiagnostics.test.ts",
+        "apps/pos/src/cashier/state/cashierReducer.test.ts",
+        "apps/pos/src/cashier/transfers/buildTandaTerimaData.test.ts"
+      ],
+      "harnesses": [
+        "apps/pos/tests/failed-diagnostics/main.tsx",
+        "apps/pos/tests/refund-permission/main.tsx"
+      ],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "useDefineForClassFields": true,
+          "lib": [
+            "ES2022",
+            "DOM",
+            "DOM.Iterable"
+          ],
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "jsx": "react-jsx",
+          "strict": true,
+          "noUnusedLocals": true,
+          "noUnusedParameters": true,
+          "noEmit": true,
+          "skipLibCheck": true,
+          "resolveJsonModule": true,
+          "isolatedModules": true
+        },
+        "include": [
+          "src",
+          "capacitor.config.ts"
+        ],
+        "exclude": [
+          "src/**/*.test.ts"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "packages/api",
+      "name": "@mandalika/api",
+      "scripts": {
+        "gen": "openapi-typescript ../../backend/api/openapi.yaml -o src/schema.d.ts"
+      },
+      "tests": [],
+      "harnesses": [],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "lib": [
+            "ES2022",
+            "DOM"
+          ],
+          "strict": true,
+          "noEmit": true,
+          "skipLibCheck": true
+        },
+        "include": [
+          "src"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "packages/printer",
+      "name": "@mandalika/printer",
+      "scripts": {
+        "test": "vitest run",
+        "typecheck": "tsc -p tsconfig.json"
+      },
+      "tests": [
+        "packages/printer/src/escpos.tanda-terima.test.ts",
+        "packages/printer/src/escpos.test.ts"
+      ],
+      "harnesses": [],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "lib": [
+            "ES2022",
+            "DOM"
+          ],
+          "strict": true,
+          "noEmit": true,
+          "skipLibCheck": true
+        },
+        "include": [
+          "src"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "packages/sync",
+      "name": "@mandalika/sync",
+      "scripts": {
+        "typecheck": "tsc -p tsconfig.json"
+      },
+      "tests": [
+        "packages/sync/src/engine.batch-envelope.test.ts",
+        "packages/sync/src/engine.failed-diagnostics.test.ts",
+        "packages/sync/src/engine.pendingStockDeltas.test.ts",
+        "packages/sync/src/engine.receive-accepted.test.ts",
+        "packages/sync/src/engine.refund-permission.test.ts",
+        "packages/sync/src/engine.sale-input.test.ts",
+        "packages/sync/src/engine.shift-decode.test.ts",
+        "packages/sync/src/lockout.test.ts",
+        "packages/sync/src/pendingCredits.test.ts",
+        "packages/sync/src/pin.test.ts"
+      ],
+      "harnesses": [],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "lib": [
+            "ES2022",
+            "DOM"
+          ],
+          "strict": true,
+          "noEmit": true,
+          "skipLibCheck": true
+        },
+        "include": [
+          "src"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    },
+    {
+      "path": "packages/types",
+      "name": "@mandalika/types",
+      "scripts": {},
+      "tests": [],
+      "harnesses": [],
+      "tsconfig": {
+        "compilerOptions": {
+          "target": "ES2022",
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "strict": true,
+          "declaration": true,
+          "noEmit": true,
+          "skipLibCheck": true
+        },
+        "include": [
+          "src"
+        ]
+      },
+      "existing_blocking_js_workflow": false
+    }
+  ],
+  "go_tests": [
+    {
+      "path": "backend/internal/auth/permissions_test.go",
+      "tests": [
+        "TestHasPermissionSnapshot"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/config/config_test.go",
+      "tests": [
+        "TestValidate"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/fsmigrate/fsmigrate_test.go",
+      "tests": [
+        "TestIDDeterministicAndDistinct",
+        "TestFKNilOnEmpty",
+        "TestNumCoercion",
+        "TestTimestampShapes",
+        "TestStrSliceAndJSONB",
+        "TestLoadParsesExport"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/batch_envelope_integration_test.go",
+      "tests": [
+        "TestBatchEnvelopePostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_BE_TEST_DSN",
+        "MANDALIKA_BE_TEST_DATA_DIR"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated envelope PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/batch_envelope_test.go",
+      "tests": [
+        "TestBatchEnvelopeRejectsBeforeDispatch",
+        "TestBatchEnvelopeCompatibility"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/guest_sale_integration_test.go",
+      "tests": [],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/linked_fulfillment_integration_test.go",
+      "tests": [
+        "TestLinkedFulfillmentPostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_LF_TEST_DSN",
+        "MANDALIKA_LF_TEST_DATA_DIR"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated linked-fulfillment PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/pagination_integration_test.go",
+      "tests": [
+        "TestPaginationPostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_A26_TEST_DSN",
+        "MANDALIKA_A26_TEST_DATA_DIR",
+        "MANDALIKA_A26_TEST_OUTPUT"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated A26 pagination PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/promo_message_test.go",
+      "tests": [
+        "TestDiscountRejectMessage"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/report_summary_integration_test.go",
+      "tests": [
+        "TestReportSummaryPostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_A27_TEST_DSN",
+        "MANDALIKA_A27_TEST_DATA_DIR",
+        "MANDALIKA_A27_TEST_OUTPUT"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated A27 pagination PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/sale_input_integration_test.go",
+      "tests": [
+        "TestSaleInputPostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_S0C_TEST_DSN",
+        "MANDALIKA_S0C_TEST_DATA_DIR"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/sale_input_test.go",
+      "tests": [
+        "TestDirectSaleDecodeAndSharedBoundary"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/semantic_promotion_keys_integration_test.go",
+      "tests": [],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/shift_decode_integration_test.go",
+      "tests": [
+        "TestShiftDecodePostgres"
+      ],
+      "explicit_env": [
+        "MANDALIKA_S0D_TEST_DSN",
+        "MANDALIKA_S0D_TEST_DATA_DIR"
+      ],
+      "skip_calls": [
+        "t.Skip(\"isolated S0d PostgreSQL fixture not configured\")"
+      ],
+      "ci": "opt-in/skipped without synthetic fixture"
+    },
+    {
+      "path": "backend/internal/handlers/shift_decode_test.go",
+      "tests": [
+        "TestShiftMalformedBodyRegression"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/handlers/sync_permission_test.go",
+      "tests": [
+        "TestSyncBatchAuthenticatedMapping",
+        "TestSyncBatchEmptyActiveOutletStillDenied"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/middleware/permissions_test.go",
+      "tests": [
+        "TestRequirePermissionPreservesOtherPermissionRules"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/ota/decide_test.go",
+      "tests": [
+        "TestDecide"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/promotionkeys/diagnostic_test.go",
+      "tests": [
+        "TestDiagnosticUsesSemanticContractWithoutEditing"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/promotionkeys/keys_test.go",
+      "tests": [
+        "TestSharedOverlapContract"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/read/reminders_test.go",
+      "tests": [
+        "TestMMDDWindow_BasicWeek",
+        "TestMMDDWindow_MonthRollover",
+        "TestMMDDWindow_YearEndWrap",
+        "TestMMDDWindow_LeapDayFoldedInNonLeapYear",
+        "TestMMDDWindow_LeapDayNaturalInLeapYear",
+        "TestMMDDWindow_ZeroDays",
+        "TestMMDDWindow_NegativeDaysClampedToZero"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/bundle_freed_test.go",
+      "tests": [
+        "TestBundleFreedNets_CleanCombo",
+        "TestBundleFreedNets_PartialFreedUnit",
+        "TestBundleFreedNets_AnchorAbsorbsOverflow",
+        "TestBundleFreedNets_FreedNotSlotEligible",
+        "TestBundleFreedNets_NoCompleteSet",
+        "TestBundleFreedNets_FreeExpensiveAnchorRejected",
+        "TestBundleFreedNets_TwoAtomizersChoosesCheapest",
+        "TestBundleFreedNets_PricierFreebieStandaloneExtra",
+        "TestBundleFreedNets_MultiUnitPricierAnchorStandaloneExtra",
+        "TestBundleFreedNets_Guards",
+        "TestBundleFreedNets_OverFreedSlotRejected"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/linked_tier_golden_test.go",
+      "tests": [
+        "TestLinkedTierGolden"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/loyalty_preview_test.go",
+      "tests": [
+        "TestContains"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/loyalty_test.go",
+      "tests": [
+        "TestEvaluate_NoConditions_ParityWithBase",
+        "TestEvaluate_SpendingThreshold_SetPoints",
+        "TestEvaluate_BestMultiplier_NoCompound",
+        "TestEvaluate_MultiplierThenFlatBonus",
+        "TestEvaluate_RewardValueZeroIgnored",
+        "TestEvaluate_Birthday_ExactMMDD",
+        "TestEvaluate_FirstRegistration_OnlyVisitZero",
+        "TestEvaluate_MemberDay_Weekday",
+        "TestEvaluate_ProductPurchase_Intersection",
+        "TestEvaluate_CampaignWindow_InclusiveEdges",
+        "TestEvaluate_InactiveSkipped",
+        "TestEvaluate_WIBMidnightBoundary",
+        "TestLoyaltyEarnReason",
+        "TestEvaluate_FractionalMultiplier",
+        "TestLoyaltyEarnReason_FlatBonusOnly",
+        "TestEvaluate_EarlyMorningWIBCampaignBoundary",
+        "TestProductRewards",
+        "TestProductPurchaseVariantEntries"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_helpers_test.go",
+      "tests": [
+        "TestParseMenu",
+        "TestRewardLineAllowed"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_input_test.go",
+      "tests": [
+        "TestSaleInputDomainsBeforeEffects",
+        "TestSaleInputWireRepresentation",
+        "TestSaleInputSupportedShapes",
+        "TestSaleInputDerivedArithmeticBeforeEffects",
+        "TestSaleInputPreservesKnownReceiptAndQ08Shortage",
+        "TestSaleInputNegativeAndZeroQuantityRegression"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_promo3b_test.go",
+      "tests": [
+        "TestParseBXGYConfig",
+        "TestParseBXGYConfigNullIsNil"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_promo3c_test.go",
+      "tests": [
+        "TestCombinedViolations",
+        "TestCombinedViolationsEmpty"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_reward_test.go",
+      "tests": [
+        "TestRewardLineEntitlement"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/order_tiered_test.go",
+      "tests": [
+        "TestParseTieredConfig",
+        "TestParseTieredConfigNullIsNil"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/pricing_test.go",
+      "tests": [
+        "TestComputeSubtotalOnly",
+        "TestComputeManualPercentageAndTax",
+        "TestComputeFixedDiscountCappedAtSubtotal",
+        "TestComputeRoundingNearest1000",
+        "TestComputePromoPercentageScopedToProducts",
+        "TestComputePromoBOGOCheapestUnit",
+        "TestComputePromoScopedNoMatchIsZero",
+        "TestComputeStacksAdditively",
+        "TestComputeStackCapsAtSubtotal",
+        "TestComputeEmptyPromosSameAsNone",
+        "TestComputeLoyaltyPoints",
+        "TestComputeSurchargeFixedAddsToTotal",
+        "TestTierBoundaries",
+        "TestCalcBXGYSameSetFree",
+        "TestCalcBXGYRepeatAndCap",
+        "TestCalcBXGYSeparateSetPercentAndScarcity",
+        "TestCalcBXGYFixedCappedAtUnit",
+        "TestCalcBXGYVariantLevelKey",
+        "TestCalcBXGYNilConfigIsZero",
+        "TestBXGYRewardDue",
+        "TestBXGYRewardDueExcludesGetSetFromBuyUnits",
+        "TestBXGYRewardNet",
+        "TestComputeSeparateSetBuyXGetYIsZeroDiscount",
+        "TestComputeSameSetBuyXGetYStillDiscounts",
+        "TestPickTier",
+        "TestComputeTiered",
+        "TestBundleApplications",
+        "TestBundleAllocate",
+        "TestCalcPromotionDiscountBundleIsZero"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/promotion_keys_test.go",
+      "tests": [
+        "TestSemanticPromotionRuntimeRegression"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/promo_validate_test.go",
+      "tests": [
+        "TestValidatePromo",
+        "TestValidateCode"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/resolve_promos_test.go",
+      "tests": [
+        "TestDedupeNonEmpty",
+        "TestCombinabilityGate"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/service/shift_input_test.go",
+      "tests": [
+        "TestShiftDecodeRepresentation",
+        "TestShiftCountedMethodsAndReference"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/sync/refund_permission_test.go",
+      "tests": [
+        "TestRefundPermissionParityRegression",
+        "TestRefundPermissionDispatch",
+        "TestRefundScopeFailurePropagatesWithoutSuccess",
+        "TestMixedBatchPreservesIndependentResults",
+        "TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/sync/sale_input_test.go",
+      "tests": [
+        "TestSaleInputBatchMappingAndIndependentResults"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/sync/shift_decode_test.go",
+      "tests": [
+        "TestShiftDecodeRejectsBeforeService"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/sync/transfer_receive_test.go",
+      "tests": [
+        "TestApproverAllowed",
+        "TestReceiveScope"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/doc_sequences_test.go",
+      "tests": [
+        "TestFormatDocNo"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/ingredient_stock_logic_test.go",
+      "tests": [
+        "TestValidateIngredientGoodsReceipt",
+        "TestValidateIngredientLocationAdjust"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/ingredient_transfer_test.go",
+      "tests": [
+        "TestValidateIngTransfer"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/points_math_test.go",
+      "tests": [
+        "TestPointsClawback",
+        "TestAdjustedBalance"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/promotion_keys_test.go",
+      "tests": [
+        "TestSemanticPromotionOverlapRegression",
+        "TestAuthoringSharedKeyVectors"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/recipe_test.go",
+      "tests": [
+        "TestVersionMatches",
+        "TestComputeTotalCost",
+        "TestNewlyAddedInactive"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/repo_test.go",
+      "tests": [
+        "TestRandSuffix",
+        "TestValidateDiscountCodeBatch",
+        "TestVariantBarcode",
+        "TestValidateVariants",
+        "TestValidateBXGYRejectsBadQuantities",
+        "TestValidateBXGYRejectsPercentOver100",
+        "TestValidateBXGYRejectsFixedNonPositive",
+        "TestValidateBXGYRejectsUnknownKind",
+        "TestValidateBXGYRejectsOverlap",
+        "TestValidateBXGYAcceptsValidSameSet",
+        "TestValidateBXGYAcceptsValidSeparate",
+        "TestValidateBXGYNilRejected",
+        "TestValidateTieredRejectsEmpty",
+        "TestValidateTieredRejectsBadValue",
+        "TestValidateTieredRejectsDuplicateThreshold",
+        "TestValidateTieredAccepts",
+        "TestValidateBundle"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/stock_logic_test.go",
+      "tests": [
+        "TestValidateGoodsReceipt",
+        "TestValidateLocationAdjust"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    },
+    {
+      "path": "backend/internal/write/transfer_test.go",
+      "tests": [
+        "TestValidLocKind",
+        "TestSameLoc",
+        "TestTransferTransition",
+        "TestTransferDiff"
+      ],
+      "explicit_env": [],
+      "skip_calls": [],
+      "ci": "ordinary go test ./... -race; some files reuse an opt-in fixture (see harness dependency) "
+    }
+  ],
+  "browser_scripts": [
+    "scripts/a24-browser/add-customer.js",
+    "scripts/a24-browser/guest-gate.js",
+    "scripts/a24-browser/guest-sales.js",
+    "scripts/a24-browser/physical-queue.js",
+    "scripts/a24-browser/qualify-backoffice.js",
+    "scripts/a24-browser/qualify-pos-boundaries.js",
+    "scripts/a24-browser/qualify-pos.js",
+    "scripts/a24-browser/setup.js",
+    "scripts/a26-browser/backoffice-checks.js",
+    "scripts/a26-browser/backoffice-setup.js",
+    "scripts/a26-browser/pos-recap.js",
+    "scripts/a26-browser/transactions-checks.js",
+    "scripts/a31-browser/hook-races.js",
+    "scripts/a31-browser/reports-races.js"
+  ],
+  "workflows": {
+    "android-release.yml": "name: Android Release APK\n\non:\n  workflow_dispatch:\n    inputs:\n      api_url:\n        description: \"VITE_API_URL the APK points at\"\n        required: true\n        default: \"https://mandalika-pos-538849926142.asia-southeast2.run.app\"\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n\n      - name: Setup Node\n        uses: actions/setup-node@v4\n        with:\n          node-version: 22\n\n      - name: Enable pnpm\n        run: |\n          corepack enable\n          corepack prepare pnpm@9.15.0 --activate\n\n      - name: Install deps\n        run: corepack pnpm install --frozen-lockfile\n\n      - name: Build POS web bundle\n        env:\n          VITE_API_URL: ${{ github.event.inputs.api_url }}\n        run: corepack pnpm --filter @mandalika/pos build\n\n      - name: Setup JDK 21\n        uses: actions/setup-java@v4\n        with:\n          distribution: temurin\n          java-version: \"21\"\n\n      - name: Setup Android SDK\n        uses: android-actions/setup-android@v3\n\n      - name: Install SDK packages\n        run: |\n          yes | sdkmanager --licenses >/dev/null || true\n          sdkmanager \"platform-tools\" \"platforms;android-36\" \"build-tools;36.0.0\"\n\n      - name: Capacitor sync (android)\n        run: corepack pnpm --filter @mandalika/pos exec cap sync android\n\n      - name: Decode keystore\n        run: |\n          echo \"${{ secrets.ANDROID_KEYSTORE_BASE64 }}\" | base64 -d > \"$GITHUB_WORKSPACE/apps/pos/android/mandalika-release.jks\"\n\n      - name: Assemble signed release\n        working-directory: apps/pos/android\n        env:\n          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/apps/pos/android/mandalika-release.jks\n          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}\n          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}\n          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}\n        run: |\n          chmod +x ./gradlew\n          ./gradlew assembleRelease --no-daemon\n\n      - name: Verify signature\n        run: |\n          APK=apps/pos/android/app/build/outputs/apk/release/app-release.apk\n          BT=$(ls -d \"$ANDROID_HOME\"/build-tools/36.0.0)\n          \"$BT/apksigner\" verify --print-certs \"$APK\"\n\n      - name: Upload APK\n        uses: actions/upload-artifact@v4\n        with:\n          name: mandalika-pos-release-apk\n          path: apps/pos/android/app/build/outputs/apk/release/app-release.apk\n          if-no-files-found: error\n",
+    "backend.yml": "name: backend\n\non:\n  push:\n    paths: ['backend/**', '.github/workflows/backend.yml']\n  pull_request:\n    paths: ['backend/**', '.github/workflows/backend.yml']\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    defaults:\n      run:\n        working-directory: backend\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version: '1.26'\n          cache-dependency-path: backend/go.sum\n      - run: go mod download\n      - name: OpenAPI drift gate\n        run: make gen-check\n      - run: go vet ./...\n      - name: gofmt\n        run: test -z \"$(gofmt -l .)\"\n      - run: go build ./...\n      - run: go test ./... -race\n",
+    "react-doctor.yml": "# React Doctor \u2014 finds security, performance, correctness, accessibility,\n# bundle-size, and architecture issues in React codebases.\n#\n# Docs: https://www.react.doctor/ci\n# Source: https://github.com/millionco/react-doctor\n\nname: React Doctor\n\non:\n  # Scans the PR's changed files and posts a sticky summary comment listing only the new issues introduced relative to the merge base of the target branch.\n  pull_request:\n    types: [opened, synchronize, reopened, ready_for_review]\n  # Scans `main` on every push to track the health-score trend and catch regressions that slipped past PR review.\n  push:\n    branches: [\"main\"]\n\npermissions:\n  contents: read\n  pull-requests: write\n  issues: write\n  statuses: write\n\n# Cancels any in-flight scan for the same PR (or branch, on push) the moment a new commit arrives, so reviewers only ever see the latest run.\nconcurrency:\n  group: react-doctor-${{ github.event.pull_request.number || github.ref }}\n  cancel-in-progress: true\n\njobs:\n  react-doctor:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v5\n\n      - uses: millionco/react-doctor@v2\n        # Advisory by default: React Doctor reports findings on every PR \u2014 a\n        # sticky summary comment, inline review comments, and a commit status\n        # with the health score \u2014 but never fails the check, so it won't red-X\n        # a teammate's PR on day one. When your team trusts the signal, graduate\n        # the gate: uncomment the block below and set blocking to \"error\" (fail\n        # on new error-severity findings) or \"warning\" (fail on any finding).\n        # Full reference: https://www.react.doctor/ci\n        # with:\n        #   blocking: error          # Gate level: \"none\" (advisory, the default) | \"warning\" | \"error\"\n        #   scope: full              # On PRs, scan the whole project instead of just changed files\n        #   comment: false           # Disable the sticky PR summary comment\n        #   review-comments: false   # Disable inline review comments on changed lines\n        #   commit-status: false     # Disable the commit status (score + counts, links to the run)\n        #   version: \"0.4.0\"         # Pin to a specific react-doctor version instead of \"latest\"\n        #   directory: apps/web      # Scan a sub-directory (default: \".\")\n        #   project: \"web,admin\"     # In a monorepo, scan specific workspace project(s)\n"
+  },
+  "runtime": {
+    "ci_node": "22",
+    "local_node": "24.14.1",
+    "pnpm": "9.15.0"
+  },
+  "generated": [
+    {
+      "path": "packages/api/src/schema.d.ts",
+      "command": "corepack pnpm --filter @mandalika/api gen",
+      "source": "backend/api/openapi.yaml",
+      "blocking_ci_before": false
+    }
+  ]
+}

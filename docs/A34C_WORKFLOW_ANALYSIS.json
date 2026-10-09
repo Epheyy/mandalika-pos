@@ -1,0 +1,72 @@
+{
+  "parser": "installed js-yaml 4.1.1",
+  "assertions": "pass",
+  "browser": {
+    "triggers": [
+      "push",
+      "pull_request",
+      "workflow_call"
+    ],
+    "path_filters": false,
+    "runner": "ubuntu-latest",
+    "node": 22,
+    "pnpm": "9.15.0",
+    "playwright": "1.63.0",
+    "timeout_minutes": 25,
+    "commands": [
+      "corepack enable\ncorepack prepare pnpm@9.15.0 --activate\n",
+      "corepack pnpm install --frozen-lockfile",
+      "corepack pnpm exec playwright install --with-deps chromium",
+      "corepack pnpm typecheck:browser",
+      "corepack pnpm browser:ci"
+    ],
+    "artifact": {
+      "name": "Synthetic failure evidence",
+      "if": "failure()",
+      "uses": "actions/upload-artifact@v4",
+      "with": {
+        "name": "browser-failure-${{ github.sha }}",
+        "path": "artifacts/browser/**/gate.json\nartifacts/browser/**/scenarios.json\nartifacts/browser/**/junit.xml\nartifacts/browser/**/network.jsonl\nartifacts/browser/**/processes.jsonl\nartifacts/browser/**/failures/**/trace.zip\nartifacts/browser/**/failures/**/*.png\n",
+        "if-no-files-found": "warn",
+        "retention-days": 7
+      }
+    }
+  },
+  "android": {
+    "needs": [
+      "quality",
+      "database",
+      "backend",
+      "browser"
+    ],
+    "reusables": {
+      "quality": {
+        "uses": "./.github/workflows/quality.yml"
+      },
+      "database": {
+        "uses": "./.github/workflows/postgres.yml"
+      },
+      "backend": {
+        "uses": "./.github/workflows/backend.yml"
+      },
+      "browser": {
+        "uses": "./.github/workflows/browser.yml"
+      }
+    },
+    "all_checkouts": "caller github.sha",
+    "signing_secrets": "only dependent Android build; none forwarded to any reusable"
+  },
+  "preserved_workflows": [
+    "quality",
+    "postgres",
+    "backend",
+    "react-doctor"
+  ],
+  "quality_addition": "Only package command extends excluded-test typecheck to new browser tests",
+  "limits": [
+    "No hosted Actions run",
+    "Not branch protection",
+    "Not APK/OTA provenance",
+    "Local Node24 vs hosted Node22"
+  ]
+}

@@ -1,0 +1,9 @@
+{"Time":"2026-09-21T15:33:08.8487702+07:00","Action":"start","Package":"github.com/mandalika/pos-backend/internal/handlers"}
+{"Time":"2026-09-21T15:33:09.0251085+07:00","Action":"run","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres"}
+{"Time":"2026-09-21T15:33:09.0251085+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"=== RUN   TestSaleInputPostgres\n"}
+{"Time":"2026-09-21T15:33:09.0314287+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"    sale_input_integration_test.go:39: refusing non-fixture target\n"}
+{"Time":"2026-09-21T15:33:09.0382332+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"--- FAIL: TestSaleInputPostgres (0.01s)\n"}
+{"Time":"2026-09-21T15:33:09.0382332+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Elapsed":0.01}
+{"Time":"2026-09-21T15:33:09.0382332+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\n"}
+{"Time":"2026-09-21T15:33:09.0382332+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\tgithub.com/mandalika/pos-backend/internal/handlers\t0.189s\n"}
+{"Time":"2026-09-21T15:33:09.0382332+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Elapsed":0.189}

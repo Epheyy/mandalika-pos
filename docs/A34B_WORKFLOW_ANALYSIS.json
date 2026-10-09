@@ -1,0 +1,55 @@
+{
+  "parser": "installed js-yaml 4.1.1",
+  "assertions": "pass",
+  "database": {
+    "triggers": [
+      "push",
+      "pull_request",
+      "workflow_call"
+    ],
+    "path_filters": false,
+    "timeout_minutes": 30,
+    "command": "python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json",
+    "default_runtime": "Docker postgres:18.3, immutable resolved image ID used per fixture, race enabled",
+    "credentials": "generated random synthetic only; no application/signing/provider secrets"
+  },
+  "android": {
+    "needs": [
+      "quality",
+      "database",
+      "backend"
+    ],
+    "reusables": {
+      "quality": {
+        "uses": "./.github/workflows/quality.yml"
+      },
+      "database": {
+        "uses": "./.github/workflows/postgres.yml"
+      },
+      "backend": {
+        "uses": "./.github/workflows/backend.yml"
+      }
+    },
+    "checkout": "caller github.sha in all four jobs",
+    "signing_secrets": "only dependent build job; no forwarding/inherit"
+  },
+  "backend": {
+    "commands_unchanged": true,
+    "existing_paths_unchanged": true,
+    "commands": [
+      "go mod download",
+      "make gen-check",
+      "go vet ./...",
+      "test -z \"$(gofmt -l .)\"",
+      "go build ./...",
+      "go test ./... -race"
+    ]
+  },
+  "js_quality": "byte-preserved accepted baseline",
+  "limits": [
+    "Not hosted execution",
+    "Not branch protection",
+    "Not signed artifact provenance"
+  ],
+  "reference": "https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows"
+}

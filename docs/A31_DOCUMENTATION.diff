@@ -1,0 +1,619 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; A26 scoped acceptance and A27 summary containment added 2026-09-21 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; A27 scoped acceptance and A31 polling containment added 2026-09-21 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,20 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E29: A31-POLLING-20260921-01 implements current-generation/latest-started
++publication authority in usePolledQuery, including old interval cleanup guards.
++63 callers inventoried; five missing outlet dependencies corrected. Real React/
++Chromium harness: before 12 failures/1 pass; after 13/13 pass. Actual Reports
++success/error outlet-switch races retain B after late 201-row A page completion.
++Backoffice 50/50 including retained A26 response replay and app/harness typechecks
++pass. See A31_VERIFICATION.json and A31_VALIDATION_MATRIX.md. Locally verified,
++ChatGPT review pending; A31/T26 parent and all release gates remain open.
++
++E28: CG-A27-SUMMARY-20260921-01-R1 scoped-accepts E27 double-subtraction
++containment within supplied PostgreSQL/handler/no-mutation evidence. Review checks
++46 manifest payloads and patch replay, not an independent runtime rerun. Full
++A27/T24 and Q09/A28 remain open. Prior A26 and other scoped acceptances stand.
+ 
+ E27: A27-SUMMARY-20260921-01 corrects ReportSummary netSales to completed-only
+ sales without subtracting already-excluded refunded rows again. All other response
+@@ -331,11 +345,11 @@
+ | A24 | P1 | A24 guest-sale containment (S0e) | Locally verified; scoped accepted E24; parent/attachment/release open | T22 |
+ | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
+ | A26 | P1 | A26-pagination-completeness | Open; E26 scoped ChatGPT acceptance; remaining inventory/qualification | T23 |
+-| A27 | P1 | A27-summary-double-subtraction | Open; E27 narrow arithmetic locally verified, review pending; Q09/A28 separate | T24 |
++| A27 | P1 | A27-summary-double-subtraction | Open; E28 scoped ChatGPT acceptance of E27; Q09/A28 separate | T24 |
+ | A28 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T24 |
+ | A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
+ | A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T04a–T04e,T06 |
+-| A31 | P2 | S0g | Needs current behavioral revalidation; source matches audit | T26 |
++| A31 | P2 | A31-polling containment (S0g) | Open; E29 locally verified, scoped review pending | T26 |
+ | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
+ | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
+ | A34 | P1 | S0h | Needs current behavioral revalidation; source matches audit | T29 |
+@@ -717,7 +731,7 @@
+ ### A27 — The backend summary subtracts refunded sales twice
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed SQL arithmetic; not executed against PostgreSQL at original audit.
+-- **Current disposition:** E27 A27-summary-double-subtraction implemented and locally verified, ChatGPT review pending. Full A27/T24 remains open.
++- **Current disposition:** E27 A27-summary-double-subtraction implemented and locally verified; E28 scoped ChatGPT accepted within supplied evidence. Full A27/T24 remains open.
+ - **Current evidence:** E27,2026-09-21 same root/HEAD plus incremental diff. `backend/internal/read/reports.go` netSales expression; `backend/internal/handlers/report_summary_integration_test.go`; A27_CONSUMER_SEARCH.json; A27_BEFORE_FIX_POSTGRES.json / A27_POSTGRES.json / A27_RESPONSE_PARITY.json.
+ - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A26-PAGINATION-20260921-01-R1. Existing status-based model: totalSales/totalOrders/payment/product/daily/average completed-only; totalRefunds refunded-only; netSales equals totalSales because refunded rows are already excluded. Not a new gross-sales definition.
+ - **Plan coverage:** explicit current A27 continuation; draft September21 contained summary contract. Q09 broader report definitions remain unresolved and separate.
+@@ -767,15 +781,15 @@
+ 
+ ### A31 — An old polling response can overwrite a newly selected outlet
+ 
+-- **Original priority / evidence:** P2; historical class: Confirmed static async race; React runtime test pending.
+-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
+-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/backoffice/src/hooks/usePolledQuery.ts:25-67`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+-- **Authority / decision:** AUDIT_REPORT A31 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
+-- **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Client operational expansion. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A30; proposed S0g. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: no migration; scoped Backoffice requests only.
+-- **Required result:** Associate each request with a monotonically increasing scope/request generation or AbortController, and apply results only to the matching active generation. Preserve explicit stale/error labels.
+-- **Acceptance:** T26. Start a slow outlet-A query, switch to B, resolve B then A: only B remains visible. An old response cannot clear Bâ€™s loading/error state.
+-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
++- **Original priority / evidence:** P2; historical class: Confirmed static async race; runtime pending at original audit.
++- **Current disposition:** E29 stale-scope polling-response containment implemented and locally verified, ChatGPT review pending. Parent A31/T26 and release gates remain open.
++- **Current evidence:** usePolledQuery.ts; A31_CALLERS_BEFORE/AFTER.json (63 calls); A31_BEFORE_FIX_BROWSER.json, A31_HOOK_BROWSER.json and A31_REPORTS_BROWSER.json. Exact incremental source/test diff and raw before-images accompany A31-POLLING-20260921-01.
++- **Authority / decision:** CG-A27-SUMMARY-20260921-01-R1 under AUTH-MANDALIKA-20260919-01. Latest-started request in active dependency generation alone may publish data/error/terminal loading. No new business policy.
++- **Plan coverage:** explicit programme inclusion, S0g and current A31 continuation; draft current A31 polling contract.
++- **Dependencies / slice:** A30 remains separate; A26 complete-fetch publication integration covered. No migrations, new libraries or API changes. Owner: Codex implementation / ChatGPT review / owner consequential decisions.
++- **Required result:** Monotonic generation and request tokens, cleanup invalidation and guarded interval start. Abort is optional optimization, never sole correctness. Scope resets data/error/loading; same-scope polling remains stale-while-revalidate; manual refetch and unmount remain supported.
++- **Acceptance:** T26 plus all15 review scenarios mapped in A31_VALIDATION_MATRIX.md. Real hook A/B/C, stale success/error/loading, overlapping polls/refetch, cleanup/unmount, complete A26 multi-page race; rendered Reports success and failure races.
++- **Execution / residual risk:** 13/13 deterministic real React/browser cases, two rendered Reports races, 50 existing Backoffice tests and app/harness types pass. Five proven missing outlet dependencies corrected; other independent fetch/effect paths, POS polling, transport cancellation, server snapshot isolation, auth redesign and production qualification are not claimed. Multi-page requests can continue after invalidation; their cohort cannot publish. Retained A26 PostgreSQL JSON replay is not a new database run. Prior stopped/policy-blocked cleanup remains untouched. No parent or release gate closure.
+ 
+ ### A32 — Startup migration and connection budgeting are not multi-instance safe by design
+ 
+diff --git a/docs/AUDIT_RECONCILIATION_EVIDENCE.json b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+--- a/docs/AUDIT_RECONCILIATION_EVIDENCE.json
++++ b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+@@ -1,10 +1,10 @@
+ {
+   "schema_version": 2,
+   "latest_milestone": {
+-    "packet_id": "A27-SUMMARY-20260921-01",
++    "packet_id": "A31-POLLING-20260921-01",
+     "date": "2026-09-21",
+     "authorization": "AUTH-MANDALIKA-20260919-01",
+-    "reply_id": "CG-A26-PAGINATION-20260921-01-R1",
++    "reply_id": "CG-A27-SUMMARY-20260921-01-R1",
+     "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+     "branch": "prod-hardening",
+     "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
+@@ -71,15 +71,15 @@
+       "A13"
+     ],
+     "changed_findings": [
+-      "A26",
+-      "A27"
++      "A27",
++      "A31"
+     ],
+     "evidence": [
+-      "E26",
+-      "E27"
+-    ],
+-    "verification_file": "A27_VERIFICATION.json",
+-    "closure": "No parent/release gate closed; A26 scoped accepted; A27 contained arithmetic local verification review pending",
++      "E28",
++      "E29"
++    ],
++    "verification_file": "A31_VERIFICATION.json",
++    "closure": "A27 bounded scoped acceptance; A31 local verification review pending; all parents and release gates remain open",
+     "historical_evidence": "Older objects retained unchanged; earlier evidence counts are not current verification"
+   },
+   "prior_documentation_milestone_MA_20260919_01": {
+@@ -1342,5 +1342,87 @@
+     "verification_file": "A26_VERIFICATION.json",
+     "closure": "No parent or release gate closed; A23/A24 scoped accepted; A26 bounded local verification review pending",
+     "historical_evidence": "Older objects retained unchanged; earlier evidence counts are not current verification"
++  },
++  "prior_milestone_A27_SUMMARY_20260921_01": {
++    "packet_id": "A27-SUMMARY-20260921-01",
++    "date": "2026-09-21",
++    "authorization": "AUTH-MANDALIKA-20260919-01",
++    "reply_id": "CG-A26-PAGINATION-20260921-01-R1",
++    "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
++    "branch": "prod-hardening",
++    "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
++    "tracker_ids": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A05",
++      "A06",
++      "A07",
++      "A08",
++      "A09",
++      "A10",
++      "A11",
++      "A12",
++      "A13",
++      "A14",
++      "A15",
++      "A16",
++      "A17",
++      "A18",
++      "A19",
++      "A20",
++      "A21",
++      "A22",
++      "A23",
++      "A24",
++      "A25",
++      "A26",
++      "A27",
++      "A28",
++      "A29",
++      "A30",
++      "A31",
++      "A32",
++      "A33",
++      "A34",
++      "A35",
++      "A36",
++      "A37",
++      "A38",
++      "A39",
++      "A40",
++      "A41",
++      "A42",
++      "A43",
++      "A44"
++    ],
++    "priority_counts": {
++      "P0": 8,
++      "P1": 32,
++      "P2": 3,
++      "P3": 1
++    },
++    "original_p0": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A06",
++      "A09",
++      "A11",
++      "A13"
++    ],
++    "changed_findings": [
++      "A26",
++      "A27"
++    ],
++    "evidence": [
++      "E26",
++      "E27"
++    ],
++    "verification_file": "A27_VERIFICATION.json",
++    "closure": "No parent/release gate closed; A26 scoped accepted; A27 contained arithmetic local verification review pending",
++    "historical_evidence": "Older objects retained unchanged; earlier evidence counts are not current verification"
+   }
+ }
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -495,3 +495,28 @@
+ Next checkpoint: ChatGPT review of E27, then select remaining bounded work from the
+ canonical full-programme tracker. Broader report metrics require the Q09 projection
+ contract; do not infer it from this containment. Standing authority continues.
++
++
++### Current continuation — A31-POLLING-20260921-01
++
++E28 records scoped ChatGPT acceptance of A27-summary-double-subtraction. Full
++A27/T24 and Q09/A28 vocabulary/cross-day refund posting remain unresolved/open.
++Prior bounded acceptances stand; all44 findings and all release gates remain.
++
++E29 contains Backoffice polling publication: only the latest-started request of
++an active dependency generation may write data, error or terminal loading state.
++Scope change clears data/error and loads anew; unchanged scope keeps prior data
++while refreshing. Cleanup invalidates both in-flight completion and old interval
++callbacks. Manual refetch remains supported. Five outlet-dependent product/order
++callers now declare that dependency; 63 call sites are inventoried. This changes
++no permission, report arithmetic/calendar, pagination completeness or POS policy.
++
++13 real React/Chromium deterministic checks, rendered Reports success/error races
++with a late201-row A cohort, existing BO50 and app/harness types pass. A31 parent
++remains open pending scoped review. No global cancellation, database snapshot
++isolation, other ad-hoc polling, native or production qualification claim.
++
++Next: review E29 and its T26 evidence. Separately inspect A34's existing CI checks
++and map missing financial/client regressions before proposing bounded wiring;
++keep Q09/A28 accounting decisions separate. No generic execution approval needed.
++Prior stopped test fixtures remain retained; policy-blocked cleanup was not retried.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -1371,3 +1371,28 @@
+ 4. Complete design review, followed by a separate granular implementation plan.
+ 5. Execute bounded, dependency-aware milestones under standing programme authority;
+    rehearse migrations in isolated environments and satisfy actual release safeguards.
++
++
++### Current continuation — A31-POLLING-20260921-01
++
++E28 records scoped ChatGPT acceptance of A27-summary-double-subtraction. Full
++A27/T24 and Q09/A28 vocabulary/cross-day refund posting remain unresolved/open.
++Prior bounded acceptances stand; all44 findings and all release gates remain.
++
++E29 contains Backoffice polling publication: only the latest-started request of
++an active dependency generation may write data, error or terminal loading state.
++Scope change clears data/error and loads anew; unchanged scope keeps prior data
++while refreshing. Cleanup invalidates both in-flight completion and old interval
++callbacks. Manual refetch remains supported. Five outlet-dependent product/order
++callers now declare that dependency; 63 call sites are inventoried. This changes
++no permission, report arithmetic/calendar, pagination completeness or POS policy.
++
++13 real React/Chromium deterministic checks, rendered Reports success/error races
++with a late201-row A cohort, existing BO50 and app/harness types pass. A31 parent
++remains open pending scoped review. No global cancellation, database snapshot
++isolation, other ad-hoc polling, native or production qualification claim.
++
++Next: review E29 and its T26 evidence. Separately inspect A34's existing CI checks
++and map missing financial/client regressions before proposing bounded wiring;
++keep Q09/A28 accounting decisions separate. No generic execution approval needed.
++Prior stopped test fixtures remain retained; policy-blocked cleanup was not retried.
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,128 +1,73 @@
+-# Current review packet — A27-SUMMARY-20260921-01
++# Current review packet — A31-POLLING-20260921-01
+ 
+-Responds to **CG-A26-PAGINATION-20260921-01-R1** at the resolved path
+-`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A26-PAGINATION-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A26-PAGINATION-20260921-01.md`.
+-Read READ_FIRST, main response and PROGRAMME_PROGRESS.md in full, in order.
+-The latter is owner convenience snapshot PROGRESS-20260921-A26, not another tracker.
+-Continue under **AUTH-MANDALIKA-20260919-01**, same root/worktree and branch
+-`prod-hardening`, HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+-Entry dirty/untracked work preserved; no remote recheck, commit/push or deployment.
++Responds to **CG-A27-SUMMARY-20260921-01-R1**, resolved and read in full at
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A27-SUMMARY-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A27-SUMMARY-20260921-01.md`.
++READ_FIRST and PROGRAMME_PROGRESS were read in order. The progress snapshot is
++owner convenience, not another tracker. Standing authority AUTH-MANDALIKA-20260919-01.
++Root `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`; branch `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`, existing dirty worktree preserved.
+ 
+-## Disposition and scope
++## Result and dispositions
+ 
+-E26 records scoped ChatGPT acceptance of A26-pagination-completeness within the
+-supplied helper/browser/PostgreSQL/cache evidence. Full A26/T23 remains open.
+-Earlier scoped acceptances stand. E27 records only A27-summary-double-subtraction
+-as implemented and locally verified, review pending. **Full A27/T24, A28/Q09,
+-A31 and every release gate remain open.** All44 findings and original priority
+-counts8P0/32P1/3P2/1P3 remain. All eight original P0 dispositions are unchanged.
+-Progress remains11 scoped accepted milestones across7 findings; this local A27
+-result is not a new ChatGPT acceptance or a percentage of production readiness.
++E28 records scoped ChatGPT acceptance of A27-summary-double-subtraction within
++supplied evidence limits. Full A27/T24 and Q09/A28 remain open. Prior scoped
++acceptances remain. Progress now includes12 accepted milestones across8 findings;
++A31 is a new locally verified result awaiting review, not a thirteenth acceptance.
++All44 findings/priorities and all release gates remain open; original P0 parents
++A01/A02/A03/A04/A06/A09/A11/A13 and their existing scoped dispositions are unchanged.
+ 
+-## Consumer trace before edit
++E29 implements A31 stale-scope polling-response containment. Monotonic generation
++and request IDs guard success, error and terminal loading. Cleanup invalidates old
++generations; an old interval cannot even start another request. New same-scope
++poll/refetch supersedes earlier requests. Scope changes clear data/error and load;
++stable-scope polling preserves stale data while refreshing. Unmount disables work.
+ 
+-A27_CONSUMER_SEARCH.json contains the repo-wide searches and actual output, including
+-current source, generated contracts and historical documentation. The source-only
+-trace identifies server route `/reports/summary` under `view_reports`, authenticated
+-handler `ReportSummary`, and `read.ReportSummary`. Shared API exposes the method/type;
+-OpenAPI and generated Go/TS carry the response contract. No application screen caller
+-of reportSummary/netSales was found. DiscountCodeReportSummary is a separate report.
+-No Backoffice, Dashboard, POS, pagination or generated API file required modification.
++Before edits,63 usePolledQuery callers were inventoried. Five product/order callers
++were proven to depend on the authenticated outlet header but omitted outletId;
++those dependencies are now included. Global/catalog reads and unrelated polling
++logic are unchanged. No query library or API/financial/calendar/policy change.
+ 
+-## Production correction
++## Verification
+ 
+-The **only production source file changed** is `backend/internal/read/reports.go`:
++- Same real React/Chromium deterministic harness: before12 failed/1 passed;
++  after13/13 passed. Covers stale data/error/loading, A/B/C, same-scope overlap,
++  both manual/interval orders, scope reset, unmount, old interval and A26 cohort.
++- Actual rendered Backoffice Reports: B success survives late A201-row multi-page
++  completion; B failure also survives late A success, with CSV disabled. Both pass.
++- Backoffice suite50/50, including retained A26 PostgreSQL-response replay.
++- POS/Backoffice app typechecks and separate browser-harness typecheck pass.
+ 
+-```diff
+--  'netSales',agg.total_sales-agg.total_refunds,
+-+  'netSales',agg.total_sales,
+-```
++Exact commands/cwd/exit statuses and initial49-pass/1-opt-in-skip run are retained
++in A31_VERIFICATION.json. Browser runs use Playwright tools (no shell exit status);
++result JSON and reproducible scripts are included. Matrix maps all15 review scenarios.
++No fresh database execution: retained fixture replay is explicitly historical input,
++not a current PostgreSQL verification. No dependency/toolchain installed.
+ 
+-Its contract comment now accurately states created_at [from,to), current status
+-and the absence of settlement-time accounting. totalSales/totalOrders remain
+-completed-only; totalRefunds remains refunded-only. Average, payment breakdown,
+-top products and daily sales retain completed-only semantics. Parser/default window,
+-cache key, order state/refunded_at, outlet/admin scope and API shape are byte-unchanged.
+-No new gross-sales definition, event table, migration, UI arithmetic or historical rewrite.
++## Review materials
+ 
+-## Before-fix and final evidence
++One ZIP: **A31-POLLING-20260921-01_REVIEW_BUNDLE.zip**. Includes exact incremental
++source/test and documentation diffs against this turn's dirty entry state, raw
++before-images, changed/new source/tests, caller inventory/analysis, red/green/browser
++evidence, tracker delta, repository preservation checks and sizes/SHA256 manifest.
++Before-fix diff installs the same browser hook harness against the old hook.
++Historical handoff retained byte-for-byte; only the new prefix is packaged to avoid
++copying unrelated history. Previous archives remain immutable. No commit/push/deploy,
++provider/credential change, live data access or historical queued-sale rewrite.
+ 
+-The new isolated PostgreSQL test exercises the real handler/read SQL with signed
+-synthetic JWT authentication and the same view_reports permission wrapper used by
+-the mapped route. Redis cache is nil in this fixture; no live database is involved.
++## Residuals and next work
+ 
+-Corrected-fixture before-fix run: **six netSales assertions fail**, including:
++A31/T26 remains open pending review of E29. No claim of global cancellation,
++server snapshot isolation, offset-pagination snapshot safety, other ad-hoc fetches,
++POS polling, authorization redesign or production qualification. Old multi-page
++requests may continue, but their results cannot publish after invalidation.
++Five caller fixes are source-traced/typechecked; the rendered integration is Reports,
++not exhaustive UI qualification of all63 call sites. Browser test wiring into CI
++remains A34. Full A26/T23, A27/T24 and Q09/A28 remain separate and open.
+ 
+-| Dataset | Before netSales | Required/final netSales | Unchanged sales/refunds |
+-|---|---:|---:|---|
+-| refunded-only30 | -30 | 0 | 0 / 30 |
+-| completed100 + refunded30 | 70 | 100 | 100 / 30 |
+-| cash100 + card60 + refunded30 + cancelled900 | 130 | 160 | 160 / 30 |
+-
+-Final run: **16 database-backed scenarios pass**. They cover empty/completed/refunded/
+-cancelled, payment/average/product/daily aggregates, outletA, cashier cross-all denial,
+-adminB override, explicit/unbound cross-all, bound-admin default, exact [from,to)
+-boundaries, purchase-period versus late-refund-period characterization, HTTP/API shape
+-and missing-auth/no-permission responses. Fifteen successful responses have full
+-before/after orders/items JSON plus matching SHA256; denied reads also assert no mutation.
+-
+-A27_RESPONSE_PARITY.json verifies **every response field except netSales is identical**
+-between corrected-fixture red and green runs. Both used identical test source. Late
+-refund remains attributed to purchase created_at/current status: refunded30 in Jan2
+-appears as sales0/refunds30/net0 there; Jan10 settlement-date window remains all0.
+-This deliberately characterizes the open Q09/A28 limitation instead of changing it.
+-
+-Additional checks pass: **30 existing report/pagination tests**, both app TypeScript
+-builds using existing generated client/schema, and Go read/handlers/api/server checks.
+-Read/api/server have no standalone unit tests; they compile and read SQL is exercised
+-through the database fixture. Ordinary package runs skip opt-in DB fixtures without
+-their environment; A27 ran separately. No unchanged full frontend/browser/native
+-suite was repeated merely to document acceptance.
+-
+-Exact commands, working directories, statuses and outputs: A27_VERIFICATION.json.
+-Scenario mapping1–14: A27_VALIDATION_MATRIX.md. Actual responses/snapshots:
+-A27_BEFORE_FIX_POSTGRES.json and A27_POSTGRES.json.
+-
+-## Failures, safeguards and limits
+-
+-The first fixture run inherited host timezone+07. It reproduced the arithmetic bug
+-but also exposed timestamp-string/daily-bucket assumptions in the test. Its JSON and
+-log are retained. Only the synthetic pool was pinned UTC; assertions compare timestamp
+-instants. The second fresh run then failed solely the six net assertions; the third
+-fresh run passed after the one-expression correction. No production timezone change.
+-
+-All three fixtures require exact loopback127.0.0.1:56444, synthetic database/user,
+-matching data_directory and an empty public schema before existing migrations.
+-All are stopped and retained. Fixture seed/reset occurs before each no-mutation
+-snapshot boundary. No application secret loading, provider/live access, dependency
+-installation, release action or financial mutation outside synthetic fixtures.
+-**Earlier policy-blocked S0c cleanup remains stopped; no retry or bypass.**
+-
+-Not established: Redis-cache, live, native, browser, performance or release qualification.
+-Existing generated float32 monetary fields remain; this is not a precision redesign.
+-Open Q09/A28 work includes final gross/recognized/net vocabulary, refund occurrence
+-versus payout/settlement, cross-day posting, exchanges/upgrades/downgrades, post-close
+-payouts/payables, tax/discount basis and outlet business calendar. A26's remaining
+-consumer inventory and A31 global stale-scope race are separate. Q08 and every prior
+-business decision are preserved. No consequential question blocked this exact contract.
+-
+-## Review request and next checkpoint
+-
+-Please review E27 against the contained status-based contract and red/green database
+-matrix. Do not close full A27/T24 or any release gate. Broader metric changes need
+-the separate Q09/A28 projection contract; this equality is not that final definition.
+-After this checkpoint, select the next bounded milestone from the canonical full
+-programme tracker. No routine phase authorization is required.
+-
+-## Artifacts
+-
+-Current ZIP: **A27-SUMMARY-20260921-01_REVIEW_BUNDLE.zip**.
+-A27_IMPLEMENTATION.diff and A27_DOCUMENTATION.diff are exact incremental text diffs
+-from this turn's entry, not HEAD. A27_BEFORE_FIX.diff contains the same test used
+-for corrected red/green runs. Raw before/after images, current complete tracker,
+-reconciliation JSON, consumer searches, snapshots, command logs and manifest are
+-included. Patches replay on LF-normalized before-images; raw hashes remain exact.
+-SESSION_HANDOFF prepends this packet; historical suffix bytes are preserved and
+-omitted from the archive with their hash recorded. Historical incoming progress and
+-review files are included unchanged. A27_REPOSITORY_STATE.json and
+-A27_ARTIFACT_CHECKS.json record preservation and replay checks.
++No consequential policy question blocks this bounded result. Requested ChatGPT
++review: assess generation/request authority, five dependency repairs, red/green and
++rendered evidence for scoped T26 acceptance. Next independent bounded work is A34
++CI inventory and selection of already-established financial/client regressions for
++mandatory checks, with actual runner/tool availability evidence; do not expand into
++new business behavior. Earlier stopped test databases remain retained; the prior
++cleanup policy block was not retried or bypassed.
+diff --git a/docs/A31_VALIDATION_MATRIX.md b/docs/A31_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/A31_VALIDATION_MATRIX.md
+@@ -0,0 +1,71 @@
++# A31 validation matrix
++
++Packet: A31-POLLING-20260921-01. Production hook and real React19/Chromium DOM;
++only promise settlement and interval firing controlled. No mock React renderer.
++The test entry is separate from the production app entry, uses installed Vite,
++and adds no dependency. It is explicitly browser-run, not discovered by Vitest.
++
++| Review scenario | Current evidence |
++|---|---|
++|01 B success then A success|hook01 passes; before A replaced B|
++|02 A completes while B pending|hook02 passes; no A data or terminal loading|
++|03 A error after B success|hook03 passes; B has no stale error|
++|04 A success after B failure|hook04 passes; B error remains|
++|05 rapid A/B/C|hook05 passes; C only|
++|06 same-scope overlapping polls|hook06 passes; latest-started wins|
++|07 manual versus interval|hook07a and07b pass, both start orders|
++|08 scope clears data and error|hook08 passes after prior success+poll error|
++|09 unmount pending|hook09 no extra render after settlement; refetch after unmount starts no request. Before-fix failure was the latter assertion, not proof of a React warning|
++|10 stable deps, SWR, error, manual|hook10 passes before and after; unchanged dependencies do not refetch on rerender|
++|11 A26 cohort|hook11 real fetchAllPages, A201 across2 pages then B1; B state retained after last A page|
++|12 rendered outlet success|actual Reports, A page2 held, switch B, B1/Rp7000 publishes, release A; main text byte-identical|
++|13 rendered outlet failure|actual Reports B503 then A success; B error/main text unchanged, CSV disabled|
++|14 old interval cleanup|hook14 explicitly invokes retained old callback; no extra request starts|
++|15 regressions/types|BO50/50 with retained PostgreSQL response fixture; app and standalone harness types pass|
++
++## Before/after
++
++A31_BEFORE_FIX_BROWSER.json records 12 failing cases and1 passing case using the
++same checked-in harness before editing the hook. A31_HOOK_BROWSER.json is13/13.
++A31_REPORTS_BROWSER.json records both actual rendered races with HTTP request scope,
++page numbers and before/after visible text. These are synthetic intercepted HTTP,
++not database-backed checks. The page2 response is already requested under A before
++the switch, so this exercises a genuine obsolete A cohort, not merely an A label.
++
++## Reproduction
++
++Root is C:/Users/MyBook Hype AMD/Downloads/mandalika-pos.
++From root set VITE_API_URL=http://127.0.0.1:59999, then run:
++`node apps/backoffice/node_modules/vite/bin/vite.js apps/backoffice --host 127.0.0.1 --port 5174 --strictPort`.
++Use installed Playwright browser_run_code_unsafe with filenames
++`scripts/a31-browser/hook-races.js` and `scripts/a31-browser/reports-races.js`.
++The hook runner requires passed==total==13; rendered runner throws on failed checks.
++For the before state restore only the packaged before-image of usePolledQuery in
++an isolated replay workspace; do not roll back the current worktree.
++
++A31_VERIFICATION.json retains exact shell commands/cwd/exits/output. Initial BO run
++was49 pass/1 opt-in skipped because MANDALIKA_A26_PAGES was unset. A subsequent run
++with the existing docs/A26_POSTGRES_PAGES.json passed50. This replays retained
++synthetic PostgreSQL output; it does not reverify a current database/handler.
++App typecheck and the separately excluded browser test source both passed.
++No JS DOM/test-renderer dependency was installed; real browser was already available.
++
++## Caller trace and limits
++
++A31_CALLERS_BEFORE/AFTER.json contain63 AST-extracted call sites and full fetcher/
++dependency expressions. A31_CALLER_ANALYSIS.json classifies scope and five changes:
++Customers product options, Promotions product options, StockCount products,
++PromoGrantsTab products, CustomerDetail order history. Backend Products/Orders use
++scope(r); global promotion/customer/user/catalog endpoints do not implicitly gain
++an outlet filter. Existing explicit location/date/page/customer dependencies remain.
++
++Local source review checked all publication sites, old callback entry guards,
++manual latest-generation lookup, symmetric cleanup and SWR. No independent
++ChatGPT or separate-agent review of this new slice has occurred.
++
++The hook does not cancel requests or freeze auth headers across pages. Obsolete
++cohorts may continue I/O but cannot publish. Server offset snapshot consistency,
++other ad-hoc effects, POS polling, A28 calendars, A30 permissions and A34 CI are
++not solved. No fresh database/native/live check was needed for this browser hook;
++no parent/release gate closes. Earlier policy-blocked database cleanup remains
++stopped and retained; it was not retried or bypassed.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,76 @@
++# Current review packet — A31-POLLING-20260921-01
++
++Responds to **CG-A27-SUMMARY-20260921-01-R1**, resolved and read in full at
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A27-SUMMARY-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A27-SUMMARY-20260921-01.md`.
++READ_FIRST and PROGRAMME_PROGRESS were read in order. The progress snapshot is
++owner convenience, not another tracker. Standing authority AUTH-MANDALIKA-20260919-01.
++Root `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`; branch `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`, existing dirty worktree preserved.
++
++## Result and dispositions
++
++E28 records scoped ChatGPT acceptance of A27-summary-double-subtraction within
++supplied evidence limits. Full A27/T24 and Q09/A28 remain open. Prior scoped
++acceptances remain. Progress now includes12 accepted milestones across8 findings;
++A31 is a new locally verified result awaiting review, not a thirteenth acceptance.
++All44 findings/priorities and all release gates remain open; original P0 parents
++A01/A02/A03/A04/A06/A09/A11/A13 and their existing scoped dispositions are unchanged.
++
++E29 implements A31 stale-scope polling-response containment. Monotonic generation
++and request IDs guard success, error and terminal loading. Cleanup invalidates old
++generations; an old interval cannot even start another request. New same-scope
++poll/refetch supersedes earlier requests. Scope changes clear data/error and load;
++stable-scope polling preserves stale data while refreshing. Unmount disables work.
++
++Before edits,63 usePolledQuery callers were inventoried. Five product/order callers
++were proven to depend on the authenticated outlet header but omitted outletId;
++those dependencies are now included. Global/catalog reads and unrelated polling
++logic are unchanged. No query library or API/financial/calendar/policy change.
++
++## Verification
++
++- Same real React/Chromium deterministic harness: before12 failed/1 passed;
++  after13/13 passed. Covers stale data/error/loading, A/B/C, same-scope overlap,
++  both manual/interval orders, scope reset, unmount, old interval and A26 cohort.
++- Actual rendered Backoffice Reports: B success survives late A201-row multi-page
++  completion; B failure also survives late A success, with CSV disabled. Both pass.
++- Backoffice suite50/50, including retained A26 PostgreSQL-response replay.
++- POS/Backoffice app typechecks and separate browser-harness typecheck pass.
++
++Exact commands/cwd/exit statuses and initial49-pass/1-opt-in-skip run are retained
++in A31_VERIFICATION.json. Browser runs use Playwright tools (no shell exit status);
++result JSON and reproducible scripts are included. Matrix maps all15 review scenarios.
++No fresh database execution: retained fixture replay is explicitly historical input,
++not a current PostgreSQL verification. No dependency/toolchain installed.
++
++## Review materials
++
++One ZIP: **A31-POLLING-20260921-01_REVIEW_BUNDLE.zip**. Includes exact incremental
++source/test and documentation diffs against this turn's dirty entry state, raw
++before-images, changed/new source/tests, caller inventory/analysis, red/green/browser
++evidence, tracker delta, repository preservation checks and sizes/SHA256 manifest.
++Before-fix diff installs the same browser hook harness against the old hook.
++Historical handoff retained byte-for-byte; only the new prefix is packaged to avoid
++copying unrelated history. Previous archives remain immutable. No commit/push/deploy,
++provider/credential change, live data access or historical queued-sale rewrite.
++
++## Residuals and next work
++
++A31/T26 remains open pending review of E29. No claim of global cancellation,
++server snapshot isolation, offset-pagination snapshot safety, other ad-hoc fetches,
++POS polling, authorization redesign or production qualification. Old multi-page
++requests may continue, but their results cannot publish after invalidation.
++Five caller fixes are source-traced/typechecked; the rendered integration is Reports,
++not exhaustive UI qualification of all63 call sites. Browser test wiring into CI
++remains A34. Full A26/T23, A27/T24 and Q09/A28 remain separate and open.
++
++No consequential policy question blocks this bounded result. Requested ChatGPT
++review: assess generation/request authority, five dependency repairs, red/green and
++rendered evidence for scoped T26 acceptance. Next independent bounded work is A34
++CI inventory and selection of already-established financial/client regressions for
++mandatory checks, with actual runner/tool availability evidence; do not expand into
++new business behavior. Earlier stopped test databases remain retained; the prior
++cleanup policy block was not retried or bypassed.
++
++---
++

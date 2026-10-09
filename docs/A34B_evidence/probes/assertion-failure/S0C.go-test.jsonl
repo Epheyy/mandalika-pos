@@ -1,0 +1,9 @@
+{"Time":"2026-09-21T15:33:55.8240732+07:00","Action":"start","Package":"github.com/mandalika/pos-backend/internal/handlers"}
+{"Time":"2026-09-21T15:33:55.9892331+07:00","Action":"run","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres"}
+{"Time":"2026-09-21T15:33:55.9892331+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"=== RUN   TestSaleInputPostgres\n"}
+{"Time":"2026-09-21T15:33:55.989783+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"    sale_input_integration_test.go:30: A34B controlled assertion-failure\n"}
+{"Time":"2026-09-21T15:33:55.989783+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"--- FAIL: TestSaleInputPostgres (0.00s)\n"}
+{"Time":"2026-09-21T15:33:55.989783+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Elapsed":0}
+{"Time":"2026-09-21T15:33:55.989783+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\n"}
+{"Time":"2026-09-21T15:33:55.9925516+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\tgithub.com/mandalika/pos-backend/internal/handlers\t0.168s\n"}
+{"Time":"2026-09-21T15:33:55.9925516+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Elapsed":0.168}

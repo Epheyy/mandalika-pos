@@ -1,0 +1,38 @@
+diff --git a/apps/pos/src/cashier/promotionFulfillment.ts b/apps/pos/src/cashier/promotionFulfillment.ts
+--- a/apps/pos/src/cashier/promotionFulfillment.ts
++++ b/apps/pos/src/cashier/promotionFulfillment.ts
+@@ -74,14 +74,14 @@
+     if (!cfg) return { kind: 'none' }
+     const nApp = bundleApplications(cfg, paid)
+     if (nApp < 1 || (choice && choice.kind !== 'bundle')) return { kind: 'none' }
+-    const ambiguous = cfg.slots.map((slot, index) => ({ slot, index, need: nApp * slot.quantity,
++    const slots = cfg.slots.map((slot, index) => ({ slot, index, need: nApp * slot.quantity,
+       units: paid.filter(c => keyMatchesLine(slot.productKeys, c.productId, c.variantSize)).reduce((n, c) => n + c.quantity, 0) }))
+-      .filter(s => s.units > s.need)
+-    if (ambiguous.length && !choice) return { kind: 'bundle-picker', owner, promo, cfg, cart: base.cart }
++    if (slots.some(s => s.units > s.need) && !choice) return { kind: 'bundle-picker', owner, promo, cfg, cart: base.cart }
+     const assignment = choice?.kind === 'bundle' ? choice.assignment : undefined
+     // A picker opened against an older cart may now have incomplete/invalid picks.
+-    for (const { slot, index, need } of ambiguous) {
++    for (const { slot, index, need, units } of slots) {
+       const refs = assignment?.[index]
++      if (!refs && units === need) continue
+       if (!refs || refs.length !== need) return { kind: 'none' }
+       const remaining = paid.filter(c => keyMatchesLine(slot.productKeys, c.productId, c.variantSize)).map(c => ({ ...c }))
+       for (const ref of refs) {
+@@ -92,6 +92,15 @@
+     }
+     const freed = computeBundleFreed(cfg, paid, assignment)
+     if (!freed) return { kind: 'none' }
++    // The existing allocator treats slots independently. An overlapping catalog
++    // rule must never turn its overclaimed freed set into additional goods.
++    // This contains impossible moves, without redesigning allocation/resources.
++    const available = new Map(paid.map(c => [JSON.stringify([c.productId, c.variantSize]), c.quantity]))
++    for (const f of freed) {
++      const key = JSON.stringify([f.productId, f.variantSize]), left = (available.get(key) ?? 0) - f.quantity
++      if (left < 0) return { kind: 'none' }
++      available.set(key, left)
++    }
+     let cart = base.cart
+     for (const f of freed) {
+       cart = reducePaidQty(cart, f.productId, f.variantSize, f.quantity)

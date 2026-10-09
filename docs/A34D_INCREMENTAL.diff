@@ -1,0 +1,195 @@
+--- a/.github/workflows/backend.yml
++++ b/.github/workflows/backend.yml
+@@ -2,8 +2,8 @@
+ 
+ on:
+   workflow_call:
++  # Every pushed correction needs this baseline on the same SHA as the other gates.
+   push:
+-    paths: ['backend/**', '.github/workflows/backend.yml']
+   pull_request:
+     paths: ['backend/**', '.github/workflows/backend.yml']
+ 
+--- a/.github/workflows/browser.yml
++++ b/.github/workflows/browser.yml
+@@ -43,3 +43,17 @@
+             artifacts/browser/**/failures/**/*.png
+           if-no-files-found: warn
+           retention-days: 7
++
++      - name: Synthetic completion summary (including successful runs)
++        if: always()
++        uses: actions/upload-artifact@v4
++        with:
++          name: browser-summary-${{ github.sha }}
++          path: |
++            artifacts/browser/**/gate.json
++            artifacts/browser/**/scenarios.json
++            artifacts/browser/**/junit.xml
++            artifacts/browser/**/network.jsonl
++            artifacts/browser/**/processes.jsonl
++          if-no-files-found: warn
++          retention-days: 7
+--- a/.gitignore
++++ b/.gitignore
+@@ -29,21 +29,21 @@
+ # Build output
+ dist/
+ 
+-# Environment variables (NEVER commit — JWT/DB/Cloudinary secrets)
++# Environment variables (NEVER commit â€” JWT/DB/Cloudinary secrets)
+ .env
+ .env.local
+ .env.*.local
+ .env.production
+ 
+-# Android release signing (NEVER commit — leak/loss is unrecoverable)
++# Android release signing (NEVER commit â€” leak/loss is unrecoverable)
+ *.jks
+ *.keystore
+ keystore.properties
+ 
+-# Local DB backup artifacts (contain customer data — PII)
++# Local DB backup artifacts (contain customer data â€” PII)
+ backups/
+ 
+-# Firestore cutover artifacts (Phase F — contain PII, delete after cutover)
++# Firestore cutover artifacts (Phase F â€” contain PII, delete after cutover)
+ export.json
+ dump-firestore.mjs
+ 
+@@ -67,3 +67,10 @@
+ 
+ # Synthetic Playwright CI artifacts (never browser binaries/profiles)
+ artifacts/browser/
++
++# A34d: local secrets, review relay and fixture artifacts are never snapshot inputs
++.env*
++SESSION_HANDOFF.md
++review-inbox/
++artifacts/
++**/__pycache__/
+--- a/vercel.json
++++ b/vercel.json
+@@ -1,5 +1,13 @@
+ {
+   "rewrites": [
+-    { "source": "/(.*)", "destination": "/" }
+-  ]
+-}+    {
++      "source": "/(.*)",
++      "destination": "/"
++    }
++  ],
++  "git": {
++    "deploymentEnabled": {
++      "audit/hosted-proof-20260922": false
++    }
++  }
++}
+--- a/apps/pos/vercel.json
++++ b/apps/pos/vercel.json
+@@ -0,0 +1,7 @@
++{
++  "git": {
++    "deploymentEnabled": {
++      "audit/hosted-proof-20260922": false
++    }
++  }
++}
+--- a/apps/backoffice/vercel.json
++++ b/apps/backoffice/vercel.json
+@@ -0,0 +1,7 @@
++{
++  "git": {
++    "deploymentEnabled": {
++      "audit/hosted-proof-20260922": false
++    }
++  }
++}
+--- a/backend/internal/service/loyalty.go
++++ b/backend/internal/service/loyalty.go
+@@ -10,14 +10,14 @@
+ // loadActiveConditions (order.go). Pure Go — no DB types — so the engine is testable.
+ type LoyaltyCondition struct {
+ 	ID, Name, Type, Trigger, RewardType string
+-	RewardValue          float64
+-	RewardProductIDs     []string
+-	CampaignStartDate    *time.Time // date-only; nil for always_on
+-	CampaignEndDate      *time.Time
+-	ActiveDays           []int // weekday indices, Sunday=0 (matches time.Weekday + JS getDay)
+-	ApplicableProductIDs []string
+-	MinimumSpend         *float64
+-	IsActive             bool
++	RewardValue                         float64
++	RewardProductIDs                    []string
++	CampaignStartDate                   *time.Time // date-only; nil for always_on
++	CampaignEndDate                     *time.Time
++	ActiveDays                          []int // weekday indices, Sunday=0 (matches time.Weekday + JS getDay)
++	ApplicableProductIDs                []string
++	MinimumSpend                        *float64
++	IsActive                            bool
+ }
+ 
+ // EvalCustomer is the loyalty-relevant slice of the order's customer (loaded under
+@@ -40,9 +40,9 @@
+ // AppliedCondition records one matched condition for the audit table.
+ type AppliedCondition struct {
+ 	ConditionID, Name, Trigger, RewardType string
+-	RewardValue       float64
+-	RewardProductIDs  []string
+-	PointsContributed int // reporting attribution (0 for product_reward / non-winning multiply)
++	RewardValue                            float64
++	RewardProductIDs                       []string
++	PointsContributed                      int // reporting attribution (0 for product_reward / non-winning multiply)
+ }
+ 
+ // LoyaltyOutcome is the engine result. FinalEarned(base) computes the order's points.
+--- a/backend/internal/service/promo_validate_test.go
++++ b/backend/internal/service/promo_validate_test.go
+@@ -13,7 +13,7 @@
+ func dptr(y int, m time.Month, d int) *time.Time { t := time.Date(y, m, d, 0, 0, 0, 0, wib); return &t }
+ 
+ // fptr is already declared in loyalty_test.go (same package); reuse it here.
+-func iptr(i int) *int { return &i }
++func iptr(i int) *int       { return &i }
+ func sptr(s string) *string { return &s }
+ 
+ func TestValidatePromo(t *testing.T) {
+--- a/backend/internal/write/loyalty.go
++++ b/backend/internal/write/loyalty.go
+@@ -12,11 +12,11 @@
+ // ConditionID encodes NULL (condition deleted between eval and write is impossible
+ // inside one tx, but the column is nullable for later ON DELETE SET NULL).
+ type ConditionApplicationRow struct {
+-	OrderID, CustomerID, ConditionID string
++	OrderID, CustomerID, ConditionID   string
+ 	ConditionName, Trigger, RewardType string
+-	RewardValue       float64
+-	PointsContributed int
+-	RewardProductIDs  []string
++	RewardValue                        float64
++	PointsContributed                  int
++	RewardProductIDs                   []string
+ }
+ 
+ // InsertConditionApplication appends one audit row inside the given order tx.
+--- a/backend/internal/write/repo_test.go
++++ b/backend/internal/write/repo_test.go
+@@ -29,11 +29,11 @@
+ 		t.Fatalf("valid rejected: %v", err)
+ 	}
+ 	bad := []DiscountCodeBatch{
+-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 0, SuffixLength: 6},   // count<1
+-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 501, SuffixLength: 6}, // count>500
+-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 3},  // suffix<4
+-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 13}, // suffix>12
+-		{DiscountCode: DiscountCode{Type: "bogus", Value: 10}, Count: 10, SuffixLength: 6},       // bad type
++		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 0, SuffixLength: 6},                                // count<1
++		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 501, SuffixLength: 6},                              // count>500
++		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 3},                               // suffix<4
++		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 13},                              // suffix>12
++		{DiscountCode: DiscountCode{Type: "bogus", Value: 10}, Count: 10, SuffixLength: 6},                                    // bad type
+ 		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 6, Prefix: "toolongprefixxxxx!"}, // prefix invalid
+ 	}
+ 	for i, b := range bad {

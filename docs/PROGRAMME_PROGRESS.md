@@ -1,4 +1,123 @@
-# Programme progress — A34e14c implemented; hosted review checkpoint
+# Programme progress - A34e15c evidence accepted; dependent ingress externally blocked
+
+## A34e15c review disposition — 2026-09-29
+
+[CG-A34E15C-READINESS-20260929-01-R1](../review-inbox/CG-A34E15C-READINESS-20260929-01-R1/CHATGPT_REVIEW_RESPONSE_A34E15C-READINESS-20260929-01.md)
+accepts A34e15c readiness evidence and X01–X06 phase mapping WITHIN EVIDENCE SCOPE ONLY.
+Dependent ingress work is **BLOCKED — EXTERNAL INPUTS REQUIRED**. The supplied response
+form is blank; it supplies no selections or new evidence. X01/X02 and applicable X03
+access are the first commissioning inputs. X04–X06 remain unresolved for later phases;
+a migrated production fleet is not required before planning the isolated exercise.
+
+Keep 32 accepted milestones across 11 findings, all 44 parents, A31 alone resolved,
+original P0 closures 0/8 and release-gate closures 0. A34/T29 and A38/T33 remain open.
+Retained 6/4/23/2/0 is not a fresh scan. No remediation, source promotion, activation
+approval or extra milestone. E9/E11 remain closed. Reuse the existing readiness dossier:
+source-mapped/known-different deployment and selected-file limits, signed artifact versus
+unknown fleet, already-retained release bytes/custody, non-interchangeable debug APK and
+conditional IAP all remain unchanged.
+
+Resume only with relevant new inputs/materially new evidence and a concrete bounded
+next-action contract after checking source, date, scope, completeness and authority.
+A filled form is not blanket execution permission. No repeated reads/downloads/models,
+full tests, new hosted claim or review ZIP for this integration. No operational changes
+or denied-cleanup retry. Independent authority elsewhere remains; no unrelated task is
+assigned by this handoff. Earlier checkpoints below retain their historical status.
+
+
+## Current A34e15c readiness evidence — 2026-09-29
+
+E76: CG-A34E15B-INGRESS-DESIGN-20260929-01-R1 accepts A34e15b as a
+DESIGN BASELINE ONLY. No implementation milestone, source promotion or activation
+approval. Keep 32 accepted milestones across 11 findings, all 44 parents, A31 alone
+resolved, original P0 parents 0/8 resolved and release gates 0. A34/T29 and A38/T33
+remain open. Retained 6 raw / 4 actionable / 23 report-only / 2 reviewed / 0 exceptions
+is not a fresh scan. Detached chi-only4/2 is not adopted. E9/E11 stay closed.
+
+E77: A34E15C-READINESS-20260929-01 completes one bounded evidence pass. Current
+Cloud Run traffic still points to 00077-b45. Exact image -> successful Cloud Build
+82827d61-cd0f-4814-a00f-524afd1cd7c9 -> immutable source generation1783574962355308
+is established; archive SHA256/MD5 match. All108 selected source files match historical
+6093c6d4 bytes;14 differ from accepted0478648. Deployed source is KNOWN-DIFFERENT,
+not merely unknown and not authority to redeploy the audit branch. Future isolated
+commissioning source/target remains unselected.
+
+Latest accessible signed APK8190030052 is hash/signature-qualified; API and native
+OTA both use old numbered run.app. Native URL flags are absent, source lock correlates
+updater8.50.2; installed fleet remains unknown. Local debug APK has a different signer
+and private LAN API. Known OTA object prefix returned empty; this is not a publication
+or fleet census. No device/live HTTP/DB probe. Compute disabled evidence reused without
+retry. X01–X06 list exact target/domain/budget/access/fleet/rollback/caller acquisitions,
+separated into commissioning, migration, trust activation and retirement phases.
+Stop dependent ingress work when those external inputs are absent; no more repeated
+architecture/model rounds. activation_ready=false. New APK parser14/14 methods pass;
+initial path-normalization failures are retained. No full/model/Go/hosted/security rerun,
+active source/dependency change, staging, commit/push or operational action. See
+[A34E15C_READINESS_EVIDENCE.md](A34E15C_READINESS_EVIDENCE.md) and the current packet.
+This evidence task adds no accepted milestone. Historical checkpoints below retain
+their original observation dates and scope.
+
+## Current A34e15b ingress design — 2026-09-28
+
+E74: CG-A34E15-CHI-INGRESS-20260928-01-R1 reviews A34e15 qualification and
+endorses non-promotion; it does not accept remediation. Keep 32 accepted milestones
+across 11 findings, all 44 parents, A31 alone resolved, original P0 parents 0/8
+resolved and release gates 0. E9/E11 remain closed. Active 6 raw / 4 actionable /
+23 report-only / 2 reviewed / 0 exceptions is retained evidence, not a fresh scan;
+detached chi-only 4/2 is not adopted. Full A34/T29 and A38/T33 remain open.
+
+E75: A34E15B-INGRESS-DESIGN-20260928-01 supplies a non-applying global external
+ALB/serverless-NEG proposal, single backend-service header writer, 13-route bypass
+matrix, coordinated identity/consumer model, API/native-OTA migration and paired
+rollback, Jakarta cost assumptions and G01–G07 commissioning prerequisites.
+Design/local qualification only; activation_ready=false. Current default URLs,
+internal/alternate routes, disabled Compute inventory, source-to-image equality
+and installed API/OTA fleet remain unresolved. Conditional IAP origin alternative
+has Q-IS-01 custom Authorization compatibility pending; no new secret is proposed.
+New Go models pass 40 named checks, zero skips; model vet passes. Offline proposal
+checks pass, including 16 real-CLI rejecting counterexamples. Initial fixture
+cleanup failure is preserved and corrected. No active source/dependency change,
+commit/push, new hosted result, live probe, provisioning or deployment. See
+[A34E15B_INGRESS_DESIGN.md](A34E15B_INGRESS_DESIGN.md) and current review packet.
+This design adds no implementation milestone. Historical evidence below is retained.
+
+## Current A34e15 trust qualification — 2026-09-28
+
+E72: CG-A34E14C-CONTRACT-COMPLETION-20260925-01-R1 scoped-accepts A34e14c at
+0478648e6600ce201e0a6e712ac77febdded9782 (tree 2ac4f0aedd03d18fb07d139ac92de1e691bb92a7).
+32 accepted milestones across the same 11 findings; all 44 parents retained; A31 alone
+resolved; original P0 parents 0/8 resolved and release gates 0. The earlier e14/e14b
+qualifications and closed E9/E11 reporting corrections receive no separate milestone.
+Accepted expanded baseline: 6 raw blocking / 4 actionable / 23 report-only /
+2 reviewed-not-affected / 0 risk exceptions. A34/T29 and A38/T33 remain open.
+
+E73: A34E15-CHI-INGRESS-20260928-01 completes independent chi/ingress qualification
+but does NOT promote a dependency or middleware change. Current selected Cloud Run
+reads identify service mandalika-pos, asia-southeast2, revision 00077-b45, ingress all,
+public invoker, two default URLs and a TCP8080 startup probe. Regional domain mappings
+are empty. Compute API listing is unavailable (SERVICE_DISABLED); other-project or
+external proxy paths cannot be excluded. App-visible raw peer, unconditional header
+transformation, duplicate handling and exact trusted-hop guarantees remain unqualified.
+No application HTTP probe, infrastructure update, deployment or live-data operation ran.
+
+Actual unchanged project consumers reproduce header-controlled logging/API/auth/OTA
+buckets and login-attempt identity, including the login IPv6 split discrepancy. The same
+required no-spoof invariant fails under both chi5.1.0 and detached chi5.3.2. Final bounded
+characterization: old13/new48 named passes, zero skips; each has a separate intentional
+no-spoof failure. Synthetic miniredis2.39.0 uses real go-redis TCP/transaction APIs; owned
+ports close. Candidate API tests qualify normalization and expose missing-peer and
+missing-identity enforcement obligations, not production trust or a consumer migration.
+
+Fresh full app+tool scans retain active6/4/23/2/0. Detached version-only4/2/22/2/0 loses
+GO-2026-5775, GO-2026-5777 and report-only GHSA-vrw8-fxc6-2r93, yet spoofing persists:
+this is scanner-range evidence, NOT an adopted remediation. No exceptions or thresholds
+change. Canonical gen-check, guard28/contract78/binding19, x/mod5 and target-evidence tests
+pass; six native PostgreSQL18.3 fixtures pass148 with zero skips and confirmed cleanup
+(non-race). Both source graphs pass vet/build/ordinary tests; ordinary opt-in skips do
+not substitute for dedicated fixtures. No new hosted, full Node/browser or release claim.
+See A34E15_CHI_INGRESS.md and the current packet for exact trust questions and IP01–IP18.
+
+Earlier checkpoints below retain their historical review/verification states.
 
 ## Current A34e14c completion checkpoint — 2026-09-25
 
@@ -28,8 +147,22 @@ replay blocks it, and missing/failed/truncated/wrong-target evidence is invalid,
 Graph tidy removes obsolete dependencies; every42 module movement has before/after MVS edges.
 Chi/OpenPGP/rgbcolor blockers, provider feed conflicts, policies and SheetJS decisions remain.
 Local dedicated PostgreSQL18.3: six fixtures,148 named passes, zero skips, verified identities
-and cleanup, explicitly non-race. Full hosted same-SHA verification is pending at this checkpoint.
+and cleanup, explicitly non-race. Final hosted verification is recorded immediately below.
 Implementation is review-pending; full A34/T29, A38/T33 and all release gates stay open.
+
+## Hosted A34e14c proof — 2026-09-25
+
+Hosted verification completed on `0478648e6600ce201e0a6e712ac77febdded9782` (tree `2ac4f0aedd03d18fb07d139ac92de1e691bb92a7`).
+Quality/backend/PostgreSQL/browser all pass on this same SHA. Backend ran canonical generation,
+vet/gofmt/build, the required codegen/contract lane, x/mod5 and full race tests. PostgreSQL used
+Docker18.3/race: six fixtures,148 named passes, zero skips, verified identity and cleanup.
+Chromium26/26 passes, zero skips, network isolation and process/port cleanup confirmed.
+Expanded security completed:6 raw blocking records/4 actionable/23 report-only/2 reviewed/0 exceptions.
+Source hashes and both required govulncheck targets match this commit; tool target has no findings.
+The first backend run36119865999 failed gofmt on the new fixture; original logs are retained.
+Correction0478648 formats that exact fixture and strengthens actual per-adapter value assertions.
+No application behavior or guard was weakened. No release is approved; A34e14c awaits ChatGPT review.
+
 
 ## Current A34e14b qualification checkpoint — 2026-09-24
 

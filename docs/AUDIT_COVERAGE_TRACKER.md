@@ -1,5 +1,124 @@
 # Canonical audit coverage tracker — A01–A44
 
+## A34e15c review disposition — 2026-09-29
+
+[CG-A34E15C-READINESS-20260929-01-R1](../review-inbox/CG-A34E15C-READINESS-20260929-01-R1/CHATGPT_REVIEW_RESPONSE_A34E15C-READINESS-20260929-01.md)
+accepts A34e15c readiness evidence and X01–X06 phase mapping WITHIN EVIDENCE SCOPE ONLY.
+Dependent ingress work is **BLOCKED — EXTERNAL INPUTS REQUIRED**. The supplied response
+form is blank; it supplies no selections or new evidence. X01/X02 and applicable X03
+access are the first commissioning inputs. X04–X06 remain unresolved for later phases;
+a migrated production fleet is not required before planning the isolated exercise.
+
+Keep 32 accepted milestones across 11 findings, all 44 parents, A31 alone resolved,
+original P0 closures 0/8 and release-gate closures 0. A34/T29 and A38/T33 remain open.
+Retained 6/4/23/2/0 is not a fresh scan. No remediation, source promotion, activation
+approval or extra milestone. E9/E11 remain closed. Reuse the existing readiness dossier:
+source-mapped/known-different deployment and selected-file limits, signed artifact versus
+unknown fleet, already-retained release bytes/custody, non-interchangeable debug APK and
+conditional IAP all remain unchanged.
+
+Resume only with relevant new inputs/materially new evidence and a concrete bounded
+next-action contract after checking source, date, scope, completeness and authority.
+A filled form is not blanket execution permission. No repeated reads/downloads/models,
+full tests, new hosted claim or review ZIP for this integration. No operational changes
+or denied-cleanup retry. Independent authority elsewhere remains; no unrelated task is
+assigned by this handoff. Earlier checkpoints below retain their historical status.
+
+
+## Current A34e15c readiness evidence — 2026-09-29
+
+E76: CG-A34E15B-INGRESS-DESIGN-20260929-01-R1 accepts A34e15b as a
+DESIGN BASELINE ONLY. No implementation milestone, source promotion or activation
+approval. Keep 32 accepted milestones across 11 findings, all 44 parents, A31 alone
+resolved, original P0 parents 0/8 resolved and release gates 0. A34/T29 and A38/T33
+remain open. Retained 6 raw / 4 actionable / 23 report-only / 2 reviewed / 0 exceptions
+is not a fresh scan. Detached chi-only4/2 is not adopted. E9/E11 stay closed.
+
+E77: A34E15C-READINESS-20260929-01 completes one bounded evidence pass. Current
+Cloud Run traffic still points to 00077-b45. Exact image -> successful Cloud Build
+82827d61-cd0f-4814-a00f-524afd1cd7c9 -> immutable source generation1783574962355308
+is established; archive SHA256/MD5 match. All108 selected source files match historical
+6093c6d4 bytes;14 differ from accepted0478648. Deployed source is KNOWN-DIFFERENT,
+not merely unknown and not authority to redeploy the audit branch. Future isolated
+commissioning source/target remains unselected.
+
+Latest accessible signed APK8190030052 is hash/signature-qualified; API and native
+OTA both use old numbered run.app. Native URL flags are absent, source lock correlates
+updater8.50.2; installed fleet remains unknown. Local debug APK has a different signer
+and private LAN API. Known OTA object prefix returned empty; this is not a publication
+or fleet census. No device/live HTTP/DB probe. Compute disabled evidence reused without
+retry. X01–X06 list exact target/domain/budget/access/fleet/rollback/caller acquisitions,
+separated into commissioning, migration, trust activation and retirement phases.
+Stop dependent ingress work when those external inputs are absent; no more repeated
+architecture/model rounds. activation_ready=false. New APK parser14/14 methods pass;
+initial path-normalization failures are retained. No full/model/Go/hosted/security rerun,
+active source/dependency change, staging, commit/push or operational action. See
+[A34E15C_READINESS_EVIDENCE.md](A34E15C_READINESS_EVIDENCE.md) and the current packet.
+This evidence task adds no accepted milestone. Historical checkpoints below retain
+their original observation dates and scope.
+
+## Current A34e15b ingress design — 2026-09-28
+
+E74: CG-A34E15-CHI-INGRESS-20260928-01-R1 reviews A34e15 qualification and
+endorses non-promotion; it does not accept remediation. Keep 32 accepted milestones
+across 11 findings, all 44 parents, A31 alone resolved, original P0 parents 0/8
+resolved and release gates 0. E9/E11 remain closed. Active 6 raw / 4 actionable /
+23 report-only / 2 reviewed / 0 exceptions is retained evidence, not a fresh scan;
+detached chi-only 4/2 is not adopted. Full A34/T29 and A38/T33 remain open.
+
+E75: A34E15B-INGRESS-DESIGN-20260928-01 supplies a non-applying global external
+ALB/serverless-NEG proposal, single backend-service header writer, 13-route bypass
+matrix, coordinated identity/consumer model, API/native-OTA migration and paired
+rollback, Jakarta cost assumptions and G01–G07 commissioning prerequisites.
+Design/local qualification only; activation_ready=false. Current default URLs,
+internal/alternate routes, disabled Compute inventory, source-to-image equality
+and installed API/OTA fleet remain unresolved. Conditional IAP origin alternative
+has Q-IS-01 custom Authorization compatibility pending; no new secret is proposed.
+New Go models pass 40 named checks, zero skips; model vet passes. Offline proposal
+checks pass, including 16 real-CLI rejecting counterexamples. Initial fixture
+cleanup failure is preserved and corrected. No active source/dependency change,
+commit/push, new hosted result, live probe, provisioning or deployment. See
+[A34E15B_INGRESS_DESIGN.md](A34E15B_INGRESS_DESIGN.md) and current review packet.
+This design adds no implementation milestone. Historical evidence below is retained.
+
+## Current A34e15 trust qualification — 2026-09-28
+
+E72: CG-A34E14C-CONTRACT-COMPLETION-20260925-01-R1 scoped-accepts A34e14c at
+0478648e6600ce201e0a6e712ac77febdded9782 (tree 2ac4f0aedd03d18fb07d139ac92de1e691bb92a7).
+32 accepted milestones across the same 11 findings; all 44 parents retained; A31 alone
+resolved; original P0 parents 0/8 resolved and release gates 0. The earlier e14/e14b
+qualifications and closed E9/E11 reporting corrections receive no separate milestone.
+Accepted expanded baseline: 6 raw blocking / 4 actionable / 23 report-only /
+2 reviewed-not-affected / 0 risk exceptions. A34/T29 and A38/T33 remain open.
+
+E73: A34E15-CHI-INGRESS-20260928-01 completes independent chi/ingress qualification
+but does NOT promote a dependency or middleware change. Current selected Cloud Run
+reads identify service mandalika-pos, asia-southeast2, revision 00077-b45, ingress all,
+public invoker, two default URLs and a TCP8080 startup probe. Regional domain mappings
+are empty. Compute API listing is unavailable (SERVICE_DISABLED); other-project or
+external proxy paths cannot be excluded. App-visible raw peer, unconditional header
+transformation, duplicate handling and exact trusted-hop guarantees remain unqualified.
+No application HTTP probe, infrastructure update, deployment or live-data operation ran.
+
+Actual unchanged project consumers reproduce header-controlled logging/API/auth/OTA
+buckets and login-attempt identity, including the login IPv6 split discrepancy. The same
+required no-spoof invariant fails under both chi5.1.0 and detached chi5.3.2. Final bounded
+characterization: old13/new48 named passes, zero skips; each has a separate intentional
+no-spoof failure. Synthetic miniredis2.39.0 uses real go-redis TCP/transaction APIs; owned
+ports close. Candidate API tests qualify normalization and expose missing-peer and
+missing-identity enforcement obligations, not production trust or a consumer migration.
+
+Fresh full app+tool scans retain active6/4/23/2/0. Detached version-only4/2/22/2/0 loses
+GO-2026-5775, GO-2026-5777 and report-only GHSA-vrw8-fxc6-2r93, yet spoofing persists:
+this is scanner-range evidence, NOT an adopted remediation. No exceptions or thresholds
+change. Canonical gen-check, guard28/contract78/binding19, x/mod5 and target-evidence tests
+pass; six native PostgreSQL18.3 fixtures pass148 with zero skips and confirmed cleanup
+(non-race). Both source graphs pass vet/build/ordinary tests; ordinary opt-in skips do
+not substitute for dedicated fixtures. No new hosted, full Node/browser or release claim.
+See A34E15_CHI_INGRESS.md and the current packet for exact trust questions and IP01–IP18.
+
+Earlier checkpoints below retain their historical review/verification states.
+
 ## Current A34e14c completion checkpoint — 2026-09-25
 
 E70: CG-A34E14B-CODEGEN-20260925-01-R1 reviews A34e14b qualification and endorses
@@ -28,8 +147,22 @@ replay blocks it, and missing/failed/truncated/wrong-target evidence is invalid,
 Graph tidy removes obsolete dependencies; every42 module movement has before/after MVS edges.
 Chi/OpenPGP/rgbcolor blockers, provider feed conflicts, policies and SheetJS decisions remain.
 Local dedicated PostgreSQL18.3: six fixtures,148 named passes, zero skips, verified identities
-and cleanup, explicitly non-race. Full hosted same-SHA verification is pending at this checkpoint.
+and cleanup, explicitly non-race. Final hosted verification is recorded immediately below.
 Implementation is review-pending; full A34/T29, A38/T33 and all release gates stay open.
+
+## Hosted A34e14c proof — 2026-09-25
+
+Hosted verification completed on `0478648e6600ce201e0a6e712ac77febdded9782` (tree `2ac4f0aedd03d18fb07d139ac92de1e691bb92a7`).
+Quality/backend/PostgreSQL/browser all pass on this same SHA. Backend ran canonical generation,
+vet/gofmt/build, the required codegen/contract lane, x/mod5 and full race tests. PostgreSQL used
+Docker18.3/race: six fixtures,148 named passes, zero skips, verified identity and cleanup.
+Chromium26/26 passes, zero skips, network isolation and process/port cleanup confirmed.
+Expanded security completed:6 raw blocking records/4 actionable/23 report-only/2 reviewed/0 exceptions.
+Source hashes and both required govulncheck targets match this commit; tool target has no findings.
+The first backend run36119865999 failed gofmt on the new fixture; original logs are retained.
+Correction0478648 formats that exact fixture and strengthens actual per-adapter value assertions.
+No application behavior or guard was weakened. No release is approved; A34e14c awaits ChatGPT review.
+
 
 ## Current A34e14b qualification checkpoint — 2026-09-24
 
@@ -792,11 +925,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e8 accepted; A34e9 PostCSS patch | Open; E56 accepts Nano ID; E57 PostCSS hosted-verified, review pending; other gates remain | T29 |
+| A34 | P1 | A34a–e14c accepted; e15b design baseline only; e15c bounded evidence | Open; E76/E77 add no milestone; exact X01–X06 external inputs and release gates remain | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e–e9 / S6 | Open; E56 Nano ID accepted; E57 PostCSS removes1blocker/1report locally and hosted; unrelated blockers remain | T33 |
+| A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust/OpenPGP/rgbcolor unresolved | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
@@ -1263,7 +1396,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A34 — CI does not enforce the full financial and client reliability baseline
 
 - **Original priority / evidence:** P1; historical class: Confirmed configuration and local formatting evidence.
-- **Current disposition:** A34a–e13 accepted through E66 (31 milestones/11 findings). E70 reviews E69 non-promotion and resolves Q-KB-01. E71 qualified/adopted exact contract migration, atomic generation and expanded tool scan; local checks pass, hosted/review pending. Full A34/T29 open.
+- **Current disposition:** E76 accepts A34e15b as DESIGN BASELINE ONLY; E77 completes bounded source/artifact/access evidence and returns exact X01–X06 acquisitions with phased prerequisites. Source is mapped and known-different; fleet and effective route exclusivity remain unqualified. 32 milestones/11 findings; no new source promotion/hosted result. Full A34/T29 open.
 - **Current evidence:** E63 A34E12-VITE-20260924-01 at bc738ace71e2d86f39ff810aa525550d5adabd7d supplies current Vite graph/Windows/pure-editor/hosted/scanner evidence; E62 accepts A34e11 and corrects E11-REPORT-01. E47 exact applicability at31080a4 remains historical evidence. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E31–E36 historical local/review evidence preserved. E37 adds reviewed staging/classification, complete SHA256 tree manifests, zero-unresolved staged secret scans, trigger safeguards, two normal commits/pushes, eight hosted run records and sanitized logs, six-fixture lifecycle and 26-scenario browser evidence in A34D_HOSTED_SUMMARY.json / A34D_VERIFICATION.json.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; owner A34d instruction and CG-A34C-BROWSER-CI-20260922-01-R1. Explicit allowlists only; no deployment/Android dispatch, provider credentials or live data.
 - **Plan coverage:** A34a/b/c continuations in plan/draft. Deterministic JS/TS, mandatory disposable PostgreSQL and mandatory synthetic browser gates remain distinct from full release qualification.
@@ -1275,8 +1408,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A35 — OTA and native release gates do not yet protect a financial-journal migration
 
 - **Original priority / evidence:** P1; historical class: Confirmed static; device/supply-chain behavior untested.
-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `backend/internal/ota/decide.go:5-31`; `apps/pos/src/App.tsx:132-144`; `apps/pos/capacitor.config.ts:1-54`; `scripts/ota-release.sh:1-97`; `apps/pos/android/app/src/main/AndroidManifest.xml:1-15`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+- **Current disposition:** Open. E77 adds immutable signed-APK/source/OTA metadata evidence only; installed cohorts, safe journal/token/queue migration and rollback remain unqualified. No new accepted milestone or T29/T30 closure.
+- **Current evidence:** E77 signed APK8190030052 and local debug APK differ in signer/API target despite identical version labels; known OTA prefix empty, installation coverage unknown. See A34E15C_READINESS_EVIDENCE.md. Historical E01/E02 (2026-09-19, local HEAD above); `backend/internal/ota/decide.go:5-31`; `apps/pos/src/App.tsx:132-144`; `apps/pos/capacitor.config.ts:1-54`; `scripts/ota-release.sh:1-97`; `apps/pos/android/app/src/main/AndroidManifest.xml:1-15`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
 - **Authority / decision:** AUDIT_REPORT A35 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: Q10.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
 - **Dependencies / slice:** A01,A04,A34,A41; proposed S6. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: native/API/journal compatibility and rollback migration.
@@ -1311,7 +1444,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
-- **Current disposition:** Open. E70 reviews unpromoted E69 and resolves Q-KB-01, no milestone. E71 expands mandatory application/tool reachability: fresh same-scope15/13/26/2/0 before ->6/4/23/2/0 after, including removal of called generator GO-2026-6016. Exact candidate adopted; hosted/review pending. No clean-baseline/full T33 claim.
+- **Current disposition:** Open. E76 design-only acceptance and E77 readiness facts do not change retained E73 active6/4/23/2/0. GO-2026-5775/5777 remain active called blockers; detached4/2 is not remediation. Exact deployed/archive provenance is now mapped and known-different from accepted source, without chi/source promotion. X01–X06 external inputs and later commissioning remain; OpenPGP/rgbcolor separate. No fresh scan, clean baseline or full T33 claim.
 - **Current evidence:** E63 A34E12-VITE-20260924-01 at bc738ace71e2d86f39ff810aa525550d5adabd7d supplies current Vite graph/Windows/pure-editor/hosted/scanner evidence; E62 accepts A34e11 and corrects E11-REPORT-01. E47 exact applicability at31080a4 remains historical evidence. E45 final de7352fa5fb0cf877e869b1c65040a2731969ccb hosted/vendor/workbook evidence in A34E3-SHEETJS-20260923-01; historical checkpoints below retain their original limits. E39 scans e782c5d before changes: 436 npm / 137 Go modules, 56 npm audit advisories, 6 distinct called Go advisories, complete graph/license inventory and CycloneDX SBOMs. Public data snapshots and final remediation scan are supplied in the current A34E packet.
 - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A34D-HOSTED-PROOF-20260922-01-R1 and DEPSEC-INITIAL-20260922. No invented license-family deny list or silent exception. Proxy trust / ambiguous license terms require consequential review.
 - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operations. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.

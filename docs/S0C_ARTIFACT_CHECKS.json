@@ -1,0 +1,95 @@
+{
+  "packet_id": "S0C-20260920-01",
+  "source_diff_files": 9,
+  "new_source_files": 6,
+  "documentation_diff_files": 9,
+  "patch_replay": [
+    {
+      "cmd": [
+        "git",
+        "apply",
+        "--check",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0C_IMPLEMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0c-replay-5xl6m7qa",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0C_IMPLEMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0c-replay-5xl6m7qa",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "git",
+        "apply",
+        "--check",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0C_DOCUMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0c-replay-5xl6m7qa",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0C_DOCUMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0c-replay-5xl6m7qa",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/docs/S0C_DOCUMENTATION.diff:22: trailing whitespace.\nVersion: 1.2 \u2014 standing programme authority integrated after CG-S0B-20260919-01-R2  \nC:/Users/MyBook Hype AMD/Downloads/mandalika-pos/docs/S0C_DOCUMENTATION.diff:64: trailing whitespace.\nRecord ID: AUTH-MANDALIKA-20260919-01  \nC:/Users/MyBook Hype AMD/Downloads/mandalika-pos/docs/S0C_DOCUMENTATION.diff:65: trailing whitespace.\nRecorded: 2026-09-19  \nC:/Users/MyBook Hype AMD/Downloads/mandalika-pos/docs/S0C_DOCUMENTATION.diff:66: trailing whitespace.\nSource: the owner's direct message in the ChatGPT review conversation accompanying S0B-20260919-01.  \nC:/Users/MyBook Hype AMD/Downloads/mandalika-pos/docs/S0C_DOCUMENTATION.diff:967: new blank line at EOF.\n+\nwarning: 5 lines add whitespace errors.\n"
+    }
+  ],
+  "all_afterimages_match_LF_normalized": true,
+  "red_patch_reconstructs": true,
+  "regression_assertion_unchanged_ignoring_whitespace": true,
+  "preserved_prior_source_test_files": 20,
+  "refund_service_and_dispatch_guard_and_SyncBatch_unchanged": true,
+  "source_preservation_hashes_in": "S0C_REPOSITORY_STATE.json",
+  "old_session_suffix_preserved_bytes": true,
+  "detailed_findings": 44,
+  "changed_detailed_findings": [
+    "A06",
+    "A09"
+  ],
+  "priority_counts": {
+    "P0": 8,
+    "P1": 32,
+    "P2": 3,
+    "P3": 1
+  },
+  "original_P0": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A06",
+    "A09",
+    "A11",
+    "A13"
+  ],
+  "git_diff_check_exit": 0,
+  "unchanged_routes_tokens_modules_lockfile_existing_migrations": true,
+  "previous_S0b_zip_unchanged": true,
+  "authority_companion_copied_exactly": true,
+  "incoming_R2_manifest_payloads_verified": 6,
+  "artifact_secret_pattern_findings": [],
+  "scan_limit": "Only private-key/JWT/credential-URL patterns; not complete A37 coverage.",
+  "new_code_review": "Codex self-review performed; no independent reviewer/ChatGPT acceptance claimed for S0c.",
+  "manifest_policy": "SHA256 and bytes for every payload; MANIFEST does not hash itself. ZIP CRC/content checked after creation."
+}

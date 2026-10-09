@@ -1,0 +1,1153 @@
+diff --git a/packages/api/src/pagination.ts b/packages/api/src/pagination.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/api/src/pagination.ts
+@@ -0,0 +1,43 @@
++import type { ListResult } from './client'
++
++const PAGE_SIZE = 200
++// Fail explicitly rather than issue unbounded requests for corrupt/huge metadata.
++const MAX_PAGES = 10_000
++
++/** Complete ordered list or rejection; never exposes an incomplete prefix.
++ * Offset pagination is not a snapshot: detectable drift fails the whole read.
++ */
++export async function fetchAllPages<T extends { id: string }>(
++  fetchPage: (page: number, limit: number) => Promise<ListResult<T>>,
++): Promise<T[]> {
++  const rows: T[] = []
++  const ids = new Set<string>()
++  let total: number | undefined
++  let pages = 1
++  for (let page = 1; page <= pages; page++) {
++    const result = await fetchPage(page, PAGE_SIZE)
++    const meta = result?.meta
++    if (!meta || !Number.isSafeInteger(meta.total) || meta.total < 0 ||
++      meta.page !== page || meta.limit !== PAGE_SIZE || !Array.isArray(result.data)) {
++      throw new Error('Data lengkap tidak tersedia: metadata halaman tidak valid. Muat ulang.')
++    }
++    if (total === undefined) {
++      total = meta.total
++      pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
++      if (pages > MAX_PAGES) throw new Error('Data melebihi batas pengambilan lengkap.')
++    } else if (meta.total !== total) {
++      throw new Error('Data berubah saat dimuat. Muat ulang untuk laporan lengkap.')
++    }
++    if (result.data.length !== Math.min(PAGE_SIZE, total - rows.length)) {
++      throw new Error('Data halaman tidak lengkap. Muat ulang untuk laporan lengkap.')
++    }
++    for (const row of result.data) {
++      if (!row || typeof row.id !== 'string' || !row.id.trim() || ids.has(row.id)) {
++        throw new Error('Identitas data halaman tidak konsisten. Muat ulang.')
++      }
++      ids.add(row.id)
++      rows.push(row)
++    }
++  }
++  return rows
++}
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -1,2 +1,3 @@
+ export * from './client'
++export { fetchAllPages } from './pagination'
+ export type { paths, components, operations } from './schema'
+diff --git a/apps/backoffice/src/screens/Reports.tsx b/apps/backoffice/src/screens/Reports.tsx
+--- a/apps/backoffice/src/screens/Reports.tsx
++++ b/apps/backoffice/src/screens/Reports.tsx
+@@ -1,4 +1,5 @@
+ import { useMemo, useState } from 'react'
++import { fetchAllPages } from '@mandalika/api'
+ import type { Order, Shift, Outlet } from '@mandalika/api'
+ import {
+   format,
+@@ -64,8 +65,8 @@
+   const [fStatus, setFStatus] = useState('')
+   const [fPay, setFPay] = useState('')
+ 
+-  const oq = usePolledQuery<Order[]>(() => api.listOrders({ limit: 500 }).then((r) => r.data), [outletId])
+-  const sq = usePolledQuery<Shift[]>(() => api.listShifts({ limit: 500 }).then((r) => r.data), [outletId])
++  const oq = usePolledQuery<Order[]>(() => fetchAllPages((page, limit) => api.listOrders({ page, limit })), [outletId])
++  const sq = usePolledQuery<Shift[]>(() => fetchAllPages((page, limit) => api.listShifts({ page, limit })), [outletId])
+   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
+   const orders = oq.data ?? []
+   const shifts = sq.data ?? []
+@@ -97,7 +98,7 @@
+   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
+ 
+   const exportTx = () =>
+-    exportToCSV(
++    !oq.loading && !oq.error && oq.data && exportToCSV(
+       fOrders.map((o) => ({
+         'No. Order': o.orderNumber,
+         Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
+@@ -125,7 +126,7 @@
+     )
+ 
+   const exportSh = () =>
+-    exportToCSV(
++    !sq.loading && !sq.error && sq.data && exportToCSV(
+       fShifts.map((s) => ({
+         Kasir: s.cashierName,
+         Outlet: outletName(s.outletId),
+@@ -163,6 +164,12 @@
+         }
+       />
+ 
++      {((tab === 'export' && oq.error) || (tab === 'shifts' && sq.error)) && (
++        <p role="alert" className="text-sm text-red-600">
++          Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {tab === 'export' ? oq.error : sq.error}
++        </p>
++      )}
++      {((tab === 'export' && oq.loading) || (tab === 'shifts' && sq.loading)) && <p role="status">Memuat data lengkap…</p>}
+       {tab === 'orders' && <OrdersPanel />}
+ 
+       {tab !== 'orders' && (
+@@ -211,6 +218,7 @@
+           <Button
+             variant="secondary"
+             onClick={tab === 'export' ? exportTx : exportSh}
++            disabled={tab === 'export' ? oq.loading || !!oq.error || !oq.data : sq.loading || !!sq.error || !sq.data}
+             icon={<Download className="w-4 h-4" />}
+           >
+             Export CSV
+@@ -223,7 +231,7 @@
+ 
+       {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+ 
+-      {tab === 'export' && (
++      {tab === 'export' && oq.data && (
+         <>
+           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+             {[
+@@ -307,7 +315,7 @@
+         </>
+       )}
+ 
+-      {tab === 'shifts' && (
++      {tab === 'shifts' && sq.data && (
+         <>
+           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+             {[
+diff --git a/apps/backoffice/src/screens/Orders.tsx b/apps/backoffice/src/screens/Orders.tsx
+--- a/apps/backoffice/src/screens/Orders.tsx
++++ b/apps/backoffice/src/screens/Orders.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import type { Order } from '@mandalika/api'
++import { fetchAllPages, type Order } from '@mandalika/api'
+ import { variantLabel } from '@mandalika/types'
+ import { format, parseISO } from 'date-fns'
+ import { id } from 'date-fns/locale'
+@@ -36,7 +36,7 @@
+   const [err, setErr] = useState<string | null>(null)
+ 
+   const q = usePolledQuery<Order[]>(
+-    () => api.listOrders({ limit: 500 }).then((r) => r.data),
++    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
+     [outletId],
+   )
+   const orders = q.data ?? []
+@@ -76,6 +76,7 @@
+   // Detailed export for analysts — one row per order with the discount source
+   // (promotion name / code / manual) and structured discount fields.
+   const handleExport = () => {
++    if (q.loading || q.error || !q.data) return
+     const rows = filtered.map((o) => ({
+       'No. Order': o.orderNumber,
+       Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
+@@ -102,6 +103,7 @@
+ 
+   return (
+     <div className="space-y-5">
++      {q.error && <p role="alert" className="text-sm text-red-600">Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {q.error}</p>}
+       <p className="text-sm text-gray-500">{filtered.length} transaksi · Total: {BRAND.currency.format(revenue)}</p>
+ 
+       <div className="flex flex-wrap gap-3">
+@@ -132,7 +134,7 @@
+         <Button
+           variant="secondary"
+           onClick={handleExport}
+-          disabled={filtered.length === 0}
++          disabled={q.loading || !!q.error || !q.data || filtered.length === 0}
+           icon={<Download className="w-4 h-4" />}
+         >
+           Export
+diff --git a/apps/backoffice/src/screens/Dashboard.tsx b/apps/backoffice/src/screens/Dashboard.tsx
+--- a/apps/backoffice/src/screens/Dashboard.tsx
++++ b/apps/backoffice/src/screens/Dashboard.tsx
+@@ -1,4 +1,5 @@
+ import { useState, lazy, Suspense } from 'react'
++import { fetchAllPages } from '@mandalika/api'
+ import type { Order, Product, Promotion } from '@mandalika/api'
+ import { format } from 'date-fns'
+ import { id as idLocale } from 'date-fns/locale'
+@@ -63,16 +64,16 @@
+   const [period, setPeriod] = useState<Period>('7d')
+ 
+   const oq = usePolledQuery<Order[]>(
+-    () => api.listOrders({ limit: 500 }).then((r) => r.data),
++    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
+     [outletId],
+   )
+   const pq = usePolledQuery<Product[]>(
+-    () => api.listProducts(1, 500).then((r) => r.data),
++    () => fetchAllPages((page, limit) => api.listProducts(page, limit)),
+     [outletId],
+   )
+   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [outletId])
+ 
+-  if (oq.loading)
++  if (oq.loading || pq.loading)
+     return (
+       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+         {Array.from({ length: 4 }).map((_, i) => (
+@@ -80,6 +81,8 @@
+         ))}
+       </div>
+     )
++
++  if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-red-600">Gagal memuat data lengkap. {oq.error || pq.error}</p>
+ 
+   const orders = oq.data ?? []
+   const products = pq.data ?? []
+@@ -117,6 +120,7 @@
+         actions={<Tabs value={period} onChange={setPeriod} tabs={PERIOD_TABS} />}
+       />
+ 
++      {(oq.error || pq.error) && <p role="alert" className="text-sm text-red-600">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
+       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+         <KpiCard
+           label="Penjualan"
+diff --git a/apps/backoffice/src/screens/pagination.test.ts b/apps/backoffice/src/screens/pagination.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/backoffice/src/screens/pagination.test.ts
+@@ -0,0 +1,72 @@
++import { describe, expect, it, vi } from 'vitest'
++import { fetchAllPages, type ListResult, type Order, type Product } from '@mandalika/api'
++import { buildTrend, cashierPerformance, completedIn, computeKpis, lowStock, paymentBreakdown, periodInterval, productRanking } from './dashboard/metrics'
++
++function pages<T>(rows: T[]) {
++  return vi.fn(async (page: number, limit: number): Promise<ListResult<T>> => ({
++    data: rows.slice((page - 1) * limit, page * limit), meta: { total: rows.length, page, limit },
++  }))
++}
++
++describe('complete pagination', () => {
++  it.each([0, 1, 50, 51, 200, 201, 401, 1000])('retrieves %i in exact server order with bounded calls', async total => {
++    const rows = Array.from({ length: total }, (_, i) => ({ id: `id-${total - i}` }))
++    const fetch = pages(rows)
++    expect(await fetchAllPages(fetch)).toEqual(rows)
++    expect(fetch.mock.calls).toEqual(Array.from({ length: Math.max(1, Math.ceil(total / 200)) }, (_, i) => [i + 1, 200]))
++  })
++  it('rejects a later failure instead of returning the successful prefix', async () => {
++    const fetch = pages(Array.from({ length: 401 }, (_, i) => ({ id: `${i}` })))
++    fetch.mockImplementationOnce(async (page, limit) => ({ data: Array.from({ length: 200 }, (_, i) => ({ id: `${i}` })), meta: { total: 401, page, limit } }))
++      .mockRejectedValueOnce(new Error('page 2 unavailable'))
++    await expect(fetchAllPages(fetch)).rejects.toThrow('page 2 unavailable')
++    expect(fetch).toHaveBeenCalledTimes(2)
++  })
++  it.each(['empty', 'short', 'duplicate', 'changed-total', 'changed-limit', 'wrong-page'])('rejects %s on page 2', async kind => {
++    const rows = Array.from({ length: 401 }, (_, i) => ({ id: `${i}` }))
++    const fetch = vi.fn(async (page: number, limit: number) => {
++      const r = await pages(rows)(page, limit)
++      if (page === 2) {
++        if (kind === 'empty') r.data = []
++        if (kind === 'short') r.data.pop()
++        if (kind === 'duplicate') r.data[0] = rows[0]
++        if (kind === 'changed-total') r.meta!.total++
++        if (kind === 'changed-limit') r.meta!.limit = 50
++        if (kind === 'wrong-page') r.meta!.page = 1
++      }
++      return r
++    })
++    await expect(fetchAllPages(fetch)).rejects.toThrow()
++    expect(fetch).toHaveBeenCalledTimes(2)
++  })
++  it.each([undefined, {}, { total: -1, page: 1, limit: 200 }, { total: 1.5, page: 1, limit: 200 }, { total: '1', page: 1, limit: 200 }, { total: 0, page: 1, limit: 50 }, { total: Number.MAX_SAFE_INTEGER, page: 1, limit: 200 }])('rejects malformed or excessive metadata %j', async meta => {
++    const fetch = vi.fn(async () => ({ data: [], meta }) as unknown as ListResult<{ id: string }>)
++    await expect(fetchAllPages(fetch)).rejects.toThrow()
++    expect(fetch).toHaveBeenCalledTimes(1)
++  })
++  it.each([{ data: [{ id: '' }] }, { data: [{ id: 'x' }, { id: 'x' }] }, { data: [null] }])('rejects missing/duplicate row identity', async ({ data }) => {
++    await expect(fetchAllPages(pages(data as { id: string }[]))).rejects.toThrow()
++  })
++})
++
++describe('unchanged dashboard calculations consume the complete list', () => {
++  const now = new Date('2026-09-21T12:00:00')
++  it.each([51, 201, 1000])('%i orders feed every metric', async total => {
++    const ledger = Array.from({ length: total }, (_, i) => ({ id: `${i}`, status: 'completed', total: 1000, customerId: `c-${i}`, cashierId: 'c', cashierName: 'Cashier', paymentMethod: i % 2 ? 'qris' : 'cash', createdAt: '2026-09-21T10:00:00', items: [{ productId: 'p', productName: 'P', variantSize: 'M', quantity: 2 }] })) as Order[]
++    const orders = completedIn(await fetchAllPages(pages(ledger)), periodInterval('today', now))
++    expect(computeKpis(orders)).toEqual({ revenue: total * 1000, orders: total, itemsSold: total * 2, customers: total })
++    expect(buildTrend(orders, 'today', now).reduce((s, p) => s + p.revenue, 0)).toBe(total * 1000)
++    expect(paymentBreakdown(orders).reduce((s, p) => s + p.amount, 0)).toBe(total * 1000)
++    expect(cashierPerformance(orders)[0].revenue).toBe(total * 1000)
++    expect(productRanking(orders)[0].qty).toBe(total * 2)
++  })
++  it('includes low stock on the final product page', async () => {
++    const rows = Array.from({ length: 201 }, (_, i) => ({ id: `${i}`, name: `P${i}`, variants: [{ size: 'M', stock: i === 200 ? 0 : 100 }] })) as Product[]
++    expect(lowStock(await fetchAllPages(pages(rows)))).toEqual([{ name: 'P200 M', stock: 0 }])
++  })
++  it('preserves fixed period boundaries and completed-only filtering', () => {
++    const rows = [{ id:'current', status:'completed', createdAt:'2026-09-21T10:00:00' }, { id:'past', status:'completed', createdAt:'2026-09-14T10:00:00' }, { id:'refund', status:'refunded', createdAt:'2026-09-21T10:00:00' }] as Order[]
++    expect(completedIn(rows, periodInterval('7d', now)).map(o => o.id)).toEqual(['current'])
++    expect(completedIn(rows, periodInterval('30d', now)).map(o => o.id)).toEqual(['current', 'past'])
++  })
++})
+diff --git a/apps/backoffice/src/screens/paginationPostgres.test.ts b/apps/backoffice/src/screens/paginationPostgres.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/backoffice/src/screens/paginationPostgres.test.ts
+@@ -0,0 +1,21 @@
++import { readFileSync } from 'node:fs'
++import { expect, it } from 'vitest'
++import { fetchAllPages, type ListResult } from '@mandalika/api'
++
++// Responses emitted by the opt-in real authenticated Go/PostgreSQL harness.
++// No live connection or synthetic substitution when the fixture is unavailable.
++it.skipIf(!process.env.MANDALIKA_A26_PAGES)('reconstructs actual PostgreSQL handler pages with the production helper', async () => {
++  type Row = { id: string; total?: number; amount?: number }
++  const records = JSON.parse(readFileSync(process.env.MANDALIKA_A26_PAGES!, 'utf8')) as { name: string; total: number; pages: ListResult<Row>[] }[]
++  expect(records.map(r => r.name)).toEqual(['orders-0', 'orders-51', 'orders-201', 'orders-1000', 'shifts', 'flows', 'products', 'filtered', 'empty-date', 'foreign-shift'])
++  for (const record of records) {
++    const rows = await fetchAllPages(async (page, limit) => {
++      expect(limit).toBe(200)
++      return record.pages[page - 1]
++    })
++    expect(rows).toHaveLength(record.total)
++    expect(rows.map(r => r.id)).toEqual(record.pages.flatMap(p => p.data.map(r => r.id)))
++    if (record.name.startsWith('orders-')) expect(rows.reduce((s, r) => s + r.total!, 0)).toBe(record.total * 1000)
++    if (record.name === 'flows') expect(rows.reduce((s, r) => s + r.amount!, 0)).toBe(40100)
++  }
++})
+diff --git a/apps/pos/src/cashier/ShiftRecapPanel.tsx b/apps/pos/src/cashier/ShiftRecapPanel.tsx
+--- a/apps/pos/src/cashier/ShiftRecapPanel.tsx
++++ b/apps/pos/src/cashier/ShiftRecapPanel.tsx
+@@ -8,23 +8,19 @@
+  * All data is server-sourced. Brand gold comes free — index.css remaps the
+  * indigo palette to gold, so the indigo-* classes here render gold.
+  */
+-import { useCallback, useEffect, useState } from 'react'
++import { useCallback, useEffect, useRef, useState } from 'react'
+ import type { components } from '@mandalika/api'
+ import type { RecapData } from '@mandalika/printer'
+ import { api } from '../api'
+ import { usePrinter } from '../printer'
+ import { formatRupiah } from './pricing'
+-import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
++import { loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
+ import { Skeleton } from '../components/Skeleton'
+ 
+ type ReceiptSettings = components['schemas']['ReceiptSettings']
+ type Shift = components['schemas']['Shift']
+ type CashFlow = components['schemas']['CashFlow']
+ type Order = components['schemas']['Order']
+-type ShiftResponse = components['schemas']['ShiftResponse']
+-type ShiftListResponse = components['schemas']['ShiftListResponse']
+-type CashFlowListResponse = components['schemas']['CashFlowListResponse']
+-type OrderListResponse = components['schemas']['OrderListResponse']
+ type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean }
+ 
+ interface Breakdown {
+@@ -148,8 +144,12 @@
+   const [dateFrom, setDateFrom] = useState('')
+   const [dateTo, setDateTo] = useState('')
+   const [histPage, setHistPage] = useState(1)
++  const selectionRequest = useRef(0)
+   const [selected, setSelected] = useState<Shift | null>(null)
+   const [selectedOrders, setSelectedOrders] = useState<Order[]>([])
++  const [selectedFlows, setSelectedFlows] = useState<CashFlow[]>([])
++  const [selectedStale, setSelectedStale] = useState(false)
++  const [selectedError, setSelectedError] = useState<string | null>(null)
+   const [loadingSelected, setLoadingSelected] = useState(false)
+   // Portrait: the right detail pane is a full-screen overlay instead of a
+   // squished third column. Opened on shift-select (Riwayat) or via a button
+@@ -162,73 +162,32 @@
+   // Keyed by payment-method id; only filled keys are sent on close.
+   const [counted, setCounted] = useState<Record<string, number>>({})
+ 
+-  const flowsFor = useCallback(async (shiftId: string): Promise<CashFlow[]> => {
+-    const r = await api.request<CashFlowListResponse>(
+-      'GET', `/api/v1/cash-flows?shiftId=${encodeURIComponent(shiftId)}&limit=200`,
+-    )
+-    return r.data ?? []
+-  }, [])
+-
+-  const ordersFor = useCallback(async (shiftId: string): Promise<Order[]> => {
+-    const r = await api.request<OrderListResponse>(
+-      'GET', `/api/v1/orders?shiftId=${encodeURIComponent(shiftId)}&page=1&limit=1000`,
+-    )
+-    return r.data ?? []
+-  }, [])
+-
+   const loadRekap = useCallback(async () => {
+     setIsLoading(true)
+     setError(null)
+     try {
+-      const r = await api.request<ShiftResponse>('GET', '/api/v1/shifts/current')
+-      const s = r.data ?? null
+-      let flows: CashFlow[] = []
+-      let orders: Order[] = []
+-      if (s) {
+-        flows = await flowsFor(s.id)
+-        orders = await ordersFor(s.id)
+-      }
+-      setCurrentShift(s)
++      const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
++      setCurrentShift(shift)
+       setCurrentFlows(flows)
+-      setLive(s ? aggregate(orders) : null)
+-      setCounted((s?.countedByMethod as Record<string, number> | null | undefined) ?? {})
+-      setIsStale(false)
+-      cacheWrite('rekap:current', { shift: s, flows, orders })
++      setLive(shift ? aggregate(orders) : null)
++      setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
++      setIsStale(stale)
+     } catch (e: unknown) {
+-      // Offline: rebuild the recap from the last online snapshot.
+-      const cached = cacheRead<{ shift: Shift | null; flows: CashFlow[]; orders: Order[] }>('rekap:current')
+-      if (cached) {
+-        setCurrentShift(cached.shift)
+-        setCurrentFlows(cached.flows)
+-        setLive(cached.shift ? aggregate(cached.orders) : null)
+-        setIsStale(true)
+-        setError(null)
+-      } else {
+-        setError(e instanceof Error ? e.message : 'Gagal memuat rekap')
+-      }
++      setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
+     } finally {
+       setIsLoading(false)
+     }
+-  }, [flowsFor, ordersFor])
++  }, [])
+ 
+   const loadHistory = useCallback(async () => {
+     setIsLoading(true)
+     setError(null)
+     try {
+-      const r = await api.request<ShiftListResponse>('GET', '/api/v1/shifts?page=1&limit=500')
+-      const data = r.data ?? []
++      const { data, stale } = await loadRecapHistory(api)
+       setHistory(data)
+-      setIsStale(false)
+-      cacheWrite('rekap:history', data)
++      setIsStale(stale)
+     } catch (e: unknown) {
+-      const cached = cacheRead<Shift[]>('rekap:history')
+-      if (cached) {
+-        setHistory(cached)
+-        setIsStale(true)
+-        setError(null)
+-      } else {
+-        setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift')
+-      }
++      setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift lengkap')
+     } finally {
+       setIsLoading(false)
+     }
+@@ -237,6 +196,7 @@
+   // Switching tabs clears the previous tab's transient view state (selected
+   // history shift, detail overlay, status messages) before the new tab loads.
+   const changeTab = (next: Tab) => {
++    selectionRequest.current++
+     setSelected(null)
+     setShowMobileDetail(false)
+     setPrintMsg(null)
+@@ -251,19 +211,25 @@
+   }, [tab, loadRekap, loadHistory])
+ 
+   const selectHistoryShift = async (s: Shift) => {
++    const request = ++selectionRequest.current
+     setSelected(s)
+     setShowMobileDetail(true)
+     setSelectedOrders([])
++    setSelectedFlows([])
++    setSelectedStale(false)
++    setSelectedError(null)
+     setLoadingSelected(true)
+     try {
+-      const o = await ordersFor(s.id)
+-      setSelectedOrders(o)
+-      cacheWrite(`rekap:orders:${s.id}`, o)
+-    } catch {
+-      // Offline: show the cached orders for this shift if we have them.
+-      setSelectedOrders(cacheRead<Order[]>(`rekap:orders:${s.id}`) ?? [])
++      const { data, stale } = await loadHistoricalRecap(api, s.id)
++      if (request !== selectionRequest.current) return
++      setSelectedOrders(data.orders)
++      setSelectedFlows(data.flows)
++      setSelectedStale(stale)
++    } catch (e: unknown) {
++      if (request !== selectionRequest.current) return
++      setSelectedError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
+     } finally {
+-      setLoadingSelected(false)
++      if (request === selectionRequest.current) setLoadingSelected(false)
+     }
+   }
+ 
+@@ -394,7 +360,7 @@
+       <div className="flex-1 flex flex-col overflow-hidden sm:border-r border-gray-200 min-w-0 bg-gray-50">
+         {isStale && !error && (
+           <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 text-center flex-shrink-0">
+-            {OFFLINE_NOTICE}
++            {RECAP_STALE_NOTICE}
+           </div>
+         )}
+         {isLoading ? (
+@@ -638,7 +604,7 @@
+           <button type="button" onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
+           <span className="font-bold text-gray-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
+         </div>
+-        {tab === 'rekapan' ? (
++        {tab === 'rekapan' && (isLoading || error) ? <p className="p-4 text-sm text-gray-500">{isLoading ? 'Memuat data lengkap…' : 'Rekap lengkap belum tersedia.'}</p> : tab === 'rekapan' ? (
+           <div className="p-4 space-y-4">
+             <div>
+               <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
+@@ -731,8 +697,8 @@
+               })),
+               totalRecorded: b.totalSales,
+               totalCounted: hasCounted ? countedTotal : null,
+-              cashIn: null,
+-              cashOut: null,
++              cashIn: selectedFlows.filter((f) => !isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
++              cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
+               gross: b.gross,
+               refundTotal: b.refundTotal,
+               refundCount: b.refundCount,
+@@ -752,7 +718,7 @@
+                     <p className="font-black text-gray-900">Rekapan - {outletName}</p>
+                     <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
+                   </div>
+-                  {!loadingSelected && (
++                  {!loadingSelected && !selectedError && (
+                     <button type="button" onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
+                       className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 transition-all">
+                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+@@ -764,7 +730,8 @@
+                   <p className={`text-xs ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
+                 )}
+ 
+-                {loadingSelected ? (
++                {selectedStale && <p role="status" className="text-xs text-amber-700">{RECAP_STALE_NOTICE}</p>}
++                {selectedError ? <p role="alert" className="text-sm text-red-600">{selectedError}</p> : loadingSelected ? (
+                   <div className="py-4 text-center">
+                     <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mx-auto" />
+                   </div>
+@@ -822,6 +789,10 @@
+                       </div>
+                     </div>
+ 
++                    <div>
++                      {sumRow('Kas Masuk', formatRupiah(recapData.cashIn ?? 0))}
++                      {sumRow('Kas Keluar', formatRupiah(recapData.cashOut ?? 0))}
++                    </div>
+                     {/* Products + variants sold this shift. */}
+                     <div>
+                       <p className="text-xs font-black text-gray-900 mb-2">Produk Terjual</p>
+diff --git a/apps/pos/src/cashier/recapData.ts b/apps/pos/src/cashier/recapData.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/recapData.ts
+@@ -0,0 +1,49 @@
++import { fetchAllPages, type Api, type components } from '@mandalika/api'
++import { cacheRead, cacheWrite } from '../lib/offlineCache'
++
++type S = components['schemas']
++type Client = Pick<Api, 'request'>
++export const RECAP_STALE_NOTICE = 'Data belum diperbarui — menampilkan snapshot lengkap terakhir'
++
++export function recapOrders(api: Client, shiftId: string) {
++  return fetchAllPages((page, limit) => api.request<S['OrderListResponse']>(
++    'GET', `/api/v1/orders?shiftId=${encodeURIComponent(shiftId)}&page=${page}&limit=${limit}`,
++  ))
++}
++
++export function recapFlows(api: Client, shiftId: string) {
++  return fetchAllPages((page, limit) => api.request<S['CashFlowListResponse']>(
++    'GET', `/api/v1/cash-flows?shiftId=${encodeURIComponent(shiftId)}&page=${page}&limit=${limit}`,
++  ))
++}
++
++/** Cache one whole cohort only after every constituent request succeeds.
++ * Legacy unmarked snapshots may contain truncated data: retain their bytes, but
++ * do not present them as complete. This cache is not the financial journal.
++ */
++export async function completeRecap<T>(key: string, fetcher: () => Promise<T>) {
++  try {
++    const data = await fetcher()
++    cacheWrite(key, { completePagination: 1, data })
++    return { data, stale: false }
++  } catch (error) {
++    const cached = cacheRead<{ completePagination?: number; data: T }>(key)
++    if (cached?.completePagination === 1) return { data: cached.data, stale: true }
++    throw error
++  }
++}
++
++export const loadCurrentRecap = (api: Client) => completeRecap('rekap:current', async () => {
++  const { data: shift } = await api.request<S['ShiftResponse']>('GET', '/api/v1/shifts/current')
++  const [orders, flows] = shift ? await Promise.all([recapOrders(api, shift.id), recapFlows(api, shift.id)]) : [[], []]
++  return { shift: shift ?? null, orders, flows }
++})
++
++export const loadRecapHistory = (api: Client) => completeRecap('rekap:history', () =>
++  fetchAllPages((page, limit) => api.request<S['ShiftListResponse']>('GET', `/api/v1/shifts?page=${page}&limit=${limit}`)),
++)
++
++export const loadHistoricalRecap = (api: Client, shiftId: string) => completeRecap(`rekap:orders:${shiftId}`, async () => {
++  const [orders, flows] = await Promise.all([recapOrders(api, shiftId), recapFlows(api, shiftId)])
++  return { orders, flows }
++})
+diff --git a/apps/pos/src/cashier/recapData.test.ts b/apps/pos/src/cashier/recapData.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/recapData.test.ts
+@@ -0,0 +1,89 @@
++import { beforeEach, afterEach, expect, it, vi } from 'vitest'
++import { createClient } from '@mandalika/api'
++import { loadCurrentRecap, loadHistoricalRecap, loadRecapHistory } from './recapData'
++
++const storage = new Map<string, string>()
++let fail: string | null
++let offline: boolean
++const calls: string[] = []
++const client = () => createClient({ baseUrl: 'http://synthetic.invalid', getToken: () => null })
++
++beforeEach(() => {
++  storage.clear(); calls.length = 0; fail = null; offline = false
++  vi.stubGlobal('localStorage', { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => storage.set(k, v) })
++  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
++    calls.push(input)
++    if (offline) throw new Error('offline')
++    const u = new URL(input), page = Number(u.searchParams.get('page') ?? 1), limit = Number(u.searchParams.get('limit') ?? 200)
++    if (u.pathname === fail && page === 2) throw new Error('page 2 failure')
++    if (u.pathname.endsWith('/current')) return new Response(JSON.stringify({ data: { id: 'current', status: 'open' } }))
++    const kind = u.pathname.split('/').pop(), count = kind === 'shifts' ? 251 : 401
++    const rows = Array.from({ length: count }, (_, i) => ({ id: `${kind}-${i}`, total: 1000, amount: 100, type: 'in', shiftId: u.searchParams.get('shiftId') }))
++    return new Response(JSON.stringify({ data: rows.slice((page - 1) * limit, page * limit), meta: { total: count, page, limit } }))
++  }))
++})
++afterEach(() => vi.unstubAllGlobals())
++
++it('loads all active orders/flows, history, and historical orders/flows with original shift filters', async () => {
++  const active = await loadCurrentRecap(client())
++  expect(active.data.orders).toHaveLength(401)
++  expect(active.data.orders.reduce((s, o) => s + o.total, 0)).toBe(401000)
++  expect(active.data.flows).toHaveLength(401)
++  expect(active.data.flows.reduce((s, f) => s + f.amount, 0)).toBe(40100)
++  expect((await loadRecapHistory(client())).data).toHaveLength(251)
++  const past = await loadHistoricalRecap(client(), 'past & one')
++  expect(past.data.orders).toHaveLength(401)
++  expect(past.data.flows).toHaveLength(401)
++  expect(calls.filter(s => s.includes('past%20%26%20one'))).toHaveLength(6)
++  expect(calls.filter(s => s.includes('page=3'))).toHaveLength(4)
++})
++
++it.each(['/api/v1/orders', '/api/v1/cash-flows'])('retains one complete cohort after %s later-page failure and reconstructs offline', async endpoint => {
++  const initial = await loadCurrentRecap(client())
++  const saved = storage.get('mandalika.cache.rekap:current')
++  fail = endpoint
++  expect(await loadCurrentRecap(client())).toEqual({ data: initial.data, stale: true })
++  expect(storage.get('mandalika.cache.rekap:current')).toBe(saved)
++  offline = true
++  expect(await loadCurrentRecap(client())).toEqual({ data: initial.data, stale: true })
++  expect(storage.get('mandalika.cache.rekap:current')).toBe(saved)
++})
++
++it('preserves selected-shift complete orders AND flows on failure/reconstruction', async () => {
++  const initial = await loadHistoricalRecap(client(), 'past')
++  const saved = storage.get('mandalika.cache.rekap:orders:past')
++  fail = '/api/v1/cash-flows'
++  expect(await loadHistoricalRecap(client(), 'past')).toEqual({ data: initial.data, stale: true })
++  expect(storage.get('mandalika.cache.rekap:orders:past')).toBe(saved)
++  offline = true
++  expect(await loadHistoricalRecap(client(), 'past')).toEqual({ data: initial.data, stale: true })
++})
++
++it('reconstructs the complete history from the same storage', async () => {
++  const initial = await loadRecapHistory(client())
++  offline = true
++  expect(await loadRecapHistory(client())).toEqual({ data: initial.data, stale: true })
++})
++
++it('does not cache any prefix when the first complete fetch fails', async () => {
++  fail = '/api/v1/orders'
++  await expect(loadCurrentRecap(client())).rejects.toThrow('page 2 failure')
++  expect(storage.size).toBe(0)
++})
++
++it('retains but never certifies a legacy potentially truncated cache', async () => {
++  const legacy = JSON.stringify({ shift: { id: 'legacy' }, orders: [], flows: [] })
++  storage.set('mandalika.cache.rekap:current', legacy)
++  offline = true
++  await expect(loadCurrentRecap(client())).rejects.toThrow('offline')
++  expect(storage.get('mandalika.cache.rekap:current')).toBe(legacy)
++})
++
++
++it('retains a complete multi-page history on page-two failure', async () => {
++  const initial = await loadRecapHistory(client())
++  const saved = storage.get('mandalika.cache.rekap:history')
++  fail = '/api/v1/shifts'
++  expect(await loadRecapHistory(client())).toEqual({ data: initial.data, stale: true })
++  expect(storage.get('mandalika.cache.rekap:history')).toBe(saved)
++})
+diff --git a/backend/internal/read/repo.go b/backend/internal/read/repo.go
+--- a/backend/internal/read/repo.go
++++ b/backend/internal/read/repo.go
+@@ -156,13 +156,13 @@
+ 		return listJSON[api.Product](ctx, r.Pool,
+ 			`SELECT `+obj+`, count(*) OVER() AS total
+ 			   FROM products p WHERE true`+sellableWhere(sc)+`
+-			   ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
++			   ORDER BY p.created_at DESC, p.id DESC LIMIT $1 OFFSET $2`,
+ 			limit, off(page, limit))
+ 	}
+ 	return listJSON[api.Product](ctx, r.Pool,
+ 		`SELECT `+obj+`, count(*) OVER() AS total
+ 		   FROM products p WHERE true`+availabilityWhere(sc, 1)+sellableWhere(sc)+`
+-		   ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
++		   ORDER BY p.created_at DESC, p.id DESC LIMIT $2 OFFSET $3`,
+ 		sc.OutletID, limit, off(page, limit))
+ }
+ 
+@@ -1013,7 +1013,7 @@
+ 	}
+ 	args = append(args, limit, off(page, limit))
+ 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s
+-	  ORDER BY o.created_at DESC LIMIT $%d OFFSET $%d`,
++	  ORDER BY o.created_at DESC, o.id DESC LIMIT $%d OFFSET $%d`,
+ 		orderObj, where, len(args)-1, len(args))
+ 	return listJSON[api.Order](ctx, r.Pool, sql, args...)
+ }
+@@ -1047,7 +1047,7 @@
+ 	}
+ 	args = append(args, limit, off(page, limit))
+ 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM shifts s %s
+-	  ORDER BY s.opened_at DESC LIMIT $%d OFFSET $%d`,
++	  ORDER BY s.opened_at DESC, s.id DESC LIMIT $%d OFFSET $%d`,
+ 		shiftObj, where, len(args)-1, len(args))
+ 	return listJSON[api.Shift](ctx, r.Pool, sql, args...)
+ }
+@@ -1298,7 +1298,7 @@
+ 	  'description',cf.description,'cashierId',cf.cashier_id,
+ 	  'cashierName',cf.cashier_name,'createdAt',cf.created_at),
+ 	  count(*) OVER() AS total FROM cash_flows cf %s
+-	  ORDER BY cf.created_at DESC LIMIT $%d OFFSET $%d`,
++	  ORDER BY cf.created_at DESC, cf.id DESC LIMIT $%d OFFSET $%d`,
+ 		where, len(args)-1, len(args))
+ 	return listJSON[api.CashFlow](ctx, r.Pool, sql, args...)
+ }
+diff --git a/backend/internal/handlers/pagination_integration_test.go b/backend/internal/handlers/pagination_integration_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/handlers/pagination_integration_test.go
+@@ -0,0 +1,195 @@
++package handlers
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"github.com/jackc/pgx/v5/pgxpool"
++	"github.com/mandalika/pos-backend/internal/auth"
++	"github.com/mandalika/pos-backend/internal/config"
++	"github.com/mandalika/pos-backend/internal/db"
++	mw "github.com/mandalika/pos-backend/internal/middleware"
++	"github.com/mandalika/pos-backend/internal/read"
++	"net/http"
++	"net/http/httptest"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++)
++
++// Fresh synthetic cluster only; exact target + data directory + empty schema.
++// Never loads application secrets or reuses a stopped historical fixture.
++func TestPaginationPostgres(t *testing.T) {
++	dsn := os.Getenv("MANDALIKA_A26_TEST_DSN")
++	if dsn == "" {
++		t.Skip("isolated A26 pagination PostgreSQL fixture not configured")
++	}
++	cfg, err := pgxpool.ParseConfig(dsn)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56443 || cfg.ConnConfig.Database != "mandalika_a26_synthetic" || cfg.ConnConfig.User != "a26_test" {
++		t.Fatal("refusing non-fixture target")
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
++	defer cancel()
++	pool, err := pgxpool.NewWithConfig(ctx, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer pool.Close()
++	var dir string
++	if err = pool.QueryRow(ctx, "SHOW data_directory").Scan(&dir); err != nil {
++		t.Fatal(err)
++	}
++	expected := os.Getenv("MANDALIKA_A26_TEST_DATA_DIR")
++	if expected == "" || filepath.Clean(dir) != filepath.Clean(expected) {
++		t.Fatal("fixture directory mismatch")
++	}
++	var tables int
++	if err = pool.QueryRow(ctx, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").Scan(&tables); err != nil || tables != 0 {
++		t.Fatalf("fixture must be empty: tables=%d err=%v", tables, err)
++	}
++	if err = (&db.DB{Pool: pool}).Migrate(ctx); err != nil {
++		t.Fatal(err)
++	}
++	exec := func(sql string, args ...any) {
++		t.Helper()
++		if _, err := pool.Exec(ctx, sql, args...); err != nil {
++			t.Fatal(err)
++		}
++	}
++	const cashier = "00000000-0000-4000-8600-000000000001"
++	outletID := func(n int) string { return fmt.Sprintf("00000000-0000-4000-8601-%012d", n) }
++	shiftID := func(n int) string { return fmt.Sprintf("00000000-0000-4000-8602-%012d", n) }
++	for _, n := range []int{0, 51, 201, 1000} {
++		exec(`INSERT INTO outlets(id,name) VALUES($1,'A26 synthetic')`, outletID(n))
++		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,$3,'A26','open','2026-09-21T01:00:00Z')`, shiftID(n), outletID(n), cashier)
++		exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,shift_id,created_at)
++  SELECT ('00000000-0000-4000-8603-'||lpad(($4::int*10000+i)::text,12,'0'))::uuid,gen_random_uuid(),'A26-'||$4::text||'-'||i,'a26:'||$4::text||':'||i,$1,$2,'A26',1000,1000,'cash','completed',$3,'2026-09-21T02:00:00Z' FROM generate_series(1,$4::int) i`, outletID(n), cashier, shiftID(n), n)
++	}
++	exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) SELECT ('00000000-0000-4000-8604-'||lpad(i::text,12,'0'))::uuid,$1,$2,'A26 past','closed','2026-09-20T01:00:00Z' FROM generate_series(1,250) i`, outletID(1000), cashier)
++	exec(`INSERT INTO cash_flows(id,outlet_id,shift_id,type,amount,description,created_at) SELECT ('00000000-0000-4000-8605-'||lpad(i::text,12,'0'))::uuid,$1,$2,'in',100,'A26 synthetic','2026-09-21T02:00:00Z' FROM generate_series(1,401) i`, outletID(1000), shiftID(1000))
++	exec(`INSERT INTO products(id,name,created_at) SELECT ('00000000-0000-4000-8606-'||lpad(i::text,12,'0'))::uuid,'A26 product '||i,'2026-09-21T02:00:00Z' FROM generate_series(1,201) i`)
++	exec(`INSERT INTO product_variants(product_id,size,price,stock,sku) SELECT id,'M',1000,10,'A26-'||id FROM products`)
++
++	h := New(read.New(pool), nil, nil, nil, nil, nil, nil)
++	secret := []byte("A26-SYNTHETIC-TEST-KEY")
++	wrap := mw.RequireAuth(&config.Config{AccessSecret: secret})
++	mux := http.NewServeMux()
++	mux.HandleFunc("/api/v1/orders", h.Orders)
++	mux.HandleFunc("/api/v1/shifts", h.Shifts)
++	mux.HandleFunc("/api/v1/cash-flows", h.CashFlows)
++	mux.HandleFunc("/api/v1/products", h.Products)
++	handler := wrap(mux)
++	fetch := func(t *testing.T, outlet, path string) json.RawMessage {
++		t.Helper()
++		token, err := auth.IssueAccess(secret, time.Hour, cashier, "cashier", outlet, []string{})
++		if err != nil {
++			t.Fatal(err)
++		}
++		req := httptest.NewRequest(http.MethodGet, path, nil)
++		req.Header.Set("Authorization", "Bearer "+token)
++		w := httptest.NewRecorder()
++		handler.ServeHTTP(w, req)
++		if w.Code != 200 {
++			t.Fatalf("GET %s: %d %s", path, w.Code, w.Body.String())
++		}
++		return append(json.RawMessage{}, w.Body.Bytes()...)
++	}
++	type row struct {
++		ID     string  `json:"id"`
++		Outlet string  `json:"outletId"`
++		Total  float64 `json:"total"`
++	}
++	type response struct {
++		Data []row                            `json:"data"`
++		Meta struct{ Total, Page, Limit int } `json:"meta"`
++	}
++	type record struct {
++		Name  string            `json:"name"`
++		Total int               `json:"total"`
++		Pages []json.RawMessage `json:"pages"`
++	}
++	records := []record{}
++	verify := func(t *testing.T, name, path string, n, total int, scoped bool) {
++		t.Helper()
++		record := record{Name: name, Total: total}
++		ids := map[string]bool{}
++		last := ""
++		sum := 0.0
++		for page := 1; page <= max(1, (total+199)/200); page++ {
++			raw := fetch(t, outletID(n), fmt.Sprintf("%s&page=%d&limit=200", path, page))
++			var r response
++			if err := json.Unmarshal(raw, &r); err != nil {
++				t.Fatal(err)
++			}
++			if r.Meta.Page != page || r.Meta.Limit != 200 || r.Meta.Total != total {
++				t.Fatalf("%s metadata %+v", name, r.Meta)
++			}
++			if len(r.Data) != min(200, total-(page-1)*200) {
++				t.Fatalf("%s row count %d", name, len(r.Data))
++			}
++			for _, v := range r.Data {
++				if ids[v.ID] {
++					t.Fatalf("%s duplicate %s", name, v.ID)
++				}
++				ids[v.ID] = true
++				// Orders/cash flows/products fixtures deliberately tie every timestamp.
++				if name != "shifts" && last != "" && last <= v.ID {
++					t.Fatalf("%s non-deterministic tie ordering", name)
++				}
++				last = v.ID
++				if scoped && v.Outlet != outletID(n) {
++					t.Fatalf("%s outlet scope escaped", name)
++				}
++				sum += v.Total
++			}
++			record.Pages = append(record.Pages, raw)
++		}
++		if len(ids) != total {
++			t.Fatal("incomplete IDs")
++		}
++		if name == fmt.Sprintf("orders-%d", n) && sum != float64(n*1000) {
++			t.Fatal("incomplete order total")
++		}
++		records = append(records, record)
++		t.Logf("%s: %d unique rows in %d pages; total=%.0f", name, total, len(record.Pages), sum)
++	}
++	for _, n := range []int{0, 51, 201, 1000} {
++		t.Run(fmt.Sprintf("orders-%d", n), func(t *testing.T) { verify(t, fmt.Sprintf("orders-%d", n), "/api/v1/orders?outletId=all", n, n, true) })
++		if n > 0 {
++			t.Run(fmt.Sprintf("old-limit-truncation-%d", n), func(t *testing.T) {
++				for _, limit := range []int{500, 1000} {
++					var r response
++					raw := fetch(t, outletID(n), fmt.Sprintf("/api/v1/orders?limit=%d", limit))
++					if err := json.Unmarshal(raw, &r); err != nil {
++						t.Fatal(err)
++					}
++					if len(r.Data) != 50 || r.Meta.Limit != 50 || r.Meta.Total != n {
++						t.Fatalf("legacy cap mismatch %+v", r.Meta)
++					}
++					t.Logf("request limit=%d receives50 of%d", limit, n)
++				}
++			})
++		}
++	}
++	t.Run("shifts-251", func(t *testing.T) { verify(t, "shifts", "/api/v1/shifts?", 1000, 251, true) })
++	t.Run("flows-401", func(t *testing.T) { verify(t, "flows", "/api/v1/cash-flows?shiftId="+shiftID(1000), 1000, 401, true) })
++	t.Run("products-201", func(t *testing.T) { verify(t, "products", "/api/v1/products?", 1000, 201, false) })
++	t.Run("shift-and-date-filters", func(t *testing.T) {
++		verify(t, "filtered", "/api/v1/orders?shiftId="+shiftID(201)+"&from=2026-09-21&to=2026-09-21", 201, 201, true)
++		verify(t, "empty-date", "/api/v1/orders?from=2026-09-22", 201, 0, true)
++		verify(t, "foreign-shift", "/api/v1/orders?shiftId="+shiftID(1000), 201, 0, true)
++	})
++	if path := os.Getenv("MANDALIKA_A26_TEST_OUTPUT"); path != "" {
++		raw, err := json.Marshal(records)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if err = os.WriteFile(path, append(raw, '\n'), 0600); err != nil {
++			t.Fatal(err)
++		}
++	}
++}
+diff --git a/scripts/a26-browser/README.md b/scripts/a26-browser/README.md
+new file mode 100644
+--- /dev/null
++++ b/scripts/a26-browser/README.md
+@@ -0,0 +1,28 @@
++# A26 browser qualification
++
++These are Playwright tool function snippets, not standalone Node scripts. Run
++with `mcp__playwright__browser_run_code_unsafe` using the absolute filename.
++Installed local Vite apps use `VITE_API_URL=http://127.0.0.1:59999`, ports5174
++(Backoffice) and5173 (POS). All API responses are synthetic; external hosts are
++blocked. Do not point these fixtures at a live financial environment.
++
++1. `backoffice-setup.js` resets browser routes and synthetic local auth, seeds51
++   orders with the real server's200/default50 limit behavior, and captures CSV.
++   Before the fix this returned50 rows, after the fix51.
++2. `backoffice-checks.js` tests51/201/1000 orders, CSV/totals/filters, shift CSV,
++   dashboard/last-product stock, and failed-page export/error behavior.
++3. `transactions-checks.js` checks the Reports Transactions tab's XLSX and failure.
++   This replaces the Blob interceptor: rerun setup before repeating CSV tests.
++4. Run existing `scripts/a24-browser/setup.js` to establish the POS synthetic
++   cashier, then click Menu. Run `pos-recap.js` for401 orders/flows,251 history,
++   historical detail, later-page failures and same-storage offline panel remount.
++
++Use observed controls: current Backoffice Field labels are not associated with
++their inputs, so fixtures locate selects through their options. Currency assertions
++normalize nonbreaking spaces. HMR after source edits can remount the cashier;
++finish edits before running and re-open Menu when needed.
++
++Outputs in `docs/A26_BROWSER_*.json` are actual returned assertions/data. Browser
++fixtures verify rendered app wiring, not live API or native/printer qualification.
++Real authenticated handler/PostgreSQL evidence is separately captured by
++`TestPaginationPostgres`, with an explicit fresh loopback fixture and no secret fallback.
+diff --git a/scripts/a26-browser/backoffice-checks.js b/scripts/a26-browser/backoffice-checks.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/a26-browser/backoffice-checks.js
+@@ -0,0 +1,43 @@
++async (page) => {
++  const results=[];
++  const check=(ok,msg)=>{if(!ok)throw new Error(msg);};
++  const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Export CSV',exact:true}).click();return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
++  for(const n of [51,201,1000]) {
++    page.__a26.count=n;page.__a26.calls=[];
++    await page.getByRole('button',{name:'Dashboard',exact:true}).click();
++    await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
++    const dashboard=await page.locator('main').innerText();
++    check(dashboard.includes(`Rp ${(n*1000).toLocaleString('id-ID')}`)||dashboard.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'dashboard total');
++    check(dashboard.includes('Product 200'),'last-page low stock missing');
++    await page.getByRole('button',{name:'Laporan',exact:true}).click();
++    await page.getByRole('button',{name:'Ekspor',exact:true}).click();
++    await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
++    const csv=await capture();const csvRows=csv.split('\n').length-1;
++    check(csvRows===n,`CSV ${csvRows} expected ${n}`);
++    const report=await page.locator('main').innerText();
++    check(report.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'report total');
++    await page.locator('select').filter({has:page.locator('option[value="qris"]')}).selectOption('qris');
++    const filtered=await capture();check(filtered.split('\n').length-1===Math.floor(n/2),'payment filter');
++    await page.locator('select').filter({has:page.locator('option[value="refunded"]')}).selectOption('refunded');
++    check((await page.locator('main').innerText()).includes('0 transaksi'),'status filter');
++    await page.locator('select').filter({has:page.locator('option[value="refunded"]')}).selectOption('');
++    await page.locator('select').filter({has:page.locator('option[value="qris"]')}).selectOption('');
++    await page.locator('input[type=date]').first().fill('2099-01-01');
++    check((await page.locator('main').innerText()).includes('0 transaksi'),'date filter');
++    await page.locator('input[type=date]').first().fill(new Date().toISOString().slice(0,10));
++    await page.getByRole('button',{name:'Shift',exact:true}).click();
++    const shifts=await capture();check(shifts.split('\n').length-1===n,'shift CSV');
++    results.push({n,csvRows,shiftCsvRows:n,reportTotal:n*1000,filteredQris:Math.floor(n/2),dashboard,requests:page.__a26.calls});
++  }
++  await page.getByRole('button',{name:'Ekspor',exact:true}).click();
++  page.__a26.fail='/api/v1/orders';
++  await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor({timeout:20000});
++  check(await page.getByRole('button',{name:'Export CSV',exact:true}).isDisabled(),'failed export enabled');
++  check((await page.locator('main').innerText()).includes('1000 transaksi'),'complete snapshot lost');
++  results.push({laterPageFailure:'visible error; original1000 snapshot retained; export disabled'});
++  await page.getByRole('button',{name:'Dashboard',exact:true}).click();
++  await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor();
++  results.push({dashboardInitialFailure:'error instead of prefix KPIs'});
++  page.__a26.fail=null;
++  return results;
++}
+diff --git a/scripts/a26-browser/backoffice-setup.js b/scripts/a26-browser/backoffice-setup.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/a26-browser/backoffice-setup.js
+@@ -0,0 +1,34 @@
++async (page) => {
++  await page.unrouteAll({behavior:'wait'});
++  const now = new Date().toISOString();
++  const user = {id:'synthetic-cashier',displayName:'A26 Cashier',role:'admin',outletId:'outlet-a',permissions:[]};
++  const order = i => ({id:`order-${i}`,orderNumber:`A26-${i}`,outletId:'outlet-a',cashierId:user.id,cashierName:user.displayName,customerId:null,customerName:null,status:'completed',paymentMethod:i%2?'qris':'cash',subtotal:1000,total:1000,discountAmount:0,taxAmount:0,createdAt:now,items:[{productId:'p',productName:'A26 Product',variantSize:'M',quantity:1,subtotal:1000,unitPrice:1000}]});
++  page.__a26 = {count:51,fail:null,calls:[],csv:[],order};
++  await page.context().route('**/*',route=>/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(route.request().url())?route.continue():route.abort());
++  await page.route('**/api/v1/**',async route=>{
++    const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/,'').split('?')[0];
++    const query=Object.fromEntries((req.url().split('?')[1]||'').split('&').filter(Boolean).map(s=>s.split('=')));
++    const n=Number(query.page)||1, requested=Number(query.limit)||50, limit=requested>200||requested<1?50:requested;
++    const state=page.__a26;state.calls.push({path,page:n,requested,limit});
++    if(state.fail===path && n===2) return route.fulfill({status:503,json:{error:'A26 synthetic page 2 failure'}});
++    let data=[];
++    if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
++    else if(path.endsWith('/outlets')) data=[{id:'outlet-a',name:'A26 Outlet',isActive:true}];
++    else if(path.endsWith('/orders')) data=Array.from({length:state.count},(_,i)=>order(i));
++    else if(path.endsWith('/shifts')) data=Array.from({length:state.count},(_,i)=>({id:`shift-${i}`,outletId:'outlet-a',cashierName:`Cashier ${i}`,status:'closed',openedAt:now,closedAt:now,startingCash:0,closingCash:1000,totalSales:1000,totalOrders:1,cashSales:1000,cardSales:0,transferSales:0,qrisSales:0}));
++    else if(path.endsWith('/products')) data=Array.from({length:201},(_,i)=>({id:`p-${i}`,name:`Product ${i}`,isActive:true,variants:[{size:'M',price:1000,stock:i===200?0:100}]}));
++    const total=Array.isArray(data)?data.length:1;
++    if(['/orders','/shifts','/products'].some(s=>path.endsWith(s))) data=data.slice((n-1)*limit,n*limit);
++    return route.fulfill({json:{data,meta:{total,page:n,limit}}});
++  });
++  await page.goto('http://127.0.0.1:5174');
++  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toISOString().slice(0,10));});
++  await page.reload();
++  await page.setViewportSize({width:1440,height:1000});
++  await page.getByRole('button',{name:'Laporan',exact:true}).click();
++  await page.getByRole('button',{name:'Ekspor',exact:true}).click();
++  await page.evaluate(()=>{window.__a26csv=[];URL.createObjectURL=b=>{window.__a26csv.push(b.text());return 'blob:synthetic';};HTMLAnchorElement.prototype.click=function(){};});
++  await page.getByRole('button',{name:'Export CSV',exact:true}).click();
++  const csv=await page.evaluate(()=>Promise.all(window.__a26csv));
++  return {expected:51,rows:csv[0]?.split('\n').length-1,calls:page.__a26.calls,body:(await page.locator('body').innerText()).slice(-1300)};
++}
+diff --git a/scripts/a26-browser/pos-recap.js b/scripts/a26-browser/pos-recap.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/a26-browser/pos-recap.js
+@@ -0,0 +1,53 @@
++async(page)=>{
++  const now=new Date().toISOString();
++  const shift={id:'a26-active',outletId:'synthetic',outletName:'Synthetic Outlet',cashierId:'synthetic',cashierName:'Synthetic Cashier',openedAt:now,status:'open',startingCash:1100000,totalSales:401000,totalOrders:401,cashSales:401000,cardSales:0,qrisSales:0,transferSales:0};
++  page.__a26pos={fail:null,offline:false,calls:[]};
++  const routeHandler=async route=>{
++    const path=route.request().url().replace(/^https?:\/\/[^/]+/,'').split('?')[0];
++    const query=Object.fromEntries((route.request().url().split('?')[1]||'').split('&').filter(Boolean).map(s=>s.split('=')));
++    const pageNo=Number(query.page)||1,limit=Number(query.limit)||200,state=page.__a26pos;
++    state.calls.push({path,page:pageNo,limit});
++    if(state.offline||(state.fail===path&&pageNo===2))return route.fulfill({status:503,json:{error:'A26 unavailable page'}});
++    if(path.endsWith('/current'))return route.fulfill({json:{data:shift}});
++    const rows=path.endsWith('/shifts')?Array.from({length:251},(_,i)=>({...shift,id:`history-${i}`,cashierName:`Historical ${i}`,status:'closed',closedAt:now})):
++      path.endsWith('/orders')?Array.from({length:401},(_,i)=>({id:`order-${i}`,status:'completed',paymentMethod:'cash',total:1000,subtotal:1000,discountAmount:0,taxAmount:0,createdAt:now,items:[{productId:'p',productName:'Synthetic Scent',variantSize:'M',quantity:1,subtotal:1000}]})):
++      Array.from({length:401},(_,i)=>({id:`flow-${i}`,type:i%2?'out':'in',amount:100,description:`Synthetic flow ${i}`,createdAt:now}));
++    return route.fulfill({json:{data:rows.slice((pageNo-1)*limit,pageNo*limit),meta:{page:pageNo,limit,total:rows.length}}});
++  };
++  for(const part of ['orders','shifts','cash-flows'])await page.route(`**/api/v1/${part}**`,routeHandler);
++  await page.getByRole('button',{name:'Rekapan',exact:true}).click();
++  await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
++  const active=await page.locator('body').innerText();
++  if(!active.replace(/\s/g,'').includes('Rp401.000'))throw new Error('active total not complete');
++  await page.getByRole('button',{name:'Riwayat',exact:true}).last().click();
++  await page.getByText('Historical 0',{exact:true}).waitFor();
++  // Existing client history pagination still reaches rows past the old 50 cutoff.
++  for(let i=0;i<3;i++)await page.getByRole('button',{name:'›',exact:true}).click();
++  await page.getByText('Historical 60',{exact:true}).first().click();
++  await page.getByText('Kas Masuk',{exact:true}).waitFor();
++  const historical=await page.locator('body').innerText();
++  const cache=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('mandalika.cache.rekap:')).map(k=>[k,localStorage.getItem(k)])));
++  const activeData=JSON.parse(cache['mandalika.cache.rekap:current']).data;
++  const historyData=JSON.parse(cache['mandalika.cache.rekap:history']).data;
++  const selectedData=JSON.parse(cache['mandalika.cache.rekap:orders:history-60']).data;
++  if(activeData.orders.length!==401||activeData.flows.length!==401||historyData.length!==251||selectedData.orders.length!==401||selectedData.flows.length!==401)throw new Error('cache incomplete');
++  page.__a26pos.fail='/api/v1/cash-flows';
++  await page.getByText('Historical 60',{exact:true}).first().click();
++  await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
++  await page.getByRole('button',{name:'Rekapan',exact:true}).last().click();
++  await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
++  const failedCache=await page.evaluate(()=>localStorage.getItem('mandalika.cache.rekap:current'));
++  if(failedCache!==cache['mandalika.cache.rekap:current'])throw new Error('partial cache overwritten');
++  // Unmount/remount the real panel, retaining successful storage and failing every recap request.
++  page.__a26pos.offline=true;
++  await page.getByRole('button',{name:'✕ Kembali ke Kasir',exact:true}).click();
++  await page.getByRole('button',{name:'Menu',exact:true}).click();
++  await page.getByRole('button',{name:'Rekapan',exact:true}).click();
++  await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
++  await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
++  await page.getByRole('button',{name:'Riwayat',exact:true}).last().click();
++  await page.getByText('Historical 0',{exact:true}).waitFor();
++  const finalCache=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('mandalika.cache.rekap:')).map(k=>[k,localStorage.getItem(k)])));
++  if(JSON.stringify(cache)!==JSON.stringify(finalCache))throw new Error('failed/offline reads modified cache');
++  return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};
++}
+diff --git a/scripts/a26-browser/transactions-checks.js b/scripts/a26-browser/transactions-checks.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/a26-browser/transactions-checks.js
+@@ -0,0 +1,25 @@
++async(page)=>{
++  const results=[];
++  for(const n of [51,201,1000]) {
++    page.__a26.count=n;
++    await page.getByRole('button',{name:'Dashboard',exact:true}).click();
++    await page.getByRole('button',{name:'Laporan',exact:true}).click();
++    await page.getByText(`${n} transaksi · Total:`,{exact:false}).waitFor();
++    await page.evaluate(()=>{window.__a26blobs=[];URL.createObjectURL=b=>{window.__a26blobs.push(b);return 'blob:synthetic';};});
++    await page.getByRole('button',{name:'Export',exact:true}).click();
++    const rows=await page.evaluate(async()=>{
++      const url=performance.getEntriesByType('resource').map(e=>e.name).find(n=>n.includes('/xlsx.js'));
++      const XLSX=await import(url);
++      const wb=XLSX.read(await window.__a26blobs[0].arrayBuffer());
++      return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
++    });
++    if(rows.length!==n||rows.reduce((s,r)=>s+r.Total,0)!==n*1000)throw new Error('incomplete XLSX');
++    results.push({n,xlsxRows:rows.length,total:rows.reduce((s,r)=>s+r.Total,0)});
++  }
++  page.__a26.fail='/api/v1/orders';
++  await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor({timeout:20000});
++  if(!(await page.getByRole('button',{name:'Export',exact:true}).isDisabled()))throw new Error('failure enabled export');
++  results.push({laterFailure:'visible error; XLSX disabled; complete snapshot retained'});
++  page.__a26.fail=null;
++  return results;
++}

@@ -1,0 +1,19 @@
+{
+  "packet_id": "A34E-DEPENDENCY-SECURITY-20260922-01",
+  "archive": "A34E-DEPENDENCY-SECURITY-20260922-01_REVIEW_BUNDLE.zip",
+  "bytes": 2194538,
+  "sha256": "86116daee166ea83b6e6b76315a37fb7d5ef9a5130171c0f6bfa5f51eaf2b06e",
+  "payload_files": 112,
+  "manifest_verified": true,
+  "packet_byte_identical": true,
+  "text_artifact_guard": "pass for all payloads",
+  "staged_text_scan": "zero hits",
+  "executable_source_head": "df70dc2f80c1c89f4155f2a7fd1d5e930ad229cc",
+  "all_five_gates_pass": false,
+  "four_existing_gates_pass": true,
+  "dependency_gate": "blocked on76 policy records",
+  "report_afterimages_only": [
+    "docs/AUDIT_COVERAGE_TRACKER.md",
+    "docs/PROGRAMME_PROGRESS.md"
+  ]
+}

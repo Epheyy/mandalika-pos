@@ -1,0 +1,764 @@
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -4,8 +4,8 @@
+ Current authority: [AUTH-MANDALIKA-20260919-01](PROGRAMME_EXECUTION_AUTHORITY.md)
+ covers the full A01–A44 programme and all phases with environment/release safeguards.
+ S0a and S0b containment subtasks are review-accepted within their evidence limits.
+-S0c input/numeric containment is locally verified in S0C-20260920-01, awaiting
+-ChatGPT review. Parent findings and release gates remain open. Historical scoped
++S0c A09-input-numeric is scoped review accepted under CG-S0C-20260920-01-R1.
++S0d-shift-decode is locally verified in S0D-SHIFT-DECODE-20260920-01, awaiting review. Parent findings and release gates remain open. Historical scoped
+ authority statements below record their own runs; they do not restrict future phases.
+ Policy source: [decision draft](PRODUCTION_READINESS_DRAFT.md). This document
+ consolidates accepted decisions without treating proposed technical controls as
+@@ -183,7 +183,7 @@
+ 
+ | Stage / slices | Included findings | Outcome and dependency gate |
+ |---|---|---|
+-| S0 containment and evidence | A02, A06, A09, A23, A24, A26, A27, A31, A34, A37, A39, A40, A43 | S0a/S0b scoped review accepted; S0c numeric containment locally verified. Continue bounded milestones under standing authority; containment does not complete parent findings. |
++| S0 containment and evidence | A02, A06, A09, A23, A24, A26, A27, A31, A34, A37, A39, A40, A43 | S0a/S0b/S0c scoped review accepted; S0d shift decoding locally verified. Continue bounded milestones under standing authority; containment does not complete parent findings. |
+ | S1 shared contracts | A01–A11, A28–A30, A42, A44 | Journal, original identity/quote, receipts, validation, errors, authorization and lock order reviewed together. |
+ | S2 reliable sale path | A01, A04, A09–A12, A15, A17, A24, A26–A29, A41 | Capture → restart → authenticated acceptance → retained receipt → correct stock/shift/report projection. |
+ | S3 inventory and shifts | A11–A17, A28, A30, A38, A39, A42 | Transfer/goods receipt/count offline workflows, movement history, live/backdated reconciliation, shared writer concurrency. |
+@@ -308,7 +308,7 @@
+ A02 and all other findings/release gates stay open. No Q01–Q10 recommendation is
+ implemented or approved by S0b; no next application slice is authorized.
+ 
+-### Current continuation — S0C-20260920-01
++### Historical continuation — S0C-20260920-01 (superseded next-step status)
+ 
+ CG-S0B-20260919-01-R2 accepts A06-permission-parity within the submitted source,
+ composed-test and synthetic-storage evidence; its independent helper test was
+@@ -335,3 +335,38 @@
+ shift policy, offline authority or money reconciliation. No repeated execution
+ approval is required. In parallel, ChatGPT should review the S0c quote/tender and
+ quantity-expansion questions before dependent cross-cutting changes.
++
++### Current continuation — S0D-SHIFT-DECODE-20260920-01
++
++S0c's A09-input-numeric subtask is review accepted within E10 limits. The decision
++draft records Q-S0c-01/02 as future technical direction, explicit legacy unknowns
++and unresolved policy preserved. Error taxonomy links to A29/A11; A28 remains
++business time. Promotion resource safety is tracked under A29 with A09/A23/A38,
++not merely A40. No larger redesign was implemented in the shift slice.
++
++S0d-shift-decode (A43, former S0k) rejects malformed, trailing, ambiguous duplicate,
++missing/null required and nonrepresentable inputs before direct/batch mutations.
++Explicit zero, signed existing numeric domain, optional outlet name and absent/
++null/empty method counts are preserved. Cash uses numeric(14,2) bounds; JSONB
++method counts retain finite float64 compatibility without an invented column cap.
++OpenAPI required fields and generated DTOs now match the inspected producers and
++decoder. Unknown metadata remains tolerated; authority remains authenticated scope.
++Tests/limits are in S0D_SHIFT_VALIDATION_MATRIX.md. No full A43/T25 closure:
++post-commit readback uncertainty, other decoders and universal shift receipts remain.
++
++Next bounded work: **A23-linked-promotion-parity** (formerly proposed S0d).
++Trace promoValidate/AppliedPromoCode/linkedPromoShape and server tier selection;
++reproduce lost tier configuration, carry the existing snapshot through the mapping,
++then test linked versus direct tiered pricing at thresholds, ties and missing config,
++percentage/fixed tiers, unlinked codes, combinability and supported cart shapes.
++Run affected POS pricing tests/types and shared golden examples against backend
++pricing. Preserve raw code identity and captured offline values. This is a mapping
++parity slice, not count-compressed pricing, receipt migration or new promotion policy.
++If current behavior is ambiguous, isolate that case and send evidence/options and
++recommendation to ChatGPT while continuing unambiguous parity work. No generic
++execution approval is needed under AUTH-MANDALIKA-20260919-01.
++
++Fixture status: the old S0c cleanup policy block remains recorded and unretired;
++no bypass/retry attempted. A separately verified synthetic S0d PostgreSQL cluster
++was started only on loopback, tested with the existing migrations, then stopped.
++Its directory is retained; no deletion or live-data operation was attempted.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -1,7 +1,7 @@
+ # Mandalika production readiness — planning draft
+ 
+ Policy baseline: 2026-09-15; active review/authority record updated 2026-09-20.
+-Application baseline: `prod-hardening@4691c78` plus preserved S0a/S0b and S0c local changes.
++Application baseline: `prod-hardening@4691c78` plus preserved S0a/S0b/S0c and S0d-shift-decode local changes.
+ Status: execution under [AUTH-MANDALIKA-20260919-01](PROGRAMME_EXECUTION_AUTHORITY.md)
+ for all A01–A44 phases. Environment, target, budget, recovery and release safeguards
+ remain required; standing authority does not resolve open business decisions.
+@@ -13,11 +13,52 @@
+ 
+ ## Decision record
+ 
+-### September 20 — standing authority and bounded containment
++### September 20 — S0c review, technical answers and S0d containment
++
++CG-S0C-20260920-01-R1 accepts A09-input-numeric only, within the original
++S0c evidence limits. S0d-shift-decode is locally verified and awaiting review.
++All parent findings, historical recovery and release gates remain open.
++
++**Q-S0c-01 — accepted technical direction, future implementation.** Separate
++immutable, versioned captured financial facts from reconciliation decisions and
++settlement events. Preserve original quote/rules, line allocation, tender facts,
++producer and business time, and provenance. Explicit legacy unknowns stay unknown;
++never invent zero, current catalog prices, historical authority or payment proof.
++Use stable registered producer/operation namespaces, original authorized scope and
++a canonical body fingerprint. Same key plus changed body is a conflict. Receipt
++and effects commit atomically; ingestion receipt is distinct from effect success.
++Current clients must not prune pending-review captures based on an ingestion ack.
++Fixed-scale deterministic numeric representation must preserve legitimate fractional
++allocations and stable rounding/remainder identities. Migration/read compatibility
++and captured-event recovery require their own design/tests before rollout.
++A09/A10/A11/A29 own the command/receipt/error work; A28 owns business time, not
++error taxonomy (correction to the S0c matrix linkage). Q08 warning/override remains.
++No new split-tender, partial-payment, redemption, earning or capture-authority policy
++is decided here; the recorded provisional loyalty decision is unchanged.
++
++**Q-S0c-02 — accepted technical direction, future implementation.** Replace
++quantity-expanded work with count-compressed calculation AND grants/output/DB work.
++Preserve stable original line and role identity, tie order and existing deterministic
++rounding across paid/reward/bundle shapes. Enforce measured technical work budgets
++before expensive calculation/output, propagate cancellation and roll back effects;
++retain a no-effect failure under the original operation key. No arbitrary business
++quantity cap, automatic basket splitting, partial acknowledgment or fabricated
++settlement. Validate with golden/property tests against supported small legacy
++shapes, including zero/fractional allocations, large quantities and excess anchors;
++measure work, memory, output/grant rows and cancellation. Existing one-row-per-grant
++quantity-one consumers require a separately tested compatibility/migration plan.
++Runtime owner is A29 promotion-resource-safety, linked A09/A23/A38; A40 only documents.
++Neither this nor the quote/receipt redesign was implemented inside S0d.
++
++**Unique slice labels.** S0d-shift-decode is A43 (formerly S0k).
++A23-linked-promotion-parity retains its separate task (formerly proposed S0d).
++The A23 mapping correction must not grow into either larger redesign above.
++
++### September 20 — standing authority and bounded containment (S0c milestone)
+ 
+ CG-S0B-20260919-01-R2 accepts S0b A06-permission-parity within its evidence limits;
+ S0a A02-export remains accepted. S0c numeric/structural input containment is locally
+-verified, awaiting review. Full A02/A06/A09 and all release gates remain open.
++verified at that milestone; subsequent scoped acceptance is recorded above. Full A02/A06/A09 and all release gates remain open.
+ Historical slice-only grants below remain original records, superseded for future
+ execution by the owner's programme-wide grant. No Q01–Q10 recommendation becomes
+ business policy through this grant. Q08 stock warning/override and raw assigned-code
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; S0b review and S0c evidence added 2026-09-20 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; S0c review and S0d shift-decode evidence added 2026-09-20 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,25 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E11: S0D-SHIFT-DECODE-20260920-01, same root/branch/HEAD, incremental source
++and documentation diffs against the preserved S0c worktree. Four before-fix direct
++handler assertions reproduced mutation calls on malformed input; the same
++assertions now pass. Shared direct/batch shift decoding, real authenticated
++handlers/services/readback on isolated PostgreSQL 18.3 with 45 existing migrations,
++full-row no-effect comparisons, optional/zero compatibility and mixed results pass.
++Affected Go suites, sync 31/31, POS 160/160 and API/sync/POS type checks pass.
++See S0D_SHIFT_VALIDATION_MATRIX.md and S0D_VERIFICATION.json for test layers,
++commands and limits. A43 shift-decode subtask is locally verified, review pending;
++readback uncertainty, other financial decoders and full A43/T25 remain open.
++
++E10: CG-S0C-20260920-01-R1 accepts A09-input-numeric within S0C-20260920-01's
++evidence limits. Current reply and READ_FIRST resolved in review-inbox; all 14
++manifest payloads verified. ChatGPT's independent artifact checks and isolated
++Go 1.23 validator/pricing tests are not the Windows project suite or PostgreSQL
++qualification. Q-S0c-01/02 technical directions are recorded in the decision
++draft; neither larger redesign is implemented by this slice. Full A09/T07 and
++all release gates remain open. The original S0c bundle is preserved unchanged.
+ 
+ E09: S0C-20260920-01, 2026-09-20, same root/branch/HEAD plus S0C_IMPLEMENTATION.diff.
+ Fresh shared service input/derived checks, real direct/batch decoding and unchanged
+@@ -22,7 +41,7 @@
+ committed same-key retry exercised. See S0C_VALIDATION_MATRIX.md and S0C_VERIFICATION.json
+ for exact layers and limits. No native durability, payment-provider, Redis replay,
+ race, deployment or release qualification. A09-input-numeric is implemented and
+-locally verified, pending ChatGPT review; full A09/T07 remains open.
++locally verified at E09; subsequent scoped review acceptance is E10. Full A09/T07 remains open.
+ 
+ E08: CG-S0B-20260919-01-R2 accepts A06-permission-parity only within supplied
+ S0B-20260919-01 evidence. Read current inbox READ_FIRST, authority companion and
+@@ -94,10 +113,10 @@
+ AUDIT_REPORT.md/findings.json. Original line references were checked for file
+ identity by E02; they are valid source anchors, not new runtime verification.
+ At MA-20260919-01 entry no source-level fix newer than the packet was found among cited files.
+-S0a changed the export path; S0b adds bounded refund-permission containment; S0c adds numeric/structural sale containment.
++S0a changed the export path; S0b adds bounded refund-permission containment; S0c adds numeric/structural sale containment; S0d adds shift-input containment.
+ Shared source files no longer all hash-match the original audit. Original reconciliation
+ hashes in AUDIT_RECONCILIATION_EVIDENCE.json remain historical; subsequent artifacts
+-are keyed to E05/E07/E09 and must not be represented as a full-audit retest. Historical
++are keyed to E05/E07/E09/E11 and must not be represented as a full-audit retest. Historical
+ feature completions remain preserved in SESSION_HANDOFF.md/PHASE_HANDOFF.md;
+ none is reset merely because audit acceptance is broader.
+ 
+@@ -105,7 +124,8 @@
+ [AUTH-MANDALIKA-20260919-01](PROGRAMME_EXECUTION_AUTHORITY.md), ChatGPT for review,
+ and the owner for genuinely unresolved business/scope/risk/release decisions.
+ No routine phase/slice reapproval is required. S0a/S0b scoped containment is reviewed
+-accepted; S0c input/numeric containment is locally verified and review pending.
++accepted, including S0c A09-input-numeric under E10. S0d-shift-decode is locally
++verified and review pending under E11.
+ Other designs retain their proposed/implemented/evidence states; broad authority
+ does not establish their correctness. S0docs remains a historical documentation milestone.
+ Original P0s gate the affected real-money pilot. P1s gate affected production
+@@ -132,7 +152,7 @@
+ | A06 | P0 | S0b | Open; permission-parity subtask reviewed/accepted within E08 limits | T06 (containment subset only) |
+ | A07 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T05 |
+ | A08 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T06 |
+-| A09 | P0 | S0c | Open; input/numeric containment locally verified, review pending | T07 (C01–C12 bounded evidence) |
++| A09 | P0 | S0c | Open; input/numeric containment scoped review accepted | T07 (C01–C12 bounded evidence) |
+ | A10 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
+ | A11 | P0 | S1 | Needs current behavioral revalidation; source matches audit | T08 |
+ | A12 | P1 | S3 | Needs current behavioral revalidation; source matches audit | T09 |
+@@ -146,13 +166,13 @@
+ | A20 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T18 |
+ | A21 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T19 |
+ | A22 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T20 |
+-| A23 | P1 | S0d | Needs current behavioral revalidation; source matches audit | T21 |
++| A23 | P1 | A23-linked-promotion-parity (formerly S0d) | Needs current behavioral revalidation; source matches audit | T21 |
+ | A24 | P1 | S0e | Needs current behavioral revalidation; source matches audit | T22 |
+ | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
+ | A26 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T23 |
+ | A27 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T24 |
+ | A28 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T24 |
+-| A29 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T25 |
++| A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
+ | A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T04a–T04e,T06 |
+ | A31 | P2 | S0g | Needs current behavioral revalidation; source matches audit | T26 |
+ | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
+@@ -166,15 +186,15 @@
+ | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
+ | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
+ | A42 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T34 |
+-| A43 | P1 | S0k | Source-confirmed open; runtime unverified | T25 |
++| A43 | P1 | S0d-shift-decode (formerly S0k) | Open; shift-decode locally verified, review pending | T25 |
+ | A44 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
+ 
+ The original P0 set is **A01 A02 A03 A04 A06 A09 A11 A13**. A02-export is contained
+ and locally verified; the parent A02 retry/retention requirements remain open.
+ A03 remains a source-confirmed destructive path; A13 remains a source-confirmed concurrency
+-risk. A06-permission-parity is locally verified under E07; full A06/T06 remains
+-open. A01/A04/A09/A11 retain source evidence requiring current behavioral
+-revalidation. No original P0 group is fully verified fixed, demoted or excepted. A04's
++risk. A06-permission-parity is reviewed under E08, and A09-input-numeric under E10;
++full A06/T06 and A09/T07 remain open. A01/A04/A11 and the remaining A09 requirements
++still require their own current behavioral verification. No original P0 group is fully verified fixed, demoted or excepted. A04's
+ routine switching scenario is superseded, **not its P0 safeguards**.
+ 
+ ## Per-finding traceability
+@@ -302,14 +322,14 @@
+ ### A09 — Ordinary sale-line and tender invariants are not enforced at the command boundary
+ 
+ - **Original priority / evidence:** P0; historical class: Confirmed static; no hostile request sent.
+-- **Current disposition:** A09-input-numeric implemented and locally verified in S0C-20260920-01; ChatGPT review pending. Full A09/T07 remains open, including tender/quote, discretionary permission and legacy recovery.
++- **Current disposition:** A09-input-numeric implemented and locally verified in S0C-20260920-01; scoped review accepted by CG-S0C-20260920-01-R1 (E10). Full A09/T07 remains open, including tender/quote, discretionary permission and legacy recovery.
+ - **Current evidence:** E09; `service/order_input.go:ValidateSaleInput`, `service/order.go:createOrder`, direct and batch command mappings, focused Go tests and `handlers/sale_input_integration_test.go:TestSaleInputPostgres`; `packages/sync/src/engine.sale-input.test.ts` retains original denied capture. Exact source, before-fix regression, commands/results and limits are supplied in S0C-20260920-01. E01/E02 and original audit line numbers remain historical.
+-- **Authority / decision:** AUTH-MANDALIKA-20260919-01 and CG-S0B-20260919-01-R2 S0c contract; numeric representation derives from existing integer/numeric schema and producer rounding. Preserve guest/free/reward/bundle/custom-method compatibility and Q08 warning/override. Do not compare historical price to current catalog or invent tender proof. Q-S0c-01/02 in the current packet address the dependent quote/receipt and resource-bound designs.
++- **Authority / decision:** AUTH-MANDALIKA-20260919-01 and CG-S0B-20260919-01-R2 S0c contract; numeric representation derives from existing integer/numeric schema and producer rounding. Preserve guest/free/reward/bundle/custom-method compatibility and Q08 warning/override. Do not compare historical price to current catalog or invent tender proof. Q-S0c-01/02 technical answers are integrated in the decision draft: captured facts/reconciliation/settlement separation and count-compressed bounded promotion work. Explicit legacy unknowns and unresolved business policy remain; neither redesign implemented here.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Reconciliation. **Draft mapping:** §Approved reliability direction (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A10,A11,A28,A44; S0c numeric/structural subtask implemented; broader contract and legacy reconciliation remain open. Codex executes under standing authority; ChatGPT reviews consequential design; owner retains unresolved business decisions. No new schema or retry policy in this slice.
++- **Dependencies / slice:** A10,A11,A28,A29,A44; S0c numeric/structural subtask implemented; broader contract and legacy reconciliation remain open. Codex executes under standing authority; ChatGPT reviews consequential design; owner retains unresolved business decisions. No new schema or retry policy in this slice.
+ - **Required result:** Validate finite/ranged integer quantities, line/tender conservation, supported payment semantics, discretionary permissions and historical quote evidence. Separate accepting a genuine captured fact into review from granting new sale authority to a malformed or forged command.
+ - **Acceptance:** T07. Exercise negative/zero quantities, altered subtotals, negative/insufficient cash, oversized values, stale legitimate quotes and forged quote references. No malformed ordinary sale can manufacture stock or a silently balanced payment.
+-- **Execution / residual risk:** E09/C01–C12 support bounded containment, not full acceptance. Legacy noncash amount overwrite, current-setting repricing/quoted_total alias, global un-fingerprinted receipts, quantity-expanded promotion resource risk, entitlement checks, native durability and external settlement remain unresolved. Known receipts return the stored outcome before new validation; this preserves existing replay and does not prove A11. Five-attempt parking/error replacement stay unchanged. No release gate closed; no commit/push/deployment.
++- **Execution / residual risk:** E09/C01–C12 support bounded containment, not full acceptance. Legacy noncash amount overwrite, current-setting repricing/quoted_total alias, global un-fingerprinted receipts, quantity-expanded promotion resource risk (runtime subtask under A29, linked A09/A23/A38), entitlement checks, native durability and external settlement remain unresolved. Known receipts return the stored outcome before new validation; this preserves existing replay and does not prove A11. Five-attempt parking/error replacement stay unchanged. No release gate closed; no commit/push/deployment.
+ 
+ ### A10 — The original offline quote is not retained independently of recalculation
+ 
+@@ -491,7 +511,7 @@
+ - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/pos/src/cashier/promoValidate.ts:113-178`; `apps/pos/src/cashier/pricing.ts:305-362`; `backend/internal/service/order.go:135-166`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+ - **Authority / decision:** AUDIT_REPORT A23 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Contracts evidence model. **Draft mapping:** §Scent exchanges (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A10,A09; proposed S0d. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: complete versioned promotion payload; old client differences retained.
++- **Dependencies / slice:** A10,A09,A29; proposed A23-linked-promotion-parity (historical alias S0d; unrelated to S0d-shift-decode). Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: complete versioned promotion payload; old client differences retained.
+ - **Required result:** Carry the full versioned promotion shape through selection, validation, pricing and captured quote. Build parity vectors for direct vs linked tiered, bundles, rewards, stacking, caps and eligible-item allocations.
+ - **Acceptance:** T21. The same rule/version/cart has the same allocation and total through direct and code-linked paths; server reconciliation preserves the captured business fact if an old client differs.
+ - **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
+@@ -559,12 +579,14 @@
+ ### A29 — Network and batch error contracts do not support safe recovery
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed static.
+-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
++- **Current disposition:** Open. Original network/error requirements remain; promotion-resource-safety is an explicit runtime subtask, with technical direction accepted from Q-S0c-02 and implementation/benchmarks pending.
+ - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `packages/api/src/client.ts:335-392`; `packages/sync/src/engine.ts:289-363`; `backend/internal/sync/sync.go:167-180`; `backend/internal/handlers/handlers.go:114-123`; `backend/internal/httpx/httpx.go:1-49`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
++- **Additional current evidence:** E10/Q-S0c-02; S0c source investigation identified quantity-expanded pricing/grant work. No new resource benchmark or bounded algorithm is claimed by S0d.
+ - **Authority / decision:** AUDIT_REPORT A29 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operation delivery. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A11; proposed S1. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: bounded versioned batch/error contracts.
++- **Dependencies / slice:** A11,A09,A23,A38; proposed S1 and promotion-resource-safety. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: bounded versioned batch/error contracts.
+ - **Required result:** Add bounded batches, request deadlines, structured error codes, retry-after/backoff/jitter, independent versus dependent operation handling, body/array limits and sanitized error responses. Distinguish gateway/transport uncertainty from definitive command rejection.
++- **Resource subtask requirement:** Count-compressed calculation and grant/output/DB work, stable line/role identity and deterministic tie/rounding behavior; measured budgets before expensive work, cancellation and rollback, retained no-effect error. No arbitrary sale cap, automatic basket split or partial acknowledgment. Golden/property equivalence and large-input work/allocation/row-count evidence required. A40 documents these constraints but does not own runtime safety.
+ - **Acceptance:** T25. Inject hanging requests, HTML 502, 429, 503, partial results, expired auth and a very large queue. Unrelated operations progress; dependencies retain ordering; no event disappears.
+ - **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
+ 
+@@ -727,14 +749,14 @@
+ ### A43 — Malformed financial request bodies can be accepted with zero/default values
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed static.
+-- **Current disposition:** Source-confirmed open; runtime unverified. writes.go OpenShift/CloseShift ignore DecodeLoose errors and readback errors.
+-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `backend/internal/handlers/writes.go:1056-1090`; `backend/internal/handlers/writes.go:1200-1230`; `backend/internal/httpx/httpx.go:1-49`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+-- **Authority / decision:** AUDIT_REPORT A43 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
++- **Current disposition:** S0d-shift-decode locally verified under E11, ChatGPT review pending. Direct/batch shift malformed/required-input containment implemented. Full A43/T25 remains open, including post-commit readback uncertainty and other financial-body paths.
++- **Current evidence:** E11; shared service/shift_input.go, handlers/writes.go open/close paths, sync/sync.go shift cases; handler regression, parser and dispatcher tests, real TestShiftDecodePostgres and engine.shift-decode.test.ts. See S0D_SHIFT_VALIDATION_MATRIX.md SD01–SD14. Historical line references are superseded only for this scoped path.
++- **Authority / decision:** AUDIT_REPORT A43 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. CG-S0C-20260920-01-R1 supplies the contract under standing programme authority. No new shift policy or historical-default fabrication.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operation delivery. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A09,A11,A29; proposed S0k. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: decode/semantic validation; committed receipt after failed readback.
++- **Dependencies / slice:** A09,A11,A29; S0d-shift-decode (formerly S0k), implemented; further receipt/readback containment remains planned. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: decode/semantic validation; committed receipt after failed readback.
+ - **Required result:** Fail malformed requests before new mutations; validate required numeric fields and finite ranges. Return a stable command receipt even if a post-commit projection read fails, rather than inviting a blind duplicate submission.
+ - **Acceptance:** T25. Malformed/truncated JSON, missing required values and failed read-back yield the correct classified result. No default-zero drawer close or accidental repeated count completion occurs.
+-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
++- **Execution / residual risk:** SD01–SD12 exercised at the documented layers, SD13 unchanged/open, SD14 fixture stopped/retained. Direct valid readback passes but failure after commit is not injected or fixed; open-shift universal idempotency/concurrency, current-caller enrichment failures, other decoders, body-size bounds, error taxonomy and native durability remain open. No new retry-triggering post-commit 500, migration, release artifact or gate closure. Missing/null required amounts now fail instead of fabricating zero; all inspected POS producers send explicit values, but unknown external legacy clients were not surveyed.
+ 
+ ### A44 — Historical/deleted variants and stock shortage handling need explicit exceptions
+ 
+diff --git a/docs/S0D_SHIFT_VALIDATION_MATRIX.md b/docs/S0D_SHIFT_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/S0D_SHIFT_VALIDATION_MATRIX.md
+@@ -0,0 +1,75 @@
++# S0d-shift-decode — contract and evidence
++
++Packet S0D-SHIFT-DECODE-20260920-01; A43 subtask review pending, parent A43/T25 open.
++Authority AUTH-MANDALIKA-20260919-01; controlling reply CG-S0C-20260920-01-R1.
++
++## Current contracts and callers
++
++POS useShift supplies explicit startingCash (including automatic zero), closingCash
++and the close reference. Shift recap converts UI input before capture; this slice
++does not rewrite that capture or historical events. Authenticated server routes
++use caller/outlet scope, with no new shift permission. handlers/writes.go and batch
++dispatch delegate to the unchanged shift service.
++
++Previously direct open/close ignored DecodeLoose errors and could mutate after
++partial decoding. Batch json.Unmarshal rejected bad syntax but treated missing/null
++cash as zero. OpenAPI also omitted required declarations; no documented empty-body
++default was found. All inspected current producers send cash explicitly. Unknown
++external legacy producers were not surveyed.
++
++The shared decoder requires one complete object and explicit non-null cash. It
++rejects wrong types, overflow and cash outside signed numeric(14,2). Explicit zero,
++signed/fractional values and existing database rounding are preserved; no new
++nonnegative policy. JSONB method values retain the finite-float domain without an
++invented numeric-column cap. Whole counts may be absent/null/empty, preserving
++stored counts through existing COALESCE behavior. Zero count is explicit; null
++individual count is invalid. Method IDs remain exact-case/free-form.
++
++Single case aliases of consumed top-level fields stay compatible; duplicate names/
++aliases are rejected. Unknown metadata stays tolerated. Optional outletName may
++be absent/null/string. Direct close uses route ID; batch requires nonblank string
++shiftId. Body claims never provide authority. OpenAPI required declarations and
++generated Go/TypeScript DTOs now align. Installed Go generator exits 0 with its
++existing incomplete OpenAPI 3.1 support warning; consumers compile.
++
++## Main reply acceptance scenarios
++
++| ID | Evidence/result | Limit |
++|---|---|---|
++| SD01 | Same four TestShiftMalformedBodyRegression assertions failed before fix with one mutation call each; pass after | Spy boundary, separate real DB test |
++| SD02 | Parser/direct/dispatch/DB reject partial decode, wrong types, truncation and overflow | Full-row DB checks for direct and representable batch payloads |
++| SD03 | Missing/null required cash rejected, explicit zero passes real direct/batch service | No fabricated historical default |
++| SD04 | Real signed/zero/nonzero/fractional cash and null name; unit absent/string name | No new shift/cash-sign policy |
++| SD05 | Empty/null/scalar/array, second object/junk rejected; whitespace accepted | Malformed nested payload cannot exist in valid HTTP JSON; engine boundary and malformed envelope 400 tested separately |
++| SD06 | Absent/null/empty counts preserve seeded DB counts; explicit zero/custom methods persist; malformed values/maps rejected | Large finite JSONB count unit-tested, no business cap |
++| SD07 | Duplicate consumed names/case aliases and exact method IDs rejected; unknown metadata allowed | cash and CASH method IDs remain distinct |
++| SD08 | Signed synthetic JWT, RequireAuth, real caller lookup/routes/services/readback; forged body ignored; missing token 401/wrong outlet header 403 | No live revocation or capture-time authority claim |
++| SD09 | Mixed invalid shift, valid independent shift, forbidden forged refund returns error/ok/error under original keys | Independent valid effect commits |
++| SD10 | Isolated PostgreSQL 18.3, 45 existing migrations; denials preserve complete rows in ten relevant tables; valid services/readback pass | No live DB, Redis, external payment, concurrency or universal receipts |
++| SD11 | Both shift types: five denials, parked counts, repeated unchanged diagnostics, same successful KV reconstruction and original-key retry | API response stub; no device durability, fresh UI/browser or backend-to-device E2E |
++| SD12 | Affected Go suites pass; sync 31/31, POS 160/160; API/sync/POS types pass including S0a/b/c regressions | Normal Go skips opt-in DB tests; separate final shift DB run passes; prior sale DB not rerun |
++| SD13 | Successful readback and existing already-closed behavior tested; post-commit code unchanged | Failure-after-commit injection/fix deferred; no new 500/retry path |
++| SD14 | Fixture identity/data-dir verified before migrations, final DB test passed and server stopped exit 0; artifacts replay/hash verified | Directories retained; old cleanup block unattempted/unbypassed |
++
++Compared tables: shifts, cash_flows, orders, order_items, outlet_variant_stock,
++customers, point_transactions, discount_codes, promo_reward_grants, processed_keys.
++Cache/version behavior outside these business tables is unchanged. No claim that
++every database row never changes.
++
++## Fixture safeguards and outstanding work
++
++New fixture: C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-s0d-vg7qsp_l/postgres-synthetic.
++Only 127.0.0.1:56440, mandalika_s0d_synthetic, s0d_test. Test refuses other parsed
++targets, requires matching SHOW data_directory and an empty public schema before
++45 existing migrations. No .env/provider secrets or live targets. Synthetic JWT
++key/data deliberately non-production. Recreated only the identity-checked test DB
++for the final run, then stopped its server. No filesystem deletion attempted.
++
++Old fixture: C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-s0c-z4tdt0x0/postgres-synthetic.
++Its stopped cleanup remains policy-blocked, no retry, alternative interpreter,
++elevation, rename or deletion workaround. Independent work continued.
++
++Remaining: post-commit uncertainty, other ignored decoders, durable capture, error
++taxonomy, request/resource bounds, shift concurrency/idempotency and historical
++recovery. No deployment/release or full A37 redaction qualification. Codex local
++self-review only; no independent S0d review claimed.
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,162 +1,106 @@
+-# CURRENT — S0C-20260920-01
++# Current review packet — S0D-SHIFT-DECODE-20260920-01
+ 
+-Type: MILESTONE_REVIEW with two consequential design questions. Date: 2026-09-20.
+-Responding to **CG-S0B-20260919-01-R2**, which replies to S0B-20260919-01.
+-Current packet: `docs/AUDIT_REVIEW_PACKET.md`.
+-Current bundle: `docs/S0C-20260920-01_REVIEW_BUNDLE.zip`.
+-Older root-level same-named packets and prior ZIPs are historical, unchanged.
++Responds to CG-S0C-20260920-01-R1, responding to S0C-20260920-01.
++Standing authority AUTH-MANDALIKA-20260919-01.
++Root: C:/Users/MyBook Hype AMD/Downloads/mandalika-pos.
++Branch prod-hardening; HEAD 4691c781842f0114acaf2e4371e0d11f0076f553.
+ 
+-## Outcome and authority
++READ_FIRST and the named reply were read in order and in full before dependent
++edits. Resolved main reply:
++C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0C-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_S0C-20260920-01.md.
++All 14 incoming manifest payloads verified. The review lab remains evidence only.
+ 
+-S0c shared sale-input/numeric containment is implemented and locally verified,
+-including isolated PostgreSQL effect checks. ChatGPT review of this slice is
+-pending. S0a remains intact. S0b A06-permission-parity is now recorded as
+-reviewed/accepted within R2's evidence limits. Full A02/A06/T06/A09/T07 and every
+-release gate remain open. All A01–A44 and their original priorities are retained.
++## Outcome
+ 
+-Standing **AUTH-MANDALIKA-20260919-01** covers the entire programme and all phases.
+-It is adopted verbatim at `docs/PROGRAMME_EXECUTION_AUTHORITY.md` and referenced
+-by AGENTS, workflow, active plan/draft/tracker. No routine phase/slice approval is
+-needed. Historical scoped permissions remain historical evidence. Existing business
+-decisions, Q08 stock warning/override and assigned-code identity/reissue, unresolved
+-Q01–Q10 choices and environment/release safeguards are preserved.
++S0c A09-input-numeric is recorded as scoped ChatGPT accepted within its submitted
++evidence limits. Full A09/T07, parent findings and release gates remain open.
++Q-S0c-01/02 technical directions are integrated in the existing decision draft:
++immutable captured facts, reconciliation and settlement separation; scoped
++fingerprinted receipts; explicit legacy unknowns; count-compressed calculation
++AND grant/output/DB work with measured budgets, rollback and compatibility proof.
++Neither redesign is implemented here. Existing business decisions and unresolved
++policy remain unchanged, including Q08 stock warning/override.
+ 
+-Preflight reading order completed: R2 READ_FIRST -> companion authority -> named
+-reply. Resolved reply:
+-`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0B-20260919-01-R2/CHATGPT_REVIEW_RESPONSE_S0B-20260919-01_R2.md`.
+-Identity **CG-S0B-20260919-01-R2**, responding to **S0B-20260919-01**, confirmed
+-before dependent edits. All six manifest payloads match sizes and SHA-256.
++S0d-shift-decode/A43 is implemented and locally verified, REVIEW PENDING. Shared
++decoding contains malformed/truncated/trailing input, duplicate consumed fields,
++missing/null required cash and nonrepresentable values before direct/batch shift
++mutation. Explicit zero, optional names/counts, signed existing numeric domain
++and custom method IDs remain compatible. Route reference and authenticated scope
++remain authoritative. Batch failures retain original keys; independent valid
++items execute. OpenAPI required declarations and generated DTOs are aligned.
++No production client, retry policy, receipt schema or shift service logic changed.
+ 
+-R2 acceptance covers S0b's submitted source/diffs, composed tests and synthetic
+-storage. ChatGPT independently checked archive/diff consistency and ran an isolated
+-Go1.23 permission helper; it did not rerun the project Windows backend or refund DB
+-flow. This packet does not retroactively enlarge that acceptance.
++Entry already contained S0a/b/c and untracked audit work. Only this turn's changes
++are in S0D_IMPLEMENTATION.diff and S0D_DOCUMENTATION.diff, with before-images and
++new-file after-images. Branch/HEAD and prior bundle are unchanged; preservation
++hashes supplied. No commit/push or fresh remote verification.
+ 
+-## Worktree and exact delta
++## Actual verification and limits
+ 
+-Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+-Branch: `prod-hardening`.
+-HEAD: `4691c781842f0114acaf2e4371e0d11f0076f553`.
+-No commit/push/checkout or remote refresh. HEAD alone excludes the local S0a/S0b/S0c work.
++- Four before-fix malformed-body assertions each reached the mutator once; the
++  same assertions now pass.
++- Final Go auth/middleware/handlers/service/sync suites pass; server compiles with
++  no test files. Local installed toolchain, read-only modules/network disabled.
++- Final isolated PostgreSQL 18.3 test passes five named groups using real JWT,
++  caller lookup, routes, services/readback and 45 existing migrations. Denials
++  preserve full rows across ten tables; valid zero/nonzero/signed/optional shapes,
++  forged metadata, mixed batch and already-closed behavior pass.
++- Sync 31/31, POS 160/160 and API/sync/POS type checks pass, including earlier
++  regressions. New tests prove both denied shift types retain parked counts,
++  repeated export, same-KV reconstruction and original-key manual retry.
++- Initial integration compile failed on an unused test import, corrected; later
++  and final runs pass. Generators exit 0; Go generator warns of incomplete existing
++  OpenAPI 3.1 support. S0D_VERIFICATION.json contains commands/cwd/exits/logs.
+ 
+-Entry was dirty in README, SESSION, POS CashierScreen/SyncStatus/useOfflineData,
+-backend writes/middleware/sync, and sync engine/outbox; prior audit/docs/tests and
+-review inboxes were untracked. Preserve that work. `S0C_REPOSITORY_STATE.json`
+-records full entry/current status, changed paths and before/after hashes.
++S0D_SHIFT_VALIDATION_MATRIX.md maps SD01–SD14 to layers and limitations.
++Synthetic KV is not native power-loss proof. No fresh browser/device, OS-share,
++payment-provider, Redis receipt, concurrency, restore or deployment test. Normal
++Go skips opt-in DB tests; shift DB separately ran, prior sale DB not rerun.
++Post-commit readback failure is unchanged/uninjected/unfixed; no new retry response.
++Current POS callers send explicit cash; unknown external legacy producers were
++not surveyed. Missing/null required cash now fails instead of fabricating zero.
+ 
+-`S0C_IMPLEMENTATION.diff` is the exact LF-normalized S0c delta against captured
+-entry bytes, including six new files (not merely git diff against HEAD):
++New identity-checked loopback synthetic DB server stopped exit 0, directory
++retained. Old S0c cleanup policy block remains recorded, never retried/bypassed.
++No live-data, provider or credential changes.
+ 
+-- `backend/internal/service/order_input.go`, `order_input_test.go`, and `order.go`.
+-- `backend/internal/handlers/writes.go`, `sale_input_test.go`, `sale_input_integration_test.go`.
+-- `backend/internal/sync/sync.go`, `sale_input_test.go`.
+-- `packages/sync/src/engine.sale-input.test.ts`.
++## Tracker delta
+ 
+-Production scope: required non-null line numerics; positive int4 quantities;
+-finite/nonnegative money and supported range; captured line product/subtotal
+-consistency under existing rounding; aggregate/derived pricing/points checks
+-before new effects. Items are detached before existing resolver mutation.
+-No authority derives from Offline/reward/bundle/role/alreadyPaid assertions.
+-Free/fully discounted, custom payment IDs, decimal/reward/bundle allocations and
+-optional legacy tender/adjustments remain supported. Known receipts keep the
+-existing replay path. Invalid batch results retain the original key and do not
+-block independent valid items. No client production or retry-policy change.
++All 44 findings remain: 8 P0 / 32 P1 / 3 P2 / 1 P3. Changed detailed rows:
++A09 scoped acceptance; A23 retained task/unique label; A29 runtime promotion
++resource safety linked A09/A23/A38; A43 scoped verification. A40 is not the sole
++resource-safety owner. S0d-shift-decode = A43/former S0k;
++A23-linked-promotion-parity = formerly proposed S0d. Neither task was dropped.
+ 
+-Private transaction/caller/command seams enable focused tests; public wrappers
+-continue wiring the real services. Existing S0b capability guard, predicate, admin
+-behavior, trusted mapping and refund SQL remain unchanged. Existing S0a source,
+-tests and non-destructive diagnostics remain unchanged. Preservation hashes and
+-function comparisons are in `S0C_ARTIFACT_CHECKS.json`.
++Original P0s A01 A02 A03 A04 A06 A09 A11 A13 all remain open.
++A02-export, A06-permission-parity and A09-input-numeric alone are review accepted.
++Durability, destructive paths, device/authority safeguards, authorization breadth,
++financial facts, replay and concurrency work remains. No gate/exception closed.
+ 
+-`S0C_DOCUMENTATION.diff` includes authority/workflow, plan/draft/current tracker,
+-this packet, validation matrix and sanitized new SESSION prefix. The old SESSION
+-suffix remains byte-for-byte intact and is deliberately not packaged. Complete
+-relevant after-images, source before-images, the before-fix patch, historical
+-reconciliation evidence and Q08 approval excerpts are included. Prior archives
+-are immutable. Diff replay and manifest checks are artifact checks, not runtime proof.
++## Review request and next work
+ 
+-## Actual verification
++ChatGPT: review the incremental shift decoder and SD01–SD14 evidence; accept/reject
++only S0d-shift-decode with A43/readback limits intact. Confirm Q-S0c-01/02 direction
++retains legacy unknowns and unresolved policy. No new consequential business
++question blocks this bounded change.
+ 
+-Exact commands, working directories, exit statuses, output, setup and limits:
+-`docs/S0C_VERIFICATION.json`. Runtime environment: Windows/PowerShell, Go1.26.2,
+-Node24.14.1, Vitest4.1.7, TypeScript5.9.3, installed PostgreSQL18.3.
+-Go used GOTOOLCHAIN=local, GOPROXY=off, GOSUMDB=off and -mod=readonly.
++Next bounded slice: A23-linked-promotion-parity. Current inspection confirms
++promoValidate.ts:decideApplyCode and pricing.ts:linkedPromoShape omit tieredConfig
++while calcPromoDiscount reads it. Reproduce/fix only that mapping and verify
++linked/direct threshold, fixed/percentage, missing-config, combinability and
++unlinked-code cases with shared backend golden examples and POS pricing/types.
++Preserve captured snapshots and raw code identity. No count compression, receipt
++migration or new promotion policy inside that slice. Escalate actual ambiguity
++with evidence/options/recommendation; standing authority covers routine work.
+ 
+-| Check | Result | Meaning |
+-|---|---|---|
+-| Before-fix C01 regression | Exit1, expected: negative/zero quantities in direct/offline service modes each reached the stock-write spy (four failures). | Behavioral regression, not compile/missing-symbol failure. Same assertion passes after. |
+-| Focused S0c Go service/handler/sync cases | Exit0 | Numeric/wire/derived checks, valid shapes, scopes/flags, mixed batch, replay/shortage; explicit fake boundaries. |
+-| Affected Go auth/middleware/handlers/sync/service/server | Exit0, `-count=1`; server has no tests | Preserved S0b and existing pricing/loyalty checks included. |
+-| Sync package | Exit0, 29/29 | Includes S0a/S0b plus denied sale parking/export/same-store reconstruction/original-key retry. |
+-| POS package | Exit0, 160/160 | Existing sale/reward/bundle and diagnostic behavior checks. |
+-| Sync and POS typechecks | Both exit0 | Sync includes src tests; POS config excludes test files. No new POS code/test files in this slice. |
+-| PostgreSQL integration, initial and expanded final | Both exit0 | Real JWT middleware, direct/batch handlers, Store.ByID enrichment, service/SQL/readback; 45 existing migrations in an empty isolated database. Expanded final includes valid BXGY/bundle grants. |
+-| Database stop | Exit0 | Task-created loopback server stopped. Cleanup directory removal was blocked by automatic policy; stopped synthetic files remain in task temp storage. |
++## Delivery
+ 
+-Database: newly initialized cluster under
+-`C:/Users/MyBook Hype AMD/AppData/Local/Temp/mandalika-s0c-z4tdt0x0/postgres-synthetic`,
+-loopback `127.0.0.1:56439`, database `mandalika_s0c_synthetic`, synthetic fixture user.
+-The test refuses a different host/port/user/database/data_directory and requires
+-empty public tables before migrations. No application .env or live database was
+-used. No new migration/dependency/toolchain was installed. Docker preflight failed
+-because its local engine pipe was absent; PostgreSQL binaries provided the working
+-alternative. Hung Docker probes were cancelled, not reported as passes.
+-
+-DB assertions compare full rows of orders/items/stock/customers/codes/point ledger/
+-condition applications/grants/processed keys before/after denial. Valid scenarios
+-inspect stored totals, tender, stock, grants, trusted IDs and same-key retry outcomes.
+-Full C01–C12 mapping and representation matrix: `S0C_VALIDATION_MATRIX.md`.
+-Checks are composed tests plus synthetic DB integration; no native device,
+-payment-provider settlement, Redis cache, network-loss/race, restore, release or
+-production qualification is implied. The opt-in DB test skips without explicit
+-fixture variables; it was configured and passed here.
+-
+-## Tracker delta and original P0s
+-
+-Only detailed A06 and A09 entries change versus entry. A06-permission-parity is
+-reviewed/accepted under E08; A09-input-numeric is implemented/locally verified,
+-review pending under E09. All other detailed findings are preserved. Evidence
+-headers and active authority summaries are updated; historical audit results
+-remain historical. 44 unique findings: 8 P0 /32 P1 /3 P2 /1 P3.
+-
+-| Original P0 | Current disposition |
+-|---|---|
+-| A01 | Open; durable journal acceptance outstanding. |
+-| A02 | Open; A02-export accepted only; retention/retry/recovery remain. |
+-| A03 | Open; transfer-receive outcome reconciliation unresolved. |
+-| A04 | Open; fixed-device design retains attribution/scope/recovery safeguards. |
+-| A06 | Open; permission-parity subtask accepted within E08 limits. |
+-| A09 | Open; S0c numeric/input containment locally verified, review pending. |
+-| A11 | Open; scoped receipts, fingerprints and concurrent replay still required. |
+-| A13 | Open; transfer conservation/transactions/races still require qualification. |
+-
+-## Consequential questions and concrete next work
+-
+-**Q-S0c-01:** Review the minimum immutable quote/tender + scoped receipt contract
+-for A09/A10/A11/A28, with explicit legacy-unknown records. Current capture lacks
+-original total/tax/rule snapshot; DB confirms recalculated quoted_total, and source
+-still overwrites noncash paid amount. Recommend versioned captured facts plus
+-separate reconciliation, never deriving a second payment from current prices.
+-Inference from current totals or blanket legacy rejection are inferior options;
+-details/evidence are in the validation matrix. Dependent redesign awaits the
+-substantive answer, not another execution grant.
+-
+-**Q-S0c-02:** Review count-compressed promotion/allocation calculations and retained
+-failure handling for work that cannot be bounded. int4 quantity validity permits
+-huge zero-price quantities; current per-unit expansion remains an A40 exposure.
+-Recommend preserving exact small-case behavior with count-based algorithms and
+-property/performance tests, rather than inventing a customer quantity cap.
+-
+-Next independent bounded slice: **S0d — A43 OpenShift/CloseShift decode containment**.
+-Current direct handlers ignore DecodeLoose errors. Trace all callers and valid
+-empty/null/zero legacy shapes first; add a meaningful before-fix malformed-body
+-regression; propagate decoding failure before mutation while retaining valid zero
+-cash and supported optional counts. Verify JWT scope, direct/batch parity, unchanged
+-DB shift/financial rows on rejection, independent mixed items and original-key
+-retention. Keep shift lifecycle, close reconciliation, refund, retry, credentials
+-and provider policy outside that slice. Execute under standing authority, with
+-review at a bounded milestone; no generic per-slice approval request.
+-
+-ChatGPT should review S0c source/diff, acceptance limits and the two design questions.
+-The owner relays this packet/ZIP; no automatic delivery or independent review of
+-this new code is claimed. Authority continues after this milestone.
++One ZIP: S0D-SHIFT-DECODE-20260920-01_REVIEW_BUNDLE.zip.
++Includes exact incremental implementation/documentation/before-fix diffs,
++changed/new source/tests, relevant before-images, active plan/draft/tracker,
++verification/state/checks, sanitized current handoff prefix, Q08 excerpts,
++unchanged reconciliation evidence, incoming reply and relevant context.
++MANIFEST.json supplies every payload's size and SHA-256. Historical SESSION suffix
++is byte-preserved locally but excluded from delivery. No DB directory or secrets
++packaged. Pattern screening is not complete A37 coverage. Prepared for owner relay,
++not automatically sent to ChatGPT.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,109 @@
++# Current review packet — S0D-SHIFT-DECODE-20260920-01
++
++Responds to CG-S0C-20260920-01-R1, responding to S0C-20260920-01.
++Standing authority AUTH-MANDALIKA-20260919-01.
++Root: C:/Users/MyBook Hype AMD/Downloads/mandalika-pos.
++Branch prod-hardening; HEAD 4691c781842f0114acaf2e4371e0d11f0076f553.
++
++READ_FIRST and the named reply were read in order and in full before dependent
++edits. Resolved main reply:
++C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0C-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_S0C-20260920-01.md.
++All 14 incoming manifest payloads verified. The review lab remains evidence only.
++
++## Outcome
++
++S0c A09-input-numeric is recorded as scoped ChatGPT accepted within its submitted
++evidence limits. Full A09/T07, parent findings and release gates remain open.
++Q-S0c-01/02 technical directions are integrated in the existing decision draft:
++immutable captured facts, reconciliation and settlement separation; scoped
++fingerprinted receipts; explicit legacy unknowns; count-compressed calculation
++AND grant/output/DB work with measured budgets, rollback and compatibility proof.
++Neither redesign is implemented here. Existing business decisions and unresolved
++policy remain unchanged, including Q08 stock warning/override.
++
++S0d-shift-decode/A43 is implemented and locally verified, REVIEW PENDING. Shared
++decoding contains malformed/truncated/trailing input, duplicate consumed fields,
++missing/null required cash and nonrepresentable values before direct/batch shift
++mutation. Explicit zero, optional names/counts, signed existing numeric domain
++and custom method IDs remain compatible. Route reference and authenticated scope
++remain authoritative. Batch failures retain original keys; independent valid
++items execute. OpenAPI required declarations and generated DTOs are aligned.
++No production client, retry policy, receipt schema or shift service logic changed.
++
++Entry already contained S0a/b/c and untracked audit work. Only this turn's changes
++are in S0D_IMPLEMENTATION.diff and S0D_DOCUMENTATION.diff, with before-images and
++new-file after-images. Branch/HEAD and prior bundle are unchanged; preservation
++hashes supplied. No commit/push or fresh remote verification.
++
++## Actual verification and limits
++
++- Four before-fix malformed-body assertions each reached the mutator once; the
++  same assertions now pass.
++- Final Go auth/middleware/handlers/service/sync suites pass; server compiles with
++  no test files. Local installed toolchain, read-only modules/network disabled.
++- Final isolated PostgreSQL 18.3 test passes five named groups using real JWT,
++  caller lookup, routes, services/readback and 45 existing migrations. Denials
++  preserve full rows across ten tables; valid zero/nonzero/signed/optional shapes,
++  forged metadata, mixed batch and already-closed behavior pass.
++- Sync 31/31, POS 160/160 and API/sync/POS type checks pass, including earlier
++  regressions. New tests prove both denied shift types retain parked counts,
++  repeated export, same-KV reconstruction and original-key manual retry.
++- Initial integration compile failed on an unused test import, corrected; later
++  and final runs pass. Generators exit 0; Go generator warns of incomplete existing
++  OpenAPI 3.1 support. S0D_VERIFICATION.json contains commands/cwd/exits/logs.
++
++S0D_SHIFT_VALIDATION_MATRIX.md maps SD01–SD14 to layers and limitations.
++Synthetic KV is not native power-loss proof. No fresh browser/device, OS-share,
++payment-provider, Redis receipt, concurrency, restore or deployment test. Normal
++Go skips opt-in DB tests; shift DB separately ran, prior sale DB not rerun.
++Post-commit readback failure is unchanged/uninjected/unfixed; no new retry response.
++Current POS callers send explicit cash; unknown external legacy producers were
++not surveyed. Missing/null required cash now fails instead of fabricating zero.
++
++New identity-checked loopback synthetic DB server stopped exit 0, directory
++retained. Old S0c cleanup policy block remains recorded, never retried/bypassed.
++No live-data, provider or credential changes.
++
++## Tracker delta
++
++All 44 findings remain: 8 P0 / 32 P1 / 3 P2 / 1 P3. Changed detailed rows:
++A09 scoped acceptance; A23 retained task/unique label; A29 runtime promotion
++resource safety linked A09/A23/A38; A43 scoped verification. A40 is not the sole
++resource-safety owner. S0d-shift-decode = A43/former S0k;
++A23-linked-promotion-parity = formerly proposed S0d. Neither task was dropped.
++
++Original P0s A01 A02 A03 A04 A06 A09 A11 A13 all remain open.
++A02-export, A06-permission-parity and A09-input-numeric alone are review accepted.
++Durability, destructive paths, device/authority safeguards, authorization breadth,
++financial facts, replay and concurrency work remains. No gate/exception closed.
++
++## Review request and next work
++
++ChatGPT: review the incremental shift decoder and SD01–SD14 evidence; accept/reject
++only S0d-shift-decode with A43/readback limits intact. Confirm Q-S0c-01/02 direction
++retains legacy unknowns and unresolved policy. No new consequential business
++question blocks this bounded change.
++
++Next bounded slice: A23-linked-promotion-parity. Current inspection confirms
++promoValidate.ts:decideApplyCode and pricing.ts:linkedPromoShape omit tieredConfig
++while calcPromoDiscount reads it. Reproduce/fix only that mapping and verify
++linked/direct threshold, fixed/percentage, missing-config, combinability and
++unlinked-code cases with shared backend golden examples and POS pricing/types.
++Preserve captured snapshots and raw code identity. No count compression, receipt
++migration or new promotion policy inside that slice. Escalate actual ambiguity
++with evidence/options/recommendation; standing authority covers routine work.
++
++## Delivery
++
++One ZIP: S0D-SHIFT-DECODE-20260920-01_REVIEW_BUNDLE.zip.
++Includes exact incremental implementation/documentation/before-fix diffs,
++changed/new source/tests, relevant before-images, active plan/draft/tracker,
++verification/state/checks, sanitized current handoff prefix, Q08 excerpts,
++unchanged reconciliation evidence, incoming reply and relevant context.
++MANIFEST.json supplies every payload's size and SHA-256. Historical SESSION suffix
++is byte-preserved locally but excluded from delivery. No DB directory or secrets
++packaged. Pattern screening is not complete A37 coverage. Prepared for owner relay,
++not automatically sent to ChatGPT.
++
++---
++

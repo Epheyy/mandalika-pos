@@ -1,0 +1,101 @@
+{
+  "packet_id": "A23-LINKED-FULFILLMENT-20260920-01",
+  "patch_replays": [
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-lf-replay-x4iyzi2n",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LF_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-lf-replay-x4iyzi2n",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LF_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-lf-replay-x4iyzi2n",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LF_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-lf-replay-x4iyzi2n",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LF_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    }
+  ],
+  "LF_normalized_afterimages_match": true,
+  "before_fix_patch_applies": true,
+  "original_six_assertions_unchanged": true,
+  "fulfillment_driver_updated_to_real_shared_action": true,
+  "intermediate_guard_diff_replays": true,
+  "source_files": 12,
+  "new_source_files": 5,
+  "preserved_entry_files": 353,
+  "previous_bundle_unchanged": true,
+  "backend_production_sync_schema_lockfiles_migrations_unchanged": true,
+  "prior_S0a_S0b_S0c_S0d_LP05_preserved": true,
+  "old_session_suffix_byte_preserved": true,
+  "new_encoding_damage_absent": true,
+  "findings": 44,
+  "changed_detailed_findings": [
+    "A23"
+  ],
+  "priorities": {
+    "P0": 8,
+    "P1": 32,
+    "P2": 3,
+    "P3": 1
+  },
+  "original_P0": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A06",
+    "A09",
+    "A11",
+    "A13"
+  ],
+  "incoming_manifest_payloads_verified": 4,
+  "shared_queue_fixtures": 4,
+  "isolated_HTTP_DB_cases": 8,
+  "git_diff_check_exit": 0,
+  "secret_pattern_findings": [],
+  "scan_limits": "Limited pattern check, not complete A37 coverage",
+  "review": "Local self-review; current linked-fulfillment ChatGPT review pending, preceding LP05 scoped accepted",
+  "packaging_attempts": [
+    {
+      "exit": 1,
+      "reason": "Context reference BundlePickerModal.tsx did not exist; resolved actual BundleSlotPicker.tsx and corrected archive inventory before retry. No archive had been created."
+    },
+    {
+      "result": "Final preservation and patch replay checks passed before archive creation"
+    }
+  ],
+  "archive_integrity_method": "MANIFEST payload sizes/SHA-256 plus read-after-write ZIP CRC; manifest excludes itself"
+}

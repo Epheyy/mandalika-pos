@@ -1,0 +1,136 @@
+{
+  "status": "failed",
+  "root": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy\\",
+  "output": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-skipped",
+  "phases": [
+    {
+      "phase": "discovery",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.EXE",
+        "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy\\node_modules\\.pnpm\\@playwright+test@1.63.0\\node_modules\\@playwright\\test\\cli.js",
+        "test",
+        "-c",
+        "tests/browser/playwright.config.ts",
+        "--list",
+        "--reporter=json"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy\\",
+      "exit": 0,
+      "timedOut": false,
+      "milliseconds": 2168
+    },
+    {
+      "phase": "execution",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.EXE",
+        "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy\\node_modules\\.pnpm\\@playwright+test@1.63.0\\node_modules\\@playwright\\test\\cli.js",
+        "test",
+        "-c",
+        "tests/browser/playwright.config.ts"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy\\",
+      "exit": 1,
+      "timedOut": false,
+      "milliseconds": 7790
+    }
+  ],
+  "cleanup": {
+    "processes": [
+      {
+        "kind": "vite",
+        "app": "pos",
+        "pid": 10764,
+        "port": 5183,
+        "event": "starting"
+      },
+      {
+        "kind": "vite",
+        "app": "pos",
+        "pid": 10764,
+        "port": 5183,
+        "event": "listening"
+      },
+      {
+        "kind": "vite",
+        "app": "backoffice",
+        "pid": 7780,
+        "port": 5184,
+        "event": "starting"
+      },
+      {
+        "kind": "vite",
+        "app": "backoffice",
+        "pid": 7780,
+        "port": 5184,
+        "event": "listening"
+      }
+    ],
+    "liveOwnedPids": [],
+    "openPorts": [],
+    "status": "confirmed"
+  },
+  "network": {
+    "scenarios": 0,
+    "blocked": []
+  },
+  "registry": "tests/browser/required-scenarios.json",
+  "discovery": {
+    "expected": [
+      "BO-SEMANTIC",
+      "BO-PAGES-CSV",
+      "BO-PAGES-XLSX",
+      "BO-RACE-SUCCESS",
+      "BO-RACE-ERROR",
+      "POS-PICKERS",
+      "POS-INVALIDATION",
+      "POS-PHYSICAL-QUEUE",
+      "POS-GUEST",
+      "POS-CUSTOMER-CREATE",
+      "POS-RECAP",
+      "S0A-DIAGNOSTICS",
+      "S0B-REFUND-RETENTION",
+      "HOOK-01",
+      "HOOK-02",
+      "HOOK-03",
+      "HOOK-04",
+      "HOOK-05",
+      "HOOK-06",
+      "HOOK-07",
+      "HOOK-08",
+      "HOOK-09",
+      "HOOK-10",
+      "HOOK-11",
+      "HOOK-12",
+      "HOOK-13"
+    ],
+    "actual": [
+      "BO-SEMANTIC",
+      "BO-PAGES-CSV",
+      "BO-PAGES-XLSX",
+      "BO-RACE-SUCCESS",
+      "BO-RACE-ERROR",
+      "POS-PICKERS",
+      "POS-INVALIDATION",
+      "POS-PHYSICAL-QUEUE",
+      "POS-GUEST",
+      "POS-CUSTOMER-CREATE",
+      "POS-RECAP",
+      "HOOK-01",
+      "HOOK-02",
+      "HOOK-03",
+      "HOOK-04",
+      "HOOK-05",
+      "HOOK-06",
+      "HOOK-07",
+      "HOOK-08",
+      "HOOK-09",
+      "HOOK-10",
+      "HOOK-11",
+      "HOOK-12",
+      "HOOK-13",
+      "S0A-DIAGNOSTICS",
+      "S0B-REFUND-RETENTION"
+    ]
+  },
+  "error": "Error: execution failed (exit=1, timeout=false)"
+}

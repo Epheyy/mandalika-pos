@@ -1,0 +1,1692 @@
+{
+  "packet_id": "A34D-HOSTED-PROOF-20260922-01",
+  "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+  "branch": "audit/hosted-proof-20260922",
+  "head": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+  "tree": "831e7af08fafbb8f1d420d4bac0e94fbe9313e72",
+  "remote_head": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+  "index_empty": true,
+  "tracked_unstaged": [
+    "docs/AUDIT_COVERAGE_TRACKER.md",
+    "docs/PRODUCTION_READINESS_DRAFT.md",
+    "docs/PRODUCTION_READINESS_PLAN.md"
+  ],
+  "final_status": [
+    {
+      "path": "backend/internal/read/repo.go",
+      "status": " M",
+      "category": "A",
+      "staged": false
+    },
+    {
+      "path": "docs/AUDIT_COVERAGE_TRACKER.md",
+      "status": " M",
+      "category": "B",
+      "staged": false
+    },
+    {
+      "path": "docs/PRODUCTION_READINESS_DRAFT.md",
+      "status": " M",
+      "category": "B",
+      "staged": false
+    },
+    {
+      "path": "docs/PRODUCTION_READINESS_PLAN.md",
+      "status": " M",
+      "category": "B",
+      "staged": false
+    },
+    {
+      "path": "AUDIT_REPORT.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "AUDIT_REVIEW_PACKET.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "CHATGPT_REVIEW_RESPONSE_MA-20260919-01.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "MANDALIKA_FULL_AUDIT_HANDOFF_2026-09-19.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "PACKET_MANIFEST.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "PHASE_HANDOFF.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A23-LINKED-FULFILLMENT-20260920-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A23-LP05-20260920-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A23-QUAL-A24-GUEST-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A23-SEMANTIC-KEYS-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_ADD_CUSTOMER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_BEFORE_FIX.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_BO_QUALIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_GATE_FINAL.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_GUEST.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_PHYSICAL.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_POS_BOUNDARIES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_BROWSER_POS_QUALIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_NATIVE_QUALIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_PREFLIGHT_TARGET.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A24_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26-PAGINATION-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_BEFORE_FIX_BROWSER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_BROWSER_BACKOFFICE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_BROWSER_POS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_BROWSER_TRANSACTIONS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_POSTGRES_PAGES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A26_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27-SUMMARY-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_BEFORE_FIX_POSTGRES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_CONSUMER_SEARCH.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_INITIAL_POSTGRES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_POSTGRES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_RESPONSE_PARITY.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A27_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31-POLLING-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_BEFORE_FIX_BROWSER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_CALLERS_AFTER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_CALLERS_BEFORE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_CALLER_ANALYSIS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_HOOK_BROWSER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_REPORTS_BROWSER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A31_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A-CI-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_CLEAN_RUNS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_INVENTORY_AFTER.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_INVENTORY_BEFORE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_NEGATIVE_GATES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_NEGATIVE_INITIAL.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34A_WORKFLOW_ANALYSIS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B-POSTGRES-CI-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_BACKEND_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_CLEAN_RUN.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_GATE_INVENTORY.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_INITIAL_LAUNCHER_FAILURE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_NEGATIVE_GATES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_NEGATIVE_INITIAL.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_SNAPSHOT_GEN_UNITS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_WORKFLOW_ANALYSIS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/before-stale-fixture-fix/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/before-stale-fixture-fix/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/A26.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/A27.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/BE.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/LF.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/S0D.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/clean/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/docker-runtime/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/intermediate-fixture-query/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/intermediate-fixture-query/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/assertion-failure/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/assertion-failure/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/missing-runtime/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/readiness-timeout/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/skipped-test/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/skipped-test/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/wrong-data-directory/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/wrong-data-directory/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/wrong-target/S0C.go-test.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34B_evidence/probes/wrong-target/result.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C-BROWSER-CI-20260921-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_CLEAN_RUN.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_NEGATIVE_GATES.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_SCENARIO_INVENTORY.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_STATIC_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_WORKFLOW_ANALYSIS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/clean-final/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/clean-final/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/clean-final/network.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/clean-final/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/clean-final/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/network.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/test-failed-1.png",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-assertion/trace.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-chromium/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-chromium/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-chromium/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-chromium/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-external/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-external/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-external/network.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-external/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-external/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-missing/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-only/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-readiness/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-readiness/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-readiness/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-readiness/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-skipped/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-skipped/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-skipped/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/negative-skipped/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-02/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-02/network.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-02/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-03/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-03/junit.xml",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-03/network.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-03/processes.jsonl",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-03/scenarios.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34C_evidence/run-initial/gate.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D-HOSTED-PROOF-20260922-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_CLASSIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_HOSTED_SUMMARY.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_INCREMENTAL.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_TRIGGER_AUDIT.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/A34D_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/AUDIT_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/AUDIT_RECONCILIATION_EVIDENCE.json",
+      "status": "??",
+      "category": "B",
+      "staged": false
+    },
+    {
+      "path": "docs/AUDIT_REVIEW_PACKET.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_LP_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_LP_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_LP_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_LP_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/BE_LP_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_EDGE_GUARDS.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LF_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP05_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/LP_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/PROGRAMME_PROGRESS.md",
+      "status": "??",
+      "category": "B",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_REVIEW_INTEGRATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_REVIEW_INTEGRATION_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_REVIEW_INTEGRATION_EVIDENCE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0A_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B-20260919-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0B_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C-20260920-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0C_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D-ENVELOPE-A23-20260920-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D-SHIFT-DECODE-20260920-01_REVIEW_BUNDLE.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_SHIFT_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/S0D_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_ARTIFACT_CHECKS.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_BEFORE_FIX.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_COMPATIBILITY.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_DOCUMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_IMPLEMENTATION.diff",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_PREFLIGHT_SYNTHETIC.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_REPOSITORY_STATE.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_VALIDATION_MATRIX.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "docs/SK_VERIFICATION.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "evidence.zip",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "findings.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/README.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/add-customer.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/guest-gate.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/guest-sales.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/physical-queue.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/qualify-backoffice.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/qualify-pos-boundaries.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/qualify-pos.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a24-browser/setup.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a26-browser/README.md",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a26-browser/backoffice-checks.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a26-browser/backoffice-setup.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a26-browser/pos-recap.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a26-browser/transactions-checks.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a31-browser/hook-races.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a31-browser/inventory.cjs",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "scripts/a31-browser/reports-races.js",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "source_fingerprints.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    },
+    {
+      "path": "verification_summary.json",
+      "status": "??",
+      "category": "C",
+      "staged": false
+    }
+  ],
+  "entry_file_count": 981,
+  "unchanged_entry_files": 964,
+  "modified_entry_files": [
+    ".github/workflows/backend.yml",
+    ".github/workflows/browser.yml",
+    ".gitignore",
+    "AGENTS.md",
+    "README.md",
+    "SESSION_HANDOFF.md",
+    "backend/internal/read/repo.go",
+    "backend/internal/service/loyalty.go",
+    "backend/internal/service/promo_validate_test.go",
+    "backend/internal/write/loyalty.go",
+    "backend/internal/write/repo_test.go",
+    "docs/AUDIT_COVERAGE_TRACKER.md",
+    "docs/AUDIT_RECONCILIATION_EVIDENCE.json",
+    "docs/AUDIT_REVIEW_PACKET.md",
+    "docs/PRODUCTION_READINESS_DRAFT.md",
+    "docs/PRODUCTION_READINESS_PLAN.md",
+    "vercel.json"
+  ],
+  "missing_entry_files": [],
+  "excluded_files_preserved": {
+    ".claude/settings.local.json": {
+      "retained": true,
+      "sha256_unchanged": true
+    },
+    "backend/.env.example": {
+      "retained": true,
+      "sha256_unchanged": true
+    },
+    "backend/.env.production.example": {
+      "retained": true,
+      "sha256_unchanged": true
+    },
+    "PHASE_HANDOFF.md": {
+      "retained": true,
+      "sha256_unchanged": true
+    }
+  },
+  "historical_handoff_preserved_as_exact_suffix": true,
+  "old_review_archives_preserved": true,
+  "stopped_database_and_pycache_cleanup": "not attempted; historical policy blocks retained",
+  "postproof_report_boundary": "Only three canonical tracked docs dirty; all executable files match hosted HEAD. New reporting files and prior historical evidence remain local/untracked."
+}

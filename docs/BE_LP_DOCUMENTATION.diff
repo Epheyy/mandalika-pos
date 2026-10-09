@@ -1,0 +1,641 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; S0c review and S0d shift-decode evidence added 2026-09-20 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; outer-envelope repair review/evidence and A23 mapper evidence added 2026-09-20 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,35 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E14: S0D-ENVELOPE-A23-20260920-01, A23 mapper only. LP01 reproduced through
++decideApplyCode -> AppliedPromoCode -> linkedPromoShape -> computePricing: direct
++90000, linked 100000; both now 90000. Three production lines carry tieredConfig.
++Sixteen shared Go/TS golden cases pass; final POS 181/181 and app plus explicit
++new-test typechecks pass. LP05 broader cross-selection probe FAILS: the same
++combinable promotion selected directly and by code totals 80000, while source
++resolvePromos deduplicates by promotion ID. This is an unresolved A23/T21 gap,
++not an accepted stacking policy. Probe source/output retained as review evidence,
++separate from the 181 passing tests. See Q-LP05-01 in current packet. Mapper locally
++verified/review pending; do not mark LP05 or full A23/T21 passed.
++
++E13: S0D-ENVELOPE-A23-20260920-01, outer-envelope corrective implementation.
++Same real-handler raw-body regression: 26 failures / 8 passes before, all 34 pass
++after complete structural parsing. Real JWT/caller/ProcessBatch on isolated
++PostgreSQL 18.3 with 45 existing migrations: 34 rejected raw envelopes preserve
++ten full-row business snapshots; four positive/auth/mixed control groups pass.
++Affected Go suites, sync 33/33, pre-mapper POS 160/160 and API/sync/POS types pass.
++New whole-request rejection tests retain original keys/payloads through parking,
++repeat diagnostics, same-KV reconstruction and manual retry. BE01–11 mapping and
++limitations: BE_LP_VALIDATION_MATRIX.md. Fixture stopped/retained, old cleanup
++block not retried. Corrective work locally verified; ChatGPT re-review pending.
++
++E12: CG-S0D-SHIFT-DECODE-20260920-01-R1 requests changes to complete S0d.
++All 22 incoming manifest payloads match. The independent lab uses copied functions
++with stubs, not project replacement code or SQL evidence. Direct/inner shift
++results stand; prior SD05/SD07 did not cover complete outer envelope exhaustion
++or duplicate command metadata. E13 supplies new tests rather than rewriting E11
++logs or historic counts. Full A43/T25, post-commit uncertainty and gates stay open.
+ 
+ E11: S0D-SHIFT-DECODE-20260920-01, same root/branch/HEAD, incremental source
+ and documentation diffs against the preserved S0c worktree. Four before-fix direct
+@@ -166,7 +195,7 @@
+ | A20 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T18 |
+ | A21 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T19 |
+ | A22 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T20 |
+-| A23 | P1 | A23-linked-promotion-parity (formerly S0d) | Needs current behavioral revalidation; source matches audit | T21 |
++| A23 | P1 | A23-linked-promotion-parity (formerly S0d) | Open; mapper verified, LP05 cross-selection gap remains | T21 |
+ | A24 | P1 | S0e | Needs current behavioral revalidation; source matches audit | T22 |
+ | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
+ | A26 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T23 |
+@@ -186,7 +215,7 @@
+ | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
+ | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
+ | A42 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T34 |
+-| A43 | P1 | S0d-shift-decode (formerly S0k) | Open; shift-decode locally verified, review pending | T25 |
++| A43 | P1 | S0d-shift-decode / batch-envelope | Open; review correction locally verified, re-review pending | T25 |
+ | A44 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
+ 
+ The original P0 set is **A01 A02 A03 A04 A06 A09 A11 A13**. A02-export is contained
+@@ -507,14 +536,14 @@
+ ### A23 — A linked tiered promotion loses its tier configuration in POS pricing
+ 
+ - **Original priority / evidence:** P1; historical class: Reproduced.
+-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
+-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/pos/src/cashier/promoValidate.ts:113-178`; `apps/pos/src/cashier/pricing.ts:305-362`; `backend/internal/service/order.go:135-166`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+-- **Authority / decision:** AUDIT_REPORT A23 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
++- **Current disposition:** Linked-tier mapper locally verified under E14, review pending. LP05 cross-selection deduplication remains unresolved; full A23/T21 open.
++- **Current evidence:** E14; actual decideApplyCode -> selected state -> linkedPromoShape -> computePricing path and shared linked_tier_golden.json. Before-fix linked price 100000 versus direct 90000, now equal for single equivalent selections. LP05 review probe independently shows direct+linked same-promotion double benefit; backend order.go:resolvePromos has cross-path seen-ID deduplication (source evidence, not newly executed DB resolver test).
++- **Authority / decision:** AUDIT_REPORT A23 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Current Q-LP05-01 asks for the next bounded cross-selection parity contract; no new combination/identity policy adopted. Existing code assignment, eligibility and Q08 policies preserved.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Contracts evidence model. **Draft mapping:** §Scent exchanges (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A10,A09,A29; proposed A23-linked-promotion-parity (historical alias S0d; unrelated to S0d-shift-decode). Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: complete versioned promotion payload; old client differences retained.
++- **Dependencies / slice:** A10,A09,A29; A23-linked-promotion-parity mapper implemented; broader parity still open under (historical alias S0d; unrelated to S0d-shift-decode). Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: complete versioned promotion payload; old client differences retained.
+ - **Required result:** Carry the full versioned promotion shape through selection, validation, pricing and captured quote. Build parity vectors for direct vs linked tiered, bundles, rewards, stacking, caps and eligible-item allocations.
+ - **Acceptance:** T21. The same rule/version/cart has the same allocation and total through direct and code-linked paths; server reconciliation preserves the captured business fact if an old client differs.
+-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
++- **Execution / residual risk:** LP01–04/07/08 mapper evidence passes; LP05 same-code duplicate, exclusivity and independent combination controls pass but direct+linked same-ID probe fails. LP06 ordinary fixed/percentage and existing BXGY/bundle/reward suites pass; no full bundle snapshot audit. No historical queue repricing, quote/receipt migration, resource compression, backend pricing rewrite or release claim. Do not treat the passing suite as resolution of the separately recorded failing probe.
+ 
+ ### A24 — Guest sales are blocked despite the accepted policy
+ 
+@@ -581,6 +610,7 @@
+ - **Original priority / evidence:** P1; historical class: Confirmed static.
+ - **Current disposition:** Open. Original network/error requirements remain; promotion-resource-safety is an explicit runtime subtask, with technical direction accepted from Q-S0c-02 and implementation/benchmarks pending.
+ - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `packages/api/src/client.ts:335-392`; `packages/sync/src/engine.ts:289-363`; `backend/internal/sync/sync.go:167-180`; `backend/internal/handlers/handlers.go:114-123`; `backend/internal/httpx/httpx.go:1-49`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
++- **Envelope intake correction:** E12/E13 complete outer sync/batch structural validation, linked A43. General size/work budgets, error classification/backoff and promotion resource safety remain unimplemented by this repair.
+ - **Additional current evidence:** E10/Q-S0c-02; S0c source investigation identified quantity-expanded pricing/grant work. No new resource benchmark or bounded algorithm is claimed by S0d.
+ - **Authority / decision:** AUDIT_REPORT A29 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operation delivery. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+@@ -749,14 +779,14 @@
+ ### A43 — Malformed financial request bodies can be accepted with zero/default values
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed static.
+-- **Current disposition:** S0d-shift-decode locally verified under E11, ChatGPT review pending. Direct/batch shift malformed/required-input containment implemented. Full A43/T25 remains open, including post-commit readback uncertainty and other financial-body paths.
+-- **Current evidence:** E11; shared service/shift_input.go, handlers/writes.go open/close paths, sync/sync.go shift cases; handler regression, parser and dispatcher tests, real TestShiftDecodePostgres and engine.shift-decode.test.ts. See S0D_SHIFT_VALIDATION_MATRIX.md SD01–SD14. Historical line references are superseded only for this scoped path.
+-- **Authority / decision:** AUDIT_REPORT A43 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. CG-S0C-20260920-01-R1 supplies the contract under standing programme authority. No new shift policy or historical-default fabrication.
++- **Current disposition:** E11 direct/inner shift results preserved; E12 requests outer-envelope correction. E13 batch-envelope correction is locally verified, ChatGPT re-review pending. Direct/batch shift malformed/required-input containment implemented. Full A43/T25 remains open, including post-commit readback uncertainty and other financial-body paths.
++- **Current evidence:** E11 plus E13 handlers/batch_envelope.go, raw-handler and real PostgreSQL batch envelope tests, engine.batch-envelope.test.ts; shared service/shift_input.go, handlers/writes.go open/close paths, sync/sync.go shift cases; handler regression, parser and dispatcher tests, real TestShiftDecodePostgres and engine.shift-decode.test.ts. See S0D_SHIFT_VALIDATION_MATRIX.md corrected SD05/SD07 and BE_LP_VALIDATION_MATRIX.md BE01–11. Historical line references are superseded only for this scoped path.
++- **Authority / decision:** AUDIT_REPORT A43 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. CG-S0C-20260920-01-R1 supplies the inner contract; CG-S0D-SHIFT-DECODE-20260920-01-R1 supplies the complete-envelope correction under standing authority. No new shift policy or historical-default fabrication.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Operation delivery. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+ - **Dependencies / slice:** A09,A11,A29; S0d-shift-decode (formerly S0k), implemented; further receipt/readback containment remains planned. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: decode/semantic validation; committed receipt after failed readback.
+ - **Required result:** Fail malformed requests before new mutations; validate required numeric fields and finite ranges. Return a stable command receipt even if a post-commit projection read fails, rather than inviting a blind duplicate submission.
+ - **Acceptance:** T25. Malformed/truncated JSON, missing required values and failed read-back yield the correct classified result. No default-zero drawer close or accidental repeated count completion occurs.
+-- **Execution / residual risk:** SD01–SD12 exercised at the documented layers, SD13 unchanged/open, SD14 fixture stopped/retained. Direct valid readback passes but failure after commit is not injected or fixed; open-shift universal idempotency/concurrency, current-caller enrichment failures, other decoders, body-size bounds, error taxonomy and native durability remain open. No new retry-triggering post-commit 500, migration, release artifact or gate closure. Missing/null required amounts now fail instead of fabricating zero; all inspected POS producers send explicit values, but unknown external legacy clients were not surveyed.
++- **Execution / residual risk:** Original SD05/SD07 interpretation narrowed: outer trailing content and duplicates were not covered at E11; E13 corrects that gap. SD13 remains unchanged/open; all test fixtures stopped/retained. Direct valid readback passes but failure after commit is not injected or fixed; open-shift universal idempotency/concurrency, current-caller enrichment failures, other decoders, body-size bounds, error taxonomy and native durability remain open. No new retry-triggering post-commit 500, migration, release artifact or gate closure. Missing/null required amounts now fail instead of fabricating zero; all inspected POS producers send explicit values, but unknown external legacy clients were not surveyed.
+ 
+ ### A44 — Historical/deleted variants and stock shortage handling need explicit exceptions
+ 
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -5,7 +5,8 @@
+ covers the full A01–A44 programme and all phases with environment/release safeguards.
+ S0a and S0b containment subtasks are review-accepted within their evidence limits.
+ S0c A09-input-numeric is scoped review accepted under CG-S0C-20260920-01-R1.
+-S0d-shift-decode is locally verified in S0D-SHIFT-DECODE-20260920-01, awaiting review. Parent findings and release gates remain open. Historical scoped
++S0d outer-envelope review correction is locally verified in S0D-ENVELOPE-A23-20260920-01,
++awaiting re-review. A23 mapper is verified but LP05 cross-selection parity remains open. Parent findings and release gates remain open. Historical scoped
+ authority statements below record their own runs; they do not restrict future phases.
+ Policy source: [decision draft](PRODUCTION_READINESS_DRAFT.md). This document
+ consolidates accepted decisions without treating proposed technical controls as
+@@ -336,7 +337,7 @@
+ approval is required. In parallel, ChatGPT should review the S0c quote/tender and
+ quantity-expansion questions before dependent cross-cutting changes.
+ 
+-### Current continuation — S0D-SHIFT-DECODE-20260920-01
++### Historical continuation — S0D-SHIFT-DECODE-20260920-01 (see correction below)
+ 
+ S0c's A09-input-numeric subtask is review accepted within E10 limits. The decision
+ draft records Q-S0c-01/02 as future technical direction, explicit legacy unknowns
+@@ -370,3 +371,28 @@
+ no bypass/retry attempted. A separately verified synthetic S0d PostgreSQL cluster
+ was started only on loopback, tested with the existing migrations, then stopped.
+ Its directory is retained; no deletion or live-data operation was attempted.
++
++### Current continuation — S0D-ENVELOPE-A23-20260920-01
++
++CG-S0D-SHIFT-DECODE-20260920-01-R1 requests outer-envelope correction while
++preserving direct/inner shift tests. E13 provides complete structural preflight
++before dispatch; semantic failures remain per item. SD05/SD07 claims narrowed,
++historical logs unchanged. Empty/missing/null items remain no-op compatibility;
++unusable original keys reject the envelope. No library, schema or retry redesign.
++
++A23 mapper carries the existing tieredConfig in both directions. E14 demonstrates
++single-selection pricing parity and shared Go/TS goldens. A separate LP05 probe
++fails for a combinable promotion selected directly and by linked code: POS 80000
++instead of 90000, while backend resolvePromos deduplicates the promotion. Review
++question Q-LP05-01 concerns the next bounded selection/quote/submitted-identity
++parity contract. Recommend mirroring backend direct-first/first-code precedence,
++without recapturing/repricing historical operations or consuming redundant code
++entitlement. That behavior has NOT been changed by the three-line mapper fix.
++Do not close A23/T21 or call all LP scenarios passed. The failing probe and its
++source are included as evidence outside the passing application regression suite.
++
++Next work: resolve Q-LP05-01 with ChatGPT, then implement/test same-ID cross-path
++deduplication in both selection orders, two linked codes, code-only eligibility,
++removal/replacement, reward ownership and outbound metadata against backend
++resolution. No generic execution approval needed. Parent findings and all release
++gates remain open. Larger Q-S0c-01/02 technical directions remain unchanged.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -12,6 +12,21 @@
+ supersede earlier proposals. Execution authority comes from the standing record above.
+ 
+ ## Decision record
++
++### September 20 — outer-envelope review correction and A23 mapper
++
++CG-S0D-SHIFT-DECODE-20260920-01-R1 requests changes to S0d's complete-envelope
++claim, preserving positive direct/inner evidence. E13 correction is implemented
++and locally verified; no acceptance inferred. Existing empty batch no-op shapes
++remain; unusable keys cause whole-envelope rejection. Captured payloads/keys and
++per-item independence remain, no new retry or financial policy.
++
++A23 mapper passes single-selection parity tests. Q-LP05-01 remains technical
++review work: a reproduced cross-selection duplicate benefit conflicts with the
++backend's existing direct-first/first-code deduplication. Recommend alignment with
++that contract in a separate bounded correction; no new precedence/usage behavior
++is implemented or declared approved here. All parent/gate states remain open;
++Q-S0c-01/02, raw assignment/reissue and Q08 decisions below remain unchanged.
+ 
+ ### September 20 — S0c review, technical answers and S0d containment
+ 
+diff --git a/docs/S0D_SHIFT_VALIDATION_MATRIX.md b/docs/S0D_SHIFT_VALIDATION_MATRIX.md
+--- a/docs/S0D_SHIFT_VALIDATION_MATRIX.md
++++ b/docs/S0D_SHIFT_VALIDATION_MATRIX.md
+@@ -1,6 +1,8 @@
+ # S0d-shift-decode — contract and evidence
+ 
+-Packet S0D-SHIFT-DECODE-20260920-01; A43 subtask review pending, parent A43/T25 open.
++Historical E11 matrix, amended by CG-S0D-SHIFT-DECODE-20260920-01-R1:
++changes requested for outer envelope; corrected locally under E13 in
++S0D-ENVELOPE-A23-20260920-01, re-review pending. Parent A43/T25 remains open.
+ Authority AUTH-MANDALIKA-20260919-01; controlling reply CG-S0C-20260920-01-R1.
+ 
+ ## Current contracts and callers
+@@ -40,9 +42,9 @@
+ | SD02 | Parser/direct/dispatch/DB reject partial decode, wrong types, truncation and overflow | Full-row DB checks for direct and representable batch payloads |
+ | SD03 | Missing/null required cash rejected, explicit zero passes real direct/batch service | No fabricated historical default |
+ | SD04 | Real signed/zero/nonzero/fractional cash and null name; unit absent/string name | No new shift/cash-sign policy |
+-| SD05 | Empty/null/scalar/array, second object/junk rejected; whitespace accepted | Malformed nested payload cannot exist in valid HTTP JSON; engine boundary and malformed envelope 400 tested separately |
++| SD05 | E11 proves direct/inner completeness and one truncated HTTP envelope only | It did NOT prove outer trailing junk/second-value rejection. E12 reproduced gap; E13 BE01/05/09 adds real raw-envelope coverage. Historic logs unchanged |
+ | SD06 | Absent/null/empty counts preserve seeded DB counts; explicit zero/custom methods persist; malformed values/maps rejected | Large finite JSONB count unit-tested, no business cap |
+-| SD07 | Duplicate consumed names/case aliases and exact method IDs rejected; unknown metadata allowed | cash and CASH method IDs remain distinct |
++| SD07 | E11 proves consumed shift payload duplicates/aliases and exact method IDs only | It did NOT prove outer items or item type/key/payload duplicate rejection. E13 BE02/03/04/07 adds structural preflight; inner per-item rejection preserved |
+ | SD08 | Signed synthetic JWT, RequireAuth, real caller lookup/routes/services/readback; forged body ignored; missing token 401/wrong outlet header 403 | No live revocation or capture-time authority claim |
+ | SD09 | Mixed invalid shift, valid independent shift, forbidden forged refund returns error/ok/error under original keys | Independent valid effect commits |
+ | SD10 | Isolated PostgreSQL 18.3, 45 existing migrations; denials preserve complete rows in ten relevant tables; valid services/readback pass | No live DB, Redis, external payment, concurrency or universal receipts |
+diff --git a/docs/BE_LP_VALIDATION_MATRIX.md b/docs/BE_LP_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/BE_LP_VALIDATION_MATRIX.md
+@@ -0,0 +1,92 @@
++# BE and LP validation — S0D-ENVELOPE-A23-20260920-01
++
++Controlling reply CG-S0D-SHIFT-DECODE-20260920-01-R1; authority AUTH-MANDALIKA-20260919-01.
++S0d corrective work locally verified, re-review pending. A23 mapper locally
++verified, review pending, with LP05 PARTIAL/OPEN. Full A43/T25, A23/T21 and gates open.
++
++## Envelope contract and actual evidence
++
++Only handlers/syncBatch changes production intake, via batch_envelope.go.
++No global DecodeLoose change, inner shift/service rewrite, schema/generated change
++or retry policy. Parse one complete object; reject trailing bytes and repeated
++consumed outer items or item type/idempotencyKey/payload before dispatch, including
++case/escaped aliases and identical repeats. Unknown metadata and single aliases
++remain compatible. Payload RawMessage bytes remain intact for command validators.
++
++Absent/null/empty items remain existing no-op behavior, despite the OpenAPI's
++stricter required declaration. No producer needs omitted items to create effects.
++Non-object items, wrong primitive metadata types and absent/null/blank original
++keys reject the whole request; never generate or trim a key. Missing/null/unknown
++type with a known key and absent/null payload remain unambiguous per-command
++failures, not structural ambiguity. Duplicate key VALUES across separate items
++are not newly governed; universal receipt/fingerprint semantics remain A11 work.
++No claim that rejecting ingestion means a previously captured event never happened.
++
++| Scenario | Actual evidence | Limits |
++|---|---|---|
++| BE01 | Raw actual handler trailing junk, truncated second value and object/scalar/array/null tails reject before caller/dispatch; DB rows unchanged | Real project, no lab stubs shipped |
++| BE02 | Duplicate items exact/case/escaped-equivalent, identical/different collections rejected | Entire request, no discarded first collection |
++| BE03 | Duplicate type/key/payload exact/case/escaped-equivalent rejected | Even identical repetitions rejected |
++| BE04 | Earlier valid item plus later ambiguous item yields no dispatch or DB business effects | Full structural pass precedes processing |
++| BE05 | Whitespace, benign unknown metadata, aliases and {}, items:null, items:[] pass | No-op shapes do not create financial rows |
++| BE06 | Bad shift + good shift + forged forbidden refund: original error/ok/error keys, one shift effect | Actual JWT/caller/service/DB |
++| BE07 | Duplicate cash inside RawMessage rejected per item; valid independent shift succeeds | Established inner decoder unchanged |
++| BE08 | Real JWT/lookup wrong outlet/missing/invalid token rejects; allowed token processes; forged body authority ignored | Existing nine-case permission mapping suite includes admin/permitted/refreshed/expired tokens; no live revocation proof |
++| BE09 | 34 negative raw-body DB subcases and four auth/empty/positive/mixed control groups pass | Ten table full-row snapshots, positive controls require only shifts change among these tables |
++| BE10 | Two tests, one each shift type: whole request throws HTTP400, five attempts, visible parked count, repeated export, same successful KV reconstruction, original-key retry | Diagnostic generation exercised, real OS clipboard/share not rerun; no native power-loss proof |
++| BE11 | Go auth/middleware/handlers/service/sync pass, server compiles; sync 33, pre-A23 POS160, API/sync/POS types pass | Normal Go opt-in DB tests skipped; BE DB separately ran. No whole audit or deployment test |
++
++Before fix: real-handler TestBatchEnvelopeRejectsBeforeDispatch has 26 failing and
++8 already-passing subcases. The supplied five raw cases all fail with dispatch=1.
++After: same 34 assertions pass. Original S0d SD05/SD07 text now distinguishes the
++old direct/inner evidence from the outer gap; old logs/bundles/counts are immutable.
++
++## A23 mapper evidence
++
++Production change is three lines: typed tieredConfig in LinkedPromotionInfo,
++copy on decideApplyCode, and copy in linkedPromoShape. No backend pricing rewrite,
++quote/receipt migration, resource compression or queued-history repricing.
++
++| Scenario | Actual evidence | Limits |
++|---|---|---|
++| LP01 | Real selection chain before direct90000/linked100000; after both90000 | Same regression assertion |
++| LP02 | Shared golden below/at/above thresholds, unordered tiers and first-tie selection | Supported small cases, not exhaustive allocations |
++| LP03 | Fixed/percentage, half rounding, fractional subtotal, fixed/subtotal and overall clamps | Existing arithmetic preserved |
++| LP04 | Missing/null/empty config all yield established zero discount | No fallback from unrelated value |
++| LP05 | Same raw code duplicate does not stack; independent codes combine, exclusive replaces; code/promo eligibility intersection passes | PARTIAL: same promotion directly AND by code double-counts. Separate failing probe preserved, Q-LP05-01 |
++| LP06 | Linked/unlinked fixed/percentage checks plus existing POS BXGY/bundle/reward suite pass | Broader promotion snapshot/combination equivalence not claimed |
++| LP07 | Raw mixed-case code and exact assigned customer identity preserved; frozen catalog/cart/selected input unchanged by compute | No historical store rewrite or merge/reissue tests |
++| LP08 | One shared JSON file, 16 Go Compute and TS full selection/pricing examples agree; final POS181 and app/new-test types pass; sync33 remains current | Backend SQL resolver not freshly exercised for dedup; source shows it |
++
++An initial LP05 assertion incorrectly required reducer object identity; source
++returns an equivalent copy while clearing UI input. Corrected to deep state
++equality; no production change for that test issue. LP01 assertion unchanged.
++
++Separate review probe (not part of the 181 passing tests): selection reducer first
++applies a combinable promotion, then its linked code. Expected once-only total
++90000; actual80000. Backend resolvePromos maintains seen IDs and skips redundant
++linked codes (source evidence). The probe is included under evidence/, with its
++exact failed output and rerun instructions; it is not treated as acceptable
++behavior or hidden in passing counts. Full LP05/A23 acceptance is outstanding.
++
++## Fixture and verification limits
++
++New fixture C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-be-lp-a8nu0jbr/postgres-synthetic,
++127.0.0.1:56441, mandalika_be_synthetic, be_test. Installed PostgreSQL18.3.
++Test validates parsed host/port/db/user, SHOW data_directory, empty public schema,
++then applies the 45 existing migrations to synthetic data only. Snapshot tables:
++shifts, cash_flows, orders, order_items, outlet_variant_stock, customers,
++point_transactions, discount_codes, promo_reward_grants, processed_keys.
++Preseeded content version/infrastructure metadata is outside those business tables.
++
++New server stopped exit0, directory retained. Old S0c and S0d fixtures remain
++untouched with their previously recorded stopped status; old S0c cleanup policy
++block not retried via any path/tool. No filesystem cleanup attempt in this turn.
++No live database, credentials, installs, remote checks, commits, pushes or deploys.
++
++No new post-commit readback behavior/injection; no Redis, concurrency, native,
++real sharing, live payment, restore or release qualification. Original S0a/b/c/d
++regressions run in affected suites; old sale/shift opt-in DB tests not rerun.
++POS app config excludes tests: the NEW LP test received a separate explicit tsc
++check. Sync tsc includes its tests. No generated contract change; hashes preserved.
++Self-review only; ChatGPT has not accepted these changes yet.
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,106 +1,116 @@
+-# Current review packet — S0D-SHIFT-DECODE-20260920-01
++# Current review packet — S0D-ENVELOPE-A23-20260920-01
+ 
+-Responds to CG-S0C-20260920-01-R1, responding to S0C-20260920-01.
+-Standing authority AUTH-MANDALIKA-20260919-01.
+-Root: C:/Users/MyBook Hype AMD/Downloads/mandalika-pos.
+-Branch prod-hardening; HEAD 4691c781842f0114acaf2e4371e0d11f0076f553.
++Reply to CG-S0D-SHIFT-DECODE-20260920-01-R1 under AUTH-MANDALIKA-20260919-01.
++Root C:/Users/MyBook Hype AMD/Downloads/mandalika-pos; branch prod-hardening;
++HEAD 4691c781842f0114acaf2e4371e0d11f0076f553, plus preserved dirty/untracked work.
++No branch/HEAD/remote changes. Entry/current inventories and hashes are attached.
+ 
+-READ_FIRST and the named reply were read in order and in full before dependent
+-edits. Resolved main reply:
+-C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0C-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_S0C-20260920-01.md.
+-All 14 incoming manifest payloads verified. The review lab remains evidence only.
++Confirmed reply ID and read named response in full after READ_FIRST/manifest.
++Resolved path:
++C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0D-SHIFT-DECODE-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_S0D-SHIFT-DECODE-20260920-01.md.
++All 22 incoming payload hashes/sizes verified. Lab remains evidence, not source.
+ 
+-## Outcome
++## Outcomes kept separate
+ 
+-S0c A09-input-numeric is recorded as scoped ChatGPT accepted within its submitted
+-evidence limits. Full A09/T07, parent findings and release gates remain open.
+-Q-S0c-01/02 technical directions are integrated in the existing decision draft:
+-immutable captured facts, reconciliation and settlement separation; scoped
+-fingerprinted receipts; explicit legacy unknowns; count-compressed calculation
+-AND grant/output/DB work with measured budgets, rollback and compatibility proof.
+-Neither redesign is implemented here. Existing business decisions and unresolved
+-policy remain unchanged, including Q08 stock warning/override.
++**S0d-batch-envelope correction: implemented, locally verified, re-review pending.**
++Real raw-handler regression reproduced all five supplied cases and additional
++aliases, escaped duplicates, trailing values and later-item ambiguity. Before:
++26 failures/8 passes; after all34 pass. Complete structural validation precedes
++dispatch, while valid unambiguous batches retain per-item semantics and progress.
++Original keys/body bytes and trusted scope/permission mapping preserved.
++Existing harmless absent/null/empty items compatibility remains; unusable keys
++reject the whole request. Inner/direct shift decoder and service stay unchanged.
+ 
+-S0d-shift-decode/A43 is implemented and locally verified, REVIEW PENDING. Shared
+-decoding contains malformed/truncated/trailing input, duplicate consumed fields,
+-missing/null required cash and nonrepresentable values before direct/batch shift
+-mutation. Explicit zero, optional names/counts, signed existing numeric domain
+-and custom method IDs remain compatible. Route reference and authenticated scope
+-remain authoritative. Batch failures retain original keys; independent valid
+-items execute. OpenAPI required declarations and generated DTOs are aligned.
+-No production client, retry policy, receipt schema or shift service logic changed.
++**A23-linked-promotion-parity mapper: implemented, locally verified, partial
++acceptance evidence; LP05 remains open.** Three production lines carry the typed
++tier configuration through real code selection and pricing. Before direct90000/
++linked100000; after both90000. Sixteen shared Go/TS goldens and affected tests pass.
++A separate LP05 cross-selection test fails: the same combinable promotion selected
++directly and by code gives80000, while the backend deduplicates promotion identity.
++That broader gap is reported below rather than silently changing selection policy.
+ 
+-Entry already contained S0a/b/c and untracked audit work. Only this turn's changes
+-are in S0D_IMPLEMENTATION.diff and S0D_DOCUMENTATION.diff, with before-images and
+-new-file after-images. Branch/HEAD and prior bundle are unchanged; preservation
+-hashes supplied. No commit/push or fresh remote verification.
++Separate BE_IMPLEMENTATION.diff and LP_IMPLEMENTATION.diff, with their own
++before-fix diffs/tests and after-images. No quote/receipt migration, resource
++compression, retry policy, auth redesign or backend pricing behavior change.
+ 
+-## Actual verification and limits
++## Actual verification
+ 
+-- Four before-fix malformed-body assertions each reached the mutator once; the
+-  same assertions now pass.
+-- Final Go auth/middleware/handlers/service/sync suites pass; server compiles with
+-  no test files. Local installed toolchain, read-only modules/network disabled.
+-- Final isolated PostgreSQL 18.3 test passes five named groups using real JWT,
+-  caller lookup, routes, services/readback and 45 existing migrations. Denials
+-  preserve full rows across ten tables; valid zero/nonzero/signed/optional shapes,
+-  forged metadata, mixed batch and already-closed behavior pass.
+-- Sync 31/31, POS 160/160 and API/sync/POS type checks pass, including earlier
+-  regressions. New tests prove both denied shift types retain parked counts,
+-  repeated export, same-KV reconstruction and original-key manual retry.
+-- Initial integration compile failed on an unused test import, corrected; later
+-  and final runs pass. Generators exit 0; Go generator warns of incomplete existing
+-  OpenAPI 3.1 support. S0D_VERIFICATION.json contains commands/cwd/exits/logs.
++- BE real PostgreSQL18.3: 34 raw rejected envelopes leave ten business-table
++  snapshots unchanged; four auth/empty/valid/mixed control groups pass.
++  Real JWT, caller lookup, ProcessBatch, services and 45 existing migrations.
++- Go auth/middleware/handlers/service/sync pass; server has no test files.
++  Separate new Go pricing golden suite passes16 examples.
++- Sync33/33 (including whole-request retention), pre-mapper POS160/160, final
++  POS181/181. API/sync/POS types and explicit new POS test typecheck pass.
++- Two expected red regressions recorded separately. An intermediate LP test used
++  an incorrect object-identity assertion; changed to equivalent-state comparison.
++  The consequential LP05 probe still fails and is excluded from the181 count,
++  with its source/output supplied as review evidence.
+ 
+-S0D_SHIFT_VALIDATION_MATRIX.md maps SD01–SD14 to layers and limitations.
+-Synthetic KV is not native power-loss proof. No fresh browser/device, OS-share,
+-payment-provider, Redis receipt, concurrency, restore or deployment test. Normal
+-Go skips opt-in DB tests; shift DB separately ran, prior sale DB not rerun.
+-Post-commit readback failure is unchanged/uninjected/unfixed; no new retry response.
+-Current POS callers send explicit cash; unknown external legacy producers were
+-not surveyed. Missing/null required cash now fails instead of fabricating zero.
++BE_LP_VERIFICATION.json records exact commands/cwd/exits/logs; BE_LP_VALIDATION_MATRIX.md
++maps every BE/LP scenario and limits. Old historical logs and counts unchanged.
++Normal Go execution skipped opt-in DB tests; BE DB explicitly ran. Prior sale/
++shift DB not rerun. No fresh browser/device/real OS-sharing, Redis, concurrent SQL,
++payment-provider, restore/deployment or post-commit failure test. Successful KV
++is not native durability; database-backed dedup resolution was source-inspected,
++not newly run. No complete A37 claim.
+ 
+-New identity-checked loopback synthetic DB server stopped exit 0, directory
+-retained. Old S0c cleanup policy block remains recorded, never retried/bypassed.
+-No live-data, provider or credential changes.
++New identity-checked loopback-only synthetic DB server stopped exit0, directory
++retained. Old stopped fixture records and S0c cleanup policy block remain; no
++cleanup attempt/bypass. No install, live-data, credential, commit/push/deploy action.
+ 
+-## Tracker delta
++## Tracker / continuity
+ 
+-All 44 findings remain: 8 P0 / 32 P1 / 3 P2 / 1 P3. Changed detailed rows:
+-A09 scoped acceptance; A23 retained task/unique label; A29 runtime promotion
+-resource safety linked A09/A23/A38; A43 scoped verification. A40 is not the sole
+-resource-safety owner. S0d-shift-decode = A43/former S0k;
+-A23-linked-promotion-parity = formerly proposed S0d. Neither task was dropped.
++All A01–A44 remain once, priorities unchanged8P0/32P1/3P2/1P3. E12 records S0d
++changes requested; E13 records corrective evidence, E14 mapper and failing LP05.
++Only detailed A23/A29/A43 rows changed. SD05/SD07 now explicitly limit the old
++claims to direct/inner decoding and link new outer coverage. A29 retains runtime
++resource safety; A40 is not its sole owner. No prior approval/policy rewritten.
+ 
+-Original P0s A01 A02 A03 A04 A06 A09 A11 A13 all remain open.
+-A02-export, A06-permission-parity and A09-input-numeric alone are review accepted.
+-Durability, destructive paths, device/authority safeguards, authorization breadth,
+-financial facts, replay and concurrency work remains. No gate/exception closed.
++Original P0 A01/A02/A03/A04/A06/A09/A11/A13 all remain open. S0a A02-export,
++S0b A06-permission-parity, S0c A09-input-numeric retain scoped acceptance.
++Full A43/T25, A23/T21, post-commit uncertainty and release gates remain open.
+ 
+-## Review request and next work
++## Q-LP05-01 — next bounded cross-selection parity contract
+ 
+-ChatGPT: review the incremental shift decoder and SD01–SD14 evidence; accept/reject
+-only S0d-shift-decode with A43/readback limits intact. Confirm Q-S0c-01/02 direction
+-retains legacy unknowns and unresolved policy. No new consequential business
+-question blocks this bounded change.
++Evidence: cashierReducer deduplicates identical raw code strings but keeps a
++direct promotion and its linked code when combinable. computePricing adds both.
++Actual selection-path probe expects90000 and gets80000. Backend
++order.go:resolvePromos processes direct promotions first, tracks seen promotion
++IDs and skips redundant linked codes before collecting their applied-code IDs.
+ 
+-Next bounded slice: A23-linked-promotion-parity. Current inspection confirms
+-promoValidate.ts:decideApplyCode and pricing.ts:linkedPromoShape omit tieredConfig
+-while calcPromoDiscount reads it. Reproduce/fix only that mapping and verify
+-linked/direct threshold, fixed/percentage, missing-config, combinability and
+-unlinked-code cases with shared backend golden examples and POS pricing/types.
+-Preserve captured snapshots and raw code identity. No count compression, receipt
+-migration or new promotion policy inside that slice. Escalate actual ambiguity
+-with evidence/options/recommendation; standing authority covers routine work.
++This is a separate selection/quote/outbound-metadata contract beyond the mapper.
++The once-only invariant is supplied by LP05 and supported by backend source;
++the remaining technical choice is how the POS represents redundant selections
++and preserves code eligibility/usage and reward ownership during removal.
+ 
+-## Delivery
++Option A (recommended): mirror backend direct-first, then first eligible linked
++code per promotion ID in effective selections, displayed quote and submitted
++metadata. Preserve original captured history; do not consume redundant code usage.
++Test both selection orders, two linked codes, code-only offers, combinability,
++removal/replacement, raw identity and reward ownership before changing behavior.
+ 
+-One ZIP: S0D-SHIFT-DECODE-20260920-01_REVIEW_BUNDLE.zip.
+-Includes exact incremental implementation/documentation/before-fix diffs,
+-changed/new source/tests, relevant before-images, active plan/draft/tracker,
+-verification/state/checks, sanitized current handoff prefix, Q08 excerpts,
+-unchanged reconciliation evidence, incoming reply and relevant context.
+-MANIFEST.json supplies every payload's size and SHA-256. Historical SESSION suffix
+-is byte-preserved locally but excluded from delivery. No DB directory or secrets
+-packaged. Pattern screening is not complete A37 coverage. Prepared for owner relay,
+-not automatically sent to ChatGPT.
++Option B: keep all visible selections but deduplicate only pricing. Smaller UI
++change, but redundant code metadata/usage/removal can still disagree with server.
++Not recommended as the complete correction.
++
++ChatGPT: confirm/refine the bounded Option A contract and required removal/usage
++evidence; review the three-line mapper separately from unresolved LP05. No new
++owner business preference or generic execution authorization is requested.
++Dependent cross-selection behavior remains unchanged pending this review; no
++claim that A23/LP05 is complete. Independent envelope repair is ready for review.
++
++## Requested review and delivery
++
++Review BE01–11 for scoped S0d correction acceptance, preserving readback/parent
++limits. Review single-selection A23 mapping evidence with LP05 explicitly open.
++Next concrete implementation is the reviewed cross-selection parity correction,
++not either larger Q-S0c redesign. Their existing decisions remain unchanged.
++
++One ZIP S0D-ENVELOPE-A23-20260920-01_REVIEW_BUNDLE.zip includes this packet,
++separate exact diffs/before-images, relevant new/changed source/tests, commands and
++limitations, active tracker/plan/draft after-images, historical reconciliation and
++Q08 excerpts, failed LP05 probe, incoming review, and MANIFEST sizes/SHA256.
++Old SESSION suffix preserved byte-for-byte locally and excluded from delivery;
++new sanitized prefix included. No DB folders/caches/secrets or historical full
++transcripts packaged. Prepared for owner relay, not automatically sent to ChatGPT.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,119 @@
++# Current review packet — S0D-ENVELOPE-A23-20260920-01
++
++Reply to CG-S0D-SHIFT-DECODE-20260920-01-R1 under AUTH-MANDALIKA-20260919-01.
++Root C:/Users/MyBook Hype AMD/Downloads/mandalika-pos; branch prod-hardening;
++HEAD 4691c781842f0114acaf2e4371e0d11f0076f553, plus preserved dirty/untracked work.
++No branch/HEAD/remote changes. Entry/current inventories and hashes are attached.
++
++Confirmed reply ID and read named response in full after READ_FIRST/manifest.
++Resolved path:
++C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0D-SHIFT-DECODE-20260920-01-R1/CHATGPT_REVIEW_RESPONSE_S0D-SHIFT-DECODE-20260920-01.md.
++All 22 incoming payload hashes/sizes verified. Lab remains evidence, not source.
++
++## Outcomes kept separate
++
++**S0d-batch-envelope correction: implemented, locally verified, re-review pending.**
++Real raw-handler regression reproduced all five supplied cases and additional
++aliases, escaped duplicates, trailing values and later-item ambiguity. Before:
++26 failures/8 passes; after all34 pass. Complete structural validation precedes
++dispatch, while valid unambiguous batches retain per-item semantics and progress.
++Original keys/body bytes and trusted scope/permission mapping preserved.
++Existing harmless absent/null/empty items compatibility remains; unusable keys
++reject the whole request. Inner/direct shift decoder and service stay unchanged.
++
++**A23-linked-promotion-parity mapper: implemented, locally verified, partial
++acceptance evidence; LP05 remains open.** Three production lines carry the typed
++tier configuration through real code selection and pricing. Before direct90000/
++linked100000; after both90000. Sixteen shared Go/TS goldens and affected tests pass.
++A separate LP05 cross-selection test fails: the same combinable promotion selected
++directly and by code gives80000, while the backend deduplicates promotion identity.
++That broader gap is reported below rather than silently changing selection policy.
++
++Separate BE_IMPLEMENTATION.diff and LP_IMPLEMENTATION.diff, with their own
++before-fix diffs/tests and after-images. No quote/receipt migration, resource
++compression, retry policy, auth redesign or backend pricing behavior change.
++
++## Actual verification
++
++- BE real PostgreSQL18.3: 34 raw rejected envelopes leave ten business-table
++  snapshots unchanged; four auth/empty/valid/mixed control groups pass.
++  Real JWT, caller lookup, ProcessBatch, services and 45 existing migrations.
++- Go auth/middleware/handlers/service/sync pass; server has no test files.
++  Separate new Go pricing golden suite passes16 examples.
++- Sync33/33 (including whole-request retention), pre-mapper POS160/160, final
++  POS181/181. API/sync/POS types and explicit new POS test typecheck pass.
++- Two expected red regressions recorded separately. An intermediate LP test used
++  an incorrect object-identity assertion; changed to equivalent-state comparison.
++  The consequential LP05 probe still fails and is excluded from the181 count,
++  with its source/output supplied as review evidence.
++
++BE_LP_VERIFICATION.json records exact commands/cwd/exits/logs; BE_LP_VALIDATION_MATRIX.md
++maps every BE/LP scenario and limits. Old historical logs and counts unchanged.
++Normal Go execution skipped opt-in DB tests; BE DB explicitly ran. Prior sale/
++shift DB not rerun. No fresh browser/device/real OS-sharing, Redis, concurrent SQL,
++payment-provider, restore/deployment or post-commit failure test. Successful KV
++is not native durability; database-backed dedup resolution was source-inspected,
++not newly run. No complete A37 claim.
++
++New identity-checked loopback-only synthetic DB server stopped exit0, directory
++retained. Old stopped fixture records and S0c cleanup policy block remain; no
++cleanup attempt/bypass. No install, live-data, credential, commit/push/deploy action.
++
++## Tracker / continuity
++
++All A01–A44 remain once, priorities unchanged8P0/32P1/3P2/1P3. E12 records S0d
++changes requested; E13 records corrective evidence, E14 mapper and failing LP05.
++Only detailed A23/A29/A43 rows changed. SD05/SD07 now explicitly limit the old
++claims to direct/inner decoding and link new outer coverage. A29 retains runtime
++resource safety; A40 is not its sole owner. No prior approval/policy rewritten.
++
++Original P0 A01/A02/A03/A04/A06/A09/A11/A13 all remain open. S0a A02-export,
++S0b A06-permission-parity, S0c A09-input-numeric retain scoped acceptance.
++Full A43/T25, A23/T21, post-commit uncertainty and release gates remain open.
++
++## Q-LP05-01 — next bounded cross-selection parity contract
++
++Evidence: cashierReducer deduplicates identical raw code strings but keeps a
++direct promotion and its linked code when combinable. computePricing adds both.
++Actual selection-path probe expects90000 and gets80000. Backend
++order.go:resolvePromos processes direct promotions first, tracks seen promotion
++IDs and skips redundant linked codes before collecting their applied-code IDs.
++
++This is a separate selection/quote/outbound-metadata contract beyond the mapper.
++The once-only invariant is supplied by LP05 and supported by backend source;
++the remaining technical choice is how the POS represents redundant selections
++and preserves code eligibility/usage and reward ownership during removal.
++
++Option A (recommended): mirror backend direct-first, then first eligible linked
++code per promotion ID in effective selections, displayed quote and submitted
++metadata. Preserve original captured history; do not consume redundant code usage.
++Test both selection orders, two linked codes, code-only offers, combinability,
++removal/replacement, raw identity and reward ownership before changing behavior.
++
++Option B: keep all visible selections but deduplicate only pricing. Smaller UI
++change, but redundant code metadata/usage/removal can still disagree with server.
++Not recommended as the complete correction.
++
++ChatGPT: confirm/refine the bounded Option A contract and required removal/usage
++evidence; review the three-line mapper separately from unresolved LP05. No new
++owner business preference or generic execution authorization is requested.
++Dependent cross-selection behavior remains unchanged pending this review; no
++claim that A23/LP05 is complete. Independent envelope repair is ready for review.
++
++## Requested review and delivery
++
++Review BE01–11 for scoped S0d correction acceptance, preserving readback/parent
++limits. Review single-selection A23 mapping evidence with LP05 explicitly open.
++Next concrete implementation is the reviewed cross-selection parity correction,
++not either larger Q-S0c redesign. Their existing decisions remain unchanged.
++
++One ZIP S0D-ENVELOPE-A23-20260920-01_REVIEW_BUNDLE.zip includes this packet,
++separate exact diffs/before-images, relevant new/changed source/tests, commands and
++limitations, active tracker/plan/draft after-images, historical reconciliation and
++Q08 excerpts, failed LP05 probe, incoming review, and MANIFEST sizes/SHA256.
++Old SESSION suffix preserved byte-for-byte locally and excluded from delivery;
++new sanitized prefix included. No DB folders/caches/secrets or historical full
++transcripts packaged. Prepared for owner relay, not automatically sent to ChatGPT.
++
++---
++

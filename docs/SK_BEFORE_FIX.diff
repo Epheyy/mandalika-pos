@@ -1,0 +1,59 @@
+diff --git a/apps/pos/src/cashier/semanticPromotionKeys.test.ts b/apps/pos/src/cashier/semanticPromotionKeys.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/semanticPromotionKeys.test.ts
+@@ -0,0 +1,20 @@
++import { expect, it } from 'vitest'
++import type { components } from '@mandalika/api'
++import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
++import { planPromotionFulfillment, type PromotionOwner } from './promotionFulfillment'
++
++type Promotion = components['schemas']['Promotion']
++const cart = [{ productId: 'P', productName: 'P', variantSize: 'M', price: 100, quantity: 1, subtotal: 100 },
++  { productId: 'Q', productName: 'Q', variantSize: 'M', price: 20, quantity: 1, subtotal: 20 }]
++const products: components['schemas']['Product'][] = [{ id: 'P', name: 'P', brand: '', categoryId: '', isActive: true, isFeatured: false, isFavourite: false, createdAt: '', variants: [{ size: 'M', price: 100, stock: 10, sku: 'P-M' }] }]
++it.each(['bundle', 'buy_x_get_y'] as const)('legacy overlapping %s installs no owner or physical effect', type => {
++  const p: Promotion = { id: 'promo', name: 'legacy', type, value: 0, isActive: true, createdAt: '', combinable: true,
++    bundleConfig: { bundlePrice: 50, slots: [{ productKeys: ['P'], quantity: 1 }, { productKeys: ['P|M', 'Q'], quantity: 1 }] },
++    bxgyConfig: { buyQuantity: 1, getQuantity: 1, buyProductIds: ['P'], getProductIds: ['P|M'], getDiscountKind: 'percentage', getDiscountValue: 100 } }
++  const s = { ...CASHIER_INITIAL_STATE, cart }
++  const owners: PromotionOwner[] = [{ kind: 'direct', promotion: p }, { kind: 'code', code: { code: 'Raw', type, value: 0, combinable: true, promotion: p } }]
++  for (const owner of owners) {
++    expect(planPromotionFulfillment(s, owner, products)).toEqual({ kind: 'none' })
++    expect(cashierReducer(s, { type: 'APPLY_FULFILLMENT', owner, products })).toBe(s)
++  }
++})
+diff --git a/backend/internal/service/promotion_keys_test.go b/backend/internal/service/promotion_keys_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/service/promotion_keys_test.go
+@@ -0,0 +1,12 @@
++package service
++
++import "testing"
++
++func TestSemanticPromotionRuntimeRegression(t *testing.T) {
++ cfg := &BundleConfig{BundlePrice: 50, Slots: []BundleSlot{{ProductKeys: []string{"P"}, Quantity: 1}, {ProductKeys: []string{"P|M", "Q"}, Quantity: 1}}}
++ paid := []LineItem{{ProductID: "P", VariantSize: "M", Price: 100, Quantity: 1}}
++ if n := bundleApplications(cfg, paid); n != 0 { t.Errorf("invalid semantic overlap matched %d applications", n) }
++ if nets, ok := bundleFreedNets(cfg, paid, []bundleFreedUnit{{ProductID: "Q", VariantSize: "M", FullPrice: 20}}); ok { t.Errorf("first-slot assignment accepted invalid rule: %v", nets) }
++ c := &BXGYConfig{BuyQuantity: 1, GetQuantity: 1, BuyProductIDs: []string{"P"}, GetProductIDs: []string{"P|M"}, GetDiscountKind: DiscountPercentage, GetDiscountValue: 100}
++ if n := bxgyRewardDue(c, paid); n != 0 { t.Errorf("overlapping buy/get rewarded %d units", n) }
++}
+diff --git a/backend/internal/write/promotion_keys_test.go b/backend/internal/write/promotion_keys_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/write/promotion_keys_test.go
+@@ -0,0 +1,12 @@
++package write
++
++import "testing"
++
++func TestSemanticPromotionOverlapRegression(t *testing.T) {
++ for _, pair := range [][2]string{{"P", "P|M"}, {"P|M", "P"}} {
++  t.Run(pair[0]+"_"+pair[1], func(t *testing.T) {
++   if err := validateBundle(&BundleConfigInput{BundlePrice: 10, Slots: []BundleSlotInput{{ProductKeys: []string{pair[0]}, Quantity: 1}, {ProductKeys: []string{pair[1]}, Quantity: 1}}}); err == nil { t.Error("semantic cross-slot overlap accepted") }
++   if err := validateBXGY(&BXGYConfigInput{BuyQuantity: 1, GetQuantity: 1, BuyProductIDs: []string{pair[0]}, GetProductIDs: []string{pair[1]}, GetDiscountKind: "percentage", GetDiscountValue: 100}); err == nil { t.Error("semantic buy/get overlap accepted") }
++  })
++ }
++}

@@ -1,0 +1,582 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -10,6 +10,22 @@
+ 
+ ## Evidence and shared fields (apply to every row)
+ 
++E07: S0B-20260919-01, 2026-09-19, same root/branch/HEAD plus
++S0B_IMPLEMENTATION.diff. Owner's explicit S0b-only authorization supersedes the
++approval-pending statements in CG-S0B-20260919-01-R1. The exact authenticated
++request/token permission predicate is shared by direct middleware and trusted
++batch mapping; each denied refund returns an error under its original key before
++refund service invocation. No claim of immediate revocation or capture authority.
++Before-fix regression reproduced direct denial versus one batch refund seam call;
++the same assertion passes after containment. Focused Go suites, sync 28/28 and
++POS 160/160 pass with installed tooling; type checks pass. Synthetic UI verifies
++five denials, two exports, panel close/reopen, same-KV reconstruction and original-key
++manual retry. Full commands, limitations and 14-scenario mapping are in
++S0B_VERIFICATION.json and the current AUDIT_REVIEW_PACKET.md. Fake mutation guards
++are not PostgreSQL effect tests; successful KV is not native power-loss evidence.
++A06-permission-parity is implemented and locally verified, pending ChatGPT review;
++A06/T06 overall, historical recovery and every release gate remain open.
++
+ E06: CG-S0A-20260919-01-R1, responding to S0A-20260919-01, accepts A02-export
+ for scoped containment and resolves the prior missing-document-artifact limitation.
+ Resolved inbox: `review-inbox/CG-S0A-20260919-01-R1/`. It initially had a space
+@@ -17,7 +33,7 @@
+ The reply and all four inbox files still match their original manifest hashes.
+ Current reply was read in full before documentation edits; dependencies exist.
+ All ten reviewed source/test/harness files still match the accepted bundle hashes.
+-This turn changes documents only and reruns no application tests. ChatGPT's checks
++That documentation-integration turn changed documents only and reran no application tests. ChatGPT's checks
+ were transfer/diff/source review; its acceptance is not independent runtime,
+ native-device or release qualification. See S0A_REVIEW_INTEGRATION_EVIDENCE.json.
+ 
+@@ -39,7 +55,7 @@
+ E04: document structural/coverage checks recorded in the handoff. No application
+ suite, D01–D09, database race, Android, dependency advisory, provider, restore or
+ release check run for that documentation milestone. Tests below are requirements,
+-not passes; only the explicit S0a subset under E05 has fresh execution evidence.
++not passes; only the explicit S0a/S0b subsets under E05/E07 have execution evidence.
+ 
+ E05: S0A-20260919-01, 2026-09-19, same root/branch/HEAD plus S0A_IMPLEMENTATION.diff.
+ Caller trace completed before edits. Corrected D03 regression failed on old source
+@@ -55,15 +71,16 @@
+ AUDIT_REPORT.md/findings.json. Original line references were checked for file
+ identity by E02; they are valid source anchors, not new runtime verification.
+ At MA-20260919-01 entry no source-level fix newer than the packet was found among cited files.
+-S0a now changes the export path only; shared source files no longer all hash-match
+-the original audit. Current source hashes and untouched-function checks are in
+-AUDIT_RECONCILIATION_EVIDENCE.json. Historical
++S0a changed the export path; S0b adds bounded refund-permission containment.
++Shared source files no longer all hash-match the original audit. Original reconciliation
++hashes in AUDIT_RECONCILIATION_EVIDENCE.json remain historical; subsequent artifacts
++are keyed to E05/E07 and must not be represented as a full-audit retest. Historical
+ feature completions remain preserved in SESSION_HANDOFF.md/PHASE_HANDOFF.md;
+ none is reset merely because audit acceptance is broader.
+ 
+ Every proposed slice owner is Codex for authorized execution, ChatGPT for review,
+-and the owner for policy/scope/risk/release. **Only S0a is implementation-authorized**
+-by the owner's later explicit message and is locally verified under E05. Other
++and the owner for policy/scope/risk/release. **Only S0a and S0b are implementation-authorized**
++by their separate explicit owner messages and locally verified under E05/E07. Other
+ slices remain proposed; S0docs is the prior documentation milestone only.
+ Original P0s gate the affected real-money pilot. P1s gate affected production
+ workflows; P2s require resolution or explicit justified exception; P3 gates a
+@@ -86,7 +103,7 @@
+ | A03 | P0 | S1 | Source-confirmed open; runtime unverified | T03 |
+ | A04 | P0 | S1 | Needs current behavioral revalidation; source matches audit; clarified design / owner decisions pending | T04a–T04e |
+ | A05 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T05 |
+-| A06 | P0 | S0b | Needs current behavioral revalidation; source matches audit | T06 |
++| A06 | P0 | S0b | Permission subtask locally verified, review pending; A06 overall open | T06 |
+ | A07 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T05 |
+ | A08 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T06 |
+ | A09 | P0 | S0c | Needs current behavioral revalidation; source matches audit | T07 |
+@@ -129,8 +146,9 @@
+ The original P0 set is **A01 A02 A03 A04 A06 A09 A11 A13**. A02-export is contained
+ and locally verified; the parent A02 retry/retention requirements remain open.
+ A03 remains a source-confirmed destructive path; A13 remains a source-confirmed concurrency
+-risk. A01/A04/A06/A09/A11 have matching source evidence and require current
+-behavioral revalidation. None is verified fixed, demoted or excepted. A04's
++risk. A06-permission-parity is locally verified under E07; full A06/T06 remains
++open. A01/A04/A09/A11 retain source evidence requiring current behavioral
++revalidation. No original P0 group is fully verified fixed, demoted or excepted. A04's
+ routine switching scenario is superseded, **not its P0 safeguards**.
+ 
+ ## Per-finding traceability
+@@ -221,14 +239,15 @@
+ ### A06 — Refund permission is enforced on one route but bypassed by sync
+ 
+ - **Original priority / evidence:** P0; historical class: Confirmed static.
+-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
+-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `backend/internal/server/server.go:125-143`; `backend/internal/sync/sync.go:158-162`; `backend/internal/sync/sync.go:236-248`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+-- **Authority / decision:** AUDIT_REPORT A06 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
++- **Current disposition:** A06-permission-parity implemented and locally verified; ChatGPT review pending. Full A06/T06 and historical-refund recovery remain open.
++- **Current evidence:** E07 and exact S0B_IMPLEMENTATION.diff; `auth/permissions.go:HasPermission`, `middleware/middleware.go:RequirePermission`, `handlers/writes.go:syncBatch`, `sync/sync.go:processOneWithRefund`. Existing `server/server.go` routes and `service/order.go:Refund` scoped transaction are unchanged. Full paths and after-images supplied in S0B-20260919-01 bundle. Baseline E01/E02 is historical, not post-fix verification.
++- **Authority / decision:** AUDIT_REPORT A06 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. CG-S0B-20260919-01-R1 answers Q-S0b-01 with bounded Option A. Owner subsequently supplied "OWNER AUTHORIZATION — S0b ONLY" for local implementation/tests; packet S0B-20260919-01 records the exact authority. No Q01–Q10 policy approval or production authorization.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Authorization. **Draft mapping:** §Offline conflict policy (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A04,A08,A30; proposed S0b. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: shared command authorization; preserve old captured facts.
++- **Dependencies / slice:** A04,A08,A30; S0b permission-containment only implemented under E07, remaining shared-command work proposed. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: shared command authorization; preserve old captured facts.
+ - **Required result:** Move operation authorization, scope and material input rules into a shared command boundary used by both transports. Preserve an offline cash fact when authorization reconciliation needs review; do not silently treat an invalid request as an approved entitlement.
+ - **Acceptance:** T06. For each role, exercise direct and batch variants of every mutation. They must grant/deny the same new authority, with separately tested handling of already-captured offline facts.
+-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
++- **A06-permission-parity:** Proposed → owner-authorized → implemented → locally verified in S0B-20260919-01; awaiting ChatGPT review. Same token-claim predicate/admin bypass; server-derived capability ignored by JSON decoding; original-key per-item denial before refund mutation; independent batch items preserved. Denied historical operations retain original payload/key/time/sequence and captured fields, through normal attempts/parking/export/reconstruction/manual retry. No new payout or fabricated acknowledgement.
++- **Execution / residual risk:** S0b-01–14 coverage and limits in current packet. Scope/order SQL was read but not exercised against PostgreSQL; handler Store.ByID enrichment and mutation/version dependencies use narrow test seams. No real backend-to-device end-to-end run, native durability, receipt recovery, live revocation or launch evidence. Existing retry lastError may change normally; no complete error journal is added. Reason/body-validation parity (A43), every-role/every-mutation T06, secure capture authority and recovery remain open. No commit/PR/deployment or approved release exception.
+ 
+ ### A07 — Refresh rotation and revocation do not have a durable, atomic authority model
+ 
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -1,8 +1,10 @@
+ # Production readiness: consolidated plan
+ 
+ Policy baseline reviewed 2026-09-15; full-audit reconciliation added 2026-09-19.
+-The programme remains planning/design except owner-authorized S0a diagnostic
+-export containment (2026-09-19). No other implementation or service change authorized.
++The programme remains planning/design except separately owner-authorized S0a
++diagnostic export and S0b refund-permission containment (2026-09-19). Both are
++locally verified; S0a is review-accepted, S0b awaits review. No other slice or
++service/release change is authorized.
+ Policy source: [decision draft](PRODUCTION_READINESS_DRAFT.md). This document
+ consolidates accepted decisions without treating proposed technical controls as
+ already implemented. Later explicit policy decisions govern earlier draft text.
+@@ -57,7 +59,7 @@
+ | Priority | Evidence and current behavior | Required change/design |
+ |---|---|---|
+ | P0 | [storage.ts](../packages/sync/src/storage.ts): synchronous interface swallows localStorage errors; native Preferences writes are fire-and-forget. | Await durable financial journal commit before acknowledging capture; surface failure; migrate without deleting pending evidence. |
+-| P0 | [server.go](../backend/internal/server/server.go): direct refund has `process_refund`; [sync.go](../backend/internal/sync/sync.go) refund invokes service without equivalent operation permission check. | Centralize authorization shared by direct/sync paths, including authenticated offline-event reconciliation. |
++| P0 | [server.go](../backend/internal/server/server.go): direct refund has `process_refund`; [sync.go](../backend/internal/sync/sync.go) historically invoked service without equivalent permission. S0b now contains the request/token permission bypass; full A06 remains open. | Preserve S0b parity; complete shared command rules and authenticated offline-event recovery separately. |
+ | P0 | [shift.go](../backend/internal/service/shift.go) AddCashFlow inserts without event key; sync supplies no stable key to it. | Atomic operation receipt plus financial effect; lost-response retry must return prior result. |
+ | P0 | [outbox.ts](../packages/sync/src/outbox.ts) parks failed items after five attempts. | Classify transient vs permanent errors; retain recoverable events and visible reconciliation; no quiet abandonment. |
+ | P1 | [order.go](../backend/internal/service/order.go) Refund locks order, short-circuits refunded status, restocks all lines and reverses loyalty in one transaction. | Keep useful locking/idempotence but separate entitlement, physical return, inspection, payable and actual settlement; do not restore unreturned tester. |
+@@ -179,7 +181,7 @@
+ 
+ | Stage / slices | Included findings | Outcome and dependency gate |
+ |---|---|---|
+-| S0 containment and evidence | A02, A06, A09, A23, A24, A26, A27, A31, A34, A37, A39, A40, A43 | S0a export retention alone is owner-authorized and locally verified; see tracker and S0A-20260919-01. Other fixes still need scoped authorization; containment does not complete parent findings. |
++| S0 containment and evidence | A02, A06, A09, A23, A24, A26, A27, A31, A34, A37, A39, A40, A43 | S0a export retention and S0b refund-permission containment are separately owner-authorized and locally verified; see tracker and S0A/S0B packets. Other fixes still need scoped authorization; containment does not complete parent findings. |
+ | S1 shared contracts | A01–A11, A28–A30, A42, A44 | Journal, original identity/quote, receipts, validation, errors, authorization and lock order reviewed together. |
+ | S2 reliable sale path | A01, A04, A09–A12, A15, A17, A24, A26–A29, A41 | Capture → restart → authenticated acceptance → retained receipt → correct stock/shift/report projection. |
+ | S3 inventory and shifts | A11–A17, A28, A30, A38, A39, A42 | Transfer/goods receipt/count offline workflows, movement history, live/backdated reconciliation, shared writer concurrency. |
+@@ -282,6 +284,24 @@
+ and all documentation for ChatGPT review. CG-S0A-20260919-01-R1 subsequently accepted
+ the scoped export-containment milestone and supplied documentation; no further
+ slice is implicitly authorized. All larger A02/T02 and A01/A03/A37 requirements
+-and all release gates remain open. Current proposal: S0b refund-permission parity
+-(A06/T06), subject to the historical-offline-authority question in the current
+-docs/AUDIT_REVIEW_PACKET.md. No S0b implementation is authorized.
++and all release gates remain open. This S0a approval was later supplemented by
++the separate S0b-only approval recorded below.
++
++### S0b execution boundary — 2026-09-19
++
++CG-S0B-20260919-01-R1 answers Q-S0b-01: bounded Option A applies the existing
++authenticated request/token predicate per refund before mutation, retaining denied
++historical operations. The owner's later explicit "OWNER AUTHORIZATION — S0b ONLY"
++supersedes the reply's approval-pending labels for this slice only. No second
++general approval was required. S0B-20260919-01 returns the exact diff and local
++evidence; A06-permission-parity is implemented/locally verified, review pending.
++No database-backed effect or native durability claim follows from test seams.
++
++The original cashier/admin behavior and scoped service transaction are preserved.
++Unexpired token claims can still allow a refund after a Backoffice assignment
++changes; immediate revocation remains A07/Q03. Denial is not evidence that cash
++was never returned. Five-failure parking, current error display and original-key
++manual retry remain unchanged; capture-time authority, outcome receipts and
++historical recovery still need their separate design/qualification. Full A06/T06,
++A02 and all other findings/release gates stay open. No Q01–Q10 recommendation is
++implemented or approved by S0b; no next application slice is authorized.
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,114 +1,152 @@
+-# Codex to ChatGPT — S0A-DOCS-20260919-01
++# Codex to ChatGPT — S0B-20260919-01
+ 
+-Current packet: `docs/AUDIT_REVIEW_PACKET.md`, mirrored as the latest prefix
+-of SESSION_HANDOFF.md. Responds to **CG-S0A-20260919-01-R1**, which responds to
+-**S0A-20260919-01**. Root `AUDIT_REVIEW_PACKET.md` is the older MA packet;
+-historical S0a bundles/verification records remain immutable.
++Packet ID: **S0B-20260919-01**
++Kind: **MILESTONE_REVIEW**
++Created: 2026-09-19, Asia/Jakarta
++CURRENT packet: `docs/AUDIT_REVIEW_PACKET.md`
++Compact bundle: `docs/S0B-20260919-01_REVIEW_BUNDLE.zip`
+ 
+-## Preflight and disposition
++Responds to **CG-S0B-20260919-01-R1**, in reply to **S0A-DOCS-20260919-01**.
++Root `AUDIT_REVIEW_PACKET.md` remains the historical MA packet. Earlier S0a
++archives, manifests and verification records remain immutable reference material.
+ 
+-Root: C:/Users/MyBook Hype AMD/Downloads/mandalika-pos.
+-Branch: prod-hardening. HEAD: 4691c781842f0114acaf2e4371e0d11f0076f553.
+-Resolved reply: `review-inbox/CG-S0A-20260919-01-R1/CHATGPT_REVIEW_RESPONSE_S0A-20260919-01.md`.
+-At preflight the directory had a space in its name. It was externally renamed
+-to the requested hyphenated path during this turn; a final check confirmed the
+-same reply bytes and IDs. Both resolved locations were reported before dependent
+-edits. READ_FIRST and then the current reply were read in
+-full. Reply/parent IDs and resolved path were reported before edits. All eight
+-named current project dependencies exist; all four inbox manifest entries match
+-their declared size/hash. Prior review stayed reference-only; no overwrite.
++## Authority and preflight
+ 
+-Owner authorized documentation integration only this turn. A02-export is now
+-implemented, locally verified by Codex, and reviewed/accepted by ChatGPT for scoped
+-containment. The earlier missing-document review limitation is resolved for the
+-supplied artifacts. Neither means fresh verification of all application behavior.
+-A02 overall, full T02, A01/A03/A37, all other findings and all release gates remain
+-open. No new policy/scope/release authority is inferred.
++Existing worktree: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
++Branch: `prod-hardening`; HEAD: `4691c781842f0114acaf2e4371e0d11f0076f553`.
++Resolved reply, confirmed before dependent edits:
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0B-20260919-01-R1/CHATGPT_REVIEW_RESPONSE_S0B-20260919-01.md`.
++READ_FIRST then the named reply were read in full. Its four manifest entries
++matched declared sizes/SHA-256. Relevant A06/T06, Q01/Q03, current plan/draft,
++workflow and authentication/handler/dispatch/client paths were reconciled.
+ 
+-## Documentation delta and verification
++The owner's latest explicit message, **OWNER AUTHORIZATION — S0b ONLY**, states:
+ 
+-- Tracker: records scoped acceptance; active A04 fields now use fixed registration,
+-  no routine POS logout/switch, original attribution and T04a–e recovery safeguards.
+-  Old switching wording survives only as a labelled historical reference.
+-- A30: explicitly separates authorized Backoffice outlet selection from prohibited
+-  routine POS switching. Human/shift/TL questions remain unresolved; U04 is settled.
+-- Workflow: concise relay file preflight, exact current packet path/IDs, dependency
+-  checks and delta-first reading; preserves authorization and owner relay boundaries.
+-- Plan/draft: record accepted S0a review without authorizing further implementation.
+-- Latest handoff/relay: this concise packet replaces no historical handoff bytes.
++> I authorize local implementation of S0b: refund-permission parity between direct and batch requests, with focused tests and preservation of unresolved historical refund records.
+ 
+-All ten accepted S0a source/test/harness files still match their reviewed hashes;
+-all application/backend files are unchanged during this turn. All 44 detailed IDs,
+-original 8 P0 / 32 P1 / 3 P2 / 1 P3 priorities and original P0 set remain.
+-Only documentation/integrity/whitespace checks ran; no application test/build rerun,
+-installation, commit/push, deployment, credential/provider or live-data action.
+-No model setting was changed; the reply's effort routing remains a recommendation.
++> This authorization supersedes the package's “approval pending” statements and the prior documentation-only boundary for S0b only.
+ 
+-Deliverables: `S0A_REVIEW_INTEGRATION.diff`, `S0A_REVIEW_INTEGRATION_EVIDENCE.json`
+-and `S0A_REVIEW_INTEGRATION_BUNDLE.zip`, all under docs/. Bundle contains the
+-current packet, changed documentation in full (new handoff prefix only), diff,
+-evidence and the current reply. No repeat full-audit archive or full historical
+-handoff is required. Historical S0A_VERIFICATION and bundles are not rewritten.
++> No additional general S0b approval is needed.
+ 
+-## Next proposed slice — S0b, A06 refund-permission parity (not authorized)
++This authorizes bounded Option A execution and installed-tool local tests.
++No installation, migration, live DB connection, credential/role/provider change,
++deployment, commit/push, auth redesign, retry-policy/transfer-receive repair,
++new refund policy or unrelated application fix was performed or authorized.
++Q01–Q10 remain under their existing decisions; this is not release approval.
+ 
+-Outcome: a caller lacking the existing process_refund permission cannot cause
+-refund effects through a batch item when the direct refund route denies the same
+-caller; authorized independent cashier refunds remain allowed. Preserve the
+-existing admin semantics, scoped outlet checks and non-refund batch behavior.
+-Check each refund item at the trusted server boundary before service mutation;
+-do not trust payload permission flags or reject an entire mixed batch unnecessarily.
++## Change and source evidence
+ 
+-Fresh source evidence (read-only, not new runtime reproduction):
+-- server/server.go:129–130 requires process_refund on direct refunds; :140 exposes
+-  the authenticated batch route without the corresponding per-operation guard.
+-- middleware/middleware.go:62–80 grants existing admin bypass or requires the
+-  permission from authenticated context.
+-- handlers/writes.go:1260–1282 passes outlet/user/name to sync Caller, not permissions.
+-- sync/sync.go:158–162 Caller has no permission evidence; :236–248 invokes
+-  Orders.Refund without a corresponding check.
+-- Current commands do not carry independently validated capture-time authority.
+-  A permission check on today's delivery credentials alone cannot settle whether
+-  an earlier offline cash payout was legitimate.
++- `backend/internal/auth/permissions.go`: extracts the exact existing admin-or-
++  permission-list predicate. `RequirePermission` uses it without changing HTTP
++  denial semantics or other permission callers.
++- `backend/internal/handlers/writes.go:SyncBatch/syncBatch`: maps validated request
++  claims to internal `Caller.CanRefund`. No body/item claim grants authority.
++  `json:"-"` prevents decoding the capability from JSON; absent authority denies.
++- `backend/internal/sync/sync.go`: before refund parsing/service invocation,
++  return `status: "error"` and the original key when capability is absent. The
++  existing loop continues other items and excludes the denied item from processed.
++  The error says synchronization remains unresolved and warns against paying again.
++- Narrow private function seams allow refund-call, caller-enrichment and version
++  dependencies to be replaced in isolated tests. They do not replace the refund
++  service, change its transaction, add a public service interface or widen scope.
++- No production client edit: existing ordinary-error retention/parking/manual
++  retry and S0a diagnostic export are used. New client tests and a synthetic UI
++  harness exercise that contract; all ten S0a source/test/harness hashes match entry.
+ 
+-Likely files: middleware permission predicate only if needed for exact parity;
+-handlers/writes.go trusted caller mapping; sync/sync.go refund dispatch and focused
+-middleware/handler/sync tests. No migration, authentication redesign, role changes,
+-new SPV gate, client evidence deletion, retry-budget change or transfer-receive fix.
+-A06 containment is not the complete A04/A07/A30 historical authority model.
++Existing direct route and scoped refund SQL remain unchanged. In the service,
++`SELECT ... FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE` still precedes
++refund effects. This was source-checked, not exercised against PostgreSQL.
++Direct reason/body validation is unchanged; broader input parity remains A06/A43.
+ 
+-Required evidence after separate approval:
+-1. Meaningful old-behavior negative regression, then corrected direct/batch parity
+-   for non-admin with/without permission and existing admin semantics.
+-2. Missing/forged client permission claims confer nothing; outlet scope remains
+-   enforced; denied refund invokes no refund/stock/cash/points mutation.
+-3. Mixed batch retains individual original keys/results and permits other valid
+-   operations; allowed refund remains functional with its original key/payload.
+-4. Permission change while a captured refund waits: no false success, deletion,
+-   relabelling or instruction to pay cash again. Preserve unresolved evidence and
+-   test its retained visibility/reconstruction; do not claim final recovery design.
+-5. Focused installed-tool Go checks for middleware/handlers/sync/server, appropriate
+-   existing refund checks and relevant POS/sync retention regressions; actual DB
+-   effect claims need isolated DB-backed evidence under explicit test authority.
+-   Record exact commands/results and unavailable checks. No tests run for this proposal.
++Only three pre-existing backend files changed, plus one new helper and eight new
++test/fixture/harness files. Prior dirty README, SESSION, S0a sources and untracked
++audit/review artifacts were preserved. Exact entry/final dirty state and source
++hashes are supplied in `S0B_REPOSITORY_STATE.json`; the HEAD alone omits these edits.
+ 
+-## Consequential question for ChatGPT — Q-S0b-01
++## Verification and acceptance mapping
+ 
+-Does current-delivery permission parity with retained unresolved historical refund
+-evidence form an acceptable containment slice, or must capture-time authorization/
+-recovery be established before enforcing this batch check?
++Full command strings, working directories, environment, exit codes and untruncated
++outputs: `docs/S0B_VERIFICATION.json`. All Go runs used `GOTOOLCHAIN=local`,
++`GOPROXY=off`, `GOSUMDB=off`, `-mod=readonly`. No dependency/toolchain bootstrap.
+ 
+-Option A: add the existing permission guard per refund item; preserve already-paid
+-offline evidence as unresolved when today's authority is insufficient. This closes
+-a live bypass but can delay reconciliation and does not establish historical
+-legitimacy. It must not imply a second payout or new reviewer authority.
+-Option B: first implement capture-authority/recovery contracts (A04/A07/A30).
+-This addresses the harder distinction but is substantially larger and leaves the
+-current bypass until completed; no such implementation is authorized.
++| Check | Working directory | Result |
++|---|---|---|
++| Baseline Go auth/middleware/handlers/sync/service/server tests | `backend` | Exit 0; baseline reused cache where reported. |
++| Before-fix `TestRefundPermissionParityRegression`, `-count=1 -v` | `backend` | Expected exit 1: direct 403; batch returned ok and called refund seam once. |
++| Same regression plus focused Go package suites, `-count=1 -v` | `backend` | Exit 0. Existing pricing test logs a nil-config warning; no failure. Server package compiles but has no tests. |
++| Installed Vitest sync suite | `packages/sync` | Exit 0; 7 files, 28 tests, including 3 new retention cases and S0a export cases. |
++| Installed Vitest POS suite | `apps/pos` | Exit 0; 9 files, 160 tests, including S0a share/cancel/clipboard-failure cases. |
++| Sync and POS type checks; explicit POS harness/test type check | Respective package directories | All exit 0. |
++| Actual SyncStatus panel with synthetic API and successful memory KV | Local Vite, in-app browser | Five denials; two exports; close/reopen; same-KV reconstruction; original-key manual retry all observed. Temporary server/tab closed. |
+ 
+-Recommendation: ask ChatGPT to bound Option A and specify its historical-refund
+-test/stop conditions before owner authorization. Owner decision is needed if the
+-proposed behavior changes approved offline availability or accepts new operational
+-risk. Do not treat technical review as that decision. This is connected to existing
+-Q01/Q03; do not re-ask settled cashier independence, SPV rules or fixed-device U04.
+-No additional consequential question arose from the documentation cleanup itself.
++The before-fix test had only a mechanical refund invocation seam added. It failed
++on the corrected behavioral assertion, not a missing symbol. Its exact precursor
++patch is in `docs/S0B_BEFORE_FIX.diff`; current implementation diff is separate.
++
++| Review ID | Evidence / actual result | Evidence boundary |
++|---|---|---|
++| S0b-01 | Same regression red before / green after: direct denies; batch denial prevents refund call under original key. | Request-context direct guard and real batch dispatch with fake mutator; no DB effects. |
++| S0b-02 | Helper/middleware/dispatch cases cover permitted cashier, exact technical admin, unrelated/absent/empty/malformed permissions and TL without permission. | Internal capability fails closed; no new role policy. |
++| S0b-03 | Forged body/item admin, permissions, CanRefund, historical approval, alreadyPaid, timestamp and outlet/user cannot grant authority or replace scoped arguments. | Real handler decoder/mapping and actual refund dispatch tested separately. |
++| S0b-04 | Missing, invalid, expired synthetic bearer -> whole 401; valid token without permission reaches mapping with false capability; dispatch returns per-item error. | Real JWT middleware; separate mapping/dispatch tests, not DB-backed HTTP integration. |
++| S0b-05 | `TestSyncBatchAuthenticatedMapping` runs production `syncBatch`, body decoder and token middleware; inspects actual Caller output. | Store.ByID enrichment and ProcessBatch dependency replaced; no claim of real user lookup. |
++| S0b-06 | Real batch loop: order success / refund denial / customer success; original keys/order, processed=2, healthy version=7, refund calls=0. Client retains denied refund alongside independent acknowledgement. | Independent success effects and version dependency are synthetic. |
++| S0b-07 | Cashier wrong-outlet header 403; same outlet allowed; technical admin selected outlet preserved; scoped service arguments and ErrOrderClosed propagation tested. | **Partial:** real wrong-order/outlet SQL and balances not DB-tested; unchanged SQL supplied. |
++| S0b-08 | Permission-denied client response retains payload/key/seq/time/captured fields; no ack/discard/mutator call; attempt/status/error change normally. | Client API contract is synthetic; no assertion of capture-time entitlement. |
++| S0b-09 | Five denials park original refund; pending=0 but failed=1 visible. Repeated export, panel close/reopen and same-KV engine reconstruction preserve it. | Successful memory KV and actual component; no native crash/reboot/OS share evidence. |
++| S0b-10 | Restore same synthetic delivery permission; UI/manual retry sends the original key and unchanged payload, then normal success removes acknowledged item. | Simulated service success only; no role change or cash handover. |
++| S0b-11 | Simulated commit/response loss followed by denial never falsely acks/discards; original record remains parked; simulated mutation count remains one. | No real receipt-recovery or DB idempotency claim. Existing lastError is not a full error journal. |
++| S0b-12 | Previously issued valid token retains permission; refreshed token for same identity lacks it and denies. | Authenticated request/token parity, **not immediate Backoffice revocation**. |
++| S0b-13 | Shared helper/middleware cover other permissions. Non-refund dispatch retains existing decode path; mixed-loop successes continue. Transfer tests unchanged and passing. | No full non-refund transaction qualification. |
++| S0b-14 | Focused Go suites, existing sync/POS regressions, type checks, UI walkthrough and artifact/diff checks supplied. | No whole-audit rerun, live DB, Android, deployment or release qualification. |
++
++## Disposition and limits
++
++`A06-permission-parity`: **implemented → locally verified → ChatGPT review pending**.
++Only this subtask advances. Full **A06/T06**, historical recovery, A02 and all release
++gates stay open. Canonical tracker still has A01–A44 exactly once, unchanged
++8 P0 / 32 P1 / 3 P2 / 1 P3 and original P0 set A01/A02/A03/A04/A06/A09/A11/A13.
++Outside A06, detailed finding entries were preserved byte-for-byte after newline
++normalization. Active fixed-device A04/A30 wording and live/backdated A14 safeguards
++remain intact. Original audit evidence has not been rewritten as fresh verification.
++
++Genuine old paid refunds can remain unresolved if delivery permission is absent.
++Neither a denial nor a restored permission proves who was authorized at capture or
++whether cash was handed over. No history fields were backfilled. Existing failure
++attempts/status/lastError can change; diagnostic export remains non-destructive.
++No durable server recovery inbox, capture proof, fresh revocation, native journal,
++universal command receipts or operational recovery process is added by S0b.
++Pilot/deployment still needs separately approved historical recovery, permission
++freshness and appropriate qualification. No inventory of real records was taken.
++
++## Requested review and safe continuation
++
++Please review the exact S0b diff against CG-S0B-20260919-01-R1 and the owner's
++bounded Option A authorization; accept or request corrections to the permission
++subtask within the stated evidence limits. No new consequential business decision
++was required to complete S0b. Q01/Q03 and other pending recommendations remain
++unresolved where already recorded; do not infer production risk acceptance.
++
++No further application slice is authorized. After review, a separately bounded
++proposal may address A09/S0c sale-input invariants, but must first reconcile
++legitimate historical/offline quotes, Q08 stock warning/override and A10/A28/A44.
++No new hard stock denial, blanket rejection of old financial facts or refund
++recovery authority is proposed or implemented here. The immediate next action is
++ChatGPT review of this packet, relayed by the owner.
++
++## Bundle contents and replay
++
++`MANIFEST.json` records each payload's size/SHA-256 and role. Bundle includes:
++exact `S0B_IMPLEMENTATION.diff` (all 12 changed/new source/test/harness files),
++source after-images, `S0B_BEFORE_FIX.diff`, `S0B_DOCUMENTATION.diff`, full current
++tracker/plan/packet, their relevant before-images, verification and artifact checks,
++repository state and unchanged authentication/scope/client context.
++The SESSION after-image is **the new prefix only** (`evidence/SESSION_HANDOFF_CURRENT.md`);
++its patch is prepend-only with no historical context. Local suffix byte-preservation
++was checked; historical SESSION content is intentionally excluded from this bundle.
++`evidence/OWNER_AUTHORIZATION.md` contains the relevant current owner scope.
++
++Apply/check patches only to the matching before-images in a disposable directory;
++do not reapply to this already-modified worktree. `git apply --unidiff-zero` is used
++for the prepend-only SESSION hunk. Artifact checks verify reconstructed LF-normalized
++content against after-images and manifest bytes; this is not application testing.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,155 @@
++# Codex to ChatGPT — S0B-20260919-01
++
++Packet ID: **S0B-20260919-01**
++Kind: **MILESTONE_REVIEW**
++Created: 2026-09-19, Asia/Jakarta
++CURRENT packet: `docs/AUDIT_REVIEW_PACKET.md`
++Compact bundle: `docs/S0B-20260919-01_REVIEW_BUNDLE.zip`
++
++Responds to **CG-S0B-20260919-01-R1**, in reply to **S0A-DOCS-20260919-01**.
++Root `AUDIT_REVIEW_PACKET.md` remains the historical MA packet. Earlier S0a
++archives, manifests and verification records remain immutable reference material.
++
++## Authority and preflight
++
++Existing worktree: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
++Branch: `prod-hardening`; HEAD: `4691c781842f0114acaf2e4371e0d11f0076f553`.
++Resolved reply, confirmed before dependent edits:
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-S0B-20260919-01-R1/CHATGPT_REVIEW_RESPONSE_S0B-20260919-01.md`.
++READ_FIRST then the named reply were read in full. Its four manifest entries
++matched declared sizes/SHA-256. Relevant A06/T06, Q01/Q03, current plan/draft,
++workflow and authentication/handler/dispatch/client paths were reconciled.
++
++The owner's latest explicit message, **OWNER AUTHORIZATION — S0b ONLY**, states:
++
++> I authorize local implementation of S0b: refund-permission parity between direct and batch requests, with focused tests and preservation of unresolved historical refund records.
++
++> This authorization supersedes the package's “approval pending” statements and the prior documentation-only boundary for S0b only.
++
++> No additional general S0b approval is needed.
++
++This authorizes bounded Option A execution and installed-tool local tests.
++No installation, migration, live DB connection, credential/role/provider change,
++deployment, commit/push, auth redesign, retry-policy/transfer-receive repair,
++new refund policy or unrelated application fix was performed or authorized.
++Q01–Q10 remain under their existing decisions; this is not release approval.
++
++## Change and source evidence
++
++- `backend/internal/auth/permissions.go`: extracts the exact existing admin-or-
++  permission-list predicate. `RequirePermission` uses it without changing HTTP
++  denial semantics or other permission callers.
++- `backend/internal/handlers/writes.go:SyncBatch/syncBatch`: maps validated request
++  claims to internal `Caller.CanRefund`. No body/item claim grants authority.
++  `json:"-"` prevents decoding the capability from JSON; absent authority denies.
++- `backend/internal/sync/sync.go`: before refund parsing/service invocation,
++  return `status: "error"` and the original key when capability is absent. The
++  existing loop continues other items and excludes the denied item from processed.
++  The error says synchronization remains unresolved and warns against paying again.
++- Narrow private function seams allow refund-call, caller-enrichment and version
++  dependencies to be replaced in isolated tests. They do not replace the refund
++  service, change its transaction, add a public service interface or widen scope.
++- No production client edit: existing ordinary-error retention/parking/manual
++  retry and S0a diagnostic export are used. New client tests and a synthetic UI
++  harness exercise that contract; all ten S0a source/test/harness hashes match entry.
++
++Existing direct route and scoped refund SQL remain unchanged. In the service,
++`SELECT ... FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE` still precedes
++refund effects. This was source-checked, not exercised against PostgreSQL.
++Direct reason/body validation is unchanged; broader input parity remains A06/A43.
++
++Only three pre-existing backend files changed, plus one new helper and eight new
++test/fixture/harness files. Prior dirty README, SESSION, S0a sources and untracked
++audit/review artifacts were preserved. Exact entry/final dirty state and source
++hashes are supplied in `S0B_REPOSITORY_STATE.json`; the HEAD alone omits these edits.
++
++## Verification and acceptance mapping
++
++Full command strings, working directories, environment, exit codes and untruncated
++outputs: `docs/S0B_VERIFICATION.json`. All Go runs used `GOTOOLCHAIN=local`,
++`GOPROXY=off`, `GOSUMDB=off`, `-mod=readonly`. No dependency/toolchain bootstrap.
++
++| Check | Working directory | Result |
++|---|---|---|
++| Baseline Go auth/middleware/handlers/sync/service/server tests | `backend` | Exit 0; baseline reused cache where reported. |
++| Before-fix `TestRefundPermissionParityRegression`, `-count=1 -v` | `backend` | Expected exit 1: direct 403; batch returned ok and called refund seam once. |
++| Same regression plus focused Go package suites, `-count=1 -v` | `backend` | Exit 0. Existing pricing test logs a nil-config warning; no failure. Server package compiles but has no tests. |
++| Installed Vitest sync suite | `packages/sync` | Exit 0; 7 files, 28 tests, including 3 new retention cases and S0a export cases. |
++| Installed Vitest POS suite | `apps/pos` | Exit 0; 9 files, 160 tests, including S0a share/cancel/clipboard-failure cases. |
++| Sync and POS type checks; explicit POS harness/test type check | Respective package directories | All exit 0. |
++| Actual SyncStatus panel with synthetic API and successful memory KV | Local Vite, in-app browser | Five denials; two exports; close/reopen; same-KV reconstruction; original-key manual retry all observed. Temporary server/tab closed. |
++
++The before-fix test had only a mechanical refund invocation seam added. It failed
++on the corrected behavioral assertion, not a missing symbol. Its exact precursor
++patch is in `docs/S0B_BEFORE_FIX.diff`; current implementation diff is separate.
++
++| Review ID | Evidence / actual result | Evidence boundary |
++|---|---|---|
++| S0b-01 | Same regression red before / green after: direct denies; batch denial prevents refund call under original key. | Request-context direct guard and real batch dispatch with fake mutator; no DB effects. |
++| S0b-02 | Helper/middleware/dispatch cases cover permitted cashier, exact technical admin, unrelated/absent/empty/malformed permissions and TL without permission. | Internal capability fails closed; no new role policy. |
++| S0b-03 | Forged body/item admin, permissions, CanRefund, historical approval, alreadyPaid, timestamp and outlet/user cannot grant authority or replace scoped arguments. | Real handler decoder/mapping and actual refund dispatch tested separately. |
++| S0b-04 | Missing, invalid, expired synthetic bearer -> whole 401; valid token without permission reaches mapping with false capability; dispatch returns per-item error. | Real JWT middleware; separate mapping/dispatch tests, not DB-backed HTTP integration. |
++| S0b-05 | `TestSyncBatchAuthenticatedMapping` runs production `syncBatch`, body decoder and token middleware; inspects actual Caller output. | Store.ByID enrichment and ProcessBatch dependency replaced; no claim of real user lookup. |
++| S0b-06 | Real batch loop: order success / refund denial / customer success; original keys/order, processed=2, healthy version=7, refund calls=0. Client retains denied refund alongside independent acknowledgement. | Independent success effects and version dependency are synthetic. |
++| S0b-07 | Cashier wrong-outlet header 403; same outlet allowed; technical admin selected outlet preserved; scoped service arguments and ErrOrderClosed propagation tested. | **Partial:** real wrong-order/outlet SQL and balances not DB-tested; unchanged SQL supplied. |
++| S0b-08 | Permission-denied client response retains payload/key/seq/time/captured fields; no ack/discard/mutator call; attempt/status/error change normally. | Client API contract is synthetic; no assertion of capture-time entitlement. |
++| S0b-09 | Five denials park original refund; pending=0 but failed=1 visible. Repeated export, panel close/reopen and same-KV engine reconstruction preserve it. | Successful memory KV and actual component; no native crash/reboot/OS share evidence. |
++| S0b-10 | Restore same synthetic delivery permission; UI/manual retry sends the original key and unchanged payload, then normal success removes acknowledged item. | Simulated service success only; no role change or cash handover. |
++| S0b-11 | Simulated commit/response loss followed by denial never falsely acks/discards; original record remains parked; simulated mutation count remains one. | No real receipt-recovery or DB idempotency claim. Existing lastError is not a full error journal. |
++| S0b-12 | Previously issued valid token retains permission; refreshed token for same identity lacks it and denies. | Authenticated request/token parity, **not immediate Backoffice revocation**. |
++| S0b-13 | Shared helper/middleware cover other permissions. Non-refund dispatch retains existing decode path; mixed-loop successes continue. Transfer tests unchanged and passing. | No full non-refund transaction qualification. |
++| S0b-14 | Focused Go suites, existing sync/POS regressions, type checks, UI walkthrough and artifact/diff checks supplied. | No whole-audit rerun, live DB, Android, deployment or release qualification. |
++
++## Disposition and limits
++
++`A06-permission-parity`: **implemented → locally verified → ChatGPT review pending**.
++Only this subtask advances. Full **A06/T06**, historical recovery, A02 and all release
++gates stay open. Canonical tracker still has A01–A44 exactly once, unchanged
++8 P0 / 32 P1 / 3 P2 / 1 P3 and original P0 set A01/A02/A03/A04/A06/A09/A11/A13.
++Outside A06, detailed finding entries were preserved byte-for-byte after newline
++normalization. Active fixed-device A04/A30 wording and live/backdated A14 safeguards
++remain intact. Original audit evidence has not been rewritten as fresh verification.
++
++Genuine old paid refunds can remain unresolved if delivery permission is absent.
++Neither a denial nor a restored permission proves who was authorized at capture or
++whether cash was handed over. No history fields were backfilled. Existing failure
++attempts/status/lastError can change; diagnostic export remains non-destructive.
++No durable server recovery inbox, capture proof, fresh revocation, native journal,
++universal command receipts or operational recovery process is added by S0b.
++Pilot/deployment still needs separately approved historical recovery, permission
++freshness and appropriate qualification. No inventory of real records was taken.
++
++## Requested review and safe continuation
++
++Please review the exact S0b diff against CG-S0B-20260919-01-R1 and the owner's
++bounded Option A authorization; accept or request corrections to the permission
++subtask within the stated evidence limits. No new consequential business decision
++was required to complete S0b. Q01/Q03 and other pending recommendations remain
++unresolved where already recorded; do not infer production risk acceptance.
++
++No further application slice is authorized. After review, a separately bounded
++proposal may address A09/S0c sale-input invariants, but must first reconcile
++legitimate historical/offline quotes, Q08 stock warning/override and A10/A28/A44.
++No new hard stock denial, blanket rejection of old financial facts or refund
++recovery authority is proposed or implemented here. The immediate next action is
++ChatGPT review of this packet, relayed by the owner.
++
++## Bundle contents and replay
++
++`MANIFEST.json` records each payload's size/SHA-256 and role. Bundle includes:
++exact `S0B_IMPLEMENTATION.diff` (all 12 changed/new source/test/harness files),
++source after-images, `S0B_BEFORE_FIX.diff`, `S0B_DOCUMENTATION.diff`, full current
++tracker/plan/packet, their relevant before-images, verification and artifact checks,
++repository state and unchanged authentication/scope/client context.
++The SESSION after-image is **the new prefix only** (`evidence/SESSION_HANDOFF_CURRENT.md`);
++its patch is prepend-only with no historical context. Local suffix byte-preservation
++was checked; historical SESSION content is intentionally excluded from this bundle.
++`evidence/OWNER_AUTHORIZATION.md` contains the relevant current owner scope.
++
++Apply/check patches only to the matching before-images in a disposable directory;
++do not reapply to this already-modified worktree. `git apply --unidiff-zero` is used
++for the prepend-only SESSION hunk. Artifact checks verify reconstructed LF-normalized
++content against after-images and manifest bytes; this is not application testing.
++
++---
++

@@ -1,0 +1,56 @@
+<testsuites id="" name="" tests="26" failures="0" skipped="0" errors="0" time="203.846932">
+<testsuite name="accepted.spec.ts" timestamp="2026-09-21T10:46:39.973Z" hostname="chromium" tests="26" failures="0" skipped="0" time="193.912" errors="0">
+<testcase name="BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle" classname="accepted.spec.ts" time="21.445">
+</testcase>
+<testcase name="BO-PAGES-CSV complete dashboard CSV shift exports filters and later page failure" classname="accepted.spec.ts" time="48.595">
+</testcase>
+<testcase name="BO-PAGES-XLSX complete transaction exports and later page failure" classname="accepted.spec.ts" time="22.519">
+</testcase>
+<testcase name="BO-RACE-SUCCESS B survives late A complete cohort" classname="accepted.spec.ts" time="3.849">
+</testcase>
+<testcase name="BO-RACE-ERROR B survives late A complete cohort" classname="accepted.spec.ts" time="3.825">
+</testcase>
+<testcase name="POS-PICKERS accepted rendered flow and synthetic evidence" classname="accepted.spec.ts" time="14.831">
+</testcase>
+<testcase name="POS-INVALIDATION accepted rendered flow and synthetic evidence" classname="accepted.spec.ts" time="20.812">
+</testcase>
+<testcase name="POS-PHYSICAL-QUEUE accepted rendered flow and synthetic evidence" classname="accepted.spec.ts" time="15.285">
+</testcase>
+<testcase name="POS-GUEST accepted rendered flow and synthetic evidence" classname="accepted.spec.ts" time="20.744">
+</testcase>
+<testcase name="POS-CUSTOMER-CREATE new customer and registered sale retain their link" classname="accepted.spec.ts" time="4.078">
+</testcase>
+<testcase name="POS-RECAP all pages cached and actual panel remount keeps complete snapshot" classname="accepted.spec.ts" time="6.201">
+</testcase>
+<testcase name="HOOK-01 01 B success then A success" classname="accepted.spec.ts" time="0.672">
+</testcase>
+<testcase name="HOOK-02 02 A resolves while B pending" classname="accepted.spec.ts" time="0.639">
+</testcase>
+<testcase name="HOOK-03 03 A error after B success" classname="accepted.spec.ts" time="0.664">
+</testcase>
+<testcase name="HOOK-04 04 A success after B error" classname="accepted.spec.ts" time="0.652">
+</testcase>
+<testcase name="HOOK-05 05 rapid A B C" classname="accepted.spec.ts" time="0.682">
+</testcase>
+<testcase name="HOOK-06 06 overlapping same-scope polls" classname="accepted.spec.ts" time="0.625">
+</testcase>
+<testcase name="HOOK-07 07a manual then interval" classname="accepted.spec.ts" time="0.736">
+</testcase>
+<testcase name="HOOK-08 07b interval then manual" classname="accepted.spec.ts" time="0.67">
+</testcase>
+<testcase name="HOOK-09 08 switch clears data and error" classname="accepted.spec.ts" time="0.667">
+</testcase>
+<testcase name="HOOK-10 09 unmount pending" classname="accepted.spec.ts" time="0.678">
+</testcase>
+<testcase name="HOOK-11 10 stable scope SWR success error refetch" classname="accepted.spec.ts" time="0.722">
+</testcase>
+<testcase name="HOOK-12 11 A26 complete multi-page A after B" classname="accepted.spec.ts" time="0.75">
+</testcase>
+<testcase name="HOOK-13 14 old interval after cleanup cannot start" classname="accepted.spec.ts" time="0.72">
+</testcase>
+<testcase name="S0A-DIAGNOSTICS repeated share cancellation and failures keep unresolved operations" classname="accepted.spec.ts" time="1.59">
+</testcase>
+<testcase name="S0B-REFUND-RETENTION denied original refund survives export reconstruction and manual retry" classname="accepted.spec.ts" time="1.261">
+</testcase>
+</testsuite>
+</testsuites>

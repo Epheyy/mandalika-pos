@@ -1,0 +1,4 @@
+const fs = require('fs'), path = require('path'), ts = require('../../node_modules/typescript');
+const rows=[];
+function walk(dir) { for (const e of fs.readdirSync(dir,{withFileTypes:true})) {const f=path.join(dir,e.name);if(e.isDirectory())walk(f);else if(/\.tsx?$/.test(f)) {const s=ts.createSourceFile(f,fs.readFileSync(f,'utf8'),ts.ScriptTarget.Latest,true);function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(s)==='usePolledQuery')rows.push({file:f.replaceAll('\\','/'),line:s.getLineAndCharacterOfPosition(n.getStart()).line+1,fetcher:n.arguments[0]?.getText(s),dependencies:n.arguments[1]?.getText(s),interval:n.arguments[2]?.getText(s)||'12000'});ts.forEachChild(n,visit)}visit(s)}}}
+walk('apps/backoffice/src');fs.writeFileSync(process.argv[2],JSON.stringify(rows,null,2)+'\n');console.log(`${rows.length} callers`);

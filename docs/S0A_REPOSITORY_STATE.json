@@ -1,0 +1,58 @@
+{
+  "packet_id": "S0A-20260919-01",
+  "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+  "branch": "prod-hardening",
+  "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
+  "s0a_entry_status": " M README.md\n M SESSION_HANDOFF.md\n?? A04_A14_DESIGN_CLARIFICATION.md\n?? A14_BACKOFFICE_TEMPLATE_SPEC.md\n?? AGENTS.md\n?? AUDIT_REPORT.md\n?? CHATGPT_CODEX_WORKFLOW.md\n?? CHATGPT_REVIEW_RESPONSE_MA-20260919-01.md\n?? MANDALIKA_FULL_AUDIT_HANDOFF_2026-09-19.zip\n?? MASTER_AUDIT_HANDOFF.md\n?? PACKET_MANIFEST.json\n?? PLAN_ADDENDUM.md\n?? docs/AUDIT_COVERAGE_TRACKER.md\n?? docs/AUDIT_DOCUMENTATION.diff\n?? docs/AUDIT_RECONCILIATION_EVIDENCE.json\n?? docs/AUDIT_REVIEW_PACKET.md\n?? docs/PRODUCTION_READINESS_DRAFT.md\n?? docs/PRODUCTION_READINESS_PLAN.md\n?? evidence.zip\n?? findings.json\n?? source_fingerprints.json\n?? verification_summary.json\n",
+  "status_before_bundle": " M README.md\n M SESSION_HANDOFF.md\n M apps/pos/src/cashier/CashierScreen.tsx\n M apps/pos/src/components/SyncStatus.tsx\n M apps/pos/src/hooks/useOfflineData.ts\n M packages/sync/src/engine.ts\n M packages/sync/src/outbox.ts\n?? A04_A14_DESIGN_CLARIFICATION.md\n?? A14_BACKOFFICE_TEMPLATE_SPEC.md\n?? AGENTS.md\n?? AUDIT_REPORT.md\n?? AUDIT_REVIEW_PACKET.md\n?? CHATGPT_CODEX_WORKFLOW.md\n?? CHATGPT_REVIEW_RESPONSE_MA-20260919-01.md\n?? MANDALIKA_FULL_AUDIT_HANDOFF_2026-09-19.zip\n?? MASTER_AUDIT_HANDOFF.md\n?? PACKET_MANIFEST.json\n?? PLAN_ADDENDUM.md\n?? apps/pos/src/lib/failedSyncDiagnostics.test.ts\n?? apps/pos/src/lib/failedSyncDiagnostics.ts\n?? apps/pos/tests/failed-diagnostics/index.html\n?? apps/pos/tests/failed-diagnostics/main.tsx\n?? docs/AUDIT_COVERAGE_TRACKER.md\n?? docs/AUDIT_DOCUMENTATION.diff\n?? docs/AUDIT_RECONCILIATION_EVIDENCE.json\n?? docs/AUDIT_REVIEW_PACKET.md\n?? docs/PRODUCTION_READINESS_DRAFT.md\n?? docs/PRODUCTION_READINESS_PLAN.md\n?? docs/Q08_APPROVAL_EXCERPTS.md\n?? docs/S0A_ARTIFACT_CHECKS.json\n?? docs/S0A_DOCUMENTATION.diff\n?? docs/S0A_IMPLEMENTATION.diff\n?? docs/S0A_REPOSITORY_STATE.json\n?? docs/S0A_VERIFICATION.json\n?? evidence.zip\n?? findings.json\n?? packages/sync/src/engine.failed-diagnostics.test.ts\n?? source_fingerprints.json\n?? verification_summary.json\n",
+  "s0a_application_files": [
+    "apps/pos/src/cashier/CashierScreen.tsx",
+    "apps/pos/src/components/SyncStatus.tsx",
+    "apps/pos/src/hooks/useOfflineData.ts",
+    "packages/sync/src/engine.ts",
+    "packages/sync/src/outbox.ts",
+    "apps/pos/src/lib/failedSyncDiagnostics.ts",
+    "apps/pos/src/lib/failedSyncDiagnostics.test.ts",
+    "packages/sync/src/engine.failed-diagnostics.test.ts",
+    "apps/pos/tests/failed-diagnostics/index.html",
+    "apps/pos/tests/failed-diagnostics/main.tsx"
+  ],
+  "s0a_documentation_files": [
+    "SESSION_HANDOFF.md",
+    "docs/AUDIT_COVERAGE_TRACKER.md",
+    "docs/AUDIT_RECONCILIATION_EVIDENCE.json",
+    "docs/AUDIT_REVIEW_PACKET.md",
+    "docs/PRODUCTION_READINESS_PLAN.md",
+    "docs/PRODUCTION_READINESS_DRAFT.md",
+    "docs/Q08_APPROVAL_EXCERPTS.md",
+    "docs/S0A_VERIFICATION.json"
+  ],
+  "source_and_doc_hashes": {
+    "apps/pos/src/cashier/CashierScreen.tsx": "4ac04f2094f48292a43bb76183fda1bda6bbd5aa831f94bdb24e97c45dce92a7",
+    "apps/pos/src/components/SyncStatus.tsx": "9edb0d0c5a63f4600caa6446143bd9452f037e5131998875f0edd3a77ccbbaa2",
+    "apps/pos/src/hooks/useOfflineData.ts": "30e4c2ffbdb913847b34a29bc1038cc537dd6a0b04b483bfd5175ac3a262bf29",
+    "packages/sync/src/engine.ts": "ddc379bd0667959e2d84d9d5e8f2055c9ecb6df39b92a597332675e088b57c80",
+    "packages/sync/src/outbox.ts": "46fc2e82a1d233f203f9183a83b4ecfac5c91fe9c3ad250f2d1e41d867c4a33d",
+    "apps/pos/src/lib/failedSyncDiagnostics.ts": "f245476d77a4badd9b77351ece1b929571f295b1db722f28e240ea6db5ec6561",
+    "apps/pos/src/lib/failedSyncDiagnostics.test.ts": "512807c714fe885cfd4247087a58793468c086db5965aea88db5115fe7590557",
+    "packages/sync/src/engine.failed-diagnostics.test.ts": "9708aff51ba677252bce4a363694bf02189a8f9cfbca2e77cb28a2aecf25bc29",
+    "apps/pos/tests/failed-diagnostics/index.html": "d6e65852c42f31b3c389635fe27ab62a9cc1ae4d7abaacc3ad8adbcf519cb62c",
+    "apps/pos/tests/failed-diagnostics/main.tsx": "1620183b9afb38b77b59caafce366f94110e4ba04c0f57ab3d95174a24383458",
+    "docs/AUDIT_COVERAGE_TRACKER.md": "63edfd6f1a25e6a6e2fb2063bef5a36ffb7221218fa0f7dbe1d5f8699fb5bc85",
+    "docs/AUDIT_RECONCILIATION_EVIDENCE.json": "e2a49e54bd7c375a67e0ddfa8a78b63f7f5aa4baa2ca5acb9f5714c1773ae4c8",
+    "docs/AUDIT_REVIEW_PACKET.md": "5894ed380443d0c6eda5e4262a9fb3bf1ee181a68a92de8590bd3e2bf777ab91",
+    "docs/PRODUCTION_READINESS_PLAN.md": "c50ad1202a6475df8a67ab6cdeb707ca874ee37a3c2ce838f0b4cdc7fc7e0fe3",
+    "docs/PRODUCTION_READINESS_DRAFT.md": "eac67ac3c901e3e45a3651daa21d67bd726d4416be3997e01eb6622141f34c78",
+    "docs/Q08_APPROVAL_EXCERPTS.md": "e83659af067f68bc559d056239386d4d8a21958e177de2b73a0a090810f9ccb6",
+    "docs/S0A_VERIFICATION.json": "122ee885f99c31b2d473dcbc90eedb021a228a2f7b86c5fdda59dacb7791a206"
+  },
+  "s0a_entry_snapshot_path": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0a-a7v9xm2h",
+  "notes": [
+    "Application source clean before this slice; existing docs dirty/untracked preserved.",
+    "Root AUDIT_REVIEW_PACKET.md supplied during execution, identical to original MA relay; preserved.",
+    "Package manifests and lockfile unchanged against HEAD.",
+    "No checkout, fetch, reset, commit, push, migration, install or deployment.",
+    "S0A_REVIEW_BUNDLE.zip will be an additional untracked delivery artifact; manifest lists its members."
+  ],
+  "artifact_checks": "docs/S0A_ARTIFACT_CHECKS.json"
+}

@@ -1,0 +1,88 @@
+{
+  "packet_id": "S0D-SHIFT-DECODE-20260920-01",
+  "source_diff_files": 11,
+  "new_source_files": 6,
+  "documentation_diff_files": 6,
+  "patch_replay": [
+    {
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0D_IMPLEMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0d-replay-o5lwxpch",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0D_IMPLEMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0d-replay-o5lwxpch",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0D_DOCUMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0d-replay-o5lwxpch",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\S0D_DOCUMENTATION.diff"
+      ],
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-s0d-replay-o5lwxpch",
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "afterimages_match_LF_normalized": true,
+  "before_fix_patch_reconstructs": true,
+  "regression_assertions_unchanged_except_gofmt": true,
+  "preserved_entry_file_count": 319,
+  "previous_S0c_zip_unchanged": true,
+  "session_suffix_preserved_bytes": true,
+  "findings": 44,
+  "changed_detailed_findings": [
+    "A09",
+    "A23",
+    "A29",
+    "A43"
+  ],
+  "priorities": {
+    "P0": 8,
+    "P1": 32,
+    "P2": 3,
+    "P3": 1
+  },
+  "original_P0": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A06",
+    "A09",
+    "A11",
+    "A13"
+  ],
+  "incoming_manifest_payloads": 14,
+  "git_diff_check_exit": 0,
+  "secret_pattern_findings": [],
+  "scan_limit": "Only private key/JWT/credential-URL patterns, not full A37",
+  "review": "Codex self-review; ChatGPT S0d acceptance pending"
+}

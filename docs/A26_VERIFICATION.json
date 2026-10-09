@@ -1,0 +1,401 @@
+{
+  "packet_id": "A26-PAGINATION-20260921-01",
+  "environment": "Windows PowerShell, installed Node/Vitest4.1.7/TypeScript5.9.3/Go local/PostgreSQL18.3; no installation or live DB",
+  "commands": [
+    {
+      "name": "backoffice",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exit": 0,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  5 passed (5)\n      Tests  50 passed (50)\n   Start at  11:50:16\n   Duration  10.85s (transform 1.80s, setup 0ms, import 11.40s, tests 235ms, environment 2ms)\n\n",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "pos",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exit": 0,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n\n Test Files  15 passed (15)\n      Tests  258 passed (258)\n   Start at  11:50:16\n   Duration  3.20s (transform 6.87s, setup 0ms, import 9.96s, tests 961ms, environment 6ms)\n\n",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "sync",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\packages\\sync",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exit": 0,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/packages/sync\n\n\n Test Files  10 passed (10)\n      Tests  33 passed (33)\n   Start at  11:50:16\n   Duration  2.15s (transform 3.25s, setup 0ms, import 5.34s, tests 1.86s, environment 4ms)\n\n",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "types",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-b",
+        "apps/pos",
+        "apps/backoffice",
+        "--pretty",
+        "false"
+      ],
+      "exit": 0,
+      "output": "",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "test-types",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--skipLibCheck",
+        "--target",
+        "ES2022",
+        "--module",
+        "ESNext",
+        "--moduleResolution",
+        "Bundler",
+        "--jsx",
+        "react-jsx",
+        "--types",
+        "node",
+        "apps/backoffice/src/screens/pagination.test.ts",
+        "apps/backoffice/src/screens/paginationPostgres.test.ts",
+        "apps/pos/src/cashier/recapData.test.ts"
+      ],
+      "exit": 2,
+      "output": "error TS2688: Cannot find type definition file for 'node'.\n  The file is in the program because:\n    Entry point of type library 'node' specified in compilerOptions\n",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "go",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./internal/read",
+        "./internal/handlers",
+        "./internal/service",
+        "./internal/sync",
+        "./internal/write",
+        "./internal/promotionkeys",
+        "-count=1",
+        "-v"
+      ],
+      "exit": 0,
+      "output": "=== RUN   TestMMDDWindow_BasicWeek\n--- PASS: TestMMDDWindow_BasicWeek (0.00s)\n=== RUN   TestMMDDWindow_MonthRollover\n--- PASS: TestMMDDWindow_MonthRollover (0.00s)\n=== RUN   TestMMDDWindow_YearEndWrap\n--- PASS: TestMMDDWindow_YearEndWrap (0.00s)\n=== RUN   TestMMDDWindow_LeapDayFoldedInNonLeapYear\n--- PASS: TestMMDDWindow_LeapDayFoldedInNonLeapYear (0.00s)\n=== RUN   TestMMDDWindow_LeapDayNaturalInLeapYear\n--- PASS: TestMMDDWindow_LeapDayNaturalInLeapYear (0.00s)\n=== RUN   TestMMDDWindow_ZeroDays\n--- PASS: TestMMDDWindow_ZeroDays (0.00s)\n=== RUN   TestMMDDWindow_NegativeDaysClampedToZero\n--- PASS: TestMMDDWindow_NegativeDaysClampedToZero (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/read\t1.273s\n=== RUN   TestBatchEnvelopePostgres\n    batch_envelope_integration_test.go:28: isolated envelope PostgreSQL fixture not configured\n--- SKIP: TestBatchEnvelopePostgres (0.00s)\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/trailing_junk\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/second_object\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/duplicate_Items_alias\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/duplicate_payload\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/duplicate_type\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/tail_{\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/tail_1\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/tail_[]\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/tail_null\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/repeat_items\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/repeat_ITEMS\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/repeat_\\u0069tems\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_type\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_TYPE\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0074ype\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_idempotencyKey\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_IDEMPOTENCYKEY\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0069dempotencyKey\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_payload\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_PAYLOAD\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0070ayload\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_null\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_[]\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_1\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":{}}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[null]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[3]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":\"original-key\",\"payload\":{\"startingCash\":0}}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"payload\":{\"startingCash\":0}}]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":null,\"payload\":{\"startingCash\":0}}]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":\"_\",\"payload\":{\"startingCash\":0}}]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":1,\"idempotencyKey\":\"key\"}]}\n=== RUN   TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":1}]}\n--- PASS: TestBatchEnvelopeRejectsBeforeDispatch (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/trailing_junk (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/second_object (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/duplicate_Items_alias (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/duplicate_payload (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/duplicate_type (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/tail_{ (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/tail_1 (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/tail_[] (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/tail_null (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/repeat_items (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/repeat_ITEMS (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/repeat_\\u0069tems (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_type (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_TYPE (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0074ype (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_idempotencyKey (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_IDEMPOTENCYKEY (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0069dempotencyKey (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_payload (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_PAYLOAD (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/later_item_repeat_\\u0070ayload (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_ (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_null (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_[] (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_1 (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":{}} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[null]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[3]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":\"original-key\",\"payload\":{\"startingCash\":0}} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"payload\":{\"startingCash\":0}}]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":null,\"payload\":{\"startingCash\":0}}]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":\"_\",\"payload\":{\"startingCash\":0}}]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":1,\"idempotencyKey\":\"key\"}]} (0.00s)\n    --- PASS: TestBatchEnvelopeRejectsBeforeDispatch/shape_{\"items\":[{\"type\":\"shift_open\",\"idempotencyKey\":1}]} (0.00s)\n=== RUN   TestBatchEnvelopeCompatibility\n--- PASS: TestBatchEnvelopeCompatibility (0.00s)\n=== RUN   TestLinkedFulfillmentPostgres\n    linked_fulfillment_integration_test.go:31: isolated linked-fulfillment PostgreSQL fixture not configured\n--- SKIP: TestLinkedFulfillmentPostgres (0.00s)\n=== RUN   TestPaginationPostgres\n    pagination_integration_test.go:26: isolated A26 pagination PostgreSQL fixture not configured\n--- SKIP: TestPaginationPostgres (0.00s)\n=== RUN   TestDiscountRejectMessage\n=== RUN   TestDiscountRejectMessage/empty\n=== RUN   TestDiscountRejectMessage/expired\n=== RUN   TestDiscountRejectMessage/not_started\n=== RUN   TestDiscountRejectMessage/below_min\n=== RUN   TestDiscountRejectMessage/outside_hours\n=== RUN   TestDiscountRejectMessage/wrong_day\n=== RUN   TestDiscountRejectMessage/wrong_outlet\n=== RUN   TestDiscountRejectMessage/usage_limit\n=== RUN   TestDiscountRejectMessage/not_found\n=== RUN   TestDiscountRejectMessage/not_combinable\n=== RUN   TestDiscountRejectMessage/code_only\n=== RUN   TestDiscountRejectMessage/reward_invalid\n=== RUN   TestDiscountRejectMessage/requires_customer\n=== RUN   TestDiscountRejectMessage/per-customer_cap\n=== RUN   TestDiscountRejectMessage/wrong_customer\n=== RUN   TestDiscountRejectMessage/first_violation_wins\n=== RUN   TestDiscountRejectMessage/unknown_falls_back\n--- PASS: TestDiscountRejectMessage (0.00s)\n    --- PASS: TestDiscountRejectMessage/empty (0.00s)\n    --- PASS: TestDiscountRejectMessage/expired (0.00s)\n    --- PASS: TestDiscountRejectMessage/not_started (0.00s)\n    --- PASS: TestDiscountRejectMessage/below_min (0.00s)\n    --- PASS: TestDiscountRejectMessage/outside_hours (0.00s)\n    --- PASS: TestDiscountRejectMessage/wrong_day (0.00s)\n    --- PASS: TestDiscountRejectMessage/wrong_outlet (0.00s)\n    --- PASS: TestDiscountRejectMessage/usage_limit (0.00s)\n    --- PASS: TestDiscountRejectMessage/not_found (0.00s)\n    --- PASS: TestDiscountRejectMessage/not_combinable (0.00s)\n    --- PASS: TestDiscountRejectMessage/code_only (0.00s)\n    --- PASS: TestDiscountRejectMessage/reward_invalid (0.00s)\n    --- PASS: TestDiscountRejectMessage/requires_customer (0.00s)\n    --- PASS: TestDiscountRejectMessage/per-customer_cap (0.00s)\n    --- PASS: TestDiscountRejectMessage/wrong_customer (0.00s)\n    --- PASS: TestDiscountRejectMessage/first_violation_wins (0.00s)\n    --- PASS: TestDiscountRejectMessage/unknown_falls_back (0.00s)\n=== RUN   TestSaleInputPostgres\n    sale_input_integration_test.go:32: isolated PostgreSQL fixture not configured\n--- SKIP: TestSaleInputPostgres (0.00s)\n=== RUN   TestDirectSaleDecodeAndSharedBoundary\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/normal_cash\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/legacy_zero_optional_adjustments\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/negative_quantity_forged_authority\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/line_mismatch\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/fractional\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/missing_price\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/null_subtotal\n=== RUN   TestDirectSaleDecodeAndSharedBoundary/negative_tender\n--- PASS: TestDirectSaleDecodeAndSharedBoundary (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/normal_cash (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/legacy_zero_optional_adjustments (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/negative_quantity_forged_authority (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/line_mismatch (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/fractional (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/missing_price (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/null_subtotal (0.00s)\n    --- PASS: TestDirectSaleDecodeAndSharedBoundary/negative_tender (0.00s)\n=== RUN   TestShiftDecodePostgres\n    shift_decode_integration_test.go:29: isolated S0d PostgreSQL fixture not configured\n--- SKIP: TestShiftDecodePostgres (0.00s)\n=== RUN   TestShiftMalformedBodyRegression\n=== RUN   TestShiftMalformedBodyRegression/open{\"startingCash\":100,\"closingCash\":200,\n=== RUN   TestShiftMalformedBodyRegression/open{\"startingCash\":\"invalid\",\"closingCash\":\"invalid\"}\n=== RUN   TestShiftMalformedBodyRegression/close{\"startingCash\":100,\"closingCash\":200,\n=== RUN   TestShiftMalformedBodyRegression/close{\"startingCash\":\"invalid\",\"closingCash\":\"invalid\"}\n--- PASS: TestShiftMalformedBodyRegression (0.00s)\n    --- PASS: TestShiftMalformedBodyRegression/open{\"startingCash\":100,\"closingCash\":200, (0.00s)\n    --- PASS: TestShiftMalformedBodyRegression/open{\"startingCash\":\"invalid\",\"closingCash\":\"invalid\"} (0.00s)\n    --- PASS: TestShiftMalformedBodyRegression/close{\"startingCash\":100,\"closingCash\":200, (0.00s)\n    --- PASS: TestShiftMalformedBodyRegression/close{\"startingCash\":\"invalid\",\"closingCash\":\"invalid\"} (0.00s)\n=== RUN   TestSyncBatchAuthenticatedMapping\n=== RUN   TestSyncBatchAuthenticatedMapping/old_valid_permission_snapshot\n=== RUN   TestSyncBatchAuthenticatedMapping/refreshed_without_permission\n=== RUN   TestSyncBatchAuthenticatedMapping/same_outlet_header\n=== RUN   TestSyncBatchAuthenticatedMapping/cashier_cannot_select_another_outlet\n=== RUN   TestSyncBatchAuthenticatedMapping/technical_admin_active_outlet\n=== RUN   TestSyncBatchAuthenticatedMapping/TL_needs_permission\n=== RUN   TestSyncBatchAuthenticatedMapping/missing_token\n=== RUN   TestSyncBatchAuthenticatedMapping/invalid_token\n=== RUN   TestSyncBatchAuthenticatedMapping/expired_token\n--- PASS: TestSyncBatchAuthenticatedMapping (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/old_valid_permission_snapshot (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/refreshed_without_permission (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/same_outlet_header (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/cashier_cannot_select_another_outlet (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/technical_admin_active_outlet (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/TL_needs_permission (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/missing_token (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/invalid_token (0.00s)\n    --- PASS: TestSyncBatchAuthenticatedMapping/expired_token (0.00s)\n=== RUN   TestSyncBatchEmptyActiveOutletStillDenied\n--- PASS: TestSyncBatchEmptyActiveOutletStillDenied (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/handlers\t0.211s\n=== RUN   TestBundleFreedNets_CleanCombo\n--- PASS: TestBundleFreedNets_CleanCombo (0.00s)\n=== RUN   TestBundleFreedNets_PartialFreedUnit\n--- PASS: TestBundleFreedNets_PartialFreedUnit (0.00s)\n=== RUN   TestBundleFreedNets_AnchorAbsorbsOverflow\n--- PASS: TestBundleFreedNets_AnchorAbsorbsOverflow (0.00s)\n=== RUN   TestBundleFreedNets_FreedNotSlotEligible\n--- PASS: TestBundleFreedNets_FreedNotSlotEligible (0.00s)\n=== RUN   TestBundleFreedNets_NoCompleteSet\n--- PASS: TestBundleFreedNets_NoCompleteSet (0.00s)\n=== RUN   TestBundleFreedNets_FreeExpensiveAnchorRejected\n--- PASS: TestBundleFreedNets_FreeExpensiveAnchorRejected (0.00s)\n=== RUN   TestBundleFreedNets_TwoAtomizersChoosesCheapest\n--- PASS: TestBundleFreedNets_TwoAtomizersChoosesCheapest (0.00s)\n=== RUN   TestBundleFreedNets_PricierFreebieStandaloneExtra\n--- PASS: TestBundleFreedNets_PricierFreebieStandaloneExtra (0.00s)\n=== RUN   TestBundleFreedNets_MultiUnitPricierAnchorStandaloneExtra\n--- PASS: TestBundleFreedNets_MultiUnitPricierAnchorStandaloneExtra (0.00s)\n=== RUN   TestBundleFreedNets_Guards\n--- PASS: TestBundleFreedNets_Guards (0.00s)\n=== RUN   TestBundleFreedNets_OverFreedSlotRejected\n--- PASS: TestBundleFreedNets_OverFreedSlotRejected (0.00s)\n=== RUN   TestLinkedTierGolden\n=== RUN   TestLinkedTierGolden/qualifying_10_percent\n=== RUN   TestLinkedTierGolden/threshold_99999\n=== RUN   TestLinkedTierGolden/threshold_100000\n=== RUN   TestLinkedTierGolden/threshold_100001\n=== RUN   TestLinkedTierGolden/threshold_199999\n=== RUN   TestLinkedTierGolden/threshold_200000\n=== RUN   TestLinkedTierGolden/threshold_200001\n=== RUN   TestLinkedTierGolden/first_tie_retained\n=== RUN   TestLinkedTierGolden/half_rounding\n=== RUN   TestLinkedTierGolden/fractional_subtotal\n=== RUN   TestLinkedTierGolden/fixed_capped\n=== RUN   TestLinkedTierGolden/overall_percent_capped\n=== RUN   TestLinkedTierGolden/null_config\n=== RUN   TestLinkedTierGolden/absent_config\n=== RUN   TestLinkedTierGolden/empty_config\n=== RUN   TestLinkedTierGolden/zero_subtotal\n--- PASS: TestLinkedTierGolden (0.00s)\n    --- PASS: TestLinkedTierGolden/qualifying_10_percent (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_99999 (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_100000 (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_100001 (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_199999 (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_200000 (0.00s)\n    --- PASS: TestLinkedTierGolden/threshold_200001 (0.00s)\n    --- PASS: TestLinkedTierGolden/first_tie_retained (0.00s)\n    --- PASS: TestLinkedTierGolden/half_rounding (0.00s)\n    --- PASS: TestLinkedTierGolden/fractional_subtotal (0.00s)\n    --- PASS: TestLinkedTierGolden/fixed_capped (0.00s)\n    --- PASS: TestLinkedTierGolden/overall_percent_capped (0.00s)\n    --- PASS: TestLinkedTierGolden/null_config (0.00s)\n    --- PASS: TestLinkedTierGolden/absent_config (0.00s)\n    --- PASS: TestLinkedTierGolden/empty_config (0.00s)\n    --- PASS: TestLinkedTierGolden/zero_subtotal (0.00s)\n=== RUN   TestContains\n=== RUN   TestContains/present\n=== RUN   TestContains/absent\n=== RUN   TestContains/empty_menu\n--- PASS: TestContains (0.00s)\n    --- PASS: TestContains/present (0.00s)\n    --- PASS: TestContains/absent (0.00s)\n    --- PASS: TestContains/empty_menu (0.00s)\n=== RUN   TestEvaluate_NoConditions_ParityWithBase\n--- PASS: TestEvaluate_NoConditions_ParityWithBase (0.00s)\n=== RUN   TestEvaluate_SpendingThreshold_SetPoints\n--- PASS: TestEvaluate_SpendingThreshold_SetPoints (0.00s)\n=== RUN   TestEvaluate_BestMultiplier_NoCompound\n--- PASS: TestEvaluate_BestMultiplier_NoCompound (0.00s)\n=== RUN   TestEvaluate_MultiplierThenFlatBonus\n--- PASS: TestEvaluate_MultiplierThenFlatBonus (0.00s)\n=== RUN   TestEvaluate_RewardValueZeroIgnored\n--- PASS: TestEvaluate_RewardValueZeroIgnored (0.00s)\n=== RUN   TestEvaluate_Birthday_ExactMMDD\n--- PASS: TestEvaluate_Birthday_ExactMMDD (0.00s)\n=== RUN   TestEvaluate_FirstRegistration_OnlyVisitZero\n--- PASS: TestEvaluate_FirstRegistration_OnlyVisitZero (0.00s)\n=== RUN   TestEvaluate_MemberDay_Weekday\n--- PASS: TestEvaluate_MemberDay_Weekday (0.00s)\n=== RUN   TestEvaluate_ProductPurchase_Intersection\n--- PASS: TestEvaluate_ProductPurchase_Intersection (0.00s)\n=== RUN   TestEvaluate_CampaignWindow_InclusiveEdges\n--- PASS: TestEvaluate_CampaignWindow_InclusiveEdges (0.00s)\n=== RUN   TestEvaluate_InactiveSkipped\n--- PASS: TestEvaluate_InactiveSkipped (0.00s)\n=== RUN   TestEvaluate_WIBMidnightBoundary\n--- PASS: TestEvaluate_WIBMidnightBoundary (0.00s)\n=== RUN   TestLoyaltyEarnReason\n--- PASS: TestLoyaltyEarnReason (0.00s)\n=== RUN   TestEvaluate_FractionalMultiplier\n--- PASS: TestEvaluate_FractionalMultiplier (0.00s)\n=== RUN   TestLoyaltyEarnReason_FlatBonusOnly\n--- PASS: TestLoyaltyEarnReason_FlatBonusOnly (0.00s)\n=== RUN   TestEvaluate_EarlyMorningWIBCampaignBoundary\n--- PASS: TestEvaluate_EarlyMorningWIBCampaignBoundary (0.00s)\n=== RUN   TestProductRewards\n--- PASS: TestProductRewards (0.00s)\n=== RUN   TestProductPurchaseVariantEntries\n=== RUN   TestProductPurchaseVariantEntries/whole-product_entry_matches_product_key\n=== RUN   TestProductPurchaseVariantEntries/variant_entry_matches_exact_variant_key\n=== RUN   TestProductPurchaseVariantEntries/variant_entry_does_NOT_match_a_different_size\n=== RUN   TestProductPurchaseVariantEntries/variant_entry_does_NOT_match_product-only_key\n=== RUN   TestProductPurchaseVariantEntries/mixed_entries:_whole_product_wins_for_any_size\n--- PASS: TestProductPurchaseVariantEntries (0.00s)\n    --- PASS: TestProductPurchaseVariantEntries/whole-product_entry_matches_product_key (0.00s)\n    --- PASS: TestProductPurchaseVariantEntries/variant_entry_matches_exact_variant_key (0.00s)\n    --- PASS: TestProductPurchaseVariantEntries/variant_entry_does_NOT_match_a_different_size (0.00s)\n    --- PASS: TestProductPurchaseVariantEntries/variant_entry_does_NOT_match_product-only_key (0.00s)\n    --- PASS: TestProductPurchaseVariantEntries/mixed_entries:_whole_product_wins_for_any_size (0.00s)\n=== RUN   TestParseMenu\n=== RUN   TestParseMenu/whole_product_entry_\u2192_nil_size_set_(all_sizes)\n=== RUN   TestParseMenu/variant_entries_\u2192_size_set\n=== RUN   TestParseMenu/whole-product_entry_wins_over_variant_entries\n=== RUN   TestParseMenu/distinct_products_keep_entry_order,_no_dup_ids\n--- PASS: TestParseMenu (0.00s)\n    --- PASS: TestParseMenu/whole_product_entry_\u2192_nil_size_set_(all_sizes) (0.00s)\n    --- PASS: TestParseMenu/variant_entries_\u2192_size_set (0.00s)\n    --- PASS: TestParseMenu/whole-product_entry_wins_over_variant_entries (0.00s)\n    --- PASS: TestParseMenu/distinct_products_keep_entry_order,_no_dup_ids (0.00s)\n=== RUN   TestRewardLineAllowed\n=== RUN   TestRewardLineAllowed/whole-product_entry_allows_any_size\n=== RUN   TestRewardLineAllowed/whole-product_entry_allows_empty_size\n=== RUN   TestRewardLineAllowed/variant_entry_allows_the_exact_size\n=== RUN   TestRewardLineAllowed/variant_entry_rejects_another_size\n=== RUN   TestRewardLineAllowed/variant_entry_rejects_empty_size\n=== RUN   TestRewardLineAllowed/unlisted_product_rejected\n--- PASS: TestRewardLineAllowed (0.00s)\n    --- PASS: TestRewardLineAllowed/whole-product_entry_allows_any_size (0.00s)\n    --- PASS: TestRewardLineAllowed/whole-product_entry_allows_empty_size (0.00s)\n    --- PASS: TestRewardLineAllowed/variant_entry_allows_the_exact_size (0.00s)\n    --- PASS: TestRewardLineAllowed/variant_entry_rejects_another_size (0.00s)\n    --- PASS: TestRewardLineAllowed/variant_entry_rejects_empty_size (0.00s)\n    --- PASS: TestRewardLineAllowed/unlisted_product_rejected (0.00s)\n=== RUN   TestSaleInputDomainsBeforeEffects\n=== RUN   TestSaleInputDomainsBeforeEffects/quantity_int4_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_price\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_subtotal\n=== RUN   TestSaleInputDomainsBeforeEffects/line_mismatch\n=== RUN   TestSaleInputDomainsBeforeEffects/price_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/subtotal_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/product_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/sum_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_tender\n=== RUN   TestSaleInputDomainsBeforeEffects/tender_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_discount\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_surcharge\n=== RUN   TestSaleInputDomainsBeforeEffects/negative_points\n=== RUN   TestSaleInputDomainsBeforeEffects/points_int4_overflow\n=== RUN   TestSaleInputDomainsBeforeEffects/empty_method\n=== RUN   TestSaleInputDomainsBeforeEffects/NaN_price\n=== RUN   TestSaleInputDomainsBeforeEffects/Inf_subtotal\n=== RUN   TestSaleInputDomainsBeforeEffects/NaN_tender\n=== RUN   TestSaleInputDomainsBeforeEffects/Inf_discount\n=== RUN   TestSaleInputDomainsBeforeEffects/Inf_surcharge\n--- PASS: TestSaleInputDomainsBeforeEffects (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/quantity_int4_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_price (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_subtotal (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/line_mismatch (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/price_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/subtotal_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/product_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/sum_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_tender (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/tender_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_discount (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_surcharge (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/negative_points (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/points_int4_overflow (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/empty_method (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/NaN_price (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/Inf_subtotal (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/NaN_tender (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/Inf_discount (0.00s)\n    --- PASS: TestSaleInputDomainsBeforeEffects/Inf_surcharge (0.00s)\n=== RUN   TestSaleInputWireRepresentation\n--- PASS: TestSaleInputWireRepresentation (0.00s)\n=== RUN   TestSaleInputSupportedShapes\n=== RUN   TestSaleInputSupportedShapes/ordinary_cash\n=== RUN   TestSaleInputSupportedShapes/configured_noncash_legacy_missing_tender\n=== RUN   TestSaleInputSupportedShapes/guest_free\n=== RUN   TestSaleInputSupportedShapes/loyalty_free_line\n=== RUN   TestSaleInputSupportedShapes/fully_discounted\n=== RUN   TestSaleInputSupportedShapes/static_bundle_SKU\n=== RUN   TestSaleInputSupportedShapes/BXGY_fractional_net\n=== RUN   TestSaleInputSupportedShapes/rounded_bundle_freed_line\n=== RUN   TestSaleInputSupportedShapes/decimal_price\n=== RUN   TestSaleInputSupportedShapes/schema_quantity_upper_bound_free\n--- PASS: TestSaleInputSupportedShapes (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/ordinary_cash (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/configured_noncash_legacy_missing_tender (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/guest_free (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/loyalty_free_line (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/fully_discounted (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/static_bundle_SKU (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/BXGY_fractional_net (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/rounded_bundle_freed_line (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/decimal_price (0.00s)\n    --- PASS: TestSaleInputSupportedShapes/schema_quantity_upper_bound_free (0.00s)\n=== RUN   TestSaleInputDerivedArithmeticBeforeEffects\n=== RUN   TestSaleInputDerivedArithmeticBeforeEffects/sum_plus_surcharge\n=== RUN   TestSaleInputDerivedArithmeticBeforeEffects/tax_overflow\n=== RUN   TestSaleInputDerivedArithmeticBeforeEffects/tax_nonfinite\n--- PASS: TestSaleInputDerivedArithmeticBeforeEffects (0.00s)\n    --- PASS: TestSaleInputDerivedArithmeticBeforeEffects/sum_plus_surcharge (0.00s)\n    --- PASS: TestSaleInputDerivedArithmeticBeforeEffects/tax_overflow (0.00s)\n    --- PASS: TestSaleInputDerivedArithmeticBeforeEffects/tax_nonfinite (0.00s)\n=== RUN   TestSaleInputPreservesKnownReceiptAndQ08Shortage\n=== RUN   TestSaleInputPreservesKnownReceiptAndQ08Shortage/direct_floor\n=== RUN   TestSaleInputPreservesKnownReceiptAndQ08Shortage/batch_warning\n--- PASS: TestSaleInputPreservesKnownReceiptAndQ08Shortage (0.00s)\n    --- PASS: TestSaleInputPreservesKnownReceiptAndQ08Shortage/direct_floor (0.00s)\n    --- PASS: TestSaleInputPreservesKnownReceiptAndQ08Shortage/batch_warning (0.00s)\n=== RUN   TestSaleInputNegativeAndZeroQuantityRegression\n--- PASS: TestSaleInputNegativeAndZeroQuantityRegression (0.00s)\n=== RUN   TestParseBXGYConfig\n--- PASS: TestParseBXGYConfig (0.00s)\n=== RUN   TestParseBXGYConfigNullIsNil\n--- PASS: TestParseBXGYConfigNullIsNil (0.00s)\n=== RUN   TestCombinedViolations\n--- PASS: TestCombinedViolations (0.00s)\n=== RUN   TestCombinedViolationsEmpty\n--- PASS: TestCombinedViolationsEmpty (0.00s)\n=== RUN   TestRewardLineEntitlement\n--- PASS: TestRewardLineEntitlement (0.00s)\n=== RUN   TestParseTieredConfig\n--- PASS: TestParseTieredConfig (0.00s)\n=== RUN   TestParseTieredConfigNullIsNil\n--- PASS: TestParseTieredConfigNullIsNil (0.00s)\n=== RUN   TestComputeSubtotalOnly\n--- PASS: TestComputeSubtotalOnly (0.00s)\n=== RUN   TestComputeManualPercentageAndTax\n--- PASS: TestComputeManualPercentageAndTax (0.00s)\n=== RUN   TestComputeFixedDiscountCappedAtSubtotal\n--- PASS: TestComputeFixedDiscountCappedAtSubtotal (0.00s)\n=== RUN   TestComputeRoundingNearest1000\n--- PASS: TestComputeRoundingNearest1000 (0.00s)\n=== RUN   TestComputePromoPercentageScopedToProducts\n--- PASS: TestComputePromoPercentageScopedToProducts (0.00s)\n=== RUN   TestComputePromoBOGOCheapestUnit\n--- PASS: TestComputePromoBOGOCheapestUnit (0.00s)\n=== RUN   TestComputePromoScopedNoMatchIsZero\n--- PASS: TestComputePromoScopedNoMatchIsZero (0.00s)\n=== RUN   TestComputeStacksAdditively\n--- PASS: TestComputeStacksAdditively (0.00s)\n=== RUN   TestComputeStackCapsAtSubtotal\n--- PASS: TestComputeStackCapsAtSubtotal (0.00s)\n=== RUN   TestComputeEmptyPromosSameAsNone\n--- PASS: TestComputeEmptyPromosSameAsNone (0.00s)\n=== RUN   TestComputeLoyaltyPoints\n--- PASS: TestComputeLoyaltyPoints (0.00s)\n=== RUN   TestComputeSurchargeFixedAddsToTotal\n--- PASS: TestComputeSurchargeFixedAddsToTotal (0.00s)\n=== RUN   TestTierBoundaries\n--- PASS: TestTierBoundaries (0.00s)\n=== RUN   TestCalcBXGYSameSetFree\n--- PASS: TestCalcBXGYSameSetFree (0.00s)\n=== RUN   TestCalcBXGYRepeatAndCap\n--- PASS: TestCalcBXGYRepeatAndCap (0.00s)\n=== RUN   TestCalcBXGYSeparateSetPercentAndScarcity\n--- PASS: TestCalcBXGYSeparateSetPercentAndScarcity (0.00s)\n=== RUN   TestCalcBXGYFixedCappedAtUnit\n--- PASS: TestCalcBXGYFixedCappedAtUnit (0.00s)\n=== RUN   TestCalcBXGYVariantLevelKey\n--- PASS: TestCalcBXGYVariantLevelKey (0.00s)\n=== RUN   TestCalcBXGYNilConfigIsZero\n2026/09/21 11:50:30 WARN buy_x_get_y: invalid config, 0 discount config=<nil>\n--- PASS: TestCalcBXGYNilConfigIsZero (0.00s)\n=== RUN   TestBXGYRewardDue\n--- PASS: TestBXGYRewardDue (0.00s)\n=== RUN   TestBXGYRewardDueExcludesGetSetFromBuyUnits\n--- PASS: TestBXGYRewardDueExcludesGetSetFromBuyUnits (0.00s)\n=== RUN   TestBXGYRewardNet\n--- PASS: TestBXGYRewardNet (0.00s)\n=== RUN   TestComputeSeparateSetBuyXGetYIsZeroDiscount\n--- PASS: TestComputeSeparateSetBuyXGetYIsZeroDiscount (0.00s)\n=== RUN   TestComputeSameSetBuyXGetYStillDiscounts\n--- PASS: TestComputeSameSetBuyXGetYStillDiscounts (0.00s)\n=== RUN   TestPickTier\n--- PASS: TestPickTier (0.00s)\n=== RUN   TestComputeTiered\n--- PASS: TestComputeTiered (0.00s)\n=== RUN   TestBundleApplications\n--- PASS: TestBundleApplications (0.00s)\n=== RUN   TestBundleAllocate\n--- PASS: TestBundleAllocate (0.00s)\n=== RUN   TestCalcPromotionDiscountBundleIsZero\n--- PASS: TestCalcPromotionDiscountBundleIsZero (0.00s)\n=== RUN   TestValidatePromo\n=== RUN   TestValidatePromo/all_empty_passes\n=== RUN   TestValidatePromo/not_started\n=== RUN   TestValidatePromo/expired\n=== RUN   TestValidatePromo/date_window_inclusive_ok\n=== RUN   TestValidatePromo/below_min\n=== RUN   TestValidatePromo/min_exact_ok\n=== RUN   TestValidatePromo/wrong_day\n=== RUN   TestValidatePromo/right_day_ok\n=== RUN   TestValidatePromo/outside_hours\n=== RUN   TestValidatePromo/inside_hours_ok\n=== RUN   TestValidatePromo/hour_boundary_inclusive\n=== RUN   TestValidatePromo/only_one_hour_set_=_no_gate\n=== RUN   TestValidatePromo/wrong_outlet\n=== RUN   TestValidatePromo/right_outlet_ok\n--- PASS: TestValidatePromo (0.00s)\n    --- PASS: TestValidatePromo/all_empty_passes (0.00s)\n    --- PASS: TestValidatePromo/not_started (0.00s)\n    --- PASS: TestValidatePromo/expired (0.00s)\n    --- PASS: TestValidatePromo/date_window_inclusive_ok (0.00s)\n    --- PASS: TestValidatePromo/below_min (0.00s)\n    --- PASS: TestValidatePromo/min_exact_ok (0.00s)\n    --- PASS: TestValidatePromo/wrong_day (0.00s)\n    --- PASS: TestValidatePromo/right_day_ok (0.00s)\n    --- PASS: TestValidatePromo/outside_hours (0.00s)\n    --- PASS: TestValidatePromo/inside_hours_ok (0.00s)\n    --- PASS: TestValidatePromo/hour_boundary_inclusive (0.00s)\n    --- PASS: TestValidatePromo/only_one_hour_set_=_no_gate (0.00s)\n    --- PASS: TestValidatePromo/wrong_outlet (0.00s)\n    --- PASS: TestValidatePromo/right_outlet_ok (0.00s)\n=== RUN   TestValidateCode\n=== RUN   TestValidateCode/all_empty_passes\n=== RUN   TestValidateCode/expired\n=== RUN   TestValidateCode/below_min\n=== RUN   TestValidateCode/usage_limit_reached\n=== RUN   TestValidateCode/usage_under_limit_ok\n=== RUN   TestValidateCode/usage_limit_zero_=_unlimited\n=== RUN   TestValidateCode/nil_limit_=_unlimited\n=== RUN   TestValidateCode/requires_customer_(capped,_no_customer)\n=== RUN   TestValidateCode/capped_with_customer_ok\n=== RUN   TestValidateCode/uncapped_no_customer_ok\n=== RUN   TestValidateCode/assigned_+_matching_customer_ok\n=== RUN   TestValidateCode/assigned_+_wrong_customer\n=== RUN   TestValidateCode/assigned_+_no_customer\n=== RUN   TestValidateCode/unassigned_ok\n--- PASS: TestValidateCode (0.00s)\n    --- PASS: TestValidateCode/all_empty_passes (0.00s)\n    --- PASS: TestValidateCode/expired (0.00s)\n    --- PASS: TestValidateCode/below_min (0.00s)\n    --- PASS: TestValidateCode/usage_limit_reached (0.00s)\n    --- PASS: TestValidateCode/usage_under_limit_ok (0.00s)\n    --- PASS: TestValidateCode/usage_limit_zero_=_unlimited (0.00s)\n    --- PASS: TestValidateCode/nil_limit_=_unlimited (0.00s)\n    --- PASS: TestValidateCode/requires_customer_(capped,_no_customer) (0.00s)\n    --- PASS: TestValidateCode/capped_with_customer_ok (0.00s)\n    --- PASS: TestValidateCode/uncapped_no_customer_ok (0.00s)\n    --- PASS: TestValidateCode/assigned_+_matching_customer_ok (0.00s)\n    --- PASS: TestValidateCode/assigned_+_wrong_customer (0.00s)\n    --- PASS: TestValidateCode/assigned_+_no_customer (0.00s)\n    --- PASS: TestValidateCode/unassigned_ok (0.00s)\n=== RUN   TestSemanticPromotionRuntimeRegression\n--- PASS: TestSemanticPromotionRuntimeRegression (0.00s)\n=== RUN   TestDedupeNonEmpty\n=== RUN   TestDedupeNonEmpty/duplicates_and_empties_are_removed\n=== RUN   TestDedupeNonEmpty/nil_input_returns_nil\n=== RUN   TestDedupeNonEmpty/all_empty_returns_nil\n=== RUN   TestDedupeNonEmpty/single_entry_preserved\n=== RUN   TestDedupeNonEmpty/order_preserved\n--- PASS: TestDedupeNonEmpty (0.00s)\n    --- PASS: TestDedupeNonEmpty/duplicates_and_empties_are_removed (0.00s)\n    --- PASS: TestDedupeNonEmpty/nil_input_returns_nil (0.00s)\n    --- PASS: TestDedupeNonEmpty/all_empty_returns_nil (0.00s)\n    --- PASS: TestDedupeNonEmpty/single_entry_preserved (0.00s)\n    --- PASS: TestDedupeNonEmpty/order_preserved (0.00s)\n=== RUN   TestCombinabilityGate\n--- PASS: TestCombinabilityGate (0.00s)\n=== RUN   TestShiftDecodeRepresentation\n=== RUN   TestShiftDecodeRepresentation/open/reject/\n=== RUN   TestShiftDecodeRepresentation/open/reject/_\n=== RUN   TestShiftDecodeRepresentation/open/reject/null\n=== RUN   TestShiftDecodeRepresentation/open/reject/[]\n=== RUN   TestShiftDecodeRepresentation/open/reject/1\n=== RUN   TestShiftDecodeRepresentation/open/reject/\"text\"\n=== RUN   TestShiftDecodeRepresentation/open/reject/{}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":null}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":\"0\"}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":true}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":1e999}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":1000000000000}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":-1000000000000}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0,\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0}{}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0}junk\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0,\"startingCash\":1}\n=== RUN   TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0,\"STARTINGCASH\":0}\n=== RUN   TestShiftDecodeRepresentation/close/reject/\n=== RUN   TestShiftDecodeRepresentation/close/reject/_\n=== RUN   TestShiftDecodeRepresentation/close/reject/null\n=== RUN   TestShiftDecodeRepresentation/close/reject/[]\n=== RUN   TestShiftDecodeRepresentation/close/reject/1\n=== RUN   TestShiftDecodeRepresentation/close/reject/\"text\"\n=== RUN   TestShiftDecodeRepresentation/close/reject/{}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":null}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":\"0\"}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":true}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":1e999}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":1000000000000}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":-1000000000000}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0,\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0}{}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0}junk\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0,\"closingCash\":1}\n=== RUN   TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0,\"CLOSINGCASH\":0}\n--- PASS: TestShiftDecodeRepresentation (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/ (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/_ (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/null (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/[] (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/1 (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/\"text\" (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":null} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":\"0\"} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":true} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":1e999} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":1000000000000} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":-1000000000000} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0, (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0}{} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0}junk (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0,\"startingCash\":1} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/open/reject/{\"startingCash\":0,\"STARTINGCASH\":0} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/ (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/_ (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/null (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/[] (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/1 (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/\"text\" (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":null} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":\"0\"} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":true} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":1e999} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":1000000000000} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":-1000000000000} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0, (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0}{} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0}junk (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0,\"closingCash\":1} (0.00s)\n    --- PASS: TestShiftDecodeRepresentation/close/reject/{\"closingCash\":0,\"CLOSINGCASH\":0} (0.00s)\n=== RUN   TestShiftCountedMethodsAndReference\n--- PASS: TestShiftCountedMethodsAndReference (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/service\t1.381s\n=== RUN   TestRefundPermissionParityRegression\n--- PASS: TestRefundPermissionParityRegression (0.00s)\n=== RUN   TestRefundPermissionDispatch\n=== RUN   TestRefundPermissionDispatch/cashier_allowed\n=== RUN   TestRefundPermissionDispatch/technical_admin\n=== RUN   TestRefundPermissionDispatch/cashier_denied\n=== RUN   TestRefundPermissionDispatch/empty_authority\n--- PASS: TestRefundPermissionDispatch (0.00s)\n    --- PASS: TestRefundPermissionDispatch/cashier_allowed (0.00s)\n    --- PASS: TestRefundPermissionDispatch/technical_admin (0.00s)\n    --- PASS: TestRefundPermissionDispatch/cashier_denied (0.00s)\n    --- PASS: TestRefundPermissionDispatch/empty_authority (0.00s)\n=== RUN   TestRefundScopeFailurePropagatesWithoutSuccess\n--- PASS: TestRefundScopeFailurePropagatesWithoutSuccess (0.00s)\n=== RUN   TestMixedBatchPreservesIndependentResults\n--- PASS: TestMixedBatchPreservesIndependentResults (0.00s)\n=== RUN   TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged\n--- PASS: TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged (0.00s)\n=== RUN   TestSaleInputBatchMappingAndIndependentResults\n--- PASS: TestSaleInputBatchMappingAndIndependentResults (0.00s)\n=== RUN   TestShiftDecodeRejectsBeforeService\n--- PASS: TestShiftDecodeRejectsBeforeService (0.00s)\n=== RUN   TestApproverAllowed\n=== RUN   TestApproverAllowed/manager_allowed\n=== RUN   TestApproverAllowed/admin_always\n=== RUN   TestApproverAllowed/cashier_denied\n=== RUN   TestApproverAllowed/empty_roles_denies_non-admin\n--- PASS: TestApproverAllowed (0.00s)\n    --- PASS: TestApproverAllowed/manager_allowed (0.00s)\n    --- PASS: TestApproverAllowed/admin_always (0.00s)\n    --- PASS: TestApproverAllowed/cashier_denied (0.00s)\n    --- PASS: TestApproverAllowed/empty_roles_denies_non-admin (0.00s)\n=== RUN   TestReceiveScope\n=== RUN   TestReceiveScope/ok:_approver_assigned_to_dest_outlet\n=== RUN   TestReceiveScope/ok:_admin_approver_with_no_outlet_assignment\n=== RUN   TestReceiveScope/ok:_admin_approver_assigned_to_different_outlet\n=== RUN   TestReceiveScope/blocked:_dest_outlet_is_a_warehouse_(empty)\n=== RUN   TestReceiveScope/blocked:_dest_outlet_differs_from_caller_outlet\n=== RUN   TestReceiveScope/blocked:_approver_not_assigned_to_dest_outlet_(non-admin)\n=== RUN   TestReceiveScope/blocked:_approver_has_no_outlet_(non-admin)\n--- PASS: TestReceiveScope (0.00s)\n    --- PASS: TestReceiveScope/ok:_approver_assigned_to_dest_outlet (0.00s)\n    --- PASS: TestReceiveScope/ok:_admin_approver_with_no_outlet_assignment (0.00s)\n    --- PASS: TestReceiveScope/ok:_admin_approver_assigned_to_different_outlet (0.00s)\n    --- PASS: TestReceiveScope/blocked:_dest_outlet_is_a_warehouse_(empty) (0.00s)\n    --- PASS: TestReceiveScope/blocked:_dest_outlet_differs_from_caller_outlet (0.00s)\n    --- PASS: TestReceiveScope/blocked:_approver_not_assigned_to_dest_outlet_(non-admin) (0.00s)\n    --- PASS: TestReceiveScope/blocked:_approver_has_no_outlet_(non-admin) (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/sync\t1.515s\n=== RUN   TestFormatDocNo\n=== RUN   TestFormatDocNo/first_SJ_of_the_year\n=== RUN   TestFormatDocNo/first_TT_of_the_year\n=== RUN   TestFormatDocNo/5-digit_padding\n=== RUN   TestFormatDocNo/year_rollover\n=== RUN   TestFormatDocNo/5-digit_cap_not_exceeded\n=== RUN   TestFormatDocNo/first_ISJ_of_the_year\n=== RUN   TestFormatDocNo/ISJ_with_padding\n=== RUN   TestFormatDocNo/ISJ_year_rollover\n--- PASS: TestFormatDocNo (0.00s)\n    --- PASS: TestFormatDocNo/first_SJ_of_the_year (0.00s)\n    --- PASS: TestFormatDocNo/first_TT_of_the_year (0.00s)\n    --- PASS: TestFormatDocNo/5-digit_padding (0.00s)\n    --- PASS: TestFormatDocNo/year_rollover (0.00s)\n    --- PASS: TestFormatDocNo/5-digit_cap_not_exceeded (0.00s)\n    --- PASS: TestFormatDocNo/first_ISJ_of_the_year (0.00s)\n    --- PASS: TestFormatDocNo/ISJ_with_padding (0.00s)\n    --- PASS: TestFormatDocNo/ISJ_year_rollover (0.00s)\n=== RUN   TestValidateIngredientGoodsReceipt\n=== RUN   TestValidateIngredientGoodsReceipt/ok_warehouse\n=== RUN   TestValidateIngredientGoodsReceipt/ok_outlet\n=== RUN   TestValidateIngredientGoodsReceipt/bad_kind\n=== RUN   TestValidateIngredientGoodsReceipt/no_items\n=== RUN   TestValidateIngredientGoodsReceipt/zero_qty\n=== RUN   TestValidateIngredientGoodsReceipt/negative_qty\n--- PASS: TestValidateIngredientGoodsReceipt (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/ok_warehouse (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/ok_outlet (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/bad_kind (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/no_items (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/zero_qty (0.00s)\n    --- PASS: TestValidateIngredientGoodsReceipt/negative_qty (0.00s)\n=== RUN   TestValidateIngredientLocationAdjust\n=== RUN   TestValidateIngredientLocationAdjust/ok\n=== RUN   TestValidateIngredientLocationAdjust/bad_kind\n=== RUN   TestValidateIngredientLocationAdjust/no_reason\n=== RUN   TestValidateIngredientLocationAdjust/negative_qty\n--- PASS: TestValidateIngredientLocationAdjust (0.00s)\n    --- PASS: TestValidateIngredientLocationAdjust/ok (0.00s)\n    --- PASS: TestValidateIngredientLocationAdjust/bad_kind (0.00s)\n    --- PASS: TestValidateIngredientLocationAdjust/no_reason (0.00s)\n    --- PASS: TestValidateIngredientLocationAdjust/negative_qty (0.00s)\n=== RUN   TestValidateIngTransfer\n=== PAUSE TestValidateIngTransfer\n=== RUN   TestPointsClawback\n--- PASS: TestPointsClawback (0.00s)\n=== RUN   TestAdjustedBalance\n--- PASS: TestAdjustedBalance (0.00s)\n=== RUN   TestSemanticPromotionOverlapRegression\n=== RUN   TestSemanticPromotionOverlapRegression/P_P|M\n=== RUN   TestSemanticPromotionOverlapRegression/P|M_P\n--- PASS: TestSemanticPromotionOverlapRegression (0.00s)\n    --- PASS: TestSemanticPromotionOverlapRegression/P_P|M (0.00s)\n    --- PASS: TestSemanticPromotionOverlapRegression/P|M_P (0.00s)\n=== RUN   TestAuthoringSharedKeyVectors\n=== RUN   TestAuthoringSharedKeyVectors/whole-whole\n=== RUN   TestAuthoringSharedKeyVectors/variant-variant\n=== RUN   TestAuthoringSharedKeyVectors/whole-variant\n=== RUN   TestAuthoringSharedKeyVectors/variant-whole\n=== RUN   TestAuthoringSharedKeyVectors/different-variants\n=== RUN   TestAuthoringSharedKeyVectors/different-products\n=== RUN   TestAuthoringSharedKeyVectors/alternatives-cover\n=== RUN   TestAuthoringSharedKeyVectors/alternatives-disjoint\n=== RUN   TestAuthoringSharedKeyVectors/prefix-is-not-product\n=== RUN   TestAuthoringSharedKeyVectors/case-sensitive\n=== RUN   TestAuthoringSharedKeyVectors/same-set-mode\n=== RUN   TestAuthoringSharedKeyVectors/buy-complement-mode\n--- PASS: TestAuthoringSharedKeyVectors (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/whole-whole (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/variant-variant (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/whole-variant (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/variant-whole (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/different-variants (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/different-products (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/alternatives-cover (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/alternatives-disjoint (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/prefix-is-not-product (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/case-sensitive (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/same-set-mode (0.00s)\n    --- PASS: TestAuthoringSharedKeyVectors/buy-complement-mode (0.00s)\n=== RUN   TestVersionMatches\n=== RUN   TestVersionMatches/both_nil_(first_save)\n=== RUN   TestVersionMatches/expected_nil,_current_set\n=== RUN   TestVersionMatches/expected_set,_current_nil\n=== RUN   TestVersionMatches/equal\n=== RUN   TestVersionMatches/different\n--- PASS: TestVersionMatches (0.00s)\n    --- PASS: TestVersionMatches/both_nil_(first_save) (0.00s)\n    --- PASS: TestVersionMatches/expected_nil,_current_set (0.00s)\n    --- PASS: TestVersionMatches/expected_set,_current_nil (0.00s)\n    --- PASS: TestVersionMatches/equal (0.00s)\n    --- PASS: TestVersionMatches/different (0.00s)\n=== RUN   TestComputeTotalCost\n--- PASS: TestComputeTotalCost (0.00s)\n=== RUN   TestNewlyAddedInactive\n--- PASS: TestNewlyAddedInactive (0.00s)\n=== RUN   TestRandSuffix\n--- PASS: TestRandSuffix (0.00s)\n=== RUN   TestValidateDiscountCodeBatch\n--- PASS: TestValidateDiscountCodeBatch (0.00s)\n=== RUN   TestVariantBarcode\n=== RUN   TestVariantBarcode/explicit_barcode_wins\n=== RUN   TestVariantBarcode/empty_barcode_defaults_to_sku\n--- PASS: TestVariantBarcode (0.00s)\n    --- PASS: TestVariantBarcode/explicit_barcode_wins (0.00s)\n    --- PASS: TestVariantBarcode/empty_barcode_defaults_to_sku (0.00s)\n=== RUN   TestValidateVariants\n=== RUN   TestValidateVariants/valid:_distinct_sku_and_barcode\n=== RUN   TestValidateVariants/valid:_empty_barcodes_default_to_distinct_skus\n=== RUN   TestValidateVariants/invalid:_missing_sku\n=== RUN   TestValidateVariants/invalid:_duplicate_sku\n=== RUN   TestValidateVariants/invalid:_duplicate_explicit_barcode\n=== RUN   TestValidateVariants/invalid:_explicit_barcode_collides_with_another_variant's_sku_default\n--- PASS: TestValidateVariants (0.00s)\n    --- PASS: TestValidateVariants/valid:_distinct_sku_and_barcode (0.00s)\n    --- PASS: TestValidateVariants/valid:_empty_barcodes_default_to_distinct_skus (0.00s)\n    --- PASS: TestValidateVariants/invalid:_missing_sku (0.00s)\n    --- PASS: TestValidateVariants/invalid:_duplicate_sku (0.00s)\n    --- PASS: TestValidateVariants/invalid:_duplicate_explicit_barcode (0.00s)\n    --- PASS: TestValidateVariants/invalid:_explicit_barcode_collides_with_another_variant's_sku_default (0.00s)\n=== RUN   TestValidateBXGYRejectsBadQuantities\n--- PASS: TestValidateBXGYRejectsBadQuantities (0.00s)\n=== RUN   TestValidateBXGYRejectsPercentOver100\n--- PASS: TestValidateBXGYRejectsPercentOver100 (0.00s)\n=== RUN   TestValidateBXGYRejectsFixedNonPositive\n--- PASS: TestValidateBXGYRejectsFixedNonPositive (0.00s)\n=== RUN   TestValidateBXGYRejectsUnknownKind\n--- PASS: TestValidateBXGYRejectsUnknownKind (0.00s)\n=== RUN   TestValidateBXGYRejectsOverlap\n--- PASS: TestValidateBXGYRejectsOverlap (0.00s)\n=== RUN   TestValidateBXGYAcceptsValidSameSet\n--- PASS: TestValidateBXGYAcceptsValidSameSet (0.00s)\n=== RUN   TestValidateBXGYAcceptsValidSeparate\n--- PASS: TestValidateBXGYAcceptsValidSeparate (0.00s)\n=== RUN   TestValidateBXGYNilRejected\n--- PASS: TestValidateBXGYNilRejected (0.00s)\n=== RUN   TestValidateTieredRejectsEmpty\n--- PASS: TestValidateTieredRejectsEmpty (0.00s)\n=== RUN   TestValidateTieredRejectsBadValue\n--- PASS: TestValidateTieredRejectsBadValue (0.00s)\n=== RUN   TestValidateTieredRejectsDuplicateThreshold\n--- PASS: TestValidateTieredRejectsDuplicateThreshold (0.00s)\n=== RUN   TestValidateTieredAccepts\n--- PASS: TestValidateTieredAccepts (0.00s)\n=== RUN   TestValidateBundle\n--- PASS: TestValidateBundle (0.00s)\n=== RUN   TestValidateGoodsReceipt\n=== RUN   TestValidateGoodsReceipt/ok_warehouse\n=== RUN   TestValidateGoodsReceipt/ok_outlet\n=== RUN   TestValidateGoodsReceipt/bad_kind\n=== RUN   TestValidateGoodsReceipt/no_items\n=== RUN   TestValidateGoodsReceipt/zero_qty\n=== RUN   TestValidateGoodsReceipt/negative_qty\n--- PASS: TestValidateGoodsReceipt (0.00s)\n    --- PASS: TestValidateGoodsReceipt/ok_warehouse (0.00s)\n    --- PASS: TestValidateGoodsReceipt/ok_outlet (0.00s)\n    --- PASS: TestValidateGoodsReceipt/bad_kind (0.00s)\n    --- PASS: TestValidateGoodsReceipt/no_items (0.00s)\n    --- PASS: TestValidateGoodsReceipt/zero_qty (0.00s)\n    --- PASS: TestValidateGoodsReceipt/negative_qty (0.00s)\n=== RUN   TestValidateLocationAdjust\n=== RUN   TestValidateLocationAdjust/ok\n=== RUN   TestValidateLocationAdjust/bad_kind\n=== RUN   TestValidateLocationAdjust/no_reason\n=== RUN   TestValidateLocationAdjust/negative_qty\n--- PASS: TestValidateLocationAdjust (0.00s)\n    --- PASS: TestValidateLocationAdjust/ok (0.00s)\n    --- PASS: TestValidateLocationAdjust/bad_kind (0.00s)\n    --- PASS: TestValidateLocationAdjust/no_reason (0.00s)\n    --- PASS: TestValidateLocationAdjust/negative_qty (0.00s)\n=== RUN   TestValidLocKind\n--- PASS: TestValidLocKind (0.00s)\n=== RUN   TestSameLoc\n--- PASS: TestSameLoc (0.00s)\n=== RUN   TestTransferTransition\n--- PASS: TestTransferTransition (0.00s)\n=== RUN   TestTransferDiff\n--- PASS: TestTransferDiff (0.00s)\n=== CONT  TestValidateIngTransfer\n=== RUN   TestValidateIngTransfer/happy_warehouse\u2192warehouse\n=== RUN   TestValidateIngTransfer/happy_outlet\u2192warehouse\n=== RUN   TestValidateIngTransfer/same_src/dst\n=== RUN   TestValidateIngTransfer/empty_items\n=== RUN   TestValidateIngTransfer/zero_qty\n=== RUN   TestValidateIngTransfer/bad_source_kind\n--- PASS: TestValidateIngTransfer (0.00s)\n    --- PASS: TestValidateIngTransfer/happy_warehouse\u2192warehouse (0.00s)\n    --- PASS: TestValidateIngTransfer/happy_outlet\u2192warehouse (0.00s)\n    --- PASS: TestValidateIngTransfer/same_src/dst (0.00s)\n    --- PASS: TestValidateIngTransfer/empty_items (0.00s)\n    --- PASS: TestValidateIngTransfer/zero_qty (0.00s)\n    --- PASS: TestValidateIngTransfer/bad_source_kind (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/write\t1.499s\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/inactive_bundle_overlap\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/distinct_variants\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/within_slot_union\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/BXGY_overlap\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/same_set\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/complement\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/missing_bundle\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/wrong_slots\n=== RUN   TestDiagnosticUsesSemanticContractWithoutEditing/wrong_keys\n--- PASS: TestDiagnosticUsesSemanticContractWithoutEditing (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/inactive_bundle_overlap (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/distinct_variants (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/within_slot_union (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/BXGY_overlap (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/same_set (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/complement (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/missing_bundle (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/wrong_slots (0.00s)\n    --- PASS: TestDiagnosticUsesSemanticContractWithoutEditing/wrong_keys (0.00s)\n=== RUN   TestSharedOverlapContract\n=== RUN   TestSharedOverlapContract/whole-whole\n=== RUN   TestSharedOverlapContract/variant-variant\n=== RUN   TestSharedOverlapContract/whole-variant\n=== RUN   TestSharedOverlapContract/variant-whole\n=== RUN   TestSharedOverlapContract/different-variants\n=== RUN   TestSharedOverlapContract/different-products\n=== RUN   TestSharedOverlapContract/alternatives-cover\n=== RUN   TestSharedOverlapContract/alternatives-disjoint\n=== RUN   TestSharedOverlapContract/prefix-is-not-product\n=== RUN   TestSharedOverlapContract/case-sensitive\n=== RUN   TestSharedOverlapContract/same-set-mode\n=== RUN   TestSharedOverlapContract/buy-complement-mode\n--- PASS: TestSharedOverlapContract (0.00s)\n    --- PASS: TestSharedOverlapContract/whole-whole (0.00s)\n    --- PASS: TestSharedOverlapContract/variant-variant (0.00s)\n    --- PASS: TestSharedOverlapContract/whole-variant (0.00s)\n    --- PASS: TestSharedOverlapContract/variant-whole (0.00s)\n    --- PASS: TestSharedOverlapContract/different-variants (0.00s)\n    --- PASS: TestSharedOverlapContract/different-products (0.00s)\n    --- PASS: TestSharedOverlapContract/alternatives-cover (0.00s)\n    --- PASS: TestSharedOverlapContract/alternatives-disjoint (0.00s)\n    --- PASS: TestSharedOverlapContract/prefix-is-not-product (0.00s)\n    --- PASS: TestSharedOverlapContract/case-sensitive (0.00s)\n    --- PASS: TestSharedOverlapContract/same-set-mode (0.00s)\n    --- PASS: TestSharedOverlapContract/buy-complement-mode (0.00s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/promotionkeys\t0.670s\n",
+      "run_log": "commands-final.json"
+    },
+    {
+      "name": "backoffice-final",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exit": 0,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  5 passed (5)\n      Tests  50 passed (50)\n   Start at  11:53:00\n   Duration  5.74s (transform 988ms, setup 0ms, import 6.42s, tests 157ms, environment 1ms)\n\n",
+      "run_log": "commands-corrected.json"
+    },
+    {
+      "name": "test-types-final",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--skipLibCheck",
+        "--target",
+        "ES2022",
+        "--module",
+        "ESNext",
+        "--moduleResolution",
+        "Bundler",
+        "--jsx",
+        "react-jsx",
+        "--types",
+        "node",
+        "src/cashier/recapData.test.ts",
+        "../backoffice/src/screens/pagination.test.ts",
+        "../backoffice/src/screens/paginationPostgres.test.ts"
+      ],
+      "exit": 0,
+      "output": "",
+      "run_log": "commands-corrected.json"
+    },
+    {
+      "name": "initdb",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\initdb.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination",
+        "-U",
+        "a26_test",
+        "-A",
+        "trust",
+        "--no-locale",
+        "-E",
+        "UTF8"
+      ],
+      "exit": 0,
+      "output": "The files belonging to this database system will be owned by user \"MyBook Hype AMD\".\nThis user must also own the server process.\n\nThe database cluster will be initialized with locale \"C\".\nThe default text search configuration will be set to \"english\".\n\nData page checksums are enabled.\n\ncreating directory C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-a26-ducdi3yy/postgres-pagination ... ok\ncreating subdirectories ... ok\nselecting dynamic shared memory implementation ... windows\nselecting default \"max_connections\" ... 100\nselecting default \"shared_buffers\" ... 128MB\nselecting default time zone ... Asia/Bangkok\ncreating configuration files ... ok\nrunning bootstrap script ... ok\nperforming post-bootstrap initialization ... ok\nsyncing data to disk ... ok\n\nSuccess. You can now start the database server using:\n\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\18^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\MYBOOK^~1^\\AppData^\\Local^\\Temp^\\mandalika^-a26^-ducdi3yy^\\postgres^-pagination^\" -l logfile start\n\n",
+      "run_log": "commands-db-final.json"
+    },
+    {
+      "name": "start",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination",
+        "-l",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres.log",
+        "-o",
+        "-h 127.0.0.1 -p 56443",
+        "-w",
+        "start"
+      ],
+      "exit": 0,
+      "output": "waiting for server to start.... done\nserver started\n",
+      "run_log": "commands-db-final.json"
+    },
+    {
+      "name": "createdb",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\createdb.exe",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "56443",
+        "-U",
+        "a26_test",
+        "mandalika_a26_synthetic"
+      ],
+      "exit": 0,
+      "output": "",
+      "run_log": "commands-db-final.json"
+    },
+    {
+      "name": "postgres-pagination",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./internal/handlers",
+        "-run",
+        "^TestPaginationPostgres$",
+        "-count=1",
+        "-v"
+      ],
+      "exit": 1,
+      "output": "=== RUN   TestPaginationPostgres\n=== RUN   TestPaginationPostgres/orders-0\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:159: orders-0: 0 unique rows in 1 pages; total=0\n=== RUN   TestPaginationPostgres/orders-51\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:159: orders-51: 51 unique rows in 1 pages; total=51000\n=== RUN   TestPaginationPostgres/old-limit-truncation-51\n    pagination_integration_test.go:171: request limit=500 receives50 of51\n    pagination_integration_test.go:171: request limit=1000 receives50 of51\n=== RUN   TestPaginationPostgres/orders-201\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:159: orders-201: 201 unique rows in 2 pages; total=201000\n=== RUN   TestPaginationPostgres/old-limit-truncation-201\n    pagination_integration_test.go:171: request limit=500 receives50 of201\n    pagination_integration_test.go:171: request limit=1000 receives50 of201\n=== RUN   TestPaginationPostgres/orders-1000\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:159: orders-1000: 1000 unique rows in 5 pages; total=1000000\n=== RUN   TestPaginationPostgres/old-limit-truncation-1000\n    pagination_integration_test.go:171: request limit=500 receives50 of1000\n    pagination_integration_test.go:171: request limit=1000 receives50 of1000\n=== RUN   TestPaginationPostgres/shifts-251\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:176: shifts: 251 unique rows in 2 pages; total=0\n=== RUN   TestPaginationPostgres/flows-401\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:177: flows: 401 unique rows in 3 pages; total=0\n=== RUN   TestPaginationPostgres/products-201\n=== NAME  TestPaginationPostgres\n    pagination_integration_test.go:178: products metadata {Total:0 Page:1 Limit:200}\n=== NAME  TestPaginationPostgres/products-201\n    testing.go:1913: test executed panic(nil) or runtime.Goexit: subtest may have called FailNow on a parent test\n--- FAIL: TestPaginationPostgres (1.41s)\n    --- PASS: TestPaginationPostgres/orders-0 (0.01s)\n    --- PASS: TestPaginationPostgres/orders-51 (0.00s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-51 (0.01s)\n    --- PASS: TestPaginationPostgres/orders-201 (0.02s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-201 (0.01s)\n    --- PASS: TestPaginationPostgres/orders-1000 (0.11s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-1000 (0.01s)\n    --- PASS: TestPaginationPostgres/shifts-251 (0.01s)\n    --- PASS: TestPaginationPostgres/flows-401 (0.02s)\n    --- FAIL: TestPaginationPostgres/products-201 (0.01s)\nFAIL\nFAIL\tgithub.com/mandalika/pos-backend/internal/handlers\t1.559s\nFAIL\n",
+      "run_log": "commands-db-final.json"
+    },
+    {
+      "name": "stop-retain",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination",
+        "-m",
+        "fast",
+        "-w",
+        "stop"
+      ],
+      "exit": 0,
+      "output": "waiting for server to shut down...... done\nserver stopped\n",
+      "run_log": "commands-db-final.json"
+    },
+    {
+      "name": "initdb",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\initdb.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination-final",
+        "-U",
+        "a26_test",
+        "-A",
+        "trust",
+        "--no-locale",
+        "-E",
+        "UTF8"
+      ],
+      "exit": 0,
+      "output": "The files belonging to this database system will be owned by user \"MyBook Hype AMD\".\nThis user must also own the server process.\n\nThe database cluster will be initialized with locale \"C\".\nThe default text search configuration will be set to \"english\".\n\nData page checksums are enabled.\n\ncreating directory C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-a26-ducdi3yy/postgres-pagination-final ... ok\ncreating subdirectories ... ok\nselecting dynamic shared memory implementation ... windows\nselecting default \"max_connections\" ... 100\nselecting default \"shared_buffers\" ... 128MB\nselecting default time zone ... Asia/Bangkok\ncreating configuration files ... ok\nrunning bootstrap script ... ok\nperforming post-bootstrap initialization ... ok\nsyncing data to disk ... ok\n\nSuccess. You can now start the database server using:\n\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\18^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\MYBOOK^~1^\\AppData^\\Local^\\Temp^\\mandalika^-a26^-ducdi3yy^\\postgres^-pagination^-final^\" -l logfile start\n\n",
+      "run_log": "commands-db-rerun.json"
+    },
+    {
+      "name": "start",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination-final",
+        "-l",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres.log",
+        "-o",
+        "-h 127.0.0.1 -p 56443",
+        "-w",
+        "start"
+      ],
+      "exit": 0,
+      "output": "waiting for server to start.... done\nserver started\n",
+      "run_log": "commands-db-rerun.json"
+    },
+    {
+      "name": "createdb",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\createdb.exe",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "56443",
+        "-U",
+        "a26_test",
+        "mandalika_a26_synthetic"
+      ],
+      "exit": 0,
+      "output": "",
+      "run_log": "commands-db-rerun.json"
+    },
+    {
+      "name": "postgres-pagination-final",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./internal/handlers",
+        "-run",
+        "^TestPaginationPostgres$",
+        "-count=1",
+        "-v"
+      ],
+      "exit": 0,
+      "output": "=== RUN   TestPaginationPostgres\n=== RUN   TestPaginationPostgres/orders-0\n    pagination_integration_test.go:161: orders-0: 0 unique rows in 1 pages; total=0\n=== RUN   TestPaginationPostgres/orders-51\n    pagination_integration_test.go:161: orders-51: 51 unique rows in 1 pages; total=51000\n=== RUN   TestPaginationPostgres/old-limit-truncation-51\n    pagination_integration_test.go:173: request limit=500 receives50 of51\n    pagination_integration_test.go:173: request limit=1000 receives50 of51\n=== RUN   TestPaginationPostgres/orders-201\n    pagination_integration_test.go:161: orders-201: 201 unique rows in 2 pages; total=201000\n=== RUN   TestPaginationPostgres/old-limit-truncation-201\n    pagination_integration_test.go:173: request limit=500 receives50 of201\n    pagination_integration_test.go:173: request limit=1000 receives50 of201\n=== RUN   TestPaginationPostgres/orders-1000\n    pagination_integration_test.go:161: orders-1000: 1000 unique rows in 5 pages; total=1000000\n=== RUN   TestPaginationPostgres/old-limit-truncation-1000\n    pagination_integration_test.go:173: request limit=500 receives50 of1000\n    pagination_integration_test.go:173: request limit=1000 receives50 of1000\n=== RUN   TestPaginationPostgres/shifts-251\n    pagination_integration_test.go:178: shifts: 251 unique rows in 2 pages; total=0\n=== RUN   TestPaginationPostgres/flows-401\n    pagination_integration_test.go:179: flows: 401 unique rows in 3 pages; total=0\n=== RUN   TestPaginationPostgres/products-201\n    pagination_integration_test.go:180: products: 201 unique rows in 2 pages; total=0\n=== RUN   TestPaginationPostgres/shift-and-date-filters\n    pagination_integration_test.go:182: filtered: 201 unique rows in 2 pages; total=201000\n    pagination_integration_test.go:183: empty-date: 0 unique rows in 1 pages; total=0\n    pagination_integration_test.go:184: foreign-shift: 0 unique rows in 1 pages; total=0\n--- PASS: TestPaginationPostgres (1.46s)\n    --- PASS: TestPaginationPostgres/orders-0 (0.00s)\n    --- PASS: TestPaginationPostgres/orders-51 (0.00s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-51 (0.01s)\n    --- PASS: TestPaginationPostgres/orders-201 (0.03s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-201 (0.01s)\n    --- PASS: TestPaginationPostgres/orders-1000 (0.11s)\n    --- PASS: TestPaginationPostgres/old-limit-truncation-1000 (0.01s)\n    --- PASS: TestPaginationPostgres/shifts-251 (0.01s)\n    --- PASS: TestPaginationPostgres/flows-401 (0.02s)\n    --- PASS: TestPaginationPostgres/products-201 (0.02s)\n    --- PASS: TestPaginationPostgres/shift-and-date-filters (0.02s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/handlers\t1.666s\n",
+      "run_log": "commands-db-rerun.json"
+    },
+    {
+      "name": "stop-retain",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": [
+        "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+        "-D",
+        "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a26-ducdi3yy\\postgres-pagination-final",
+        "-m",
+        "fast",
+        "-w",
+        "stop"
+      ],
+      "exit": 0,
+      "output": "waiting for server to shut down..... done\nserver stopped\n",
+      "run_log": "commands-db-rerun.json"
+    },
+    {
+      "name": "initial-pagination-focused",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "src/screens/pagination.test.ts"
+      ],
+      "exit": 0,
+      "result": "30 passed; later explicit typecheck exposed parameterization of malformed-row tests; corrected and rerun in final50"
+    },
+    {
+      "name": "initial-recap-focused",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "src/cashier/recapData.test.ts"
+      ],
+      "exit": 0,
+      "result": "7 passed; history-page2 added before final258"
+    },
+    {
+      "name": "test-types-second-attempt",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--skipLibCheck",
+        "--target",
+        "ES2022",
+        "--module",
+        "ESNext",
+        "--moduleResolution",
+        "Bundler",
+        "--jsx",
+        "react-jsx",
+        "--types",
+        "node",
+        "src/cashier/recapData.test.ts",
+        "../backoffice/src/screens/pagination.test.ts",
+        "../backoffice/src/screens/paginationPostgres.test.ts"
+      ],
+      "exit": 1,
+      "result": "TS2345/TS2352: it.each spread array rows rather than passing the entire data array. Changed cases to {data:[...]}; final typecheck and tests pass."
+    }
+  ],
+  "browser": {
+    "tool": "mcp__playwright__browser_run_code_unsafe",
+    "working_directory": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+    "execution": "Chromium actual app via local Vite, intercepted synthetic APIs, external hosts blocked",
+    "before": "A26_BEFORE_FIX_BROWSER.json: 51/201/1000 all yield50 CSV/visible records before source edit",
+    "final": [
+      "backoffice-setup.js then backoffice-checks.js: PASS",
+      "transactions-checks.js: PASS",
+      "a24-browser/setup.js, open Menu, a26-browser/pos-recap.js: PASS"
+    ],
+    "limitations": "No shell exit code for browser tool; result assertions passed, no live financial or native end-to-end claim. Downloads intercepted at Blob creation; CSV text and parsed XLSX checked. Recap printer hardware not exercised.",
+    "intermediate_failures": [
+      "getByLabel could not locate pre-existing unassociated Backoffice labels; use observed select options/date input",
+      "POS currency comparison did not normalize nonbreaking spaces; normalized whitespace",
+      "Historical 60 also appeared in selected detail; restricted click to first (list) match",
+      "Vite source hot reload remounted cashier during intermediate browser rerun; re-opened Menu from observed current UI",
+      "CSV rerun after XLSX interceptor saw undefined text capture; re-ran setup to reset interceptor before successful final run"
+    ]
+  },
+  "fixture_failure": "Initial PostgreSQL product fixture lacked variants, so existing outlet availability correctly returned0; added synthetic variants. Fixed test helper to report failure on child t, not parent t. Fresh second cluster all11 scenarios pass. Both clusters stopped/retained. No application read filter relaxed.",
+  "skipped": "Ordinary Go suite skips opt-in linked fulfillment, sale-input, shift-decode, batch-envelope and pagination DB fixtures absent their environment; pagination DB separately ran successfully. Prior A23/A24 database/browser/native checks not rerun, acceptance historical within supplied limits. No Redis-cache/concurrent-writer/native/performance qualification.",
+  "safeguards": {
+    "host": "127.0.0.1",
+    "port": 56443,
+    "database": "mandalika_a26_synthetic",
+    "user": "a26_test",
+    "exact_data_directory_checked": true,
+    "empty_public_schema_before_existing_migrations": true,
+    "live_secrets_loaded": false,
+    "clusters_stopped_retained": true,
+    "earlier_policy_blocked_S0c_cleanup": "remains stopped and recorded; no retry/bypass"
+  },
+  "source_review": "Local incremental diff review; no independent ChatGPT acceptance claimed for A26. No subagent used."
+}

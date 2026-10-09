@@ -1,0 +1,701 @@
+diff --git a/docs/AUDIT_COVERAGE_TRACKER.md b/docs/AUDIT_COVERAGE_TRACKER.md
+--- a/docs/AUDIT_COVERAGE_TRACKER.md
++++ b/docs/AUDIT_COVERAGE_TRACKER.md
+@@ -1,6 +1,6 @@
+ # Canonical audit coverage tracker — A01–A44
+ 
+-Reconciled 2026-09-19; semantic-key acceptance, A23 qualification and A24 guest containment added 2026-09-21 in the same Windows/PowerShell worktree.
++Reconciled 2026-09-19; A23/A24 scoped acceptance and A26 pagination containment added 2026-09-21 in the same Windows/PowerShell worktree.
+ Root: `C:/Users/MyBook Hype AMD/Downloads/mandalika-pos`.
+ Branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+ Scope: 44 original groups, 8 P0 / 32 P1 / 3 P2 / 1 P3. No priority changes.
+@@ -9,6 +9,22 @@
+ SESSION_HANDOFF.md carries the current review packet.
+ 
+ ## Evidence and shared fields (apply to every row)
++
++E25: A26-PAGINATION-20260921-01 implements bounded complete pagination across
++Reports (CSV and Transactions/XLSX), Dashboard orders/products and POS active/history
++recap orders/flows/shifts. Real browser before-fix51/201/1000 all truncated to50.
++Shared helper validates metadata, exact page lengths and stable unique IDs; later
++failure rejects whole fetch. Recap cohorts cache only when complete; same-storage
++failure/reconstruction verified. Existing timestamp order gains stable ID tie-breaks
++for four paginated resources. Final POS258/BO50/sync33, types, six Go package checks
++and11 fresh isolated PostgreSQL scenarios pass. See A26_VERIFICATION.json and
++A26_VALIDATION_MATRIX.md. Local milestone review pending; parent A26/T23 open.
++A27/A28 semantics and A31 global race unchanged. No release gate closes.
++
++E24: CG-A23-QUAL-A24-GUEST-20260921-01-R1 scoped-accepts E22 target/browser
++qualification within supplied limits (native remains open) and E23 guest containment.
++Earlier mapper/envelope/LP05/fulfillment/semantic scoped acceptances remain. No
++historical tests relabeled current; full A23/T21, A24/T22 and all release gates open.
+ 
+ E23: A23-QUAL-A24-GUEST-20260921-01 implements A24 ordinary guest capture.
+ Actual browser entry regression fails before and passes after removing the blanket
+@@ -295,10 +311,10 @@
+ | A20 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T18 |
+ | A21 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T19 |
+ | A22 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T20 |
+-| A23 | P1 | A23 promotion parity and qualification | Open; mapper/LP05/fulfillment/semantic validation scoped accepted; E22 target/browser qualified within limits; native residual | T21 |
+-| A24 | P1 | A24 guest-sale containment (S0e) | Locally verified; review pending; parent/attachment/release open | T22 |
++| A23 | P1 | A23 promotion parity and qualification | Open; mapper/LP05/fulfillment/semantic validation scoped accepted; E24 target/browser scoped accepted; native residual | T21 |
++| A24 | P1 | A24 guest-sale containment (S0e) | Locally verified; scoped accepted E24; parent/attachment/release open | T22 |
+ | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
+-| A26 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T23 |
++| A26 | P1 | A26-pagination-completeness | Open; E25 bounded implementation locally verified; ChatGPT review pending | T23 |
+ | A27 | P1 | S0f | Needs current behavioral revalidation; source matches audit | T24 |
+ | A28 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T24 |
+ | A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
+@@ -636,7 +652,7 @@
+ ### A23 — A linked tiered promotion loses its tier configuration in POS pricing
+ 
+ - **Original priority / evidence:** P1; historical class: Reproduced.
+-- **Current disposition:** E15 mapper, E17 LP05 identity containment and E19 linked-fulfillment scoped accepted. E21 scoped-accepts E20 semantic promotion-key validation. E22 target/browser qualification verified within limits. Full A23/T21 open.
++- **Current disposition:** E15 mapper, E17 LP05 identity containment and E19 linked-fulfillment scoped accepted. E21 scoped-accepts E20 semantic promotion-key validation. E24 scoped-accepts E22 target/browser qualification within supplied limits; native remains open. Full A23/T21 open.
+ - **Current evidence:** Shared 12-vector Go/TS contract; Backoffice real Save-button render and callback guard; independent Repo.CreatePromotion/UpdatePromotion; POS direct/code planner plus legacy reducer actions; backend bundle/BXGY quota resolution; read-only all-row diagnostic. E20 isolated DB checks 22 authoring vectors, eight online no-effect rejections, eight captured-offline retained-price/quantity/warning/retry cases, eight prior valid cases and preflight. Existing LF fixture, tiered goldens and LP05 tests preserved. See SK_VALIDATION_MATRIX.md and SK_COMPATIBILITY.json.
+ - **Authority / decision:** AUTH-MANDALIKA-20260919-01 and owner-relayed ChatGPT direction 2026-09-21 resolve Q-LF-01 as semantic validation of the existing disjoint domain. No general overlapping-slot allocator. Earlier Q-LP05-01/02, raw code ownership and Q08 stock warning/override unchanged. Offline semantic-overlap facts retain original lines/prices with review warnings; no fabricated validated grant.
+ - **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Contracts evidence model. **Draft mapping:** §Scent exchanges (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+@@ -649,7 +665,7 @@
+ ### A24 — Guest sales are blocked despite the accepted policy
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed static.
+-- **Current disposition:** E23 guest-sale containment implemented and locally verified; ChatGPT review pending. Full A24/T22 open.
++- **Current disposition:** E23 guest-sale containment implemented and locally verified; E24 ChatGPT scoped accepted within supplied evidence. Full A24/T22 open.
+ - **Current evidence:** Entry CashierScreen guest gate reproduced in real Chromium. Current CashierScreen/CustomerPicker remove blanket requirement; existing null queue/receipt projection and service customer guards retained. A24_VERIFICATION.json, A24_VALIDATION_MATRIX.md and browser JSON show actual final checks; six new database cases use real browser-captured financial/customer fields.
+ - **Authority / decision:** AUTH-MANDALIKA-20260919-01; CG-A23-SEMANTIC-KEYS-20260921-01-R1 sections4–5 and current owner instruction. Ordinary sale does not require customer identity. Per-customer/assigned code restrictions and loyalty authority remain; no fake Guest record.
+ - **Plan coverage:** Explicit A24 guest-sale containment continuation in PRODUCTION_READINESS_PLAN.md. **Draft mapping:** September21 semantic acceptance/guest containment and existing POS customer verification/guest attachment policy. Later TL/open-shift attachment remains separate.
+@@ -673,14 +689,14 @@
+ ### A26 — Reports and shift recaps silently aggregate only the first 50 records
+ 
+ - **Original priority / evidence:** P1; historical class: Confirmed static request/response path.
+-- **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
+-- **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `backend/internal/handlers/handlers.go:71-84`; `apps/backoffice/src/screens/Reports.tsx:62-95`; `apps/backoffice/src/screens/Dashboard.tsx:62-75`; `apps/pos/src/cashier/ShiftRecapPanel.tsx:165-219`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
+-- **Authority / decision:** AUDIT_REPORT A26 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: Q09.
+-- **Plan coverage:** explicit programme inclusion in plan §Full-audit programme → this row; workstream Reporting contract expansion. **Draft mapping:** §Workstreams and acceptance evidence (broad text alone remains partial design detail). Original source coverage labels are historical, not reused as current completeness scores.
+-- **Dependencies / slice:** A27,A28,A30; proposed S0f. Owner: Codex implementation / ChatGPT review / owner consequential approvals. Migration/compatibility: server aggregation/filter and paginated export API compatibility.
+-- **Required result:** Use server-side date/outlet/status filters and authoritative aggregation endpoints for totals. Paginate all detailed exports or show explicit truncation. Do not fix this by simply requesting 200: that moves the silent cutoff rather than removing it.
+-- **Acceptance:** T23. With over 50, 200 and 1,000 orders, compare UI totals, shift recap and CSV exports against the full ledger for the selected period/outlet. Metadata and counts must agree.
+-- **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
++- **Current disposition:** E25 pagination-completeness implemented and locally verified; ChatGPT review pending. Parent A26/T23 and release gates remain open.
++- **Current evidence:** E25 (2026-09-21, same root/HEAD plus incremental diff). `packages/api/src/pagination.ts`; Backoffice `Reports.tsx`, `Orders.tsx`, `Dashboard.tsx`; POS `recapData.ts`, `ShiftRecapPanel.tsx`; `backend/internal/read/repo.go`; `pagination_integration_test.go`. A26_IMPLEMENTATION.diff identifies exact current lines; A26_VERIFICATION.json records actual checks.
++- **Authority / decision:** AUTH-MANDALIKA-20260919-01 and CG-A23-QUAL-A24-GUEST-20260921-01-R1. Complete bounded client retrieval; no summary-endpoint shortcut while A27 remains open. Existing date/status/payment/outlet semantics retained.
++- **Plan coverage:** explicit programme inclusion and current continuation A26; draft September21 pagination decision. Canonical status remains here.
++- **Dependencies / slice:** A27/A28 arithmetic/calendar and A31 global race remain separate/open. Codex implementation, ChatGPT review, owner consequential decisions. No migration. Version-marked recap caches avoid certifying old truncated snapshots; legacy bytes retained until successful fresh replacement.
++- **Required result:** Every named consumer receives all metadata-declared pages or visible failure, never successful prefix totals/export. Stable IDs, exact lengths, bounded requests, no partial cache writes. Server maximum200 unchanged; same-time rows have ID tie-breakers without changing primary timestamp order.
++- **Acceptance:** T23 and reply scenarios1–25; A26_VALIDATION_MATRIX.md maps all. Browser CSV/XLSX51/201/1000, Dashboard inputs, POS401 orders/flows and251 history, same-storage fallback; real DB metadata/scoping and TS reconstruction verified.
++- **Execution / residual risk:** E25 final POS258/BO50/sync33, types and affected Go checks pass;11 isolated DB scenarios pass. No Redis/concurrent-writer/native/printer/performance/release qualification. Offset pages are not a transaction snapshot; unchanged-count replacement can escape detection. First offline use with only legacy unmarked cache fails visibly until full fetch succeeds. Other report/export consumers outside the named slice still require T23 inventory. Stopped S0c cleanup policy block remains; no bypass. Full parent/gates open.
+ 
+ ### A27 — The backend summary subtracts refunded sales twice
+ 
+diff --git a/docs/AUDIT_RECONCILIATION_EVIDENCE.json b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+--- a/docs/AUDIT_RECONCILIATION_EVIDENCE.json
++++ b/docs/AUDIT_RECONCILIATION_EVIDENCE.json
+@@ -1,10 +1,10 @@
+ {
+   "schema_version": 2,
+   "latest_milestone": {
+-    "packet_id": "A23-QUAL-A24-GUEST-20260921-01",
++    "packet_id": "A26-PAGINATION-20260921-01",
+     "date": "2026-09-21",
+     "authorization": "AUTH-MANDALIKA-20260919-01",
+-    "reply_id": "CG-A23-SEMANTIC-KEYS-20260921-01-R1",
++    "reply_id": "CG-A23-QUAL-A24-GUEST-20260921-01-R1",
+     "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+     "branch": "prod-hardening",
+     "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
+@@ -72,15 +72,15 @@
+     ],
+     "changed_findings": [
+       "A23",
+-      "A24"
++      "A24",
++      "A26"
+     ],
+     "evidence": [
+-      "E21",
+-      "E22",
+-      "E23"
++      "E24",
++      "E25"
+     ],
+-    "verification_file": "A24_VERIFICATION.json",
+-    "closure": "No parent finding or release gate closed; A24 bounded implementation review pending",
++    "verification_file": "A26_VERIFICATION.json",
++    "closure": "No parent or release gate closed; A23/A24 scoped accepted; A26 bounded local verification review pending",
+     "historical_evidence": "Older objects retained unchanged; earlier evidence counts are not current verification"
+   },
+   "prior_documentation_milestone_MA_20260919_01": {
+@@ -1177,5 +1177,88 @@
+       "full A37 redaction",
+       "release qualification"
+     ]
++  },
++  "prior_milestone_A23_QUAL_A24_GUEST_20260921_01": {
++    "packet_id": "A23-QUAL-A24-GUEST-20260921-01",
++    "date": "2026-09-21",
++    "authorization": "AUTH-MANDALIKA-20260919-01",
++    "reply_id": "CG-A23-SEMANTIC-KEYS-20260921-01-R1",
++    "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
++    "branch": "prod-hardening",
++    "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
++    "tracker_ids": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A05",
++      "A06",
++      "A07",
++      "A08",
++      "A09",
++      "A10",
++      "A11",
++      "A12",
++      "A13",
++      "A14",
++      "A15",
++      "A16",
++      "A17",
++      "A18",
++      "A19",
++      "A20",
++      "A21",
++      "A22",
++      "A23",
++      "A24",
++      "A25",
++      "A26",
++      "A27",
++      "A28",
++      "A29",
++      "A30",
++      "A31",
++      "A32",
++      "A33",
++      "A34",
++      "A35",
++      "A36",
++      "A37",
++      "A38",
++      "A39",
++      "A40",
++      "A41",
++      "A42",
++      "A43",
++      "A44"
++    ],
++    "priority_counts": {
++      "P0": 8,
++      "P1": 32,
++      "P2": 3,
++      "P3": 1
++    },
++    "original_p0": [
++      "A01",
++      "A02",
++      "A03",
++      "A04",
++      "A06",
++      "A09",
++      "A11",
++      "A13"
++    ],
++    "changed_findings": [
++      "A23",
++      "A24"
++    ],
++    "evidence": [
++      "E21",
++      "E22",
++      "E23"
++    ],
++    "verification_file": "A24_VERIFICATION.json",
++    "closure": "No parent finding or release gate closed; A24 bounded implementation review pending",
++    "historical_evidence": "Older objects retained unchanged; earlier evidence counts are not current verification"
+   }
+ }
+diff --git a/docs/PRODUCTION_READINESS_PLAN.md b/docs/PRODUCTION_READINESS_PLAN.md
+--- a/docs/PRODUCTION_READINESS_PLAN.md
++++ b/docs/PRODUCTION_READINESS_PLAN.md
+@@ -9,7 +9,7 @@
+ review accepted by CG-S0D-ENVELOPE-A23-20260920-01-R1. LP05 identity containment
+ is scoped accepted by CG-A23-LP05-20260920-01-R1. A23-linked-fulfillment
+ is scoped ChatGPT accepted via the owner relay of 2026-09-21. Semantic promotion-key
+-validation is scoped accepted by CG-A23-SEMANTIC-KEYS-20260921-01-R1. A23 target/browser qualification and A24 guest containment have current E22/E23 evidence; A24 review is pending. Parent findings and release gates remain open. Historical scoped
++validation is scoped accepted by CG-A23-SEMANTIC-KEYS-20260921-01-R1. A23 target/browser qualification and A24 guest containment are scoped accepted by CG-A23-QUAL-A24-GUEST-20260921-01-R1 (E24). A26 pagination is locally verified (E25), review pending. Parent findings and release gates remain open. Historical scoped
+ authority statements below record their own runs; they do not restrict future phases.
+ Policy source: [decision draft](PRODUCTION_READINESS_DRAFT.md). This document
+ consolidates accepted decisions without treating proposed technical controls as
+@@ -473,27 +473,25 @@
+ catalog claim. Remediation of any flagged historical rule needs explicit reviewed
+ handling, never an automatic edit. A23/T21, A43/T25 and all release gates remain open.
+ 
+-### Current continuation — A23-QUAL-A24-GUEST-20260921-01
+-
+-E21 records scoped semantic-key acceptance. E22 qualifies actual browser Backoffice
+-semantic Save behavior and POS direct/code physical pickers using isolated synthetic
+-APIs. Explicit deployed-catalog read-only preflight found no semantic conflicts in1
+-row; role capability remains unknown after timeout. Native UI unavailable (no device/
+-AVD); broader promotion/quote/resource/release qualification remains open.
+-
+-E23 completes bounded ordinary guest capture: no customer gate, null identity, no
+-fake record or guest loyalty benefit; feature-specific code validation retained.
+-Capture rejects/clears an ineligible code and requires reconfirmation, keeping an
+-unrelated generic selection. Existing conservative physical cleanup on customer
+-change remains a UX residual. Real browser and six actual PostgreSQL direct/batch
+-cases verify ordinary guest capture, stock once, unchanged customer ledger and
+-same-key retry. Later guest attachment/merge corrections are not part of this slice.
+-
+-Next bounded proposal: A26 report/shift-recap pagination completeness. Trace actual
+-list contracts/callers, reproduce >50-record truncation in synthetic fixtures,
+-implement bounded complete retrieval or existing server aggregate path, preserve
+-outlet/filter/business-date semantics, and test empty/50/51/multi-page sets, late
+-responses, errors and totals. Keep A27 refund arithmetic and A28 business-time policy
+-separate unless source proves an inseparable dependency; return evidence then.
+-No consequential owner-policy question is currently needed for the completed slice.
+-Standing programme authority continues; no additional routine slice approval.
++### Current continuation — A26-PAGINATION-20260921-01
++
++E24 records scoped ChatGPT acceptance of E22 A23 target/browser qualification and
++E23 guest-sale containment. Native and both parents remain open. Prior source,
++evidence and decisions are preserved in their identified packets and tracker.
++
++E25 completes bounded pagination for Reports CSV/Transactions XLSX, Dashboard
++orders/products, and POS recap orders/flows/history. Metadata controls complete
++sequential retrieval, with explicit inconsistency/failure rejection. Complete recap
++cohorts replace caches only after success; historical unmarked caches cannot be
++certified complete. Timestamp-primary server ordering is retained with stable ID
++secondary ordering. Actual51/201/1000 browser and isolated database evidence is
++mapped in A26_VALIDATION_MATRIX.md; parent A26/T23 and release gates stay open.
++
++Concrete next bounded work: A27 existing summary arithmetic regression and narrow
++containment. `read/reports.go` still sums completed rows, then subtracts refunded
++rows again. First pin existing purchase-date/status contract with a completed100 /
++refunded30 fixture: retained completed revenue is100, not70. Verify empty/refund-only/
++mixed/outlet-filtered cases against PostgreSQL. Keep cross-day payout occurrence,
++exchange adjustments and A28 calendar design separate; do not change their meaning
++as an incidental SQL edit. Review the bounded contract before broader metrics work.
++Standing authority continues; no routine authorization request is needed.
+diff --git a/docs/PRODUCTION_READINESS_DRAFT.md b/docs/PRODUCTION_READINESS_DRAFT.md
+--- a/docs/PRODUCTION_READINESS_DRAFT.md
++++ b/docs/PRODUCTION_READINESS_DRAFT.md
+@@ -12,6 +12,20 @@
+ supersede earlier proposals. Execution authority comes from the standing record above.
+ 
+ ## Decision record
++
++### September 21 — A23/A24 scoped acceptance and A26 pagination contract
++
++CG-A23-QUAL-A24-GUEST-20260921-01-R1 accepts A23 target/browser qualification
++within E22 limits (native open), and A24 ordinary guest containment within E23.
++A23/T21 and A24/T22 stay open; prior decisions and scoped acceptances stand.
++
++A26 now retrieves complete metadata-bounded pages for the named report/dashboard/
++recap consumers. A later-page failure is an error or visibly stale complete cache,
++never a successful prefix. Raw financial operations and historical orders are not
++rewritten. Unknown legacy recap-cache completeness cannot be inferred; retain bytes
++but require one complete online load before certifying that snapshot for fallback.
++No A27 refund/net or A28 calendar definition changes, and no A31 global race claim.
++E25 evidence supports the bounded local milestone only; all release gates stay open.
+ 
+ ### September 21 — semantic-key acceptance and bounded guest-sale containment
+ 
+diff --git a/docs/AUDIT_REVIEW_PACKET.md b/docs/AUDIT_REVIEW_PACKET.md
+--- a/docs/AUDIT_REVIEW_PACKET.md
++++ b/docs/AUDIT_REVIEW_PACKET.md
+@@ -1,130 +1,122 @@
+-# Current review packet — A23-QUAL-A24-GUEST-20260921-01
++# Current review packet — A26-PAGINATION-20260921-01
+ 
+-Responds to **CG-A23-SEMANTIC-KEYS-20260921-01-R1**, read in full at
+-`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A23-SEMANTIC-KEYS-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A23-SEMANTIC-KEYS-20260921-01.md`.
+-Standing authority: AUTH-MANDALIKA-20260919-01. Root is the same mandalika-pos
+-worktree; branch `prod-hardening`; HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`.
+-Earlier tracked/untracked changes preserved. No fresh remote verification, commit,
+-push, deployment, credentials/provider changes or live-data mutation.
++Responds to **CG-A23-QUAL-A24-GUEST-20260921-01-R1**, read in full at
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A23-QUAL-A24-GUEST-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A23-QUAL-A24-GUEST-20260921-01.md`.
++Authority: **AUTH-MANDALIKA-20260919-01**. Same worktree and `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`. Entry dirty/untracked work
++preserved. Exact entry/current state and hashes: A26_REPOSITORY_STATE.json.
++No fresh remote comparison, commit/push, deployment or live-data change.
+ 
+ ## Disposition
+ 
+-E21 records scoped ChatGPT acceptance of A23 semantic-key validation within its
+-supplied evidence. Earlier mapper, envelope, LP05 and linked-fulfillment scoped
+-acceptances remain. **A23/T21, A24/T22 and every release gate remain open.**
+-All44 findings and original8 P0 priorities/dispositions are retained in the sole
+-AUDIT_COVERAGE_TRACKER.md. Only A23/A24 detailed finding rows changed this turn.
+-E22 qualification and E23 guest implementation are now submitted for ChatGPT review.
++E24 records scoped ChatGPT acceptance of A23 target/browser qualification and A24
++ordinary guest containment within supplied limits. Native remains open. Earlier
++mapper, envelope, LP05, linked fulfillment and semantic-key acceptances stand.
++**A23/T21, A24/T22, A26/T23 and all release gates remain open.** E25 A26 is locally
++verified and submitted for review. All44 findings and original8P0/32P1/3P2/1P3
++priorities remain. P0 A01/A02/A03/A04/A06/A09/A11/A13 dispositions are unchanged.
+ 
+-## E22 — qualification actually performed
++## Implementation
+ 
+-- Existing Google Cloud service secret reference resolved without printing secret
+-  values. Read-only promotion-key-preflight scanned **1 stored row, no semantic
+-  overlap findings**, exit0. Active/inactive rows are included by the diagnostic.
+-  A24_PREFLIGHT_TARGET.json contains only non-secret target descriptors/fingerprint.
+-  Current-source build matches the executed binary SHA256. Role-capability probe
+-  timed out35s: credential privilege is unknown, not certified read-only. The CLI
+-  enforces READ ONLY/REPEATABLE READ with30s timeout. No row changed/remediated.
+-  This target is the existing deployed catalog, not independently certified staging.
+-- Actual Chromium153 browser Backoffice authoring: both bundle whole/variant orders
+-  and BXGY overlap rejected visibly, zero invalid Save mutation calls, distinct
+-  variants save, interactive picker edits validate, duplicate/toggle retain config.
+-- Actual CashierScreen direct/linked bundle and separate-set BXGY picker cancellation,
+-  confirmation, takeover, removal, clear, participant invalidation and invalid legacy
+-  refusal passed. Four queue captures prove one effective selection/usage owner,
+-  raw code provenance, promotion-ID reward ownership and physical quantities.
+-- Browser APIs were synthetic/intercepted, with external requests blocked. This is
+-  real rendered interaction, not server-render-only testing or live financial E2E.
+-- Installed Android SDK/adb found, but no connected device or configured AVD.
+-  Native UI qualification unavailable; no toolchain installed.
++- Shared `fetchAllPages` requests200 rows/page and validates total/page/limit,
++  exact expected lengths and stable unique IDs. Requests follow metadata in order,
++  with a10,000-page ceiling. Short/empty/duplicate/drifting pages and later errors
++  reject the whole result; no prefix is exposed as complete.
++- Reports CSV/cards share complete filtered arrays; Dashboard orders/products are
++  complete. Errors are visible and exports disabled. Existing complete snapshots
++  may remain visibly stale. Date/status/payment/outlet semantics are unchanged.
++- Reports also renders `OrdersPanel`, which separately requested500 and exported
++  that prefix to XLSX. This necessary supporting caller now uses the same helper
++  and error/export guard. Refund actions and formulas are unchanged.
++- POS current/selected recap loads all orders AND flows; history loads all shifts.
++  Historical cash-in/out is now displayed and included in the existing print payload.
++  Existing aggregation remains unchanged. A detail-selection token prevents a slow
++  prior selection replacing the new selected cohort; no global A31 race claim.
++- Recap caches are written only after every constituent page succeeds. Failure
++  restores the last complete cohort with a stale notice. New caches carry
++  `completePagination:1`; legacy unmarked data stays stored but cannot be certified
++  complete. First offline use with only legacy cache requires a full online read.
++  This best-effort cache is not the financial journal; queued operations are untouched.
++- Backend orders/shifts/products/cash-flow SQL preserves primary timestamp order and
++  adds descending ID tie-breaks for deterministic equal-time pagination. Server cap,
++  authenticated scope and filters stay unchanged. No summary-endpoint workaround.
+ 
+-## E23 — A24 guest-sale containment
++## Actual results
+ 
+-Production edits are limited to CashierScreen.tsx and CustomerPicker.tsx:
+-ordinary active-shift/nonempty-cart checkout no longer requires a customer or shows
+-the obsolete required hint. Existing capture writes null customerId/customerName;
+-no fake Guest account. Existing service paths already support null identity.
++Before edit, rendered Reports with51/201/1000 available orders showed/exported50
++in every case. Actual PostgreSQL-backed handlers also confirm requests500/1000
++return50 while retaining full total metadata. The server cap remains unchanged.
+ 
+-Generic promotions/codes remain eligible. Existing validateCode rules reject
+-per-customer-capped and assigned codes for guests. At capture, an invalid code is
+-removed individually, preserving independent generic selections; the cashier must
+-reconfirm the clean total before an order is queued. Existing customer cleanup
+-removes loyalty rewards and redemption. A final capture guard refuses stale guest
+-loyalty state; reward picking requires a customer/configured loyalty/reachability.
+-Registered selection and customer_create flows remain functional.
++Final **341 JavaScript tests pass**: POS258, Backoffice50, sync33. Backoffice includes
++reconstruction of real PostgreSQL response pages through the production TS helper.
++App and explicit new-test typechecks pass. Six affected Go package checks pass;
++read has no standalone unit tests, but its SQL is exercised by integration.
+ 
+-No history rewriting, later attachment/merge correction, new loyalty policy,
+-authentication redesign, retry policy, resource compression, quote/receipt migration,
+-server production logic or database migration is included.
++**11 isolated PostgreSQL scenarios pass**:0/51/201/1000 scoped orders, old-cap
++behavior,251 shifts,401 cash flows,201 products, shift/date/outlet boundaries.
++Equal-time fixtures verify stable order; a cashier cannot escape scope with
++outletId=all. Ten real response datasets are retained for TS reconstruction.
+ 
+-## Actual verification
++Actual Chromium Reports CSV and Transactions XLSX contain51/201/1000 rows with
++Rp51,000/201,000/1,000,000 totals. Payment/status/date filters, shift CSV, Dashboard
++metrics and final-page low-stock product pass. Page2 errors retain a visible error
++and disable export. POS shows401 orders/401 flows and251 history rows, navigates
++past50, loads401 selected orders/flows, preserves cache bytes after failure, and
++reconstructs current/history after actual offline panel remount. Unit tests also
++cover selected-detail reconstruction and history-page2 failure using the same storage.
+ 
+-The before-fix **real browser** guest-gate regression throws on entry source and
+-passes unchanged after the edit. Final results:
++See **A26_VALIDATION_MATRIX.md** for review scenarios1–25 and **A26_VERIFICATION.json**
++for exact commands/cwd/status/output, failed attempts and limitations. Browser APIs
++were intercepted synthetic fixtures; CSV Blob text and actual XLSX parsing were
++checked. This is rendered UI wiring, not live financial/native/printer qualification.
+ 
+-- POS **250/250**, Backoffice **19/19**, sync **33/33**, printer **7/7**.
+-- Both app typechecks and explicit new-test typecheck pass.
+-- Seven affected Go package targets pass using local toolchain/dependency cache.
+-- Fresh isolated PostgreSQL18.3: **53 leaf scenarios** pass, comprising47 retained
+-  promotion scenarios plus6 guest/registered direct/batch cases. Real browser-captured
+-  cash/QRIS payload financial/customer fields feed actual authenticated handlers,
+-  services and PostgreSQL. Only per-case operation namespace changes in the fixture.
+-- Guest rows have customer_id NULL, zero points earned/redeemed, unchanged full
+-  customer/point-ledger snapshots, expected tender and stock once. Registered rows
+-  earn100 points. Each case has two same-body/key retries with no extra effects.
+-- Browser guest receipts/success and queue reconstruction contain no stale identity;
+-  transport-independent guest receipt/reprint bytes pass. No physical printer test.
++Intermediate failures remain recorded: DB product fixtures lacked required variants
++(existing outlet filter correctly hid them); explicit types caught malformed it.each
++cases; the root typecheck could not resolve app-local Node types; browser probes
++needed observed controls, whitespace normalization and fresh interceptors after
++XLSX capture/HMR. Corrected final checks pass; old failures were not overwritten.
+ 
+-A24_VERIFICATION.json gives commands, absolute cwd, exit/output, corrections/skips.
+-A24_VALIDATION_MATRIX.md maps all17 review scenarios and Q1 qualification layers.
+-General Go runs skip four opt-in DB harnesses without environment; the extended
+-LF/SK/guest fixture ran separately. BE/sale-input/shift-decode DB suites were not
+-rerun this turn; their non-DB checks passed. No native power-loss, Redis races,
+-real payment settlement or production-artifact qualification is claimed.
++## Safeguards and limitations
+ 
+-Initial typecheck caught one obsolete callback reference; fixed and final checks
+-pass. Browser selector/fixture corrections and the initial pg_ctl pipe-inheritance
+-runner issue are preserved in results. Both new fixture directories are stopped /
+-retained. **The earlier S0c database-cleanup policy block remains recorded; no
+-bypass, retry or deletion was attempted.**
++Both fresh PostgreSQL18.3 fixtures used exact loopback host/port56443/database/user,
++verified data_directory and empty public schema before existing migrations. Both
++are stopped and retained. **Earlier policy-blocked S0c cleanup stays stopped; no
++retry or bypass.** No live DB/secrets/provider access, new migration, dependency
++installation or historical financial mutation. Local Vite servers were stopped
++with intentional Ctrl+C after checks (their exit1 is not a test failure).
+ 
+-## Residuals and consequential questions
++Ordinary Go runs skipped other opt-in DB suites because their fixture environment
++was absent; prior A23/A24 DB/browser/native evidence was not rerun. A26 DB ran
++separately. No Redis/concurrent-writer/native/printer/performance/release qualification.
++Offset pages are not a transaction snapshot: detected drift fails, but same-count
++replacement can escape detection. A31 global outlet/poll race remains. Full retrieval
++still loads data into client memory and the explicit safety ceiling fails visibly.
++Other reporting/export consumers still need remaining T23 inventory; no full A26 closure.
++A27 arithmetic, A28 calendar semantics, Q08 stock warning/override and earlier business
++policies are unchanged. An existing Backoffice label association issue observed by
++browser probes was left outside this slice. No Q01–Q10 recommendation was implemented.
+ 
+-No new business decision is needed for this bounded slice. One existing UX residual
+-is explicit: changing/clearing a customer conservatively restores/removes physical
+-bundle/BXGY selections as well as loyalty. Generic percentage/fixed selections can
+-survive. Missing/expired promotion branches may still clear the full selection.
+-Keeping financial safety was the reviewed permitted boundary; later selective
+-revalidation can improve this UX without assuming captured facts may be rewritten.
++## Review and next bounded work
+ 
+-Target scan covers semantic overlap only. Native qualification, complete malformed
+-mechanics coverage, other enabled-type parity, captured quote/receipt consistency,
+-guest historical attachment/merge, native durability and all parent/release gates
+-stay open. Q08 stock warning/override is unchanged; original approval excerpts are
+-included as preserved context. No Q01–Q10 policy recommendations were implemented.
++Review E25 against completeness/cache scenarios, including the supporting Transactions
++caller, stable tie-breaks and explicit legacy-cache qualification. No consequential
++business decision blocked this slice; no generic authorization request is needed.
+ 
+-ChatGPT review request: assess E22 qualification limits and E23 containment against
+-the17 scenarios. Do not infer full A23/A24 or release closure from these results.
++Next: **A27 existing summary arithmetic containment**. Current read/reports.go sums
++completed rows and then subtracts refunded rows again. Start with a completed100 /
++refunded30 isolated regression: retained completed revenue is100, not70. Recommend
++removing the second subtraction under the existing purchase-date/status basis,
++keeping refunds separately visible; test empty/refund-only/mixed/outlet cases.
++Cross-day payouts, exchange adjustments and A28 calendar meaning require separate
++contract work and must not be invented inside that correction.
+ 
+-## Concrete next bounded work
++## Artifacts
+ 
+-Recommend **A26 report/shift-recap pagination completeness**: inspect current list
+-contracts/callers; reproduce51+ records; implement complete bounded retrieval or
+-existing aggregate path while preserving outlet/filter/date semantics; test empty,
+-50,51,multi-page totals, failed pages and stale responses. Keep A27 arithmetic and
+-A28 business-time decisions separate unless actual source shows an inseparable
+-contract, then return evidence/options/recommendation. No generic phase approval
+-is required under standing authority.
+-
+-## Review artifacts
+-
+-One current ZIP: `A23-QUAL-A24-GUEST-20260921-01_REVIEW_BUNDLE.zip`.
+-A24_IMPLEMENTATION.diff and A24_DOCUMENTATION.diff are incremental from the exact
+-turn-entry snapshot, not HEAD (HEAD has earlier uncommitted programme changes).
+-A24_BEFORE_FIX.diff contains the browser regression probe. Exact changed/new source,
+-tests, relevant context, before/after documentation, full canonical tracker,
+-reconciliation evidence, browser/queue/receipt outputs and manifest are included.
+-Patches replay on LF-normalized before-images; exact byte-image hashes are retained.
+-The handoff patch adds only this prefix; historical handoff suffix is byte-preserved
+-and omitted from the archive to avoid copying unrelated historical sensitive text.
+-A24_REPOSITORY_STATE.json and A24_ARTIFACT_CHECKS.json record preservation/replay.
++Current ZIP: `A26-PAGINATION-20260921-01_REVIEW_BUNDLE.zip`.
++A26_IMPLEMENTATION.diff and A26_DOCUMENTATION.diff are incremental from exact turn
++entry, not HEAD. Raw before/after images and SHA256 manifest are included; patches
++replay on LF-normalized before-images. A26_BEFORE_FIX.diff contains the executed
++browser truncation probe. Full tracker/reconciliation JSON, changed/new source/tests,
++actual browser/database evidence and relevant untracked context are bundled.
++SESSION_HANDOFF adds this packet as a prefix; historical suffix bytes are preserved
++and excluded from the bundle with their hash recorded.
+diff --git a/docs/A26_VALIDATION_MATRIX.md b/docs/A26_VALIDATION_MATRIX.md
+new file mode 100644
+--- /dev/null
++++ b/docs/A26_VALIDATION_MATRIX.md
+@@ -0,0 +1,30 @@
++# A26 acceptance evidence — A26-PAGINATION-20260921-01
++
++Contract: CG-A23-QUAL-A24-GUEST-20260921-01-R1 §5. Local verification, review pending.
++
++| Scenarios | Actual evidence | Result / limits |
++|---|---|---|
++| Before fix | Rendered Reports with51/201/1000 available rows; CSV and visible counts50. Actual Go handler requests500/1000 also return50 with correct total metadata. | Reproduced; server cap deliberately unchanged. |
++| 1–2 | Production shared helper:0/1/50/51/200/201/401/1000, exact IDs/order/call sequence. | Pass; empty dataset makes one request. |
++| 3–7 | Rejected page2, short/empty pages, duplicate/missing IDs, total/limit/page drift, malformed metadata, oversized total. | Pass; no partial return. Explicit10,000-page safety ceiling (2,000,000 rows); over-limit fails. |
++| 8–10 | Real Reports CSV and visible totals51/201/1000, Rp51,000/201,000/1,000,000. | Pass with synthetic API; same fOrders feeds CSV and cards. |
++| 11 | Browser payment/status/date filtering plus fixed-period dashboard test. Real DB shift/date/outlet filters. | Pass; existing filter/calendar arithmetic unchanged. |
++| 12 | Real shift CSV51/201/1000. | Pass. |
++| 13 | Page2 error: prior complete1000 rows retained with error; CSV disabled. Transactions XLSX separately same behavior. | Pass; no prefix exported. |
++| 14–16 | Dashboard51/201/1000 KPIs, payment/ranking and rendered trends; pure metrics verify exact all-input sums. Product201 on final page is out of stock and shown. | Pass. Time/calendar implementations byte-unchanged. |
++| 17–20 | Actual POS recap401 orders/401 flows,251 history, navigate to Historical60,401 selected orders and flows. | Pass. Historical flows newly loaded/displayed and included in recap print data. |
++| 21–22 | Real browser page2 failure retains identical cache bytes with stale notice; actual panel remount reconstructs active/history offline. Unit tests also reconstruct selected details and fail history page2 using the same storage. | Pass; cache write only after all constituent pages succeed. Legacy unmarked cache remains stored but cannot certify completeness; requires first successful full online load. |
++| 23–25 | Fresh isolated PostgreSQL18.3; actual authenticated read handlers;0/51/201/1000 scoped orders,251 shifts,401 flows,201 products; token-scope resists cashier outletId=all; foreign shift empty. Saved actual JSON is reconstructed by production TS helper. | 11 Go scenarios pass;10 response datasets. Equal-time fixtures verify stable ID tie-breakers. Redis disabled in fixture. |
++| Supporting caller | Real Reports Transactions tab XLSX51/201/1000 parsed with actual XLSX library; totals and error disable. | Pass; no refund action changed. |
++
++Final frontend checks: POS258, Backoffice50 (including real PostgreSQL response
++reconstruction), sync33. App and explicit new-test typechecks pass. Six affected Go
++package commands pass (read has no ordinary tests; read SQL covered by fixture).
++See A26_VERIFICATION.json for exact commands/cwd/exit/output and failed attempts.
++
++Not verified: transactional snapshots under concurrent writes, Redis cache churn,
++native interaction/storage, real printer, release artifact or large-catalog performance.
++Offset pagination can miss undetectable same-count row replacement; detected drift
++fails. Global outlet/poll race A31 remains open. A27 arithmetic and A28 calendars
++were not changed. Full A26/T23 and all release gates remain open pending review and
++remaining qualification; no parent closure follows from these local checks.
+diff --git a/SESSION_HANDOFF.md b/SESSION_HANDOFF.md
+--- a/SESSION_HANDOFF.md
++++ b/SESSION_HANDOFF.md
+@@ -0,0 +1,125 @@
++# Current review packet — A26-PAGINATION-20260921-01
++
++Responds to **CG-A23-QUAL-A24-GUEST-20260921-01-R1**, read in full at
++`C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/review-inbox/CG-A23-QUAL-A24-GUEST-20260921-01-R1/CHATGPT_REVIEW_RESPONSE_A23-QUAL-A24-GUEST-20260921-01.md`.
++Authority: **AUTH-MANDALIKA-20260919-01**. Same worktree and `prod-hardening`;
++HEAD `4691c781842f0114acaf2e4371e0d11f0076f553`. Entry dirty/untracked work
++preserved. Exact entry/current state and hashes: A26_REPOSITORY_STATE.json.
++No fresh remote comparison, commit/push, deployment or live-data change.
++
++## Disposition
++
++E24 records scoped ChatGPT acceptance of A23 target/browser qualification and A24
++ordinary guest containment within supplied limits. Native remains open. Earlier
++mapper, envelope, LP05, linked fulfillment and semantic-key acceptances stand.
++**A23/T21, A24/T22, A26/T23 and all release gates remain open.** E25 A26 is locally
++verified and submitted for review. All44 findings and original8P0/32P1/3P2/1P3
++priorities remain. P0 A01/A02/A03/A04/A06/A09/A11/A13 dispositions are unchanged.
++
++## Implementation
++
++- Shared `fetchAllPages` requests200 rows/page and validates total/page/limit,
++  exact expected lengths and stable unique IDs. Requests follow metadata in order,
++  with a10,000-page ceiling. Short/empty/duplicate/drifting pages and later errors
++  reject the whole result; no prefix is exposed as complete.
++- Reports CSV/cards share complete filtered arrays; Dashboard orders/products are
++  complete. Errors are visible and exports disabled. Existing complete snapshots
++  may remain visibly stale. Date/status/payment/outlet semantics are unchanged.
++- Reports also renders `OrdersPanel`, which separately requested500 and exported
++  that prefix to XLSX. This necessary supporting caller now uses the same helper
++  and error/export guard. Refund actions and formulas are unchanged.
++- POS current/selected recap loads all orders AND flows; history loads all shifts.
++  Historical cash-in/out is now displayed and included in the existing print payload.
++  Existing aggregation remains unchanged. A detail-selection token prevents a slow
++  prior selection replacing the new selected cohort; no global A31 race claim.
++- Recap caches are written only after every constituent page succeeds. Failure
++  restores the last complete cohort with a stale notice. New caches carry
++  `completePagination:1`; legacy unmarked data stays stored but cannot be certified
++  complete. First offline use with only legacy cache requires a full online read.
++  This best-effort cache is not the financial journal; queued operations are untouched.
++- Backend orders/shifts/products/cash-flow SQL preserves primary timestamp order and
++  adds descending ID tie-breaks for deterministic equal-time pagination. Server cap,
++  authenticated scope and filters stay unchanged. No summary-endpoint workaround.
++
++## Actual results
++
++Before edit, rendered Reports with51/201/1000 available orders showed/exported50
++in every case. Actual PostgreSQL-backed handlers also confirm requests500/1000
++return50 while retaining full total metadata. The server cap remains unchanged.
++
++Final **341 JavaScript tests pass**: POS258, Backoffice50, sync33. Backoffice includes
++reconstruction of real PostgreSQL response pages through the production TS helper.
++App and explicit new-test typechecks pass. Six affected Go package checks pass;
++read has no standalone unit tests, but its SQL is exercised by integration.
++
++**11 isolated PostgreSQL scenarios pass**:0/51/201/1000 scoped orders, old-cap
++behavior,251 shifts,401 cash flows,201 products, shift/date/outlet boundaries.
++Equal-time fixtures verify stable order; a cashier cannot escape scope with
++outletId=all. Ten real response datasets are retained for TS reconstruction.
++
++Actual Chromium Reports CSV and Transactions XLSX contain51/201/1000 rows with
++Rp51,000/201,000/1,000,000 totals. Payment/status/date filters, shift CSV, Dashboard
++metrics and final-page low-stock product pass. Page2 errors retain a visible error
++and disable export. POS shows401 orders/401 flows and251 history rows, navigates
++past50, loads401 selected orders/flows, preserves cache bytes after failure, and
++reconstructs current/history after actual offline panel remount. Unit tests also
++cover selected-detail reconstruction and history-page2 failure using the same storage.
++
++See **A26_VALIDATION_MATRIX.md** for review scenarios1–25 and **A26_VERIFICATION.json**
++for exact commands/cwd/status/output, failed attempts and limitations. Browser APIs
++were intercepted synthetic fixtures; CSV Blob text and actual XLSX parsing were
++checked. This is rendered UI wiring, not live financial/native/printer qualification.
++
++Intermediate failures remain recorded: DB product fixtures lacked required variants
++(existing outlet filter correctly hid them); explicit types caught malformed it.each
++cases; the root typecheck could not resolve app-local Node types; browser probes
++needed observed controls, whitespace normalization and fresh interceptors after
++XLSX capture/HMR. Corrected final checks pass; old failures were not overwritten.
++
++## Safeguards and limitations
++
++Both fresh PostgreSQL18.3 fixtures used exact loopback host/port56443/database/user,
++verified data_directory and empty public schema before existing migrations. Both
++are stopped and retained. **Earlier policy-blocked S0c cleanup stays stopped; no
++retry or bypass.** No live DB/secrets/provider access, new migration, dependency
++installation or historical financial mutation. Local Vite servers were stopped
++with intentional Ctrl+C after checks (their exit1 is not a test failure).
++
++Ordinary Go runs skipped other opt-in DB suites because their fixture environment
++was absent; prior A23/A24 DB/browser/native evidence was not rerun. A26 DB ran
++separately. No Redis/concurrent-writer/native/printer/performance/release qualification.
++Offset pages are not a transaction snapshot: detected drift fails, but same-count
++replacement can escape detection. A31 global outlet/poll race remains. Full retrieval
++still loads data into client memory and the explicit safety ceiling fails visibly.
++Other reporting/export consumers still need remaining T23 inventory; no full A26 closure.
++A27 arithmetic, A28 calendar semantics, Q08 stock warning/override and earlier business
++policies are unchanged. An existing Backoffice label association issue observed by
++browser probes was left outside this slice. No Q01–Q10 recommendation was implemented.
++
++## Review and next bounded work
++
++Review E25 against completeness/cache scenarios, including the supporting Transactions
++caller, stable tie-breaks and explicit legacy-cache qualification. No consequential
++business decision blocked this slice; no generic authorization request is needed.
++
++Next: **A27 existing summary arithmetic containment**. Current read/reports.go sums
++completed rows and then subtracts refunded rows again. Start with a completed100 /
++refunded30 isolated regression: retained completed revenue is100, not70. Recommend
++removing the second subtraction under the existing purchase-date/status basis,
++keeping refunds separately visible; test empty/refund-only/mixed/outlet cases.
++Cross-day payouts, exchange adjustments and A28 calendar meaning require separate
++contract work and must not be invented inside that correction.
++
++## Artifacts
++
++Current ZIP: `A26-PAGINATION-20260921-01_REVIEW_BUNDLE.zip`.
++A26_IMPLEMENTATION.diff and A26_DOCUMENTATION.diff are incremental from exact turn
++entry, not HEAD. Raw before/after images and SHA256 manifest are included; patches
++replay on LF-normalized before-images. A26_BEFORE_FIX.diff contains the executed
++browser truncation probe. Full tracker/reconciliation JSON, changed/new source/tests,
++actual browser/database evidence and relevant untracked context are bundled.
++SESSION_HANDOFF adds this packet as a prefix; historical suffix bytes are preserved
++and excluded from the bundle with their hash recorded.
++
++---
++

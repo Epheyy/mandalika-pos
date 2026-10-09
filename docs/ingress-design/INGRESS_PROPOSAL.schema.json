@@ -1,0 +1,386 @@
+{
+  "type": "object",
+  "required": [
+    "schema_version",
+    "document_kind",
+    "packet_id",
+    "status",
+    "activation_ready",
+    "project",
+    "region",
+    "canonical_hostname",
+    "accepted_source_sha",
+    "deployed_source_equal",
+    "choice",
+    "runtime_trust_approved",
+    "resources",
+    "header_writer",
+    "routes",
+    "identity_contract",
+    "gates",
+    "administration",
+    "authenticated_origin_alternative",
+    "migration_constraints",
+    "proof_class"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "document_kind": {
+      "type": "string"
+    },
+    "packet_id": {
+      "type": "string"
+    },
+    "status": {
+      "const": "proposed-not-applied"
+    },
+    "activation_ready": {
+      "const": false
+    },
+    "project": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "canonical_hostname": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "accepted_source_sha": {
+      "type": "string"
+    },
+    "deployed_source_equal": {
+      "type": "null"
+    },
+    "choice": {
+      "type": "string"
+    },
+    "runtime_trust_approved": {
+      "const": false
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "type",
+          "id",
+          "existence",
+          "settings"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "existence": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "header_writer": {
+      "type": "object",
+      "required": [
+        "resource_role",
+        "feature",
+        "name",
+        "value",
+        "operation",
+        "url_map_same_name_actions",
+        "other_writers",
+        "meaning",
+        "future_protocol_checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "resource_role": {
+          "type": "string"
+        },
+        "feature": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "url_map_same_name_actions": {
+          "type": "array",
+          "items": {}
+        },
+        "other_writers": {
+          "type": "array",
+          "items": {}
+        },
+        "meaning": {
+          "type": "string"
+        },
+        "future_protocol_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "current_evidence",
+          "disposition",
+          "mechanism",
+          "gate",
+          "future_proof",
+          "operational_proof"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "current_evidence": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "mechanism": {
+            "type": "string"
+          },
+          "gate": {
+            "type": "string"
+          },
+          "future_proof": {
+            "type": "string"
+          },
+          "operational_proof": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "identity_contract": {
+      "type": "object",
+      "required": [
+        "single_value",
+        "max_ascii_bytes",
+        "trim",
+        "allow_ports",
+        "allow_zones",
+        "allow_commas",
+        "ipv4_mapped",
+        "raw_peer",
+        "attacker_header_fallback",
+        "missing_identity_status",
+        "unqualified_route_status",
+        "valid_redis_error",
+        "application_auth"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "single_value": {
+          "type": "boolean"
+        },
+        "max_ascii_bytes": {
+          "type": "integer"
+        },
+        "trim": {
+          "type": "boolean"
+        },
+        "allow_ports": {
+          "type": "boolean"
+        },
+        "allow_zones": {
+          "type": "boolean"
+        },
+        "allow_commas": {
+          "type": "boolean"
+        },
+        "ipv4_mapped": {
+          "type": "string"
+        },
+        "raw_peer": {
+          "type": "string"
+        },
+        "attacker_header_fallback": {
+          "type": "boolean"
+        },
+        "missing_identity_status": {
+          "type": "integer"
+        },
+        "unqualified_route_status": {
+          "type": "integer"
+        },
+        "valid_redis_error": {
+          "type": "string"
+        },
+        "application_auth": {
+          "type": "string"
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "fact",
+          "state"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fact": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "administration": {
+      "type": "object",
+      "required": [
+        "owners",
+        "privileged_permissions",
+        "drift_controls"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owners": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "privileged_permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "drift_controls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "authenticated_origin_alternative": {
+      "type": "object",
+      "required": [
+        "choice",
+        "status",
+        "new_shared_secret",
+        "public_frontend",
+        "origin_identity",
+        "exact_backend_service_id",
+        "blockers"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "choice": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "new_shared_secret": {
+          "type": "boolean"
+        },
+        "public_frontend": {
+          "type": "string"
+        },
+        "origin_identity": {
+          "type": "string"
+        },
+        "exact_backend_service_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "migration_constraints": {
+      "type": "object",
+      "required": [
+        "legacy_shutdown_before_fleet_proof",
+        "redirect_credentials_or_writes",
+        "logout_or_storage_reset",
+        "rewrite_queued_ids_payloads",
+        "native_updater_origin",
+        "rollback_order"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "legacy_shutdown_before_fleet_proof": {
+          "type": "boolean"
+        },
+        "redirect_credentials_or_writes": {
+          "type": "boolean"
+        },
+        "logout_or_storage_reset": {
+          "type": "boolean"
+        },
+        "rewrite_queued_ids_payloads": {
+          "type": "boolean"
+        },
+        "native_updater_origin": {
+          "type": "string"
+        },
+        "rollback_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "proof_class": {
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mandalika:review:ingress-proposal:1",
+  "title": "Non-applying ingress proposal; semantic checker also required",
+  "$comment": "Design shape only; never operational approval. Resource settings vary by resource role."
+}

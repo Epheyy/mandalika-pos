@@ -1,0 +1,15 @@
+{
+  "packet_id": "A34D-HOSTED-PROOF-20260922-01",
+  "zip": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\A34D-HOSTED-PROOF-20260922-01_REVIEW_BUNDLE.zip",
+  "bytes": 537622,
+  "sha256": "2d91bd009826d5a2f8e58f788893581c0b3ca64807f6547eb58334ab8b107e96",
+  "payloads": 90,
+  "manifest_matches": true,
+  "archive_integrity": "pass",
+  "secret_path_scan": "pass",
+  "all_44_tracker_entries_retained": true,
+  "all_old_zip_hashes_preserved": true,
+  "index_empty": true,
+  "all_four_final_sha_pass": true,
+  "local_reporting_afterimages_uncommitted": true
+}

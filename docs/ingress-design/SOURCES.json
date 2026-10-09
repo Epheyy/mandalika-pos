@@ -1,0 +1,111 @@
+{
+  "public_sources_only": true,
+  "observed_date": "2026-09-28",
+  "sources": [
+    {
+      "id": "headers",
+      "url": "https://docs.cloud.google.com/load-balancing/docs/https/custom-headers-global",
+      "retrieved_utc": "2026-09-28T09:54:04.791112+00:00",
+      "bytes": 224231,
+      "sha256": "6c95e84d2fc076936d55d21b20e0e402be7ab476a6adedeefe5a934d8ee044bf",
+      "file": "headers.html"
+    },
+    {
+      "id": "ingress",
+      "url": "https://docs.cloud.google.com/run/docs/securing/ingress",
+      "retrieved_utc": "2026-09-28T09:54:04.772799+00:00",
+      "bytes": 263287,
+      "sha256": "ca738bf14e05328c195ace53568550c3dcdad3713f7d23d85488b6e42f34be73",
+      "file": "ingress.html"
+    },
+    {
+      "id": "neg",
+      "url": "https://docs.cloud.google.com/load-balancing/docs/negs/serverless-neg-concepts",
+      "retrieved_utc": "2026-09-28T09:54:04.681636+00:00",
+      "bytes": 217760,
+      "sha256": "f1bd211435d9cd19dcd43d9476700ccba7f39a5d36d9698e794d31325a8b46bd",
+      "file": "neg.html"
+    },
+    {
+      "id": "iap-public",
+      "url": "https://docs.cloud.google.com/iap/docs/managing-access",
+      "retrieved_utc": "2026-09-28T09:54:04.612477+00:00",
+      "bytes": 169302,
+      "sha256": "6e68946be6d4ef192d29771eba3138186e4581614f7c666498c6c03bdccf0fbe",
+      "file": "iap-public.html"
+    },
+    {
+      "id": "iap-origin",
+      "url": "https://docs.cloud.google.com/iap/docs/enabling-cloud-run",
+      "retrieved_utc": "2026-09-28T09:54:05.679100+00:00",
+      "bytes": 151917,
+      "sha256": "7d80baa967bdfd746769a81a104a178969f3b0a7e7369cb1456be8be3b263cae",
+      "file": "iap-origin.html"
+    },
+    {
+      "id": "iap-assertion",
+      "url": "https://docs.cloud.google.com/iap/docs/signed-headers-howto",
+      "retrieved_utc": "2026-09-28T09:54:05.974640+00:00",
+      "bytes": 307260,
+      "sha256": "a576fc0700ccf22b88ebe805060e023c9209faf68f123870c18600bbccd382b6",
+      "file": "iap-assertion.html"
+    },
+    {
+      "id": "iap-auth",
+      "url": "https://docs.cloud.google.com/iap/docs/authentication-howto",
+      "retrieved_utc": "2026-09-28T09:54:05.961507+00:00",
+      "bytes": 294731,
+      "sha256": "5750be553eb4845349b7961ae251e7493980b299e52706888318678f2098037b",
+      "file": "iap-auth.html"
+    },
+    {
+      "id": "run-auth",
+      "url": "https://docs.cloud.google.com/run/docs/authenticating/service-to-service",
+      "retrieved_utc": "2026-09-28T09:54:06.150022+00:00",
+      "bytes": 362936,
+      "sha256": "633aaf8c882e566ef39d36ee42b04540fd283565400f7d3cfa493e629cafeae2",
+      "file": "run-auth.html"
+    },
+    {
+      "id": "iap-price",
+      "url": "https://cloud.google.com/iap/pricing",
+      "retrieved_utc": "2026-09-28T09:54:07.131852+00:00",
+      "bytes": 2180766,
+      "sha256": "8dbb4b4a9b49712d6f0274e2583bb00061d43e048ce22857eaca5386aa0f6d2a",
+      "file": "iap-price.html"
+    },
+    {
+      "id": "dns-price",
+      "url": "https://cloud.google.com/dns/pricing",
+      "retrieved_utc": "2026-09-28T09:54:07.587224+00:00",
+      "bytes": 2235198,
+      "sha256": "049847477661dd6f2342dbe93277ddcd37758902fbae82a20ed26ee36c9bc998",
+      "file": "dns-price.html"
+    },
+    {
+      "id": "cert-price",
+      "url": "https://cloud.google.com/certificate-manager/pricing",
+      "retrieved_utc": "2026-09-28T09:54:07.332566+00:00",
+      "bytes": 2193549,
+      "sha256": "f3597b02dd15b50eff7b8e7d4865cb7f2e9816e9a3b1f4e1052b52f96185232a",
+      "file": "cert-price.html"
+    },
+    {
+      "id": "network-price",
+      "url": "https://cloud.google.com/vpc/network-pricing",
+      "retrieved_utc": "2026-09-28T09:54:07.590068+00:00",
+      "bytes": 3808934,
+      "sha256": "98121239e737ebbf77e48d681b29f4d9f11fcece6c0771d741e18139c2eb0095",
+      "file": "network-pricing.html"
+    }
+  ],
+  "price_regional_extraction": "evidence/public/jakarta-lb-price-extract.json",
+  "evidence_limits": [
+    "public documentation is not an observation of the project topology",
+    "dynamic HTML hashes include site chrome; structured Jakarta rows retained",
+    "IAP public custom-Authorization behavior unresolved",
+    "Cloud Run default URI Terraform section mentions Preview; support and tag/internal coverage require qualification"
+  ],
+  "packaged_evidence": "evidence/public/source-evidence.json (paraphrased facts and original HTML hashes); exact Jakarta regional JSON retained",
+  "raw_html_in_bundle": false
+}

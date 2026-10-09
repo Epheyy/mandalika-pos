@@ -1,0 +1,1979 @@
+diff --git a/apps/pos/src/cashier/CashierScreen.tsx b/apps/pos/src/cashier/CashierScreen.tsx
+--- a/apps/pos/src/cashier/CashierScreen.tsx
++++ b/apps/pos/src/cashier/CashierScreen.tsx
+@@ -42,10 +42,11 @@
+ import { buildPromotionMetadata } from './promotionMetadata'
+ import { applyPendingStock, stockFor } from './stock'
+ import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
+-import { calcPromoDiscount, bxgyRewardDue, bxgyRewardOptions, bundleApplications, keyMatchesLine, type BXGYRewardOption } from './pricing'
++import { calcPromoDiscount, bxgyRewardDue } from './pricing'
++import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
+ import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
+ import { BundleSlotPicker } from './BundleSlotPicker'
+-import { computeBundleFreed, shouldRemoveBundle, type BundleAssignment } from './bundle'
++import type { BundleAssignment } from './bundle'
+ import { api, authStore } from '../api'
+ import { reportErrors } from '../lib/errorReporter'
+ import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
+@@ -243,22 +244,8 @@
+   >([])
+   const [rewardsLoading, setRewardsLoading] = useState(false)
+ 
+-  // SP-Promo-3b reward fulfillment: separate-set buy_x_get_y reward picker.
+-  // Holds the promo + resolved options + reward units due while the cashier
+-  // chooses which variant(s) to take.
+-  const [bxgyReward, setBxgyReward] = useState<{
+-    promo: components['schemas']['Promotion']
+-    options: BXGYRewardOption[]
+-    due: number
+-  } | null>(null)
+-
+-  // SP-Promo-3b-bundle: slot picker for a bundle with AMBIGUOUS slots (more
+-  // eligible cart units than a slot needs). Holds the promo + its config while
+-  // the cashier chooses which units fill each ambiguous slot.
+-  const [bundlePicker, setBundlePicker] = useState<{
+-    promo: components['schemas']['Promotion']
+-    cfg: NonNullable<components['schemas']['Promotion']['bundleConfig']>
+-  } | null>(null)
++  // Pending picker context has no effect on the sale until confirmed.
++  const [pendingFulfillment, setPendingFulfillment] = useState<(Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: components['schemas']['Product'][] }) | null>(null)
+ 
+   useEffect(() => {
+     if (
+@@ -415,202 +402,38 @@
+   const handleClearReward = (conditionId: string) =>
+     dispatch({ type: 'CART_REMOVE_REWARD', rewardConditionId: conditionId })
+ 
+-  // SP-Promo-3b: selecting a promotion. For SEPARATE-SET buy_x_get_y the saving
+-  // is a reward giveaway, not an in-place discount — applying must resolve which
+-  // reward variant(s) the paid cart earns. One option + exactly one unit due →
+-  // auto-add; otherwise open the picker. Toggling OFF an already-applied promo
+-  // (or any non-separate-set promo) falls through to the plain reducer toggle,
+-  // which the reactive-removal effect cleans reward lines for.
+-  const handleSelectPromotion = (
+-    promo: components['schemas']['Promotion'],
+-  ) => {
+-    // SP-Promo-3b-bundle: a bundle MOVES paid units into reward lines. Toggling
+-    // an already-applied bundle off falls through to the plain reducer toggle
+-    // (which restores). Applying: if any slot has more eligible units than it
+-    // needs, the cashier picks which fill it (free choice) → open the picker;
+-    // otherwise the consumed set is unambiguous → compute + apply directly.
+-    if (promo.type === 'bundle') {
+-      const bundleAlreadyApplied = state.appliedPromotions.some((p) => p.id === promo.id)
+-      if (bundleAlreadyApplied) {
+-        dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+-        return
+-      }
+-      const bcfg = promo.bundleConfig
+-      if (!bcfg) return
+-      const paidLines = state.cart.filter((c) => !c.isReward)
+-      const nApp = bundleApplications(bcfg, paidLines)
+-      if (nApp < 1) return // gate should have blocked this; defensive no-op
+-      const ambiguous = bcfg.slots.some((slot) => {
+-        const need = nApp * slot.quantity
+-        const units = paidLines.reduce(
+-          (n, it) =>
+-            keyMatchesLine(slot.productKeys, it.productId, it.variantSize)
+-              ? n + it.quantity
+-              : n,
+-          0,
+-        )
+-        return units > need
+-      })
+-      if (ambiguous) {
+-        setBundlePicker({ promo, cfg: bcfg })
+-        return
+-      }
+-      const freed = computeBundleFreed(bcfg, paidLines)
+-      if (!freed) return
+-      dispatch({ type: 'APPLY_BUNDLE', promotion: promo, freed, applications: nApp })
+-      return
+-    }
+-    const cfg = promo.bxgyConfig
+-    const isSeparateSet =
+-      promo.type === 'buy_x_get_y' && (cfg?.getProductIds ?? []).length > 0
+-    const isApplied = state.appliedPromotions.some((p) => p.id === promo.id)
+-    if (!isSeparateSet || isApplied) {
+-      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+-      return
+-    }
+-    const paidLines = state.cart.filter((c) => !c.isReward)
+-    const due = bxgyRewardDue(cfg, paidLines)
+-    if (due < 1) return // gate should have blocked this; defensive no-op
+-    const options = bxgyRewardOptions(cfg, displayProducts)
+-    if (options.length === 1 && due === 1) {
+-      const o = options[0]
+-      dispatch({
+-        type: 'CART_ADD_REWARD',
+-        item: {
+-          productId: o.productId,
+-          productName: o.productName,
+-          variantSize: o.variantSize,
+-          price: o.net,
+-          quantity: 1,
+-          subtotal: o.net,
+-          isReward: true,
+-          rewardPromotionId: promo.id,
+-        },
+-      })
+-      dispatch({ type: 'APPLY_PROMOTION', promotion: promo })
+-      return
+-    }
+-    setBxgyReward({ promo, options, due })
+-  }
+-
+-  // Confirm from the reward picker: aggregate picks by (productId, variantSize) so
+-  // that repeated selections of the same variant become a single qty-N line rather
+-  // than N qty-1 lines. First clear any existing reward lines for this promo so
+-  // re-confirming replaces rather than accumulates, then dispatch the aggregated
+-  // lines, then mark the promo applied.
++  // Direct and linked selections share one planning/commit path. The reducer
++  // repeats planning against current state so picker confirmation is atomic.
++  const applySelection = (owner: PromotionOwner) => {
++    const plan = planPromotionFulfillment(state, owner, displayProducts)
++    if (plan.kind === 'toggle') dispatch({ type: 'APPLY_PROMOTION', promotion: plan.promotion })
++    else if (plan.kind === 'simple') {
++      if (owner.kind === 'direct') dispatch({ type: 'APPLY_PROMOTION', promotion: owner.promotion })
++      else dispatch({ type: 'APPLY_PROMO_CODE', code: owner.code, combinable: !!owner.code.combinable })
++    } else if (plan.kind === 'ready') dispatch({ type: 'APPLY_FULFILLMENT', owner, products: displayProducts })
++    else if (plan.kind === 'bxgy-picker' || plan.kind === 'bundle-picker') {
++      setPendingFulfillment({ ...plan, products: displayProducts })
++    } else if (owner.kind === 'code') showToast('Syarat promo belum terpenuhi')
++  }
++
++  const handleSelectPromotion = (promotion: components['schemas']['Promotion']) => applySelection({ kind: 'direct', promotion })
++
+   const handleBxgyRewardConfirm = (picks: BxgyRewardPick[]) => {
+-    if (!bxgyReward) return
+-    const promoId = bxgyReward.promo.id
+-    // Remove stale reward lines for this promo before adding the fresh set.
+-    dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promoId })
+-    // Aggregate picks: same (productId, variantSize) → qty-N line.
+-    const agg = new Map<string, { pick: BxgyRewardPick; count: number }>()
+-    for (const p of picks) {
+-      const key = `${p.productId}|${p.variantSize}`
+-      const entry = agg.get(key)
+-      if (entry) {
+-        entry.count += 1
+-      } else {
+-        agg.set(key, { pick: p, count: 1 })
+-      }
+-    }
+-    for (const { pick: p, count } of agg.values()) {
+-      dispatch({
+-        type: 'CART_ADD_REWARD',
+-        item: {
+-          productId: p.productId,
+-          productName: p.productName,
+-          variantSize: p.variantSize,
+-          price: p.net,
+-          quantity: count,
+-          subtotal: p.net * count,
+-          isReward: true,
+-          rewardPromotionId: promoId,
+-        },
+-      })
+-    }
+-    dispatch({ type: 'APPLY_PROMOTION', promotion: bxgyReward.promo })
+-    setBxgyReward(null)
+-  }
+-
+-  // SP-Promo-3b reactive removal: if the paid cart drops below the buy criteria
+-  // for an applied separate-set buy_x_get_y promo (items removed after applying),
+-  // strip its reward lines. When nothing is due any more, drop the promo too.
+-  // Compares UNITS (sum of quantities) not line count so qty-N lines are handled
+-  // correctly. Keyed on the cart so it re-runs whenever paid lines change.
++    if (pendingFulfillment?.kind !== 'bxgy-picker') return
++    dispatch({ type: 'APPLY_FULFILLMENT', owner: pendingFulfillment.owner, products: pendingFulfillment.products, choice: { kind: 'bxgy', picks } })
++    setPendingFulfillment(null)
++  }
++
++  const handleBundlePickerConfirm = (assignment: BundleAssignment) => {
++    if (pendingFulfillment?.kind !== 'bundle-picker') return
++    dispatch({ type: 'APPLY_FULFILLMENT', owner: pendingFulfillment.owner, products: pendingFulfillment.products, choice: { kind: 'bundle', assignment } })
++    setPendingFulfillment(null)
++  }
++
++  // Whole-owner cleanup: a removed physical effect must not leave a used code.
+   useEffect(() => {
+-    const paidLines = state.cart.filter((c) => !c.isReward)
+-    for (const promo of state.appliedPromotions) {
+-      const cfg = promo.bxgyConfig
+-      if (promo.type !== 'buy_x_get_y' || (cfg?.getProductIds ?? []).length === 0)
+-        continue
+-      const due = bxgyRewardDue(cfg, paidLines)
+-      const rewardUnits = state.cart
+-        .filter((c) => c.isReward && c.rewardPromotionId === promo.id)
+-        .reduce((sum, c) => sum + c.quantity, 0)
+-      if (due < rewardUnits) {
+-        dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: promo.id })
+-        if (due === 0) dispatch({ type: 'REMOVE_PROMOTION', id: promo.id })
+-      }
+-    }
+-  }, [state.cart, state.appliedPromotions])
+-
+-  // Confirm from the bundle slot picker: compute the freed set honoring the
+-  // cashier's per-slot choice, then apply it. Empty/invalid → no-op close.
+-  const handleBundlePickerConfirm = (assignment: BundleAssignment) => {
+-    if (!bundlePicker) return
+-    const paidLines = state.cart.filter((c) => !c.isReward)
+-    const freed = computeBundleFreed(bundlePicker.cfg, paidLines, assignment)
+-    if (freed) {
+-      // nApp is assignment-independent (counts units per slot), so recompute it
+-      // from the pre-apply paid lines to record the applied application count.
+-      const nApp = bundleApplications(bundlePicker.cfg, paidLines)
+-      dispatch({ type: 'APPLY_BUNDLE', promotion: bundlePicker.promo, freed, applications: nApp })
+-    }
+-    setBundlePicker(null)
+-  }
+-
+-  // SP-Promo-3b-bundle reactive removal: a bundle MOVED paid units into reward
+-  // lines. Reconstruct the owned set = current paid lines + this bundle's freed
+-  // units restored at full price, then key the decision on the APPLIED nApp:
+-  // remove iff the currently-owned applications drop BELOW the count the bundle
+-  // was applied at (shouldRemoveBundle).
+-  //
+-  // Why nApp and not applicability(null) or freed-COUNT:
+-  //  - Freed count reflects the cashier's per-slot free-choice (a pricier eligible
+-  //    unit may be freed while a cheaper one stays paid); a cheapest-first recompute
+-  //    would wrongly report a shrink. nApp is assignment-independent → safe.
+-  //  - Plain participant edits (remove item / set qty on a unit IN the freed set)
+-  //    are already handled by the reducer's evictBundlesForKey. But reducing an
+-  //    ANCHOR slot's paid qty in a multi-application combo (nApp 2→1) keeps the
+-  //    bundle applicable (non-null), so the old null-only signal KEPT an
+-  //    over-applied cart that the server then 422-rejects; the anchor is not in the
+-  //    freed set so evictBundlesForKey also misses it. Comparing owned nApp against
+-  //    the applied nApp catches exactly this. For an unchanged (incl. pricier
+-  //    free-choice) cart, owned nApp == applied nApp → no dispatch → no effect loop.
+-  useEffect(() => {
+-    for (const promo of state.appliedPromotions) {
+-      if (promo.type !== 'bundle') continue
+-      const cfg = promo.bundleConfig
+-      const applied = state.bundleFreed[promo.id]
+-      const appliedNApp = state.bundleApplications[promo.id]
+-      if (!cfg || !applied || appliedNApp == null) continue
+-      const owned = [
+-        ...state.cart.filter((c) => !c.isReward),
+-        ...applied.map((f) => ({
+-          productId: f.productId,
+-          productName: f.productName,
+-          variantSize: f.variantSize,
+-          price: f.fullPrice,
+-          quantity: f.quantity,
+-          subtotal: f.fullPrice * f.quantity,
+-        })),
+-      ]
+-      if (shouldRemoveBundle(cfg, owned, appliedNApp)) {
+-        dispatch({ type: 'REMOVE_BUNDLE', promotionId: promo.id, freed: applied })
+-      }
+-    }
+-  }, [state.cart, state.appliedPromotions, state.bundleFreed, state.bundleApplications])
++    for (const id of invalidPhysicalPromotionIds(state)) dispatch({ type: 'REMOVE_PROMOTION', id })
++  }, [state.cart, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.bundleApplications])
+ 
+   const handleAddCustomer = () => {
+     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
+@@ -688,8 +511,12 @@
+         return
+       }
+       setPromoCodeError(null)
+-      if (isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, decision.code)) showToast('Promo sudah aktif')
+-      dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: decision.code.combinable ?? false })
++      if (isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, decision.code)) {
++        showToast('Promo sudah aktif')
++        dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: !!decision.code.combinable })
++        return
++      }
++      applySelection({ kind: 'code', code: decision.code })
+     } finally {
+       setIsValidatingCode(false)
+     }
+@@ -697,6 +524,12 @@
+ 
+   const handleConfirmPayment = () => {
+     if (state.isProcessing) return
++    const invalidPhysical = invalidPhysicalPromotionIds(state)
++    if (invalidPhysical.length) {
++      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id })
++      showToast('Promo dibatalkan: syarat barang berubah')
++      return
++    }
+     const { appliedPromotions, appliedPromoCodes } = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
+     // Re-guard: a promo/code valid when picked can lapse while the cart sits open
+     // (hour/day boundary) or fall below min_purchase (items removed). Block + clear
+@@ -1264,25 +1097,25 @@
+         />
+       )}
+ 
+-      {bxgyReward && (
++      {pendingFulfillment?.kind === 'bxgy-picker' && (
+         <BxgyRewardModal
+-          promo={bxgyReward.promo}
+-          options={bxgyReward.options}
+-          due={bxgyReward.due}
++          promo={pendingFulfillment.promo}
++          options={pendingFulfillment.options}
++          due={pendingFulfillment.due}
+           stockProducts={displayProducts}
+           onConfirm={handleBxgyRewardConfirm}
+-          onCancel={() => setBxgyReward(null)}
++          onCancel={() => setPendingFulfillment(null)}
+         />
+       )}
+ 
+-      {bundlePicker && (
++      {pendingFulfillment?.kind === 'bundle-picker' && (
+         <BundleSlotPicker
+-          cfg={bundlePicker.cfg}
+-          cart={state.cart}
+-          promoName={bundlePicker.promo.name}
++          cfg={pendingFulfillment.cfg}
++          cart={pendingFulfillment.cart}
++          promoName={pendingFulfillment.promo.name}
+           stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
+           onConfirm={handleBundlePickerConfirm}
+-          onCancel={() => setBundlePicker(null)}
++          onCancel={() => setPendingFulfillment(null)}
+         />
+       )}
+ 
+diff --git a/apps/pos/src/cashier/pricing.ts b/apps/pos/src/cashier/pricing.ts
+--- a/apps/pos/src/cashier/pricing.ts
++++ b/apps/pos/src/cashier/pricing.ts
+@@ -313,6 +313,8 @@
+     applicableProductIds: c.promotion.applicableProductIds ?? null,
+     bxgyConfig: c.promotion.bxgyConfig ?? null,
+     tieredConfig: c.promotion.tieredConfig ?? null,
++    bundleConfig: c.promotion.bundleConfig ?? null,
++    combinable: c.combinable,
+     isActive: true,
+     createdAt: '',
+   }
+diff --git a/apps/pos/src/cashier/promoValidate.ts b/apps/pos/src/cashier/promoValidate.ts
+--- a/apps/pos/src/cashier/promoValidate.ts
++++ b/apps/pos/src/cashier/promoValidate.ts
+@@ -118,6 +118,7 @@
+   isBOGO: boolean
+   bxgyConfig?: Promotion['bxgyConfig']
+   tieredConfig?: Promotion['tieredConfig']
++  bundleConfig?: Promotion['bundleConfig']
+ }
+ 
+ export interface AppliedPromoCode {
+@@ -177,6 +178,7 @@
+           isBOGO: promo.type === 'bogo',
+           bxgyConfig: promo.bxgyConfig ?? null,
+           tieredConfig: promo.tieredConfig ?? null,
++          bundleConfig: promo.bundleConfig ?? null,
+         },
+       },
+     }
+diff --git a/apps/pos/src/cashier/state/cashierReducer.ts b/apps/pos/src/cashier/state/cashierReducer.ts
+--- a/apps/pos/src/cashier/state/cashierReducer.ts
++++ b/apps/pos/src/cashier/state/cashierReducer.ts
+@@ -8,6 +8,8 @@
+ export type { AppliedPromoCode } from '../promoValidate'
+ import type { AppliedPromoCode } from '../promoValidate'
+ import type { BundleFreedUnit } from '../bundle'
++import { upsertCartItem, reducePaidQty, restoreBundle, restoreAllBundles, omitKey, clearBundleEntry, evictAllForExclusive, removePromotionEffect } from '../promotionEffects'
++import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice } from '../promotionFulfillment'
+ import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
+ 
+ type CartItem = components['schemas']['CartItem']
+@@ -74,6 +76,7 @@
+   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
+   | { type: 'CART_REMOVE_PROMO_REWARDS'; rewardPromotionId: string }
+   | { type: 'APPLY_BUNDLE'; promotion: Promotion; freed: BundleFreedUnit[]; applications: number }
++  | { type: 'APPLY_FULFILLMENT'; owner: PromotionOwner; products: components['schemas']['Product'][]; choice?: FulfillmentChoice }
+   | { type: 'REMOVE_BUNDLE'; promotionId: string; freed: BundleFreedUnit[] }
+   | { type: 'CART_CLEAR' }
+   | { type: 'SET_CUSTOMER'; customer: Customer | null }
+@@ -137,83 +140,6 @@
+   return promotions.some((p) => !p.combinable)
+ }
+ 
+-function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
+-  const idx = cart.findIndex(
+-    (c) =>
+-      c.productId === item.productId &&
+-      c.variantSize === item.variantSize &&
+-      !c.isReward,
+-  )
+-  if (idx >= 0) {
+-    const existing = cart[idx]
+-    const newQty = existing.quantity + item.quantity
+-    const updated: CartItem = {
+-      ...existing,
+-      quantity: newQty,
+-      price: item.price,
+-      subtotal: Math.round(newQty * item.price),
+-    }
+-    return [...cart.slice(0, idx), updated, ...cart.slice(idx + 1)]
+-  }
+-  return [...cart, item]
+-}
+-
+-// reducePaidQty: decrement a PAID (non-reward) line's quantity by `dec`, removing
+-// the line when it reaches 0. Reward lines of the same product are untouched.
+-// Used by APPLY_BUNDLE to move freed units off their paid line.
+-function reducePaidQty(
+-  cart: CartItem[],
+-  productId: string,
+-  variantSize: string,
+-  dec: number,
+-): CartItem[] {
+-  return cart.flatMap((c) => {
+-    if (c.isReward || c.productId !== productId || c.variantSize !== variantSize) return [c]
+-    const newQty = c.quantity - dec
+-    if (newQty <= 0) return []
+-    return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]
+-  })
+-}
+-
+-// restoreBundle: inverse of a bundle application. Strip this bundle's reward
+-// lines and add the freed units back onto their paid lines at full price
+-// (merging into an existing paid line, recreating it when it was fully consumed).
+-// Pure and catalog-free — fullPrice comes from the retained freed set. Used by
+-// REMOVE_BUNDLE and by every generic reward-strip path so a freed physical unit
+-// is never dropped without its paid quantity being restored.
+-function restoreBundle(
+-  cart: CartItem[],
+-  promotionId: string,
+-  freed: BundleFreedUnit[],
+-): CartItem[] {
+-  let next = cart.filter((c) => !(c.isReward && c.rewardPromotionId === promotionId))
+-  for (const f of freed) {
+-    next = upsertCartItem(next, {
+-      productId: f.productId,
+-      productName: f.productName,
+-      variantSize: f.variantSize,
+-      price: f.fullPrice,
+-      quantity: f.quantity,
+-      subtotal: Math.round(f.fullPrice * f.quantity),
+-    })
+-  }
+-  return next
+-}
+-
+-// restoreAllBundles: restore every applied bundle's paid quantity (stripping its
+-// reward lines), returning the rebuilt cart. Callers then strip any remaining
+-// (non-bundle) reward lines and reset bundleFreed to {}.
+-function restoreAllBundles(
+-  cart: CartItem[],
+-  bundleFreed: Record<string, BundleFreedUnit[]>,
+-): CartItem[] {
+-  let next = cart
+-  for (const [promotionId, freed] of Object.entries(bundleFreed)) {
+-    next = restoreBundle(next, promotionId, freed)
+-  }
+-  return next
+-}
+-
+ // bundlesContainingKey: ids of applied bundles whose FREED set includes a unit
+ // matching (productId, variantSize). Catalog-free — reads only the stored freed
+ // set. Used to evict a bundle before a cart edit touches one of its participants.
+@@ -239,12 +165,13 @@
+   state: CashierState,
+   productId: string,
+   variantSize: string,
+-): Pick<CashierState, 'cart' | 'appliedPromotions' | 'bundleFreed' | 'bundleApplications'> {
++): Pick<CashierState, 'cart' | 'appliedPromotions' | 'appliedPromoCodes' | 'bundleFreed' | 'bundleApplications'> {
+   const ids = bundlesContainingKey(state.bundleFreed, productId, variantSize)
+   if (ids.length === 0) {
+     return {
+       cart: state.cart,
+       appliedPromotions: state.appliedPromotions,
++      appliedPromoCodes: state.appliedPromoCodes,
+       bundleFreed: state.bundleFreed,
+       bundleApplications: state.bundleApplications,
+     }
+@@ -253,51 +180,15 @@
+   let bundleFreed = state.bundleFreed
+   let bundleApplications = state.bundleApplications
+   let appliedPromotions = state.appliedPromotions
++  let appliedPromoCodes = state.appliedPromoCodes
+   for (const id of ids) {
+     cart = restoreBundle(cart, id, bundleFreed[id])
+     bundleFreed = omitKey(bundleFreed, id)
+     bundleApplications = omitKey(bundleApplications, id)
+     appliedPromotions = appliedPromotions.filter((p) => p.id !== id)
++    appliedPromoCodes = appliedPromoCodes.filter((c) => c.promotion?.id !== id)
+   }
+-  return { cart, appliedPromotions, bundleFreed, bundleApplications }
+-}
+-
+-// evictAllForExclusive: an incoming exclusive (non-combinable) promo/code
+-// replaces the whole applied set. Any applied bundle MOVED units off their paid
+-// line, so restore them first (else ghost Rp0 reward lines + a stale freed entry
+-// linger), then strip every remaining promo reward line (bxgy extras). Loyalty
+-// rewards (rewardConditionId, no rewardPromotionId) survive — they're
+-// customer-based, not promo-based. Mirrors CLEAR_PROMOTIONS' cart handling.
+-function evictAllForExclusive(
+-  state: CashierState,
+-): Pick<CashierState, 'cart' | 'bundleFreed' | 'bundleApplications'> {
+-  const restored = restoreAllBundles(state.cart, state.bundleFreed)
+-  return {
+-    cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
+-    bundleFreed: {},
+-    bundleApplications: {},
+-  }
+-}
+-
+-// omitKey: return a shallow copy of the map without `key` (immutable delete).
+-function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
+-  if (!(key in map)) return map
+-  const { [key]: _removed, ...rest } = map
+-  return rest
+-}
+-
+-// clearBundleEntry: drop a single bundle id from BOTH bookkeeping maps together,
+-// so a freed set can never outlive its applied-nApp count (or vice versa). Every
+-// path that clears one entry MUST go through here to keep the two maps in
+-// lock-step. Returns the slice of state to spread into the result.
+-function clearBundleEntry(
+-  state: CashierState,
+-  id: string,
+-): Pick<CashierState, 'bundleFreed' | 'bundleApplications'> {
+-  return {
+-    bundleFreed: omitKey(state.bundleFreed, id),
+-    bundleApplications: omitKey(state.bundleApplications, id),
+-  }
++  return { cart, appliedPromotions, appliedPromoCodes, bundleFreed, bundleApplications }
+ }
+ 
+ export function cashierReducer(
+@@ -311,6 +202,10 @@
+     state = { ...state, ...effective }
+   }
+   switch (action.type) {
++    case 'APPLY_FULFILLMENT': {
++      const plan = planPromotionFulfillment(state, action.owner, action.products, action.choice)
++      return plan.kind === 'ready' ? plan.next : state
++    }
+     case 'CART_ADD_ITEM':
+       return { ...state, cart: upsertCartItem(state.cart, action.item) }
+ 
+@@ -347,6 +242,9 @@
+       }
+ 
+     case 'CART_REMOVE_PROMO_REWARDS':
++      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.rewardPromotionId)) {
++        return removePromotionEffect(state, action.rewardPromotionId)
++      }
+       return {
+         ...state,
+         cart: state.cart.filter(
+@@ -355,6 +253,9 @@
+       }
+ 
+     case 'APPLY_BUNDLE': {
++      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.promotion.id)) {
++        state = removePromotionEffect(state, action.promotion.id)
++      }
+       state = { ...state, appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== action.promotion.id) }
+       // Reprice the cheapest consumed units into reward lines: reduce each
+       // matching PAID line by the freed qty (dropping it at 0) and add an
+@@ -394,18 +295,8 @@
+       }
+     }
+ 
+-    case 'REMOVE_BUNDLE': {
+-      // Inverse of APPLY_BUNDLE: strip this bundle's reward lines and restore the
+-      // freed units back onto their paid lines at full price. Prefer the retained
+-      // freed set (source of truth) and fall back to the action's for safety.
+-      const freed = state.bundleFreed[action.promotionId] ?? action.freed
+-      return {
+-        ...state,
+-        cart: restoreBundle(state.cart, action.promotionId, freed),
+-        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.promotionId),
+-        ...clearBundleEntry(state, action.promotionId),
+-      }
+-    }
++    case 'REMOVE_BUNDLE':
++      return removePromotionEffect(state, action.promotionId)
+ 
+     case 'CART_REMOVE_ITEM': {
+       // If this key participates in an applied bundle's freed set, remove that
+@@ -494,6 +385,8 @@
+         cart: restored.filter((c) => !c.isReward),
+         // Restored bundles are no longer applied; drop them + clear their freed set.
+         appliedPromotions: state.appliedPromotions.filter((p) => !(p.id in state.bundleFreed)),
++        appliedPromoCodes: state.appliedPromoCodes.filter(c => !c.promotion ||
++          (c.promotion.type !== 'bundle' && !(c.promotion.type === 'buy_x_get_y' && (c.promotion.bxgyConfig?.getProductIds ?? []).length > 0))),
+         bundleFreed: {},
+         bundleApplications: {},
+       }
+@@ -551,7 +444,11 @@
+ 
+     case 'APPLY_PROMOTION': {
+       // Direct identity wins before testing exclusivity against unrelated offers.
+-      // Removing code metadata must not remove this promotion's reward ownership.
++      // A physical code-owned effect must be undone before direct installation.
++      // The screen uses APPLY_FULFILLMENT to recompute and commit physical takeover.
++      if (state.appliedPromoCodes.some(c => c.promotion?.id === action.promotion.id)) {
++        state = removePromotionEffect(state, action.promotion.id)
++      }
+       state = { ...state, appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== action.promotion.id) }
+       const exists = state.appliedPromotions.some((p) => p.id === action.promotion.id)
+       if (exists) {
+@@ -624,24 +521,14 @@
+       }
+     }
+ 
+-    case 'REMOVE_PROMOTION': {
+-      // strip the reward lines this promo gave, so they don't linger when removed.
+-      // A bundle MOVED units off their paid line → restore the paid quantity;
+-      // bxgy/loyalty rewards were added extras → plain strip.
+-      const freed = state.bundleFreed[action.id]
+-      const cart = freed
+-        ? restoreBundle(state.cart, action.id, freed)
+-        : state.cart.filter((c) => !(c.isReward && c.rewardPromotionId === action.id))
+-      return {
+-        ...state,
+-        appliedPromotions: state.appliedPromotions.filter((p) => p.id !== action.id),
+-        cart,
+-        ...clearBundleEntry(state, action.id),
+-      }
+-    }
+-
+-    case 'REMOVE_PROMO_CODE':
++    case 'REMOVE_PROMOTION':
++      return removePromotionEffect(state, action.id)
++
++    case 'REMOVE_PROMO_CODE': {
++      const selected = state.appliedPromoCodes.find(c => c.code === action.code)
++      if (selected?.promotion) return removePromotionEffect(state, selected.promotion.id)
+       return { ...state, appliedPromoCodes: state.appliedPromoCodes.filter((c) => c.code !== action.code) }
++    }
+ 
+     case 'CLEAR_PROMOTIONS': {
+       // Restore every applied bundle's paid quantity first (their units were
+diff --git a/apps/pos/src/cashier/AdjustmentDrawer.tsx b/apps/pos/src/cashier/AdjustmentDrawer.tsx
+--- a/apps/pos/src/cashier/AdjustmentDrawer.tsx
++++ b/apps/pos/src/cashier/AdjustmentDrawer.tsx
+@@ -7,6 +7,7 @@
+ import type { components } from '@mandalika/api'
+ import type { CashierState, CashierAction } from './state/cashierReducer'
+ import { PromoPanel } from './PromoPanel'
++import { promotionPreviewCart } from './promotionFulfillment'
+ 
+ type Promotion = components['schemas']['Promotion']
+ type DiscountCode = components['schemas']['DiscountCode']
+@@ -140,6 +141,7 @@
+       appliedPromoCodes={state.appliedPromoCodes}
+       cart={state.cart}
+       bundleFreed={state.bundleFreed}
++      selectionCart={(promo) => promotionPreviewCart(state, promo)}
+       promoCodeInput={state.promoCodeInput}
+       isValidating={isValidatingCode}
+       subtotal={subtotal}
+diff --git a/apps/pos/src/cashier/PromoPanel.tsx b/apps/pos/src/cashier/PromoPanel.tsx
+--- a/apps/pos/src/cashier/PromoPanel.tsx
++++ b/apps/pos/src/cashier/PromoPanel.tsx
+@@ -15,6 +15,7 @@
+   appliedPromoCodes: AppliedPromoCode[]
+   cart: CartItem[]
+   bundleFreed: Record<string, BundleFreedUnit[]>
++  selectionCart?: (promo: Promotion) => CartItem[]
+   promoCodeInput: string
+   isValidating: boolean
+   subtotal: number
+@@ -92,6 +93,7 @@
+   appliedPromoCodes,
+   cart,
+   bundleFreed,
++  selectionCart,
+   promoCodeInput,
+   isValidating,
+   subtotal,
+@@ -136,7 +138,7 @@
+ 
+   const codeSavings = (c: AppliedPromoCode) => {
+     if (c.promotion) {
+-      return calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
++      return appliedSavings(linkedPromoShape(c))
+     }
+     return c.type === 'percentage'
+       ? Math.round(subtotal * (c.value / 100))
+@@ -300,6 +302,10 @@
+               </p>
+               <div className="space-y-2">
+                 {activePromos.map(({ promo, violations }) => {
++                  // Preview after takeover/exclusive restoration, as the shared
++                  // executor does. A linked bundle must not disable its direct
++                  // counterpart merely because its paid units were moved.
++                  const candidateCart = selectionCart?.(promo) ?? cart
+                   const gatingInvalid = violations.length > 0
+                   const savings = gatingInvalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
+                   // buy_x_get_y has a CART precondition (the buy/get items must be
+@@ -315,7 +321,7 @@
+                     !gatingInvalid &&
+                     promo.type === 'buy_x_get_y' &&
+                     (isSeparateSet
+-                      ? bxgyRewardDue(promo.bxgyConfig, cart.filter((c) => !c.isReward)) < 1
++                      ? bxgyRewardDue(promo.bxgyConfig, candidateCart.filter((c) => !c.isReward)) < 1
+                       : savings <= 0)
+                   // A bundle has a CART precondition (each slot's product keys must
+                   // be present in the required quantity) gating can't see: grey it
+@@ -323,7 +329,7 @@
+                   const bundleUnmet =
+                     !gatingInvalid &&
+                     promo.type === 'bundle' &&
+-                    bundleApplications(promo.bundleConfig, cart.filter((c) => !c.isReward)) < 1
++                    bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward)) < 1
+                   const invalid = gatingInvalid || bxgyUnmet || bundleUnmet
+                   const reason = gatingInvalid
+                     ? violationMessage(violations[0])
+diff --git a/apps/pos/src/cashier/BxgyRewardModal.tsx b/apps/pos/src/cashier/BxgyRewardModal.tsx
+--- a/apps/pos/src/cashier/BxgyRewardModal.tsx
++++ b/apps/pos/src/cashier/BxgyRewardModal.tsx
+@@ -4,9 +4,9 @@
+  * Mirrors the SP-CRM-9 "Hadiah Loyalti" picker (CheckoutPanel) + the SP-CRM-9b
+  * drill-down presentation + the SP-CRM-9c `· Stok N` annotation, but keyed on a
+  * promotion instead of a loyalty condition. The cashier picks `due` reward units
+- * (each pick = one CART_ADD_REWARD line carrying rewardPromotionId); the same
+- * variant may be picked multiple times. Confirm dispatches the picked lines +
+- * adds the promo to appliedPromotions; Cancel applies nothing.
++ * (each pick = one reward unit carrying rewardPromotionId); the same
++ * variant may be picked multiple times. Confirm atomically applies aggregated
++ * lines and the pending direct/code owner; Cancel applies nothing.
+  *
+  * DISPLAY ONLY — the server re-derives entitlement from paid lines, prices the
+  * reward at net, and records the grant. The net price shown here mirrors
+diff --git a/apps/pos/src/cashier/promotionEffects.ts b/apps/pos/src/cashier/promotionEffects.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/promotionEffects.ts
+@@ -0,0 +1,133 @@
++import type { components } from '@mandalika/api'
++import type { CashierState } from './state/cashierReducer'
++import type { BundleFreedUnit } from './bundle'
++type CartItem = components['schemas']['CartItem']
++
++// Physical ownership is promotion-ID based, independent of direct/code selection.
++// Only retained bundle bookkeeping can restore paid units, making repeat removal
++// harmless. A stale caller's freed-set argument must not restore a second time.
++export function removePromotionEffect(state: CashierState, id: string): CashierState {
++  const freed = state.bundleFreed[id]
++  return {
++    ...state,
++    cart: freed ? restoreBundle(state.cart, id, freed) : state.cart.filter(c => !(c.isReward && c.rewardPromotionId === id)),
++    ...clearBundleEntry(state, id),
++    appliedPromotions: state.appliedPromotions.filter(p => p.id !== id),
++    appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== id),
++  }
++}
++
++export function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
++  const idx = cart.findIndex(
++    (c) =>
++      c.productId === item.productId &&
++      c.variantSize === item.variantSize &&
++      !c.isReward,
++  )
++  if (idx >= 0) {
++    const existing = cart[idx]
++    const newQty = existing.quantity + item.quantity
++    const updated: CartItem = {
++      ...existing,
++      quantity: newQty,
++      price: item.price,
++      subtotal: Math.round(newQty * item.price),
++    }
++    return [...cart.slice(0, idx), updated, ...cart.slice(idx + 1)]
++  }
++  return [...cart, item]
++}
++
++// reducePaidQty: decrement a PAID (non-reward) line's quantity by `dec`, removing
++// the line when it reaches 0. Reward lines of the same product are untouched.
++// Used by APPLY_BUNDLE to move freed units off their paid line.
++export function reducePaidQty(
++  cart: CartItem[],
++  productId: string,
++  variantSize: string,
++  dec: number,
++): CartItem[] {
++  return cart.flatMap((c) => {
++    if (c.isReward || c.productId !== productId || c.variantSize !== variantSize) return [c]
++    const newQty = c.quantity - dec
++    if (newQty <= 0) return []
++    return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]
++  })
++}
++
++// restoreBundle: inverse of a bundle application. Strip this bundle's reward
++// lines and add the freed units back onto their paid lines at full price
++// (merging into an existing paid line, recreating it when it was fully consumed).
++// Pure and catalog-free — fullPrice comes from the retained freed set. Used by
++// REMOVE_BUNDLE and by every generic reward-strip path so a freed physical unit
++// is never dropped without its paid quantity being restored.
++export function restoreBundle(
++  cart: CartItem[],
++  promotionId: string,
++  freed: BundleFreedUnit[],
++): CartItem[] {
++  let next = cart.filter((c) => !(c.isReward && c.rewardPromotionId === promotionId))
++  for (const f of freed) {
++    next = upsertCartItem(next, {
++      productId: f.productId,
++      productName: f.productName,
++      variantSize: f.variantSize,
++      price: f.fullPrice,
++      quantity: f.quantity,
++      subtotal: Math.round(f.fullPrice * f.quantity),
++    })
++  }
++  return next
++}
++
++// restoreAllBundles: restore every applied bundle's paid quantity (stripping its
++// reward lines), returning the rebuilt cart. Callers then strip any remaining
++// (non-bundle) reward lines and reset bundleFreed to {}.
++export function restoreAllBundles(
++  cart: CartItem[],
++  bundleFreed: Record<string, BundleFreedUnit[]>,
++): CartItem[] {
++  let next = cart
++  for (const [promotionId, freed] of Object.entries(bundleFreed)) {
++    next = restoreBundle(next, promotionId, freed)
++  }
++  return next
++}
++
++// evictAllForExclusive: an incoming exclusive (non-combinable) promo/code
++// replaces the whole applied set. Any applied bundle MOVED units off their paid
++// line, so restore them first (else ghost Rp0 reward lines + a stale freed entry
++// linger), then strip every remaining promo reward line (bxgy extras). Loyalty
++// rewards (rewardConditionId, no rewardPromotionId) survive — they're
++// customer-based, not promo-based. Mirrors CLEAR_PROMOTIONS' cart handling.
++export function evictAllForExclusive(
++  state: CashierState,
++): Pick<CashierState, 'cart' | 'bundleFreed' | 'bundleApplications'> {
++  const restored = restoreAllBundles(state.cart, state.bundleFreed)
++  return {
++    cart: restored.filter((c) => !(c.isReward && c.rewardPromotionId)),
++    bundleFreed: {},
++    bundleApplications: {},
++  }
++}
++
++// omitKey: return a shallow copy of the map without `key` (immutable delete).
++export function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
++  if (!(key in map)) return map
++  const { [key]: _removed, ...rest } = map
++  return rest
++}
++
++// clearBundleEntry: drop a single bundle id from BOTH bookkeeping maps together,
++// so a freed set can never outlive its applied-nApp count (or vice versa). Every
++// path that clears one entry MUST go through here to keep the two maps in
++// lock-step. Returns the slice of state to spread into the result.
++export function clearBundleEntry(
++  state: CashierState,
++  id: string,
++): Pick<CashierState, 'bundleFreed' | 'bundleApplications'> {
++  return {
++    bundleFreed: omitKey(state.bundleFreed, id),
++    bundleApplications: omitKey(state.bundleApplications, id),
++  }
++}
+diff --git a/apps/pos/src/cashier/promotionFulfillment.ts b/apps/pos/src/cashier/promotionFulfillment.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/promotionFulfillment.ts
+@@ -0,0 +1,147 @@
++import type { components } from '@mandalika/api'
++import type { CashierState } from './state/cashierReducer'
++import type { AppliedPromoCode } from './promoValidate'
++import type { BxgyRewardPick } from './BxgyRewardModal'
++import { computeBundleFreed, shouldRemoveBundle, type BundleAssignment } from './bundle'
++import { linkedPromoShape, bundleApplications, keyMatchesLine, bxgyRewardDue, bxgyRewardOptions, type BXGYRewardOption } from './pricing'
++import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
++import { removePromotionEffect, evictAllForExclusive, reducePaidQty } from './promotionEffects'
++
++type Promotion = components['schemas']['Promotion']
++type Product = components['schemas']['Product']
++type CartItem = components['schemas']['CartItem']
++export type PromotionOwner = { kind: 'direct'; promotion: Promotion } | { kind: 'code'; code: AppliedPromoCode }
++export type FulfillmentChoice = { kind: 'bxgy'; picks: BxgyRewardPick[] } | { kind: 'bundle'; assignment: BundleAssignment }
++export type FulfillmentPlan =
++  | { kind: 'none' }
++  | { kind: 'simple'; owner: PromotionOwner }
++  | { kind: 'toggle'; promotion: Promotion }
++  | { kind: 'bxgy-picker'; owner: PromotionOwner; promo: Promotion; options: BXGYRewardOption[]; due: number }
++  | { kind: 'bundle-picker'; owner: PromotionOwner; promo: Promotion; cfg: NonNullable<Promotion['bundleConfig']>; cart: CartItem[] }
++  | { kind: 'ready'; next: CashierState }
++
++export function ownerMechanics(owner: PromotionOwner): Promotion | null {
++  return owner.kind === 'direct' ? owner.promotion : owner.code.promotion ? linkedPromoShape(owner.code) : null
++}
++
++export function effectiveMechanics(state: CashierState): Promotion[] {
++  const selected = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
++  return [...selected.appliedPromotions, ...selected.appliedPromoCodes.filter(c => c.promotion).map(linkedPromoShape)]
++}
++
++// Preview preparation is pure: takeover and exclusive restoration only commit
++// together with a confirmed physical effect. Cancelling a picker needs no undo.
++function prepare(state: CashierState, owner: PromotionOwner, promo: Promotion): CashierState {
++  let base = removePromotionEffect(state, promo.id)
++  const incomingCombinable = owner.kind === 'direct' ? promo.combinable : owner.code.combinable
++  if (!incomingCombinable || base.appliedPromotions.some(p => !p.combinable) || base.appliedPromoCodes.some(c => !c.combinable)) {
++    base = { ...base, ...evictAllForExclusive(base), appliedPromotions: [], appliedPromoCodes: [] }
++  }
++  return base
++}
++
++export function promotionPreviewCart(state: CashierState, promotion: Promotion): CartItem[] {
++  return prepare(state, { kind: 'direct', promotion }, promotion).cart
++}
++
++function install(base: CashierState, owner: PromotionOwner): CashierState {
++  return {
++    ...base,
++    appliedPromotions: owner.kind === 'direct' ? [...base.appliedPromotions, owner.promotion] : base.appliedPromotions,
++    appliedPromoCodes: owner.kind === 'code' ? [...base.appliedPromoCodes, owner.code] : base.appliedPromoCodes,
++    promoCodeInput: owner.kind === 'code' ? '' : base.promoCodeInput,
++    activeAdjustment: null,
++  }
++}
++
++// The screen uses this for both paths and the reducer recomputes it against the
++// current state at confirm time. A pending picker carries its original mechanics
++// snapshot; it cannot install an owner or move goods merely by opening.
++export function planPromotionFulfillment(
++  state: CashierState, owner: PromotionOwner, products: Product[], choice?: FulfillmentChoice,
++): FulfillmentPlan {
++  if (owner.kind === 'code' && isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, owner.code)) return { kind: 'none' }
++  const promo = ownerMechanics(owner)
++  if (owner.kind === 'direct' && state.appliedPromotions.some(p => p.id === owner.promotion.id)) {
++    // A late second picker confirmation is not a request to toggle the winner.
++    return choice ? { kind: 'none' } : { kind: 'toggle', promotion: owner.promotion }
++  }
++  const separate = promo?.type === 'buy_x_get_y' && (promo.bxgyConfig?.getProductIds ?? []).length > 0
++  if (!promo || (promo.type !== 'bundle' && !separate)) return { kind: 'simple', owner }
++  const base = prepare(state, owner, promo), paid = base.cart.filter(c => !c.isReward)
++  if (promo.type === 'bundle') {
++    const cfg = promo.bundleConfig
++    if (!cfg) return { kind: 'none' }
++    const nApp = bundleApplications(cfg, paid)
++    if (nApp < 1 || (choice && choice.kind !== 'bundle')) return { kind: 'none' }
++    const slots = cfg.slots.map((slot, index) => ({ slot, index, need: nApp * slot.quantity,
++      units: paid.filter(c => keyMatchesLine(slot.productKeys, c.productId, c.variantSize)).reduce((n, c) => n + c.quantity, 0) }))
++    if (slots.some(s => s.units > s.need) && !choice) return { kind: 'bundle-picker', owner, promo, cfg, cart: base.cart }
++    const assignment = choice?.kind === 'bundle' ? choice.assignment : undefined
++    // A picker opened against an older cart may now have incomplete/invalid picks.
++    for (const { slot, index, need, units } of slots) {
++      const refs = assignment?.[index]
++      if (!refs && units === need) continue
++      if (!refs || refs.length !== need) return { kind: 'none' }
++      const remaining = paid.filter(c => keyMatchesLine(slot.productKeys, c.productId, c.variantSize)).map(c => ({ ...c }))
++      for (const ref of refs) {
++        const match = remaining.find(c => c.productId === ref.productId && c.variantSize === ref.variantSize && c.quantity > 0)
++        if (!match) return { kind: 'none' }
++        match.quantity--
++      }
++    }
++    const freed = computeBundleFreed(cfg, paid, assignment)
++    if (!freed) return { kind: 'none' }
++    // The existing allocator treats slots independently. An overlapping catalog
++    // rule must never turn its overclaimed freed set into additional goods.
++    // This contains impossible moves, without redesigning allocation/resources.
++    const available = new Map(paid.map(c => [JSON.stringify([c.productId, c.variantSize]), c.quantity]))
++    for (const f of freed) {
++      const key = JSON.stringify([f.productId, f.variantSize]), left = (available.get(key) ?? 0) - f.quantity
++      if (left < 0) return { kind: 'none' }
++      available.set(key, left)
++    }
++    let cart = base.cart
++    for (const f of freed) {
++      cart = reducePaidQty(cart, f.productId, f.variantSize, f.quantity)
++      cart = [...cart, { productId: f.productId, productName: f.productName, variantSize: f.variantSize,
++        price: f.net, quantity: f.quantity, subtotal: Math.round(f.net * f.quantity), isReward: true, rewardPromotionId: promo.id }]
++    }
++    return { kind: 'ready', next: install({ ...base, cart, bundleFreed: { ...base.bundleFreed, [promo.id]: freed },
++      bundleApplications: { ...base.bundleApplications, [promo.id]: nApp } }, owner) }
++  }
++  const due = bxgyRewardDue(promo.bxgyConfig, paid), options = bxgyRewardOptions(promo.bxgyConfig, products)
++  if (due < 1 || options.length === 0 || (choice && choice.kind !== 'bxgy')) return { kind: 'none' }
++  if (!choice && (options.length !== 1 || due !== 1)) return { kind: 'bxgy-picker', owner, promo, options, due }
++  const picks = choice?.kind === 'bxgy' ? choice.picks : [options[0]]
++  if (picks.length !== due) return { kind: 'none' }
++  const rewards = new Map<string, CartItem>()
++  for (const pick of picks) {
++    const option = options.find(o => o.productId === pick.productId && o.variantSize === pick.variantSize)
++    if (!option) return { kind: 'none' }
++    const key = JSON.stringify([option.productId, option.variantSize])
++    const prev = rewards.get(key), quantity = (prev?.quantity ?? 0) + 1
++    rewards.set(key, { productId: option.productId, productName: option.productName, variantSize: option.variantSize,
++      price: option.net, quantity, subtotal: option.net * quantity, isReward: true, rewardPromotionId: promo.id })
++  }
++  return { kind: 'ready', next: install({ ...base, cart: [...base.cart, ...rewards.values()] }, owner) }
++}
++
++// Used by the reactive screen path and immediately before checkout capture.
++// Return whole owner IDs: removing only lines would leave a ghost linked code.
++export function invalidPhysicalPromotionIds(state: CashierState): string[] {
++  const invalid: string[] = [], paid = state.cart.filter(c => !c.isReward)
++  for (const promo of effectiveMechanics(state)) {
++    if (promo.type === 'bundle') {
++      const freed = state.bundleFreed[promo.id], applied = state.bundleApplications[promo.id]
++      const owned = [...paid, ...(freed ?? []).map(f => ({ productId: f.productId, productName: f.productName,
++        variantSize: f.variantSize, price: f.fullPrice, quantity: f.quantity, subtotal: f.fullPrice * f.quantity }))]
++      if (!promo.bundleConfig || !freed || applied == null || shouldRemoveBundle(promo.bundleConfig, owned, applied)) invalid.push(promo.id)
++    } else if (promo.type === 'buy_x_get_y' && (promo.bxgyConfig?.getProductIds ?? []).length > 0) {
++      const due = bxgyRewardDue(promo.bxgyConfig, paid)
++      const units = state.cart.filter(c => c.isReward && c.rewardPromotionId === promo.id).reduce((n, c) => n + c.quantity, 0)
++      if (due < 1 || units < 1 || units > due) invalid.push(promo.id)
++    }
++  }
++  return invalid
++}
+diff --git a/apps/pos/src/cashier/linkedFulfillment.test.ts b/apps/pos/src/cashier/linkedFulfillment.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/linkedFulfillment.test.ts
+@@ -0,0 +1,334 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import { readFileSync, writeFileSync } from 'node:fs'
++import { SyncEngine, type KV, type ApiLike, type OutboxItem } from '@mandalika/sync'
++import type { components } from '@mandalika/api'
++import { cashierReducer, CASHIER_INITIAL_STATE, type CashierState } from './state/cashierReducer'
++import { decideApplyCode, type AppliedPromoCode } from './promoValidate'
++import { computeBundleFreed } from './bundle'
++import { linkedPromoShape, computePricing, type PricingInput } from './pricing'
++import { planPromotionFulfillment, invalidPhysicalPromotionIds, promotionPreviewCart, type PromotionOwner, type FulfillmentChoice } from './promotionFulfillment'
++import { buildPromotionMetadata } from './promotionMetadata'
++
++type Promotion = components['schemas']['Promotion']
++type CartItem = components['schemas']['CartItem']
++type Product = components['schemas']['Product']
++const line = (id: string, price: number, quantity = 1): CartItem => ({ productId: id, productName: id, variantSize: 'M', price, quantity, subtotal: price * quantity })
++const product = (id: string, price: number): Product => ({ id, name: id, brand: 'Fixture', categoryId: '', isFeatured: false, isFavourite: false,
++  isActive: true, createdAt: '', variants: [{ size: 'M', price, stock: 100, sku: `fixture-${id}` }] })
++const products = [product('buy', 100000), product('reward', 20000)]
++const promo = (type: 'bundle' | 'buy_x_get_y', id = 'P'): Promotion => ({
++  id, name: type, type, value: 0, isActive: true, codeOnly: true, createdAt: '', combinable: true,
++  bundleConfig: type === 'bundle' ? { slots: [{ productKeys: ['buy'], quantity: 1 }, { productKeys: ['reward'], quantity: 1 }], bundlePrice: 105000 } : null,
++  bxgyConfig: type === 'buy_x_get_y' ? { buyQuantity: 1, getQuantity: 1, buyProductIds: ['buy'], getProductIds: ['reward'], getDiscountKind: 'percentage', getDiscountValue: 50 } : null,
++})
++function code(p: Promotion, raw = 'Raw-Winner'): AppliedPromoCode {
++  const d = decideApplyCode(raw.toLowerCase(), [{ id: raw, code: raw, promotionId: p.id, type: 'fixed', value: 0, usageCount: 0, isActive: true, createdAt: '' }],
++    { now: new Date('2026-09-20T05:00:00Z'), outletId: 'outlet', subtotal: 120000, hasCustomer: true }, [p])
++  if (!d.ok) throw new Error(d.reason)
++  return d.code
++}
++const initial = (p: Promotion): CashierState => ({ ...CASHIER_INITIAL_STATE, cart: p.type === 'bundle' ? [line('buy', 100000), line('reward', 20000)] : [line('buy', 100000)] })
++function chooseCode(state: CashierState, p: Promotion): CashierState {
++  const selected = code(p)
++  // Same real planner and commit action used by the refactored screen handler.
++  const owner = { kind: 'code' as const, code: selected }
++  const plan = planPromotionFulfillment(state, owner, products)
++  return plan.kind === 'ready' ? cashierReducer(state, { type: 'APPLY_FULFILLMENT', owner, products }) : state
++}
++const owned = (state: CashierState, id: string) => state.cart.filter(c => c.productId === id).reduce((n, c) => n + c.quantity, 0)
++function seededPhysical(p: Promotion): CashierState {
++  if (p.type === 'bundle') {
++    const start = initial(p), freed = computeBundleFreed(p.bundleConfig, start.cart)!
++    const direct = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: p, freed, applications: 1 })
++    return { ...direct, appliedPromotions: [], appliedPromoCodes: [code(p)] }
++  }
++  return { ...initial(p), cart: [line('buy', 100000), { ...line('reward', 10000), isReward: true, rewardPromotionId: p.id }], appliedPromoCodes: [code(p)] }
++}
++
++it('LF regression: linked bundle snapshot carries the allocator configuration', () => {
++  const p = promo('bundle')
++  expect(linkedPromoShape(code(p)).bundleConfig).toEqual(p.bundleConfig)
++})
++it.each(['bundle', 'buy_x_get_y'] as const)('LF regression: code-only %s actually fulfills its physical effect', type => {
++  const p = promo(type), selected = chooseCode(initial(p), p)
++  expect(selected.appliedPromotions).toEqual([])
++  expect(selected.appliedPromoCodes.map(c => c.code)).toEqual(['Raw-Winner'])
++  expect(selected.cart.filter(c => c.rewardPromotionId === 'P')).toEqual([expect.objectContaining({ productId: 'reward', quantity: 1, price: type === 'bundle' ? 5000 : 10000 })])
++  expect(owned(selected, 'buy')).toBe(1)
++  expect(owned(selected, 'reward')).toBe(1)
++})
++it.each(['bundle', 'buy_x_get_y'] as const)('LF regression: remove linked %s effect exactly once', type => {
++  const p = promo(type), state = seededPhysical(p)
++  const removed = cashierReducer(state, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' })
++  expect(removed.cart).toEqual(initial(p).cart)
++  expect(removed.bundleFreed).toEqual({})
++  expect(removed.bundleApplications).toEqual({})
++  expect(removed.appliedPromoCodes).toEqual([])
++  expect(cashierReducer(removed, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' }).cart).toEqual(initial(p).cart)
++})
++it('LF regression: participant edit removes the linked bundle owner as well as its effect', () => {
++  const state = cashierReducer(seededPhysical(promo('bundle')), { type: 'CART_SET_QTY', productId: 'reward', variantSize: 'M', quantity: 2 })
++  expect(state.appliedPromoCodes).toEqual([])
++  expect(state.bundleFreed).toEqual({})
++  expect(owned(state, 'buy')).toBe(1)
++  expect(owned(state, 'reward')).toBe(2)
++})
++
++afterEach(() => vi.unstubAllGlobals())
++const directOwner = (p: Promotion): PromotionOwner => ({ kind: 'direct', promotion: { ...p, codeOnly: false } })
++const codeOwner = (p: Promotion, raw?: string): PromotionOwner => ({ kind: 'code', code: code(p, raw) })
++const commit = (s: CashierState, owner: PromotionOwner, catalog = products, choice?: FulfillmentChoice) =>
++  cashierReducer(s, { type: 'APPLY_FULFILLMENT', owner, products: catalog, choice })
++const reconcile = (s: CashierState) => invalidPhysicalPromotionIds(s).reduce((next, id) => cashierReducer(next, { type: 'REMOVE_PROMOTION', id }), s)
++const price = (s: CashierState) => computePricing({ cart: s.cart, appliedPromotions: s.appliedPromotions, appliedPromoCodes: s.appliedPromoCodes,
++  discountType: 'fixed', surchargeType: 'fixed', discountRunning: 0, surchargeRunning: 0,
++  settings: { taxEnabled: false, taxRate: 0, roundingEnabled: false, roundingType: 'none' } as PricingInput['settings'],
++  loyalty: { enabled: false, pointsPerThousand: 0, redemptionRate: 0 } as PricingInput['loyalty'], hasCustomer: true, pointsRedeemed: 0, customerPoints: 0 })
++
++it.each(['bundle', 'buy_x_get_y'] as const)('direct and linked %s share physical allocation, only selection provenance differs', type => {
++  const p = promo(type), start = initial(p), direct = commit(start, directOwner(p)), linked = commit(start, codeOwner(p))
++  expect(linked.cart).toEqual(direct.cart)
++  expect(price(linked)).toEqual(price(direct))
++  expect(linked.bundleFreed).toEqual(direct.bundleFreed)
++  expect(linked.bundleApplications).toEqual(direct.bundleApplications)
++  expect(linked.appliedPromotions).toEqual([])
++  expect(direct.appliedPromoCodes).toEqual([])
++  expect(invalidPhysicalPromotionIds(linked)).toEqual([])
++  const metadata = buildPromotionMetadata(linked, price(linked))
++  expect(metadata).toMatchObject({ promotionIds: [], promotionId: null, discountCodes: ['Raw-Winner'], discountCode: 'Raw-Winner', discountLabel: 'Raw-Winner' })
++  // Physical savings are already in item prices, never applied a second time.
++  expect(metadata.discountBreakdown).toEqual([{ label: 'Raw-Winner', kind: type, value: 0, amount: 0 }])
++})
++
++it('BXGY picker preview/cancel is a pure no-op; confirm aggregates exactly the earned picks', () => {
++  const p = promo('buy_x_get_y'), start = { ...initial(p), cart: [line('buy', 100000, 2)] }
++  const catalog = [...products, product('reward2', 30000)]
++  p.bxgyConfig!.getProductIds = ['reward', 'reward2']
++  const owner = codeOwner(p), before = structuredClone(start)
++  const plan = planPromotionFulfillment(start, owner, catalog)
++  expect(plan.kind).toBe('bxgy-picker')
++  if (plan.kind !== 'bxgy-picker') throw new Error('Expected picker')
++  expect(plan.due).toBe(2)
++  expect(plan.options.map(o => o.net)).toEqual([10000, 15000])
++  // Screen cancel only drops this pending plan, without dispatching a mutation.
++  expect(start).toEqual(before)
++  expect(buildPromotionMetadata(start, price(start)).discountCodes).toEqual([])
++  expect(commit(start, owner, catalog)).toBe(start)
++  expect(commit(start, owner, catalog, { kind: 'bxgy', picks: [plan.options[0]] })).toBe(start)
++  const choice: FulfillmentChoice = { kind: 'bxgy', picks: [plan.options[1], plan.options[1]] }
++  const next = commit(start, owner, catalog, choice)
++  expect(next.cart.filter(c => c.isReward)).toEqual([expect.objectContaining({ productId: 'reward2', price: 15000, quantity: 2, subtotal: 30000, rewardPromotionId: 'P' })])
++  expect(next.cart).toEqual(commit(start, directOwner(p), catalog, choice).cart)
++  expect(commit(next, owner, catalog, choice)).toBe(next)
++  expect(commit(start, owner, catalog, { kind: 'bxgy', picks: [{ ...plan.options[0], productId: 'forged' }, plan.options[0]] })).toBe(start)
++  const reduced = cashierReducer(next, { type: 'CART_SET_QTY', productId: 'buy', variantSize: 'M', quantity: 1 })
++  const cleared = reconcile(reduced)
++  expect(cleared.cart).toEqual([line('buy', 100000)])
++  expect(cleared.appliedPromoCodes).toEqual([])
++})
++
++function ambiguousBundle() {
++  const p = promo('bundle')
++  p.bundleConfig!.slots[1].productKeys = ['reward', 'dearer']
++  const start = { ...initial(p), cart: [...initial(p).cart, line('dearer', 30000)] }
++  return { p, start, choice: { kind: 'bundle' as const, assignment: { 1: [{ productId: 'dearer', variantSize: 'M' }] } } }
++}
++
++it('bundle picker cancel is a no-op; confirm preserves free choice, maps and physical quantity', () => {
++  const { p, start, choice } = ambiguousBundle(), owner = codeOwner(p), before = structuredClone(start)
++  const plan = planPromotionFulfillment(start, owner, products)
++  expect(plan.kind).toBe('bundle-picker')
++  expect(start).toEqual(before)
++  expect(commit(start, owner)).toBe(start)
++  expect(commit(start, owner, products, { kind: 'bundle', assignment: {} })).toBe(start)
++  const next = commit(start, owner, products, choice)
++  expect(next.cart).toEqual(commit(start, directOwner(p), products, choice).cart)
++  for (const id of ['buy', 'reward', 'dearer']) expect(owned(next, id)).toBe(owned(start, id))
++  expect(next.bundleFreed.P).toEqual([{ productId: 'dearer', productName: 'dearer', variantSize: 'M', fullPrice: 30000, net: 5000, quantity: 1 }])
++  expect(next.bundleApplications).toEqual({ P: 1 })
++  expect(invalidPhysicalPromotionIds(next)).toEqual([])
++  const removed = cashierReducer(next, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' })
++  expect(removed.cart).toEqual(start.cart)
++  expect(cashierReducer(removed, { type: 'REMOVE_BUNDLE', promotionId: 'P', freed: next.bundleFreed.P }).cart).toEqual(start.cart)
++})
++
++it.each(['bundle', 'buy_x_get_y'] as const)('%s direct takeover restores old code effect before recomputing; later linked input is inert', type => {
++  const p = promo(type), linked = commit(initial(p), codeOwner(p))
++  const direct = commit(linked, directOwner(p))
++  expect(direct.cart).toEqual(commit(initial(p), directOwner(p)).cart)
++  expect(direct.appliedPromoCodes).toEqual([])
++  expect(direct.appliedPromotions.map(p => p.id)).toEqual(['P'])
++  expect(planPromotionFulfillment(direct, codeOwner(p), products).kind).toBe('none')
++  expect(commit(direct, codeOwner(p))).toBe(direct)
++  const cleared = cashierReducer(direct, { type: 'REMOVE_PROMOTION', id: 'P' })
++  expect(cleared.cart).toEqual(initial(p).cart)
++  expect(cleared.appliedPromoCodes).toEqual([])
++})
++
++it('cancel direct takeover picker retains the old linked owner/effect until confirmation', () => {
++  const { p, start, choice } = ambiguousBundle(), linked = commit(start, codeOwner(p), products, choice), before = structuredClone(linked)
++  const preview = planPromotionFulfillment(linked, directOwner(p), products)
++  expect(preview.kind).toBe('bundle-picker')
++  if (preview.kind !== 'bundle-picker') throw new Error('Expected picker')
++  expect(preview.cart).toEqual(start.cart)
++  expect(promotionPreviewCart(linked, { ...p, codeOnly: false })).toEqual(start.cart)
++  expect(linked).toEqual(before)
++  const direct = commit(linked, directOwner(p), products, choice)
++  expect(direct.cart).toEqual(linked.cart)
++  expect(direct.appliedPromoCodes).toEqual([])
++})
++
++it('bundle reactive anchor shrink removes linked owner and restores moved units once', () => {
++  const p = promo('bundle'), start = { ...initial(p), cart: [line('buy', 100000, 2), line('reward', 20000, 2)] }
++  const applied = commit(start, codeOwner(p))
++  expect(applied.bundleApplications).toEqual({ P: 2 })
++  const edited = cashierReducer(applied, { type: 'CART_SET_QTY', productId: 'buy', variantSize: 'M', quantity: 1 })
++  expect(invalidPhysicalPromotionIds(edited)).toEqual(['P'])
++  const cleared = reconcile(edited)
++  expect(cleared.cart).toEqual([line('buy', 100000), line('reward', 20000, 2)])
++  expect(cleared.appliedPromoCodes).toEqual([])
++  expect(cleared.bundleApplications).toEqual({})
++  expect(reconcile(cleared)).toEqual(cleared)
++})
++
++it.each(['bundle', 'buy_x_get_y'] as const)('%s second linked code cannot rerun fulfillment and does not resurrect', type => {
++  const p = promo(type), first = commit(initial(p), codeOwner(p))
++  expect(planPromotionFulfillment(first, codeOwner(p, 'Second-Raw'), products).kind).toBe('none')
++  expect(commit(first, codeOwner(p, 'Second-Raw'))).toBe(first)
++  expect(cashierReducer(first, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' }).appliedPromoCodes).toEqual([])
++})
++
++it.each(['bundle', 'buy_x_get_y'] as const)('%s exclusive replacement and customer cleanup cannot leave ghost linked effects', type => {
++  const p = promo(type), linked = commit(initial(p), codeOwner(p))
++  const exclusive: Promotion = { ...p, id: 'Other', type: 'percentage', value: 10, combinable: false }
++  for (const action of [
++    { type: 'APPLY_PROMOTION' as const, promotion: exclusive },
++    { type: 'APPLY_PROMO_CODE' as const, code: { code: 'Unlinked', type: 'fixed' as const, value: 1 }, combinable: false },
++    { type: 'SET_CUSTOMER' as const, customer: null },
++    { type: 'CART_REMOVE_PROMO_REWARDS' as const, rewardPromotionId: 'P' },
++  ]) {
++    const next = cashierReducer(linked, action)
++    expect(next.cart).toEqual(initial(p).cart)
++    expect(next.appliedPromoCodes.some(c => c.promotion?.id === 'P')).toBe(false)
++    expect(next.bundleFreed).toEqual({})
++  }
++})
++
++it('clear restores direct and linked bundles together and keeps unrelated loyalty rewards', () => {
++  const p = promo('bundle'), q: Promotion = { ...promo('bundle', 'Q'), bundleConfig: { slots: [{ productKeys: ['second'], quantity: 1 }], bundlePrice: 1000 } }
++  const loyalty: CartItem = { ...line('loyalty', 0), isReward: true, rewardConditionId: 'L' }
++  const start = { ...initial(p), cart: [...initial(p).cart, line('second', 30000), loyalty] }
++  const both = commit(commit(start, codeOwner(p)), directOwner(q))
++  expect(Object.keys(both.bundleFreed).sort()).toEqual(['P', 'Q'])
++  const cleared = cashierReducer(both, { type: 'CLEAR_PROMOTIONS' })
++  expect(cleared.cart.filter(c => !c.isReward).sort((a,b) => a.productId.localeCompare(b.productId))).toEqual(start.cart.filter(c => !c.isReward).sort((a,b) => a.productId.localeCompare(b.productId)))
++  expect(cleared.cart.filter(c => c.isReward)).toEqual([loyalty])
++  expect(cleared.appliedPromoCodes).toEqual([])
++  expect(cleared.bundleFreed).toEqual({})
++})
++
++it('no entitlement or stale picker confirmation installs neither owner nor physical effect', () => {
++  for (const type of ['bundle', 'buy_x_get_y'] as const) {
++    const p = promo(type), empty = { ...initial(p), cart: [] }
++    expect(planPromotionFulfillment(empty, codeOwner(p), products).kind).toBe('none')
++    expect(commit(empty, codeOwner(p))).toBe(empty)
++  }
++  const p = promo('buy_x_get_y'), start = { ...initial(p), cart: [line('buy', 100000, 2)] }, owner = codeOwner(p)
++  const plan = planPromotionFulfillment(start, owner, products)
++  if (plan.kind !== 'bxgy-picker') throw new Error('Expected picker')
++  const changed = { ...start, cart: [line('buy', 100000)] }
++  expect(commit(changed, owner, products, { kind: 'bxgy', picks: [plan.options[0], plan.options[0]] })).toBe(changed)
++})
++
++it('selected linked mechanics are used from the snapshot, not a later catalog promotion', () => {
++  const p = promo('bundle'), owner = codeOwner(p)
++  const newer = { ...p, bundleConfig: { ...p.bundleConfig!, bundlePrice: 1 } }
++  expect(commit(initial(p), owner).cart).toEqual(commit(initial(p), directOwner(p)).cart)
++  expect(price(commit(initial(p), owner)).total).not.toBe(price(commit(initial(p), directOwner(newer))).total)
++})
++
++it('overlapping bundle slots cannot commit more freed units than the paid cart owns', () => {
++  const p: Promotion = { ...promo('bundle'), bundleConfig: { slots: [{ productKeys: ['buy'], quantity: 1 }, { productKeys: ['buy'], quantity: 1 }], bundlePrice: 0 } }
++  const start = { ...initial(p), cart: [line('buy', 100000)] }
++  for (const owner of [codeOwner(p), directOwner(p)]) expect(commit(start, owner)).toBe(start)
++})
++
++it('stale ambiguous bundle picks are rejected even when the reduced cart is now unambiguous', () => {
++  const { p, choice } = ambiguousBundle()
++  const changed = { ...initial(p), cart: [line('buy', 100000), line('reward', 20000)] }
++  // The old choice refers to dearer, which is no longer present. Do not silently
++  // substitute reward merely because the new cart no longer needs a picker.
++  expect(commit(changed, codeOwner(p), products, choice)).toBe(changed)
++})
++
++const memoryKV = (): KV => { const m = new Map<string,string>(); return { get: k => m.get(k) ?? null, set: (k,v) => { m.set(k,v) }, remove: k => { m.delete(k) } } }
++it.each(['bundle', 'buy_x_get_y'] as const)('%s queue/reconstruction/response-loss retry preserves code-only provenance, quantities and original key', async type => {
++  vi.stubGlobal('navigator', { onLine: false })
++  const kv = memoryKV(), sent: unknown[] = [], p = promo(type), state = commit(initial(p), codeOwner(p))
++  const api: ApiLike = { async request<T>(_method: string, path: string, body?: unknown): Promise<T> {
++    expect(path).toBe('/api/v1/sync/batch'); sent.push(structuredClone(body))
++    if (sent.length === 1) throw new Error('Synthetic lost response')
++    const key = (body as { items: OutboxItem[] }).items[0].idempotencyKey
++    return { data: { processed: 1, results: [{ idempotencyKey: key, status: 'ok' }], version: 0 } } as T
++  } }
++  const engine = new SyncEngine(api, {}, kv), derived = price(state)
++  const receipt = engine.enqueue('order', { items: state.cart, amountPaid: derived.total, paymentMethod: 'cash', ...buildPromotionMetadata(state, derived) }, `original-${type}`)
++  const captured = structuredClone(engine.outbox.all()[0])
++  expect(captured.payload).toMatchObject({ promotionIds: [], promotionId: null, discountCodes: ['Raw-Winner'], discountCode: 'Raw-Winner', discountLabel: 'Raw-Winner' })
++  expect(captured.payload.items).toEqual(state.cart)
++  vi.stubGlobal('navigator', { onLine: true })
++  await engine.flush()
++  const rebuilt = new SyncEngine(api, {}, kv)
++  expect(rebuilt.outbox.all()[0].payload).toEqual(captured.payload)
++  expect(rebuilt.outbox.all()[0].idempotencyKey).toBe(receipt.idempotencyKey)
++  await rebuilt.flush()
++  expect(sent).toHaveLength(2)
++  expect(sent[0]).toEqual(sent[1])
++  expect(rebuilt.pendingCount()).toBe(0)
++})
++
++it('historical duplicate queued sale stays byte-identical while new physical sales are captured', () => {
++  vi.stubGlobal('navigator', { onLine: false })
++  const kv = memoryKV(), old: OutboxItem = { type: 'order', idempotencyKey: 'old:old-sale', seq: 7, status: 'failed', attempts: 5,
++    clientCreatedAt: '2026-09-01T00:00:00Z', lastError: 'Historical evidence', payload: { promotionIds: ['P'], discountCodes: ['Raw-Winner', 'Second'], items: [line('buy', 1)] } }
++  const bytes = JSON.stringify(old); kv.set('mandalika.pos.outbox', JSON.stringify([old]))
++  const api: ApiLike = { async request() { throw new Error('No network') } }, engine = new SyncEngine(api, {}, kv), p = promo('bundle'), state = commit(initial(p), codeOwner(p))
++  engine.enqueue('order', { items: state.cart, ...buildPromotionMetadata(state, price(state)) }, 'new-physical')
++  expect(JSON.stringify(new SyncEngine(api, {}, kv).outbox.deadLettered()[0])).toBe(bytes)
++})
++
++it('shared server fixtures are produced by real direct/code fulfillment and queued metadata', () => {
++  vi.stubGlobal('navigator', { onLine: false })
++  const uuid = (n: number) => `00000000-0000-4000-8300-${String(n).padStart(12, '0')}`
++  const catalog = [product(uuid(1), 100000), product(uuid(2), 20000)]
++  const promotions: Promotion[] = [
++    { ...promo('buy_x_get_y', uuid(3)), bxgyConfig: { ...promo('buy_x_get_y').bxgyConfig!, buyProductIds: [uuid(1)], getProductIds: [uuid(2)] } },
++    { ...promo('bundle', uuid(4)), bundleConfig: { slots: [{ productKeys: [uuid(1)], quantity: 1 }, { productKeys: [uuid(2)], quantity: 1 }], bundlePrice: 105000 } },
++  ]
++  const kv = memoryKV(); kv.set('mandalika.pos.deviceId', uuid(99))
++  const api: ApiLike = { async request() { throw new Error('No network in generator') } }
++  const engine = new SyncEngine(api, {}, kv)
++  const cases = []
++  let seq = 0
++  for (const p of promotions) {
++    const start: CashierState = { ...CASHIER_INITIAL_STATE, cart: p.type === 'bundle' ? [line(uuid(1), 100000), line(uuid(2), 20000)] : [line(uuid(1), 100000)] }
++    for (const kind of ['direct', 'code'] as const) {
++      const raw = `Raw-LF-${p.type}`, owner = kind === 'direct' ? directOwner(p) : codeOwner(p, raw)
++      const state = commit(start, owner, catalog), derived = price(state)
++      expect(state.cart.filter(c => c.rewardPromotionId === p.id)).toHaveLength(1)
++      const created = engine.enqueue('order', { items: state.cart, paymentMethod: 'cash', amountPaid: derived.total, ...buildPromotionMetadata(state, derived) }, uuid(100 + ++seq))
++      const item = structuredClone(engine.outbox.all().find(i => i.idempotencyKey === created.idempotencyKey)!)
++      cases.push({ name: `${p.type}-${kind}`, kind, promotionId: p.id, code: raw, expectedTotal: derived.total,
++        expectedRewardNet: p.type === 'bundle' ? 5000 : 10000, expectedQuantities: { [uuid(1)]: 1, [uuid(2)]: 1 },
++        expectedGrants: 1, item: { type: item.type, idempotencyKey: item.idempotencyKey, payload: item.payload } })
++    }
++  }
++  // Stable generated file is the shared Go fixture. Runtime timestamps are
++  // excluded only from this golden representation; the real queue keeps them.
++  const fixture = { products: catalog, promotions, cases }
++  for (const c of fixture.cases) delete c.item.payload.clientCreatedAt
++  const output = process.env.MANDALIKA_LF_FIXTURE_OUTPUT
++  if (output) writeFileSync(output, JSON.stringify(fixture, null, 2) + '\n')
++  const checkedIn = JSON.parse(readFileSync(new URL('../../../../backend/internal/handlers/testdata/linked_fulfillment_orders.json', import.meta.url), 'utf8'))
++  expect(fixture).toEqual(checkedIn)
++})
+diff --git a/backend/internal/handlers/linked_fulfillment_integration_test.go b/backend/internal/handlers/linked_fulfillment_integration_test.go
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/handlers/linked_fulfillment_integration_test.go
+@@ -0,0 +1,271 @@
++package handlers
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"net/http"
++	"net/http/httptest"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/jackc/pgx/v5/pgxpool"
++	"github.com/mandalika/pos-backend/internal/auth"
++	"github.com/mandalika/pos-backend/internal/config"
++	"github.com/mandalika/pos-backend/internal/db"
++	mw "github.com/mandalika/pos-backend/internal/middleware"
++	"github.com/mandalika/pos-backend/internal/read"
++	"github.com/mandalika/pos-backend/internal/service"
++	syncpkg "github.com/mandalika/pos-backend/internal/sync"
++	"github.com/mandalika/pos-backend/internal/write"
++)
++
++// Fresh opt-in cluster only. No .env/application config loading, no live fallback,
++// no reuse or cleanup of the previously stopped S0c/S0d/BE fixture directories.
++func TestLinkedFulfillmentPostgres(t *testing.T) {
++	dsn := os.Getenv("MANDALIKA_LF_TEST_DSN")
++	if dsn == "" {
++		t.Skip("isolated linked-fulfillment PostgreSQL fixture not configured")
++	}
++	cfg, err := pgxpool.ParseConfig(dsn)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56442 || cfg.ConnConfig.Database != "mandalika_lf_synthetic" || cfg.ConnConfig.User != "lf_test" {
++		t.Fatal("refusing non-fixture target")
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
++	defer cancel()
++	pool, err := pgxpool.NewWithConfig(ctx, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer pool.Close()
++	var dir string
++	if err = pool.QueryRow(ctx, "SHOW data_directory").Scan(&dir); err != nil {
++		t.Fatal(err)
++	}
++	expected := os.Getenv("MANDALIKA_LF_TEST_DATA_DIR")
++	if expected == "" || filepath.Clean(dir) != filepath.Clean(expected) {
++		t.Fatal("fixture directory mismatch")
++	}
++	var tables int
++	if err = pool.QueryRow(ctx, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").Scan(&tables); err != nil || tables != 0 {
++		t.Fatalf("fixture must be empty: tables=%d err=%v", tables, err)
++	}
++	if err = (&db.DB{Pool: pool}).Migrate(ctx); err != nil {
++		t.Fatal(err)
++	}
++	exec := func(sql string, args ...any) {
++		t.Helper()
++		if _, err := pool.Exec(ctx, sql, args...); err != nil {
++			t.Fatal(err)
++		}
++	}
++	var fixture struct {
++		Products []struct {
++			ID, Name string
++			Variants []struct {
++				Size, SKU string
++				Price     float64
++			}
++		}
++		Promotions []struct {
++			ID, Name, Type string
++			BXGYConfig     json.RawMessage `json:"bxgyConfig"`
++			BundleConfig   json.RawMessage `json:"bundleConfig"`
++		}
++		Cases []struct {
++			Name, Kind, PromotionID, Code string
++			ExpectedTotal                 float64
++			ExpectedRewardNet             float64
++			ExpectedQuantities            map[string]int
++			ExpectedGrants                int
++			Item                          struct {
++				Type, IdempotencyKey string
++				Payload              json.RawMessage
++			}
++		}
++	}
++	raw, err := os.ReadFile("testdata/linked_fulfillment_orders.json")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err = json.Unmarshal(raw, &fixture); err != nil {
++		t.Fatal(err)
++	}
++	if len(fixture.Cases) != 4 || len(fixture.Products) != 2 || len(fixture.Promotions) != 2 {
++		t.Fatal("unexpected shared fixture coverage")
++	}
++	const outlet = "00000000-0000-4000-8300-000000000090"
++	const cashier = "00000000-0000-4000-8300-000000000091"
++	exec(`INSERT INTO outlets(id,name) VALUES($1,'LF synthetic outlet')`, outlet)
++	exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'lf@example.invalid','not-a-login-hash','LF synthetic cashier','cashier',$2)`, cashier, outlet)
++	for _, p := range fixture.Products {
++		exec(`INSERT INTO products(id,name) VALUES($1,$2)`, p.ID, p.Name)
++		for _, v := range p.Variants {
++			exec(`INSERT INTO product_variants(product_id,size,price,stock,sku) VALUES($1,$2,$3,100,$4)`, p.ID, v.Size, v.Price, v.SKU)
++			exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,$3,100)`, outlet, p.ID, v.Size)
++		}
++	}
++	for _, p := range fixture.Promotions {
++		exec(`INSERT INTO promotions(id,name,type,value,combinable,code_only,bxgy_config,bundle_config) VALUES($1,$2,$3,0,true,false,$4::jsonb,$5::jsonb)`, p.ID, p.Name, p.Type, string(p.BXGYConfig), string(p.BundleConfig))
++		exec(`INSERT INTO discount_codes(code,promotion_id,type,value,combinable) VALUES($1,$2,'fixed',0,true)`, "Raw-LF-"+p.Type, p.ID)
++	}
++	exec(`UPDATE loyalty_settings SET enabled=false`)
++	exec(`UPDATE app_settings SET tax_enabled=false,rounding_enabled=false`)
++	rd, wr, svc := read.New(pool), write.New(pool), service.NewOrderService(pool)
++	h := New(rd, nil, auth.NewStore(pool), wr, svc, syncpkg.New(pool, rd, svc, wr), nil)
++	secret := []byte("LF-SYNTHETIC-TEST-KEY")
++	token, err := auth.IssueAccess(secret, time.Hour, cashier, "cashier", outlet, []string{"create_order"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	wrap := mw.RequireAuth(&config.Config{AccessSecret: secret})
++	direct := wrap(mw.RequirePermission("create_order")(http.HandlerFunc(h.CreateOrder)))
++	batch := wrap(http.HandlerFunc(h.SyncBatch))
++	snapshot := func() string {
++		t.Helper()
++		var data string
++		err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
++		'orders',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM orders x),
++		'items',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM order_items x),
++		'stock',(SELECT jsonb_agg(to_jsonb(x) ORDER BY product_id) FROM outlet_variant_stock x),
++		'variants',(SELECT jsonb_agg(to_jsonb(x) ORDER BY product_id) FROM product_variants x),
++		'codes',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM discount_codes x),
++		'grants',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM promo_reward_grants x),
++		'points',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM point_transactions x),
++		'keys',(SELECT jsonb_agg(to_jsonb(x) ORDER BY idempotency_key) FROM processed_keys x))::text`).Scan(&data)
++		if err != nil {
++			t.Fatal(err)
++		}
++		return data
++	}
++	seq := 0
++	for _, route := range []string{"direct", "batch"} {
++		for _, c := range fixture.Cases {
++			t.Run(route+"/"+c.Name, func(t *testing.T) {
++				// Same mechanics/P for both modes; code-only flag exercised on the
++				// linked path. This changes synthetic fixture data only.
++				exec(`UPDATE promotions SET code_only=$2 WHERE id=$1`, c.PromotionID, c.Kind == "code")
++				seq++
++				var payload map[string]any
++				if err := json.Unmarshal(c.Item.Payload, &payload); err != nil {
++					t.Fatal(err)
++				}
++				// Distinct operation namespace per route; all financial/provenance
++				// fields are exactly the real client-generated fixture values.
++				payload["orderUuid"] = fmt.Sprintf("00000000-0000-4000-8301-%012d", seq)
++				key := c.Item.IdempotencyKey + ":" + route
++				var body any = payload
++				path, handler := "/orders", direct
++				if route == "batch" {
++					path, handler = "/sync/batch", batch
++					body = map[string]any{"items": []any{map[string]any{"type": c.Item.Type, "idempotencyKey": key, "payload": payload}}}
++				}
++				raw, err := json.Marshal(body)
++				if err != nil {
++					t.Fatal(err)
++				}
++				request := func() *httptest.ResponseRecorder {
++					r := httptest.NewRequest("POST", path, strings.NewReader(string(raw)))
++					r.Header.Set("Authorization", "Bearer "+token)
++					r.Header.Set("Idempotency-Key", key)
++					w := httptest.NewRecorder()
++					handler.ServeHTTP(w, r)
++					return w
++				}
++				var usageBefore int
++				if err = pool.QueryRow(ctx, `SELECT usage_count FROM discount_codes WHERE code=$1`, c.Code).Scan(&usageBefore); err != nil {
++					t.Fatal(err)
++				}
++				stockBefore := map[string]int{}
++				for productID := range c.ExpectedQuantities {
++					var stock int
++					if err = pool.QueryRow(ctx, `SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'`, outlet, productID).Scan(&stock); err != nil {
++						t.Fatal(err)
++					}
++					stockBefore[productID] = stock
++				}
++				w := request()
++				if route == "direct" && w.Code != 201 {
++					t.Fatalf("direct status=%d body=%s", w.Code, w.Body.String())
++				}
++				if route == "batch" {
++					var response struct{ Data syncpkg.BatchResult }
++					if err = json.Unmarshal(w.Body.Bytes(), &response); err != nil || w.Code != 200 || len(response.Data.Results) != 1 || response.Data.Results[0].Status != "ok" {
++						t.Fatalf("batch status=%d body=%s err=%v", w.Code, w.Body.String(), err)
++					}
++				}
++				var orderID string
++				var total, paid float64
++				var codes []byte
++				var warning bool
++				if err = pool.QueryRow(ctx, `SELECT id,total,amount_paid,COALESCE(applied_discount_codes,'[]'::jsonb),discount_warning FROM orders WHERE idempotency_key=$1`, key).Scan(&orderID, &total, &paid, &codes, &warning); err != nil {
++					t.Fatal(err)
++				}
++				if total != c.ExpectedTotal || paid != c.ExpectedTotal || warning {
++					t.Fatalf("money/parity total=%v paid=%v want=%v warning=%v", total, paid, c.ExpectedTotal, warning)
++				}
++				var applied []string
++				if err = json.Unmarshal(codes, &applied); err != nil {
++					t.Fatal(err)
++				}
++				usageDelta := 0
++				if c.Kind == "code" {
++					usageDelta = 1
++					if len(applied) != 1 || applied[0] != c.Code {
++						t.Fatalf("raw code provenance: %s", codes)
++					}
++				} else if len(applied) != 0 {
++					t.Fatalf("direct consumed code: %s", codes)
++				}
++				var usage, grants int
++				var net float64
++				if err = pool.QueryRow(ctx, `SELECT usage_count FROM discount_codes WHERE code=$1`, c.Code).Scan(&usage); err != nil {
++					t.Fatal(err)
++				}
++				if err = pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(reward_price),0) FROM promo_reward_grants WHERE order_id=$1 AND promotion_id=$2`, orderID, c.PromotionID).Scan(&grants, &net); err != nil {
++					t.Fatal(err)
++				}
++				if usage != usageBefore+usageDelta || grants != c.ExpectedGrants || net != c.ExpectedRewardNet {
++					t.Fatalf("usage=%d before=%d expectedDelta=%d grants=%d net=%v", usage, usageBefore, usageDelta, grants, net)
++				}
++				for productID, expectedQty := range c.ExpectedQuantities {
++					var qty, stock int
++					if err = pool.QueryRow(ctx, `SELECT sum(quantity) FROM order_items WHERE order_id=$1 AND product_id=$2`, orderID, productID).Scan(&qty); err != nil {
++						t.Fatal(err)
++					}
++					if err = pool.QueryRow(ctx, `SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'`, outlet, productID).Scan(&stock); err != nil {
++						t.Fatal(err)
++					}
++					if qty != expectedQty || stock != stockBefore[productID]-expectedQty {
++						t.Fatalf("quantity/stock %s qty=%d stock=%d before=%d", productID, qty, stock, stockBefore[productID])
++					}
++				}
++				// Treat the first committed response as lost; same raw body and key
++				// are submitted twice more. Full business rows, not just counts,
++				// must stay unchanged (including grants and captured evidence).
++				committed := snapshot()
++				for i := 0; i < 2; i++ {
++					retry := request()
++					if retry.Code >= 400 || snapshot() != committed {
++						t.Fatalf("same-key retry changed effects: status=%d body=%s", retry.Code, retry.Body.String())
++					}
++					if route == "batch" {
++						var result struct{ Data syncpkg.BatchResult }
++						if err := json.Unmarshal(retry.Body.Bytes(), &result); err != nil || len(result.Data.Results) != 1 || result.Data.Results[0].IdempotencyKey != key || (result.Data.Results[0].Status != "duplicate" && result.Data.Results[0].Status != "ok") {
++							t.Fatalf("retry did not acknowledge original key: %s err=%v", retry.Body.String(), err)
++						}
++					} else if retry.Code != 201 {
++						t.Fatalf("direct retry status=%d", retry.Code)
++					}
++				}
++				t.Logf("total=%v, physical units=2, reward grants=%d net=%v, code usage delta=%d; two same-body/key retries unchanged", total, grants, net, usageDelta)
++			})
++		}
++	}
++}
+diff --git a/backend/internal/handlers/testdata/linked_fulfillment_orders.json b/backend/internal/handlers/testdata/linked_fulfillment_orders.json
+new file mode 100644
+--- /dev/null
++++ b/backend/internal/handlers/testdata/linked_fulfillment_orders.json
+@@ -0,0 +1,327 @@
++{
++  "products": [
++    {
++      "id": "00000000-0000-4000-8300-000000000001",
++      "name": "00000000-0000-4000-8300-000000000001",
++      "brand": "Fixture",
++      "categoryId": "",
++      "isFeatured": false,
++      "isFavourite": false,
++      "isActive": true,
++      "createdAt": "",
++      "variants": [
++        {
++          "size": "M",
++          "price": 100000,
++          "stock": 100,
++          "sku": "fixture-00000000-0000-4000-8300-000000000001"
++        }
++      ]
++    },
++    {
++      "id": "00000000-0000-4000-8300-000000000002",
++      "name": "00000000-0000-4000-8300-000000000002",
++      "brand": "Fixture",
++      "categoryId": "",
++      "isFeatured": false,
++      "isFavourite": false,
++      "isActive": true,
++      "createdAt": "",
++      "variants": [
++        {
++          "size": "M",
++          "price": 20000,
++          "stock": 100,
++          "sku": "fixture-00000000-0000-4000-8300-000000000002"
++        }
++      ]
++    }
++  ],
++  "promotions": [
++    {
++      "id": "00000000-0000-4000-8300-000000000003",
++      "name": "buy_x_get_y",
++      "type": "buy_x_get_y",
++      "value": 0,
++      "isActive": true,
++      "codeOnly": true,
++      "createdAt": "",
++      "combinable": true,
++      "bundleConfig": null,
++      "bxgyConfig": {
++        "buyQuantity": 1,
++        "getQuantity": 1,
++        "buyProductIds": [
++          "00000000-0000-4000-8300-000000000001"
++        ],
++        "getProductIds": [
++          "00000000-0000-4000-8300-000000000002"
++        ],
++        "getDiscountKind": "percentage",
++        "getDiscountValue": 50
++      }
++    },
++    {
++      "id": "00000000-0000-4000-8300-000000000004",
++      "name": "bundle",
++      "type": "bundle",
++      "value": 0,
++      "isActive": true,
++      "codeOnly": true,
++      "createdAt": "",
++      "combinable": true,
++      "bundleConfig": {
++        "slots": [
++          {
++            "productKeys": [
++              "00000000-0000-4000-8300-000000000001"
++            ],
++            "quantity": 1
++          },
++          {
++            "productKeys": [
++              "00000000-0000-4000-8300-000000000002"
++            ],
++            "quantity": 1
++          }
++        ],
++        "bundlePrice": 105000
++      },
++      "bxgyConfig": null
++    }
++  ],
++  "cases": [
++    {
++      "name": "buy_x_get_y-direct",
++      "kind": "direct",
++      "promotionId": "00000000-0000-4000-8300-000000000003",
++      "code": "Raw-LF-buy_x_get_y",
++      "expectedTotal": 110000,
++      "expectedRewardNet": 10000,
++      "expectedQuantities": {
++        "00000000-0000-4000-8300-000000000001": 1,
++        "00000000-0000-4000-8300-000000000002": 1
++      },
++      "expectedGrants": 1,
++      "item": {
++        "type": "order",
++        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000101",
++        "payload": {
++          "items": [
++            {
++              "productId": "00000000-0000-4000-8300-000000000001",
++              "productName": "00000000-0000-4000-8300-000000000001",
++              "variantSize": "M",
++              "price": 100000,
++              "quantity": 1,
++              "subtotal": 100000
++            },
++            {
++              "productId": "00000000-0000-4000-8300-000000000002",
++              "productName": "00000000-0000-4000-8300-000000000002",
++              "variantSize": "M",
++              "price": 10000,
++              "quantity": 1,
++              "subtotal": 10000,
++              "isReward": true,
++              "rewardPromotionId": "00000000-0000-4000-8300-000000000003"
++            }
++          ],
++          "paymentMethod": "cash",
++          "amountPaid": 110000,
++          "promotionIds": [
++            "00000000-0000-4000-8300-000000000003"
++          ],
++          "discountCodes": [],
++          "promotionId": "00000000-0000-4000-8300-000000000003",
++          "discountCode": null,
++          "discountLabel": "buy_x_get_y",
++          "discountBreakdown": [
++            {
++              "label": "buy_x_get_y",
++              "kind": "buy_x_get_y",
++              "value": 0,
++              "amount": 0
++            }
++          ],
++          "orderUuid": "00000000-0000-4000-8300-000000000101",
++          "deviceId": "00000000-0000-4000-8300-000000000099"
++        }
++      }
++    },
++    {
++      "name": "buy_x_get_y-code",
++      "kind": "code",
++      "promotionId": "00000000-0000-4000-8300-000000000003",
++      "code": "Raw-LF-buy_x_get_y",
++      "expectedTotal": 110000,
++      "expectedRewardNet": 10000,
++      "expectedQuantities": {
++        "00000000-0000-4000-8300-000000000001": 1,
++        "00000000-0000-4000-8300-000000000002": 1
++      },
++      "expectedGrants": 1,
++      "item": {
++        "type": "order",
++        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000102",
++        "payload": {
++          "items": [
++            {
++              "productId": "00000000-0000-4000-8300-000000000001",
++              "productName": "00000000-0000-4000-8300-000000000001",
++              "variantSize": "M",
++              "price": 100000,
++              "quantity": 1,
++              "subtotal": 100000
++            },
++            {
++              "productId": "00000000-0000-4000-8300-000000000002",
++              "productName": "00000000-0000-4000-8300-000000000002",
++              "variantSize": "M",
++              "price": 10000,
++              "quantity": 1,
++              "subtotal": 10000,
++              "isReward": true,
++              "rewardPromotionId": "00000000-0000-4000-8300-000000000003"
++            }
++          ],
++          "paymentMethod": "cash",
++          "amountPaid": 110000,
++          "promotionIds": [],
++          "discountCodes": [
++            "Raw-LF-buy_x_get_y"
++          ],
++          "promotionId": null,
++          "discountCode": "Raw-LF-buy_x_get_y",
++          "discountLabel": "Raw-LF-buy_x_get_y",
++          "discountBreakdown": [
++            {
++              "label": "Raw-LF-buy_x_get_y",
++              "kind": "buy_x_get_y",
++              "value": 0,
++              "amount": 0
++            }
++          ],
++          "orderUuid": "00000000-0000-4000-8300-000000000102",
++          "deviceId": "00000000-0000-4000-8300-000000000099"
++        }
++      }
++    },
++    {
++      "name": "bundle-direct",
++      "kind": "direct",
++      "promotionId": "00000000-0000-4000-8300-000000000004",
++      "code": "Raw-LF-bundle",
++      "expectedTotal": 105000,
++      "expectedRewardNet": 5000,
++      "expectedQuantities": {
++        "00000000-0000-4000-8300-000000000001": 1,
++        "00000000-0000-4000-8300-000000000002": 1
++      },
++      "expectedGrants": 1,
++      "item": {
++        "type": "order",
++        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000103",
++        "payload": {
++          "items": [
++            {
++              "productId": "00000000-0000-4000-8300-000000000001",
++              "productName": "00000000-0000-4000-8300-000000000001",
++              "variantSize": "M",
++              "price": 100000,
++              "quantity": 1,
++              "subtotal": 100000
++            },
++            {
++              "productId": "00000000-0000-4000-8300-000000000002",
++              "productName": "00000000-0000-4000-8300-000000000002",
++              "variantSize": "M",
++              "price": 5000,
++              "quantity": 1,
++              "subtotal": 5000,
++              "isReward": true,
++              "rewardPromotionId": "00000000-0000-4000-8300-000000000004"
++            }
++          ],
++          "paymentMethod": "cash",
++          "amountPaid": 105000,
++          "promotionIds": [
++            "00000000-0000-4000-8300-000000000004"
++          ],
++          "discountCodes": [],
++          "promotionId": "00000000-0000-4000-8300-000000000004",
++          "discountCode": null,
++          "discountLabel": "bundle",
++          "discountBreakdown": [
++            {
++              "label": "bundle",
++              "kind": "bundle",
++              "value": 0,
++              "amount": 0
++            }
++          ],
++          "orderUuid": "00000000-0000-4000-8300-000000000103",
++          "deviceId": "00000000-0000-4000-8300-000000000099"
++        }
++      }
++    },
++    {
++      "name": "bundle-code",
++      "kind": "code",
++      "promotionId": "00000000-0000-4000-8300-000000000004",
++      "code": "Raw-LF-bundle",
++      "expectedTotal": 105000,
++      "expectedRewardNet": 5000,
++      "expectedQuantities": {
++        "00000000-0000-4000-8300-000000000001": 1,
++        "00000000-0000-4000-8300-000000000002": 1
++      },
++      "expectedGrants": 1,
++      "item": {
++        "type": "order",
++        "idempotencyKey": "00000000-0000-4000-8300-000000000099:00000000-0000-4000-8300-000000000104",
++        "payload": {
++          "items": [
++            {
++              "productId": "00000000-0000-4000-8300-000000000001",
++              "productName": "00000000-0000-4000-8300-000000000001",
++              "variantSize": "M",
++              "price": 100000,
++              "quantity": 1,
++              "subtotal": 100000
++            },
++            {
++              "productId": "00000000-0000-4000-8300-000000000002",
++              "productName": "00000000-0000-4000-8300-000000000002",
++              "variantSize": "M",
++              "price": 5000,
++              "quantity": 1,
++              "subtotal": 5000,
++              "isReward": true,
++              "rewardPromotionId": "00000000-0000-4000-8300-000000000004"
++            }
++          ],
++          "paymentMethod": "cash",
++          "amountPaid": 105000,
++          "promotionIds": [],
++          "discountCodes": [
++            "Raw-LF-bundle"
++          ],
++          "promotionId": null,
++          "discountCode": "Raw-LF-bundle",
++          "discountLabel": "Raw-LF-bundle",
++          "discountBreakdown": [
++            {
++              "label": "Raw-LF-bundle",
++              "kind": "bundle",
++              "value": 0,
++              "amount": 0
++            }
++          ],
++          "orderUuid": "00000000-0000-4000-8300-000000000104",
++          "deviceId": "00000000-0000-4000-8300-000000000099"
++        }
++      }
++    }
++  ]
++}

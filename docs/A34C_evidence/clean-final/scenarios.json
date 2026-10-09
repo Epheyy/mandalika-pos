@@ -1,0 +1,3637 @@
+{
+  "status": "passed",
+  "required": 26,
+  "discovered": [
+    "BO-SEMANTIC",
+    "BO-PAGES-CSV",
+    "BO-PAGES-XLSX",
+    "BO-RACE-SUCCESS",
+    "BO-RACE-ERROR",
+    "POS-PICKERS",
+    "POS-INVALIDATION",
+    "POS-PHYSICAL-QUEUE",
+    "POS-GUEST",
+    "POS-CUSTOMER-CREATE",
+    "POS-RECAP",
+    "HOOK-01",
+    "HOOK-02",
+    "HOOK-03",
+    "HOOK-04",
+    "HOOK-05",
+    "HOOK-06",
+    "HOOK-07",
+    "HOOK-08",
+    "HOOK-09",
+    "HOOK-10",
+    "HOOK-11",
+    "HOOK-12",
+    "HOOK-13",
+    "S0A-DIAGNOSTICS",
+    "S0B-REFUND-RETENTION"
+  ],
+  "results": [
+    {
+      "id": "BO-SEMANTIC",
+      "title": "BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 21445,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "type": "bundle",
+              "keys": [
+                "00000000-0000-4000-8300-000000000001",
+                "00000000-0000-4000-8300-000000000001|M"
+              ],
+              "valid": false,
+              "saveEnabled": false,
+              "mutationCalls": 0,
+              "mechanics": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\n\nSLOT PAKET\n\nSLOT 1\n\n×\nSynthetic Scent\nsemua varian\nSynthetic Tester\nJUMLAH\n\nSLOT 2\n\n×\nSynthetic Scent\n1 varian\nSynthetic Tester\nJUMLAH\n\nProduk atau varian tidak boleh dipakai di lebih dari satu slot.\n\n+ Tambah slot\nHARGA PAKET (RP)\nMAKS. KELIPATAN (0 = TANPA BATAS)\nBatal\nKembali\nLanjutkan"
+            },
+            {
+              "type": "bundle",
+              "keys": [
+                "00000000-0000-4000-8300-000000000001|M",
+                "00000000-0000-4000-8300-000000000001"
+              ],
+              "valid": false,
+              "saveEnabled": false,
+              "mutationCalls": 0,
+              "mechanics": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\n\nSLOT PAKET\n\nSLOT 1\n\n×\nSynthetic Scent\n1 varian\nSynthetic Tester\nJUMLAH\n\nSLOT 2\n\n×\nSynthetic Scent\nsemua varian\nSynthetic Tester\nJUMLAH\n\nProduk atau varian tidak boleh dipakai di lebih dari satu slot.\n\n+ Tambah slot\nHARGA PAKET (RP)\nMAKS. KELIPATAN (0 = TANPA BATAS)\nBatal\nKembali\nLanjutkan"
+            },
+            {
+              "type": "bundle",
+              "keys": [
+                "00000000-0000-4000-8300-000000000001|M",
+                "00000000-0000-4000-8300-000000000001|L"
+              ],
+              "valid": true,
+              "saveEnabled": true,
+              "mutationCalls": 1,
+              "mechanics": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\n\nSLOT PAKET\n\nSLOT 1\n\n×\nSynthetic Scent\n1 varian\nSynthetic Tester\nJUMLAH\n\nSLOT 2\n\n×\nSynthetic Scent\n1 varian\nSynthetic Tester\nJUMLAH\n+ Tambah slot\nHARGA PAKET (RP)\nMAKS. KELIPATAN (0 = TANPA BATAS)\nBatal\nKembali\nLanjutkan"
+            },
+            {
+              "type": "buy_x_get_y",
+              "keys": [
+                "00000000-0000-4000-8300-000000000001",
+                "00000000-0000-4000-8300-000000000001|M"
+              ],
+              "valid": false,
+              "saveEnabled": false,
+              "mutationCalls": 0,
+              "mechanics": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\nBELI (X)\nDAPAT (Y)\nMAKS/TRANSAKSI (0=∞)\nDISKON Y\nPersentase (%)\nNominal (Rp)\nNILAI DISKON Y\nGratis\n\nProduk atau varian beli dan hadiah tidak boleh tumpang tindih. Kosongkan produk hadiah untuk mode set yang sama.\n\nPRODUK BELI (KOSONG = SEMUA PRODUK)\nSynthetic Scent\nsemua varian\nSynthetic Tester\nPRODUK HADIAH (DIBERIKAN GRATIS/DISKON KE PELANGGAN)\nSynthetic Scent\n1 varian\nSynthetic Tester\n\nPelanggan menerima produk ini sebagai hadiah saat memenuhi syarat beli.\n\nBatal\nKembali\nLanjutkan"
+            },
+            {
+              "type": "buy_x_get_y",
+              "keys": [
+                "00000000-0000-4000-8300-000000000001|M",
+                "00000000-0000-4000-8300-000000000001|L"
+              ],
+              "valid": true,
+              "saveEnabled": true,
+              "mutationCalls": 1,
+              "mechanics": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\nBELI (X)\nDAPAT (Y)\nMAKS/TRANSAKSI (0=∞)\nDISKON Y\nPersentase (%)\nNominal (Rp)\nNILAI DISKON Y\nGratis\nPRODUK BELI (KOSONG = SEMUA PRODUK)\nSynthetic Scent\n1 varian\nSynthetic Tester\nPRODUK HADIAH (DIBERIKAN GRATIS/DISKON KE PELANGGAN)\nSynthetic Scent\n1 varian\nSynthetic Tester\n\nPelanggan menerima produk ini sebagai hadiah saat memenuhi syarat beli.\n\nBatal\nKembali\nLanjutkan"
+            },
+            {
+              "interactiveError": "Edit Promosi\n1\nUmum\n2\nJenis Promosi\n3\nLokasi & Ketentuan\nTIPE PROMOSI\nPersentase (%)\nDiskon persen dari total belanja\nNominal (Rp)\nPotongan rupiah tetap\nBuy 1 Get 1\nBeli 1 gratis 1 (barang termurah)\nBeli X, Gratis/Diskon Y\nBeli sejumlah barang, dapat hadiah/diskon\nBertingkat\nBelanja lebih, hemat lebih (tier)\nPaket Bundel\nBeli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS\n\nSLOT PAKET\n\nSLOT 1\n\n×\nSynthetic Scent\nsemua varian\nSynthetic Tester\nJUMLAH\n\nSLOT 2\n\n×\nSynthetic Scent\n1 varian\nSynthetic Tester\nJUMLAH\n\nProduk atau varian tidak boleh dipakai di lebih dari satu slot.\n\n+ Tambah slot\nHARGA PAKET (RP)\nMAKS. KELIPATAN (0 = TANPA BATAS)\nBatal\nKembali\nLanjutkan",
+              "duplicateAndToggle": [
+                {
+                  "path": "/api/v1/promotions",
+                  "method": "POST",
+                  "body": {
+                    "name": "Invalid Legacy (Salinan)",
+                    "description": "",
+                    "type": "bundle",
+                    "value": 0,
+                    "minPurchase": 0,
+                    "applicableProductIds": [],
+                    "applicableVariantKeys": [],
+                    "isActive": true,
+                    "combinable": true,
+                    "codeOnly": false,
+                    "activeFromHour": "",
+                    "activeToHour": "",
+                    "activeDays": [],
+                    "outletIds": [],
+                    "bxgyConfig": {
+                      "buyProductIds": [
+                        "00000000-0000-4000-8300-000000000001|M"
+                      ],
+                      "getProductIds": [
+                        "00000000-0000-4000-8300-000000000001|L"
+                      ],
+                      "buyQuantity": 1,
+                      "getQuantity": 1,
+                      "getDiscountKind": "percentage",
+                      "getDiscountValue": 50,
+                      "maxApplications": 1
+                    },
+                    "bundleConfig": {
+                      "slots": [
+                        {
+                          "productKeys": [
+                            "00000000-0000-4000-8300-000000000001|M"
+                          ],
+                          "quantity": 1
+                        },
+                        {
+                          "productKeys": [
+                            "00000000-0000-4000-8300-000000000001|L"
+                          ],
+                          "quantity": 1
+                        }
+                      ],
+                      "bundlePrice": 100000,
+                      "maxApplications": 1
+                    }
+                  }
+                },
+                {
+                  "path": "/api/v1/promotions/invalid",
+                  "method": "PUT",
+                  "body": {
+                    "name": "Invalid Legacy",
+                    "description": "",
+                    "type": "bundle",
+                    "value": 0,
+                    "minPurchase": 0,
+                    "applicableProductIds": [],
+                    "applicableVariantKeys": [],
+                    "isActive": false,
+                    "combinable": true,
+                    "codeOnly": false,
+                    "activeFromHour": "",
+                    "activeToHour": "",
+                    "activeDays": [],
+                    "outletIds": [],
+                    "bxgyConfig": {
+                      "buyProductIds": [
+                        "00000000-0000-4000-8300-000000000001|M"
+                      ],
+                      "getProductIds": [
+                        "00000000-0000-4000-8300-000000000001|L"
+                      ],
+                      "buyQuantity": 1,
+                      "getQuantity": 1,
+                      "getDiscountKind": "percentage",
+                      "getDiscountValue": 50,
+                      "maxApplications": 1
+                    },
+                    "bundleConfig": {
+                      "slots": [
+                        {
+                          "productKeys": [
+                            "00000000-0000-4000-8300-000000000001|M"
+                          ],
+                          "quantity": 1
+                        },
+                        {
+                          "productKeys": [
+                            "00000000-0000-4000-8300-000000000001|L"
+                          ],
+                          "quantity": 1
+                        }
+                      ],
+                      "bundlePrice": 100000,
+                      "maxApplications": 1
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BO-PAGES-CSV",
+      "title": "BO-PAGES-CSV complete dashboard CSV shift exports filters and later page failure",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 48595,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "n": 51,
+              "csvRows": 51,
+              "shiftCsvRows": 51,
+              "reportTotal": 51000,
+              "filteredQris": 25,
+              "dashboard": "Selamat datang, A26 👋\n\nSenin, 21 September 2026\n\nHari Ini\n7 Hari\n30 Hari\nSemua\n\nRp 51.000\n\nPenjualan\n\n51 transaksi\n\n51\n\nTransaksi\n\nRp 1.000 / transaksi\n\n51\n\nProduk Terjual\n\n1 jenis produk\n\n0\n\nPelanggan\n\npelanggan teridentifikasi\n\nTren Penjualan\nMetode Pembayaran\nTunai\nRp 26.000\n51%\nQRIS\nRp 25.000\n49%\nProduk Penjualan Teratas\n1.A26 Product M\n51 Pcs\nProduk Penjualan Terbawah\n1.A26 Product M\n51 Pcs\nBarang Habis\n1 habis · 0 menipis\nProduct 200 M\nHabis\nPromosi\n\nTotal Penggunaan\n\n0\n\nTotal Jumlah Promo\n\nRp 0\n\nBelum ada promosi\n\nPerforma Kasir",
+              "requests": [
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                }
+              ]
+            },
+            {
+              "n": 201,
+              "csvRows": 201,
+              "shiftCsvRows": 201,
+              "reportTotal": 201000,
+              "filteredQris": 100,
+              "dashboard": "Selamat datang, A26 👋\n\nSenin, 21 September 2026\n\nHari Ini\n7 Hari\n30 Hari\nSemua\n\nRp 201.000\n\nPenjualan\n\n201 transaksi\n\n201\n\nTransaksi\n\nRp 1.000 / transaksi\n\n201\n\nProduk Terjual\n\n1 jenis produk\n\n0\n\nPelanggan\n\npelanggan teridentifikasi\n\nTren Penjualan\nSel\nRab\nKam\nJum\nSab\nMin\nSen\nRp 0rb\nRp 55rb\nRp110rb\nRp165rb\nRp220rb\nMetode Pembayaran\nTunai\nRp 101.000\n50%\nQRIS\nRp 100.000\n50%\nProduk Penjualan Teratas\n1.A26 Product M\n201 Pcs\nProduk Penjualan Terbawah\n1.A26 Product M\n201 Pcs\nBarang Habis\n1 habis · 0 menipis\nProduct 200 M\nHabis\nPromosi\n\nTotal Penggunaan\n\n0\n\nTotal Jumlah Promo\n\nRp 0\n\nBelum ada promosi\n\nPerforma Kasir\n0\n55\n110\n165\n220\nA26 Cashier",
+              "requests": [
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                }
+              ]
+            },
+            {
+              "n": 1000,
+              "csvRows": 1000,
+              "shiftCsvRows": 1000,
+              "reportTotal": 1000000,
+              "filteredQris": 500,
+              "dashboard": "Selamat datang, A26 👋\n\nSenin, 21 September 2026\n\nHari Ini\n7 Hari\n30 Hari\nSemua\n\nRp 1.000.000\n\nPenjualan\n\n1000 transaksi\n\n1000\n\nTransaksi\n\nRp 1.000 / transaksi\n\n1.000\n\nProduk Terjual\n\n1 jenis produk\n\n0\n\nPelanggan\n\npelanggan teridentifikasi\n\nTren Penjualan\nSel\nRab\nKam\nJum\nSab\nMin\nSen\nRp 0rb\nRp 250rb\nRp 500rb\nRp 750rb\nRp1000rb\nMetode Pembayaran\nTunai\nRp 500.000\n50%\nQRIS\nRp 500.000\n50%\nProduk Penjualan Teratas\n1.A26 Product M\n1.000 Pcs\nProduk Penjualan Terbawah\n1.A26 Product M\n1.000 Pcs\nBarang Habis\n1 habis · 0 menipis\nProduct 200 M\nHabis\nPromosi\n\nTotal Penggunaan\n\n0\n\nTotal Jumlah Promo\n\nRp 0\n\nBelum ada promosi\n\nPerforma Kasir\n0\n250\n500\n750\n1000\nA26 Cashier",
+              "requests": [
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/outlets",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 3,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 4,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/shifts",
+                  "page": 5,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 1,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/promotions",
+                  "page": 1,
+                  "requested": 50,
+                  "limit": 50
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/orders",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                },
+                {
+                  "path": "/api/v1/products",
+                  "page": 2,
+                  "requested": 200,
+                  "limit": 200
+                }
+              ]
+            },
+            {
+              "laterPageFailure": "visible error; original1000 snapshot retained; export disabled"
+            },
+            {
+              "dashboardInitialFailure": "error instead of prefix KPIs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BO-PAGES-XLSX",
+      "title": "BO-PAGES-XLSX complete transaction exports and later page failure",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 22519,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "n": 51,
+              "xlsxRows": 51,
+              "total": 51000
+            },
+            {
+              "n": 201,
+              "xlsxRows": 201,
+              "total": 201000
+            },
+            {
+              "n": 1000,
+              "xlsxRows": 1000,
+              "total": 1000000
+            },
+            {
+              "laterFailure": "visible error; XLSX disabled; complete snapshot retained"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BO-RACE-SUCCESS",
+      "title": "BO-RACE-SUCCESS B survives late A complete cohort",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 3849,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real Backoffice Reports, synthetic intercepted HTTP, real fetchAllPages 201-row A cohort; no backend/live data",
+            "results": [
+              {
+                "scenario": "B success then late complete A",
+                "passed": true,
+                "heldAPage2Responses": 1,
+                "before": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV\n\nRp 7.000\n\nTotal Penjualan\n\n1\n\nJumlah Transaksi\n\nRp 0\n\nTotal Refund\n\n0\n\nTransaksi Direfund\n\nBreakdown Pembayaran\n\nCash\n\nRp 7.000\n\n100%\n\n1 transaksi\n\nB-0\n\n21 Sep 2026 17:48 · A31 Tester\n\nSelesai\n\nRp 7.000",
+                "after": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV\n\nRp 7.000\n\nTotal Penjualan\n\n1\n\nJumlah Transaksi\n\nRp 0\n\nTotal Refund\n\n0\n\nTransaksi Direfund\n\nBreakdown Pembayaran\n\nCash\n\nRp 7.000\n\n100%\n\n1 transaksi\n\nB-0\n\n21 Sep 2026 17:48 · A31 Tester\n\nSelesai\n\nRp 7.000"
+              }
+            ],
+            "calls": [
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "A",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "A",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "A",
+                "page": 2
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "B",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "B",
+                "page": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "BO-RACE-ERROR",
+      "title": "BO-RACE-ERROR B survives late A complete cohort",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 3825,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real Backoffice Reports, synthetic intercepted HTTP, real fetchAllPages 201-row A cohort; no backend/live data",
+            "results": [
+              {
+                "scenario": "B failure then late complete A",
+                "passed": true,
+                "heldAPage2Responses": 1,
+                "before": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\n\nGagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. A31 B synthetic failure\n\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV",
+                "after": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\n\nGagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. A31 B synthetic failure\n\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV"
+              }
+            ],
+            "calls": [
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/auth/refresh",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/products",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/promotions",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/outlets",
+                "scope": "",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "A",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "A",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "A",
+                "page": 2
+              },
+              {
+                "path": "/api/v1/orders",
+                "scope": "B",
+                "page": 1
+              },
+              {
+                "path": "/api/v1/shifts",
+                "scope": "B",
+                "page": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "POS-PICKERS",
+      "title": "POS-PICKERS accepted rendered flow and synthetic evidence",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 14831,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "kind": "Bundle",
+              "owner": "direct",
+              "cancelUnchanged": true,
+              "confirmed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 5.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 225.000\nPromo: Synthetic Bundle\n×\nTotal\nRp 225.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "direct",
+              "removed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 240.000\nTotal\nRp 240.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "linked",
+              "cancelUnchanged": true,
+              "confirmed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 5.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 225.000\nKode: Raw-Bundle\n×\nTotal\nRp 225.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "takeover": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 5.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 225.000\nPromo: Synthetic Bundle\n×\nTotal\nRp 225.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "linked",
+              "removed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 240.000\nTotal\nRp 240.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "direct",
+              "cancelUnchanged": true,
+              "confirmed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang4\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 10.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 250.000\nPromo: Synthetic BXGY\n×\nTotal\nRp 250.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "direct",
+              "removed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 240.000\nTotal\nRp 240.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "linked",
+              "cancelUnchanged": true,
+              "confirmed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang4\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 10.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 250.000\nKode: Raw-BXGY\n×\nTotal\nRp 250.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "takeover": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang4\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 10.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 250.000\nPromo: Synthetic BXGY\n×\nTotal\nRp 250.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "linked",
+              "removed": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 240.000\nTotal\nRp 240.000\nBayar\nDitambah: Synthetic Tester M"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "POS-INVALIDATION",
+      "title": "POS-INVALIDATION accepted rendered flow and synthetic evidence",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 20812,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "kind": "Bundle",
+              "owner": "direct",
+              "participantEdit": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 20.000\nTotal\nRp 20.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "direct",
+              "clear": true
+            },
+            {
+              "kind": "Bundle",
+              "owner": "linked",
+              "participantEdit": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 20.000\nTotal\nRp 20.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "linked",
+              "clear": true
+            },
+            {
+              "kind": "BXGY",
+              "owner": "direct",
+              "participantEdit": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 20.000\nTotal\nRp 20.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "direct",
+              "clear": true
+            },
+            {
+              "kind": "BXGY",
+              "owner": "linked",
+              "participantEdit": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 20.000\nTotal\nRp 20.000\nBayar\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "linked",
+              "clear": true
+            },
+            {
+              "invalidRefused": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 240.000\nTotal\nRp 240.000\nBayar\nSyarat promo belum terpenuhi"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "POS-PHYSICAL-QUEUE",
+      "title": "POS-PHYSICAL-QUEUE accepted rendered flow and synthetic evidence",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 15285,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "kind": "Bundle",
+              "owner": "direct",
+              "individualRemoval": true,
+              "item": {
+                "idempotencyKey": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b:db73e5f6-2cd9-4ce3-b7fa-4eccbeab47c0",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-K0001",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "L",
+                      "price": 120000,
+                      "quantity": 1,
+                      "subtotal": 120000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 5000,
+                      "quantity": 1,
+                      "subtotal": 5000,
+                      "isReward": true,
+                      "rewardPromotionId": "bundle"
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 225000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [
+                    "bundle"
+                  ],
+                  "discountCodes": [],
+                  "promotionId": "bundle",
+                  "discountCode": null,
+                  "discountLabel": "Synthetic Bundle",
+                  "discountBreakdown": [
+                    {
+                      "label": "Synthetic Bundle",
+                      "kind": "bundle",
+                      "value": 0,
+                      "amount": 0
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "db73e5f6-2cd9-4ce3-b7fa-4eccbeab47c0",
+                  "deviceId": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b",
+                  "clientCreatedAt": "2026-09-21T10:49:02.988Z"
+                },
+                "seq": 1,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:02.988Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 5.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 225.000\nPromo: Synthetic Bundle\n×\nTotal\nRp 225.000\nBayar\n✓\nPembayaran Berhasil\n\nMND-588807\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSynthetic ScentL ×1\nRp 120.000\nSynthetic TesterM ×1\nRp 5.000\nSubtotal\nRp 225.000\nTotal\nRp 225.000\nQRIS\nRp 225.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "Bundle",
+              "owner": "linked",
+              "individualRemoval": true,
+              "item": {
+                "idempotencyKey": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b:696c9443-7407-4b9c-82b3-26e24616aa74",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-K0002",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "L",
+                      "price": 120000,
+                      "quantity": 1,
+                      "subtotal": 120000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 5000,
+                      "quantity": 1,
+                      "subtotal": 5000,
+                      "isReward": true,
+                      "rewardPromotionId": "bundle"
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 225000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [
+                    "Raw-Bundle"
+                  ],
+                  "promotionId": null,
+                  "discountCode": "Raw-Bundle",
+                  "discountLabel": "Raw-Bundle",
+                  "discountBreakdown": [
+                    {
+                      "label": "Raw-Bundle",
+                      "kind": "bundle",
+                      "value": 0,
+                      "amount": 0
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "696c9443-7407-4b9c-82b3-26e24616aa74",
+                  "deviceId": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b",
+                  "clientCreatedAt": "2026-09-21T10:49:06.277Z"
+                },
+                "seq": 2,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:06.277Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 1…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang3\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 5.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 225.000\nKode: Raw-Bundle\n×\nTotal\nRp 225.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSynthetic ScentL ×1\nRp 120.000\nSynthetic TesterM ×1\nRp 5.000\nSubtotal\nRp 225.000\nTotal\nRp 225.000\nQRIS\nRp 225.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "direct",
+              "individualRemoval": true,
+              "item": {
+                "idempotencyKey": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b:5d6b069c-0b7f-474e-b350-61082229d1ea",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-K0003",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "L",
+                      "price": 120000,
+                      "quantity": 1,
+                      "subtotal": 120000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 20000,
+                      "quantity": 1,
+                      "subtotal": 20000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 10000,
+                      "quantity": 1,
+                      "subtotal": 10000,
+                      "isReward": true,
+                      "rewardPromotionId": "bxgy"
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 250000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [
+                    "bxgy"
+                  ],
+                  "discountCodes": [],
+                  "promotionId": "bxgy",
+                  "discountCode": null,
+                  "discountLabel": "Synthetic BXGY",
+                  "discountBreakdown": [
+                    {
+                      "label": "Synthetic BXGY",
+                      "kind": "buy_x_get_y",
+                      "value": 0,
+                      "amount": 0
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "5d6b069c-0b7f-474e-b350-61082229d1ea",
+                  "deviceId": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b",
+                  "clientCreatedAt": "2026-09-21T10:49:09.430Z"
+                },
+                "seq": 3,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:09.430Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 2…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang4\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 10.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 250.000\nPromo: Synthetic BXGY\n×\nTotal\nRp 250.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSynthetic ScentL ×1\nRp 120.000\nSynthetic TesterM ×1\nRp 20.000\nSynthetic TesterM ×1\nRp 10.000\nSubtotal\nRp 250.000\nTotal\nRp 250.000\nQRIS\nRp 250.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Tester M"
+            },
+            {
+              "kind": "BXGY",
+              "owner": "linked",
+              "individualRemoval": true,
+              "item": {
+                "idempotencyKey": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b:a3fd8823-c2d6-4ae0-a32e-f4cb731e119a",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-K0004",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "L",
+                      "price": 120000,
+                      "quantity": 1,
+                      "subtotal": 120000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 20000,
+                      "quantity": 1,
+                      "subtotal": 20000
+                    },
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000002",
+                      "productName": "Synthetic Tester",
+                      "variantSize": "M",
+                      "price": 10000,
+                      "quantity": 1,
+                      "subtotal": 10000,
+                      "isReward": true,
+                      "rewardPromotionId": "bxgy"
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 250000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [
+                    "Raw-BXGY"
+                  ],
+                  "promotionId": null,
+                  "discountCode": "Raw-BXGY",
+                  "discountLabel": "Raw-BXGY",
+                  "discountBreakdown": [
+                    {
+                      "label": "Raw-BXGY",
+                      "kind": "buy_x_get_y",
+                      "value": 0,
+                      "amount": 0
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "a3fd8823-c2d6-4ae0-a32e-f4cb731e119a",
+                  "deviceId": "a9c31012-1f7a-44a9-8b27-2c80bfdeb99b",
+                  "clientCreatedAt": "2026-09-21T10:49:12.606Z"
+                },
+                "seq": 4,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:12.606Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 3…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang4\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\n\nSynthetic Scent\n\nL\n\nRp 120.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 20.000\n\n−\n1\n+\n×\n\nSynthetic Tester\n\nM\n\nRp 10.000 · Hadiah Promo\n\nCatatan\nDiskon\nPromo\nSubtotal\nRp 250.000\nKode: Raw-BXGY\n×\nTotal\nRp 250.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSynthetic ScentL ×1\nRp 120.000\nSynthetic TesterM ×1\nRp 20.000\nSynthetic TesterM ×1\nRp 10.000\nSubtotal\nRp 250.000\nTotal\nRp 250.000\nQRIS\nRp 250.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Tester M"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "POS-GUEST",
+      "title": "POS-GUEST accepted rendered flow and synthetic evidence",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 20744,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "name": "guest-cash",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:03b354de-77af-430a-bc6f-4e7096ccf18f",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0001",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "cash",
+                  "amountPaid": 100000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "03b354de-77af-430a-bc6f-4e7096ccf18f",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:16.489Z"
+                },
+                "seq": 1,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:16.489Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nBayar\n✓\nPembayaran Berhasil\n\nMND-987596\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nTunai\nRp 100.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "guest-qris",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:51a5509a-9ae4-49b3-9817-9f2337b40b4c",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0002",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 100000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "51a5509a-9ae4-49b3-9817-9f2337b40b4c",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:18.074Z"
+                },
+                "seq": 2,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:18.074Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 1…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "guest-generic-direct",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:b0b0dbdf-e47f-472c-a3ec-b37870b3ff20",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0003",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 90000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [
+                    "generic"
+                  ],
+                  "discountCodes": [],
+                  "promotionId": "generic",
+                  "discountCode": null,
+                  "discountLabel": "Generic Ten",
+                  "discountBreakdown": [
+                    {
+                      "label": "Generic Ten",
+                      "kind": "percentage",
+                      "value": 10,
+                      "amount": 10000
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "b0b0dbdf-e47f-472c-a3ec-b37870b3ff20",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:19.823Z"
+                },
+                "seq": 3,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:19.823Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 2…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nPromo: Generic Ten\n×\nTotal Promo\n−Rp 10.000\nTotal Diskon\n−Rp 10.000\nTotal\nRp 90.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nDiskon · Generic Ten\n−Rp 10.000\nTotal\nRp 90.000\nQRIS\nRp 90.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "guest-generic-linked",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:0cfb15a2-84b8-40ff-84f7-f0f1e0d6a206",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0004",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 90000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [
+                    "Raw-Generic"
+                  ],
+                  "promotionId": null,
+                  "discountCode": "Raw-Generic",
+                  "discountLabel": "Raw-Generic",
+                  "discountBreakdown": [
+                    {
+                      "label": "Raw-Generic",
+                      "kind": "percentage",
+                      "value": 10,
+                      "amount": 10000
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "0cfb15a2-84b8-40ff-84f7-f0f1e0d6a206",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:21.641Z"
+                },
+                "seq": 4,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:21.641Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 3…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nKode: Raw-Generic\n×\nTotal Promo\n−Rp 10.000\nTotal Diskon\n−Rp 10.000\nTotal\nRp 90.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nDiskon · Raw-Generic\n−Rp 10.000\nTotal\nRp 90.000\nQRIS\nRp 90.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "guest-rejected-CUSTOMER-CAP",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:1596cb1e-e0e9-415c-98df-11e0f4dc950b",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0005",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 100000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "1596cb1e-e0e9-415c-98df-11e0f4dc950b",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:23.639Z"
+                },
+                "seq": 5,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:23.639Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nMenyinkronkan 4…\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "guest-rejected-ASSIGNED",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:c65345b9-dbae-4a41-adb3-d2b9bf11d01a",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0006",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 100000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "c65345b9-dbae-4a41-adb3-d2b9bf11d01a",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:25.605Z"
+                },
+                "seq": 6,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:25.605Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nSinkron gagal (1)\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "clear-assigned-reconfirm",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:a022b9ec-9554-486f-8e1d-ae7ccbc789ff",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0007",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 95000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [
+                    "generic-fixed"
+                  ],
+                  "discountCodes": [],
+                  "promotionId": "generic-fixed",
+                  "discountCode": null,
+                  "discountLabel": "Generic Fixed",
+                  "discountBreakdown": [
+                    {
+                      "label": "Generic Fixed",
+                      "kind": "fixed",
+                      "value": 5000,
+                      "amount": 5000
+                    }
+                  ],
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "a022b9ec-9554-486f-8e1d-ae7ccbc789ff",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:28.093Z"
+                },
+                "seq": 7,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:28.093Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nSinkron gagal (2)\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nPromo: Generic Fixed\n×\nTotal Promo\n−Rp 5.000\nTotal Diskon\n−Rp 5.000\nTotal\nRp 95.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nDiskon · Generic Fixed\n−Rp 5.000\nTotal\nRp 95.000\nQRIS\nRp 95.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nKode diskon dibatalkan: Kode ini khusus untuk pelanggan tertentu"
+            },
+            {
+              "name": "clear-reward-points",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:4e661d05-d4eb-485d-8123-456efdd271a2",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0008",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 100000,
+                  "customerId": null,
+                  "customerName": null,
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "4e661d05-d4eb-485d-8123-456efdd271a2",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:30.584Z"
+                },
+                "seq": 8,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:30.584Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nSinkron gagal (3)\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "registered-preserved",
+              "item": {
+                "idempotencyKey": "278ff1a8-88bc-41d7-a150-7b52549dceb1:8646fb25-9b7a-49f6-ab8f-4e387719d3a3",
+                "type": "order",
+                "payload": {
+                  "orderNumber": "SYN-C0009",
+                  "items": [
+                    {
+                      "productId": "00000000-0000-4000-8300-000000000001",
+                      "productName": "Synthetic Scent",
+                      "variantSize": "M",
+                      "price": 100000,
+                      "quantity": 1,
+                      "subtotal": 100000
+                    }
+                  ],
+                  "paymentMethod": "qris",
+                  "amountPaid": 100000,
+                  "customerId": "00000000-0000-4000-8300-000000000081",
+                  "customerName": "Synthetic Customer",
+                  "salesmanId": null,
+                  "salesmanName": null,
+                  "discountType": null,
+                  "discountValue": null,
+                  "surchargeValue": null,
+                  "surchargeType": null,
+                  "promotionIds": [],
+                  "discountCodes": [],
+                  "promotionId": null,
+                  "discountCode": null,
+                  "discountLabel": null,
+                  "discountBreakdown": null,
+                  "pointsRedeemed": null,
+                  "notes": null,
+                  "shiftId": "00000000-0000-4000-8300-000000000080",
+                  "orderUuid": "8646fb25-9b7a-49f6-ab8f-4e387719d3a3",
+                  "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                  "clientCreatedAt": "2026-09-21T10:49:32.261Z"
+                },
+                "seq": 9,
+                "status": "failed",
+                "clientCreatedAt": "2026-09-21T10:49:32.261Z",
+                "lastError": "Synthetic retain-only transport",
+                "attempts": 1
+              },
+              "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nSinkron gagal (4)\n\nSynthetic Customer\n\n+62000000000\n· 100 poin\n\n+100 poin (tampilan sementara)\n\n×\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\n👤 Synthetic Customer\n\n+62000000000 · 100 poin\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\n\n⏳ Menunggu sinkronisasi\n\nBayar\n✓\nPembayaran Berhasil\n\n⏳ Menunggu sinkronisasi ke server\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nPelanggan: Synthetic Customer\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+            },
+            {
+              "name": "reconstruction",
+              "identities": [
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:03b354de-77af-430a-bc6f-4e7096ccf18f",
+                  "payload": {
+                    "orderNumber": "SYN-C0001",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "cash",
+                    "amountPaid": 100000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "03b354de-77af-430a-bc6f-4e7096ccf18f",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:16.489Z"
+                  },
+                  "created": "2026-09-21T10:49:16.489Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:51a5509a-9ae4-49b3-9817-9f2337b40b4c",
+                  "payload": {
+                    "orderNumber": "SYN-C0002",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 100000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "51a5509a-9ae4-49b3-9817-9f2337b40b4c",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:18.074Z"
+                  },
+                  "created": "2026-09-21T10:49:18.074Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:b0b0dbdf-e47f-472c-a3ec-b37870b3ff20",
+                  "payload": {
+                    "orderNumber": "SYN-C0003",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 90000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [
+                      "generic"
+                    ],
+                    "discountCodes": [],
+                    "promotionId": "generic",
+                    "discountCode": null,
+                    "discountLabel": "Generic Ten",
+                    "discountBreakdown": [
+                      {
+                        "label": "Generic Ten",
+                        "kind": "percentage",
+                        "value": 10,
+                        "amount": 10000
+                      }
+                    ],
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "b0b0dbdf-e47f-472c-a3ec-b37870b3ff20",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:19.823Z"
+                  },
+                  "created": "2026-09-21T10:49:19.823Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:0cfb15a2-84b8-40ff-84f7-f0f1e0d6a206",
+                  "payload": {
+                    "orderNumber": "SYN-C0004",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 90000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [
+                      "Raw-Generic"
+                    ],
+                    "promotionId": null,
+                    "discountCode": "Raw-Generic",
+                    "discountLabel": "Raw-Generic",
+                    "discountBreakdown": [
+                      {
+                        "label": "Raw-Generic",
+                        "kind": "percentage",
+                        "value": 10,
+                        "amount": 10000
+                      }
+                    ],
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "0cfb15a2-84b8-40ff-84f7-f0f1e0d6a206",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:21.641Z"
+                  },
+                  "created": "2026-09-21T10:49:21.641Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:1596cb1e-e0e9-415c-98df-11e0f4dc950b",
+                  "payload": {
+                    "orderNumber": "SYN-C0005",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 100000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "1596cb1e-e0e9-415c-98df-11e0f4dc950b",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:23.639Z"
+                  },
+                  "created": "2026-09-21T10:49:23.639Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:c65345b9-dbae-4a41-adb3-d2b9bf11d01a",
+                  "payload": {
+                    "orderNumber": "SYN-C0006",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 100000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "c65345b9-dbae-4a41-adb3-d2b9bf11d01a",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:25.605Z"
+                  },
+                  "created": "2026-09-21T10:49:25.605Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:a022b9ec-9554-486f-8e1d-ae7ccbc789ff",
+                  "payload": {
+                    "orderNumber": "SYN-C0007",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 95000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [
+                      "generic-fixed"
+                    ],
+                    "discountCodes": [],
+                    "promotionId": "generic-fixed",
+                    "discountCode": null,
+                    "discountLabel": "Generic Fixed",
+                    "discountBreakdown": [
+                      {
+                        "label": "Generic Fixed",
+                        "kind": "fixed",
+                        "value": 5000,
+                        "amount": 5000
+                      }
+                    ],
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "a022b9ec-9554-486f-8e1d-ae7ccbc789ff",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:28.093Z"
+                  },
+                  "created": "2026-09-21T10:49:28.093Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:4e661d05-d4eb-485d-8123-456efdd271a2",
+                  "payload": {
+                    "orderNumber": "SYN-C0008",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 100000,
+                    "customerId": null,
+                    "customerName": null,
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "4e661d05-d4eb-485d-8123-456efdd271a2",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:30.584Z"
+                  },
+                  "created": "2026-09-21T10:49:30.584Z"
+                },
+                {
+                  "key": "278ff1a8-88bc-41d7-a150-7b52549dceb1:8646fb25-9b7a-49f6-ab8f-4e387719d3a3",
+                  "payload": {
+                    "orderNumber": "SYN-C0009",
+                    "items": [
+                      {
+                        "productId": "00000000-0000-4000-8300-000000000001",
+                        "productName": "Synthetic Scent",
+                        "variantSize": "M",
+                        "price": 100000,
+                        "quantity": 1,
+                        "subtotal": 100000
+                      }
+                    ],
+                    "paymentMethod": "qris",
+                    "amountPaid": 100000,
+                    "customerId": "00000000-0000-4000-8300-000000000081",
+                    "customerName": "Synthetic Customer",
+                    "salesmanId": null,
+                    "salesmanName": null,
+                    "discountType": null,
+                    "discountValue": null,
+                    "surchargeValue": null,
+                    "surchargeType": null,
+                    "promotionIds": [],
+                    "discountCodes": [],
+                    "promotionId": null,
+                    "discountCode": null,
+                    "discountLabel": null,
+                    "discountBreakdown": null,
+                    "pointsRedeemed": null,
+                    "notes": null,
+                    "shiftId": "00000000-0000-4000-8300-000000000080",
+                    "orderUuid": "8646fb25-9b7a-49f6-ab8f-4e387719d3a3",
+                    "deviceId": "278ff1a8-88bc-41d7-a150-7b52549dceb1",
+                    "clientCreatedAt": "2026-09-21T10:49:32.261Z"
+                  },
+                  "created": "2026-09-21T10:49:32.261Z"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "POS-CUSTOMER-CREATE",
+      "title": "POS-CUSTOMER-CREATE new customer and registered sale retain their link",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 4078,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "created": {
+              "idempotencyKey": "d02f4765-e908-4ef8-a46e-8e0288b72c25:8f850f51-9d70-43ff-b681-01d28892b2b7",
+              "type": "customer_create",
+              "payload": {
+                "customerId": "8f850f51-9d70-43ff-b681-01d28892b2b7",
+                "name": "New Synthetic Customer",
+                "phone": "+44000000000",
+                "email": "",
+                "orderUuid": "8f850f51-9d70-43ff-b681-01d28892b2b7",
+                "deviceId": "d02f4765-e908-4ef8-a46e-8e0288b72c25",
+                "clientCreatedAt": "2026-09-21T10:49:36.938Z"
+              },
+              "seq": 1,
+              "status": "failed",
+              "clientCreatedAt": "2026-09-21T10:49:36.939Z",
+              "lastError": "Synthetic retain-only transport",
+              "attempts": 2
+            },
+            "sale": {
+              "idempotencyKey": "d02f4765-e908-4ef8-a46e-8e0288b72c25:89a59e13-ca98-4cd8-945c-165b7cde1981",
+              "type": "order",
+              "payload": {
+                "orderNumber": "SYN-70001",
+                "items": [
+                  {
+                    "productId": "00000000-0000-4000-8300-000000000001",
+                    "productName": "Synthetic Scent",
+                    "variantSize": "M",
+                    "price": 100000,
+                    "quantity": 1,
+                    "subtotal": 100000
+                  }
+                ],
+                "paymentMethod": "qris",
+                "amountPaid": 100000,
+                "customerId": "8f850f51-9d70-43ff-b681-01d28892b2b7",
+                "customerName": "New Synthetic Customer",
+                "salesmanId": null,
+                "salesmanName": null,
+                "discountType": null,
+                "discountValue": null,
+                "surchargeValue": null,
+                "surchargeType": null,
+                "promotionIds": [],
+                "discountCodes": [],
+                "promotionId": null,
+                "discountCode": null,
+                "discountLabel": null,
+                "discountBreakdown": null,
+                "pointsRedeemed": null,
+                "notes": null,
+                "shiftId": "00000000-0000-4000-8300-000000000080",
+                "orderUuid": "89a59e13-ca98-4cd8-945c-165b7cde1981",
+                "deviceId": "d02f4765-e908-4ef8-a46e-8e0288b72c25",
+                "clientCreatedAt": "2026-09-21T10:49:37.503Z"
+              },
+              "seq": 2,
+              "status": "failed",
+              "clientCreatedAt": "2026-09-21T10:49:37.503Z",
+              "lastError": "Synthetic retain-only transport",
+              "attempts": 1
+            },
+            "receipt": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n\nNew Synthetic Customer\n\n+44000000000\n· 0 poin\n\n+100 poin (tampilan sementara)\n\n×\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\n👤 New Synthetic Customer\n\n+44000000000 · 0 poin\n\nKeranjang1\nHapus semua\n\nSynthetic Scent\n\nM\n\nRp 100.000\n\n−\n1\n+\n×\nCatatan\nDiskon\nPromo\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nBayar\n✓\nPembayaran Berhasil\n\nMND-772343\n\nSynthetic receipt\n\n21/09/2026, 17.49\n\nSynthetic ScentM ×1\nRp 100.000\nSubtotal\nRp 100.000\nTotal\nRp 100.000\nQRIS\nRp 100.000\n\nPelanggan: New Synthetic Customer\n\nKasir: Synthetic Cashier\n\nTest only\n\nTutup\nTransaksi Baru\nDitambah: Synthetic Scent M"
+          }
+        }
+      ]
+    },
+    {
+      "id": "POS-RECAP",
+      "title": "POS-RECAP all pages cached and actual panel remount keeps complete snapshot",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 6201,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "active": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nS\n\nSynthetic Outlet\n\nAdmin\n\nRekapanRiwayat\nS\n\nSynthetic Cashier\n\nAdmin\n\n✕ Kembali ke Kasir\ni\n\nRekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.\n\nTunai\nTercatat Rp 401.000\nTERHITUNG\nQRIS\nTercatat Rp 0\nTERHITUNG\nTotal Tercatat\nRp 401.000\nTotal Terhitung\n—\nSelisih\n—\nKAS AKHIR (RP)\nTutup Shift\nCetak Rekap\n\nRingkasan Uang Masuk/Keluar\n\n201 Uang Masuk\nRp 20.100\n200 Uang Keluar\nRp 20.000\nTotal\nRp 100\nRINGKASAN UANG MASUK\nNOMINAL\nSynthetic flow 0\nRp 100\nSynthetic flow 2\nRp 100\nSynthetic flow 4\nRp 100\nSynthetic flow 6\nRp 100\nSynthetic flow 8\nRp 100\nTotal\nRp 20.100\nRINGKASAN UANG KELUAR\nNOMINAL\nSynthetic flow 1\nRp 100\nSynthetic flow 3\nRp 100\nSynthetic flow 5\nRp 100\nSynthetic flow 7\nRp 100\nSynthetic flow 9\nRp 100\nTotal\nRp 20.000\n\nRingkasan Penjualan\n\nRINGKASAN PESANAN\nQTY\nTotal Transaksi\n401\nTotal Pengembalian\n0\nTotal Pengembalian Item\n0\nTIPE\nNOMINAL\nPenjualan Kotor\nRp 401.000\nPengembalian Kotor\nRp 0\nDiskon\nRp 0\nSurcharge\nRp 0\nPenjualan Bersih\nRp 401.000\nPajak\nRp 0\nTotal Penjualan\nRp 401.000",
+            "historical": "Outlet ▾\nShift Aktif\nTutup\nOnline\nTersinkron\n+ Baru\nSemua\n♥ Favorit\nS\n\nSynthetic Scent\n\nS\n\nSynthetic Tester\n\nS\n\nSynthetic Outlet\n\nAdmin\n\nRekapanRiwayat\nS\n\nSynthetic Cashier\n\nAdmin\n\n✕ Kembali ke Kasir\ns/d\nTANGGAL\nSHIFT\nPENGGUNA\nPENJUALAN\n21/09/2026\nShift 191\nHistorical 60\nRp 401.000\n21/09/2026\nShift 190\nHistorical 61\nRp 401.000\n21/09/2026\nShift 189\nHistorical 62\nRp 401.000\n21/09/2026\nShift 188\nHistorical 63\nRp 401.000\n21/09/2026\nShift 187\nHistorical 64\nRp 401.000\n21/09/2026\nShift 186\nHistorical 65\nRp 401.000\n21/09/2026\nShift 185\nHistorical 66\nRp 401.000\n21/09/2026\nShift 184\nHistorical 67\nRp 401.000\n21/09/2026\nShift 183\nHistorical 68\nRp 401.000\n21/09/2026\nShift 182\nHistorical 69\nRp 401.000\n21/09/2026\nShift 181\nHistorical 70\nRp 401.000\n21/09/2026\nShift 180\nHistorical 71\nRp 401.000\n21/09/2026\nShift 179\nHistorical 72\nRp 401.000\n21/09/2026\nShift 178\nHistorical 73\nRp 401.000\n21/09/2026\nShift 177\nHistorical 74\nRp 401.000\n21/09/2026\nShift 176\nHistorical 75\nRp 401.000\n21/09/2026\nShift 175\nHistorical 76\nRp 401.000\n21/09/2026\nShift 174\nHistorical 77\nRp 401.000\n21/09/2026\nShift 173\nHistorical 78\nRp 401.000\n21/09/2026\nShift 172\nHistorical 79\nRp 401.000\n251 shift · Hal 4/13\n‹\n›\n\n21/09/2026\n\nRekapan - Synthetic Outlet\n\nHistorical 60\n\nCetak\n\nRingkasan Pembayaran\n\nTunai\nTercatat\nRp 401.000\nTerhitung\n—\nTotal Tercatat\nRp 401.000\nKas Masuk\nRp 20.100\nKas Keluar\nRp 20.000\n\nProduk Terjual\n\nPRODUK\nQTY · SUBTOTAL\n\nSynthetic Scent\n\nM\n\n×401\n\nRp 401.000",
+            "cacheCounts": {
+              "activeOrders": 401,
+              "activeFlows": 401,
+              "history": 251,
+              "historicalOrders": 401,
+              "historicalFlows": 401
+            },
+            "failure": "visible stale notice; unchanged complete bytes",
+            "reconstruction": "same storage; actual panel remount offline",
+            "calls": [
+              {
+                "path": "/api/v1/shifts/current",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts/current",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts/current",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/cash-flows",
+                "page": 2,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/orders",
+                "page": 3,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts/current",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts/current",
+                "page": 1,
+                "limit": 200
+              },
+              {
+                "path": "/api/v1/shifts",
+                "page": 1,
+                "limit": 200
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-01",
+      "title": "HOOK-01 01 B success then A success",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 672,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "01 B success then A success",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-02",
+      "title": "HOOK-02 02 A resolves while B pending",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 639,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "02 A resolves while B pending",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-03",
+      "title": "HOOK-03 03 A error after B success",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 664,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "03 A error after B success",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-04",
+      "title": "HOOK-04 04 A success after B error",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 652,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "04 A success after B error",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-05",
+      "title": "HOOK-05 05 rapid A B C",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 682,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "05 rapid A B C",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-06",
+      "title": "HOOK-06 06 overlapping same-scope polls",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 625,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "06 overlapping same-scope polls",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-07",
+      "title": "HOOK-07 07a manual then interval",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 736,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "07a manual then interval",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-08",
+      "title": "HOOK-08 07b interval then manual",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 670,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "07b interval then manual",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-09",
+      "title": "HOOK-09 08 switch clears data and error",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 667,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "08 switch clears data and error",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-10",
+      "title": "HOOK-10 09 unmount pending",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 678,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "09 unmount pending",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-11",
+      "title": "HOOK-11 10 stable scope SWR success error refetch",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 722,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "10 stable scope SWR success error refetch",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-12",
+      "title": "HOOK-12 11 A26 complete multi-page A after B",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 750,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "11 A26 complete multi-page A after B",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "HOOK-13",
+      "title": "HOOK-13 14 old interval after cleanup cannot start",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 720,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "environment": "real React 19 and Chromium DOM, controlled promises/interval callbacks",
+            "results": [
+              {
+                "name": "14 old interval after cleanup cannot start",
+                "passed": true
+              }
+            ],
+            "passed": 1,
+            "total": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "S0A-DIAGNOSTICS",
+      "title": "S0A-DIAGNOSTICS repeated share cancellation and failures keep unresolved operations",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 1590,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": [
+            {
+              "scenario": "share success",
+              "current": {
+                "exports": 1,
+                "retained": 2,
+                "unchanged": true,
+                "reconstructed": true,
+                "failed": 2
+              },
+              "message": "Log dibagikan. Transaksi gagal tetap menunggu sinkronisasi."
+            },
+            {
+              "scenario": "share success",
+              "current": {
+                "exports": 2,
+                "retained": 2,
+                "unchanged": true,
+                "reconstructed": true,
+                "failed": 2
+              },
+              "message": "Log dibagikan. Transaksi gagal tetap menunggu sinkronisasi."
+            },
+            {
+              "scenario": "cancel",
+              "current": {
+                "exports": 3,
+                "retained": 2,
+                "unchanged": true,
+                "reconstructed": true,
+                "failed": 2
+              },
+              "message": "Berbagi log dibatalkan. Transaksi gagal tetap tersimpan."
+            },
+            {
+              "scenario": "share failure",
+              "current": {
+                "exports": 4,
+                "retained": 2,
+                "unchanged": true,
+                "reconstructed": true,
+                "failed": 2
+              },
+              "message": "Log belum dapat dibagikan. Transaksi gagal tetap tersimpan."
+            },
+            {
+              "scenario": "clipboard failure",
+              "current": {
+                "exports": 5,
+                "retained": 2,
+                "unchanged": true,
+                "reconstructed": true,
+                "failed": 2
+              },
+              "message": "Log belum dapat dibagikan. Transaksi gagal tetap tersimpan."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S0B-REFUND-RETENTION",
+      "title": "S0B-REFUND-RETENTION denied original refund survives export reconstruction and manual retry",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "duration": 1261,
+      "errors": [],
+      "attachments": [
+        {
+          "name": "synthetic-scenario-evidence",
+          "contentType": "application/json",
+          "data": {
+            "original": {
+              "exports": 0,
+              "reconstructions": 0,
+              "permission": false,
+              "pending": 1,
+              "failed": 0,
+              "retained": [
+                {
+                  "type": "refund",
+                  "idempotencyKey": "synthetic-device:original-refund",
+                  "payload": {
+                    "orderId": "original-sale",
+                    "reason": "sealed return",
+                    "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                    "capturedEvidence": {
+                      "marker": "preserve-only-what-was-captured",
+                      "amount": 125000
+                    }
+                  },
+                  "seq": 42,
+                  "status": "pending",
+                  "clientCreatedAt": "2026-09-15T01:23:45.000Z"
+                }
+              ],
+              "deliveries": [],
+              "simulatedMutationCalls": 0
+            },
+            "parked": {
+              "exports": 0,
+              "reconstructions": 0,
+              "permission": false,
+              "pending": 0,
+              "failed": 1,
+              "retained": [
+                {
+                  "type": "refund",
+                  "idempotencyKey": "synthetic-device:original-refund",
+                  "payload": {
+                    "orderId": "original-sale",
+                    "reason": "sealed return",
+                    "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                    "capturedEvidence": {
+                      "marker": "preserve-only-what-was-captured",
+                      "amount": 125000
+                    }
+                  },
+                  "seq": 42,
+                  "status": "failed",
+                  "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                  "lastError": "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang.",
+                  "attempts": 5
+                }
+              ],
+              "deliveries": [
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ]
+              ],
+              "simulatedMutationCalls": 0
+            },
+            "final": {
+              "exports": 1,
+              "reconstructions": 1,
+              "permission": true,
+              "pending": 0,
+              "failed": 0,
+              "retained": [],
+              "deliveries": [
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ],
+                [
+                  {
+                    "type": "refund",
+                    "idempotencyKey": "synthetic-device:original-refund",
+                    "payload": {
+                      "orderId": "original-sale",
+                      "reason": "sealed return",
+                      "clientCreatedAt": "2026-09-15T01:23:45.000Z",
+                      "capturedEvidence": {
+                        "marker": "preserve-only-what-was-captured",
+                        "amount": 125000
+                      }
+                    }
+                  }
+                ]
+              ],
+              "simulatedMutationCalls": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "issues": []
+}

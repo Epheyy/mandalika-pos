@@ -1,5 +1,17 @@
 # A34e14c — explicit contract migration and safe generation
 
+## Scoped acceptance — 2026-09-28
+
+E72: CG-A34E14C-CONTRACT-COMPLETION-20260925-01-R1 scoped-accepts A34e14c at
+0478648e6600ce201e0a6e712ac77febdded9782 (tree 2ac4f0aedd03d18fb07d139ac92de1e691bb92a7).
+32 accepted milestones across the same 11 findings; all 44 parents retained; A31 alone
+resolved; original P0 parents 0/8 resolved and release gates 0. The earlier e14/e14b
+qualifications and closed E9/E11 reporting corrections receive no separate milestone.
+Accepted expanded baseline: 6 raw blocking / 4 actionable / 23 report-only /
+2 reviewed-not-affected / 0 risk exceptions. A34/T29 and A38/T33 remain open.
+
+Historical implementation and verification entries follow unchanged.
+
 ## Current A34e14c completion checkpoint — 2026-09-25
 
 E70: CG-A34E14B-CODEGEN-20260925-01-R1 reviews A34e14b qualification and endorses
@@ -28,8 +40,22 @@ replay blocks it, and missing/failed/truncated/wrong-target evidence is invalid,
 Graph tidy removes obsolete dependencies; every42 module movement has before/after MVS edges.
 Chi/OpenPGP/rgbcolor blockers, provider feed conflicts, policies and SheetJS decisions remain.
 Local dedicated PostgreSQL18.3: six fixtures,148 named passes, zero skips, verified identities
-and cleanup, explicitly non-race. Full hosted same-SHA verification is pending at this checkpoint.
+and cleanup, explicitly non-race. Final hosted verification is recorded immediately below.
 Implementation is review-pending; full A34/T29, A38/T33 and all release gates stay open.
+
+## Hosted A34e14c proof — 2026-09-25
+
+Hosted verification completed on `0478648e6600ce201e0a6e712ac77febdded9782` (tree `2ac4f0aedd03d18fb07d139ac92de1e691bb92a7`).
+Quality/backend/PostgreSQL/browser all pass on this same SHA. Backend ran canonical generation,
+vet/gofmt/build, the required codegen/contract lane, x/mod5 and full race tests. PostgreSQL used
+Docker18.3/race: six fixtures,148 named passes, zero skips, verified identity and cleanup.
+Chromium26/26 passes, zero skips, network isolation and process/port cleanup confirmed.
+Expanded security completed:6 raw blocking records/4 actionable/23 report-only/2 reviewed/0 exceptions.
+Source hashes and both required govulncheck targets match this commit; tool target has no findings.
+The first backend run36119865999 failed gofmt on the new fixture; original logs are retained.
+Correction0478648 formats that exact fixture and strengthens actual per-adapter value assertions.
+No application behavior or guard was weakened. No release is approved; A34e14c awaits ChatGPT review.
+
 
 ## Boundary and evidence limits
 
@@ -79,3 +105,5 @@ Review bundle contains KC01–KC20, actual commands/statuses, all source/tests, 
 and contract classification, raw scanner targets, original/prerequisite limits and hosted proof.
 Mandatory backend CI now runs the required codegen gate and pins Go1.26.8. The existing
 Node22/frozen-lock quality, x/mod5, six PostgreSQL fixtures and Chromium26 remain mandatory.
+
+Publication uses same-filesystem rename. POSIX rename supplies atomic namespace replacement on hosted Linux; Go does not promise the same OS-level atomicity on every non-Unix filesystem. Windows old-file preservation/failure tests pass, without a universal crash or filesystem atomicity guarantee.

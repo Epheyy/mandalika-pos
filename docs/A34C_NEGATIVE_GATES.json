@@ -1,0 +1,346 @@
+[
+  {
+    "name": "assertion",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-assertion"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 20.28,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 13376,
+          "port": 5183,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 13376,
+          "port": 5183,
+          "event": "listening"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 8248,
+          "port": 5184,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 8248,
+          "port": 5184,
+          "event": "listening"
+        },
+        {
+          "kind": "chromium",
+          "pid": 20300,
+          "event": "starting",
+          "executable": "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1243\\chrome-headless-shell-win64\\chrome-headless-shell.exe"
+        },
+        {
+          "kind": "chromium",
+          "pid": 20300,
+          "event": "closed"
+        }
+      ],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 1,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-assertion\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "missing",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-missing"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 2.48,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 0,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-missing\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "skipped",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-skipped"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 10.27,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 10764,
+          "port": 5183,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 10764,
+          "port": 5183,
+          "event": "listening"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 7780,
+          "port": 5184,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 7780,
+          "port": 5184,
+          "event": "listening"
+        }
+      ],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 0,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-skipped\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "chromium",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-chromium"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 11.1,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 3372,
+          "port": 5183,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 3372,
+          "port": 5183,
+          "event": "listening"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 3412,
+          "port": 5184,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 3412,
+          "port": 5184,
+          "event": "listening"
+        }
+      ],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 0,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-chromium\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "readiness",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-readiness"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 10.57,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 18916,
+          "port": 5183,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 18916,
+          "port": 5183,
+          "event": "listening"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 3636,
+          "port": 5184,
+          "event": "starting"
+        }
+      ],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 0,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-readiness\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "external",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-external"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 15.62,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 9108,
+          "port": 5183,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "pos",
+          "pid": 9108,
+          "port": 5183,
+          "event": "listening"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 1608,
+          "port": 5184,
+          "event": "starting"
+        },
+        {
+          "kind": "vite",
+          "app": "backoffice",
+          "pid": 1608,
+          "port": 5184,
+          "event": "listening"
+        },
+        {
+          "kind": "chromium",
+          "pid": 1644,
+          "event": "starting",
+          "executable": "C:\\Users\\MyBook Hype AMD\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1243\\chrome-headless-shell-win64\\chrome-headless-shell.exe"
+        },
+        {
+          "kind": "chromium",
+          "pid": 1644,
+          "event": "closed"
+        }
+      ],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 1,
+      "blocked": [
+        "https://unexpected.invalid/a34c-deny-proof"
+      ]
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-external\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  },
+  {
+    "name": "only",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.EXE",
+      "scripts/ci/browser-gate.mjs",
+      "--output",
+      "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-only"
+    ],
+    "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-copy",
+    "exit": 1,
+    "seconds": 2.91,
+    "expected_failure_matched": true,
+    "cleanup": {
+      "processes": [],
+      "liveOwnedPids": [],
+      "openPorts": [],
+      "status": "confirmed"
+    },
+    "network": {
+      "scenarios": 0,
+      "blocked": []
+    },
+    "gate": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\negative-only\\gate.json",
+    "mutation_restored": true,
+    "active_source_preserved": true
+  }
+]

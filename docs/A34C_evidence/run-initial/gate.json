@@ -1,0 +1,35 @@
+{
+  "status": "failed",
+  "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\",
+  "output": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-a34c-gto2n7pv\\run-initial",
+  "phases": [
+    {
+      "phase": "discovery",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\node_modules\\.pnpm\\@playwright+test@1.63.0\\node_modules\\@playwright\\test\\cli.js",
+        "test",
+        "-c",
+        "tests/browser/playwright.config.ts",
+        "--list",
+        "--reporter=json"
+      ],
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\",
+      "exit": 1,
+      "timedOut": false,
+      "milliseconds": 2396
+    }
+  ],
+  "cleanup": {
+    "processes": [],
+    "liveOwnedPids": [],
+    "openPorts": [],
+    "status": "confirmed"
+  },
+  "network": {
+    "scenarios": 0,
+    "blocked": []
+  },
+  "registry": "tests/browser/required-scenarios.json",
+  "error": "Error: discovery failed (exit=1, timeout=false)"
+}

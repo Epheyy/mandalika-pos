@@ -1,0 +1,47 @@
+{
+  "packet_id": "A23-SEMANTIC-KEYS-20260921-01",
+  "scope": "Turn-entry JSON fixtures under backend, both app src trees and packages; excludes historical docs/review archives. Literal/structured configs only, not execution of arbitrary fixture generators. No live database scan.",
+  "files_inspected": [
+    "backend/internal/service/testdata/linked_tier_golden.json",
+    "backend/internal/handlers/testdata/linked_fulfillment_orders.json",
+    "packages/api/package.json",
+    "packages/api/tsconfig.json",
+    "packages/printer/package.json",
+    "packages/printer/tsconfig.json",
+    "packages/sync/package.json",
+    "packages/sync/tsconfig.json",
+    "packages/types/package.json",
+    "packages/types/tsconfig.json"
+  ],
+  "mechanics_objects_inspected": 2,
+  "semantic_overlaps_in_structured_json": [],
+  "confirmed_preexisting_negative_tests": [
+    {
+      "file": "backend/internal/write/repo_test.go",
+      "line": 133,
+      "config": "buy a / get a",
+      "purpose": "expected invalid exact BXGY overlap"
+    },
+    {
+      "file": "backend/internal/write/repo_test.go",
+      "line": 211,
+      "config": "slots [p,q] / [q]",
+      "purpose": "expected invalid exact bundle overlap"
+    },
+    {
+      "file": "apps/pos/src/cashier/linkedFulfillment.test.ts",
+      "line": 250,
+      "config": "slots [buy] / [buy], price0",
+      "purpose": "intentional impossible-move negative regression, retained"
+    }
+  ],
+  "seed_SQL_search": "Repository SQL scan found no productKeys/buyProductIds/getProductIds mechanics seeds; migrations add columns only.",
+  "assumptions": [
+    "Original bundle design explicitly rejects overlap so independent slot counting is exact.",
+    "BXGY design requires disjoint explicit buy/get sets; empty get same-set and empty buy complement retained.",
+    "Picker already treats whole product and its variants as mutually exclusive within each selection; cross-selection coverage was the gap.",
+    "No preexisting positive semantic-overlap fixture identified. Literal source search and focused inspection do not prove arbitrary generated configurations are absent.",
+    "Shared linked_fulfillment_orders.json remains byte-identical; actual client generation and Go/TS golden suites pass.",
+    "The new intentionally overlapping synthetic rows and negative test vectors are reported separately; stored live/staging rows remain unknown until target-specific read-only preflight."
+  ]
+}

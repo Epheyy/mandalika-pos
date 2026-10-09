@@ -1,0 +1,200 @@
+{
+  "packet_id": "A34B-POSTGRES-CI-20260921-01",
+  "gates": [
+    {
+      "gate": "S0C",
+      "test": "TestSaleInputPostgres",
+      "source": "backend/internal/handlers/sale_input_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56439,
+      "database": "mandalika_s0c_synthetic",
+      "user": "s0c_test",
+      "env_names": [
+        "MANDALIKA_S0C_TEST_DSN",
+        "MANDALIKA_S0C_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "06674d850a327c1a12ff8a19069883671700338649d67e67bd2dba02327b5363",
+      "source_sha256_after": "467248ae91d05c599c19fde44bf380d21a79f61981e7ee15947ed195b5c8ca44",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": null,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    },
+    {
+      "gate": "S0D",
+      "test": "TestShiftDecodePostgres",
+      "source": "backend/internal/handlers/shift_decode_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56440,
+      "database": "mandalika_s0d_synthetic",
+      "user": "s0d_test",
+      "env_names": [
+        "MANDALIKA_S0D_TEST_DSN",
+        "MANDALIKA_S0D_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "6ace763f143670268ba2b62eccde1f0fc108e1e57eb73744c4e0a99cac751c36",
+      "source_sha256_after": "6ace763f143670268ba2b62eccde1f0fc108e1e57eb73744c4e0a99cac751c36",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": null,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    },
+    {
+      "gate": "BE",
+      "test": "TestBatchEnvelopePostgres",
+      "source": "backend/internal/handlers/batch_envelope_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56441,
+      "database": "mandalika_be_synthetic",
+      "user": "be_test",
+      "env_names": [
+        "MANDALIKA_BE_TEST_DSN",
+        "MANDALIKA_BE_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "16e11fd8a45b82df9899fb2b1ac2ee2fa8c54d25d12a3167670e4a6a1fe503b2",
+      "source_sha256_after": "16e11fd8a45b82df9899fb2b1ac2ee2fa8c54d25d12a3167670e4a6a1fe503b2",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": null,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    },
+    {
+      "gate": "LF",
+      "test": "TestLinkedFulfillmentPostgres",
+      "source": "backend/internal/handlers/linked_fulfillment_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56442,
+      "database": "mandalika_lf_synthetic",
+      "user": "lf_test",
+      "env_names": [
+        "MANDALIKA_LF_TEST_DSN",
+        "MANDALIKA_LF_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "2fe20b01c037f94c7ac43536e1b9a52e3a18b5a744ee14a9bb333357db35eeb5",
+      "source_sha256_after": "2fe20b01c037f94c7ac43536e1b9a52e3a18b5a744ee14a9bb333357db35eeb5",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": 90,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [
+        "verifySemanticPromotionKeys",
+        "verifyGuestSales"
+      ],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    },
+    {
+      "gate": "A26",
+      "test": "TestPaginationPostgres",
+      "source": "backend/internal/handlers/pagination_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56443,
+      "database": "mandalika_a26_synthetic",
+      "user": "a26_test",
+      "env_names": [
+        "MANDALIKA_A26_TEST_DSN",
+        "MANDALIKA_A26_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "8e1738c70ba33d4581bcdce46bd8ccb0ef6a3041e98a1de2d6f6b71a4ffd659f",
+      "source_sha256_after": "8e1738c70ba33d4581bcdce46bd8ccb0ef6a3041e98a1de2d6f6b71a4ffd659f",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": 90,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    },
+    {
+      "gate": "A27",
+      "test": "TestReportSummaryPostgres",
+      "source": "backend/internal/handlers/report_summary_integration_test.go",
+      "host": "127.0.0.1",
+      "port": 56444,
+      "database": "mandalika_a27_synthetic",
+      "user": "a27_test",
+      "env_names": [
+        "MANDALIKA_A27_TEST_DSN",
+        "MANDALIKA_A27_TEST_DATA_DIR"
+      ],
+      "target_guard_byte_equivalent": true,
+      "source_sha256_before": "6f853dd5b7d3d53bab269819093b351ac3a66754a676ac2282bc95034b98ba24",
+      "source_sha256_after": "6f853dd5b7d3d53bab269819093b351ac3a66754a676ac2282bc95034b98ba24",
+      "ordinary_backend_baseline": "opt-in/skips without DSN; not proof",
+      "new_mandatory_gate": ".github/workflows/postgres.yml -> scripts/ci/postgres_gate.py",
+      "internal_context_timeout_seconds": 90,
+      "runner_go_timeout_seconds": 180,
+      "runner_process_timeout_seconds": 240,
+      "runner_readiness_seconds": 45,
+      "helpers": [],
+      "concurrency": "sequential handler/service/SQL and idempotent replay; no overlapping business transactions"
+    }
+  ],
+  "source_inventory_exactly_six": true,
+  "runtime_environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.14.3",
+    "Go": "1.26.2 windows/amd64",
+    "PostgreSQL": "18.3",
+    "CGO_ENABLED": "0",
+    "Docker": "CLI installed; Desktop Linux daemon unavailable; owned hung startup CLI stopped",
+    "CI": "ubuntu-latest, setup-go backend/go.mod, Python 3.12, Docker postgres:18.3 resolved to immutable ID, race enabled"
+  },
+  "safeguards": {
+    "before": "six unchanged exact loopback/port/db/user/data-directory/empty-schema guards; opt-in DSN skipped without fixture",
+    "after": "same guards plus own fresh fixture root/container, exact server 180003, independent SHOW identity and empty schema precheck, bounded startup/process tree, named and package PASS proof, no skip, finally owned teardown/absence+port confirmation",
+    "credentials": "random synthetic password per fixture, subprocess environment/private transient pwfile only, no env file; inherited libpq/fixture/optional output values stripped",
+    "post_migration_schema": "45 migrations, 66 public tables in positive runs; never a live target",
+    "historical_cleanup": "prior stopped S0c cleanup policy block retained and not retried; only unique new mandalika-pg-ci roots created and removed"
+  },
+  "concurrency": {
+    "search": "rg -n t.Parallel|go func|WaitGroup|errgroup|pg_advisory|Serializable backend --glob *_test.go",
+    "matches": [
+      {
+        "file": "backend/internal/write/ingredient_transfer_test.go",
+        "line": 6,
+        "text": "t.Parallel()"
+      }
+    ],
+    "classification": "sole t.Parallel in TestValidateIngTransfer is pure validation without DB; six named fixtures are sequential. Go race detector is not A13/A42 business concurrency verification.",
+    "A13": "open; true concurrent transfer transitions unavailable",
+    "A42": "open; cross-command DB lock/deadlock scenarios unavailable"
+  },
+  "fixture_compatibility_correction": {
+    "file": "backend/internal/handlers/sale_input_integration_test.go",
+    "reason": "old S0c separate-set BXGY seeded buy/get same product, rejected by accepted A23 semantic runtime guard (422); use distinct synthetic reward product and scope stock read to original product",
+    "assertions": "grant/net/qty/subtotal, shortage warning/original scope/price/duplicate assertions preserved",
+    "target_guard": "unchanged"
+  },
+  "still_opt_in_or_manual": [
+    "browser harness runtime (A23/A24/A26/A31 etc.)",
+    "Backoffice optional PostgreSQL-response replay",
+    "native device/emulator smoke and durable storage",
+    "actual hosted Docker/Ubuntu race run",
+    "A13/A42 business DB concurrency (not implemented)"
+  ],
+  "unchanged": {
+    "quality_workflow": true,
+    "react_doctor": true,
+    "go_generated": true
+  }
+}

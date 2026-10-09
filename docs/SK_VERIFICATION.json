@@ -1,0 +1,408 @@
+{
+  "packet_id": "A23-SEMANTIC-KEYS-20260921-01",
+  "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+  "branch": "prod-hardening",
+  "head": "4691c781842f0114acaf2e4371e0d11f0076f553",
+  "final_results": {
+    "pos": {
+      "files": 13,
+      "tests": 241
+    },
+    "backoffice": {
+      "files": 3,
+      "tests": 19
+    },
+    "sync": {
+      "files": 10,
+      "tests": 33
+    },
+    "types": "Both app builds and explicit new tests pass",
+    "go": "Affected 7 package targets pass (preflight package/CLI compiled, no standalone tests; exercised in isolated DB harness)",
+    "postgres_leaf_scenarios": 47,
+    "postgres_breakdown": {
+      "authoring_create_update_vectors": 22,
+      "prior_valid_fulfillment": 8,
+      "online_invalid": 8,
+      "offline_captured_invalid": 8,
+      "read_only_preflight": 1
+    }
+  },
+  "source_of_acceptance": "Owner's 2026-09-21 direct relay; no separate ChatGPT reply file/ID supplied. E19 accepts previous linked fulfillment only. E20 is review pending.",
+  "failures_and_corrections": [
+    "Before-fix Go failed semantic authoring/runtime regressions as intended.",
+    "Initial POS empty-catalog fixture masked BXGY; corrected catalog before production edits gave both bundle and BXGY failures. Second before-fix output was tool-truncated; retained as such.",
+    "Backoffice vector path corrected from one directory too high.",
+    "New POS fixtures supplied loyalty fields and corrected parked vs automatic-pending count assertions.",
+    "Linked fixture gained required isBOGO type field; final explicit typecheck passes.",
+    "First isolated DB run rejected correctly but test expected a machine code absent from existing localized HTTP error; assertion corrected, full run repeated on fresh empty fixture.",
+    "PowerShell initially collapsed missing-target native status2 to wrapper1; exact exit propagation subsequently verifies2.",
+    "Local default-encoding inspection/rewrite produced Unicode comment damage in three Go files; restored against entry, reviewed resulting minimal diffs and reran affected Go checks. Two readback scripts also failed encoding before explicit UTF8 correction; no surviving incidental text change."
+  ],
+  "fixture_safeguards": {
+    "installed_postgres": "18.3",
+    "host": "127.0.0.1",
+    "port": 56442,
+    "user": "lf_test",
+    "database": "mandalika_lf_synthetic",
+    "root": "C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-semantic-keys-0m5homhf",
+    "clusters": [
+      "postgres-synthetic",
+      "postgres-synthetic-final"
+    ],
+    "state": "Both stopped and retained",
+    "checks": [
+      "Existing parsed DSN allowlist",
+      "SHOW data_directory exact named fixture match",
+      "Empty schema required before 45 existing migrations",
+      "No .env or live/provider database",
+      "No old stopped cleanup retried or bypassed"
+    ],
+    "fresh_second_cluster_reason": "Corrected localized-message test assertion; existing populated fixture intentionally not reused/deleted."
+  },
+  "limitations": [
+    "Backoffice Save button tested through real server rendering with only initial wizard index mocked; no browser interaction. Save callback source-traced.",
+    "POS planner/reducer tests are real pure modules; not native-device qualification.",
+    "KV is successful memory storage, not power-loss durability proof.",
+    "Online direct route vs offline batch is trusted server mapping; no payload-origin redesign.",
+    "No live/staging catalog rows scanned. Only deliberately seeded synthetic rows found by actual diagnostic.",
+    "No resource compression, overlap allocator, migration, quote/receipt or loyalty redesign.",
+    "Other malformed/missing BXGY reward-line drop behavior remains unchanged outside semantic overlap; parent captured-fact and quote work open.",
+    "Ordinary Go run skips opt-in historical integration suites when DSNs absent; only named LF+semantic harness freshly executed.",
+    "No release/concurrency/Redis/provider qualification; limited artifact secret-pattern scan not full A37 coverage.",
+    "No subagent used under current delegation restriction; local self-review only."
+  ],
+  "commands": [
+    {
+      "id": "SK-before-Go",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\ngo test -mod=readonly ./internal/write ./internal/service -run '^TestSemanticPromotion' -count=1 -v",
+      "chunk_id": "6f05ad",
+      "wall_time_seconds": 5.1722772,
+      "exit_code": 1,
+      "original_token_count": 270,
+      "output": "=== RUN   TestSemanticPromotionOverlapRegression\n=== RUN   TestSemanticPromotionOverlapRegression/P_P|M\n    promotion_keys_test.go:8: semantic cross-slot overlap accepted\n    promotion_keys_test.go:9: semantic buy/get overlap accepted\n=== RUN   TestSemanticPromotionOverlapRegression/P|M_P\n    promotion_keys_test.go:8: semantic cross-slot overlap accepted\n    promotion_keys_test.go:9: semantic buy/get overlap accepted\n--- FAIL: TestSemanticPromotionOverlapRegression (0.00s)\n    --- FAIL: TestSemanticPromotionOverlapRegression/P_P|M (0.00s)\n    --- FAIL: TestSemanticPromotionOverlapRegression/P|M_P (0.00s)\nFAIL\nFAIL\tgithub.com/mandalika/pos-backend/internal/write\t0.874s\n=== RUN   TestSemanticPromotionRuntimeRegression\n    promotion_keys_test.go:8: invalid semantic overlap matched 1 applications\n    promotion_keys_test.go:9: first-slot assignment accepted invalid rule: [0]\n    promotion_keys_test.go:11: overlapping buy/get rewarded 1 units\n--- FAIL: TestSemanticPromotionRuntimeRegression (0.00s)\nFAIL\nFAIL\tgithub.com/mandalika/pos-backend/internal/service\t0.911s\nFAIL\n"
+    },
+    {
+      "id": "SK-before-POS",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run src/cashier/semanticPromotionKeys.test.ts",
+      "chunk_id": "fcb474",
+      "wall_time_seconds": 2.8220084,
+      "exit_code": 1,
+      "original_token_count": 902,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n ❯ src/cashier/semanticPromotionKeys.test.ts (2 tests | 1 failed) 27ms\n   × legacy overlapping bundle installs no owner or physical effect 22ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/cashier/semanticPromotionKeys.test.ts > legacy overlapping bundle installs no owner or physical effect\nAssertionError: expected { kind: 'bundle-picker', …(4) } to deeply equal { kind: 'none' }\n\n- Expected\n+ Received\n\n  {\n-   \"kind\": \"none\",\n+   \"cart\": [\n+     {\n+       \"price\": 100,\n+       \"productId\": \"P\",\n+       \"productName\": \"P\",\n+       \"quantity\": 1,\n+       \"subtotal\": 100,\n+       \"variantSize\": \"M\",\n+     },\n+     {\n+       \"price\": 20,\n+       \"productId\": \"Q\",\n+       \"productName\": \"Q\",\n+       \"quantity\": 1,\n+       \"subtotal\": 20,\n+       \"variantSize\": \"M\",\n+     },\n+   ],\n+   \"cfg\": {\n+     \"bundlePrice\": 50,\n+     \"slots\": [\n+       {\n+         \"productKeys\": [\n+           \"P\",\n+         ],\n+         \"quantity\": 1,\n+       },\n+       {\n+         \"productKeys\": [\n+           \"P|M\",\n+           \"Q\",\n+         ],\n+         \"quantity\": 1,\n+       },\n+     ],\n+   },\n+   \"kind\": \"bundle-picker\",\n+   \"owner\": {\n+     \"kind\": \"direct\",\n+     \"promotion\": {\n+       \"bundleConfig\": {\n+         \"bundlePrice\": 50,\n+         \"slots\": [\n+           {\n+             \"productKeys\": [\n+               \"P\",\n+             ],\n+             \"quantity\": 1,\n+           },\n+           {\n+             \"productKeys\": [\n+               \"P|M\",\n+               \"Q\",\n+             ],\n+             \"quantity\": 1,\n+           },\n+         ],\n+       },\n+       \"bxgyConfig\": {\n+         \"buyProductIds\": [\n+           \"P\",\n+         ],\n+         \"buyQuantity\": 1,\n+         \"getDiscountKind\": \"percentage\",\n+         \"getDiscountValue\": 100,\n+         \"getProductIds\": [\n+           \"P|M\",\n+         ],\n+         \"getQuantity\": 1,\n+       },\n+       \"combinable\": true,\n+       \"createdAt\": \"\",\n+       \"id\": \"promo\",\n+       \"isActive\": true,\n+       \"name\": \"legacy\",\n+       \"type\": \"bundle\",\n+       \"value\": 0,\n+     },\n+   },\n+   \"promo\": {\n+     \"bundleConfig\": {\n+       \"bundlePrice\": 50,\n+       \"slots\": [\n+         {\n+           \"productKeys\": [\n+             \"P\",\n+           ],\n+           \"quantity\": 1,\n+         },\n+         {\n+           \"productKeys\": [\n+             \"P|M\",\n+             \"Q\",\n+           ],\n+           \"quantity\": 1,\n+         },\n+       ],\n+     },\n+     \"bxgyConfig\": {\n+       \"buyProductIds\": [\n+         \"P\",\n+       ],\n+       \"buyQuantity\": 1,\n+       \"getDiscountKind\": \"percentage\",\n+       \"getDiscountValue\": 100,\n+       \"getProductIds\": [\n+         \"P|M\",\n+       ],\n+       \"getQuantity\": 1,\n+     },\n+     \"combinable\": true,\n+     \"createdAt\": \"\",\n+     \"id\": \"promo\",\n+     \"isActive\": true,\n+     \"name\": \"legacy\",\n+     \"type\": \"bundle\",\n+     \"value\": 0,\n+   },\n  }\n\n ❯ src/cashier/semanticPromotionKeys.test.ts:16:52\n     14|   const owners: PromotionOwner[] = [{ kind: 'direct', promotion: p }, …\n     15|   for (const owner of owners) {\n     16|     expect(planPromotionFulfillment(s, owner, [])).toEqual({ kind: 'no…\n       |                                                    ^\n     17|     expect(cashierReducer(s, { type: 'APPLY_FULFILLMENT', owner, produ…\n     18|   }\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 1 passed (2)\n   Start at  01:58:50\n   Duration  678ms (transform 147ms, setup 0ms, import 242ms, tests 27ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "SK-before-POS-complete-catalog",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run src/cashier/semanticPromotionKeys.test.ts",
+      "chunk_id": "1c0aa9",
+      "wall_time_seconds": 1.4533769,
+      "exit_code": 1,
+      "original_token_count": 1701,
+      "output": "Warning: truncated output (original token count: 1701)\nTotal output lines: 268\n\n\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n ❯ src/cashier/semanticPromotionKeys.test.ts (2 tests | 2 failed) 14ms\n   × legacy overlapping bundle installs no owner or physical effect 10ms\n   × legacy overlapping buy_x_get_y installs no owner or physical effect 3ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/cashier/semanticPromotionKeys.test.ts > legacy overlapping bundle installs no owner or physical effect\nAssertionError: expected { kind: 'bundle-picker', …(4) } to deeply equal { kind: 'none' }\n\n- Expected\n+ Received\n\n  {\n-   \"kind\": \"none\",\n+   \"cart\": [\n+     {\n+       \"price\": 100,\n+       \"productId\": \"P\",\n+       \"productName\": \"P\",\n+       \"quantity\": 1,\n+       \"subtotal\": 100,\n+       \"variantSize\": \"M\",\n+     },\n+     {\n+       \"price\": 20,\n+       \"productId\": \"Q\",\n+       \"productName\": \"Q\",\n+       \"quantity\": 1,\n+       \"subtotal\": 20,\n+       \"variantSize\": \"M\",\n+     },\n+   ],\n+   \"cfg\": {\n+     \"bundlePrice\": 50,\n+     \"slots\": [\n+       {\n+         \"productKeys\": [\n+           \"P\",\n+         ],\n+         \"quantity\": 1,\n+       },\n+       {\n+         \"productKeys\": [\n+           \"P|M\",\n+           \"Q\",\n+         ],\n+         \"quantity\": 1,\n+       },\n+     ],\n+   },\n+   \"kind\": \"bundle-picker\",\n+   \"owner\": {\n+     \"kind\": \"direct\",\n+     \"promotion\": {\n+       \"bundleConfig\": {\n+         \"bundlePrice\": 50,\n+         \"slots\": [\n+           {\n+             \"productKeys\": [\n+               \"P\",\n+             ],\n+             \"quantity\": 1,\n+           },\n+           {\n+             \"productKeys\": [\n+               \"P|M\",\n+               \"Q\",\n+             ],\n+             \"quantity\": 1,\n+           },\n+         ],\n+       },\n+       \"bxgyConfig\": {\n+         \"buyProductIds\": [\n+           \"P\",\n+         ],\n+         \"buyQuantity\": 1,\n+         \"getDiscountKind\": \"percentage\",\n+         \"getDiscountValue\": 100,\n+         \"getProductIds\": [\n+           \"P|M\",\n+         ],\n+         \"getQuan…701 tokens truncated…atedAt\": \"\",\n+         \"id\": \"promo\",\n+         \"isActive\": true,\n+         \"name\": \"legacy\",\n+         \"type\": \"buy_x_get_y\",\n+         \"value\": 0,\n+       },\n+     ],\n+     \"appliedSurchargeType\": \"fixed\",\n+     \"bundleApplications\": {},\n+     \"bundleFreed\": {},\n+     \"cart\": [\n+       {\n+         \"price\": 100,\n+         \"productId\": \"P\",\n+         \"productName\": \"P\",\n+         \"quantity\": 1,\n+         \"subtotal\": 100,\n+         \"variantSize\": \"M\",\n+       },\n+       {\n+         \"price\": 20,\n+         \"productId\": \"Q\",\n+         \"productName\": \"Q\",\n+         \"quantity\": 1,\n+         \"subtotal\": 20,\n+         \"variantSize\": \"M\",\n+       },\n+       {\n+         \"isReward\": true,\n+         \"price\": 0,\n+         \"productId\": \"P\",\n+         \"productName\": \"P\",\n+         \"quantity\": 1,\n+         \"rewardPromotionId\": \"promo\",\n+         \"subtotal\": 0,\n+         \"variantSize\": \"M\",\n+       },\n+     ],\n+     \"customerSearch\": \"\",\n+     \"discountRunning\": 0,\n+     \"discountType\": \"fixed\",\n+     \"isCheckoutOpen\": false,\n+     \"isProcessing\": false,\n+     \"isSuccessOpen\": false,\n+     \"lastOrderId\": null,\n+     \"orderNotes\": \"\",\n+     \"paymentMethod\": \"cash\",\n+     \"pointsToRedeem\": 0,\n+     \"promoCodeInput\": \"\",\n+     \"selectedCustomer\": null,\n+     \"selectedSalesman\": null,\n+     \"surchargeRunning\": 0,\n+   },\n  }\n\n ❯ src/cashier/semanticPromotionKeys.test.ts:17:58\n     15|   const owners: PromotionOwner[] = [{ kind: 'direct', promotion: p }, …\n     16|   for (const owner of owners) {\n     17|     expect(planPromotionFulfillment(s, owner, products)).toEqual({ kin…\n       |                                                          ^\n     18|     expect(cashierReducer(s, { type: 'APPLY_FULFILLMENT', owner, produ…\n     19|   }\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed (1)\n      Tests  2 failed (2)\n   Start at  01:59:12\n   Duration  434ms (transform 121ms, setup 0ms, import 177ms, tests 14ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "SK-first-Go",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\ngo test -mod=readonly ./internal/promotionkeys ./internal/write ./internal/service -count=1",
+      "chunk_id": "c8b7ed",
+      "wall_time_seconds": 5.9835273,
+      "exit_code": 0,
+      "original_token_count": 48,
+      "output": "ok  \tgithub.com/mandalika/pos-backend/internal/promotionkeys\t0.866s\nok  \tgithub.com/mandalika/pos-backend/internal/write\t1.069s\nok  \tgithub.com/mandalika/pos-backend/internal/service\t1.046s\n"
+    },
+    {
+      "id": "SK-first-POS",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "d41cf3",
+      "wall_time_seconds": 3.5586828,
+      "exit_code": 0,
+      "original_token_count": 62,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n\n Test Files  13 passed (13)\n      Tests  233 passed (233)\n   Start at  02:02:30\n   Duration  1.81s (transform 3.17s, setup 0ms, import 4.85s, tests 391ms, environment 5ms)\n\n"
+    },
+    {
+      "id": "SK-first-BO",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "31a826",
+      "wall_time_seconds": 2.6650122,
+      "exit_code": 1,
+      "original_token_count": 197,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n ❯ src/screens/promotions/promotionKeyValidation.test.ts (0 test)\n\n⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/screens/promotions/promotionKeyValidation.test.ts [ src/screens/promotions/promotionKeyValidation.test.ts ]\nError: ENOENT: no such file or directory, open 'C:\\Users\\MyBook Hype AMD\\Downloads\\backend\\internal\\promotionkeys\\testdata\\overlap.json'\n ❯ src/screens/promotions/promotionKeyValidation.test.ts:7:99\n\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  4 passed (4)\n   Start at  02:02:30\n   Duration  935ms (transform 215ms, setup 0ms, import 149ms, tests 9ms, environment 1ms)\n\n"
+    },
+    {
+      "id": "SK-types",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": ".\\node_modules\\.bin\\tsc.cmd -b apps/pos apps/backoffice --pretty false",
+      "chunk_id": "3dd809",
+      "wall_time_seconds": 10.01063,
+      "session_id": 91378,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "id": "SK-focused-POS",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run src/cashier/semanticPromotionKeys.test.ts",
+      "chunk_id": "009776",
+      "wall_time_seconds": 2.7391461,
+      "exit_code": 1,
+      "original_token_count": 508,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n ❯ src/cashier/semanticPromotionKeys.test.ts (10 tests | 3 failed) 39ms\n   × distinct variants of same product remain valid bundle with code provenance 10ms\n   × distinct variants of same product remain valid buy_x_get_y with code provenance 2ms\n   × stored legacy physical sale retains original evidence when reconstructed after validation changes 11ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/cashier/semanticPromotionKeys.test.ts > distinct variants of same product remain valid bundle with code provenance\n FAIL  src/cashier/semanticPromotionKeys.test.ts > distinct variants of same product remain valid buy_x_get_y with code provenance\nTypeError: Cannot read properties of undefined (reading 'enabled')\n ❯ computePricing src/cashier/pricing.ts:390:13\n    388|\n    389|   const earnedPoints =\n    390|     loyalty.enabled && hasCustomer\n       |             ^\n    391|       ? Math.floor(total / 1000) * loyalty.pointsPerThousand\n    392|       : 0\n ❯ src/cashier/semanticPromotionKeys.test.ts:56:19\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯\n\n FAIL  src/cashier/semanticPromotionKeys.test.ts > stored legacy physical sale retains original evidence when reconstructed after validation changes\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n ❯ src/cashier/semanticPromotionKeys.test.ts:68:33\n     66|   const engine = new SyncEngine({ async request() { throw new Error('N…\n     67|   expect(JSON.stringify(engine.outbox.deadLettered()[0])).toBe(bytes)\n     68|   expect(engine.pendingCount()).toBe(1)\n       |                                 ^\n     69| })\n     70|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯\n\n\n Test Files  1 failed (1)\n      Tests  3 failed | 7 passed (10)\n   Start at  02:07:04\n   Duration  1.07s (transform 332ms, setup 0ms, import 488ms, tests 39ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "SK-BO-fixed-path",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "3d1db9",
+      "wall_time_seconds": 2.3737861000000002,
+      "exit_code": 0,
+      "original_token_count": 63,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  2 passed (2)\n      Tests  17 passed (17)\n   Start at  02:07:04\n   Duration  705ms (transform 156ms, setup 0ms, import 253ms, tests 19ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "SK-Go-all-affected",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\ngo test -mod=readonly ./internal/promotionkeys ./internal/promotionpreflight ./cmd/promotion-key-preflight ./internal/write ./internal/service ./internal/handlers ./internal/sync -count=1",
+      "chunk_id": "eb8853",
+      "wall_time_seconds": 6.7527495,
+      "exit_code": 0,
+      "original_token_count": 119,
+      "output": "ok  \tgithub.com/mandalika/pos-backend/internal/promotionkeys\t0.883s\n?   \tgithub.com/mandalika/pos-backend/internal/promotionpreflight\t[no test files]\n?   \tgithub.com/mandalika/pos-backend/cmd/promotion-key-preflight\t[no test files]\nok  \tgithub.com/mandalika/pos-backend/internal/write\t1.233s\nok  \tgithub.com/mandalika/pos-backend/internal/service\t1.076s\nok  \tgithub.com/mandalika/pos-backend/internal/handlers\t0.161s\nok  \tgithub.com/mandalika/pos-backend/internal/sync\t0.956s\n"
+    },
+    {
+      "id": "SK-types-completion",
+      "session": 91378,
+      "chunk_id": "9250d1",
+      "wall_time_seconds": 0.0000099,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": "",
+      "continuation_of": "SK-types",
+      "cmd": ".\\node_modules\\.bin\\tsc.cmd -b apps/pos apps/backoffice --pretty false",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos"
+    },
+    {
+      "id": "SK-DB-init",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\initdb.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic' -U lf_test -A trust --no-locale -E UTF8",
+      "chunk_id": "4de3e5",
+      "wall_time_seconds": 8.3776017,
+      "exit_code": 0,
+      "original_token_count": 259,
+      "output": "The files belonging to this database system will be owned by user \"MyBook Hype AMD\".\r\nThis user must also own the server process.\r\n\r\nThe database cluster will be initialized with locale \"C\".\r\nThe default text search configuration will be set to \"english\".\r\n\r\nData page checksums are enabled.\r\n\r\ncreating directory C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-semantic-keys-0m5homhf/postgres-synthetic ... ok\r\ncreating subdirectories ... ok\r\nselecting dynamic shared memory implementation ... windows\r\nselecting default \"max_connections\" ... 100\r\nselecting default \"shared_buffers\" ... 128MB\r\nselecting default time zone ... Asia/Bangkok\r\ncreating configuration files ... ok\r\nrunning bootstrap script ... ok\r\nperforming post-bootstrap initialization ... ok\r\nsyncing data to disk ... ok\r\n\r\nSuccess. You can now start the database server using:\r\n\r\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\18^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\MYBOOK^~1^\\AppData^\\Local^\\Temp^\\mandalika^-semantic^-keys^-0m5homhf^\\postgres^-synthetic^\" -l logfile start\r\n\r\n"
+    },
+    {
+      "id": "SK-DB-start",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic' -l 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres.log' -o '-h 127.0.0.1 -p 56442' -w start",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "chunk_id": "b0f632",
+      "wall_time_seconds": 0.6066677,
+      "exit_code": 0,
+      "original_token_count": 14,
+      "output": "waiting for server to start.... done\r\nserver started\r\n"
+    },
+    {
+      "id": "SK-DB-create",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\createdb.exe' -h 127.0.0.1 -p 56442 -U lf_test mandalika_lf_synthetic",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "chunk_id": "153247",
+      "wall_time_seconds": 0.8685819,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "id": "SK-DB-full",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\n$env:MANDALIKA_LF_TEST_DSN='postgres://lf_test@127.0.0.1:56442/mandalika_lf_synthetic?sslmode=disable'\n$env:MANDALIKA_LF_TEST_DATA_DIR='C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic'\ngo test -mod=readonly ./internal/handlers -run '^TestLinkedFulfillmentPostgres$' -count=1 -v",
+      "chunk_id": "4b7e20",
+      "wall_time_seconds": 3.492094,
+      "exit_code": 1,
+      "original_token_count": 3627,
+      "output": "=== RUN   TestLinkedFulfillmentPostgres\n=== RUN   TestLinkedFulfillmentPostgres/direct/buy_x_get_y-direct\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/buy_x_get_y-code\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/bundle-direct\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/bundle-code\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/buy_x_get_y-direct\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/buy_x_get_y-code\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/bundle-direct\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/bundle-code\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-variants\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-variants\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-products\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-products\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-cover\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-cover\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-disjoint\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-disjoint\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/prefix-is-not-product\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/prefix-is-not-product\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/case-sensitive\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/case-sensitive\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/same-set-mode\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/buy-complement-mode\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Hadiah promo tidak valid atau melebihi kuota\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-false\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Hadiah promo tidak valid atau melebihi kuota\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-false\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Bundel tidak valid atau syaratnya tidak terpenuhi\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-false\n2026/09/21 02:08:17 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-false\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Bundel tidak valid atau syaratnya tidak terpenuhi\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-false\n2026/09/21 02:08:17 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Hadiah promo tidak valid atau melebihi kuota\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-true\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Hadiah promo tidak valid atau melebihi kuota\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-true\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Bundel tidak valid atau syaratnya tidak terpenuhi\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-true\n2026/09/21 02:08:17 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-true\n    semantic_promotion_keys_integration_test.go:163: invalid online mutation/status: 422 {\"data\":null,\"error\":\"Bundel tidak valid atau syaratnya tidak terpenuhi\"}\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-true\n2026/09/21 02:08:17 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/read-only-preflight\n    semantic_promotion_keys_integration_test.go:244: read-only report: {\"scanned\":14,\"findings\":[{\"id\":\"00000000-0000-4000-8300-000000000003\",\"type\":\"buy_x_get_y\",\"isActive\":true,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"},{\"id\":\"00000000-0000-4000-8300-000000000004\",\"type\":\"bundle\",\"isActive\":false,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"}]}\n--- FAIL: TestLinkedFulfillmentPostgres (1.29s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/buy_x_get_y-direct (0.04s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/buy_x_get_y-code (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/bundle-direct (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/bundle-code (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/buy_x_get_y-direct (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/buy_x_get_y-code (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/bundle-direct (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/bundle-code (0.01s)\n    --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys (0.20s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring (0.05s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-variants (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-variants (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-products (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-products (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-cover (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-cover (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-disjoint (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-disjoint (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/prefix-is-not-product (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/prefix-is-not-product (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/case-sensitive (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/case-sensitive (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/same-set-mode (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/buy-complement-mode (0.00s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-false (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-false (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-false (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-false (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-false (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-false (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-false (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-true (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-true (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-true (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-true (0.01s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-true (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-true (0.02s)\n        --- FAIL: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-true (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/read-only-preflight (0.01s)\nFAIL\nFAIL\tgithub.com/mandalika/pos-backend/internal/handlers\t1.494s\nFAIL\n"
+    },
+    {
+      "id": "SK-POS-test-types",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\tsc.cmd --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --types node src/cashier/semanticPromotionKeys.test.ts",
+      "chunk_id": "ae3043",
+      "wall_time_seconds": 2.8668607,
+      "exit_code": 1,
+      "original_token_count": 387,
+      "output": "src/cashier/semanticPromotionKeys.test.ts(19,142): error TS2741: Property 'isBOGO' is missing in type '{ id: string; name: string; description?: string | null | undefined; type: \"bundle\" | \"buy_x_get_y\" | \"percentage\" | \"fixed\" | \"bogo\" | \"tiered\"; value: number; minPurchase?: number | null | undefined; ... 16 more ...; createdAt: string; }' but required in type 'LinkedPromotionInfo'.\r\nsrc/cashier/semanticPromotionKeys.test.ts(38,58): error TS2322: Type '{ code: string; type: \"bundle\" | \"buy_x_get_y\"; value: number; combinable: boolean; promotion: { id: string; name: string; description?: string | null; type: \"percentage\" | \"fixed\" | \"bogo\" | \"buy_x_get_y\" | \"tiered\" | \"bundle\"; ... 18 more ...; createdAt: string; }; }' is not assignable to type 'AppliedPromoCode'.\r\n  Types of property 'promotion' are incompatible.\r\n    Property 'isBOGO' is missing in type '{ id: string; name: string; description?: string | null | undefined; type: \"bundle\" | \"buy_x_get_y\" | \"percentage\" | \"fixed\" | \"bogo\" | \"tiered\"; value: number; minPurchase?: number | null | undefined; ... 16 more ...; createdAt: string; }' but required in type 'LinkedPromotionInfo'.\r\nsrc/cashier/semanticPromotionKeys.test.ts(52,144): error TS2741: Property 'isBOGO' is missing in type '{ id: string; name: string; description?: string | null | undefined; type: \"bundle\" | \"buy_x_get_y\" | \"percentage\" | \"fixed\" | \"bogo\" | \"tiered\"; value: number; minPurchase?: number | null | undefined; ... 16 more ...; createdAt: string; }' but required in type 'LinkedPromotionInfo'.\r\n"
+    },
+    {
+      "id": "SK-POS-focused-correct-fixtures",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run src/cashier/semanticPromotionKeys.test.ts",
+      "chunk_id": "2bbf28",
+      "wall_time_seconds": 2.1255878,
+      "exit_code": 0,
+      "original_token_count": 61,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n\n Test Files  1 passed (1)\n      Tests  10 passed (10)\n   Start at  02:08:15\n   Duration  713ms (transform 295ms, setup 0ms, import 419ms, tests 23ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "SK-DB-first-stop",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic' -m fast -w stop",
+      "chunk_id": "ece6af",
+      "wall_time_seconds": 1.6891709000000001,
+      "exit_code": 0,
+      "original_token_count": 15,
+      "output": "waiting for server to shut down..... done\r\nserver stopped\r\n"
+    },
+    {
+      "id": "SK-DB-final-init",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\initdb.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic-final' -U lf_test -A trust --no-locale -E UTF8",
+      "chunk_id": "cbafcb",
+      "wall_time_seconds": 7.4889182,
+      "exit_code": 0,
+      "original_token_count": 262,
+      "output": "The files belonging to this database system will be owned by user \"MyBook Hype AMD\".\r\nThis user must also own the server process.\r\n\r\nThe database cluster will be initialized with locale \"C\".\r\nThe default text search configuration will be set to \"english\".\r\n\r\nData page checksums are enabled.\r\n\r\ncreating directory C:/Users/MYBOOK~1/AppData/Local/Temp/mandalika-semantic-keys-0m5homhf/postgres-synthetic-final ... ok\r\ncreating subdirectories ... ok\r\nselecting dynamic shared memory implementation ... windows\r\nselecting default \"max_connections\" ... 100\r\nselecting default \"shared_buffers\" ... 128MB\r\nselecting default time zone ... Asia/Bangkok\r\ncreating configuration files ... ok\r\nrunning bootstrap script ... ok\r\nperforming post-bootstrap initialization ... ok\r\nsyncing data to disk ... ok\r\n\r\nSuccess. You can now start the database server using:\r\n\r\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\18^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\MYBOOK^~1^\\AppData^\\Local^\\Temp^\\mandalika^-semantic^-keys^-0m5homhf^\\postgres^-synthetic^-final^\" -l logfile start\r\n\r\n"
+    },
+    {
+      "id": "SK-DB-final-start",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic-final' -l 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-final.log' -o '-h 127.0.0.1 -p 56442' -w start",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "chunk_id": "53e00f",
+      "wall_time_seconds": 0.7034714,
+      "exit_code": 0,
+      "original_token_count": 14,
+      "output": "waiting for server to start.... done\r\nserver started\r\n"
+    },
+    {
+      "id": "SK-DB-final-create",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\createdb.exe' -h 127.0.0.1 -p 56442 -U lf_test mandalika_lf_synthetic",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "chunk_id": "114055",
+      "wall_time_seconds": 0.8323736,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "id": "SK-DB-final",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\n$env:MANDALIKA_LF_TEST_DSN='postgres://lf_test@127.0.0.1:56442/mandalika_lf_synthetic?sslmode=disable'\n$env:MANDALIKA_LF_TEST_DATA_DIR='C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic-final'\ngo test -mod=readonly ./internal/handlers -run '^TestLinkedFulfillmentPostgres$' -count=1 -v",
+      "chunk_id": "2176a8",
+      "wall_time_seconds": 3.7596628,
+      "exit_code": 0,
+      "original_token_count": 3533,
+      "output": "=== RUN   TestLinkedFulfillmentPostgres\n=== RUN   TestLinkedFulfillmentPostgres/direct/buy_x_get_y-direct\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/buy_x_get_y-code\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/bundle-direct\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/direct/bundle-code\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/buy_x_get_y-direct\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/buy_x_get_y-code\n    linked_fulfillment_integration_test.go:267: total=110000, physical units=2, reward grants=1 net=10000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/bundle-direct\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=0; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/batch/bundle-code\n    linked_fulfillment_integration_test.go:267: total=105000, physical units=2, reward grants=1 net=5000, code usage delta=1; two same-body/key retries unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-variant\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-whole\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-variants\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-variants\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-products\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-products\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-cover\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-cover\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-disjoint\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-disjoint\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/prefix-is-not-product\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/prefix-is-not-product\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/case-sensitive\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/case-sensitive\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/same-set-mode\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/buy-complement-mode\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-false\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-false\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-false\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-false\n2026/09/21 02:10:19 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-false\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-false\n2026/09/21 02:10:19 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-true\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-true\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; reward_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-true\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-true\n2026/09/21 02:10:19 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta0 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-true\n    semantic_promotion_keys_integration_test.go:165: 422; full financial/stock/grant/code/key snapshots unchanged\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-true\n2026/09/21 02:10:19 WARN keeping unvalidated bundle reward line(s) (offline) promotion_id=00000000-0000-4000-8300-000000000004\n    semantic_promotion_keys_integration_test.go:218: captured total=101234; two physical units; reward price1234 preserved; bundle_invalid; no validated grant; usage delta1 once\n=== RUN   TestLinkedFulfillmentPostgres/semantic-keys/read-only-preflight\n    semantic_promotion_keys_integration_test.go:244: read-only report: {\"scanned\":14,\"findings\":[{\"id\":\"00000000-0000-4000-8300-000000000003\",\"type\":\"buy_x_get_y\",\"isActive\":true,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"},{\"id\":\"00000000-0000-4000-8300-000000000004\",\"type\":\"bundle\",\"isActive\":false,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"}]}\n--- PASS: TestLinkedFulfillmentPostgres (1.18s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/buy_x_get_y-direct (0.04s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/buy_x_get_y-code (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/bundle-direct (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/direct/bundle-code (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/buy_x_get_y-direct (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/buy_x_get_y-code (0.02s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/bundle-direct (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/batch/bundle-code (0.01s)\n    --- PASS: TestLinkedFulfillmentPostgres/semantic-keys (0.22s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring (0.04s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/whole-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/whole-variant (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/variant-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/variant-whole (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-variants (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-variants (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/different-products (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/different-products (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-cover (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-cover (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/alternatives-disjoint (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/alternatives-disjoint (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/prefix-is-not-product (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/prefix-is-not-product (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/bundle/case-sensitive (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/case-sensitive (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/same-set-mode (0.00s)\n            --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/authoring/buy_x_get_y/buy-complement-mode (0.00s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-false (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-direct/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-direct/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/buy_x_get_y-code/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/buy_x_get_y-code/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-direct/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-direct/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/online/bundle-code/reverse-true (0.01s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/captured-offline/bundle-code/reverse-true (0.02s)\n        --- PASS: TestLinkedFulfillmentPostgres/semantic-keys/read-only-preflight (0.01s)\nPASS\nok  \tgithub.com/mandalika/pos-backend/internal/handlers\t1.315s\n"
+    },
+    {
+      "id": "SK-final-POS",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "7e4e7d",
+      "wall_time_seconds": 3.9931981,
+      "exit_code": 0,
+      "original_token_count": 62,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/pos\n\n\n Test Files  13 passed (13)\n      Tests  241 passed (241)\n   Start at  02:10:48\n   Duration  2.03s (transform 3.77s, setup 0ms, import 5.81s, tests 407ms, environment 3ms)\n\n"
+    },
+    {
+      "id": "SK-final-BO",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\backoffice",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "92681b",
+      "wall_time_seconds": 3.5319691,
+      "exit_code": 0,
+      "original_token_count": 63,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/apps/backoffice\n\n\n Test Files  3 passed (3)\n      Tests  19 passed (19)\n   Start at  02:10:48\n   Duration  1.72s (transform 664ms, setup 0ms, import 1.11s, tests 58ms, environment 1ms)\n\n"
+    },
+    {
+      "id": "SK-final-sync",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\packages\\sync",
+      "cmd": ".\\node_modules\\.bin\\vitest.cmd run",
+      "chunk_id": "871506",
+      "wall_time_seconds": 2.9832465,
+      "exit_code": 0,
+      "original_token_count": 63,
+      "output": "\n RUN  v4.1.7 C:/Users/MyBook Hype AMD/Downloads/mandalika-pos/packages/sync\n\n\n Test Files  10 passed (10)\n      Tests  33 passed (33)\n   Start at  02:10:47\n   Duration  1.47s (transform 1.65s, setup 0ms, import 2.77s, tests 1.17s, environment 2ms)\n\n"
+    },
+    {
+      "id": "SK-final-test-types",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\apps\\pos",
+      "cmd": ".\\node_modules\\.bin\\tsc.cmd --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --types node src/cashier/semanticPromotionKeys.test.ts ../backoffice/src/screens/promotions/promotionKeyValidation.test.ts ../backoffice/src/screens/promotions/promotionKeyForm.test.ts",
+      "chunk_id": "97673c",
+      "wall_time_seconds": 5.0311511,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "id": "SK-preflight-build",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\ngo build -mod=readonly -o 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\promotion-key-preflight.exe' ./cmd/promotion-key-preflight",
+      "chunk_id": "40c232",
+      "wall_time_seconds": 4.10868,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "id": "SK-preflight-synthetic",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:PROMOTION_PREFLIGHT_DSN='postgres://lf_test@127.0.0.1:56442/mandalika_lf_synthetic?sslmode=disable'\n& 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\promotion-key-preflight.exe'",
+      "chunk_id": "1ae055",
+      "wall_time_seconds": 0.4005732,
+      "exit_code": 1,
+      "original_token_count": 127,
+      "output": "{\"scanned\":14,\"findings\":[{\"id\":\"00000000-0000-4000-8300-000000000003\",\"type\":\"buy_x_get_y\",\"isActive\":true,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"},{\"id\":\"00000000-0000-4000-8300-000000000004\",\"type\":\"bundle\",\"isActive\":false,\"reason\":\"semantic_overlap\",\"leftGroup\":0,\"rightGroup\":1,\"leftKey\":\"00000000-0000-4000-8300-000000000001|M\",\"rightKey\":\"00000000-0000-4000-8300-000000000001\"}]}\n"
+    },
+    {
+      "id": "SK-preflight-no-target",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:PROMOTION_PREFLIGHT_DSN=''\n& 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\promotion-key-preflight.exe'",
+      "chunk_id": "a0c5d4",
+      "wall_time_seconds": 0.2863857,
+      "exit_code": 1,
+      "original_token_count": 27,
+      "output": "Set PROMOTION_PREFLIGHT_DSN explicitly to the reviewed target, preferably with a read-only database role.\n"
+    },
+    {
+      "id": "SK-DB-final-stop",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": "& 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe' -D 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\postgres-synthetic-final' -m fast -w stop",
+      "chunk_id": "9f1df5",
+      "wall_time_seconds": 2.0162958,
+      "exit_code": 0,
+      "original_token_count": 15,
+      "output": "waiting for server to shut down..... done\r\nserver stopped\r\n"
+    },
+    {
+      "id": "SK-preflight-no-target-exact-exit",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:PROMOTION_PREFLIGHT_DSN=''\n& 'C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-semantic-keys-0m5homhf\\promotion-key-preflight.exe'\nexit $LASTEXITCODE",
+      "chunk_id": "5991b5",
+      "wall_time_seconds": 0.2795749,
+      "exit_code": 2,
+      "original_token_count": 27,
+      "output": "Set PROMOTION_PREFLIGHT_DSN explicitly to the reviewed target, preferably with a read-only database role.\n"
+    },
+    {
+      "id": "SK-final-Go-after-review",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "cmd": "$env:GOTOOLCHAIN='local'\n$env:GOPROXY='off'\n$env:GOSUMDB='off'\ngo test -mod=readonly ./internal/promotionkeys ./internal/promotionpreflight ./cmd/promotion-key-preflight ./internal/write ./internal/service ./internal/handlers ./internal/sync -count=1",
+      "chunk_id": "10b741",
+      "wall_time_seconds": 6.0868795,
+      "exit_code": 0,
+      "original_token_count": 119,
+      "output": "ok  \tgithub.com/mandalika/pos-backend/internal/promotionkeys\t0.703s\n?   \tgithub.com/mandalika/pos-backend/internal/promotionpreflight\t[no test files]\n?   \tgithub.com/mandalika/pos-backend/cmd/promotion-key-preflight\t[no test files]\nok  \tgithub.com/mandalika/pos-backend/internal/write\t0.980s\nok  \tgithub.com/mandalika/pos-backend/internal/service\t0.997s\nok  \tgithub.com/mandalika/pos-backend/internal/handlers\t0.154s\nok  \tgithub.com/mandalika/pos-backend/internal/sync\t0.859s\n"
+    },
+    {
+      "id": "SK-final-diff-check",
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "cmd": "git diff --check",
+      "chunk_id": "554d71",
+      "wall_time_seconds": 0.6339698,
+      "exit_code": 0,
+      "original_token_count": 28,
+      "output": "warning: in the working copy of 'SESSION_HANDOFF.md', CRLF will be replaced by LF the next time Git touches it\n"
+    }
+  ]
+}

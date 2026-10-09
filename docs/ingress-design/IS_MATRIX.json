@@ -1,0 +1,115 @@
+{
+  "packet_id": "A34E15B-INGRESS-DESIGN-20260928-01",
+  "classification": "design-and-local-contract-only",
+  "activation_ready": false,
+  "items": [
+    {
+      "id": "IS01",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "entry.json; preservation.json",
+      "result": "705 entry hashes; active executable/dependency bytes unchanged; preexisting dirty bytes retained"
+    },
+    {
+      "id": "IS02",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "reused-operational/*; design entry table",
+      "result": "Reused selected facts only; Compute disabled and deployed-source equality unknown"
+    },
+    {
+      "id": "IS03",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "design threat/ownership model",
+      "result": "Internet/internal arbitrary headers; control-plane privilege explicit; peer is not a person/device"
+    },
+    {
+      "id": "IS04",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "INGRESS_PROPOSAL.json; resource table",
+      "result": "One managed global ALB candidate; null IDs/hostname are named prerequisites"
+    },
+    {
+      "id": "IS05",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "proposal header_writer; public/headers.html; model edge tests",
+      "result": "Backend-service sole writer; replacement; URL-map precedence; actual protocol proof pending"
+    },
+    {
+      "id": "IS06",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "13 manifest routes; route table; negative CLI cases",
+      "result": "Every route has disposition and commissioning gate; unknown path blocks activation"
+    },
+    {
+      "id": "IS07",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "alternative section; public IAP sources; Q-IS-01",
+      "result": "Network exclusivity not established; precise IAP+origin-IAM/exact-audience alternative conditional on bearer compatibility"
+    },
+    {
+      "id": "IS08",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "schema/checker; proposal-check-final-v2; proposal-tests-final-v2",
+      "result": "Non-applying shape/semantic checks pass; 16 actual CLI counterexamples reject; activation always false"
+    },
+    {
+      "id": "IS09",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "model-scenarios.json; consumer table",
+      "result": "IPv4/IPv6/mapped normalization, raw-peer preservation and common key proposal tested; actual consumers not migrated"
+    },
+    {
+      "id": "IS10",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "model invalid input/Redis/auth tests",
+      "result": "Invalid identity rejects before dispatch/bucket; valid-identity Redis fail-open preserved in model using real Cache/Redis calls"
+    },
+    {
+      "id": "IS11",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "model-tests-final.stdout; model-vet-final.*",
+      "result": "40 named passes, zero skips/fails; 45s test/120s supervisor; initial cleanup fixture failure retained"
+    },
+    {
+      "id": "IS12",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "TCP/HTTP route rows; HTTP monitor model",
+      "result": "TCP8080 recorded, no provider HTTP bypass or LB health-check resource; cloud startup not tested"
+    },
+    {
+      "id": "IS13",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "client-consumer-trace.json; migration table",
+      "result": "Actual API/storage/OTA/plugin trace; allowModifyUrl false default; installed fleet unknown"
+    },
+    {
+      "id": "IS14",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "stages M0\u2013M6 and paired rollback",
+      "result": "No early closure, redirect, logout, outbox rewrite; withdraw trusting source before reopening routes"
+    },
+    {
+      "id": "IS15",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "cost-assumptions.json; public pricing extraction",
+      "result": "Global rule USD18.25/730h; Jakarta USD.00981/GiB/direction; DNS/TLS/IAP and exclusions separated"
+    },
+    {
+      "id": "IS16",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "G01\u2013G07; commissioning checklist",
+      "result": "Specific source/route/fleet/auth/protocol proof and same-SHA gates required later"
+    },
+    {
+      "id": "IS17",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "preservation.json; tracker delta",
+      "result": "32/11,44parents,A31only; active6/4 retained; no new scan/hosted/remediation; SheetJS/policy unchanged"
+    },
+    {
+      "id": "IS18",
+      "status": "design requirement addressed; operational activation not qualified",
+      "evidence": "packet; incremental.diff; SHA256 manifest",
+      "result": "Exact before/after design/model/docs payloads and raw outputs; archive verification recorded externally"
+    }
+  ]
+}

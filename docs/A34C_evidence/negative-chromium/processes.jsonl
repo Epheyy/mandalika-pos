@@ -1,0 +1,4 @@
+{"kind":"vite","app":"pos","pid":3372,"port":5183,"event":"starting"}
+{"kind":"vite","app":"pos","pid":3372,"port":5183,"event":"listening"}
+{"kind":"vite","app":"backoffice","pid":3412,"port":5184,"event":"starting"}
+{"kind":"vite","app":"backoffice","pid":3412,"port":5184,"event":"listening"}

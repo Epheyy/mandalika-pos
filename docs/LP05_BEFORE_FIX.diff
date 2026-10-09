@@ -1,0 +1,89 @@
+diff --git a/apps/pos/src/cashier/promotionIdentity.test.ts b/apps/pos/src/cashier/promotionIdentity.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/promotionIdentity.test.ts
+@@ -0,0 +1,84 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import type { components } from '@mandalika/api'
++import { computePricing, type PricingInput } from './pricing'
++import { decideApplyCode, type AppliedPromoCode } from './promoValidate'
++import { cashierReducer, CASHIER_INITIAL_STATE, type CashierState } from './state/cashierReducer'
++
++type Promotion = components['schemas']['Promotion']
++type Code = components['schemas']['DiscountCode']
++const promo = (id = 'P', combinable = true): Promotion => ({ id, name: 'Ten percent', type: 'tiered', value: 0, isActive: true, createdAt: '', combinable, tieredConfig: { tiers: [{ minSubtotal: 0, kind: 'percentage', value: 10 }] } })
++const rawCode = (p: Promotion, code = 'Raw-Code-1'): Code => ({ id: code, code, promotionId: p.id, type: 'fixed', value: 999, usageCount: 0, isActive: true, customerId: 'Raw-Customer', createdAt: '' })
++function select(p: Promotion, raw = rawCode(p)): AppliedPromoCode {
++  const d = decideApplyCode(raw.code.toLowerCase(), [raw], { now: new Date('2026-09-20T05:00:00Z'), outletId: 'outlet', subtotal: 100000, hasCustomer: true, customerId: 'Raw-Customer' }, [p])
++  if (!d.ok) throw new Error(d.reason)
++  return d.code
++}
++const initial = (): CashierState => ({ ...CASHIER_INITIAL_STATE, cart: [{ productId: 'bottle', productName: 'Bottle', variantSize: '120ml', quantity: 1, price: 100000, subtotal: 100000 }] })
++const direct = (s: CashierState, p: Promotion) => cashierReducer(s, { type: 'APPLY_PROMOTION', promotion: p })
++const linked = (s: CashierState, p: Promotion, code = 'Raw-Code-1') => {
++  const c = select(p, rawCode(p, code))
++  return cashierReducer(s, { type: 'APPLY_PROMO_CODE', code: c, combinable: !!c.combinable })
++}
++const quote = (s: CashierState) => computePricing({ cart: s.cart, appliedPromotions: s.appliedPromotions, appliedPromoCodes: s.appliedPromoCodes,
++  discountType: 'fixed', surchargeType: 'fixed', discountRunning: 0, surchargeRunning: 0,
++  settings: { taxEnabled: false, taxRate: 0, roundingEnabled: false, roundingType: 'none' } as PricingInput['settings'],
++  loyalty: { enabled: false, pointsPerThousand: 0, redemptionRate: 0 } as PricingInput['loyalty'], hasCustomer: true, pointsRedeemed: 0, customerPoints: 0 })
++
++afterEach(() => { vi.unstubAllGlobals() })
++
++it.each([true, false])('LP05 regression direct then linked, combinable=%s', combinable => {
++  const p = promo('P', combinable), state = linked(direct(initial(), p), p)
++  expect(quote(state).total).toBe(90000)
++  expect(state.appliedPromotions.map(p => p.id)).toEqual(['P'])
++  expect(state.appliedPromoCodes).toEqual([])
++})
++it.each([true, false])('LP05 regression linked then direct, combinable=%s', combinable => {
++  const p = promo('P', combinable), state = direct(linked(initial(), p), p)
++  expect(quote(state).total).toBe(90000)
++  expect(state.appliedPromotions.map(p => p.id)).toEqual(['P'])
++  expect(state.appliedPromoCodes).toEqual([])
++})
++it.each([true, false])('LP05 regression first linked identity wins, combinable=%s', combinable => {
++  const p = promo('P', combinable), state = linked(linked(initial(), p), p, 'Raw-Code-2')
++  expect(quote(state).total).toBe(90000)
++  expect(state.appliedPromoCodes.map(c => c.code)).toEqual(['Raw-Code-1'])
++})
++it('LP05 regression discard same-ID code before checking direct combinability', () => {
++  // A prior selected snapshot can differ from incoming current promo metadata.
++  const p = promo(), staleCode = { ...select(p), combinable: false }
++  const state = direct({ ...initial(), appliedPromotions: [promo('Unrelated')], appliedPromoCodes: [staleCode] }, p)
++  expect(state.appliedPromotions.map(p => p.id)).toEqual(['Unrelated', 'P'])
++  expect(state.appliedPromoCodes).toEqual([])
++  expect(quote(state).total).toBe(80000)
++})
++
++it('same raw code is a no-op, different IDs and unlinked codes remain independent', () => {
++  const p = promo(), first = linked(initial(), p)
++  expect(linked(first, p).appliedPromoCodes).toEqual(first.appliedPromoCodes)
++  const different = linked(direct(initial(), p), promo('Other'))
++  expect(quote(different).total).toBe(80000)
++  const flat: AppliedPromoCode = { code: 'Unlinked-Raw', type: 'percentage', value: 10, combinable: true }
++  const state = cashierReducer(direct(initial(), p), { type: 'APPLY_PROMO_CODE', code: flat, combinable: true })
++  expect(quote(state).total).toBe(80000)
++  expect(state.appliedPromoCodes.map(c => c.code)).toEqual(['Unlinked-Raw'])
++})
++
++it('code-only promotion remains usable through its linked code', () => {
++  const state = linked(initial(), { ...promo(), codeOnly: true })
++  expect(state.appliedPromotions).toEqual([])
++  expect(quote(state).total).toBe(90000)
++})
++
++it('discarded linked selections do not resurrect after remove, toggle or clear', () => {
++  const p = promo(), replaced = direct(linked(initial(), p), p)
++  for (const action of [{ type: 'REMOVE_PROMOTION' as const, id: 'P' }, { type: 'APPLY_PROMOTION' as const, promotion: p }, { type: 'CLEAR_PROMOTIONS' as const }]) {
++    const removed = cashierReducer(replaced, action)
++    expect(removed.appliedPromotions).toEqual([])
++    expect(removed.appliedPromoCodes).toEqual([])
++    expect(quote(removed).total).toBe(100000)
++  }
++  const two = linked(linked(initial(), p), p, 'Raw-Code-2')
++  const removed = cashierReducer(two, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Code-1' })
++  expect(removed.appliedPromoCodes).toEqual([])
++  expect(quote(removed).total).toBe(100000)
++})

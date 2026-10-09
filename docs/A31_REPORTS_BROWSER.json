@@ -1,0 +1,201 @@
+{
+  "environment": "real Backoffice Reports, synthetic intercepted HTTP, real fetchAllPages 201-row A cohort; no backend/live data",
+  "results": [
+    {
+      "scenario": "B success then late complete A",
+      "passed": true,
+      "heldAPage2Responses": 1,
+      "before": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV\n\nRp 7.000\n\nTotal Penjualan\n\n1\n\nJumlah Transaksi\n\nRp 0\n\nTotal Refund\n\n0\n\nTransaksi Direfund\n\nBreakdown Pembayaran\n\nCash\n\nRp 7.000\n\n100%\n\n1 transaksi\n\nB-0\n\n21 Sep 2026 14:16 · A31 Tester\n\nSelesai\n\nRp 7.000",
+      "after": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV\n\nRp 7.000\n\nTotal Penjualan\n\n1\n\nJumlah Transaksi\n\nRp 0\n\nTotal Refund\n\n0\n\nTransaksi Direfund\n\nBreakdown Pembayaran\n\nCash\n\nRp 7.000\n\n100%\n\n1 transaksi\n\nB-0\n\n21 Sep 2026 14:16 · A31 Tester\n\nSelesai\n\nRp 7.000"
+    },
+    {
+      "scenario": "B failure then late complete A",
+      "passed": true,
+      "heldAPage2Responses": 1,
+      "before": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\n\nGagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. A31 B synthetic failure\n\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV",
+      "after": "Laporan\n\nEkspor data untuk analisis lebih lanjut\n\nTransaksi\nEkspor\nShift\nHadiah Promo\nKode Diskon\n\nGagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. A31 B synthetic failure\n\nDARI\nSAMPAI\nSTATUS\nSemua Status\nSelesai\nRefund\nPEMBAYARAN\nSemua\nTunai\nKartu\nQRIS\nTransfer\nExport CSV"
+    }
+  ],
+  "calls": [
+    {
+      "path": "/api/v1/auth/refresh",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/products",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/promotions",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/outlets",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/products",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/promotions",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/products",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/promotions",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/outlets",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/products",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/promotions",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/outlets",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/outlets",
+      "scope": "",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "A",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "A",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "A",
+      "page": 2
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "B",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "B",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "A",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "A",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "A",
+      "page": 2
+    },
+    {
+      "path": "/api/v1/orders",
+      "scope": "B",
+      "page": 1
+    },
+    {
+      "path": "/api/v1/shifts",
+      "scope": "B",
+      "page": 1
+    }
+  ]
+}

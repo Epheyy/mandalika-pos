@@ -1,0 +1,73 @@
+diff --git a/apps/pos/src/cashier/linkedFulfillment.test.ts b/apps/pos/src/cashier/linkedFulfillment.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/pos/src/cashier/linkedFulfillment.test.ts
+@@ -0,0 +1,68 @@
++import { expect, it } from 'vitest'
++import type { components } from '@mandalika/api'
++import { cashierReducer, CASHIER_INITIAL_STATE, type CashierState } from './state/cashierReducer'
++import { decideApplyCode, type AppliedPromoCode } from './promoValidate'
++import { computeBundleFreed } from './bundle'
++import { linkedPromoShape } from './pricing'
++
++type Promotion = components['schemas']['Promotion']
++type CartItem = components['schemas']['CartItem']
++type Product = components['schemas']['Product']
++const line = (id: string, price: number, quantity = 1): CartItem => ({ productId: id, productName: id, variantSize: 'M', price, quantity, subtotal: price * quantity })
++const product = (id: string, price: number): Product => ({ id, name: id, isActive: true, createdAt: '', variants: [{ size: 'M', price, stock: 100 }] })
++const products = [product('buy', 100000), product('reward', 20000)]
++const promo = (type: 'bundle' | 'buy_x_get_y', id = 'P'): Promotion => ({
++  id, name: type, type, value: 0, isActive: true, codeOnly: true, createdAt: '', combinable: true,
++  bundleConfig: type === 'bundle' ? { slots: [{ productKeys: ['buy'], quantity: 1 }, { productKeys: ['reward'], quantity: 1 }], bundlePrice: 105000 } : null,
++  bxgyConfig: type === 'buy_x_get_y' ? { buyQuantity: 1, getQuantity: 1, buyProductIds: ['buy'], getProductIds: ['reward'], getDiscountKind: 'percentage', getDiscountValue: 50 } : null,
++})
++function code(p: Promotion, raw = 'Raw-Winner'): AppliedPromoCode {
++  const d = decideApplyCode(raw.toLowerCase(), [{ id: raw, code: raw, promotionId: p.id, type: 'fixed', value: 0, usageCount: 0, isActive: true, createdAt: '' }],
++    { now: new Date('2026-09-20T05:00:00Z'), outletId: 'outlet', subtotal: 120000, hasCustomer: true }, [p])
++  if (!d.ok) throw new Error(d.reason)
++  return d.code
++}
++const initial = (p: Promotion): CashierState => ({ ...CASHIER_INITIAL_STATE, cart: p.type === 'bundle' ? [line('buy', 100000), line('reward', 20000)] : [line('buy', 100000)] })
++function chooseCode(state: CashierState, p: Promotion): CashierState {
++  const selected = code(p)
++  // Entry worktree's real linked handler validates then dispatches this action.
++  return cashierReducer(state, { type: 'APPLY_PROMO_CODE', code: selected, combinable: !!selected.combinable })
++}
++const owned = (state: CashierState, id: string) => state.cart.filter(c => c.productId === id).reduce((n, c) => n + c.quantity, 0)
++function seededPhysical(p: Promotion): CashierState {
++  if (p.type === 'bundle') {
++    const start = initial(p), freed = computeBundleFreed(p.bundleConfig, start.cart)!
++    const direct = cashierReducer(start, { type: 'APPLY_BUNDLE', promotion: p, freed, applications: 1 })
++    return { ...direct, appliedPromotions: [], appliedPromoCodes: [code(p)] }
++  }
++  return { ...initial(p), cart: [line('buy', 100000), { ...line('reward', 10000), isReward: true, rewardPromotionId: p.id }], appliedPromoCodes: [code(p)] }
++}
++
++it('LF regression: linked bundle snapshot carries the allocator configuration', () => {
++  const p = promo('bundle')
++  expect(linkedPromoShape(code(p)).bundleConfig).toEqual(p.bundleConfig)
++})
++it.each(['bundle', 'buy_x_get_y'] as const)('LF regression: code-only %s actually fulfills its physical effect', type => {
++  const p = promo(type), selected = chooseCode(initial(p), p)
++  expect(selected.appliedPromotions).toEqual([])
++  expect(selected.appliedPromoCodes.map(c => c.code)).toEqual(['Raw-Winner'])
++  expect(selected.cart.filter(c => c.rewardPromotionId === 'P')).toEqual([expect.objectContaining({ productId: 'reward', quantity: 1, price: type === 'bundle' ? 5000 : 10000 })])
++  expect(owned(selected, 'buy')).toBe(1)
++  expect(owned(selected, 'reward')).toBe(1)
++})
++it.each(['bundle', 'buy_x_get_y'] as const)('LF regression: remove linked %s effect exactly once', type => {
++  const p = promo(type), state = seededPhysical(p)
++  const removed = cashierReducer(state, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' })
++  expect(removed.cart).toEqual(initial(p).cart)
++  expect(removed.bundleFreed).toEqual({})
++  expect(removed.bundleApplications).toEqual({})
++  expect(removed.appliedPromoCodes).toEqual([])
++  expect(cashierReducer(removed, { type: 'REMOVE_PROMO_CODE', code: 'Raw-Winner' }).cart).toEqual(initial(p).cart)
++})
++it('LF regression: participant edit removes the linked bundle owner as well as its effect', () => {
++  const state = cashierReducer(seededPhysical(promo('bundle')), { type: 'CART_SET_QTY', productId: 'reward', variantSize: 'M', quantity: 2 })
++  expect(state.appliedPromoCodes).toEqual([])
++  expect(state.bundleFreed).toEqual({})
++  expect(owned(state, 'buy')).toBe(1)
++  expect(owned(state, 'reward')).toBe(2)
++})

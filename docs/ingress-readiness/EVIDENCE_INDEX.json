@@ -1,0 +1,480 @@
+{
+  "packet_id": "A34E15C-READINESS-20260929-01",
+  "generated_at": "2026-09-29T03:33:03.341972+00:00",
+  "records": [
+    {
+      "path": "evidence/android-runs.json",
+      "sha256": "3358bc2e94b07e1bac3631a4e6445b2df4ec61a5cdab38ad3f64e82819775912",
+      "bytes": 7398,
+      "observation_date": "2026-09-29T03:15:24.271607+00:00",
+      "retrieval_date": "2026-09-29T03:15:24.271607+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05: available native build artifact run IDs",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-channels.json",
+      "sha256": "4aa913144f11f234129aadf378a23c04d3eabc6b054a3357a7dfc25529a1733b",
+      "bytes": 1189,
+      "observation_date": "2026-09-29T03:32:23.264591+00:00",
+      "retrieval_date": "2026-09-29T03:32:23.264591+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05 native channel configuration in exact available artifacts",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-download-final.json",
+      "sha256": "f63bbded8a91487e2e439a4bd4409397cc329ddc2b69578aa9360bc13d380db8",
+      "bytes": 605,
+      "observation_date": "2026-09-29T03:19:07.371114+00:00",
+      "retrieval_date": "2026-09-29T03:19:07.371114+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05 latest signed artifact bytes",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-download-timeout.json",
+      "sha256": "9dff83fc489d88c89edc8738e41d9281114d732f4dc37776bba2e84732f73a31",
+      "bytes": 449,
+      "observation_date": "2026-09-29T03:18:47.628454+00:00",
+      "retrieval_date": "2026-09-29T03:18:47.628454+00:00",
+      "reused_on": null,
+      "evidence_class": "unavailable",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05 latest signed artifact bytes",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-local-debug-identity.json",
+      "sha256": "34074116933ebb48dde1729db795aa8a606862d3e28eb0563fd1487ff58be1e9",
+      "bytes": 1106,
+      "observation_date": "2026-09-29T03:23:13.845314+00:00",
+      "retrieval_date": "2026-09-29T03:23:13.845314+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "apk-local-debug-identity",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-local-debug.json",
+      "sha256": "f7d90a6de5f038bdd20dc8d19ca006703e3f2b513542f3b5685fa42ee1d9a0ff",
+      "bytes": 3618,
+      "observation_date": "2026-09-29T03:23:13.120139+00:00",
+      "retrieval_date": "2026-09-29T03:23:13.120139+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05 artifact-contained API/OTA facts, not fleet installation",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-release-identity.json",
+      "sha256": "6a82f4629170d7b12b2d167c82453683fbc755cbd45aa6ccf82ccbc102eebbd1",
+      "bytes": 1184,
+      "observation_date": "2026-09-29T03:23:12.956881+00:00",
+      "retrieval_date": "2026-09-29T03:23:12.956881+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "apk-release-identity",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/apk-release.json",
+      "sha256": "c5a040f5a689126a96afa4e95ea4ab3743636a0f16dfd22d045f9682d42ab589",
+      "bytes": 4269,
+      "observation_date": "2026-09-29T03:23:11.356050+00:00",
+      "retrieval_date": "2026-09-29T03:23:11.356050+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05 artifact-contained API/OTA facts, not fleet installation",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/artifact-image.json",
+      "sha256": "9725cca8489f9263e0c3c831c591dcaa73a93f26942a8761906f0710df48191c",
+      "bytes": 1104,
+      "observation_date": "2026-09-29T03:15:18.418011+00:00",
+      "retrieval_date": "2026-09-29T03:15:18.418011+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03: exact image metadata/provenance reference",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/builds-digest-window.json",
+      "sha256": "0d27adc40f120251dfb38a0d817b20b1e72bce6285f6f7b71897149c69f02c5f",
+      "bytes": 3442,
+      "observation_date": "2026-09-29T03:16:20.058585+00:00",
+      "retrieval_date": "2026-09-29T03:16:20.058585+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03: build outputs matching exact image during known revision window",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/client-source-artifact-correlation.json",
+      "sha256": "ec2c6a3cc99df9c37bda09fadba8a53380aa6c546d5c501e200f3fe5477312ce",
+      "bytes": 5068,
+      "observation_date": "2026-09-29T03:23:46.623680+00:00",
+      "retrieval_date": "2026-09-29T03:23:46.623680+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "client-source-artifact-correlation",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/current-service.json",
+      "sha256": "61c778bdca15e99ad2bf125831ed30b83d8b5b4f689cd45d7bd939f98632bb99",
+      "bytes": 1266,
+      "observation_date": "2026-09-29T03:15:09.134067+00:00",
+      "retrieval_date": "2026-09-29T03:15:09.134067+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "G03: distinguish current traffic from dated anchor",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/doc-consistency.json",
+      "sha256": "65ac22cf3d3c6af499d61f3175b23a5cc0d8c99980bfc4f375d900c39eca86ba",
+      "bytes": 998,
+      "observation_date": "2026-09-29T03:31:52.833785+00:00",
+      "retrieval_date": "2026-09-29T03:31:52.833785+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "doc-consistency",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/exploratory-limitations.json",
+      "sha256": "e127f34f543e0dc2fda2553ee5487ff522a2c5162fc2517864ad6da1a2508483",
+      "bytes": 1175,
+      "observation_date": "2026-09-29 (local turn)",
+      "retrieval_date": "2026-09-29 (local turn)",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "exploratory command limitations, preserved rather than represented as passing qualification",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/helper-final.json",
+      "sha256": "216eedcd7154ea1ff7932f3241732c3a5fb502bbad307a08379e3045d5cadac1",
+      "bytes": 469,
+      "observation_date": "2026-09-29T03:22:45.496580+00:00",
+      "retrieval_date": "2026-09-29T03:22:45.496580+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "synthetic local APK parser only",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/helper-final.txt",
+      "sha256": "9c84b04ccb68a49639564896fa09685f4089c73c4da015d7987e62b5a1c0d953",
+      "bytes": 1510,
+      "observation_date": "2026-09-29 (local turn)",
+      "retrieval_date": "2026-09-29 (local turn)",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "helper-final",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/helper-initial.json",
+      "sha256": "fb300e956152383c618b9fe4e97ab7dc82072b70b16daed18cb38b35a1745e0d",
+      "bytes": 396,
+      "observation_date": "2026-09-29T03:22:23.248677+00:00",
+      "retrieval_date": "2026-09-29T03:22:23.248677+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "helper-initial",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/helper-intermediate.txt",
+      "sha256": "84db6cd87292713703cc5f62a2fdf117c0c6cfa2a22c556d6b847f637b67e0b3",
+      "bytes": 2218,
+      "observation_date": "2026-09-29 (local turn)",
+      "retrieval_date": "2026-09-29 (local turn)",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G07"
+      ],
+      "named_fact": "helper-intermediate",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/latest-android-artifacts.json",
+      "sha256": "2f3d4ec551c0b708c7ab83af32aad298f92674375533335db62a7d5ba49a9645",
+      "bytes": 1212,
+      "observation_date": "2026-09-29T03:16:23.371071+00:00",
+      "retrieval_date": "2026-09-29T03:16:23.371071+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05: latest successful native run immutable artifacts",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/ota-objects.json",
+      "sha256": "cac5be08538608252953aedf5f6dfa8a6d566184aadf7e010811bcbe3b869652",
+      "bytes": 567,
+      "observation_date": "2026-09-29T03:20:20.460536+00:00",
+      "retrieval_date": "2026-09-29T03:20:20.460536+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05: existing OTA rollback object metadata from source-declared exact bucket/prefix",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/published-releases.json",
+      "sha256": "0dd4252d128352b7d87020393946585067b3dc7b1d367bf3ba8c73664241d60b",
+      "bytes": 566,
+      "observation_date": "2026-09-29T03:16:24.512017+00:00",
+      "retrieval_date": "2026-09-29T03:16:24.512017+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "G05: existing repository release/rollback artifacts",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/client-consumer-trace.json",
+      "sha256": "935bf88a7560a5556b9aba7a6d8e3ec369887c70e9ea96dbc9354c7d5ab7a60a",
+      "bytes": 15911,
+      "observation_date": "2026-09-28",
+      "retrieval_date": "2026-09-28",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G05"
+      ],
+      "named_fact": "client-consumer-trace",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/domain-mappings-rest-corrected.json",
+      "sha256": "5d4de16864bacffb4fe360d585368ddd528596dcb8c49b60614b334ca808a92f",
+      "bytes": 319,
+      "observation_date": "2026-09-28T07:16:52Z",
+      "retrieval_date": "2026-09-28T07:16:52Z",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G01",
+        "G03",
+        "G04",
+        "G06"
+      ],
+      "named_fact": "domain-mappings-rest-corrected",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/invoker-public.json",
+      "sha256": "761cfcc40623e6248a5f3a32f6a1014ef99d91b7a8c375972cdd02966583ea4b",
+      "bytes": 471,
+      "observation_date": "2026-09-28T07:12:20Z",
+      "retrieval_date": "2026-09-28T07:12:20Z",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G01",
+        "G03",
+        "G04",
+        "G06"
+      ],
+      "named_fact": "invoker-public",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/jakarta-lb-price-extract.json",
+      "sha256": "75f4a13a51bd26c3c28e695c7cd45e1a1fd62820b12c1bbd479738093f4fa7b5",
+      "bytes": 7191,
+      "observation_date": "2026-09-28 (see supplied source record)",
+      "retrieval_date": "2026-09-28 (see supplied source record)",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G02"
+      ],
+      "named_fact": "jakarta-lb-price-extract",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/public-source-evidence.json",
+      "sha256": "86a77e97faa9bcdfb382c33de5a8fb43aa5c31910454591408b0db8147e8d5ea",
+      "bytes": 8088,
+      "observation_date": "2026-09-28 (see supplied source record)",
+      "retrieval_date": "2026-09-28 (see supplied source record)",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "public-source provenance and concise extracted facts",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/revision.json",
+      "sha256": "968572bb1397f9fc54a7056652a61030ede537ad5bd482417a4e660815f94499",
+      "bytes": 2428,
+      "observation_date": "2026-09-28T07:12:09Z",
+      "retrieval_date": "2026-09-28T07:12:09Z",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "observed-historical",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "revision",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/reused/serverless-negs.json",
+      "sha256": "4944ac68ccc0e0cc2045066bfd4887499bad12647a426ca15e10b122bf8da676",
+      "bytes": 1760,
+      "observation_date": "2026-09-28T07:12:16Z",
+      "retrieval_date": "2026-09-28T07:12:16Z",
+      "reused_on": "2026-09-29T03:33:03.341972+00:00",
+      "evidence_class": "unavailable",
+      "gates": [
+        "G04"
+      ],
+      "named_fact": "serverless-negs",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/revision-build.json",
+      "sha256": "817488544a0122c3b505672556455250e2cfa77542ac7995ac14e37ccffaf79a",
+      "bytes": 1442,
+      "observation_date": "2026-09-29T03:15:14.981233+00:00",
+      "retrieval_date": "2026-09-29T03:15:14.981233+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03: exact traffic image build linkage",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/source-comparison.json",
+      "sha256": "c88995f9890cd0d53a3f746eda38633ac92de33005fd0758eb1ca57962333822",
+      "bytes": 71365,
+      "observation_date": "2026-09-29T03:18:17.454424+00:00",
+      "retrieval_date": "2026-09-29T03:18:17.454424+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "source-comparison",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/source-download.json",
+      "sha256": "b48256494a7b0e1e9a6e4b14d9a977f96e5332842c36de5c18e500f7cddd701c",
+      "bytes": 1153,
+      "observation_date": "2026-09-29T03:16:52.955056+00:00",
+      "retrieval_date": "2026-09-29T03:16:52.955056+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03/G05: exact source or native artifact byte qualification; no extraction/execution",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/source-integrity.json",
+      "sha256": "76186f3284c224b91909da4cacae8621e70b47b95bd2803378e6d92769b254cf",
+      "bytes": 606,
+      "observation_date": "2026-09-29T03:27:37.449966+00:00",
+      "retrieval_date": "2026-09-29T03:27:37.449966+00:00",
+      "reused_on": null,
+      "evidence_class": "artifact-contained",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03 byte agreement between downloaded versioned archive and successful build sourceProvenance",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    },
+    {
+      "path": "evidence/source-object.json",
+      "sha256": "2dc5d56077110f263b79e032b8a1ec90ea273da7f75b46d2322de71fdb2ff0fb",
+      "bytes": 1125,
+      "observation_date": "2026-09-29T03:16:15.993421+00:00",
+      "retrieval_date": "2026-09-29T03:16:15.993421+00:00",
+      "reused_on": null,
+      "evidence_class": "observed-current",
+      "gates": [
+        "G03"
+      ],
+      "named_fact": "G03: immutable original source archive size/hash",
+      "selected_fields_or_source": "See command --format/--jq/fields or selected JSON content; logs contain only bounded helper results."
+    }
+  ],
+  "redactions": [
+    "No access tokens, Authorization values, full service environment/configuration, APK binaries/source archive or private keys packaged.",
+    "Local developer LAN origin replaced by [private-LAN-origin:8080]; original local artifact bytes are digest-bound.",
+    "Source archive is private local evidence; only selected file digests are packaged.",
+    "Metadata unavailable is not an empty resource list. Reused evidence retains its original observation date."
+  ]
+}

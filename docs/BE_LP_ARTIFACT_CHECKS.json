@@ -1,0 +1,115 @@
+{
+  "packet_id": "S0D-ENVELOPE-A23-20260920-01",
+  "patch_replays": [
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\BE_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\BE_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LP_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\LP_IMPLEMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--check",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\BE_LP_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "cwd": "C:\\Users\\MYBOOK~1\\AppData\\Local\\Temp\\mandalika-be-lp-replay-puvk9bgm",
+      "cmd": [
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\docs\\BE_LP_DOCUMENTATION.diff"
+      ],
+      "exit": 0,
+      "output": ""
+    }
+  ],
+  "LF_afterimages_match": true,
+  "before_fix_patches_apply": true,
+  "BE_assertions_unchanged": true,
+  "LP01_assertion_unchanged": true,
+  "LP05_probe_remains_failed_not_counted_as_pass": true,
+  "source_diffs": {
+    "BE": 5,
+    "LP": 5
+  },
+  "new_source_files": 7,
+  "preserved_files": 333,
+  "direct_inner_shift_and_prior_source_preserved": true,
+  "previous_S0d_bundle_unchanged": true,
+  "old_session_suffix_preserved_bytes": true,
+  "findings": 44,
+  "changed_detailed_findings": [
+    "A23",
+    "A29",
+    "A43"
+  ],
+  "priorities": {
+    "P0": 8,
+    "P1": 32,
+    "P2": 3,
+    "P3": 1
+  },
+  "original_P0": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A06",
+    "A09",
+    "A11",
+    "A13"
+  ],
+  "incoming_manifest_payloads_verified": 22,
+  "git_diff_check_exit": 0,
+  "secret_pattern_findings": [],
+  "scan_limits": "Pattern scan only; not full A37",
+  "review": "Local self-review; ChatGPT review pending"
+}

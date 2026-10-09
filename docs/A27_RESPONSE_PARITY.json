@@ -1,0 +1,110 @@
+{
+  "scenarios": [
+    {
+      "scenario": "empty",
+      "beforeNet": 0,
+      "afterNet": 0,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "completed-only",
+      "beforeNet": 100,
+      "afterNet": 100,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "refunded-only",
+      "beforeNet": -30,
+      "afterNet": 0,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "completed100-refunded30",
+      "beforeNet": 70,
+      "afterNet": 100,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "cancelled-only",
+      "beforeNet": 0,
+      "afterNet": 0,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "payments-products-daily",
+      "beforeNet": 130,
+      "afterNet": 160,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "outlet-A",
+      "beforeNet": 70,
+      "afterNet": 100,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "cashier-cannot-cross-all",
+      "beforeNet": 100,
+      "afterNet": 100,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "admin-outlet-B",
+      "beforeNet": 200,
+      "afterNet": 200,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "admin-cross-all",
+      "beforeNet": 270,
+      "afterNet": 300,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "admin-default-bound-outlet",
+      "beforeNet": 100,
+      "afterNet": 100,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "admin-unbound-cross-all",
+      "beforeNet": 300,
+      "afterNet": 300,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "created-at-half-open-boundaries",
+      "beforeNet": 30,
+      "afterNet": 30,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "late-refund-purchase-period",
+      "beforeNet": -30,
+      "afterNet": 0,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    },
+    {
+      "scenario": "late-refund-settlement-period-not-posted",
+      "beforeNet": 0,
+      "afterNet": 0,
+      "allOtherResponseFieldsIdentical": true,
+      "financialSnapshotUnchanged": true
+    }
+  ],
+  "sameTestSourceRedAndGreenSHA256": "6f853dd5b7d3d53bab269819093b351ac3a66754a676ac2282bc95034b98ba24"
+}

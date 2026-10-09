@@ -1,0 +1,194 @@
+{
+  "packet_id": "A34D-HOSTED-PROOF-20260922-01",
+  "root": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+  "branch": "audit/hosted-proof-20260922",
+  "final_commit": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+  "final_tree": "831e7af08fafbb8f1d420d4bac0e94fbe9313e72",
+  "origin_branch_matches": true,
+  "authority": "AUTH-MANDALIKA-20260919-01",
+  "incoming_reply": "CG-A34C-BROWSER-CI-20260922-01-R1",
+  "initial_runs": [
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:13:51Z",
+      "databaseId": 35698565043,
+      "event": "push",
+      "headSha": "e957154934614565d7c3be5e46c5315225746993",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:15:27Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35698565043",
+      "workflowName": "JS/TS Quality"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:13:51Z",
+      "databaseId": 35698564994,
+      "event": "push",
+      "headSha": "e957154934614565d7c3be5e46c5315225746993",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:16:09Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35698564994",
+      "workflowName": "Mandatory PostgreSQL integration"
+    },
+    {
+      "conclusion": "failure",
+      "createdAt": "2026-09-22T07:13:51Z",
+      "databaseId": 35698564930,
+      "event": "push",
+      "headSha": "e957154934614565d7c3be5e46c5315225746993",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:15:17Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35698564930",
+      "workflowName": "backend"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:13:51Z",
+      "databaseId": 35698565005,
+      "event": "push",
+      "headSha": "e957154934614565d7c3be5e46c5315225746993",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:17:14Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35698565005",
+      "workflowName": "Mandatory Chromium browser gate"
+    }
+  ],
+  "final_runs": [
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:19:09Z",
+      "databaseId": 35699002536,
+      "event": "push",
+      "headSha": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:20:44Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35699002536",
+      "workflowName": "JS/TS Quality"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:19:09Z",
+      "databaseId": 35699002529,
+      "event": "push",
+      "headSha": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:20:49Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35699002529",
+      "workflowName": "backend"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:19:09Z",
+      "databaseId": 35699002539,
+      "event": "push",
+      "headSha": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:20:09Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35699002539",
+      "workflowName": "Mandatory PostgreSQL integration"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-09-22T07:19:09Z",
+      "databaseId": 35699002524,
+      "event": "push",
+      "headSha": "e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+      "status": "completed",
+      "updatedAt": "2026-09-22T07:22:45Z",
+      "url": "https://github.com/Epheyy/mandalika-pos/actions/runs/35699002524",
+      "workflowName": "Mandatory Chromium browser gate"
+    }
+  ],
+  "local_checks": [
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "staged path denylist + full index text pattern scan + SHA256 manifest + git write-tree",
+      "exit": 0,
+      "result": "Both snapshots: 607 present tree files; no prohibited paths; 16 reviewed non-secret placeholder/dev/test matches, zero unresolved; no secret values printed."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "git diff --cached --check (snapshot 01)",
+      "exit": 1,
+      "result": "Pre-existing Markdown hard line breaks and blank blockquote spacing only. Approved documentation preserved."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": "gofmt -l . (before correction)",
+      "exit": 0,
+      "result": "Reports four alignment defects plus local CRLF-only read/repo.go. Hosted gofmt gate fails on nonempty output."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": "gofmt -d internal/read/repo.go internal/service/loyalty.go internal/service/promo_validate_test.go internal/write/loyalty.go internal/write/repo_test.go",
+      "exit": 1,
+      "result": "Formatting diff reproduced; console output truncated because local read/repo.go uses CRLF. Final Git correction is 4 files, 21 inserted/21 deleted whitespace-only lines."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": "gofmt -w <five explicitly named files>; gofmt -l .",
+      "exit": 0,
+      "result": "Empty final formatting list; read/repo.go normalization makes no Git content change."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos\\backend",
+      "command": "go test ./internal/service ./internal/write",
+      "exit": 0,
+      "result": "Both packages PASS, local Go 1.26.2; no database environment used, not a DB-backed claim."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "git diff --ignore-all-space --exit-code e957154934614565d7c3be5e46c5315225746993 e782c5dfbf3eedefb5d655f6726590dfbea5bf87",
+      "exit": 0,
+      "result": "Correction has no non-whitespace diff."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "git diff --cached --check (snapshot 02)",
+      "exit": 0
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "git commit --file <reviewed message file>; git push origin audit/hosted-proof-20260922 (two normal commits/pushes)",
+      "exit": 0,
+      "result": "Explicit file staging; no force, amend, blanket add, deployment/release dispatch."
+    },
+    {
+      "cwd": "C:\\Users\\MyBook Hype AMD\\Downloads\\mandalika-pos",
+      "command": "verify_hosted.py <final SHA> (artifact assertions)",
+      "exit": 0,
+      "result": "All four exact-SHA success; PostgreSQL six named PASS/no SKIP/identity/empty-schema/18.3/race/cleanup; browser 26/26/no network violations/confirmed cleanup."
+    }
+  ],
+  "hosted_failure": {
+    "id": 35698564930,
+    "sha": "e957154934614565d7c3be5e46c5315225746993",
+    "step": "gofmt",
+    "exit": 1,
+    "exact_failure": "test -z \"$(gofmt -l .)\"; Process completed with exit code 1.",
+    "subsequent_steps": "build/race skipped on first run only; both pass on final SHA",
+    "diagnosis": "Pre-existing Go alignment formatting; no assertion/runtime behavior defect.",
+    "correction_paths": [
+      "backend/internal/service/loyalty.go",
+      "backend/internal/service/promo_validate_test.go",
+      "backend/internal/write/loyalty.go",
+      "backend/internal/write/repo_test.go"
+    ],
+    "tests_weakened": false
+  },
+  "evidence_collection_limits": [
+    "A combined trigger-audit script command was blocked by automatic review before execution (blocked by policy); not rerun. Manual audit uses prior successful repository/API reads and official provider docs.",
+    "One staging classification helper assertion assumed numeric loopback in a synthetic sanitizer fixture; corrected after reading its unit-test context without printing values.",
+    "A gh run list --commit query returned empty despite direct run/branch queries succeeding; final collector uses branch results and an exact headSha filter and rejects empty evidence.",
+    "Two local evidence readers hit Windows cp1252 errors; explicit UTF-8 decoding/output corrected them. These are collection failures, not hosted test failures."
+  ],
+  "remaining_limits": [
+    "Full A34/T29 and all release gates open; A34d hosted proof awaits ChatGPT review.",
+    "A13/A42 genuine overlapping business/database concurrency scenarios absent; Go race does not establish them.",
+    "Dependency/SBOM/license/advisory gates, A37 continuous secret scanning/history exposure, branch protection/required statuses, A35 signed APK/OTA provenance/debug and native durability remain open.",
+    "One optional Backoffice PostgreSQL page-response replay skips in quality; mandatory six DB and 26 browser scenarios have zero skips.",
+    "OpenAPI 3.1/oapi-codegen compatibility warning and action Node-runtime deprecation warnings remain advisory; generated drift passes. No unrelated upgrade performed.",
+    "No Android release/OTA/deploy/live database/provider/credential mutation; historical stopped local DB/cache cleanup untouched.",
+    "Post-proof documentation/reporting after-images remain local uncommitted; executable Git tree is the final hosted-verified SHA."
+  ]
+}

@@ -1,0 +1,6 @@
+{"kind":"vite","app":"pos","pid":2056,"port":5183,"event":"starting"}
+{"kind":"vite","app":"pos","pid":2056,"port":5183,"event":"listening"}
+{"kind":"vite","app":"backoffice","pid":2504,"port":5184,"event":"starting"}
+{"kind":"vite","app":"backoffice","pid":2504,"port":5184,"event":"listening"}
+{"kind":"chromium","pid":6788,"event":"starting","executable":"C:\\Users\\MyBook Hype AMD\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe"}
+{"kind":"chromium","pid":6788,"event":"closed"}

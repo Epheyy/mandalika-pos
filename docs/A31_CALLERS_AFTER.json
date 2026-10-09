@@ -1,0 +1,443 @@
+[
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 47,
+    "fetcher": "() => api.getCustomer(customerId).catch(() => null)",
+    "dependencies": "[customerId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 51,
+    "fetcher": "() => api.listOrders({ customerId, limit: 200 }).then((r) => r.data)",
+    "dependencies": "[customerId, outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 55,
+    "fetcher": "() => api.listTags()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 78,
+    "fetcher": "() => api.listInteractions(customerId, iPage, iLimit)",
+    "dependencies": "[customerId, iPage, iLimit]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 118,
+    "fetcher": "() => api.listPointTransactions(customerId, ptPage, ptLimit)",
+    "dependencies": "[customerId, ptPage]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/CustomerDetail.tsx",
+    "line": 124,
+    "fetcher": "() => api.listRewardGrants(customerId)",
+    "dependencies": "[customerId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/customers/DupCandidates.tsx",
+    "line": 17,
+    "fetcher": "() => api.listDupCandidates('pending', 1, 50)",
+    "dependencies": "[refreshKey]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 93,
+    "fetcher": "() => api.listTags()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 95,
+    "fetcher": "() => api.listSegments()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 105,
+    "fetcher": "() => api.listCustomers(page, pageSize, debouncedSearch, sort, tagId, segmentId)",
+    "dependencies": "[page, pageSize, debouncedSearch, sort, tagId, segmentId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 113,
+    "fetcher": "() => api.getLoyaltySettings()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 114,
+    "fetcher": "() => api.listLoyaltyConditions()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 115,
+    "fetcher": "() => api.listProducts().then((r) => r.data.filter((p) => p.isActive))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 127,
+    "fetcher": "() => api.listDupCandidates('pending', 1, 1)",
+    "dependencies": "[dupRefresh]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Customers.tsx",
+    "line": 136,
+    "fetcher": "() => api.listReminders({ window: remWindow, type: remType, page: remPage, limit: remLimit })",
+    "dependencies": "[remWindow, remType, remPage]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Dashboard.tsx",
+    "line": 66,
+    "fetcher": "() => fetchAllPages((page, limit) => api.listOrders({ page, limit }))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Dashboard.tsx",
+    "line": 70,
+    "fetcher": "() => fetchAllPages((page, limit) => api.listProducts(page, limit))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Dashboard.tsx",
+    "line": 74,
+    "fetcher": "() => api.listPromotions()",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ErrorLogs.tsx",
+    "line": 57,
+    "fetcher": "() =>\n      api.listErrorLogs({\n        page,\n        limit: pageSize,\n        ...(source ? { source } : {}),\n      })",
+    "dependencies": "[page, pageSize, source]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/DaftarTab.tsx",
+    "line": 59,
+    "fetcher": "() => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) })",
+    "dependencies": "[page, pageSize, search]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/IngredientLocationStockView.tsx",
+    "line": 29,
+    "fetcher": "() => api.getIngredientLocationStock(location.kind, location.id)",
+    "dependencies": "[location.kind, location.id]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/IngredientOverviewMatrix.tsx",
+    "line": 58,
+    "fetcher": "() => api.getIngredientOverview()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/OpnameTab.tsx",
+    "line": 154,
+    "fetcher": "() => api.listIngredientStockCounts({ page, limit: pageSize })",
+    "dependencies": "[page, pageSize]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/OpnameTab.tsx",
+    "line": 158,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/OpnameTab.tsx",
+    "line": 159,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/TransferTab.tsx",
+    "line": 54,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/TransferTab.tsx",
+    "line": 55,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/TransferTab.tsx",
+    "line": 63,
+    "fetcher": "() =>\n      api.listIngredientTransfers({\n        ...(filterStatus ? { status: filterStatus } : {}),\n        ...(fromDate ? { from: toFromIso(fromDate) } : {}),\n        ...(toDate ? { to: toToIso(toDate) } : {}),\n        ...(locKind && locId ? { locKind, locId } : {}),\n        page,\n        limit: pageSize,\n      })",
+    "dependencies": "[filterStatus, locationKey, fromDate, toDate, page, pageSize]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/ingredients/TransferTab.tsx",
+    "line": 290,
+    "fetcher": "() => api.getIngredientTransfer(t.id)",
+    "dependencies": "[t.id]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/inventory/LocationStockView.tsx",
+    "line": 30,
+    "fetcher": "() => api.getTransferLocationStock(location.kind, location.id)",
+    "dependencies": "[location.kind, location.id]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/inventory/MovementSummary.tsx",
+    "line": 55,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/inventory/MovementSummary.tsx",
+    "line": 56,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/inventory/MovementSummary.tsx",
+    "line": 89,
+    "fetcher": "() =>\n      locationId\n        ? api.getMovementSummary({ kind, id: locationId, from: fromIso, to: toIso, page, limit: pageSize })\n        : Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: pageSize } })",
+    "dependencies": "[kind, locationId, fromIso, toIso, page, pageSize]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/inventory/OverviewMatrix.tsx",
+    "line": 58,
+    "fetcher": "() => api.getInventoryOverview()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Orders.tsx",
+    "line": 38,
+    "fetcher": "() => fetchAllPages((page, limit) => api.listOrders({ page, limit }))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/products/useProductsData.ts",
+    "line": 20,
+    "fetcher": "() => api.listProducts().then((r) => r.data)",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/products/useProductsData.ts",
+    "line": 21,
+    "fetcher": "() => api.listCategories()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/products/useProductsData.ts",
+    "line": 22,
+    "fetcher": "() => api.listBundles()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Promotions.tsx",
+    "line": 106,
+    "fetcher": "() => api.listPromotions()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Promotions.tsx",
+    "line": 107,
+    "fetcher": "() => api.listDiscountCodes()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Promotions.tsx",
+    "line": 108,
+    "fetcher": "() => api.listProducts().then((r) => r.data.filter((p) => p.isActive))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Promotions.tsx",
+    "line": 109,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/reports/DiscountCodeReportTab.tsx",
+    "line": 41,
+    "fetcher": "() => api.listDiscountCodeReport({ dateFrom, dateTo, page, limit: LIMIT })",
+    "dependencies": "[dateFrom, dateTo, outletId, page]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/reports/PromoGrantsTab.tsx",
+    "line": 45,
+    "fetcher": "() => api.listPromotions()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/reports/PromoGrantsTab.tsx",
+    "line": 46,
+    "fetcher": "() => api.listProducts(1, 500).then((r) => r.data)",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/reports/PromoGrantsTab.tsx",
+    "line": 47,
+    "fetcher": "() =>\r\n      api.listPromoRewardGrants({\r\n        dateFrom,\r\n        dateTo,\r\n        outletId,\r\n        promotionId,\r\n        productId,\r\n        page,\r\n        limit: LIMIT,\r\n      })",
+    "dependencies": "[dateFrom, dateTo, outletId, promotionId, productId, page]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Reports.tsx",
+    "line": 68,
+    "fetcher": "() => fetchAllPages((page, limit) => api.listOrders({ page, limit }))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Reports.tsx",
+    "line": 69,
+    "fetcher": "() => fetchAllPages((page, limit) => api.listShifts({ page, limit }))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Reports.tsx",
+    "line": 70,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/settings/LocationsSection.tsx",
+    "line": 25,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/settings/LocationsSection.tsx",
+    "line": 26,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/SettingsScreen.tsx",
+    "line": 57,
+    "fetcher": "() => api.getAppSettings()",
+    "dependencies": "[]",
+    "interval": "30000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/StockCount.tsx",
+    "line": 33,
+    "fetcher": "() => api.listStockCounts(page, pageSize)",
+    "dependencies": "[outletId, page, pageSize]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/StockCount.tsx",
+    "line": 34,
+    "fetcher": "() => api.listProducts().then((r) => r.data.filter((p) => p.isActive))",
+    "dependencies": "[outletId]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/StockCount.tsx",
+    "line": 35,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/StockCount.tsx",
+    "line": 36,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/transfers/Transfers.tsx",
+    "line": 49,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/transfers/Transfers.tsx",
+    "line": 50,
+    "fetcher": "() => api.listWarehouses()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/transfers/Transfers.tsx",
+    "line": 94,
+    "fetcher": "() => api.listTransfers({\n      ...(filterStatus ? { status: filterStatus } : {}),\n      ...(fromDate ? { from: toFromIso(fromDate) } : {}),\n      ...(toDate ? { to: toToIso(toDate) } : {}),\n      ...(locKind && locId ? { locKind, locId } : {}),\n      page,\n      limit: pageSize,\n    })",
+    "dependencies": "[filterStatus, locationKey, fromDate, toDate, page, pageSize]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/transfers/Transfers.tsx",
+    "line": 281,
+    "fetcher": "() => api.getTransfer(id)",
+    "dependencies": "[id]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Users.tsx",
+    "line": 95,
+    "fetcher": "() => api.listUsers().then((r) => r.data)",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Users.tsx",
+    "line": 96,
+    "fetcher": "() => api.listCustomRoles()",
+    "dependencies": "[]",
+    "interval": "12000"
+  },
+  {
+    "file": "apps/backoffice/src/screens/Users.tsx",
+    "line": 97,
+    "fetcher": "() => api.listOutlets()",
+    "dependencies": "[]",
+    "interval": "12000"
+  }
+]
