@@ -1,22 +1,78 @@
-# Project working entry point
+# Mandalika POS — agent working guide
 
-Preserve existing user/global working agreements and local changes.
-For production readiness, read `MASTER_AUDIT_HANDOFF.md`, the latest section of
-`SESSION_HANDOFF.md` when present locally, and `docs/PRODUCTION_READINESS_PLAN.md`.
-The session handoff/review inbox are local relay material, excluded from Git snapshots.
-`docs/AUDIT_COVERAGE_TRACKER.md` is the sole current A01â€“A44 status tracker.
+Offline-first POS (Capacitor Android tablets) + Backoffice (web) + Go backend, used as a
+template for three perfume brands (Mandalika, Flamboyan, Performance Perfume).
+Monorepo: `apps/pos`, `apps/backoffice`, `packages/{sync,printer,api,types}`, `backend/` (Go).
+Current status: pre-launch, test data only, not production-ready.
 
-Apply `CHATGPT_CODEX_WORKFLOW.md` to all findings and consequential questions,
-using the master's full-audit scope rather than the narrower bootstrap prompt.
-Codex investigates, executes authorized work and verifies; ChatGPT analyzes and
-reviews user-relayed evidence; the owner decides business policy, scope, risk and
-release. Resolve routine engineering locally within authorization. Escalate
-unresolved consequential choices with evidence/options/recommendation before
-changing dependent behavior. Historical deployment approvals and test results
-are not current authority or verification. No automatic communication bridge.
+## Workflow (Claude-only, since 2026-10-09)
 
-Standing authority: follow `docs/PROGRAMME_EXECUTION_AUTHORITY.md`
-(AUTH-MANDALIKA-20260919-01) for the full A01â€“A44 programme. Do not ask
-for repeated phase/slice execution approval. Apply the ChatGPT review /
-Codex execution workflow; escalate genuine unresolved decisions with evidence.
-Preserve business invariants, local work and release verification gates.
+The Codex-execute / ChatGPT-review relay is retired. Claude plans, implements, reviews
+and verifies; the owner decides business policy, scope, risk and release. No review
+packets, ZIP bundles or programme-authority ceremony. `CHATGPT_CODEX_WORKFLOW.md` and
+`docs/PROGRAMME_EXECUTION_AUTHORITY.md` are historical only.
+
+### Working rules (every task)
+
+1. **Ask, don't assume.** Clarify before guessing.
+2. **Don't touch unrelated code.** Stay scoped.
+3. **Flag uncertainty.** Say what is unsure.
+4. **Verify on failure.** Investigate; never retry blindly or fake success.
+5. **Show changes.** Surface diffs and what changed.
+6. **Admit gaps.** State plainly what wasn't done or isn't known.
+
+### Model routing (Claude 5 family)
+
+Pick the reviewer by what the change **touches**, not by its size.
+
+| Role | Model / effort | Used for |
+|---|---|---|
+| guardian | Fable 5.1, high | Only on explicit owner request: production migrations, security review, release go/no-go, problems Opus could not crack |
+| planner / reviewer | Opus 5.5, high | Plans; review of anything touching SyncEngine, stock, offline outbox, optimistic updates, generated types, auth, payments, client-IP trust — even one-line diffs |
+| implementer | Sonnet 5.5, medium | Writing code and tests |
+| scout / chore | Haiku 5.5, low | Search, reading, summaries, copy/style/docs/config with no new logic |
+
+- Opus re-derives any Haiku finding from source before accepting or dismissing it.
+- Announce "tier + effort + one-line reason" before each delegated task.
+- Read `SESSION_HANDOFF.md` by section (it is very large), never whole.
+
+## Audit backlog
+
+The Sep 2026 Codex audit is kept as a **backlog, not a process**:
+
+- Findings: `AUDIT_REPORT.md` (A01–A44). Status: `docs/AUDIT_COVERAGE_TRACKER.md`.
+- Priority: the eight P0s (A01, A02, A03, A04, A06, A09, A11, A13) are unresolved and
+  come first. A31 is the only resolved finding.
+- A34 ingress (load balancer / client-IP trust) is **parked**, blocked on owner inputs
+  X01–X06 (`docs/A34E15C_READINESS_EVIDENCE.md`). Do not run more design rounds on it.
+- Audit evidence under `docs/A2*`–`docs/A34*` is historical record; don't regenerate it.
+
+## Branches and deployment
+
+- `prod-hardening` — the deploy branch (Cloudflare Pages backoffice auto-deploys on push;
+  backend on Cloud Run; Neon Postgres; Android APK via `android-release.yml`).
+- `audit/hosted-proof-20260922` — audit work, ahead of `prod-hardening`, **not merged and
+  not deployed**. The live backend runs older code. Needs an Opus review before merge.
+- APK builds use the code on **origin**: push before triggering a build.
+- Commits that must not trigger a Cloudflare deploy start with `[CF-Pages-Skip]`.
+- Deploys, APK builds, OTA releases and pushes to `prod-hardening` need the owner's go-ahead
+  unless the owner has said otherwise for the current batch.
+
+## Commands
+
+```sh
+corepack enable && corepack prepare pnpm@9.15.0 --activate
+corepack pnpm quality:ci     # full JS/TS gate: tests, typecheck, builds, OpenAPI gen check
+corepack pnpm gen:check      # OpenAPI TypeScript regeneration check
+corepack pnpm browser:ci     # Chromium browser gate
+make ota-release VERSION=x.y.z   # POS OTA bundle (web layer only; native changes need an APK)
+```
+
+Backend targets live in `backend/Makefile`. Any `package.json` change must ship with an
+updated `pnpm-lock.yaml`, or the Cloudflare deploy breaks silently.
+
+## Never
+
+- Commit secrets, `.env` files, keystores, or review ZIP bundles.
+- Auto-merge duplicate customers, or weaken a stock/sync/refund guard to make a test pass.
+- Treat old deployment notes or handoff claims as current verification.
