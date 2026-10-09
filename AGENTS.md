@@ -45,8 +45,11 @@ The Sep 2026 Codex audit is kept as a **backlog, not a process**:
 - Findings: `AUDIT_REPORT.md` (A01–A44). Status: `docs/AUDIT_COVERAGE_TRACKER.md`.
 - Priority: the eight P0s (A01, A02, A03, A04, A06, A09, A11, A13) are unresolved and
   come first. A31 is the only resolved finding.
-- A34 ingress (load balancer / client-IP trust) is **parked**, blocked on owner inputs
-  X01–X06 (`docs/A34E15C_READINESS_EVIDENCE.md`). Do not run more design rounds on it.
+- A34 client-IP spoofing is **fixed** (2026-10-10, no load balancer). The A34 parent
+  (CI enforcement) is still open. Client IP comes only from `internal/clientip`; never
+  re-add chi `RealIP` (a test guards this). `TRUSTED_PROXY_HOPS` must equal the number of
+  proxies in front: 1 for `*.run.app`. Adding a load balancer or custom domain means
+  hops=2 **in the same change** that closes direct `run.app` ingress, never mixed.
 - Audit evidence under `docs/A2*`–`docs/A34*` is historical record; don't regenerate it.
 
 ## Branches and deployment
@@ -54,7 +57,8 @@ The Sep 2026 Codex audit is kept as a **backlog, not a process**:
 - `prod-hardening` — the deploy branch (Cloudflare Pages backoffice auto-deploys on push;
   backend on Cloud Run; Neon Postgres; Android APK via `android-release.yml`).
 - `audit/hosted-proof-20260922` — audit work, ahead of `prod-hardening`, **not merged and
-  not deployed**. The live backend runs older code. Needs an Opus review before merge.
+  not deployed**. Live backend = `prod-hardening` (revision 00078-yey). Needs an Opus
+  review before merging into `prod-hardening`.
 - APK builds use the code on **origin**: push before triggering a build.
 - Commits that must not trigger a Cloudflare deploy start with `[CF-Pages-Skip]`.
 - Deploys, APK builds, OTA releases and pushes to `prod-hardening` need the owner's go-ahead

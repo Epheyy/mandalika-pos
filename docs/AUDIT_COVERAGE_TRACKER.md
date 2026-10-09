@@ -1,5 +1,22 @@
 # Canonical audit coverage tracker — A01–A44
 
+## A34e15 client-IP trust — FIXED 2026-10-10 (Claude workflow)
+
+The ingress spoofing sub-item is closed without a load balancer. chi `RealIP` was
+removed; the backend now takes the X-Forwarded-For entry at `len - TRUSTED_PROXY_HOPS`
+(1 = Cloud Run `*.run.app`), never reads True-Client-IP/X-Real-IP, buckets IPv6 by /64,
+normalizes the login email, and adds a per-account failed-login cap (30 / 15 min).
+Commits `adb091b`, `8c14481` on `prod-hardening`; live as revision `mandalika-pos-00078-yey`.
+
+Live evidence (2026-10-09T17:45Z, tagged no-traffic revision before promotion): seven
+forged-header requests (none, single, two separate XFF lines, trailing comma,
+True-Client-IP + X-Real-IP, garbage, two lines over IPv4); in every case the app-logged
+IP equalled Cloud Run's `httpRequest.remoteIp`, with zero fallbacks. Facts for X03/X05/X06:
+`docs/ingress-readiness/X03_X05_X06_FACTS.md`. X01/X02/X04 are no longer prerequisites;
+they return only if a load balancer or custom domain is added — then set
+`TRUSTED_PROXY_HOPS=2` in the same change that closes direct `run.app` ingress.
+The A34 parent (CI enforcement) and all release gates stay open.
+
 ## A34e15c review disposition — 2026-09-29
 
 [CG-A34E15C-READINESS-20260929-01-R1](../review-inbox/CG-A34E15C-READINESS-20260929-01-R1/CHATGPT_REVIEW_RESPONSE_A34E15C-READINESS-20260929-01.md)
@@ -925,11 +942,11 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
-| A34 | P1 | A34a–e14c accepted; e15b design baseline only; e15c bounded evidence | Open; E76/E77 add no milestone; exact X01–X06 external inputs and release gates remain | T29 |
+| A34 | P1 | A34a–e14c accepted; e15 client-IP trust FIXED 2026-10-10 (rev 00078-yey, no LB) | Open (CI-enforcement parent); ingress sub-item closed, X01–X06 no longer blocking; release gates remain | T29 |
 | A35 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T29,T30 |
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
-| A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust/OpenPGP/rgbcolor unresolved | T33 |
+| A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust resolved 2026-10-10 (RealIP removed); OpenPGP/rgbcolor unresolved | T33 |
 | A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
