@@ -1,12 +1,16 @@
-# Mandalika POS â€” development and production-readiness planning
+# Mandalika POS
 
-This project is in development/polishing, not declared production-ready.
-Start with [MASTER_AUDIT_HANDOFF.md](MASTER_AUDIT_HANDOFF.md), the current
-[readiness plan](docs/PRODUCTION_READINESS_PLAN.md)
-and [canonical A01â€“A44 tracker](docs/AUDIT_COVERAGE_TRACKER.md).
-Use [CHATGPT_CODEX_WORKFLOW.md](CHATGPT_CODEX_WORKFLOW.md) for review/execution.
-Legacy deployment notes and phase completion claims are historical evidence;
-they do not close current audit findings or grant deployment authority.
+Offline-first point of sale (Capacitor Android tablets), Backoffice web app and Go
+backend. The project is in development/polishing and not yet production-ready.
+
+- How to work in this repo (rules, model routing, branches, deploy guards):
+  [AGENTS.md](AGENTS.md).
+- Open audit findings: [AUDIT_REPORT.md](AUDIT_REPORT.md), with status in the
+  [A01–A44 tracker](docs/AUDIT_COVERAGE_TRACKER.md).
+- Readiness plan: [docs/PRODUCTION_READINESS_PLAN.md](docs/PRODUCTION_READINESS_PLAN.md).
+
+Older deployment notes and phase completion claims are historical; they don't close
+audit findings or count as current verification.
 
 ## Deterministic JS/TS quality gate
 
