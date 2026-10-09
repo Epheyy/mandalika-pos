@@ -36,7 +36,13 @@ Pick the reviewer by what the change **touches**, not by its size.
   them by name.
 - Opus re-derives any Haiku finding from source before accepting or dismissing it.
 - Announce "tier + effort + one-line reason" before each delegated task.
-- Read `SESSION_HANDOFF.md` by section (it is very large), never whole.
+- **Start every session by reading `HANDOFF.md`** (short, current state). Update it at each
+  milestone and before context compaction. `SESSION_HANDOFF.md` is the old Codex-era log:
+  read it by section only, never whole.
+- Advisor (`/advisor`): recommended `advisorModel: opus`. Best value is a Sonnet 5.5 main
+  session with the Opus advisor for implementation work; use an Opus main session for
+  planning. Don't use a Fable advisor by default (bills usage credits). Ask for an advisor
+  check before committing to an approach on risky surfaces.
 
 ## Audit backlog
 
