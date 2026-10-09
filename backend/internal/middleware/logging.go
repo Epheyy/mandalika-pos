@@ -6,11 +6,13 @@ import (
 	"time"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/mandalika/pos-backend/internal/clientip"
 )
 
 // RequestLogger emits one structured line per request: method, path, status,
 // byte count, latency, request id, and client IP. Pairs with chi RequestID +
-// RealIP, which must run before it.
+// ClientIP, which must run before it.
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -24,7 +26,7 @@ func RequestLogger(next http.Handler) http.Handler {
 			"bytes", ww.BytesWritten(),
 			"duration_ms", time.Since(start).Milliseconds(),
 			"request_id", chimw.GetReqID(r.Context()),
-			"ip", r.RemoteAddr,
+			"ip", clientip.ClientIP(r),
 		)
 	})
 }

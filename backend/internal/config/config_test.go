@@ -56,3 +56,39 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHopsAndValidate(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int
+	}{
+		{"", 1}, {"  ", 1}, {"0", 0}, {"1", 1}, {" 2 ", 2},
+		{"-1", -1}, {"abc", -1}, {"1.5", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			if got := parseHops(tt.in); got != tt.want {
+				t.Fatalf("parseHops(%q) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+	for _, env := range []string{"development", "production"} {
+		c := base(env)
+		c.TrustedProxyHops = -1
+		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "TRUSTED_PROXY_HOPS") {
+			t.Fatalf("%s: want TRUSTED_PROXY_HOPS error, got %v", env, err)
+		}
+	}
+}
+
+func TestValidateHopsUpperBound(t *testing.T) {
+	c := base("development")
+	c.TrustedProxyHops = MaxTrustedProxyHops
+	if err := c.Validate(); err != nil {
+		t.Fatalf("max allowed: %v", err)
+	}
+	c.TrustedProxyHops = MaxTrustedProxyHops + 1
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "TRUSTED_PROXY_HOPS") {
+		t.Fatalf("want error, got %v", err)
+	}
+}

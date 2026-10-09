@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +24,10 @@ func main() {
 	observability.InitLogger(cfg.Env)
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config: %v", err)
+	}
+	if cfg.TrustedProxyHops > 2 {
+		slog.Warn("TRUSTED_PROXY_HOPS is unusually high; verify the proxy chain",
+			"hops", cfg.TrustedProxyHops)
 	}
 	sentry, err := observability.NewSentry(cfg.SentryDSN, cfg.Env, "mandalika-pos")
 	if err != nil {

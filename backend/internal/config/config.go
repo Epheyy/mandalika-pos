@@ -11,6 +11,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// MaxTrustedProxyHops is the largest TRUSTED_PROXY_HOPS accepted; anything
+// higher is clearly a misconfiguration.
+const MaxTrustedProxyHops = 10
+
 type Config struct {
 	Port             string
 	Env              string
@@ -30,6 +34,14 @@ type Config struct {
 	SentryDSN        string
 	RateLimitRPS     int
 	RateLimitBurst   int
+	// TrustedProxyHops is the number of trusted proxies appending to
+	// X-Forwarded-For, counted from the right:
+	//   1 = Cloud Run default *.run.app URL (Google front end appends one entry)
+	//   2 = behind an external HTTPS load balancer (appends client + LB)
+	//   0 = local dev / direct connections (ignore X-Forwarded-For)
+	// A negative value means TRUSTED_PROXY_HOPS was not a non-negative integer;
+	// Validate rejects it, and also anything above MaxTrustedProxyHops.
+	TrustedProxyHops int
 }
 
 func getenv(k, def string) string {
@@ -59,6 +71,20 @@ func splitTrim(s string) []string {
 	return out
 }
 
+// parseHops parses TRUSTED_PROXY_HOPS: unset/blank defaults to 1; anything
+// that is not a non-negative integer yields -1 so Validate fails fast.
+func parseHops(v string) int {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 1
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
+}
+
 // Load reads .env (if present) then environment. Env always overrides .env.
 func Load() *Config {
 	_ = godotenv.Load()
@@ -81,6 +107,7 @@ func Load() *Config {
 		SentryDSN:        getenv("SENTRY_DSN", ""),
 		RateLimitRPS:     atoi("RATE_LIMIT_RPS", 20),
 		RateLimitBurst:   atoi("RATE_LIMIT_BURST", 40),
+		TrustedProxyHops: parseHops(os.Getenv("TRUSTED_PROXY_HOPS")),
 	}
 }
 
@@ -106,6 +133,12 @@ var weakSecrets = map[string]bool{
 // Validate fails fast in production on insecure or default configuration.
 // Development keeps permissive defaults so `make run` works out of the box.
 func (c *Config) Validate() error {
+	if c.TrustedProxyHops < 0 {
+		return errors.New("invalid config: TRUSTED_PROXY_HOPS must be an integer >= 0")
+	}
+	if c.TrustedProxyHops > MaxTrustedProxyHops {
+		return fmt.Errorf("invalid config: TRUSTED_PROXY_HOPS must be <= %d (got %d)", MaxTrustedProxyHops, c.TrustedProxyHops)
+	}
 	if !c.IsProd() {
 		return nil
 	}
