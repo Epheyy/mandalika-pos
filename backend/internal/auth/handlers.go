@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,27 @@ func (h *Handler) rateLimited(ctx context.Context, key string) bool {
 	return n > 10
 }
 
+// Per-account cap on FAILED logins, regardless of client IP, so rotating
+// addresses (e.g. across an IPv6 /48) can't brute-force one account. Kept
+// generous because an attacker can also use it to lock an account out.
+const (
+	loginEmailFailLimit  = 30
+	loginEmailFailWindow = 15 * time.Minute
+)
+
+func loginEmailKey(email string) string {
+	return "rl:login:email:" + normalizeEmail(email)
+}
+
+// emailCapReached reports whether a stored failure count has hit the cap.
+func emailCapReached(stored string, ok bool) bool {
+	if !ok {
+		return false
+	}
+	n, err := strconv.Atoi(stored)
+	return err == nil && n >= loginEmailFailLimit
+}
+
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
 	if err := httpx.Decode(r, &req); err != nil {
@@ -75,8 +97,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
+	emailKey := loginEmailKey(req.Email)
+	if emailCapReached(h.Cache.Get(r.Context(), emailKey)) {
+		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
+		return
+	}
 	u, err := h.Store.Authenticate(r.Context(), normalizeEmail(req.Email), req.Password)
 	if err != nil {
+		h.Cache.Incr(r.Context(), emailKey, loginEmailFailWindow)
 		httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}

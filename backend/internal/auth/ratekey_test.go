@@ -13,3 +13,31 @@ func TestLoginRateKey(t *testing.T) {
 		t.Fatal("different IPs must differ")
 	}
 }
+
+func TestLoginEmailKeyIgnoresIPAndCase(t *testing.T) {
+	if a, b := loginEmailKey(" Cashier@Outlet.ID"), loginEmailKey("cashier@outlet.id"); a != b {
+		t.Fatalf("case/space variants differ: %q vs %q", a, b)
+	}
+	if got := loginEmailKey("a@b.c"); got != "rl:login:email:a@b.c" {
+		t.Fatalf("key = %q", got)
+	}
+}
+
+func TestEmailCapReached(t *testing.T) {
+	cases := []struct {
+		stored string
+		ok     bool
+		want   bool
+	}{
+		{"", false, false}, // no failures recorded / cache miss
+		{"29", true, false},
+		{"30", true, true},
+		{"31", true, true},
+		{"garbage", true, false},
+	}
+	for _, c := range cases {
+		if got := emailCapReached(c.stored, c.ok); got != c.want {
+			t.Errorf("emailCapReached(%q,%v) = %v, want %v", c.stored, c.ok, got, c.want)
+		}
+	}
+}
