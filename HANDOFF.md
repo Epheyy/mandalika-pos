@@ -29,16 +29,25 @@ slice 10; cash below total = reject online / accept-and-flag offline; non-cash m
 and flag; denied offline refund = visible needs-review cash movement, never deleted; competing
 transfer receipt = first valid wins, second → review; all tablets at 0 pending before
 sync-changing deploys while pre-launch. Still open: who resolves needs-review refunds (head
-office vs outlet TL) and which accounts hold `process_refund`.
+office vs outlet TL).
+
+**Refund permission (read-only Neon query, 2026-10-10):** every account effectively holds
+`process_refund` (Administrator = admin role; Yasmine/cashier BSD, Anggun/manager BSD,
+test/manager PMS = explicit rows). So the audit branch's batch-refund denial (A06) denies
+nobody today. 7 refunded orders total, 6 under "test", 1 unattributed (no `refunded_by`
+column exists — refunder isn't recorded). Administrator has 149 unexpired refresh tokens
+(tokens accumulate / shared login) — worth a cleanup + token-reuse review later.
 
 ## Next
 
-1. **Fix the audit-branch browser gate.** `BO-PAGES-CSV` times out waiting for "51 transaksi".
-   Hypothesis: tests build fixtures with UTC `new Date()` while the backoffice filters by
-   Asia/Jakarta date, so the gate fails between 17:00–24:00 UTC. Confirm with the rerun of
-   `0478648` (run 36120323567, attempt 2), then make the test timezone-stable.
-2. Merge prep checks (plan §3): dependency-security blockers decision, Opus review of `e957154`
-   live-behaviour changes, promotion-key preflight, JSON compatibility, Cloudflare build.
+1. ~~Browser gate~~ **Fixed 2026-10-10 (`e1f7455`)**: it was a real backoffice bug — Reports
+   defaulted to the UTC date but filtered by local day, so 00:00–07:00 WIB showed yesterday.
+   Gate green inside that window. Same UTC-date pattern remains (not yet fixed, owner to
+   decide): `CustomerDetail.tsx:41`, `OpnameTab.tsx:182,202`, `MovementSummary.tsx:25`,
+   `csvUtils.ts` filenames; `auth.tsx` login day rolls at 07:00 WIB (UTC day).
+2. Merge prep checks (plan §3): dependency-security blockers (26, gate red) decision, Opus
+   review of `e957154` live-behaviour changes, promotion-key preflight, JSON compatibility,
+   Cloudflare build.
 3. Fast-forward merge audit → `prod-hardening`, deploy, then P0 slices in plan order
    (1: A13 transfer locking).
 
