@@ -9,20 +9,23 @@ Last updated: 2026-10-10 by Claude (Opus 5.5).
 
 ## Now
 
-- **Live:** Cloud Run `mandalika-pos` revision `00078-yey` (100%), built from
-  `prod-hardening` @ `8c14481`; `prod-hardening` HEAD `ebceb46` (gofmt only, backend CI green).
-  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00077-b45=100`.
+- **Live:** Cloud Run `mandalika-pos` revision `00080-noh` (100%, tag `merge`), built from
+  `prod-hardening` @ `fe52d6e` (the merged audit work), deployed 2026-10-10 after the owner
+  confirmed the test tablet at 0 pending. Backoffice live on Cloudflare from the same commit.
+  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00078-yey=100`
+  (00078-yey = pre-merge build incl. the A34 fix; reachable via tag `a34test`).
+- **Develop on `prod-hardening`** (local checkout switched 2026-10-10).
 - **Shipped 2026-10-10:** client-IP spoofing fix (A34e15: no chi RealIP, `TRUSTED_PROXY_HOPS=1`,
   IPv6 /64 buckets, normalized login email) + per-account failed-login cap (30 / 15 min).
   Live forged-header check passed 7/7.
 - **Branches:** `audit/hosted-proof-20260922` was **fast-forwarded into `prod-hardening` on
   2026-10-10** (Opus review: no code blockers; JSON wire output unchanged). Backoffice changes
-  (Reports date fix, full pagination) go live via the Cloudflare build of this push.
-  **Backend NOT yet redeployed**: rev 00078-yey is still the pre-merge build.
-- **Backend deploy preconditions (Opus review):** (1) test tablet at 0 pending / 0 failed and
-  nobody presses "Ya, hapus" until the new APK; (2) every tablet account holds
-  `process_refund` or is admin — met on test DB; (3) promotion-key preflight 0 findings —
-  met on test DB (1 scanned, 0 findings).
+  (Reports date fix, full pagination) went live via Cloudflare (new bundle verified).
+- **Until the next APK:** nobody presses "Ya, hapus" on the tablet — the old app deletes
+  parked items, and the merged backend rejects more invalid input than before.
+- **Pre-existing bugs seen in the deploy smoke (same on the old revision):** `/sync/version`
+  returns 500 with a raw Postgres error for an account with no outlet (should be 400, and
+  must not leak DB text); `/sync/outlet-transfers` needs a `status` param.
 - **Workflow:** Claude-only (`AGENTS.md`), subagents in `.claude/agents/`.
 
 ## Decisions (owner, 2026-10-10)
@@ -63,8 +66,8 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
      chi upgrade; build-only npm (brace-expansion, source-map-js); rgbcolor licence evidence.
    - **Scaling:** backoffice now loads all order pages on every 12 s poll and errors
      ("Data berubah saat dimuat") if rows change mid-load — fine for 1 tablet, not for 26.
-3. Backend deploy once precondition (1) is confirmed by the owner, then P0 slices in plan
-   order (1: A13 transfer locking).
+3. ~~Backend deploy~~ done (00080-noh). **Next: P0 slice 1 — A13 transfer locking**, then
+   slices in plan order (`docs/plans/2026-10-10-p0-remediation-plan.md`).
 
 ## Known gaps (not P0)
 

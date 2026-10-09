@@ -64,8 +64,7 @@ The Sep 2026 Codex audit is kept as a **backlog, not a process**:
   backend on Cloud Run; Neon Postgres; Android APK via `android-release.yml`).
 - `audit/hosted-proof-20260922` — Codex audit work, **fast-forwarded into `prod-hardening`
   on 2026-10-10** after an Opus review. Work on `prod-hardening` (or short branches off it)
-  from now on. The live backend (revision 00078-yey) is still the pre-merge build until the
-  next deploy — see `HANDOFF.md` for the deploy preconditions.
+  from now on. Live backend and backoffice both run the merged code (see `HANDOFF.md`).
 - APK builds use the code on **origin**: push before triggering a build.
 - Commits that must not trigger a Cloudflare deploy start with `[CF-Pages-Skip]`.
 - Deploys, APK builds, OTA releases and pushes to `prod-hardening` need the owner's go-ahead
