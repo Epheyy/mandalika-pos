@@ -15,8 +15,14 @@ Last updated: 2026-10-10 by Claude (Opus 5.5).
 - **Shipped 2026-10-10:** client-IP spoofing fix (A34e15: no chi RealIP, `TRUSTED_PROXY_HOPS=1`,
   IPv6 /64 buckets, normalized login email) + per-account failed-login cap (30 / 15 min).
   Live forged-header check passed 7/7.
-- **Branches:** `audit/hosted-proof-20260922` = Codex audit work + Claude docs, **not merged**
-  into `prod-hardening`. Its Chromium browser gate is red (see Next 1).
+- **Branches:** `audit/hosted-proof-20260922` was **fast-forwarded into `prod-hardening` on
+  2026-10-10** (Opus review: no code blockers; JSON wire output unchanged). Backoffice changes
+  (Reports date fix, full pagination) go live via the Cloudflare build of this push.
+  **Backend NOT yet redeployed**: rev 00078-yey is still the pre-merge build.
+- **Backend deploy preconditions (Opus review):** (1) test tablet at 0 pending / 0 failed and
+  nobody presses "Ya, hapus" until the new APK; (2) every tablet account holds
+  `process_refund` or is admin — met on test DB; (3) promotion-key preflight 0 findings —
+  met on test DB (1 scanned, 0 findings).
 - **Workflow:** Claude-only (`AGENTS.md`), subagents in `.claude/agents/`.
 
 ## Decisions (owner, 2026-10-10)
@@ -49,11 +55,16 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    Gate green inside that window. Same UTC-date pattern remains (not yet fixed, owner to
    decide): `CustomerDetail.tsx:41`, `OpnameTab.tsx:182,202`, `MovementSummary.tsx:25`,
    `csvUtils.ts` filenames; `auth.tsx` login day rolls at 07:00 WIB (UTC day).
-2. Merge prep checks (plan §3): dependency-security blockers (26, gate red) decision, Opus
-   review of `e957154` live-behaviour changes, promotion-key preflight, JSON compatibility,
-   Cloudflare build.
-3. Fast-forward merge audit → `prod-hardening`, deploy, then P0 slices in plan order
-   (1: A13 transfer locking).
+2. ~~Merge prep~~ done 2026-10-10. Dependency-security (26 blockers) is not a deploy gate and
+   every blocker also exists on pre-merge `prod-hardening`. Follow-ups:
+   - **Next APK:** Capacitor 8.3.4 → ≥ 8.5.1 (critical GHSA-rvm3-566m-v7fv) + removes the
+     destructive "Ya, hapus" button. Both need a native rebuild.
+   - **Backend slice:** Go toolchain patch (stdlib 1.26.8 has 13 advisories), x/crypto bump,
+     chi upgrade; build-only npm (brace-expansion, source-map-js); rgbcolor licence evidence.
+   - **Scaling:** backoffice now loads all order pages on every 12 s poll and errors
+     ("Data berubah saat dimuat") if rows change mid-load — fine for 1 tablet, not for 26.
+3. Backend deploy once precondition (1) is confirmed by the owner, then P0 slices in plan
+   order (1: A13 transfer locking).
 
 ## Known gaps (not P0)
 
