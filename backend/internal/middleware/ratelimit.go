@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/cache"
+	"github.com/mandalika/pos-backend/internal/clientip"
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
 
@@ -18,7 +18,7 @@ func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) fun
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			ip := clientIP(r)
+			ip := clientip.ClientIPBucket(r)
 			bucket := time.Now().Unix() / int64(window.Seconds())
 			key := "rl:" + prefix + ":" + ip + ":" + strconv.FormatInt(bucket, 10)
 
@@ -38,11 +38,4 @@ func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) fun
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func clientIP(r *http.Request) string {
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
-	}
-	return r.RemoteAddr
 }

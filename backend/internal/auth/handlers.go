@@ -3,10 +3,12 @@ package auth
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/cache"
+	"github.com/mandalika/pos-backend/internal/clientip"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
@@ -49,10 +51,40 @@ func (h *Handler) issue(ctx context.Context, u *User) (*authResp, error) {
 	return &authResp{Access: access, Refresh: refresh, User: u}, nil
 }
 
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// loginRateKey scopes login attempts to client-IP bucket + normalized email.
+func loginRateKey(ipBucket, email string) string {
+	return ipBucket + ":" + normalizeEmail(email)
+}
+
 // rate limit: 10 login attempts / 5 min per IP+email.
 func (h *Handler) rateLimited(ctx context.Context, key string) bool {
 	n := h.Cache.Incr(ctx, "rl:login:"+key, 5*time.Minute)
 	return n > 10
+}
+
+// Per-account cap on FAILED logins, regardless of client IP, so rotating
+// addresses (e.g. across an IPv6 /48) can't brute-force one account. Kept
+// generous because an attacker can also use it to lock an account out.
+const (
+	loginEmailFailLimit  = 30
+	loginEmailFailWindow = 15 * time.Minute
+)
+
+func loginEmailKey(email string) string {
+	return "rl:login:email:" + normalizeEmail(email)
+}
+
+// emailCapReached reports whether a stored failure count has hit the cap.
+func emailCapReached(stored string, ok bool) bool {
+	if !ok {
+		return false
+	}
+	n, err := strconv.Atoi(stored)
+	return err == nil && n >= loginEmailFailLimit
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -61,13 +93,18 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	ip := strings.Split(r.RemoteAddr, ":")[0]
-	if h.rateLimited(r.Context(), ip+":"+req.Email) {
+	if h.rateLimited(r.Context(), loginRateKey(clientip.ClientIPBucket(r), req.Email)) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
-	u, err := h.Store.Authenticate(r.Context(), strings.ToLower(req.Email), req.Password)
+	emailKey := loginEmailKey(req.Email)
+	if emailCapReached(h.Cache.Get(r.Context(), emailKey)) {
+		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
+		return
+	}
+	u, err := h.Store.Authenticate(r.Context(), normalizeEmail(req.Email), req.Password)
 	if err != nil {
+		h.Cache.Incr(r.Context(), emailKey, loginEmailFailWindow)
 		httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}

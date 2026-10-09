@@ -33,7 +33,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	// Built early: the panic recoverer persists backend errors to error_logs.
 	wr := write.New(database.Pool)
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
+	r.Use(mw.ClientIP(cfg.TrustedProxyHops))
 	r.Use(mw.RequestLogger)
 	r.Use(sentryRecoverer(sentry, wr))
 	r.Use(cors.Handler(cors.Options{
