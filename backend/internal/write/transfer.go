@@ -252,7 +252,7 @@ func (r *Repo) UpdateTransferDraft(ctx context.Context, id string, t TransferCre
 // SendTransfer deducts each line from the source (guarding against oversend),
 // marks the transfer in_transit, and bumps the source outlet leg if any.
 func (r *Repo) SendTransfer(ctx context.Context, id string) error {
-	return mapBusy(r.sendTransfer(ctx, id))
+	return retryBusy(ctx, func() error { return r.sendTransfer(ctx, id) })
 }
 
 func (r *Repo) sendTransfer(ctx context.Context, id string) error {
@@ -305,7 +305,7 @@ func (r *Repo) sendTransfer(ctx context.Context, id string) error {
 // each line's difference (received - sent), requires a discrepancy reason when
 // any line differs, completes the transfer, and bumps the dest outlet leg if any.
 func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
-	return mapBusy(r.receiveTransfer(ctx, id, rcv, meta))
+	return retryBusy(ctx, func() error { return r.receiveTransfer(ctx, id, rcv, meta) })
 }
 
 func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
@@ -413,7 +413,7 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 // CancelTransfer voids a draft (no stock effect) or reverses an in_transit
 // transfer (restore each line's sent qty to the source, bump source outlet leg).
 func (r *Repo) CancelTransfer(ctx context.Context, id string) error {
-	return mapBusy(r.cancelTransfer(ctx, id))
+	return retryBusy(ctx, func() error { return r.cancelTransfer(ctx, id) })
 }
 
 func (r *Repo) cancelTransfer(ctx context.Context, id string) error {

@@ -57,19 +57,19 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &trFixture{ctx: ctx, pool: pool, repo: write.New(pool)}
-	f.exec(`INSERT INTO outlets(id,name) VALUES($1,'TR outlet src'),($2,'TR outlet dst')`, trOutletSrc, trOutletDst)
-	f.exec(`INSERT INTO warehouses(id,name) VALUES($1,'TR warehouse src'),($2,'TR warehouse dst')`, trWarehouseSrc, trWarehouseDst)
+	f.exec(t, `INSERT INTO outlets(id,name) VALUES($1,'TR outlet src'),($2,'TR outlet dst')`, trOutletSrc, trOutletDst)
+	f.exec(t, `INSERT INTO warehouses(id,name) VALUES($1,'TR warehouse src'),($2,'TR warehouse dst')`, trWarehouseSrc, trWarehouseDst)
 
 	for _, kind := range []string{"outlet", "warehouse"} {
 		kind := kind
 		t.Run("send-send-same-transfer/"+kind, func(t *testing.T) {
 			src, dst := f.sourceDest(kind)
-			p := f.product()
-			f.setStock(src, p, 10)
-			id := f.draft(src, dst, p, 4)
+			p := f.product(t)
+			f.setStock(t, src, p, 10)
+			id := f.draft(t, src, dst, p, 4)
 			errs := f.race(t, stockTable(src), f.send(id), f.send(id))
 			wantOneSuccess(t, errs)
-			if got := f.stock(src, p); got != 6 {
+			if got := f.stock(t, src, p); got != 6 {
 				t.Errorf("source stock %d, want 6 (decremented once)", got)
 			}
 			f.wantDocs(t, "surat_jalan_no", 1, id)
@@ -78,13 +78,13 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 	}
 	t.Run("receive-receive-same-transfer", func(t *testing.T) {
 		src, dst := loc{"warehouse", trWarehouseSrc}, loc{"outlet", trOutletDst}
-		p := f.product()
-		f.setStock(src, p, 10)
-		id := f.draft(src, dst, p, 4)
+		p := f.product(t)
+		f.setStock(t, src, p, 10)
+		id := f.draft(t, src, dst, p, 4)
 		f.must(t, f.repo.SendTransfer(f.ctx, id))
 		errs := f.race(t, stockTable(dst), f.receive(id), f.receive(id))
 		wantOneSuccess(t, errs)
-		if got := f.stock(dst, p); got != 4 {
+		if got := f.stock(t, dst, p); got != 4 {
 			t.Errorf("dest stock %d, want 4 (credited once)", got)
 		}
 		f.wantDocs(t, "tanda_terima_no", 1, id)
@@ -92,9 +92,9 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 	})
 	t.Run("send-cancel-same-transfer", func(t *testing.T) {
 		src, dst := loc{"outlet", trOutletSrc}, loc{"warehouse", trWarehouseDst}
-		p := f.product()
-		f.setStock(src, p, 10)
-		id := f.draft(src, dst, p, 4)
+		p := f.product(t)
+		f.setStock(t, src, p, 10)
+		id := f.draft(t, src, dst, p, 4)
 		errs := f.race(t, stockTable(src), f.send(id), f.cancel(id))
 		// Cancel is legal from draft AND in_transit, so send->cancel (both succeed,
 		// stock restored) and cancel->send (send rejected) are both valid serial
@@ -104,16 +104,16 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 			t.Errorf("cancel must succeed in either order: %v", errs[1])
 		}
 		f.wantStatus(t, id, "cancelled")
-		if got := f.stock(src, p); got != 10 {
+		if got := f.stock(t, src, p); got != 10 {
 			t.Errorf("source stock %d, want 10 (cancelled transfer holds no stock)", got)
 		}
 		f.wantConserved(t, 10, p, src, dst, id)
 	})
 	t.Run("receive-cancel-same-transfer", func(t *testing.T) {
 		src, dst := loc{"warehouse", trWarehouseSrc}, loc{"outlet", trOutletDst}
-		p := f.product()
-		f.setStock(src, p, 10)
-		id := f.draft(src, dst, p, 4)
+		p := f.product(t)
+		f.setStock(t, src, p, 10)
+		id := f.draft(t, src, dst, p, 4)
 		f.must(t, f.repo.SendTransfer(f.ctx, id))
 		errs := f.race(t, stockTable(dst), f.receive(id), f.cancel(id))
 		wantOneSuccess(t, errs)
@@ -121,31 +121,82 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 	})
 	t.Run("two-transfers-oversell-same-source", func(t *testing.T) {
 		src, dst := loc{"outlet", trOutletSrc}, loc{"warehouse", trWarehouseDst}
-		p := f.product()
-		f.setStock(src, p, 10)
-		a, b := f.draft(src, dst, p, 6), f.draft(src, dst, p, 6)
+		p := f.product(t)
+		f.setStock(t, src, p, 10)
+		a, b := f.draft(t, src, dst, p, 6), f.draft(t, src, dst, p, 6)
 		errs := f.race(t, stockTable(src), f.send(a), f.send(b))
 		wantOneSuccess(t, errs)
-		if got := f.stock(src, p); got != 4 {
+		if got := f.stock(t, src, p); got != 4 {
 			t.Errorf("source stock %d, want 4 (one send of 6 from 10; never negative)", got)
 		}
 	})
 	t.Run("two-transfers-enough-stock-both-succeed", func(t *testing.T) {
 		src, dst := loc{"outlet", trOutletSrc}, loc{"warehouse", trWarehouseDst}
-		p := f.product()
-		f.setStock(src, p, 20)
-		a, b := f.draft(src, dst, p, 6), f.draft(src, dst, p, 6)
+		p := f.product(t)
+		f.setStock(t, src, p, 20)
+		a, b := f.draft(t, src, dst, p, 6), f.draft(t, src, dst, p, 6)
 		errs := f.race(t, stockTable(src), f.send(a), f.send(b))
 		for i, e := range errs {
 			if e != nil {
 				t.Errorf("send %d failed: %v", i, e)
 			}
 		}
-		if got := f.stock(src, p); got != 8 {
+		if got := f.stock(t, src, p); got != 8 {
 			t.Errorf("source stock %d, want 8", got)
 		}
 		f.wantDocs(t, "surat_jalan_no", 2, a, b)
 	})
+	t.Run("receive-receive-same-idempotency-key", func(t *testing.T) {
+		src, dst := loc{"warehouse", trWarehouseSrc}, loc{"outlet", trOutletDst}
+		p := f.product(t)
+		f.setStock(t, src, p, 10)
+		id := f.draft(t, src, dst, p, 4)
+		f.must(t, f.repo.SendTransfer(f.ctx, id))
+		// The POS retries a receive with the same key: both calls must report success.
+		rcv := func(ctx context.Context) error {
+			return f.repo.ReceiveTransfer(ctx, id, write.TransferReceive{},
+				write.ReceiveMeta{ReceivedVia: "pos", IdempotencyKey: "tr-idem-key-1"})
+		}
+		errs := f.race(t, stockTable(dst), rcv, rcv)
+		for i, e := range errs {
+			if e != nil {
+				t.Errorf("receive %d failed: %v", i, e)
+			}
+		}
+		if got := f.stock(t, dst, p); got != 4 {
+			t.Errorf("dest stock %d, want 4 (credited once)", got)
+		}
+		f.wantDocs(t, "tanda_terima_no", 1, id)
+		f.wantStatus(t, id, "completed")
+	})
+	for _, order := range []string{"update-then-send", "send-then-update"} {
+		order := order
+		t.Run("draft-update-vs-send/"+order, func(t *testing.T) {
+			src, dst := loc{"outlet", trOutletSrc}, loc{"warehouse", trWarehouseDst}
+			p := f.product(t)
+			f.setStock(t, src, p, 20)
+			id := f.draft(t, src, dst, p, 4)
+			update := func(ctx context.Context) error {
+				return f.repo.UpdateTransferDraft(ctx, id, write.TransferCreate{
+					Items: []write.TransferItemInput{{ProductID: p, VariantSize: "M", Qty: 7}},
+				})
+			}
+			ops, sendAt := []func(context.Context) error{update, f.send(id)}, 1
+			if order == "send-then-update" {
+				ops, sendAt = []func(context.Context) error{f.send(id), update}, 0
+			}
+			errs := f.race(t, stockTable(src), ops...)
+			if errs[sendAt] != nil {
+				t.Errorf("send failed: %v", errs[sendAt])
+			}
+			f.wantStatus(t, id, "in_transit")
+			var items int
+			f.must(t, f.pool.QueryRow(f.ctx, `SELECT COALESCE(sum(sent_qty),0) FROM transfer_items WHERE transfer_id=$1`, id).Scan(&items))
+			if deducted := 20 - f.stock(t, src, p); deducted != items {
+				t.Errorf("deducted %d but committed items total %d", deducted, items)
+			}
+		})
+	}
 }
 
 const (
@@ -185,9 +236,10 @@ func (f *trFixture) sourceDest(srcKind string) (loc, loc) {
 	return loc{"warehouse", trWarehouseSrc}, loc{"outlet", trOutletDst}
 }
 
-func (f *trFixture) exec(sql string, args ...any) {
+func (f *trFixture) exec(t testing.TB, sql string, args ...any) {
+	t.Helper()
 	if _, err := f.pool.Exec(f.ctx, sql, args...); err != nil {
-		panic(err)
+		t.Fatalf("exec: %v", err)
 	}
 }
 
@@ -198,37 +250,41 @@ func (f *trFixture) must(t *testing.T, err error) {
 	}
 }
 
-func (f *trFixture) product() string {
+func (f *trFixture) product(t testing.TB) string {
+	t.Helper()
 	f.products++
 	id := fmt.Sprintf("00000000-0000-4000-8901-%012d", f.products)
-	f.exec(`INSERT INTO products(id,name) VALUES($1,$2)`, id, "TR product "+id)
+	f.exec(t, `INSERT INTO products(id,name) VALUES($1,$2)`, id, "TR product "+id)
 	return id
 }
 
-func (f *trFixture) setStock(l loc, product string, qty int) {
-	f.exec(fmt.Sprintf(`INSERT INTO %s(%s,product_id,variant_size,stock) VALUES($1,$2,'M',$3)
+func (f *trFixture) setStock(t testing.TB, l loc, product string, qty int) {
+	t.Helper()
+	f.exec(t, fmt.Sprintf(`INSERT INTO %s(%s,product_id,variant_size,stock) VALUES($1,$2,'M',$3)
 		ON CONFLICT (%s,product_id,variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
 		stockTable(l), stockKey(l), stockKey(l)), l.id, product, qty)
 }
 
-func (f *trFixture) stock(l loc, product string) int {
+func (f *trFixture) stock(t testing.TB, l loc, product string) int {
+	t.Helper()
 	var n int
 	err := f.pool.QueryRow(f.ctx, fmt.Sprintf(`SELECT COALESCE((SELECT stock FROM %s WHERE %s=$1 AND product_id=$2 AND variant_size='M'),0)`,
 		stockTable(l), stockKey(l)), l.id, product).Scan(&n)
 	if err != nil {
-		panic(err)
+		t.Fatalf("query: %v", err)
 	}
 	return n
 }
 
-func (f *trFixture) draft(src, dst loc, product string, qty int) string {
+func (f *trFixture) draft(t testing.TB, src, dst loc, product string, qty int) string {
+	t.Helper()
 	id, err := f.repo.CreateTransfer(f.ctx, "", write.TransferCreate{
 		Source: write.TransferLoc{Kind: src.kind, ID: src.id},
 		Dest:   write.TransferLoc{Kind: dst.kind, ID: dst.id},
 		Items:  []write.TransferItemInput{{ProductID: product, VariantSize: "M", Qty: qty}},
 	})
 	if err != nil {
-		panic(err)
+		t.Fatalf("query: %v", err)
 	}
 	return id
 }
@@ -248,12 +304,13 @@ func (f *trFixture) receive(id string) func(context.Context) error {
 }
 
 // blockedSessions counts backends in this database currently waiting on a heavyweight lock.
-func (f *trFixture) blockedSessions() int {
+func (f *trFixture) blockedSessions(t testing.TB) int {
+	t.Helper()
 	var n int
 	err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity
 		WHERE datname=current_database() AND wait_event_type='Lock'`).Scan(&n)
 	if err != nil {
-		panic(err)
+		t.Fatalf("query: %v", err)
 	}
 	return n
 }
@@ -298,7 +355,7 @@ func (f *trFixture) race(t *testing.T, table string, ops ...func(context.Context
 			done.Add(1)
 		}(i, op)
 		deadline := time.Now().Add(15 * time.Second)
-		for f.blockedSessions()+int(done.Load()) < i+1 {
+		for f.blockedSessions(t)+int(done.Load()) < i+1 {
 			if time.Now().After(deadline) {
 				release()
 				wg.Wait()
@@ -352,8 +409,8 @@ func (f *trFixture) wantConserved(t *testing.T, start int, product string, src, 
 	f.must(t, f.pool.QueryRow(f.ctx,
 		`SELECT COALESCE(sum(i.sent_qty),0) FROM transfer_items i JOIN transfers x ON x.id=i.transfer_id
 		  WHERE x.id=$1 AND x.status='in_transit'`, id).Scan(&inTransit))
-	if total := f.stock(src, product) + f.stock(dst, product) + inTransit; total != start {
+	if total := f.stock(t, src, product) + f.stock(t, dst, product) + inTransit; total != start {
 		t.Errorf("stock not conserved: source %d + dest %d + in-transit %d = %d, want %d",
-			f.stock(src, product), f.stock(dst, product), inTransit, total, start)
+			f.stock(t, src, product), f.stock(t, dst, product), inTransit, total, start)
 	}
 }
