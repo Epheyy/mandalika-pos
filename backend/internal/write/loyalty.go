@@ -12,11 +12,11 @@ import (
 // ConditionID encodes NULL (condition deleted between eval and write is impossible
 // inside one tx, but the column is nullable for later ON DELETE SET NULL).
 type ConditionApplicationRow struct {
-	OrderID, CustomerID, ConditionID string
+	OrderID, CustomerID, ConditionID   string
 	ConditionName, Trigger, RewardType string
-	RewardValue       float64
-	PointsContributed int
-	RewardProductIDs  []string
+	RewardValue                        float64
+	PointsContributed                  int
+	RewardProductIDs                   []string
 }
 
 // InsertConditionApplication appends one audit row inside the given order tx.

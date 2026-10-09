@@ -29,11 +29,11 @@ func TestValidateDiscountCodeBatch(t *testing.T) {
 		t.Fatalf("valid rejected: %v", err)
 	}
 	bad := []DiscountCodeBatch{
-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 0, SuffixLength: 6},   // count<1
-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 501, SuffixLength: 6}, // count>500
-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 3},  // suffix<4
-		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 13}, // suffix>12
-		{DiscountCode: DiscountCode{Type: "bogus", Value: 10}, Count: 10, SuffixLength: 6},       // bad type
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 0, SuffixLength: 6},                                // count<1
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 501, SuffixLength: 6},                              // count>500
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 3},                               // suffix<4
+		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 13},                              // suffix>12
+		{DiscountCode: DiscountCode{Type: "bogus", Value: 10}, Count: 10, SuffixLength: 6},                                    // bad type
 		{DiscountCode: DiscountCode{Type: "percentage", Value: 10}, Count: 10, SuffixLength: 6, Prefix: "toolongprefixxxxx!"}, // prefix invalid
 	}
 	for i, b := range bad {
