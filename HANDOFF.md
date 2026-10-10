@@ -22,6 +22,29 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. As of 2
 | A06 | Refund permission bypassed via sync | **Partial** — server gate live; slice 7 completes it |
 | A09 | Sale/tender invariants not enforced | **Partial** — line validation live; slice 8 = tender rules |
 
+**APK 1.1 emulator checklist (2026-10-10, partial):** pass — "Ya, hapus" gone / new bundle
+running; online cash sale synced (`BSD-G0001`); guest sale; offline sale queued; queued sale
+survived force-close; synced after manual "Coba lagi" (`BSD-G0002`). **Fail/findings:**
+(1) restarting the app while offline LOGS OUT (refresh treated as rejected) — fixed in slice 5;
+(2) after re-login, flushes before an outlet is picked got 403 "no active outlet" ×5 → sale
+parked — fixed in slice 5 (403 counts nothing); (3) receipt showed `MND-127242` but server
+stored `BSD-G0001`, and a new device restarts the per-device counter → duplicate order numbers
+across devices (new follow-up); (4) admin's outlet choice not remembered across restarts
+(slice 6 removes the switcher). **Not yet run:** customer+loyalty sale, promos (linked code /
+BXGY / bundle), refund, Rekapan/Riwayat, shift close, transfer receive (needs owner PIN).
+Test sales are tagged "EMU TEST" in notes.
+
+**Emulator:** AVD `mandalika-tab` (Android 15 google_apis x86_64, 2560×1600, 4 GB) in
+`%USERPROFILE%\.android\avd`; start `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab`.
+Drive with `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (install, `input tap`, `screencap`,
+`svc wifi/data disable|enable`, `am force-stop com.mandalika.pos`). The release APK has WebView
+debugging on: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` (pid from
+`adb shell pidof com.mandalika.pos`) then Chrome DevTools Protocol `Runtime.evaluate` reads the
+DOM and `Capacitor.Plugins.Preferences` (outbox key `mandalika.pos.outbox`). Claude may not type
+passwords/PINs — the owner logs in (admin = `admin@mandalika.test`, password from
+`gcloud secrets versions access latest --secret=SEED_ADMIN_PASSWORD --project mandalika-pos`),
+then picks outlet Mandalika BSD.
+
 Supporting work done: A34 client-IP spoofing fix, sync error contract (slice 3), backend CI
 green, audit branch merged. **Waiting on owner:** APK 1.1 install + checklist
 (`Downloads/mandalika-apk/mandalika-pos-1.1-build2.apk`).
