@@ -5,7 +5,7 @@ and "Next" sections at each milestone; keep it under ~150 lines.** History lives
 and `docs/`. The old `SESSION_HANDOFF.md` (~435 KB, Codex era, local-only) is historical:
 read it by section only if a task needs old detail.
 
-Last updated: 2026-10-10 by Claude (Opus 5.5).
+Last updated: 2026-10-11 by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -16,11 +16,11 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. As of 2
 | A13 | Concurrent transfers double-move stock | **Done** — live (slice 1) |
 | A11 | Retried writes applied twice | **Done** for /sync/batch — live (slice 2) |
 | A01 | Sale not durable on device | **Partial** — APK 1.1 awaits writes; full fix = SQLite journal (slice 9) |
-| A02 | Network failures park/delete financial events | **In review** — slice 5 on branch, ships in APK 1.2 |
-| A03 | Transfer-receive errors treated as competing receipt | **In review** — slice 5 (server side done in slice 3) |
+| A02 | Network failures park/delete financial events | **Done** — slice 5 in APK 1.2/1.3 (emulator-verified 2026-10-11) |
+| A03 | Transfer-receive errors treated as competing receipt | **Done** — slice 5 client + slice 3 server (transfer receive not yet run on device) |
 | A04 | Queued events not bound to cashier/outlet | Open — slice 6 (+ slice 10 device registration) |
 | A06 | Refund permission bypassed via sync | **Partial** — server gate live; slice 7 completes it |
-| A09 | Sale/tender invariants not enforced | **Partial** — line validation live; slice 8 = tender rules |
+| A09 | Sale/tender invariants not enforced | **Done (backend live)** — slice 8 tender rules + 8c cash identity live as 00088-qoh; POS cash input ships in APK 1.4; discount permission split to 8b |
 
 **APK 1.1 emulator checklist (2026-10-10, partial):** pass — "Ya, hapus" gone / new bundle
 running; online cash sale synced (`BSD-G0001`); guest sale; offline sale queued; queued sale
@@ -80,7 +80,8 @@ green, audit branch merged. **Waiting on owner:** APK 1.1 install + checklist
 
 ## Now
 
-- **Live:** Cloud Run `mandalika-pos` revision `00086-pac` (100%, tag `errc`), built from
+- **Live (2026-10-11):** Cloud Run revision `00088-qoh` (100%, tag `s8c`) from `prod-hardening` @ `34f4da0` = slice 8 (A09 tender rules, migration **0046** applied) + 8c payment-method cash identity (`isCash` flag; `tunai` = cash; shift cash_sales per flag) + admin reset password (`POST /users/{id}/reset-password`, PUT password removed). Hosted smoke 16/16, zero residue. Rollback: `--to-revisions mandalika-pos-00086-pac=100` (0046 columns harmless). APK 1.3 (offline-restart fix) built run 38075138469.
+- **Previous:** Cloud Run `mandalika-pos` revision `00086-pac` (tag `errc`), built from
   `prod-hardening` @ `249fd35` = merged audit work + P0 slices 1 (A13), 2 (A11) and 3 (sync
   error contract), deployed 2026-10-10. Migration 0045 applied. Backoffice on Cloudflare from
   `fe52d6e` (slices 1–3 are backend-only).
