@@ -83,8 +83,21 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    unknown/server/connection errors are retryable `internal` with a sanitized message
    (raw error in logs). Concurrent duplicate orders return `duplicate`. **Clients must treat
    a missing or unknown `code` as today's behaviour.**
-   **Next: P0 slice 4 — A01a awaited, fail-loud POS storage writes** (first POS/OTA slice;
-   needs an OTA release + on-device check).
+   ~~P0 slice 4 (A01a)~~ code done 2026-10-10 (`afc1b91`, `4c42dbe` on prod-hardening; ships
+   in **APK 1.1 / versionCode 2**, run 38025208672, + Capacitor 8.5.3 critical-advisory fix):
+   awaited fail-loud outbox writes (item only sendable after its write succeeded),
+   corrupt-queue quarantine + banner, single-flight submit buttons, old engines disposed on
+   logout, transfer_receive discarded only on competing_receipt/conflict/not_found,
+   retryable errors don't burn attempts (reported after 10). **A01 still OPEN:**
+   `@capacitor/preferences` uses `apply()`, so a resolved write isn't on disk yet — full
+   durability needs the SQLite journal (slice 9). Tablet ran a `6093c6d` APK (v1.0).
+   **Owner on-device checklist** (tablet at 0 pending/0 failed before install): sale
+   survives force-close; "Ya, hapus" gone; guest sale; customer+loyalty sale; linked
+   code/BXGY/bundle; refund (terminal account needs "Proses Refund", re-login); Rekapan +
+   Riwayat; shift close; transfer receive prints TT; offline sale syncs after reconnect.
+   **Next: P0 slice 5 — A02 + A03 client states** (needs_review, backoff, route by `code`).
+   Open follow-ups: corruption banner marker never clears; failed save burns an order
+   number; release APK still has WebView debugging on; CI could inject versionCode.
    Follow-ups: no pruning job for `operation_receipts`; OR test goroutines use t.Fatalf;
    cold start ~1–3 s slower (locked per-file migration check); shift opens from two
    different keys at one outlet still both succeed.

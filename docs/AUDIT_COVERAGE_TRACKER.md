@@ -915,7 +915,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 
 | ID | Original priority | Slice | Disposition | Tests |
 |---|---|---|---|---|
-| A01 | P0 | S1 | Needs current behavioral revalidation; source matches audit | T01 |
+| A01 | P0 | S1 | PARTIAL 2026-10-10 (`afc1b91`,`4c42dbe`; APK 1.1): awaited fail-loud outbox writes + quarantine; still OPEN — Preferences apply() not yet on disk; needs SQLite journal (slice 9) | T01 |
 | A02 | P0 | S0a | Open; A02-export scoped review accepted; retry/retention gaps remain | T02 (export subset only verified) |
 | A03 | P0 | S1 | Source-confirmed open; runtime unverified | T03 |
 | A04 | P0 | S1 | Needs current behavioral revalidation; source matches audit; clarified design / owner decisions pending | T04a–T04e |
