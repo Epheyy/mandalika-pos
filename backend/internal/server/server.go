@@ -291,6 +291,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/users/{id}", h.GetUser)
 				r.Put("/users/{id}", h.UpdateUser)
 				r.Put("/users/{id}/receive-pin", h.SetUserReceivePin)
+				r.Post("/users/{id}/reset-password", ah.AdminResetPassword)
 				r.Delete("/users/{id}", h.DeleteUser)
 				r.Get("/custom-roles", h.CustomRoles)
 				r.Post("/custom-roles", h.CreateCustomRole)
