@@ -9,12 +9,12 @@ Last updated: 2026-10-10 by Claude (Opus 5.5).
 
 ## Now
 
-- **Live:** Cloud Run `mandalika-pos` revision `00084-rav` (100%, tag `a11`), built from
-  `prod-hardening` @ `7c432ec` = merged audit work + P0 slices 1 (A13) and 2 (A11), deployed
-  2026-10-10. Migration 0045 (`operation_receipts`, additive) applied. Backoffice on Cloudflare
-  from `fe52d6e` (slices 1–2 are backend-only).
-  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00082-yig=100`
-  (safe: 0045 only adds a table; 00082-yig = A13 without A11; 00080-noh = merge only).
+- **Live:** Cloud Run `mandalika-pos` revision `00086-pac` (100%, tag `errc`), built from
+  `prod-hardening` @ `249fd35` = merged audit work + P0 slices 1 (A13), 2 (A11) and 3 (sync
+  error contract), deployed 2026-10-10. Migration 0045 applied. Backoffice on Cloudflare from
+  `fe52d6e` (slices 1–3 are backend-only).
+  Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00084-rav=100`
+  (00084-rav = A13+A11 without the error contract; older: 00082-yig, 00080-noh).
 - **Develop on `prod-hardening`** (local checkout switched 2026-10-10).
 - **Shipped 2026-10-10:** client-IP spoofing fix (A34e15: no chi RealIP, `TRUSTED_PROXY_HOPS=1`,
   IPv6 /64 buckets, normalized login email) + per-account failed-login cap (30 / 15 min).
@@ -76,7 +76,15 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    now run each file under `pg_advisory_xact_lock` (pooler-safe). PostgreSQL gate OR.
    CI gate image now pulled from `public.ecr.aws/docker/library/postgres:18.3` (Docker Hub
    rate limits blocked it).
-   **Next: P0 slice 3 — error contract** (`ItemResult.code` + `retryable`, additive, backend).
+   ~~P0 slice 3 (error contract)~~ done 2026-10-10: failed `/sync/batch` items carry `code`
+   (rejected|forbidden|not_found|conflict|competing_receipt|key_conflict|busy|internal;
+   actor_mismatch reserved) and `retryable` (present only on errors). Only marked
+   rejections (`internal/apperr`) and PG class 22/23 except 23503 are non-retryable;
+   unknown/server/connection errors are retryable `internal` with a sanitized message
+   (raw error in logs). Concurrent duplicate orders return `duplicate`. **Clients must treat
+   a missing or unknown `code` as today's behaviour.**
+   **Next: P0 slice 4 — A01a awaited, fail-loud POS storage writes** (first POS/OTA slice;
+   needs an OTA release + on-device check).
    Follow-ups: no pruning job for `operation_receipts`; OR test goroutines use t.Fatalf;
    cold start ~1–3 s slower (locked per-file migration check); shift opens from two
    different keys at one outlet still both succeed.

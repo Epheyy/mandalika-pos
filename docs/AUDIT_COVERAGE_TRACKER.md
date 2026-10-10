@@ -1,5 +1,11 @@
 # Canonical audit coverage tracker — A01–A44
 
+## A29 subset — sync error contract (2026-10-10)
+
+`/sync/batch` item results now carry `code` + `retryable` (commits `5612012`, `cde9765`,
+`249fd35`; live rev `00086-pac`). Prerequisite for the A02/A03 client states (P0 slices 4–5).
+Whole-batch 400s and direct HTTP routes still return raw text (A29 parent remains open).
+
 ## A34e15 client-IP trust — FIXED 2026-10-10 (Claude workflow)
 
 The ingress spoofing sub-item is closed without a load balancer. chi `RealIP` was
