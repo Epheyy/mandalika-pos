@@ -63,7 +63,7 @@ reconnect/outlet pick. Risk: cashier opens a duplicate shift (server allows two 
 last-known shift + refetch on reachability/outlet change. Same reconnect also needs an outlet
 re-pick for admin before going Online (outlet-less `/sync/version` 500).
 
-**APK 1.4 (2026-10-11, run 38086323189, `0021eb3`, versionCode 5):** built green, saved at `Downloads/mandalika-apk/mandalika-pos-1.4-build5.apk`, **NOT yet installed/checked** — the emulator hung (qemu PID stuck in the hypervisor, survives taskkill/Stop-Process, blocks even `-read-only`); needs a Windows restart. Check after install: TUNAI shows the cash-received field; blank = exact total; typed > total shows change; typed < total blocks Konfirmasi; Rekapan "Terhitung" not wiped on resync.
+**APK 1.4 (2026-10-11, run 38086323189, `0021eb3`, versionCode 5): emulator-VERIFIED** after a Windows restart (old qemu hung): TUNAI shows "Jumlah Dibayar" + quick amounts; typed 100000 < 225000 → "Kurang Rp 125.000", Konfirmasi disabled; Rp 300.000 → Kembalian Rp 75.000, receipt prints tunai/Kembalian, server `BSD-G0005` tunai paid 300000 change 75000 no flag; blank field → `BSD-G0006` paid 225000 change 0 no flag. Session survived the reboot. Not re-checked: Rekapan "Terhitung" survives resync.
 
 **Emulator:** AVD `mandalika-tab` (Android 15 google_apis x86_64, 2560×1600, 4 GB) in
 `%USERPROFILE%\.android\avd`; start `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab`.
