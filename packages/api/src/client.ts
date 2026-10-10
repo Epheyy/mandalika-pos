@@ -150,7 +150,7 @@ export interface Api {
 
   // auth
   login: (email: string, password: string) => Promise<AuthData>
-  refresh: (refresh: string) => Promise<AuthData>
+  refresh: (refresh: string, opts?: RequestOptions) => Promise<AuthData>
   logout: (refresh: string) => Promise<void>
   me: () => Promise<User>
 
@@ -479,8 +479,13 @@ export function createClient(opts: ClientOptions): Api {
     return s ? `?${s}` : ''
   }
 
-  const data = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
-    const r = await request<{ data: T }>(method, path, body)
+  const data = async <T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    reqOpts?: RequestOptions,
+  ): Promise<T> => {
+    const r = await request<{ data: T }>(method, path, body, reqOpts)
     return r.data
   }
   const list = async <T>(
@@ -494,8 +499,8 @@ export function createClient(opts: ClientOptions): Api {
     async login(email, password) {
       return data<AuthData>('POST', `${API}/auth/login`, { email, password })
     },
-    async refresh(refresh) {
-      return data<AuthData>('POST', `${API}/auth/refresh`, { refresh })
+    async refresh(refresh, reqOpts) {
+      return data<AuthData>('POST', `${API}/auth/refresh`, { refresh }, reqOpts)
     },
     async logout(refresh) {
       await request<unknown>('POST', `${API}/auth/logout`, { refresh })
