@@ -1,6 +1,6 @@
 import { useReducer, useRef, useState } from 'react'
 import type { User, CustomRole, Outlet } from '@mandalika/api'
-import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Upload, Store } from 'lucide-react'
+import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Upload, Store, KeyRound, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -18,6 +18,7 @@ import { Tabs } from '../ui/Tabs'
 import { PERMS, PermissionPicker } from './users/PermissionPicker'
 import { AddUserModal } from './users/AddUserModal'
 import { RoleModal } from './users/RoleModal'
+import { ResetPasswordModal } from './users/ResetPasswordModal'
 
 type Role = 'admin' | 'manager' | 'cashier'
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
@@ -105,6 +106,8 @@ export default function Users() {
   const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
   const { editingUser, editRole, editPerms, editOutletId, pin, clearPin } = editUser
   const [busy, setBusy] = useState(false)
+  const [resetTarget, setResetTarget] = useState<User | null>(null)
+  const [resetNotice, setResetNotice] = useState<string | null>(null)
 
   const [addOpen, setAddOpen] = useState(false)
   const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: [] as string[] })
@@ -227,6 +230,13 @@ export default function Users() {
         }
       />
 
+      {resetNotice && (
+        <div role="status" className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+          <span className="flex-1">{resetNotice}</span>
+          <button type="button" aria-label="Tutup pemberitahuan" onClick={() => setResetNotice(null)} className="text-green-600 hover:text-green-800"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {tab === 'users' && (
         <Card className="overflow-hidden">
           {uq.loading ? (
@@ -258,7 +268,10 @@ export default function Users() {
                   </div>
                   <Badge tone={ROLE_TONE[u.role as Role]} className="flex-shrink-0">{ROLE_LABEL[u.role as Role]}</Badge>
                   {me?.role === 'admin' && u.id !== me?.id && (
-                    <IconButton onClick={() => dispatch({ type: 'OPEN_EDIT', user: u })}><Edit2 className="w-4 h-4" /></IconButton>
+                    <>
+                      <IconButton aria-label={`Reset kata sandi ${u.displayName}`} title="Reset kata sandi" onClick={() => setResetTarget(u)}><KeyRound className="w-4 h-4" /></IconButton>
+                      <IconButton aria-label={`Edit ${u.displayName}`} title="Edit" onClick={() => dispatch({ type: 'OPEN_EDIT', user: u })}><Edit2 className="w-4 h-4" /></IconButton>
+                    </>
                   )}
                 </div>
               ))}
@@ -363,6 +376,18 @@ export default function Users() {
           )}
         </div>
       </Modal>
+
+      {resetTarget && (
+        <ResetPasswordModal
+          key={resetTarget.id}
+          user={resetTarget}
+          onClose={() => setResetTarget(null)}
+          onDone={(u) => {
+            setResetTarget(null)
+            setResetNotice(`Kata sandi ${u.displayName} berhasil direset`)
+          }}
+        />
+      )}
 
       <AddUserModal
         open={addOpen}
