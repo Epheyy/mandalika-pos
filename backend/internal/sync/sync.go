@@ -8,12 +8,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
@@ -144,13 +146,18 @@ type BatchItem struct {
 }
 
 type ItemResult struct {
-	IdempotencyKey string        `json:"idempotencyKey"`
-	Status         string        `json:"status"` // ok|duplicate|error
-	OrderID        string        `json:"orderId,omitempty"`
-	StockWarning   bool          `json:"stockWarning,omitempty"`
-	Error          string        `json:"error,omitempty"`
-	TandaTerimaNo  string        `json:"tandaTerimaNo,omitempty"`
-	Transfer       *api.Transfer `json:"transfer,omitempty"`
+	IdempotencyKey string `json:"idempotencyKey"`
+	Status         string `json:"status"` // ok|duplicate|error
+	OrderID        string `json:"orderId,omitempty"`
+	StockWarning   bool   `json:"stockWarning,omitempty"`
+	Error          string `json:"error,omitempty"`
+	// Code and Retryable are set exactly when Status is "error" (Retryable is a
+	// pointer so false is still serialised). Clients must treat a missing or
+	// unknown Code as the pre-contract behaviour (an older server omits both).
+	Code          string        `json:"code,omitempty"`
+	Retryable     *bool         `json:"retryable,omitempty"`
+	TandaTerimaNo string        `json:"tandaTerimaNo,omitempty"`
+	Transfer      *api.Transfer `json:"transfer,omitempty"`
 }
 
 type BatchResult struct {
@@ -248,13 +255,22 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 	createOrder func(context.Context, service.CreateOrderInput) (string, bool, bool, error),
 ) ItemResult {
 	r := ItemResult{IdempotencyKey: it.IdempotencyKey}
-	fail := func(err error) ItemResult { r.Status = "error"; r.Error = err.Error(); return r }
+	fail := func(err error) ItemResult {
+		out := classifyItemError(err)
+		if out.Sanitized {
+			// Raw text can carry database detail; keep it server-side (no payload).
+			slog.Error("sync batch item failed", "type", it.Type, "idempotencyKey", it.IdempotencyKey, "code", out.Code, "err", err)
+		}
+		retryable := out.Retryable
+		r.Status, r.Error, r.Code, r.Retryable = "error", out.Message, string(out.Code), &retryable
+		return r
+	}
 
 	switch it.Type {
 	case "order":
 		var p orderPayload
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
-			return fail(err)
+			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		in := service.CreateOrderInput{
 			IdempotencyKey:    it.IdempotencyKey,
@@ -300,14 +316,14 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		return r
 	case "refund":
 		if !c.CanRefund {
-			return fail(errors.New("Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
+			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
 		}
 		var p struct {
 			OrderID string `json:"orderId"`
 			Reason  string `json:"reason"`
 		}
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
-			return fail(err)
+			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
 			return p.OrderID, refund(ctx, tx, c.OutletID, p.OrderID, p.Reason)
@@ -355,7 +371,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			Description string  `json:"description"`
 		}
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
-			return fail(err)
+			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
 			return e.Orders.AddCashFlowTx(ctx, tx, service.CashFlowInput{
@@ -377,7 +393,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			Email      string `json:"email"`
 		}
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
-			return fail(err)
+			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
 			return e.Orders.CreateCustomerTx(ctx, tx, service.CreateCustomerInput{
@@ -392,31 +408,41 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 	case "transfer_receive":
 		var p transferReceivePayload
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
-			return fail(errors.New("payload tidak valid"))
+			return fail(apperr.New(apperr.Rejected, "payload tidak valid"))
 		}
 		appr, err := e.Read.UserAuth(ctx, p.ApproverUserID)
-		if err != nil {
-			return fail(errors.New("penyetuju tidak ditemukan"))
+		if isMissing(err) {
+			return fail(apperr.New(apperr.NotFound, "penyetuju tidak ditemukan"))
 		}
-		roles, _ := e.Read.ReceiveApproverRoles(ctx)
+		if err != nil {
+			return fail(err) // not a refusal: a transient read failure must retry
+		}
+		// No app_settings row means "no extra approver roles" (admins still pass).
+		roles, err := e.Read.ReceiveApproverRoles(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fail(err)
+		}
 		if !approverAllowed(appr.Role, roles) {
-			return fail(errors.New("tidak berwenang"))
+			return fail(apperr.New(apperr.Forbidden, "tidak berwenang"))
 		}
 		if appr.ReceivePinHash == "" {
-			return fail(errors.New("PIN belum disetel"))
+			return fail(apperr.New(apperr.Forbidden, "PIN belum disetel"))
 		}
 		ok, _ := auth.VerifyPassword(p.Pin, appr.ReceivePinHash)
 		if !ok {
-			return fail(errors.New("PIN salah"))
+			return fail(apperr.New(apperr.Forbidden, "PIN salah"))
 		}
 		// Scope re-validation (defense-in-depth; the on-device bundle scoping is not a server control):
 		// the receive must target THIS device's outlet, and the approver must belong to that outlet (or be an admin).
 		destOutlet, err := e.Read.TransferDestOutlet(ctx, p.TransferID)
+		if isMissing(err) {
+			return fail(apperr.New(apperr.NotFound, "transfer tidak ditemukan"))
+		}
 		if err != nil {
-			return fail(errors.New("transfer tidak ditemukan"))
+			return fail(err)
 		}
 		if msg := receiveScope(c.OutletID, destOutlet, appr.Role, appr.OutletID); msg != "" {
-			return fail(errors.New(msg))
+			return fail(apperr.New(apperr.Forbidden, msg))
 		}
 		items := make([]write.TransferReceiveItem, len(p.Items))
 		for i, it := range p.Items {
@@ -447,7 +473,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		}
 		return r
 	}
-	return fail(errors.New("unknown batch item type: " + it.Type))
+	return fail(apperr.New(apperr.Rejected, "unknown batch item type: "+it.Type))
 }
 
 // approverAllowed reports whether a user with the given role may approve a POS

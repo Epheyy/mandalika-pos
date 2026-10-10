@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"strings"
 	"time"
 )
@@ -65,6 +66,9 @@ type CodeRow struct {
 // ErrDiscountRejected is returned for an INVALID discount on an ONLINE order so
 // the caller maps it to an HTTP 422. Offline orders never produce this (lenient).
 type ErrDiscountRejected struct{ Violations []PromoViolation }
+
+// ErrorCode marks a rejected discount as a business refusal on /sync/batch.
+func (e *ErrDiscountRejected) ErrorCode() apperr.Code { return apperr.Rejected }
 
 func (e *ErrDiscountRejected) Error() string {
 	return "discount rejected: " + JoinViolations(e.Violations)

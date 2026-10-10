@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"regexp"
 	"strings"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/promotionkeys"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = apperr.New(apperr.NotFound, "not found")
 
 type Repo struct{ Pool *pgxpool.Pool }
 

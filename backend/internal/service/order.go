@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"log/slog"
 	"math"
 	"time"
@@ -16,9 +17,9 @@ import (
 )
 
 var (
-	ErrNoItems     = errors.New("order has no items")
-	ErrNoOutlet    = errors.New("order requires an outlet")
-	ErrOrderClosed = errors.New("order not refundable")
+	ErrNoItems     = apperr.New(apperr.Rejected, "order has no items")
+	ErrNoOutlet    = apperr.New(apperr.Rejected, "order requires an outlet")
+	ErrOrderClosed = apperr.New(apperr.Conflict, "order not refundable")
 )
 
 // wib is the fixed Indonesia business zone (UTC+7, no DST) used to evaluate
@@ -278,7 +279,11 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			`SELECT points, birthday, anniversary, visit_count
 			   FROM customers WHERE id=$1 FOR UPDATE`,
 			in.CustomerID).Scan(&balanceBefore, &evalCust.Birthday, &evalCust.Anniversary, &evalCust.VisitCount); e != nil {
-			return "", false, false, fmt.Errorf("load customer points: %w", e)
+			err := fmt.Errorf("load customer points: %w", e)
+			if errors.Is(e, pgx.ErrNoRows) {
+				return "", false, false, apperr.Wrap(apperr.NotFound, err)
+			}
+			return "", false, false, err
 		}
 	}
 	pointsRedeemed := 0
@@ -1447,7 +1452,7 @@ type CreateCustomerInput struct {
 // so offline new-customer creation works and is replay-safe.
 func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInput) (string, error) {
 	if in.Name == "" || in.Phone == "" {
-		return "", errors.New("customer requires name and phone")
+		return "", apperr.New(apperr.Rejected, "customer requires name and phone")
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -1464,7 +1469,7 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 // CreateCustomerTx is CreateCustomer inside a caller-owned transaction.
 func (s *OrderService) CreateCustomerTx(ctx context.Context, tx pgx.Tx, in CreateCustomerInput) (string, error) {
 	if in.Name == "" || in.Phone == "" {
-		return "", errors.New("customer requires name and phone")
+		return "", apperr.New(apperr.Rejected, "customer requires name and phone")
 	}
 	var id string
 	err := tx.QueryRow(ctx, `

@@ -135,6 +135,8 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 	router.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}))
 	router.Post("/sync/batch", h.SyncBatch)
 
+	// lastBody is the raw response of the latest one() call, for wire-level checks.
+	var lastBody string
 	// one sends a single-item /sync/batch request and returns that item's result.
 	one := func(t testing.TB, token, typ, key, payload string) syncpkg.ItemResult {
 		t.Helper()
@@ -143,6 +145,7 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
+		lastBody = w.Body.String()
 		var out struct {
 			Data syncpkg.BatchResult `json:"data"`
 		}
@@ -156,6 +159,20 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		if r.Status != "ok" || r.Error != "" || r.OrderID == "" {
 			t.Fatalf("want ok with an id, got %+v", r)
 		}
+		if r.Code != "" || r.Retryable != nil || strings.Contains(lastBody, `"code"`) || strings.Contains(lastBody, `"retryable"`) {
+			t.Fatalf("ok results must carry neither code nor retryable: %s", lastBody)
+		}
+	}
+	// wantCode asserts the machine-readable outcome on the decoded result and on
+	// the wire (retryable must be present even when false).
+	wantCode := func(t testing.TB, r syncpkg.ItemResult, code string, retryable bool) {
+		t.Helper()
+		if r.Status != "error" || r.Code != code || r.Retryable == nil || *r.Retryable != retryable {
+			t.Fatalf("want error %s retryable=%v, got %+v", code, retryable, r)
+		}
+		if !strings.Contains(lastBody, fmt.Sprintf(`"code":%q`, code)) || !strings.Contains(lastBody, fmt.Sprintf(`"retryable":%v`, retryable)) {
+			t.Fatalf("wire JSON lacks code/retryable: %s", lastBody)
+		}
 	}
 	const conflictText = "kunci idempotensi sudah dipakai untuk operasi lain"
 	wantConflict := func(t testing.TB, r syncpkg.ItemResult, leak string) {
@@ -163,6 +180,7 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		if r.Status != "error" || r.Error != conflictText || r.OrderID != "" {
 			t.Fatalf("want idempotency conflict, got %+v", r)
 		}
+		wantCode(t, r, "key_conflict", false)
 		if strings.Contains(r.Error, leak) {
 			t.Fatalf("conflict leaks %q: %+v", leak, r)
 		}
@@ -349,6 +367,8 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		rc := receipts(t)
 		if failed := one(t, tokenA, "refund", "or-dev:refund-late", p); failed.Status != "error" || failed.Error == "" {
 			t.Fatalf("want error, got %+v", failed)
+		} else {
+			wantCode(t, failed, "conflict", false) // unknown order = not refundable
 		}
 		if receipts(t) != rc {
 			t.Fatal("a failed operation left a receipt")
@@ -381,9 +401,103 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		rc := receipts(t)
 		if r := one(t, tokenA, "shift_close", "or-dev:close-missing", `{"shiftId":"00000000-0000-4000-8a04-000000000001","closingCash":0}`); r.Status != "error" {
 			t.Fatalf("want error, got %+v", r)
+		} else {
+			wantCode(t, r, "conflict", false)
 		}
 		if receipts(t) != rc {
 			t.Fatal("a failed operation left a receipt")
 		}
+	})
+
+	// A29 error contract: code + retryable on error results.
+	t.Run("error-contract-codes", func(t *testing.T) {
+		noRefund, err := auth.IssueAccess(secret, time.Hour, userA, "cashier", outletA, []string{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Run("refund-without-permission-is-forbidden", func(t *testing.T) {
+			r := one(t, noRefund, "refund", "or-dev:ec-refund-denied", `{"orderId":"00000000-0000-4000-8a03-000000000001","reason":"x"}`)
+			wantCode(t, r, "forbidden", false)
+		})
+		t.Run("bad-payload-is-rejected", func(t *testing.T) {
+			wantCode(t, one(t, tokenA, "cash_flow", "or-dev:ec-badjson", `{"amount":"not a number"}`), "rejected", false)
+		})
+		t.Run("database-data-error-is-rejected-without-leaking-database-text", func(t *testing.T) {
+			r := one(t, tokenA, "cash_flow", "or-dev:ec-baduuid", `{"shiftId":"not-a-uuid","type":"in","amount":1,"description":"x"}`)
+			wantCode(t, r, "rejected", false)
+			if strings.Contains(r.Error, "uuid") || strings.Contains(r.Error, "SQLSTATE") {
+				t.Fatalf("database text leaked: %q", r.Error)
+			}
+		})
+		t.Run("second-open-shift-is-conflict", func(t *testing.T) {
+			p := `{"startingCash":1,"outletName":"OR outlet B"}`
+			wantOK(t, one(t, tokenB, "shift_open", "or-dev:ec-open-1", p))
+			wantCode(t, one(t, tokenB, "shift_open", "or-dev:ec-open-2", p), "conflict", false)
+		})
+
+		// Transfer receive through the real batch path. Admin approvers always pass
+		// the role check; the PIN is verified against the stored hash.
+		const approver = "00000000-0000-4000-8a00-000000000021"
+		const pin = "4321"
+		hash, err := auth.HashPassword(pin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec(t, `INSERT INTO users(id,email,password_hash,display_name,role,receive_pin_hash) VALUES($1,'ec-admin@example.invalid','x','EC admin','admin',$2)`, approver, hash)
+		const ecProduct = "00000000-0000-4000-8a02-0000000000e1"
+		exec(t, `INSERT INTO products(id,name) VALUES($1,'EC product')`, ecProduct)
+		inTransit := func(t *testing.T) string {
+			t.Helper()
+			exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',100)
+				ON CONFLICT (outlet_id,product_id,variant_size) DO UPDATE SET stock=100`, outletB, ecProduct)
+			id, err := wr.CreateTransfer(ctx, "", write.TransferCreate{
+				Source: write.TransferLoc{Kind: "outlet", ID: outletB},
+				Dest:   write.TransferLoc{Kind: "outlet", ID: outletA},
+				Items:  []write.TransferItemInput{{ProductID: ecProduct, VariantSize: "M", Qty: 3}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := wr.SendTransfer(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		recvPayload := func(id string, pinText string) string {
+			return fmt.Sprintf(`{"transferId":%q,"items":[],"approverUserId":%q,"pin":%q}`, id, approver, pinText)
+		}
+		destStock := func(t *testing.T) int {
+			return count(t, `SELECT COALESCE((SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'),0)`, outletA, ecProduct)
+		}
+
+		t.Run("wrong-pin-is-forbidden", func(t *testing.T) {
+			id := inTransit(t)
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-badpin", recvPayload(id, "0000")), "forbidden", false)
+		})
+		t.Run("unknown-transfer-is-not-found", func(t *testing.T) {
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-nf", recvPayload("00000000-0000-4000-8a05-0000000000ff", pin)), "not_found", false)
+		})
+		t.Run("competing-receive-different-key-vs-same-key", func(t *testing.T) {
+			id := inTransit(t)
+			before := destStock(t)
+			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, pin)))
+			if got := destStock(t); got != before+3 {
+				t.Fatalf("dest stock %d, want %d", got, before+3)
+			}
+			// The same key is the existing no-op success.
+			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, pin)))
+			// A different key lost the race: needs review, never retried.
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-2", recvPayload(id, pin)), "competing_receipt", false)
+			if got := destStock(t); got != before+3 {
+				t.Fatalf("competing receive changed stock: %d, want %d", got, before+3)
+			}
+		})
+		t.Run("cancelled-transfer-is-conflict", func(t *testing.T) {
+			id := inTransit(t)
+			if err := wr.CancelTransfer(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-cancelled", recvPayload(id, pin)), "conflict", false)
+		})
 	})
 }

@@ -3,8 +3,8 @@ package service
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"math"
 	"strings"
 )
@@ -13,7 +13,7 @@ import (
 // not business spending caps. Decimal input remains supported by the schema.
 const maxSaleMoney = 999_999_999_999.99
 
-var ErrSaleInput = errors.New("Data penjualan belum dapat diproses; simpan catatan asli. Jika pembayaran sudah diterima, jangan tagih ulang")
+var ErrSaleInput = apperr.New(apperr.Rejected, "Data penjualan belum dapat diproses; simpan catatan asli. Jika pembayaran sudah diterima, jangan tagih ulang")
 
 func saleInputError(field, reason string) error {
 	return fmt.Errorf("%w: %s %s", ErrSaleInput, field, reason)

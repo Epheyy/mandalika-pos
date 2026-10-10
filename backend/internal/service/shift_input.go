@@ -3,14 +3,14 @@ package service
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"io"
 	"math"
 	"strings"
 )
 
-var ErrShiftInput = errors.New("Data shift belum dapat diproses; simpan catatan asli tanpa membuat operasi pengganti")
+var ErrShiftInput = apperr.New(apperr.Rejected, "Data shift belum dapat diproses; simpan catatan asli tanpa membuat operasi pengganti")
 
 type OpenShiftBody struct {
 	OutletName   string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -154,7 +155,7 @@ func addStockDelta(ctx context.Context, q pgx.Tx, outletID, warehouseID *string,
 }
 
 // errInsufficientStock is the domain error when a send would overdraw the source.
-var errInsufficientStock = fmt.Errorf("stok tidak cukup untuk dikirim")
+var errInsufficientStock = apperr.Wrap(apperr.Rejected, fmt.Errorf("stok tidak cukup untuk dikirim"))
 
 // deductStockGuarded atomically subtracts qty from the source leg only if enough
 // is on hand (a missing stock row counts as 0). Check and write are one statement,
@@ -320,17 +321,20 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		return e
 	}
 
-	// Idempotent retry: a transfer already completed by THIS exact receive key is a
-	// duplicate → succeed as a no-op (so the POS outbox acks instead of dead-lettering).
-	if meta.IdempotencyKey != "" {
+	// A transfer that is already completed was received by someone. By THIS exact
+	// receive key it is a duplicate → succeed as a no-op (so the POS outbox acks
+	// instead of dead-lettering). By a different (or no) key it is a competing
+	// receipt: first valid receive wins, this one needs review.
+	if t.status == "completed" {
 		var existing *string
 		if e := tx.QueryRow(ctx,
 			`SELECT received_idempotency_key FROM transfers WHERE id=$1`, id).Scan(&existing); e != nil {
 			return e
 		}
-		if t.status == "completed" && existing != nil && *existing == meta.IdempotencyKey {
+		if meta.IdempotencyKey != "" && existing != nil && *existing == meta.IdempotencyKey {
 			return tx.Commit(ctx) // already applied by this receive
 		}
+		return errCompetingReceipt(t.status)
 	}
 
 	if _, e := transferTransition(t.status, "receive"); e != nil {
@@ -346,7 +350,7 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 	recv := map[string]int{}
 	for _, it := range rcv.Items {
 		if it.ReceivedQty < 0 {
-			return fmt.Errorf("jumlah terima tidak boleh negatif")
+			return apperr.Wrap(apperr.Rejected, fmt.Errorf("jumlah terima tidak boleh negatif"))
 		}
 		recv[it.ProductID+"|"+it.VariantSize] = it.ReceivedQty
 	}
@@ -367,7 +371,7 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		res = append(res, resolved{l, got})
 	}
 	if anyDiff && rcv.DiscrepancyReason == "" {
-		return fmt.Errorf("alasan selisih wajib diisi")
+		return apperr.Wrap(apperr.Rejected, fmt.Errorf("alasan selisih wajib diisi"))
 	}
 
 	for _, rr := range res {

@@ -1,6 +1,10 @@
 package write
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/mandalika/pos-backend/internal/apperr"
+)
 
 // TransferLoc is a polymorphic transfer endpoint (source or destination).
 type TransferLoc struct {
@@ -38,7 +42,14 @@ func transferTransition(from, action string) (string, error) {
 // errTransitionDenied is the domain error for an action applied in a status that
 // does not allow it. Also returned when a guarded status UPDATE matches no row.
 func errTransitionDenied(from string) error {
-	return fmt.Errorf("aksi tidak diizinkan dari status '%s'", from)
+	return apperr.Wrap(apperr.Conflict, fmt.Errorf("aksi tidak diizinkan dari status '%s'", from))
+}
+
+// errCompetingReceipt is returned when a receive finds the transfer already
+// completed by a different receive. The text matches errTransitionDenied so the
+// message every client sees today is unchanged; only the machine code differs.
+func errCompetingReceipt(from string) error {
+	return apperr.Wrap(apperr.CompetingReceipt, fmt.Errorf("aksi tidak diizinkan dari status '%s'", from))
 }
 
 // transferDiff is received minus sent (negative = shortfall, positive = surplus).

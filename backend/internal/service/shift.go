@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrShiftOpen = errors.New("a shift is already open for this outlet")
+var ErrShiftOpen = apperr.New(apperr.Conflict, "a shift is already open for this outlet")
 
 type OpenShiftInput struct {
 	OutletID     string

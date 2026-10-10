@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"io"
 
 	"github.com/jackc/pgx/v5"
@@ -17,7 +18,7 @@ import (
 // ErrReceiptKeyConflict is returned when an idempotency key was already used for
 // a different operation (type, outlet or payload). Nothing is changed and no
 // stored outcome is revealed.
-var ErrReceiptKeyConflict = errors.New("kunci idempotensi sudah dipakai untuk operasi lain")
+var ErrReceiptKeyConflict = apperr.New(apperr.KeyConflict, "kunci idempotensi sudah dipakai untuk operasi lain")
 
 // ReceiptClaim identifies one keyed write. Scope is the authenticated caller's
 // outlet, never taken from the payload.

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/service"
@@ -157,9 +158,19 @@ func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 	}
 	// Existing allowed service failures must stay non-success under the same key.
 	r := (&Engine{}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
-		return errors.New("synthetic service rejection")
+		return apperr.New(apperr.Rejected, "synthetic service rejection")
 	})
 	if r.Status != "error" || r.IdempotencyKey != "same" || !strings.Contains(r.Error, "service rejection") {
 		t.Fatalf("result=%+v", r)
+	}
+	if r.Code != string(apperr.Rejected) || r.Retryable == nil || *r.Retryable {
+		t.Fatalf("a marked rejection must be non-retryable: %+v", r)
+	}
+	// An unmarked error is a server fault: sanitized text, retryable.
+	r = (&Engine{}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "plain", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
+		return errors.New("synthetic service fault")
+	})
+	if r.Status != "error" || r.Error != internalMessage || r.Code != string(apperr.Internal) || r.Retryable == nil || !*r.Retryable {
+		t.Fatalf("unmarked error must be internal and retryable: %+v", r)
 	}
 }

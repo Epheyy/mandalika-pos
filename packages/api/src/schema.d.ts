@@ -3281,6 +3281,13 @@ export interface components {
             orderId?: string;
             stockWarning?: boolean;
             error?: string;
+            /**
+             * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch is reserved and not produced yet.
+             * @enum {string}
+             */
+            code?: "rejected" | "forbidden" | "not_found" | "conflict" | "competing_receipt" | "key_conflict" | "busy" | "internal" | "actor_mismatch";
+            /** @description Present exactly when status is "error" (false is still sent). true = nothing was applied and a later retry may succeed (busy, internal); false = the server refused the item and it needs review. */
+            retryable?: boolean;
             tandaTerimaNo?: string | null;
             transfer?: components["schemas"]["Transfer"];
         };
