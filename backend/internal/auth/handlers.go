@@ -2,12 +2,15 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/clientip"
@@ -158,6 +161,12 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusInternalServerError, "token issue failed")
 		return
 	}
+	// A reset may have landed after the usable-check above. Re-test the OLD
+	// token against the marker and, if revoked, kill the pair just issued.
+	if h.revokedDuringRotation(r.Context(), rc, resp.Refresh) {
+		httpx.Err(w, http.StatusUnauthorized, "refresh token expired or revoked")
+		return
+	}
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
@@ -194,8 +203,38 @@ func (h *Handler) refreshUsable(ctx context.Context, rc *RefreshClaims) bool {
 	if _, ok := h.Cache.Get(ctx, "refresh:"+rc.ID); !ok {
 		return false
 	}
-	marker, hasMarker := h.Cache.Get(ctx, refreshRevokedKey(rc.UserID))
-	return !refreshRevoked(rc.IssuedAt, marker, hasMarker)
+	return !h.markerRevokes(ctx, rc)
+}
+
+// markerRevokes reads the per-user marker with the raw client so a Redis error
+// is distinguishable from "no marker": anything other than redis.Nil fails closed.
+func (h *Handler) markerRevokes(ctx context.Context, rc *RefreshClaims) bool {
+	marker, err := h.Cache.R.Get(ctx, refreshRevokedKey(rc.UserID)).Result()
+	if errors.Is(err, redis.Nil) {
+		return false
+	}
+	if err != nil {
+		return true
+	}
+	return refreshRevoked(rc.IssuedAt, marker, true)
+}
+
+// revokedDuringRotation re-checks the marker after a new pair was issued. When
+// the old token is now revoked it deletes the new jti (Redis + DB row) and
+// reports true; the caller must not hand the new tokens out.
+func (h *Handler) revokedDuringRotation(ctx context.Context, old *RefreshClaims, newRefresh string) bool {
+	if !h.markerRevokes(ctx, old) {
+		return false
+	}
+	if nc, err := ParseRefresh(h.Cfg.RefreshSecret, newRefresh); err == nil {
+		if err := h.Cache.R.Del(ctx, "refresh:"+nc.ID).Err(); err != nil {
+			slog.Error("refresh_rotation_cleanup_failed", "err", err, "user", old.UserID)
+		}
+		if h.Store != nil && h.Store.Pool != nil {
+			_, _ = h.Store.Pool.Exec(ctx, `UPDATE refresh_tokens SET revoked=true WHERE jti=$1`, nc.ID)
+		}
+	}
+	return true
 }
 
 // refreshRevoked reports whether a token with the given iat predates the

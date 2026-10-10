@@ -231,6 +231,9 @@ func (s *Store) CreateUser(ctx context.Context, email, password, name, role, out
 type ResetResult struct {
 	Email string
 	Role  string
+	// JTIs are the user's unexpired refresh jtis (including already-revoked
+	// ones, so a retry after a failed Redis cleanup still finds them).
+	JTIs []string
 }
 
 // ResetPassword sets a new password hash for the user and revokes every
@@ -252,32 +255,30 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	if err != nil {
 		return ResetResult{}, err
 	}
+	rows, err := tx.Query(ctx,
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND expires_at>now() RETURNING jti`, id)
+	if err != nil {
+		return ResetResult{}, err
+	}
+	for rows.Next() {
+		var j string
+		if err := rows.Scan(&j); err != nil {
+			rows.Close()
+			return ResetResult{}, err
+		}
+		res.JTIs = append(res.JTIs, j)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return ResetResult{}, err
+	}
+	// Rows already expired stay as they are; they cannot be exchanged anyway.
 	if _, err := tx.Exec(ctx,
-		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND revoked=false`, id); err != nil {
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND NOT revoked`, id); err != nil {
 		return ResetResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ResetResult{}, err
 	}
 	return res, nil
-}
-
-// ActiveRefreshJTIs lists the user's unrevoked, unexpired refresh jtis so the
-// matching Redis keys can be deleted.
-func (s *Store) ActiveRefreshJTIs(ctx context.Context, userID string) ([]string, error) {
-	rows, err := s.Pool.Query(ctx,
-		`SELECT jti FROM refresh_tokens WHERE user_id=$1 AND revoked=false AND expires_at>now()`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var j string
-		if err := rows.Scan(&j); err != nil {
-			return nil, err
-		}
-		out = append(out, j)
-	}
-	return out, rows.Err()
 }

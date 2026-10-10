@@ -40,11 +40,7 @@ func (f *fakeResetStore) ResetPassword(_ context.Context, _ string, hash string)
 	if f.resetErr != nil {
 		return ResetResult{}, f.resetErr
 	}
-	return ResetResult{Email: "Cashier@Outlet.ID", Role: "cashier"}, nil
-}
-
-func (f *fakeResetStore) ActiveRefreshJTIs(context.Context, string) ([]string, error) {
-	return f.jtis, nil
+	return ResetResult{Email: "Cashier@Outlet.ID", Role: "cashier", JTIs: f.jtis}, nil
 }
 
 func newResetHarness(t *testing.T, st *fakeResetStore) (*Handler, *miniredis.Miniredis, http.Handler) {
@@ -167,7 +163,7 @@ func TestAdminResetPasswordSuccessEffects(t *testing.T) {
 	if ok, err := VerifyPassword(goodPW, st.gotHash); err != nil || !ok {
 		t.Fatalf("stored hash does not verify: ok=%v err=%v", ok, err)
 	}
-	if got, _ := mr.Get(refreshRevokedKey(targetID)); got != "1700000001" {
+	if got, _ := mr.Get(refreshRevokedKey(targetID)); got != "1700000002" {
 		t.Fatalf("marker = %q", got)
 	}
 	if ttl := mr.TTL(refreshRevokedKey(targetID)); ttl != time.Hour {
@@ -244,5 +240,96 @@ func TestAdminResetPasswordLogsNoSecrets(t *testing.T) {
 	}
 	if strings.Contains(out, goodPW) || strings.Contains(out, "$argon2id$") {
 		t.Fatalf("password or hash leaked into logs: %s", out)
+	}
+}
+
+func TestAdminResetPasswordCanonicalizesTargetID(t *testing.T) {
+	st := &fakeResetStore{}
+	h, mr, router := newResetHarness(t, st)
+	h.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
+	upper := strings.ToUpper(actorID)
+	for name, id := range map[string]string{
+		"uppercase self": upper,
+		"braced self":    "{" + actorID + "}",
+		"no-hyphen self": strings.ReplaceAll(actorID, "-", ""),
+	} {
+		if rec := doReset(router, id, pwBody(goodPW)); rec.Code != http.StatusForbidden {
+			t.Errorf("%s: status %d want 403", name, rec.Code)
+		}
+	}
+	if st.resetHits != 0 {
+		t.Fatal("self reset must never reach the store")
+	}
+	// A non-canonical target writes the marker under the canonical key.
+	if rec := doReset(router, strings.ToUpper(targetID), pwBody(goodPW)); rec.Code != 204 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if !mr.Exists(refreshRevokedKey(targetID)) {
+		t.Fatal("marker must be stored under the canonical lowercase id")
+	}
+}
+
+func callRefresh(h *Handler, token string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(`{"refresh":"`+token+`"}`))
+	rec := httptest.NewRecorder()
+	h.Refresh(rec, req)
+	return rec
+}
+
+func signRefresh(t *testing.T, h *Handler, jti string, iat time.Time) string {
+	t.Helper()
+	c := RefreshClaims{UserID: targetID, RegisteredClaims: jwt.RegisteredClaims{
+		ID: jti, IssuedAt: jwt.NewNumericDate(iat), ExpiresAt: jwt.NewNumericDate(iat.Add(time.Hour))}}
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(h.Cfg.RefreshSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tok
+}
+
+// Goes through Refresh itself: reverting the marker wiring makes this fail
+// (the request would proceed to the DB and panic on the nil store instead of 401).
+func TestRefreshHandlerRejectsPreResetToken(t *testing.T) {
+	h, mr, _ := newResetHarness(t, &fakeResetStore{})
+	now := time.Now().Truncate(time.Second)
+	tok := signRefresh(t, h, "old-jti", now.Add(-time.Minute))
+	mr.Set("refresh:old-jti", targetID)
+	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(now.Unix()+2))
+	if rec := callRefresh(h, tok); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d want 401 body=%s", rec.Code, rec.Body)
+	}
+}
+
+func TestRefreshHandlerFailsClosedOnMarkerError(t *testing.T) {
+	h, mr, _ := newResetHarness(t, &fakeResetStore{})
+	tok := signRefresh(t, h, "j1", time.Now())
+	mr.Set("refresh:j1", targetID)
+	mr.SetError("READONLY simulated") // every command now errors, incl. the marker read
+	if rec := callRefresh(h, tok); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d want 401", rec.Code)
+	}
+}
+
+func TestRevokedDuringRotationKillsNewPair(t *testing.T) {
+	h, mr, _ := newResetHarness(t, &fakeResetStore{})
+	iat := time.Now().Add(-time.Minute).Truncate(time.Second)
+	oldClaims := &RefreshClaims{UserID: targetID, RegisteredClaims: jwt.RegisteredClaims{IssuedAt: jwt.NewNumericDate(iat)}}
+	newTok := signRefresh(t, h, "new-jti", time.Now())
+	mr.Set("refresh:new-jti", targetID)
+
+	// No marker yet: rotation proceeds and the new key survives.
+	if h.revokedDuringRotation(context.Background(), oldClaims, newTok) {
+		t.Fatal("must not revoke without a marker")
+	}
+	if !mr.Exists("refresh:new-jti") {
+		t.Fatal("new key must survive")
+	}
+	// Reset lands between the usable-check and issue: marker appears now.
+	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(time.Now().Unix()+2))
+	if !h.revokedDuringRotation(context.Background(), oldClaims, newTok) {
+		t.Fatal("rotation after a reset must be rejected")
+	}
+	if mr.Exists("refresh:new-jti") {
+		t.Fatal("newly issued jti must be deleted")
 	}
 }

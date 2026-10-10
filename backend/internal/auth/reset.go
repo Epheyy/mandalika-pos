@@ -19,7 +19,6 @@ import (
 // resetStore is the Postgres surface AdminResetPassword needs (faked in tests).
 type resetStore interface {
 	ResetPassword(ctx context.Context, id, hash string) (ResetResult, error)
-	ActiveRefreshJTIs(ctx context.Context, userID string) ([]string, error)
 }
 
 const jtiDeleteBatch = 100
@@ -60,11 +59,14 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	targetID := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(targetID); err != nil {
+	// Canonicalize (lowercase, hyphenated) so the self-check, the marker key and
+	// the SQL all agree with the uid claim and the key Refresh reads.
+	pid, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid user id")
 		return
 	}
+	targetID := pid.String()
 	actorID, _ := ctx.Value(CtxUserID).(string)
 	if actorID == targetID {
 		httpx.Err(w, http.StatusForbidden, "cannot reset your own password here")
@@ -77,8 +79,9 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Marker first: refresh tokens issued at or before now are dead from here.
-	marker := strconv.FormatInt(h.clock().Unix()+1, 10)
+	// Marker first: refresh tokens issued before it are dead from here. +2 (not
+	// +1) absorbs the gap between reading the clock and the SET landing.
+	marker := strconv.FormatInt(h.clock().Unix()+2, 10)
 	if err := h.Cache.R.Set(ctx, refreshRevokedKey(targetID), marker, h.Cfg.RefreshTTL).Err(); err != nil {
 		slog.Error("admin_password_reset_failed", "stage", "marker", "err", err, "actor", actorID, "target", targetID)
 		httpx.Err(w, http.StatusInternalServerError, "reset failed")
@@ -86,11 +89,6 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	st := h.resetStore()
-	jtis, jtiErr := st.ActiveRefreshJTIs(ctx, targetID)
-	if jtiErr != nil {
-		// Non-fatal: the marker already invalidates every older token.
-		slog.Warn("admin_password_reset_jti_lookup_failed", "err", jtiErr, "target", targetID)
-	}
 	res, err := st.ResetPassword(ctx, targetID, hash)
 	if errors.Is(err, ErrNotFound) {
 		httpx.Err(w, http.StatusNotFound, "not found")
@@ -102,16 +100,22 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	jtis := res.JTIs
 	for start := 0; start < len(jtis); start += jtiDeleteBatch {
 		end := min(start+jtiDeleteBatch, len(jtis))
 		keys := make([]string, 0, end-start)
 		for _, j := range jtis[start:end] {
 			keys = append(keys, "refresh:"+j)
 		}
-		h.Cache.Del(ctx, keys...)
+		// Best effort: the marker already invalidates these tokens.
+		if err := h.Cache.R.Del(ctx, keys...).Err(); err != nil {
+			slog.Warn("admin_password_reset_key_delete_failed", "err", err, "target", targetID, "keys", len(keys))
+		}
 	}
 	// Per-account lockout only; the per-IP bucket is deliberately left alone.
-	h.Cache.Del(ctx, loginEmailKey(res.Email))
+	if err := h.Cache.R.Del(ctx, loginEmailKey(res.Email)).Err(); err != nil {
+		slog.Warn("admin_password_reset_lockout_clear_failed", "err", err, "target", targetID)
+	}
 
 	slog.Info("admin_password_reset",
 		"actor", actorID, "target", targetID, "target_role", res.Role,
