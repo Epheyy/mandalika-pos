@@ -52,6 +52,17 @@ totals include older test orders (not reconciled). **Not run:** linked discount 
 transfer receive (needs owner PIN). Android stylus-handwriting popup disabled on the AVD
 (`settings put secure stylus_handwriting_enabled 0`).
 
+**APK 1.3 (2026-10-11, run 38075138469, `11b4d7a`) on emulator:** offline-restart fix
+**CONFIRMED** — online boot migrated the token (marker set, token in Preferences, user cached,
+localStorage copy gone); force-stop + relaunch offline stays logged in with the cached profile;
+on reconnect the session renews (outlet list loads, BSD picked → Online/Tersinkron). **New finding
+(POS, not fixed):** after an offline start the header shows "Buka Shift" even though the server
+has an open shift — `apps/pos/src/hooks/useShift.ts:40-57` fetches `/shifts/current` once on mount,
+an offline failure leaves `null` (no persisted last-known shift) and nothing refetches on
+reconnect/outlet pick. Risk: cashier opens a duplicate shift (server allows two opens). Fix: persist
+last-known shift + refetch on reachability/outlet change. Same reconnect also needs an outlet
+re-pick for admin before going Online (outlet-less `/sync/version` 500).
+
 **Emulator:** AVD `mandalika-tab` (Android 15 google_apis x86_64, 2560×1600, 4 GB) in
 `%USERPROFILE%\.android\avd`; start `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab`.
 Drive with `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (install, `input tap`, `screencap`,
