@@ -84,7 +84,7 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    (raw error in logs). Concurrent duplicate orders return `duplicate`. **Clients must treat
    a missing or unknown `code` as today's behaviour.**
    ~~P0 slice 4 (A01a)~~ code done 2026-10-10 (`afc1b91`, `4c42dbe` on prod-hardening; ships
-   in **APK 1.1 / versionCode 2**, run 38025208672, + Capacitor 8.5.3 critical-advisory fix):
+   in **APK 1.1 / versionCode 2**, built by run 38025511989 (`63c387d`; artifact `mandalika-pos-release-apk`, expires 2027-01-08), + Capacitor 8.5.3 critical-advisory fix):
    awaited fail-loud outbox writes (item only sendable after its write succeeded),
    corrupt-queue quarantine + banner, single-flight submit buttons, old engines disposed on
    logout, transfer_receive discarded only on competing_receipt/conflict/not_found,
@@ -96,6 +96,9 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    code/BXGY/bundle; refund (terminal account needs "Proses Refund", re-login); Rekapan +
    Riwayat; shift close; transfer receive prints TT; offline sale syncs after reconnect.
    **Next: P0 slice 5 — A02 + A03 client states** (needs_review, backoff, route by `code`).
+   CI flakiness today: Docker Hub, ECR Public and Maven Central all rate-limited/refused
+   hosted runners once each (re-runs passed); consider caching the PG image in GHCR and
+   Gradle download retries. setup-android no longer installs the removed `tools` package.
    Open follow-ups: corruption banner marker never clears; failed save burns an order
    number; release APK still has WebView debugging on; CI could inject versionCode.
    Follow-ups: no pruning job for `operation_receipts`; OR test goroutines use t.Fatalf;
