@@ -140,3 +140,12 @@ is cash; migration applies at hidden deploy.
 Not verified: exact `--no-traffic --tag` command used for 00086-pac; whether semantic-promotion-key
 direct cases trip 422; count of live orders already matching (`SELECT count(*) FROM orders WHERE
 payment_method='cash' AND amount_paid < total`).
+
+## 2026-10-11 hold: cash-method identity bug (found before deploy)
+
+Read-only count on the test DB: live cash method id is **`tunai`** (app_settings.payment_methods),
+used by every POS cash sale since ~2026-06-11, but code compares the literal `'cash'`: POS
+CheckoutPanel cash input/change/short-guard, CashierScreen amountPaid/change, ShiftRecapPanel,
+**server shift expected cash (`service/shift.go:119`)**, and slice 8 `order.go:405`. Owner decision:
+add an "is cash" flag to PaymentMethodConfig (default true for id `cash`/`tunai`), read by backend +
+POS; **hold slice 8 deploy until the cash-identity fix ships with it.**
