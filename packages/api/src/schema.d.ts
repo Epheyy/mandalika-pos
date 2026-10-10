@@ -2894,8 +2894,8 @@ export interface components {
             surchargeAmount?: number | null;
             taxAmount: number;
             total: number;
-            /** @enum {string} */
-            paymentMethod: "cash" | "card" | "transfer" | "qris";
+            /** @description configured payment method id (free-form since migration 0005) */
+            paymentMethod: string;
             amountPaid: number;
             change: number;
             /** @enum {string} */
@@ -3062,6 +3062,8 @@ export interface components {
             id: string;
             label: string;
             isEnabled: boolean;
+            /** @description Money goes into the cash drawer. Absent/null = default by id (cash, tunai). */
+            isCash?: boolean | null;
         };
         ReceiptSettings: {
             headerText: string;
@@ -3200,8 +3202,8 @@ export interface components {
             customerId?: string | null;
             customerName?: string | null;
             items: components["schemas"]["OrderItemInput"][];
-            /** @enum {string} */
-            paymentMethod: "cash" | "card" | "transfer" | "qris";
+            /** @description configured payment method id (free-form since migration 0005) */
+            paymentMethod: string;
             amountPaid?: number;
             /** @enum {string|null} */
             discountType?: "percentage" | "fixed" | null;

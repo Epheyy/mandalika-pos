@@ -1214,7 +1214,7 @@ components:
         surchargeAmount: { type: number, nullable: true }
         taxAmount: { type: number }
         total: { type: number }
-        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number }
         change: { type: number }
         status: { type: string, enum: [completed, refunded, cancelled] }
@@ -1403,6 +1403,10 @@ components:
         id: { type: string }
         label: { type: string }
         isEnabled: { type: boolean }
+        isCash:
+          type: boolean
+          nullable: true
+          description: Money goes into the cash drawer. Absent/null = default by id (cash, tunai).
     ReceiptSettings:
       type: object
       required: [headerText, footerText, showTax, showCashier]
@@ -1578,7 +1582,7 @@ components:
         customerId: { type: string, nullable: true }
         customerName: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/OrderItemInput' } }
-        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number }
         discountType: { type: string, enum: [percentage, fixed], nullable: true }
         discountValue: { type: number, nullable: true }
