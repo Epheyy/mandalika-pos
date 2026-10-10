@@ -98,7 +98,16 @@ export const BATCH_TIMEOUT_MS = 30_000
 export const BACKOFF_BASE_MS = 20_000
 export const BACKOFF_CAP_MS = 5 * 60_000
 
-type FailureKind = 'offline' | 'unauthorized' | 'transient' | 'rejected'
+type FailureKind = 'offline' | 'unauthorized' | 'transient' | 'rejected' | 'account'
+
+/** Only these statuses say "this request body is bad", so only they justify isolating
+ *  items one by one. Every other 4xx on /sync/batch (403 outlet not permitted / no active
+ *  outlet, 404/405 wrong base URL, 407 or a captive portal) is an account/session/transport
+ *  problem that says nothing about any item. */
+const BODY_REJECT_STATUSES = new Set([400, 413, 422])
+
+export const ACCOUNT_PROBLEM_MESSAGE =
+  'Masalah akun/outlet — hubungi admin. Transaksi tetap tersimpan di perangkat.'
 interface Failure {
   kind: FailureKind
   message: string
@@ -115,7 +124,8 @@ function classifyFailure(err: unknown, online: boolean): Failure {
   if (e.kind === 'network') return { kind: 'offline', message }
   if (e.kind === 'timeout' || e.kind === 'invalid_response') return { kind: 'transient', message }
   if (status >= 500 || status === 429 || status === 408) return { kind: 'transient', message }
-  if (status >= 400) return { kind: 'rejected', message }
+  if (BODY_REJECT_STATUSES.has(status)) return { kind: 'rejected', message }
+  if (status >= 400) return { kind: 'account', message }
   if (err instanceof TypeError) return { kind: 'offline', message }
   return { kind: 'transient', message } // unknown: never blame the item
 }
@@ -132,6 +142,8 @@ export class SyncEngine {
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
+  // Set while the server answers the whole batch with an account/session-level 4xx.
+  private accountProblemMsg: string | null = null
   // Transient whole-batch failures push this out (exponential backoff + jitter).
   private nextFlushAt = 0
   private backoffStep = 0
@@ -364,6 +376,12 @@ export class SyncEngine {
     this.backoffStep = 0
   }
 
+  /** Non-null while /sync/batch is refused for an account/session reason (e.g. 403
+   *  outlet not permitted). Nothing is held against the items; cleared on a good batch. */
+  accountProblem(): string | null {
+    return this.accountProblemMsg
+  }
+
   /** When the next automatic flush may run (epoch ms; 0 = no backoff). */
   nextFlushTime(): number {
     return this.nextFlushAt
@@ -511,10 +529,13 @@ export class SyncEngine {
     return last
   }
 
-  /** offline / 401 / transient: nothing is held against the items. */
+  /** offline / 401 / account / transient: nothing is held against the items. */
   private async settleNonRejected(failure: Failure, items: readonly OutboxItem[]): Promise<void> {
     if (failure.kind === 'offline') {
       this.setReachable(false)
+    } else if (failure.kind === 'account') {
+      this.accountProblemMsg = ACCOUNT_PROBLEM_MESSAGE
+      this.scheduleBackoff()
     } else if (failure.kind === 'transient') {
       // No attempt is burned, but a long outage still trips the after-10 report.
       await this.outbox.settle(
@@ -581,6 +602,7 @@ export class SyncEngine {
     await this.outbox.settle(updates)
     this.recomputeCredited()
     await this.outbox.prune()
+    this.accountProblemMsg = null
     this.resetBackoff()
     this.events.onOutboxChange?.(this.outbox.count())
     this.events.onReconcile?.(data)

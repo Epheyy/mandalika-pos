@@ -76,6 +76,15 @@ export interface ReviewItem {
   lastError?: string
 }
 
+/** Secrets must not outlive their use in a parked item (WebView-debuggable storage).
+ *  The approver PIN of a transfer_receive is only needed for the send itself. */
+function stripSecrets(item: OutboxItem): OutboxItem {
+  if (item.type !== 'transfer_receive' || !('pin' in item.payload)) return item
+  const payload = { ...item.payload }
+  delete payload.pin
+  return { ...item, payload }
+}
+
 function readMarker(kv: KV): OutboxCorruption | null {
   const raw = kv.get(OUTBOX_CORRUPTION_MARKER_KEY)
   if (!raw) return null
@@ -276,7 +285,7 @@ export class Outbox {
         } else if (u.op === 'review') {
           changed = true
           const parked: OutboxItem = {
-            ...it,
+            ...stripSecrets(it),
             status: 'failed',
             lastError: u.reason,
             // >= MAX_ATTEMPTS is what keeps older bundles from resending or deleting it.
@@ -297,7 +306,8 @@ export class Outbox {
           }
           if (retryable) failed.retryableFailures = (it.retryableFailures ?? 0) + 1
           else delete failed.retryableFailures // not consecutive any more
-          next.push(failed)
+          // Parked by attempt counting: the PIN has no further use.
+          next.push((failed.attempts ?? 0) >= MAX_ATTEMPTS ? stripSecrets(failed) : failed)
         }
       }
       return changed ? next : null

@@ -24,6 +24,8 @@ export interface OfflineDataState {
   review: FailedItem[]
   /** Items still retrying that keep failing on the server (slice 4). */
   stuck: FailedItem[]
+  /** Set while the server refuses every batch for an account/session reason (403 etc.). */
+  accountProblem: string | null
   lastSyncedAt: string | null
   isResyncing: boolean
   resync: () => Promise<void>
@@ -69,6 +71,7 @@ export function useOfflineData(): OfflineDataState {
   const [wall, setWall] = useState<WallState>(() => engine.getWall())
   const [pendingCount, setPendingCount] = useState(() => engine.pendingCount())
   const [attn, setAttn] = useState(() => attention(engine))
+  const [accountProblem, setAccountProblem] = useState<string | null>(() => engine.accountProblem())
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
@@ -126,6 +129,7 @@ export function useOfflineData(): OfflineDataState {
         const next = attention(engine)
         return sameItems(prev.review, next.review) && sameItems(prev.stuck, next.stuck) ? prev : next
       })
+      setAccountProblem(engine.accountProblem())
       setIsOnline(engine.isReachable())
     }, 2000)
     return () => clearInterval(interval)
@@ -148,6 +152,7 @@ export function useOfflineData(): OfflineDataState {
     pendingCount,
     review: attn.review,
     stuck: attn.stuck,
+    accountProblem,
     lastSyncedAt,
     isResyncing,
     resync,

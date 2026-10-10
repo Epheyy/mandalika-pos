@@ -32,6 +32,16 @@ describe('SyncStatus chip', () => {
     expect(html).not.toMatch(/server/i)
   })
 
+  it('shows the account/outlet problem state when online', () => {
+    const html = render({ accountProblem: 'Masalah akun/outlet — hubungi admin.', pendingCount: 2 })
+    expect(html).toContain('Masalah akun/outlet')
+    expect(html).not.toContain('Perlu ditinjau')
+  })
+
+  it('offline never shows the account problem state', () => {
+    expect(render({ isOnline: false, accountProblem: 'x', pendingCount: 1 })).not.toContain('Masalah akun')
+  })
+
   it('offline with review items still counts them', () => {
     expect(render({ isOnline: false, review: [item('a')] })).toContain('Offline · 1 perlu ditinjau')
   })

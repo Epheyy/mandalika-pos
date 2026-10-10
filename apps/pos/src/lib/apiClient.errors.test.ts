@@ -105,8 +105,45 @@ describe('401 goes through the refresh path', () => {
       .mockResolvedValueOnce(json(401, { error: 'expired' }))
       .mockResolvedValueOnce(json(503, { error: 'down' }))
     const { api, onUnauthorized } = client()
-    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'network' })
+    // typed with the real status so callers treat it as transient (backoff), not offline
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'http', status: 503 })
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('a refresh answered 429 is typed http 429', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'expired' }))
+      .mockResolvedValueOnce(json(429, { error: 'slow down' }))
+    const { api, onUnauthorized } = client()
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'http', status: 429 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('a hung refresh is aborted after its own timeout: typed timeout, no logout, next request can run', async () => {
+    vi.useFakeTimers()
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (String(url).endsWith('/auth/refresh')) {
+        return new Promise((_res, rej) => {
+          init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))
+        })
+      }
+      return Promise.resolve(json(401, {}))
+    })
+    const { api, onUnauthorized } = client()
+    const p = failure(api.request('POST', '/x', {}))
+    await vi.advanceTimersByTimeAsync(14_999)
+    const refreshCall = vi.mocked(fetch).mock.calls.find(([u]) => String(u).endsWith('/auth/refresh'))!
+    expect(refreshCall[1]?.signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await p).toMatchObject({ kind: 'timeout', status: 0 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    // the de-dupe slot was released, so a later request refreshes again and succeeds
+    vi.mocked(fetch).mockReset()
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, {}))
+      .mockResolvedValueOnce(json(200, { data: { access: 'new', refresh: 'r2' } }))
+      .mockResolvedValueOnce(json(200, { data: 1 }))
+    expect(await api.request('POST', '/x', {})).toEqual({ data: 1 })
   })
 
   it('a refresh the server refuses ends the session with a typed 401', async () => {

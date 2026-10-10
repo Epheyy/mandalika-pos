@@ -37,6 +37,8 @@ interface SyncStatusProps {
   review: FailedItem[]
   /** Items still retrying that keep failing on the server. */
   stuck: FailedItem[]
+  /** Account/session-level refusal of the whole queue; nothing was parked. */
+  accountProblem?: string | null
   wall: WallState
   isResyncing: boolean
   onResync: () => void
@@ -51,6 +53,7 @@ export const SyncStatus = memo(function SyncStatus({
   pendingCount,
   review,
   stuck,
+  accountProblem = null,
   wall,
   isResyncing,
   onResync,
@@ -62,6 +65,7 @@ export const SyncStatus = memo(function SyncStatus({
   const hasFailed = review.length > 0
   // Offline is its own, normal state: never describe it as a server problem.
   const showStuck = isOnline && stuck.length > 0
+  const showAccount = isOnline && accountProblem !== null
   const updateAvailable = wall.raised
 
   let label: string
@@ -71,6 +75,9 @@ export const SyncStatus = memo(function SyncStatus({
     tone = 'bg-amber-100 text-amber-700'
   } else if (hasFailed) {
     label = `Perlu ditinjau (${review.length})`
+    tone = 'bg-red-100 text-red-700'
+  } else if (showAccount) {
+    label = 'Masalah akun/outlet'
     tone = 'bg-red-100 text-red-700'
   } else if (showStuck) {
     label = `Tertunda (${stuck.length})`
@@ -127,7 +134,7 @@ export const SyncStatus = memo(function SyncStatus({
               </button>
             )}
 
-            {pendingCount > 0 && !hasFailed && !showStuck && (
+            {pendingCount > 0 && !hasFailed && (
               <button type="button"
                 onClick={() => { onFlush(); setOpen(false) }}
                 className="w-full py-2 bg-amber-500 text-white rounded-lg font-semibold"
@@ -177,6 +184,12 @@ export const SyncStatus = memo(function SyncStatus({
               </div>
             )}
 
+            {showAccount && (
+              <p className="bg-red-50 text-red-700 rounded-lg px-2 py-1.5 font-semibold">
+                {accountProblem}
+              </p>
+            )}
+
             {showStuck && (
               <div className="space-y-1">
                 <p className="font-semibold text-amber-700">
@@ -193,7 +206,7 @@ export const SyncStatus = memo(function SyncStatus({
               </div>
             )}
 
-            {!updateAvailable && pendingCount === 0 && !hasFailed && !showStuck && (
+            {!updateAvailable && pendingCount === 0 && !hasFailed && !showStuck && !showAccount && (
               <p className="text-gray-400 text-center">Semua tersinkron ✓</p>
             )}
           </div>

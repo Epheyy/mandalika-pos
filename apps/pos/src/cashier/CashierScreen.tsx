@@ -897,7 +897,7 @@ export default function CashierScreen() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
-            review={offlineData.review} stuck={offlineData.stuck} wall={offlineData.wall}
+            review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}

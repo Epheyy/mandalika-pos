@@ -218,14 +218,61 @@ describe('deterministic 4xx: isolate the bad item', () => {
       .toEqual(['dev:1', 'dev:bad', 'dev:3'])
   })
 
-  it('a 403 on every item parks each as review (kept), never deletes', async () => {
-    const request = vi.fn().mockRejectedValue(apiError(403, 'no active outlet'))
+  it.each([400, 413, 422])('a whole-batch %i is isolated per item', async (status) => {
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => {
+      if (body.items.length > 1) throw apiError(status, 'bad body')
+      return ok(body.items.map((i) => i.idempotencyKey))
+    })
     const { engine } = await setup(request, ['dev:1', 'dev:2'])
     await engine.flush()
-    expect(engine.reviewItems().map((r) => [r.idempotencyKey, r.reviewCode, r.reviewReason])).toEqual([
-      ['dev:1', 'batch_rejected', 'no active outlet'],
-      ['dev:2', 'batch_rejected', 'no active outlet'],
-    ])
+    expect(engine.outbox.all()).toEqual([])
+  })
+
+  it.each([
+    ['JSON 403 (no active outlet)', apiError(403, 'no active outlet')],
+    ['JSON 403 (outlet not permitted)', apiError(403, 'outlet not permitted')],
+    ['non-JSON 403 (proxy / captive portal)', apiError(403, 'request failed (403)')],
+    ['404 (wrong base URL)', apiError(404, 'request failed (404)')],
+    ['405', apiError(405, 'request failed (405)')],
+    ['407', apiError(407, 'request failed (407)')],
+  ])('%s: nothing parked or counted, backoff set, account problem flagged', async (_n, err) => {
+    const request = vi.fn().mockRejectedValue(err)
+    const { engine } = await setup(request, ['dev:1', 'dev:2'])
+    expect(engine.accountProblem()).toBeNull()
+    await engine.flush()
+    expect(request).toHaveBeenCalledTimes(1) // no per-item resend
+    for (const i of engine.outbox.all()) {
+      expect(i).toMatchObject({ status: 'pending' })
+      expect(i.attempts ?? 0).toBe(0)
+      expect(i.retryableFailures).toBeUndefined()
+      expect(i.reviewCode).toBeUndefined()
+    }
+    expect(engine.reviewItems()).toEqual([])
+    expect(engine.pendingCount()).toBe(2)
+    expect(engine.nextFlushTime()).toBe(Date.now() + BACKOFF_BASE_MS)
+    expect(engine.accountProblem()).toContain('Masalah akun/outlet')
+  })
+
+  it('the account problem clears after a good batch', async () => {
+    const request = vi.fn().mockRejectedValueOnce(apiError(403, 'no active outlet')).mockResolvedValue(ok(['dev:1']))
+    const { engine } = await setup(request)
+    await engine.flush()
+    expect(engine.accountProblem()).not.toBeNull()
+    await engine.flushNow()
+    expect(engine.accountProblem()).toBeNull()
+  })
+
+  it('a 403 met while isolating a 400 stops there and parks nothing', async () => {
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => {
+      if (body.items.length > 1) throw apiError(400, 'bad body')
+      throw apiError(403, 'no active outlet')
+    })
+    const { engine } = await setup(request, ['dev:1', 'dev:2'])
+    await engine.flush()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(engine.reviewItems()).toEqual([])
+    expect(engine.outbox.all()).toHaveLength(2)
+    expect(engine.accountProblem()).not.toBeNull()
   })
 
   it('stops isolating on a transient failure and holds nothing against the rest', async () => {
@@ -333,7 +380,7 @@ describe('review state is rollback-safe', () => {
 
 describe('transfer_receive competing receipt', () => {
   it('goes to review keeping the counted payload, removes only the optimistic credit', async () => {
-    const { kv } = controllableKV()
+    const { kv, store } = controllableKV()
     const onReceiveRejected = vi.fn()
     const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => ({
       data: {
@@ -359,8 +406,45 @@ describe('transfer_receive competing receipt', () => {
       type: 'transfer_receive', status: 'failed', attempts: MAX_ATTEMPTS, reviewCode: 'competing_receipt',
       payload: { transferId: 't1', discrepancyReason: 'rusak 1', items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }] },
     })
+    // the approver PIN does not outlive its use: gone from memory and from storage
+    expect(item.payload).not.toHaveProperty('pin')
+    expect(store.get('mandalika.pos.outbox')).not.toContain('1234')
+    expect(store.get('mandalika.pos.outbox')).not.toContain('"pin"')
     expect(oldPending(engine.outbox.all() as OutboxItem[])).toEqual([])
     expect(onReceiveRejected).toHaveBeenCalledWith(expect.stringContaining('perlu ditinjau'))
     expect(onReceiveRejected.mock.calls[0][0]).not.toMatch(/dibatalkan/)
+  })
+
+  it('retrying a PIN-stripped receive does not crash: the server verdict sends it back to review', async () => {
+    const { kv } = controllableKV()
+    let phase: 'conflict' | 'forbidden' = 'conflict'
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string; payload: Record<string, unknown> }[] }) => ({
+      data: {
+        processed: 0, version: 0,
+        results: body.items.map((i) => ({
+          idempotencyKey: i.idempotencyKey, status: 'error', retryable: false,
+          ...(phase === 'conflict'
+            ? { error: 'already received', code: 'competing_receipt' }
+            : { error: i.payload.pin === undefined ? 'PIN salah' : 'unexpected', code: 'forbidden' }),
+        })),
+      },
+    }))
+    vi.stubGlobal('navigator', { onLine: false })
+    const engine = new SyncEngine(api(request), {}, kv)
+    await engine.enqueueTransferReceive({
+      transferId: 't1', approverUserId: 'u1', pin: '1234',
+      items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }],
+    })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flush()
+    expect(engine.reviewItems()[0].reviewCode).toBe('competing_receipt')
+
+    phase = 'forbidden'
+    await engine.retryFailed()
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(engine.reviewItems()[0]?.reviewCode).toBe('forbidden'))
+    expect(engine.reviewItems()[0].reviewReason).toBe('PIN salah')
+    expect(engine.outbox.all()[0].payload).not.toHaveProperty('pin')
+    expect(engine.outbox.all()[0].payload).toMatchObject({ items: [{ receivedQty: 4 }] })
   })
 })
