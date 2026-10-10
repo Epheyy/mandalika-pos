@@ -149,3 +149,19 @@ CheckoutPanel cash input/change/short-guard, CashierScreen amountPaid/change, Sh
 **server shift expected cash (`service/shift.go:119`)**, and slice 8 `order.go:405`. Owner decision:
 add an "is cash" flag to PaymentMethodConfig (default true for id `cash`/`tunai`), read by backend +
 POS; **hold slice 8 deploy until the cash-identity fix ships with it.**
+
+## Slice 8c — payment-method cash identity (plan, Opus planner, 2026-10-11)
+
+Base `fix/a09-tender-rules` @ df9cf7e; no migration; backend ships on the slice 8 deploy; POS needs
+APK/OTA. Key findings: literal `'cash'` in `service/tender.go:15`, `service/shift.go:119`, POS
+CheckoutPanel/CashierScreen/ShiftRecapPanel, backoffice Orders.tsx:244 + filters + TransaksiSection
+delete list; **read path decodes into typed `api.PaymentMethodConfig`, so `isCash` is stripped unless
+OpenAPI+regen carry it** (gap-class; PG round-trip test required); unvalidated paymentMethods writes
+can break sync pull for every tablet. Design: `IsCashMethod(methods,id)` (explicit flag wins; default
+`cash`/`tunai` case-insensitive, also for ids not in config); `loadAppSettings` returns payment
+methods (same SELECT); `evaluateTender(isCash,…)`; shift close sums cash in Go per flag at close time
+(snapshot; closed shifts never change); no jsonb backfill; TS `isCashMethod` in packages/types + POS
+`cashier/tender.ts`; backoffice toggle "Tunai (masuk laci kas)" showing the resolved value; write
+validation (strict decode, no empty/duplicate ids → 400). TD gate additions 14–18 failing-first.
+Tasks T1–T12 (Opus review on all logic; Haiku on literals/docs). Old APKs: tunai now cash, paid=total
+⇒ change 0, no flag (drift residual as in slice 8).
