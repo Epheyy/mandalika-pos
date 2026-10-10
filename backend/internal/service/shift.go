@@ -100,7 +100,7 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	if status == "closed" {
 		return nil
 	}
-	cashSales, err := shiftCashSales(ctx, tx, shiftID)
+	cashIDs, err := shiftCashMethodIDs(ctx, tx, shiftID)
 	if err != nil {
 		return err
 	}
@@ -120,44 +120,45 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		    sum(total) FILTER (WHERE status='completed') AS total_sales,
 		    count(*)   FILTER (WHERE status='completed') AS total_orders,
 		    sum(total) FILTER (WHERE status='refunded')  AS total_refunds,
-		    $5::numeric AS cash_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='card')     AS card_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer') AS transfer_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris')     AS qris_sales
+		    sum(total) FILTER (WHERE status='completed' AND payment_method = ANY($5::text[])) AS cash_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
 		  FROM orders WHERE shift_id=$1
 		) a
 		WHERE s.id=$1 AND s.outlet_id=$2`,
-		shiftID, outletID, closingCash, countedJSON, cashSales)
+		shiftID, outletID, closingCash, countedJSON, cashIDs)
 	return err
 }
 
-// shiftCashSales sums completed sales over every method that is cash at close time
-// (the flag in force now decides; closed shifts are a snapshot and never change).
-// card/transfer/qris stay literal columns; custom non-cash methods land in none.
-func shiftCashSales(ctx context.Context, tx pgx.Tx, shiftID string) (float64, error) {
+// shiftCashMethodIDs lists the payment method ids on this shift's completed orders
+// that are cash at close time (the flag in force now decides; closed shifts are a
+// snapshot and never change). The UPDATE aggregates cash_sales and excludes these
+// ids from the card/transfer/qris buckets, so nothing is counted twice. Custom
+// non-cash methods land in no bucket. Always non-nil: a NULL array would make the
+// FILTER predicates NULL.
+func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]string, error) {
 	settings, err := loadAppSettings(ctx, tx)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT payment_method, sum(total)::float8 FROM orders
-		  WHERE shift_id=$1 AND status='completed' GROUP BY payment_method`, shiftID)
+		`SELECT DISTINCT payment_method FROM orders WHERE shift_id=$1 AND status='completed'`, shiftID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer rows.Close()
-	var cash float64
+	ids := []string{}
 	for rows.Next() {
 		var method string
-		var sum float64
-		if err := rows.Scan(&method, &sum); err != nil {
-			return 0, err
+		if err := rows.Scan(&method); err != nil {
+			return nil, err
 		}
 		if IsCashMethod(settings.PaymentMethods, method) {
-			cash += sum
+			ids = append(ids, method)
 		}
 	}
-	return cash, rows.Err()
+	return ids, rows.Err()
 }
 
 type CashFlowInput struct {

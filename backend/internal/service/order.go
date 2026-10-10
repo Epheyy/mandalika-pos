@@ -1103,6 +1103,7 @@ func parsePaymentMethods(raw []byte) []api.PaymentMethodConfig {
 	}
 	var methods []api.PaymentMethodConfig
 	if err := json.Unmarshal(raw, &methods); err != nil {
+		slog.Warn("payment_methods decode failed; using id defaults", "err", err)
 		return nil
 	}
 	return methods
