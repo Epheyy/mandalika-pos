@@ -12,7 +12,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react'
-import { SyncEngine, getKV } from '@mandalika/sync'
+import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
@@ -80,9 +80,13 @@ export function SyncProvider({
                 outletName: engineRef.current?.getSnapshot().outletName ?? null,
               })),
             )
-            const hadReceiveReject = items.some((i) => i.type === 'transfer_receive')
-            if (hadReceiveReject) {
-              onReceiveRejectedRef.current?.('Penerimaan dibatalkan — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan.')
+            // Competing/missing-transfer receipts already raised onReceiveRejected with the
+            // precise message; any other receive that needs review gets this one.
+            const hadOtherReceiveReview = items.some(
+              (i) => i.type === 'transfer_receive' && !(i.reviewCode && RECEIVE_CONFLICT_CODES.includes(i.reviewCode)),
+            )
+            if (hadOtherReceiveReview) {
+              onReceiveRejectedRef.current?.('Penerimaan perlu ditinjau — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan; hitungan tetap tersimpan.')
             }
           },
           onStuckRetrying: (items) => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SyncEngine } from './engine'
+import { MAX_ATTEMPTS } from './outbox'
 import { controllableKV } from './testFixtures/controllableKV'
 
 beforeEach(() => { vi.stubGlobal('navigator', { onLine: true }) })
@@ -33,11 +34,17 @@ async function setup(result: Result, type: 'transfer_receive' | 'order' = 'trans
 }
 
 describe('transfer_receive error codes', () => {
-  it.each(['competing_receipt', 'conflict', 'not_found'])('%s is final: item discarded, credit rolled back', async (code) => {
+  it.each(['competing_receipt', 'conflict', 'not_found'])('%s goes to review: credit rolled back, counts kept, nothing deleted', async (code) => {
     const { engine, onReceiveRejected } = await setup({ status: 'error', error: 'x', code, retryable: false })
-    expect(engine.outbox.all()).toEqual([])
+    expect(engine.outbox.all()).toHaveLength(1)
+    expect(engine.outbox.all()[0]).toMatchObject({
+      status: 'failed', attempts: MAX_ATTEMPTS, reviewCode: code, reviewReason: 'x',
+      payload: { items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }] },
+    })
     expect(engine.pending.list()).toEqual([])
+    expect(engine.reviewItems()).toHaveLength(1)
     expect(onReceiveRejected).toHaveBeenCalledTimes(1)
+    expect(onReceiveRejected.mock.calls[0][0]).toContain('perlu ditinjau')
   })
 
   it('a missing code keeps the old behaviour (discard + rollback)', async () => {
@@ -47,20 +54,33 @@ describe('transfer_receive error codes', () => {
     expect(onReceiveRejected).toHaveBeenCalledTimes(1)
   })
 
-  it.each([
-    ['busy', true], ['internal', true], ['forbidden', false], ['rejected', false], ['key_conflict', false],
-  ] as const)('%s keeps the item and the credit as a normal failure', async (code, retryable) => {
-    const { engine, onReceiveRejected } = await setup({ status: 'error', error: 'x', code, retryable })
-    expect(engine.outbox.all()).toHaveLength(1)
-    expect(engine.outbox.all()[0].status).toBe('failed')
-    expect(engine.outbox.all()[0].lastError).toBe('x')
-    expect(engine.pending.list()).toHaveLength(1)
-    expect(onReceiveRejected).not.toHaveBeenCalled()
-  })
+  it.each([['busy', true], ['internal', true]] as const)(
+    '%s (retryable) keeps the item and the credit as a normal failure',
+    async (code, retryable) => {
+      const { engine, onReceiveRejected } = await setup({ status: 'error', error: 'x', code, retryable })
+      expect(engine.outbox.all()).toHaveLength(1)
+      expect(engine.outbox.all()[0].status).toBe('failed')
+      expect(engine.outbox.all()[0].lastError).toBe('x')
+      expect(engine.outbox.all()[0].attempts ?? 0).toBe(0)
+      expect(engine.pending.list()).toHaveLength(1)
+      expect(onReceiveRejected).not.toHaveBeenCalled()
+    },
+  )
 
-  it('an unknown future code is a normal failure, not a discard', async () => {
+  it.each(['forbidden', 'rejected', 'key_conflict'])(
+    '%s (non-retryable) goes to review without the cancelled-receipt toast',
+    async (code) => {
+      const { engine, onReceiveRejected } = await setup({ status: 'error', error: 'x', code, retryable: false })
+      expect(engine.outbox.all()[0]).toMatchObject({ status: 'failed', attempts: MAX_ATTEMPTS, reviewCode: code })
+      expect(onReceiveRejected).not.toHaveBeenCalled()
+    },
+  )
+
+  it('an unknown future code keeps the attempt counting, not a discard', async () => {
     const { engine } = await setup({ status: 'error', error: 'x', code: 'brand_new', retryable: false })
     expect(engine.outbox.all()).toHaveLength(1)
+    expect(engine.outbox.all()[0].attempts).toBe(1)
+    expect(engine.outbox.all()[0].reviewCode).toBeUndefined()
     expect(engine.pending.list()).toHaveLength(1)
   })
 })
@@ -81,15 +101,27 @@ describe('retryable results and attempts', () => {
     expect(engine.deadLettered()).toEqual([])
   })
 
-  it('retryable=false counts an attempt and parks at the cap', async () => {
+  it('retryable=false with a known code goes straight to review (no 5-attempt wait)', async () => {
     const { engine } = await setup({ status: 'error', error: 'e', code: 'rejected', retryable: false }, 'order')
+    expect(engine.outbox.all()[0]).toMatchObject({ status: 'failed', attempts: MAX_ATTEMPTS, reviewCode: 'rejected', reviewReason: 'e' })
+    expect(engine.deadLettered()).toHaveLength(1)
+    expect(engine.pendingCount()).toBe(0)
+  })
+
+  it('retryable=false with an unknown code keeps counting attempts and parks at the cap', async () => {
+    const { engine } = await setup({ status: 'error', error: 'e', code: 'brand_new', retryable: false }, 'order')
     expect(engine.outbox.all()[0].attempts).toBe(1)
     for (let i = 0; i < 4; i++) await engine.flush()
     expect(engine.deadLettered()).toHaveLength(1)
+    expect(engine.outbox.all()[0].reviewCode).toBeUndefined()
   })
 
-  it('a missing retryable field counts an attempt (older server)', async () => {
+  it('a missing code and retryable field counts an attempt (older server) and parks at the cap', async () => {
     const { engine } = await setup({ status: 'error', error: 'e' }, 'order')
     expect(engine.outbox.all()[0].attempts).toBe(1)
+    for (let i = 0; i < MAX_ATTEMPTS - 1; i++) await engine.flush()
+    expect(engine.outbox.all()[0].attempts).toBe(MAX_ATTEMPTS)
+    expect(engine.reviewItems()).toHaveLength(1) // shown as review, reviewCode unset
+    expect(engine.reviewItems()[0].reviewCode).toBeUndefined()
   })
 })

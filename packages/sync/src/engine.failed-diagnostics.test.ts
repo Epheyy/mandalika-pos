@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SyncEngine } from './engine'
+import { BATCH_TIMEOUT_MS, SyncEngine } from './engine'
 import { MAX_ATTEMPTS, Outbox } from './outbox'
 import type { KV } from './storage'
 
@@ -120,7 +120,7 @@ describe('A02-export: failed diagnostic retention', () => {
     await engine.retryFailed()
     expect(request).toHaveBeenCalledExactlyOnceWith('POST', '/api/v1/sync/batch', {
       items: before.map(({ type, idempotencyKey, payload }) => ({ type, idempotencyKey, payload })),
-    })
+    }, { timeoutMs: BATCH_TIMEOUT_MS })
     await vi.waitFor(() => expect(engine.outbox.all()).toEqual([]))
   })
 

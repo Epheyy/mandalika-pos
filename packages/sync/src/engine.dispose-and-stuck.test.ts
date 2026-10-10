@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SyncEngine, type ApiLike } from './engine'
-import { Outbox, RETRYABLE_ATTENTION_AFTER, type OutboxItem } from './outbox'
+import { MAX_ATTEMPTS, Outbox, RETRYABLE_ATTENTION_AFTER, type OutboxItem } from './outbox'
 import { controllableKV } from './testFixtures/controllableKV'
 
 const OUTBOX_KEY = 'mandalika.pos.outbox'
@@ -124,9 +124,8 @@ describe('retryable failures: keep retrying but surface after N in a row', () =>
     mode.result = 'rejected'
     await engine.flush()
     expect(engine.outbox.all()[0].retryableFailures).toBeUndefined()
-    expect(engine.outbox.all()[0].attempts).toBe(1)
-    mode.result = 'ok'
-    await engine.flush()
+    // a known non-retryable code goes straight to review (parked at the attempt cap)
+    expect(engine.outbox.all()[0]).toMatchObject({ attempts: MAX_ATTEMPTS, reviewCode: 'rejected' })
   })
 
   it('the counter survives a restart (stored additively with the item)', async () => {

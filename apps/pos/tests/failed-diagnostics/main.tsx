@@ -45,7 +45,7 @@ function Harness() {
       <option>share success</option><option>cancel</option>
       <option>share failure</option><option>clipboard failure</option>
     </select></label>
-    <SyncStatus isOnline={true} pendingCount={engine.pendingCount()} failed={engine.deadLettered()}
+    <SyncStatus isOnline={true} pendingCount={engine.pendingCount()} review={engine.reviewItems()} stuck={[]}
       wall={engine.getWall()} isResyncing={false} onResync={() => {}} onFlush={() => {}}
       onRetryFailed={() => engine.retryFailed()} onExportLog={() => { void send() }} />
     <p role="status">{message}</p>

@@ -24,7 +24,7 @@ function Harness() {
     <button onClick={() => { void denyFive() }}>Deliver five permission denials</button>
     <button onClick={reconstruct}>Reconstruct from same storage</button>
     <button onClick={() => { fixture.delivery.permission = true; update() }}>Restore synthetic permission</button>
-    <SyncStatus key={remount} isOnline={true} pendingCount={engine.pendingCount()} failed={engine.deadLettered()}
+    <SyncStatus key={remount} isOnline={true} pendingCount={engine.pendingCount()} review={engine.reviewItems()} stuck={[]}
       wall={engine.getWall()} isResyncing={false} onResync={() => {}} onFlush={() => { void engine.flush().then(update) }}
       onRetryFailed={() => { void retry() }} onExportLog={() => { engine.buildFailedSyncDiagnostics(); setExports((n) => n + 1) }} />
     <pre aria-label="Retention evidence">{JSON.stringify({

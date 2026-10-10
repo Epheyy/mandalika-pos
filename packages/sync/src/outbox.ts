@@ -35,6 +35,12 @@ export interface OutboxItem {
    *  MAX_ATTEMPTS (the item keeps retrying) but flag it for attention at
    *  RETRYABLE_ATTENTION_AFTER. Additive: older bundles ignore it. */
   retryableFailures?: number
+  /** "Needs review" state, stored rollback-safe: the item is `status: 'failed'` with
+   *  `attempts >= MAX_ATTEMPTS`, which the previous bundles' `pending()` already treats
+   *  as parked (not resent, not deleted). These two fields only say WHY. Server code
+   *  (e.g. `competing_receipt`) or a client reason (`batch_rejected`). Additive. */
+  reviewCode?: string
+  reviewReason?: string
 }
 
 /** After this many consecutive retryable failures an item is reported and shown
@@ -56,6 +62,28 @@ export type OutboxSettle =
   | { key: string; op: 'discard' }
   // retryable === true: record the error but do not count it toward MAX_ATTEMPTS.
   | { key: string; op: 'fail'; error: string; retryable?: boolean }
+  // Park for human review right now (no 5-attempt wait). Never auto-retried or deleted.
+  | { key: string; op: 'review'; code: string; reason: string }
+
+/** A parked item as shown to the cashier. */
+export interface ReviewItem {
+  idempotencyKey: string
+  type: OutboxType
+  clientCreatedAt: string
+  /** Unset for items parked by the old attempt counting (older server). */
+  reviewCode?: string
+  reviewReason?: string
+  lastError?: string
+}
+
+/** Secrets must not outlive their use in a parked item (WebView-debuggable storage).
+ *  The approver PIN of a transfer_receive is only needed for the send itself. */
+function stripSecrets(item: OutboxItem): OutboxItem {
+  if (item.type !== 'transfer_receive' || !('pin' in item.payload)) return item
+  const payload = { ...item.payload }
+  delete payload.pin
+  return { ...item, payload }
+}
 
 function readMarker(kv: KV): OutboxCorruption | null {
   const raw = kv.get(OUTBOX_CORRUPTION_MARKER_KEY)
@@ -215,6 +243,18 @@ export class Outbox {
     )
   }
 
+  /** Parked items in display form: explicit reviews plus legacy attempt-count parks. */
+  reviewItems(): ReviewItem[] {
+    return this.deadLettered().map((i) => ({
+      idempotencyKey: i.idempotencyKey,
+      type: i.type,
+      clientCreatedAt: i.clientCreatedAt,
+      reviewCode: i.reviewCode,
+      reviewReason: i.reviewReason ?? i.lastError,
+      lastError: i.lastError,
+    }))
+  }
+
   /** Still-retrying items that failed retryably at least RETRYABLE_ATTENTION_AFTER
    *  times in a row: likely a deterministic server problem, not a blip. */
   stuckRetrying(): OutboxItem[] {
@@ -242,6 +282,19 @@ export class Outbox {
         } else if (u.op === 'ack') {
           changed = true
           next.push({ ...it, status: 'acked' })
+        } else if (u.op === 'review') {
+          changed = true
+          const parked: OutboxItem = {
+            ...stripSecrets(it),
+            status: 'failed',
+            lastError: u.reason,
+            // >= MAX_ATTEMPTS is what keeps older bundles from resending or deleting it.
+            attempts: Math.max(it.attempts ?? 0, MAX_ATTEMPTS),
+            reviewCode: u.code,
+            reviewReason: u.reason,
+          }
+          delete parked.retryableFailures
+          next.push(parked)
         } else {
           changed = true
           const retryable = u.retryable === true
@@ -253,7 +306,8 @@ export class Outbox {
           }
           if (retryable) failed.retryableFailures = (it.retryableFailures ?? 0) + 1
           else delete failed.retryableFailures // not consecutive any more
-          next.push(failed)
+          // Parked by attempt counting: the PIN has no further use.
+          next.push((failed.attempts ?? 0) >= MAX_ATTEMPTS ? stripSecrets(failed) : failed)
         }
       }
       return changed ? next : null
@@ -279,10 +333,14 @@ export class Outbox {
   retryDeadLettered(): Promise<void> {
     return this.run(async () => {
       let changed = false
-      const next = this.items.map((i) => {
+      const next = this.items.map((i): OutboxItem => {
         if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS) {
           changed = true
-          return { ...i, status: 'pending' as const, attempts: 0 }
+          const requeued: OutboxItem = { ...i, status: 'pending', attempts: 0 }
+          delete requeued.reviewCode
+          delete requeued.reviewReason
+          delete requeued.retryableFailures
+          return requeued
         }
         return i
       })

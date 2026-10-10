@@ -22,17 +22,20 @@ it.each(['shift_open', 'shift_close'] as const)('retains whole-request rejected 
   const api: ApiLike = { async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     expect([method, path]).toEqual(['POST', '/api/v1/sync/batch'])
     sent.push(structuredClone(body))
-    throw new Error(error)
+    throw Object.assign(new Error(error), { status: 400, kind: 'http' })
   } }
   const reconstruct = () => new SyncEngine(api, {}, kv)
   const engine = reconstruct()
   const ack = vi.spyOn(engine.outbox, 'ack'), discard = vi.spyOn(engine.outbox, 'discard')
-  for (let n = 1; n <= MAX_ATTEMPTS; n++) {
-    await engine.flush()
-    expect(engine.outbox.all()).toEqual([{ ...original, status: 'failed', attempts: n, lastError: error }])
-    expect(engine.pendingCount()).toBe(n < MAX_ATTEMPTS ? 1 : 0)
-    expect(engine.deadLettered()).toHaveLength(n < MAX_ATTEMPTS ? 0 : 1)
-  }
+  // A deterministic whole-request rejection of a single item is isolated already:
+  // straight to review, evidence untouched, no five-attempt wait.
+  const reviewed = { ...original, status: 'failed', attempts: MAX_ATTEMPTS, lastError: error, reviewCode: 'batch_rejected', reviewReason: error }
+  await engine.flush()
+  expect(engine.outbox.all()).toEqual([reviewed])
+  expect(engine.pendingCount()).toBe(0)
+  expect(engine.deadLettered()).toHaveLength(1)
+  expect(await engine.flush()).toBeNull() // parked: never auto-retried
+  expect(sent).toHaveLength(1)
   const parked = structuredClone(engine.outbox.all()), stored = store.get('mandalika.pos.outbox')
   for (let n = 0; n < 2; n++) {
     expect(JSON.parse(engine.buildFailedSyncDiagnostics())).toEqual(parked)
@@ -46,9 +49,9 @@ it.each(['shift_open', 'shift_close'] as const)('retains whole-request rejected 
   expect(await rebuilt.flush()).toBeNull()
   const retryAck = vi.spyOn(rebuilt.outbox, 'ack'), retryDiscard = vi.spyOn(rebuilt.outbox, 'discard')
   rebuilt.retryFailed()
-  await vi.waitFor(() => expect(sent).toHaveLength(MAX_ATTEMPTS + 1))
-  await vi.waitFor(() => expect(rebuilt.outbox.all()[0]).toMatchObject({ attempts: 1, status: 'failed', lastError: error }))
-  expect(rebuilt.outbox.all()).toEqual([{ ...original, status: 'failed', attempts: 1, lastError: error }])
+  await vi.waitFor(() => expect(sent).toHaveLength(2))
+  await vi.waitFor(() => expect(rebuilt.outbox.all()[0]).toMatchObject({ attempts: MAX_ATTEMPTS, status: 'failed', reviewCode: 'batch_rejected' }))
+  expect(rebuilt.outbox.all()).toEqual([reviewed])
   expect(retryAck).not.toHaveBeenCalled(); expect(retryDiscard).not.toHaveBeenCalled()
   for (const body of sent) expect(body).toEqual({ items: [{ type: original.type, idempotencyKey: original.idempotencyKey, payload: original.payload }] })
 })

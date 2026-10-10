@@ -3,17 +3,42 @@
  * A compact chip beside the shift bar; tap to see detail:
  *  - offline / syncing / synced
  *  - "update available" (backoffice bumped reference data) → resync
- *  - failed items → the server's reject reason + a manual retry
+ *  - items needing review ("Perlu ditinjau") → type, time, reason + a manual retry;
+ *    they are kept, never auto-retried and never deleted
+ *  - items still retrying after repeated server failures → listed separately
  * Selling is never blocked; the cashier decides when to sync.
  */
 import { memo, useState } from 'react'
 import type { WallState } from '@mandalika/sync'
 import type { FailedItem } from '../hooks/useOfflineData'
 
+const TYPE_LABELS: Record<string, string> = {
+  order: 'Penjualan',
+  refund: 'Refund',
+  shift_open: 'Buka shift',
+  shift_close: 'Tutup shift',
+  cash_flow: 'Kas masuk/keluar',
+  customer_create: 'Pelanggan baru',
+  transfer_receive: 'Penerimaan transfer',
+}
+const typeLabel = (t: string) => TYPE_LABELS[t] ?? t
+
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 interface SyncStatusProps {
   isOnline: boolean
   pendingCount: number
-  failed: FailedItem[]
+  /** Parked items needing review. */
+  review: FailedItem[]
+  /** Items still retrying that keep failing on the server. */
+  stuck: FailedItem[]
+  /** Account/session-level refusal of the whole queue; nothing was parked. */
+  accountProblem?: string | null
   wall: WallState
   isResyncing: boolean
   onResync: () => void
@@ -26,7 +51,9 @@ interface SyncStatusProps {
 export const SyncStatus = memo(function SyncStatus({
   isOnline,
   pendingCount,
-  failed,
+  review,
+  stuck,
+  accountProblem = null,
   wall,
   isResyncing,
   onResync,
@@ -35,17 +62,26 @@ export const SyncStatus = memo(function SyncStatus({
   onExportLog,
 }: SyncStatusProps) {
   const [open, setOpen] = useState(false)
-  const hasFailed = failed.length > 0
+  const hasFailed = review.length > 0
+  // Offline is its own, normal state: never describe it as a server problem.
+  const showStuck = isOnline && stuck.length > 0
+  const showAccount = isOnline && accountProblem !== null
   const updateAvailable = wall.raised
 
   let label: string
   let tone: string
   if (!isOnline) {
-    label = hasFailed ? `Offline · ${failed.length} gagal` : 'Offline'
+    label = hasFailed ? `Offline · ${review.length} perlu ditinjau` : 'Offline'
     tone = 'bg-amber-100 text-amber-700'
   } else if (hasFailed) {
-    label = `Sinkron gagal (${failed.length})`
+    label = `Perlu ditinjau (${review.length})`
     tone = 'bg-red-100 text-red-700'
+  } else if (showAccount) {
+    label = 'Masalah akun/outlet'
+    tone = 'bg-red-100 text-red-700'
+  } else if (showStuck) {
+    label = `Tertunda (${stuck.length})`
+    tone = 'bg-amber-100 text-amber-700'
   } else if (pendingCount > 0) {
     label = `Menyinkronkan ${pendingCount}…`
     tone = 'bg-amber-100 text-amber-700'
@@ -110,17 +146,22 @@ export const SyncStatus = memo(function SyncStatus({
             {hasFailed && (
               <div className="space-y-1">
                 <p className="font-semibold text-red-700">
-                  {failed.length} transaksi gagal sinkron
+                  Perlu ditinjau ({review.length})
                 </p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
-                  {failed.map((f) => (
+                  {review.map((f) => (
                     <div
                       key={f.idempotencyKey}
                       className="bg-red-50 rounded-lg px-2 py-1.5"
                     >
-                      <p className="font-semibold text-red-700">{f.type}</p>
+                      <p className="font-semibold text-red-700">
+                        {typeLabel(f.type)}
+                        {f.clientCreatedAt && (
+                          <span className="font-normal text-red-500"> · {formatTime(f.clientCreatedAt)}</span>
+                        )}
+                      </p>
                       <p className="text-[10px] text-red-600 break-words">
-                        {f.lastError ?? 'unknown error'}
+                        {f.lastError ?? 'Alasan tidak diketahui'}
                       </p>
                     </div>
                   ))}
@@ -138,12 +179,34 @@ export const SyncStatus = memo(function SyncStatus({
                   Bagikan log diagnostik
                 </button>
                 <p className="text-[11px] text-gray-500">
-                  Transaksi tetap tersimpan dan perlu disinkronkan.
+                  Data tetap tersimpan di perangkat dan tidak dikirim ulang otomatis.
                 </p>
               </div>
             )}
 
-            {!updateAvailable && pendingCount === 0 && !hasFailed && (
+            {showAccount && (
+              <p className="bg-red-50 text-red-700 rounded-lg px-2 py-1.5 font-semibold">
+                {accountProblem}
+              </p>
+            )}
+
+            {showStuck && (
+              <div className="space-y-1">
+                <p className="font-semibold text-amber-700">
+                  Tertunda berulang ({stuck.length})
+                </p>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {stuck.map((f) => (
+                    <div key={f.idempotencyKey} className="bg-amber-50 rounded-lg px-2 py-1.5">
+                      <p className="font-semibold text-amber-700">{typeLabel(f.type)}</p>
+                      <p className="text-[10px] text-amber-700 break-words">{f.lastError}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!updateAvailable && pendingCount === 0 && !hasFailed && !showStuck && !showAccount && (
               <p className="text-gray-400 text-center">Semua tersinkron ✓</p>
             )}
           </div>
