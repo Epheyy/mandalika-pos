@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fetchAllPages, type Order } from '@mandalika/api'
+import { fetchAllPages, type AppSettings, type Order } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -10,6 +10,7 @@ import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
+import { paymentFilterOptions } from '../lib/paymentOptions'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
 import { Select, Textarea, fieldClass } from '../ui/Field'
@@ -47,6 +48,8 @@ export function OrdersPanel() {
     [outletId],
   )
   const orders = q.data ?? []
+  const sq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
+  const payOptions = paymentFilterOptions(sq.data?.paymentMethods, orders)
 
   const filtered = orders.filter((o) => {
     const s = query.toLowerCase()
@@ -133,10 +136,7 @@ export function OrdersPanel() {
         </Select>
         <Select value={fPay} onChange={(e) => setFPay(e.target.value)} className="w-auto" aria-label="Filter pembayaran">
           <option value="">Semua Pembayaran</option>
-          <option value="cash">Tunai</option>
-          <option value="card">Kartu</option>
-          <option value="qris">QRIS</option>
-          <option value="transfer">Transfer</option>
+          {payOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </Select>
         <Button
           variant="secondary"
@@ -241,7 +241,7 @@ export function OrdersPanel() {
                         )}
                         <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>
-                        {o.paymentMethod === 'cash' && o.change > 0 && (
+                        {o.change > 0 && (
                           <div className="flex justify-between text-sm text-green-600 font-bold"><span>Kembalian</span><span>{BRAND.currency.format(o.change)}</span></div>
                         )}
                       </div>
