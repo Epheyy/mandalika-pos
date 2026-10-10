@@ -95,7 +95,16 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
    survives force-close; "Ya, hapus" gone; guest sale; customer+loyalty sale; linked
    code/BXGY/bundle; refund (terminal account needs "Proses Refund", re-login); Rekapan +
    Riwayat; shift close; transfer receive prints TT; offline sale syncs after reconnect.
-   **Next: P0 slice 5 — A02 + A03 client states** (needs_review, backoff, route by `code`).
+   **P0 slice 5 (A02+A03 client states)** — code + Opus review done on branch
+   `feat/pos-review-states` (`193b741`, `80d1a03`), **NOT merged on purpose**: merge only
+   after the owner signs off the APK 1.1 checklist (so a 1.1 hotfix can't ship untested
+   slice 5), then ship in APK 1.2. Contents: rollback-safe review state (failed +
+   attempts>=MAX + reviewCode), non-retryable codes → review, competing receipts → review
+   with counts kept (PIN stripped), typed ApiError + 30 s batch / 15 s refresh timeouts,
+   offline counts nothing, 5xx/timeout backoff 20 s→5 min, only 400/413/422 isolate items,
+   other 4xx = "Masalah akun/outlet" (nothing parked). Deferred: denied-refund effect on
+   shift expected cash. Before the first OTA: make `backend/internal/ota/decide.go` offer
+   only strictly newer versions.
    CI flakiness today: Docker Hub, ECR Public and Maven Central all rate-limited/refused
    hosted runners once each (re-runs passed); consider caching the PG image in GHCR and
    Gradle download retries. setup-android no longer installs the removed `tools` package.
