@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppSettings } from '@mandalika/api'
+import { isCashMethod } from '@mandalika/types'
 import { ToggleRight, Upload, X } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -22,10 +23,10 @@ const DEFAULT: AppSettings = {
   roundingDirection: 'floor',
   roundingApplyToTax: false,
   paymentMethods: [
-    { id: 'cash', label: 'Tunai', isEnabled: true },
-    { id: 'card', label: 'Kartu', isEnabled: true },
-    { id: 'qris', label: 'QRIS', isEnabled: true },
-    { id: 'transfer', label: 'Transfer', isEnabled: true },
+    { id: 'cash', label: 'Tunai', isEnabled: true, isCash: true },
+    { id: 'card', label: 'Kartu', isEnabled: true, isCash: false },
+    { id: 'qris', label: 'QRIS', isEnabled: true, isCash: false },
+    { id: 'transfer', label: 'Transfer', isEnabled: true, isCash: false },
   ],
   receipt: {
     headerText: 'Mandalika Perfume',
@@ -77,7 +78,9 @@ export default function SettingsScreen() {
     setSaving(true)
     setMsg(null)
     try {
-      await api.updateAppSettings({ ...s, receiveApproverRoles: approverRoles })
+      // Persist the resolved cash flag explicitly for every method.
+      const paymentMethods = s.paymentMethods.map((m) => ({ ...m, isCash: isCashMethod(s.paymentMethods, m.id) }))
+      await api.updateAppSettings({ ...s, paymentMethods, receiveApproverRoles: approverRoles })
       setMsg('Pengaturan disimpan!')
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Gagal menyimpan.')

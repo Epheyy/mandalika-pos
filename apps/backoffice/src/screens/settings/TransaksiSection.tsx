@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { AppSettings } from '@mandalika/api'
+import { isCashMethod } from '@mandalika/types'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
@@ -75,25 +76,43 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
       <Card className="p-6 space-y-5">
         <h3 className="font-black text-gray-900">Metode Pembayaran</h3>
         <div className="space-y-2">
-          {s.paymentMethods.map((pm) => (
-            <div key={pm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-              <span className="font-bold text-gray-900 text-sm">{pm.label}</span>
-              <div className="flex items-center gap-2">
-                <Toggle
-                  label={`Aktifkan metode ${pm.label}`}
-                  checked={pm.isEnabled}
-                  size="sm"
-                  onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
-                />
-                {!['cash', 'card', 'qris', 'transfer'].includes(pm.id) && (
-                  <IconButton tone="danger" onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.filter((x) => x.id !== pm.id) }))}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </IconButton>
-                )}
+          {s.paymentMethods.map((pm) => {
+            // Always the RESOLVED value (id default when no explicit flag), never `?? false`.
+            const isCash = isCashMethod(s.paymentMethods, pm.id)
+            return (
+              <div key={pm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <span className="font-bold text-gray-900 text-sm">{pm.label}</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                    Tunai (masuk laci kas)
+                    <Toggle
+                      label={`Metode ${pm.label} masuk laci kas`}
+                      checked={isCash}
+                      size="sm"
+                      onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isCash: !isCash } : x) }))}
+                    />
+                  </span>
+                  <Toggle
+                    label={`Aktifkan metode ${pm.label}`}
+                    checked={pm.isEnabled}
+                    size="sm"
+                    onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
+                  />
+                  {!['cash', 'card', 'qris', 'transfer'].includes(pm.id) && !isCash && (
+                    <IconButton tone="danger" onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.filter((x) => x.id !== pm.id) }))}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </IconButton>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
+        {!s.paymentMethods.some((m) => m.isEnabled && isCashMethod(s.paymentMethods, m.id)) && (
+          <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+            Belum ada metode pembayaran tunai yang aktif: kasir tidak bisa menerima uang tunai dan kembalian.
+          </p>
+        )}
         <div className="flex gap-2 items-stretch">
           <input
             type="text"
@@ -108,7 +127,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
             onClick={() => {
               if (!newPay.trim()) return
               const pid = newPay.toLowerCase().replace(/\s+/g, '_')
-              if (s.paymentMethods.some((p) => p.id === pid)) return
+              if (s.paymentMethods.some((p) => p.id.toLowerCase() === pid)) return
               setS((p) => ({ ...p, paymentMethods: [...p.paymentMethods, { id: pid, label: newPay.trim(), isEnabled: true }] }))
               setNewPay('')
             }}
