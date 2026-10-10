@@ -17,6 +17,13 @@ import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 
+const TENDER_WARNING_TITLES: Record<string, string> = {
+  cash_short: 'Tunai kurang dari total',
+  noncash_amount_mismatch: 'Nominal non-tunai beda dari total',
+}
+const tenderWarningTitle = (reason?: string | null) =>
+  reason ? (TENDER_WARNING_TITLES[reason] ?? reason) : undefined
+
 const badgeTone = (st: string): 'success' | 'danger' | 'neutral' =>
   st === 'completed' ? 'success' : st === 'refunded' ? 'danger' : 'neutral'
 const label = (st: string) =>
@@ -190,7 +197,7 @@ export function OrdersPanel() {
                     )}
                     {o.tenderWarning && (
                       <span
-                        title={o.tenderWarningReason === 'cash_short' ? 'Tunai kurang dari total' : 'Nominal non-tunai beda dari total'}
+                        title={tenderWarningTitle(o.tenderWarningReason)}
                         className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
                       >
                         ⚠ Bayar
