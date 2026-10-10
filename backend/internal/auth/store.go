@@ -232,7 +232,8 @@ type ResetResult struct {
 	Email string
 	Role  string
 	// JTIs are the user's unexpired refresh jtis (including already-revoked
-	// ones, so a retry after a failed Redis cleanup still finds them).
+	// ones from the last hour, so a retry after a failed Redis cleanup still
+	// finds them; the marker covers older rotated rows).
 	JTIs []string
 }
 
@@ -256,7 +257,8 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 		return ResetResult{}, err
 	}
 	rows, err := tx.Query(ctx,
-		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND expires_at>now() RETURNING jti`, id)
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND expires_at>now()
+		    AND (NOT revoked OR created_at > now() - interval '1 hour') RETURNING jti`, id)
 	if err != nil {
 		return ResetResult{}, err
 	}
