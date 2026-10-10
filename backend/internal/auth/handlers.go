@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/clientip"
 	"github.com/mandalika/pos-backend/internal/config"
@@ -17,6 +19,11 @@ type Handler struct {
 	Cfg   *config.Config
 	Store *Store
 	Cache *cache.Cache
+
+	// reset overrides Store for admin password reset (tests); nil uses Store.
+	reset resetStore
+	// now overrides time.Now for the reset marker (tests); nil uses time.Now.
+	now func() time.Time
 }
 
 func NewHandler(cfg *config.Config, store *Store, c *cache.Cache) *Handler {
@@ -131,8 +138,9 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-	// Reuse-detection: jti must still be present and not revoked.
-	if _, ok := h.Cache.Get(r.Context(), "refresh:"+rc.ID); !ok {
+	// Reuse-detection: jti must still be present and not revoked, and the
+	// token must not predate an admin password reset for this user.
+	if !h.refreshUsable(r.Context(), rc) {
 		httpx.Err(w, http.StatusUnauthorized, "refresh token expired or revoked")
 		return
 	}
@@ -177,4 +185,29 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, u)
+}
+
+// refreshUsable reports whether a parsed refresh token may still be exchanged:
+// its jti is live in Redis and it was not issued before the user's last admin
+// password reset (refresh_revoked_before marker).
+func (h *Handler) refreshUsable(ctx context.Context, rc *RefreshClaims) bool {
+	if _, ok := h.Cache.Get(ctx, "refresh:"+rc.ID); !ok {
+		return false
+	}
+	marker, hasMarker := h.Cache.Get(ctx, refreshRevokedKey(rc.UserID))
+	return !refreshRevoked(rc.IssuedAt, marker, hasMarker)
+}
+
+// refreshRevoked reports whether a token with the given iat predates the
+// per-user marker (unix seconds). A marker that exists but cannot be parsed,
+// or a token without iat, is treated as revoked (fail closed).
+func refreshRevoked(iat *jwt.NumericDate, marker string, hasMarker bool) bool {
+	if !hasMarker {
+		return false
+	}
+	before, err := strconv.ParseInt(marker, 10, 64)
+	if err != nil || iat == nil {
+		return true
+	}
+	return iat.Unix() < before
 }

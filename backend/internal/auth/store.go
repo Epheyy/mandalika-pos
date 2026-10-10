@@ -227,3 +227,58 @@ func (s *Store) CreateUser(ctx context.Context, email, password, name, role, out
 	}
 	return id, nil
 }
+
+// ResetResult is what an admin password reset reports about the target user.
+type ResetResult struct {
+	Email string
+	Role  string
+}
+
+// ResetPassword sets a new password hash for the user and revokes every
+// refresh_tokens row in one transaction. ErrNotFound when the user is gone.
+func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult, error) {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return ResetResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var res ResetResult
+	err = tx.QueryRow(ctx,
+		`UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING email, role`, hash, id,
+	).Scan(&res.Email, &res.Role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ResetResult{}, ErrNotFound
+	}
+	if err != nil {
+		return ResetResult{}, err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND revoked=false`, id); err != nil {
+		return ResetResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ResetResult{}, err
+	}
+	return res, nil
+}
+
+// ActiveRefreshJTIs lists the user's unrevoked, unexpired refresh jtis so the
+// matching Redis keys can be deleted.
+func (s *Store) ActiveRefreshJTIs(ctx context.Context, userID string) ([]string, error) {
+	rows, err := s.Pool.Query(ctx,
+		`SELECT jti FROM refresh_tokens WHERE user_id=$1 AND revoked=false AND expires_at>now()`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var j string
+		if err := rows.Scan(&j); err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
