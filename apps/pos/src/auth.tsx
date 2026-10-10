@@ -62,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Silent refresh persists rotated tokens; the POS session then lives
     // until the cashier explicitly logs out (refresh TTL is long server-side).
     authStore.onTokens = (d) => {
+      // A refresh that resolves after logout must not sign the cashier back in.
+      if (authStore.refresh === null) return
       authStore.access = d.access
       authStore.refresh = d.refresh
       authStore.outletId = d.user?.outletId ?? authStore.outletId
