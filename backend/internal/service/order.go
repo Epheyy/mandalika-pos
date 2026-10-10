@@ -308,6 +308,15 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		return "", false, false, err
 	}
 
+	// A09 tender rules, judged once per new sale (replays returned above). Online
+	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
+	// non-cash mismatches are accepted with the captured amount and flagged.
+	amountPaid, change, tenderReason := evaluateTender(in.PaymentMethod, in.AmountPaid, finalTotal)
+	if tenderReason == TenderCashShort && !in.Offline {
+		return "", false, false, tenderRejectedError(in.AmountPaid, finalTotal)
+	}
+	tenderWarning := tenderReason != ""
+
 	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
 	base := res.EarnedPoints
@@ -400,17 +409,6 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		}
 	}
 
-	amountPaid := in.AmountPaid
-	change := 0.0
-	if in.PaymentMethod == "cash" {
-		change = amountPaid - finalTotal
-		if change < 0 {
-			change = 0
-		}
-	} else {
-		amountPaid = finalTotal
-	}
-
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (
 		  order_number, order_uuid, idempotency_key, device_id, outlet_id,
@@ -419,9 +417,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb,$37,$38)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -433,6 +431,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
+		tenderWarning, nullStr(tenderReason),
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {

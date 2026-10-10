@@ -988,6 +988,10 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 			httpx.Err(w, http.StatusUnprocessableEntity, discountRejectMessage(rej.Violations))
 			return
 		}
+		if errors.Is(err, service.ErrTenderRejected) {
+			httpx.Err(w, http.StatusUnprocessableEntity, "Uang tunai yang diterima kurang dari total pembayaran")
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
