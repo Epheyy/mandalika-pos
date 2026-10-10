@@ -945,6 +945,28 @@ func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 
 // ── Settings (singletons) ─────────────────────────────────
 
+// validatePaymentMethods rejects shapes that would break the typed read path (and
+// so sync pull on every tablet): wrong types (e.g. a non-bool isCash), empty ids
+// and case-insensitive duplicate ids. The raw JSON is stored as sent.
+func validatePaymentMethods(raw json.RawMessage) error {
+	var methods []api.PaymentMethodConfig
+	if err := json.Unmarshal(raw, &methods); err != nil {
+		return fmt.Errorf("paymentMethods tidak valid: %w", err)
+	}
+	seen := make(map[string]bool, len(methods))
+	for _, m := range methods {
+		id := strings.ToLower(strings.TrimSpace(m.Id))
+		if id == "" {
+			return errors.New("paymentMethods: id metode pembayaran wajib diisi")
+		}
+		if seen[id] {
+			return fmt.Errorf("paymentMethods: id ganda %q", m.Id)
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error {
 	var s struct {
 		TaxEnabled           bool                  `json:"taxEnabled"`
@@ -965,8 +987,11 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
 	}
-	if len(s.PaymentMethods) == 0 {
+	if len(s.PaymentMethods) == 0 || strings.TrimSpace(string(s.PaymentMethods)) == "null" {
 		s.PaymentMethods = json.RawMessage("[]")
+	}
+	if err := validatePaymentMethods(s.PaymentMethods); err != nil {
+		return err
 	}
 	if len(s.Receipt) == 0 {
 		s.Receipt = json.RawMessage("{}")
