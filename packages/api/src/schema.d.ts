@@ -6334,6 +6334,15 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+            /** @description discount or tender rejected (online only; cash shortfall or invalid discount) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getOrder: {
