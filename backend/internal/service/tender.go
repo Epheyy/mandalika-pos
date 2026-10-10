@@ -12,7 +12,6 @@ const (
 	TenderCashShort       = "cash_short"
 	TenderNoncashMismatch = "noncash_amount_mismatch"
 	tenderToleranceCents  = 100 // Rp1: a difference of up to one rupiah is not a shortfall/mismatch
-	tenderMethodCash      = "cash"
 )
 
 // ErrTenderRejected is returned for an ONLINE (direct POST /orders) cash shortfall
@@ -26,11 +25,11 @@ func tenderRejectedError(paid, due float64) error {
 // evaluateTender applies the tender rules to the captured amount and the server
 // total. It returns the amount to store (always the captured amount), the change
 // owed (cash only) and a warning reason ("" when the tender is acceptable).
-// Comparison is in whole cents with a Rp1 tolerance. Only the exact method "cash"
-// is cash; every other configured method is non-cash.
-func evaluateTender(method string, captured, due float64) (amountPaid, change float64, reason string) {
+// Comparison is in whole cents with a Rp1 tolerance. Whether a method is cash is
+// decided by the caller (IsCashMethod); every other method is non-cash.
+func evaluateTender(isCash bool, captured, due float64) (amountPaid, change float64, reason string) {
 	capC, dueC := int64(math.Round(captured*100)), int64(math.Round(due*100))
-	if method == tenderMethodCash {
+	if isCash {
 		switch {
 		case capC >= dueC:
 			change = float64(capC-dueC) / 100

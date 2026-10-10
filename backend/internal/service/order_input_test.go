@@ -21,15 +21,16 @@ func (r inputTestRow) Scan(dest ...any) error { return r(dest...) }
 // It records attempted SQL effects, not PostgreSQL balances or durability.
 type inputTestTx struct {
 	pgx.Tx
-	writes      int
-	commits     int
-	queries     []string
-	existing    string
-	allowWrites bool
-	stock       int
-	taxRate     float64
-	orderArgs   []any
-	key         string
+	writes         int
+	commits        int
+	queries        []string
+	existing       string
+	allowWrites    bool
+	stock          int
+	taxRate        float64
+	paymentMethods []byte
+	orderArgs      []any
+	key            string
 }
 
 func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
@@ -48,6 +49,9 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 			*d[1].(*float64) = tx.taxRate
 			*d[2].(*bool) = false
 			*d[3].(*string) = "none"
+			if len(d) > 4 {
+				*d[4].(*[]byte) = tx.paymentMethods
+			}
 			return nil
 		case strings.Contains(sql, "FROM loyalty_settings"):
 			*d[0].(*bool) = false
@@ -305,6 +309,37 @@ func TestTenderShortfallBeforeEffects(t *testing.T) {
 		})
 	}
 }
+
+// Slice 8c: the live cash method id is "tunai"; the configured flag decides.
+func TestTenderCashIdentityFromSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, methods string
+		wantReject            bool
+	}{
+		{"tunai is cash by default", "tunai", ``, true},
+		{"TUNAI is cash by default", "TUNAI", ``, true},
+		{"explicit isCash=false makes tunai non-cash", "tunai", `[{"id":"tunai","label":"T","isEnabled":true,"isCash":false}]`, false},
+		{"explicit isCash=true makes a custom id cash", "kas_kecil", `[{"id":"kas_kecil","label":"K","isEnabled":true,"isCash":true}]`, true},
+		{"unflagged custom id is non-cash", "bca", ``, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := ordinaryInput() // 100000 line, no tax
+			in.PaymentMethod, in.AmountPaid = tc.method, 90000
+			tx := &inputTestTx{allowWrites: true, stock: 5, paymentMethods: []byte(tc.methods)}
+			_, _, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+			if tc.wantReject {
+				if !errors.Is(err, ErrTenderRejected) || tx.writes != 0 {
+					t.Fatalf("want 422 before effects: err=%v tx=%+v", err, tx)
+				}
+				return
+			}
+			if err != nil || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderNoncashMismatch) {
+				t.Fatalf("want accepted + mismatch flag: err=%v args=%v", err, tx.orderArgs)
+			}
+		})
+	}
+}
+
 func (tx *inputTestTx) Rollback(context.Context) error { return nil }
 func (tx *inputTestTx) Commit(context.Context) error   { tx.commits++; return nil }
 

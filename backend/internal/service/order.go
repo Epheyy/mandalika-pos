@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -179,7 +180,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	}
 	discountWarning := discountWarnReason != ""
 
-	taxEnabled, taxRate, roundEnabled, roundType, err := loadAppSettings(ctx, tx)
+	settings, err := loadAppSettings(ctx, tx)
 	if err != nil {
 		return "", false, false, err
 	}
@@ -242,8 +243,8 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	res := Compute(PricingInput{
 		Items: items, ManualDiscount: in.ManualValue, ManualKind: in.ManualKind,
 		Surcharge: in.Surcharge, SurchargeKind: in.SurchargeKind, Promos: promos,
-		TaxEnabled: taxEnabled, TaxRate: taxRate,
-		RoundingEnabled: roundEnabled, RoundingType: roundType,
+		TaxEnabled: settings.TaxEnabled, TaxRate: settings.TaxRate,
+		RoundingEnabled: settings.RoundingEnabled, RoundingType: settings.RoundingType,
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
 		HasCustomer: in.CustomerID != "",
 	})
@@ -311,7 +312,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// A09 tender rules, judged once per new sale (replays returned above). Online
 	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
 	// non-cash mismatches are accepted with the captured amount and flagged.
-	amountPaid, change, tenderReason := evaluateTender(in.PaymentMethod, in.AmountPaid, finalTotal)
+	amountPaid, change, tenderReason := evaluateTender(IsCashMethod(settings.PaymentMethods, in.PaymentMethod), in.AmountPaid, finalTotal)
 	if tenderReason == TenderCashShort && !in.Offline {
 		return "", false, false, tenderRejectedError(in.AmountPaid, finalTotal)
 	}
@@ -1071,14 +1072,40 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	return specs, codeIDs, appliedCodes, warn, nil
 }
 
-func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, string, error) {
-	var te, re bool
-	var tr float64
-	var rt string
+// appSettings is the slice of app_settings an order needs: pricing switches and
+// the configured payment methods (for the cash/non-cash decision).
+type appSettings struct {
+	TaxEnabled      bool
+	TaxRate         float64
+	RoundingEnabled bool
+	RoundingType    string
+	PaymentMethods  []api.PaymentMethodConfig
+}
+
+func loadAppSettings(ctx context.Context, tx pgx.Tx) (appSettings, error) {
+	var a appSettings
+	var methods []byte
 	err := tx.QueryRow(ctx,
-		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type
-		   FROM app_settings WHERE id=1`).Scan(&te, &tr, &re, &rt)
-	return te, tr, re, rt, err
+		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type, payment_methods
+		   FROM app_settings WHERE id=1`).Scan(&a.TaxEnabled, &a.TaxRate, &a.RoundingEnabled, &a.RoundingType, &methods)
+	if err != nil {
+		return a, err
+	}
+	a.PaymentMethods = parsePaymentMethods(methods)
+	return a, nil
+}
+
+// parsePaymentMethods is tolerant: a malformed stored value must not stop sales,
+// it just falls back to the id defaults in IsCashMethod. Writes are validated.
+func parsePaymentMethods(raw []byte) []api.PaymentMethodConfig {
+	if len(raw) == 0 {
+		return nil
+	}
+	var methods []api.PaymentMethodConfig
+	if err := json.Unmarshal(raw, &methods); err != nil {
+		return nil
+	}
+	return methods
 }
 
 // rowQueryRower is satisfied by both *pgxpool.Pool and pgx.Tx, so loadLoyalty
