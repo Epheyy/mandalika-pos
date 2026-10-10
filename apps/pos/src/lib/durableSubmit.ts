@@ -41,5 +41,11 @@ export function notSavedMessage(what: string): string {
   return `${what} BELUM tersimpan di perangkat. Coba lagi.`
 }
 
+export const OUTBOX_CORRUPT_PENDING_MESSAGE =
+  'Antrean sinkronisasi rusak; sedang diamankan. Hubungi admin sebelum melanjutkan transaksi.'
+
+export const OUTBOX_CORRUPT_UNSECURED_MESSAGE =
+  'Antrean sinkronisasi rusak dan GAGAL diamankan; jangan hapus data aplikasi, hubungi admin.'
+
 export const OUTBOX_CORRUPT_MESSAGE =
   'Antrean sinkronisasi rusak dan telah diamankan; hubungi admin sebelum melanjutkan transaksi.'

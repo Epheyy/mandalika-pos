@@ -31,7 +31,15 @@ export interface OutboxItem {
    *  surfaced via deadLettered()) so one poison item can't block the queue
    *  or retry forever silently. */
   attempts?: number
+  /** Consecutive server results with `retryable: true`. These never count toward
+   *  MAX_ATTEMPTS (the item keeps retrying) but flag it for attention at
+   *  RETRYABLE_ATTENTION_AFTER. Additive: older bundles ignore it. */
+  retryableFailures?: number
 }
+
+/** After this many consecutive retryable failures an item is reported and shown
+ *  as needing attention, while it keeps retrying. */
+export const RETRYABLE_ATTENTION_AFTER = 10
 
 /** A server rejection that recurs this many times is treated as permanent. */
 export const MAX_ATTEMPTS = 5
@@ -79,6 +87,9 @@ export class Outbox {
   // Resolves once the quarantine copy and marker (if any) are durably written;
   // rejects if they could not be, in which case NO outbox write may ever proceed.
   private ready: Promise<void> = Promise.resolve()
+  // Once disposed (engine replaced after logout), this instance must never write
+  // the outbox key: a stale whole-array write would drop items the live instance committed.
+  private disposed = false
 
   constructor(private kv: KV) {
     const raw = kv.get(OUTBOX_KEY)
@@ -108,6 +119,22 @@ export class Outbox {
     this.seqCounter = items.reduce((m, i) => Math.max(m, i.seq), 0)
   }
 
+  /** Make every later mutation on this instance a no-op / rejection. Reversible
+   *  only through {@link revive} (React StrictMode re-runs effects on one engine). */
+  dispose(): void {
+    this.disposed = true
+  }
+
+  revive(): void {
+    this.disposed = false
+  }
+
+  /** Resolves true when there is nothing to quarantine or the quarantine copy
+   *  was durably written; false if that write failed. */
+  quarantineResult(): Promise<boolean> {
+    return this.ready.then(() => true, () => false)
+  }
+
   /** Set when the stored queue was unreadable and quarantined (now or on an
    *  earlier boot, via the durable marker). */
   corruptionInfo(): OutboxCorruption | null {
@@ -125,7 +152,9 @@ export class Outbox {
 
   /** Write `next` durably, then (only on success) make it the live queue. */
   private async commit(next: OutboxItem[]): Promise<void> {
+    if (this.disposed) throw new Error('outbox disposed')
     await this.ready
+    if (this.disposed) throw new Error('outbox disposed')
     await this.kv.setDurable(OUTBOX_KEY, JSON.stringify(next))
     this.items = next
   }
@@ -134,11 +163,13 @@ export class Outbox {
    *  write is logged and the in-memory queue is simply left unchanged. */
   private mutate(fn: (items: OutboxItem[]) => OutboxItem[] | null): Promise<void> {
     return this.run(async () => {
+      if (this.disposed) return
       const next = fn(this.items)
       if (!next) return
       try {
         await this.commit(next)
       } catch (err) {
+        if (this.disposed) return
         console.error('[outbox] write failed; queue unchanged', err)
       }
     })
@@ -184,6 +215,12 @@ export class Outbox {
     )
   }
 
+  /** Still-retrying items that failed retryably at least RETRYABLE_ATTENTION_AFTER
+   *  times in a row: likely a deterministic server problem, not a blip. */
+  stuckRetrying(): OutboxItem[] {
+    return this.pending().filter((i) => (i.retryableFailures ?? 0) >= RETRYABLE_ATTENTION_AFTER)
+  }
+
   count(): number {
     return this.pending().length
   }
@@ -207,7 +244,16 @@ export class Outbox {
           next.push({ ...it, status: 'acked' })
         } else {
           changed = true
-          next.push({ ...it, status: 'failed', lastError: u.error, attempts: (it.attempts ?? 0) + (u.retryable === true ? 0 : 1) })
+          const retryable = u.retryable === true
+          const failed: OutboxItem = {
+            ...it,
+            status: 'failed',
+            lastError: u.error,
+            attempts: (it.attempts ?? 0) + (retryable ? 0 : 1),
+          }
+          if (retryable) failed.retryableFailures = (it.retryableFailures ?? 0) + 1
+          else delete failed.retryableFailures // not consecutive any more
+          next.push(failed)
         }
       }
       return changed ? next : null

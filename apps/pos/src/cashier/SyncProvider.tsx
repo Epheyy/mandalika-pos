@@ -19,7 +19,7 @@ import { api } from '../api'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
-import { OUTBOX_CORRUPT_MESSAGE } from '../lib/durableSubmit'
+import { OUTBOX_CORRUPT_MESSAGE, OUTBOX_CORRUPT_UNSECURED_MESSAGE, OUTBOX_CORRUPT_PENDING_MESSAGE } from '../lib/durableSubmit'
 
 type Transfer = components['schemas']['Transfer']
 
@@ -85,6 +85,18 @@ export function SyncProvider({
               onReceiveRejectedRef.current?.('Penerimaan dibatalkan — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan.')
             }
           },
+          onStuckRetrying: (items) => {
+            void reportErrors(
+              items.map((i) => ({
+                source: 'sync' as const,
+                kind: i.type,
+                action: `Sinkronisasi tertunda berulang: ${i.type}`,
+                message: i.lastError ?? 'server bermasalah',
+                payload: i.payload,
+                outletName: engineRef.current?.getSnapshot().outletName ?? null,
+              })),
+            )
+          },
           onReceiveRejected: (msg) => onReceiveRejectedRef.current?.(msg),
           onReceiveAccepted: (transfer) => onReceiveAcceptedRef.current?.(transfer),
         },
@@ -100,15 +112,19 @@ export function SyncProvider({
   // The stored queue was unreadable: its raw bytes were quarantined and the
   // queue started empty. Say so on every screen, and ship it to the error log.
   const corruption = engine.outboxCorruption()
+  const [quarantineOk, setQuarantineOk] = useState<boolean | null>(null)
   useEffect(() => {
     if (!corruption) return
+    let live = true
+    void engine.outbox.quarantineResult().then((ok) => { if (live) setQuarantineOk(ok) })
     void reportErrors([{
       source: 'runtime',
       kind: 'outbox_corrupt',
       action: 'Antrean sinkronisasi rusak',
       message: `Outbox tidak terbaca; salinan asli disimpan di ${corruption.quarantineKey}`,
     }])
-  }, [corruption])
+    return () => { live = false }
+  }, [corruption, engine])
 
   useEffect(() => {
     // Bootstrap: pull snapshot, then start periodic polling
@@ -125,7 +141,12 @@ export function SyncProvider({
     // Poll every 12s: flushes the outbox and refreshes real server
     // reachability (drives the header online/offline dot).
     const stop = engine.start(12_000)
-    return stop
+    return () => {
+      stop()
+      // Logout/unmount: this engine must never write the outbox again (the next
+      // login builds a new one). start() revives it for StrictMode's dev re-run.
+      engine.dispose()
+    }
   }, [engine])
 
   if (!ready) {
@@ -137,7 +158,9 @@ export function SyncProvider({
       {corruption && (
         // Persistent and non-dismissable; pointer-events-none so it never blocks the header.
         <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-red-700 text-white text-sm font-bold px-4 py-2 text-center safe-top">
-          {OUTBOX_CORRUPT_MESSAGE}
+          {quarantineOk === null
+            ? OUTBOX_CORRUPT_PENDING_MESSAGE
+            : quarantineOk ? OUTBOX_CORRUPT_MESSAGE : OUTBOX_CORRUPT_UNSECURED_MESSAGE}
         </div>
       )}
       <SyncReceiveRejectedRefContext.Provider value={onReceiveRejectedRef}>

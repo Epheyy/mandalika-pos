@@ -4,7 +4,7 @@
  */
 
 import { useCallback, use, useEffect, useState } from 'react'
-import type { WallState } from '@mandalika/sync'
+import type { SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 
 export interface FailedItem {
@@ -28,6 +28,20 @@ export interface OfflineDataState {
   buildFailedSyncDiagnostics: () => string
 }
 
+export const STUCK_RETRY_MESSAGE =
+  'Belum tersinkron setelah beberapa kali coba — server sedang bermasalah. Tetap dicoba ulang otomatis; hubungi admin bila berlanjut.'
+
+/** Parked items plus still-retrying items that keep failing on the server. */
+function attention(engine: SyncEngine): FailedItem[] {
+  const dead = engine.deadLettered()
+  const deadKeys = new Set(dead.map((d) => d.idempotencyKey))
+  const stuck = engine
+    .stuckRetrying()
+    .filter((s) => !deadKeys.has(s.idempotencyKey))
+    .map((s) => ({ ...s, lastError: STUCK_RETRY_MESSAGE }))
+  return [...dead, ...stuck]
+}
+
 export function useOfflineData(): OfflineDataState {
   const engine = use(SyncContext)
   if (!engine) throw new Error('useOfflineData must be used within SyncProvider')
@@ -38,7 +52,7 @@ export function useOfflineData(): OfflineDataState {
   const [isOnline, setIsOnline] = useState(() => engine.isReachable())
   const [wall, setWall] = useState<WallState>(() => engine.getWall())
   const [pendingCount, setPendingCount] = useState(() => engine.pendingCount())
-  const [failed, setFailed] = useState<FailedItem[]>(() => engine.deadLettered())
+  const [failed, setFailed] = useState<FailedItem[]>(() => attention(engine))
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
@@ -92,7 +106,7 @@ export function useOfflineData(): OfflineDataState {
     const interval = setInterval(() => {
       setWall(engine.getWall())
       setPendingCount(engine.pendingCount())
-      setFailed(engine.deadLettered())
+      setFailed(attention(engine))
       setIsOnline(engine.isReachable())
     }, 2000)
     return () => clearInterval(interval)
@@ -100,7 +114,7 @@ export function useOfflineData(): OfflineDataState {
 
   const retryFailed = useCallback(async () => {
     await engine.retryFailed()
-    setFailed(engine.deadLettered())
+    setFailed(attention(engine))
     setPendingCount(engine.pendingCount())
   }, [engine])
 

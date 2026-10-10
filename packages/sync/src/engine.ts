@@ -55,6 +55,11 @@ export interface SyncEvents {
   /** Fired when a transfer_receive is terminally rejected by the server and rolled
    *  back (handled — NOT a failed sync the cashier must retry). */
   onReceiveRejected?: (msg: string) => void
+  /** Fired once per item when it has failed retryably many times in a row (it
+   *  keeps retrying, but a persistent server problem needs a human). */
+  onStuckRetrying?: (
+    items: { type: OutboxType; idempotencyKey: string; payload: Record<string, unknown>; lastError?: string }[],
+  ) => void
   /** Fired when a transfer_receive is accepted by the server. Carries the full
    *  completed Transfer snapshot (with the freshly-assigned tandaTerimaNo and
    *  resolved receiver letterhead) so the UI can render the post-receive slip
@@ -81,6 +86,9 @@ export class SyncEngine {
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
+  private reportedStuck = new Set<string>()
+  private disposed = false
+  private stopTimers: (() => void) | null = null
   private wall: WallState
   private reachable: boolean = ONLINE()
 
@@ -98,6 +106,26 @@ export class SyncEngine {
     this.pending = new PendingCredits(kv)
     this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
+  }
+
+  /** Retire this engine (SyncProvider unmounted / replaced after logout): stop
+   *  timers, ignore an in-flight flush's result, and make its outbox read-only so
+   *  it can never overwrite what the next engine commits. `start()` revives it,
+   *  because React StrictMode re-runs effects on the same instance in dev. */
+  dispose(): void {
+    this.disposed = true
+    this.stopTimers?.()
+    this.stopTimers = null
+    this.outbox.dispose()
+  }
+
+  /** Still-retrying items past the consecutive-retryable-failure threshold. */
+  stuckRetrying(): { idempotencyKey: string; type: string; lastError?: string }[] {
+    return this.outbox.stuckRetrying().map((i) => ({
+      idempotencyKey: i.idempotencyKey,
+      type: i.type,
+      lastError: i.lastError,
+    }))
   }
 
   /** Last known real server reachability (updated by resync / checkVersion). */
@@ -322,7 +350,7 @@ export class SyncEngine {
    * the sync wall is raised so pending revenue is never trapped (plan §5a).
    */
   async flush(): Promise<BatchResult | null> {
-    if (this.flushing || !ONLINE()) return null
+    if (this.disposed || this.flushing || !ONLINE()) return null
     const pending = this.outbox.pending()
     if (pending.length === 0) return null
     this.flushing = true
@@ -338,6 +366,7 @@ export class SyncEngine {
         '/api/v1/sync/batch',
         { items },
       )
+      if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
       const updates: OutboxSettle[] = []
       for (const res of r.data.results) {
         if (res.status === 'ok' || res.status === 'duplicate') {
@@ -408,12 +437,29 @@ export class SyncEngine {
     } finally {
       this.flushing = false
       this.emitDeadLetters()
+      this.emitStuckRetrying()
     }
+  }
+
+  /** Report (once each) items stuck in retryable failures; they keep retrying. */
+  private emitStuckRetrying(): void {
+    if (!this.events.onStuckRetrying || this.disposed) return
+    const fresh = this.outbox.stuckRetrying().filter((i) => !this.reportedStuck.has(i.idempotencyKey))
+    if (!fresh.length) return
+    for (const i of fresh) this.reportedStuck.add(i.idempotencyKey)
+    this.events.onStuckRetrying(
+      fresh.map((i) => ({
+        type: i.type,
+        idempotencyKey: i.idempotencyKey,
+        payload: redactPayload(i.payload),
+        lastError: i.lastError,
+      })),
+    )
   }
 
   /** Surface newly dead-lettered items to the app (once each) for error reporting. */
   private emitDeadLetters(): void {
-    if (!this.events.onDeadLetter) return
+    if (!this.events.onDeadLetter || this.disposed) return
     const fresh = this.outbox
       .deadLettered()
       .filter((i) => !this.reportedDead.has(i.idempotencyKey))
@@ -454,6 +500,8 @@ export class SyncEngine {
 
   /** Wire connectivity + periodic version polling. Returns a disposer. */
   start(pollMs = 20000): () => void {
+    this.disposed = false
+    this.outbox.revive()
     const onOnline = () => {
       void this.flush()
       void this.checkVersion()
@@ -468,11 +516,13 @@ export class SyncEngine {
       void this.checkVersion()
       void this.pollInbound()
     }, pollMs)
-    return () => {
+    const stop = () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', onOnline)
       }
       clearInterval(timer)
     }
+    this.stopTimers = stop
+    return stop
   }
 }
