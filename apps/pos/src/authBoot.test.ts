@@ -7,8 +7,10 @@ import {
   classifyRefreshFailure,
   clearSession,
   readCachedUser,
+  MIGRATED_KEY,
   REFRESH_KEY,
   USER_KEY,
+  clearAllSessions,
 } from './authBoot'
 
 function memKV(seed: Record<string, string> = {}): KV & { data: Map<string, string> } {
@@ -51,13 +53,13 @@ describe('bootSession', () => {
   })
 
   it('on success returns the fresh session', async () => {
-    const kv = memKV({ [REFRESH_KEY]: 'r1' })
+    const kv = memKV({ [REFRESH_KEY]: 'r1', [MIGRATED_KEY]: '1' })
     const r = await bootSession(kv, memKV(), async () => fresh)
     expect(r).toEqual({ kind: 'signed-in', data: fresh })
   })
 
   it('on 401 clears the token and cached user', async () => {
-    const kv = memKV({ [REFRESH_KEY]: 'r1', [USER_KEY]: JSON.stringify(user) })
+    const kv = memKV({ [REFRESH_KEY]: 'r1', [MIGRATED_KEY]: '1', [USER_KEY]: JSON.stringify(user) })
     const r = await bootSession(kv, memKV(), async () => {
       throw new ApiError(401, 'unauthorized')
     })
@@ -72,7 +74,7 @@ describe('bootSession', () => {
     ['500', new ApiError(500, 'x')],
     ['429', new ApiError(429, 'x')],
   ])('on %s failure restores the cached user and keeps the token', async (_n, err) => {
-    const kv = memKV({ [REFRESH_KEY]: 'r1', [USER_KEY]: JSON.stringify(user) })
+    const kv = memKV({ [REFRESH_KEY]: 'r1', [MIGRATED_KEY]: '1', [USER_KEY]: JSON.stringify(user) })
     const r = await bootSession(kv, memKV(), async () => {
       throw err
     })
@@ -81,20 +83,20 @@ describe('bootSession', () => {
   })
 
   it('on transient failure with no cached user keeps the token and shows login', async () => {
-    const kv = memKV({ [REFRESH_KEY]: 'r1' })
+    const kv = memKV({ [REFRESH_KEY]: 'r1', [MIGRATED_KEY]: '1' })
     const r = await bootSession(kv, memKV(), async () => {
       throw new ApiError(0, 'x', 'network')
     })
-    expect(r).toEqual({ kind: 'login-keep-token' })
+    expect(r).toEqual({ kind: 'login-keep-token', refresh: 'r1' })
     expect(kv.get(REFRESH_KEY)).toBe('r1')
   })
 
   it('ignores a corrupt cached user', async () => {
-    const kv = memKV({ [REFRESH_KEY]: 'r1', [USER_KEY]: '{not json' })
+    const kv = memKV({ [REFRESH_KEY]: 'r1', [MIGRATED_KEY]: '1', [USER_KEY]: '{not json' })
     const r = await bootSession(kv, memKV(), async () => {
       throw new ApiError(0, 'x', 'network')
     })
-    expect(r).toEqual({ kind: 'login-keep-token' })
+    expect(r).toEqual({ kind: 'login-keep-token', refresh: 'r1' })
   })
 
   it('migrates the live localStorage token over a stale secure copy', async () => {
@@ -107,16 +109,48 @@ describe('bootSession', () => {
     expect(legacy.get(REFRESH_KEY)).toBeNull()
   })
 
-  it('still uses the legacy token if the secure write fails (and leaves it in place)', async () => {
+  it('marks the migration done and clears legacy copies', async () => {
+    const secure = memKV({ [REFRESH_KEY]: 'stale' })
+    const legacy = memKV({ [REFRESH_KEY]: 'live', [USER_KEY]: JSON.stringify(user) })
+    await bootSession(secure, legacy, async () => fresh)
+    expect(secure.get(MIGRATED_KEY)).toBe('1')
+    expect(legacy.get(USER_KEY)).toBeNull()
+  })
+
+  it('drops a leftover secure token when localStorage has none (first run)', async () => {
+    const secure = memKV({ [REFRESH_KEY]: 'T1' })
+    const refresh = vi.fn()
+    const r = await bootSession(secure, memKV(), refresh)
+    expect(r).toEqual({ kind: 'none' })
+    expect(refresh).not.toHaveBeenCalled()
+    expect(secure.get(REFRESH_KEY)).toBeNull()
+    expect(secure.get(MIGRATED_KEY)).toBe('1')
+  })
+
+  it('does not resurrect the stale legacy token after a failed secure write', async () => {
     const secure = memKV()
+    const realSetDurable = secure.setDurable
     secure.setDurable = async () => {
       throw new Error('disk full')
     }
-    const legacy = memKV({ [REFRESH_KEY]: 'live' })
+    const legacy = memKV({ [REFRESH_KEY]: 'r1' })
+    const refresh1 = vi.fn(async () => fresh)
+    await bootSession(secure, legacy, refresh1)
+    expect(refresh1).toHaveBeenCalledWith('r1') // valid for this boot
+    secure.set(REFRESH_KEY, 'r2') // what the provider's apply() does
+    secure.setDurable = realSetDurable
+    const refresh2 = vi.fn(async () => fresh)
+    await bootSession(secure, legacy, refresh2)
+    expect(refresh2).toHaveBeenCalledWith('r2')
+  })
+
+  it('ignores a stray localStorage token once the marker exists', async () => {
+    const secure = memKV({ [REFRESH_KEY]: 'r2', [MIGRATED_KEY]: '1' })
+    const legacy = memKV({ [REFRESH_KEY]: 'stray' })
     const refresh = vi.fn(async () => fresh)
     await bootSession(secure, legacy, refresh)
-    expect(refresh).toHaveBeenCalledWith('live')
-    expect(legacy.get(REFRESH_KEY)).toBe('live')
+    expect(refresh).toHaveBeenCalledWith('r2')
+    expect(legacy.get(REFRESH_KEY)).toBe('stray')
   })
 
   it('does not disturb the web shell where both stores are the same KV', async () => {
@@ -125,6 +159,17 @@ describe('bootSession', () => {
     await bootSession(kv, kv, refresh)
     expect(refresh).toHaveBeenCalledWith('r1')
     expect(kv.get(REFRESH_KEY)).toBe('r1')
+  })
+})
+
+describe('clearAllSessions', () => {
+  it('also removes the legacy localStorage copy', () => {
+    const secure = memKV({ [REFRESH_KEY]: 'r', [USER_KEY]: '{}' })
+    const legacy = memKV({ [REFRESH_KEY]: 'old', [USER_KEY]: '{}' })
+    clearAllSessions(secure, legacy)
+    expect(legacy.get(REFRESH_KEY)).toBeNull()
+    expect(legacy.get(USER_KEY)).toBeNull()
+    expect(secure.get(REFRESH_KEY)).toBeNull()
   })
 })
 

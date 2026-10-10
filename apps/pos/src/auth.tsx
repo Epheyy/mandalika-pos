@@ -14,12 +14,12 @@ import {
   BOOT_REFRESH_TIMEOUT_MS,
   REFRESH_KEY,
   bootSession,
-  cacheUser,
-  clearSession,
+  dropSession,
+  persistSession,
 } from './authBoot'
 
-// Resolve the KV at use time, never at import: main.tsx swaps getKV() to the
-// secure (Preferences) store AFTER this module is loaded.
+// KV access goes through authBoot, which resolves getKV() at call time: main.tsx
+// swaps it to the secure (Preferences) store AFTER this module is loaded.
 
 // Any role may sign into the POS. The earlier cashier-only gate blocked
 // manager/admin accounts from operating a register, which broke the realistic
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.access = null
     authStore.refresh = null
     authStore.outletId = null
-    clearSession(getKV())
+    dropSession()
     setUser(null)
   }, [])
 
@@ -53,9 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.access = d.access
     authStore.refresh = d.refresh
     authStore.outletId = d.user.outletId ?? null
-    const kv = getKV()
-    kv.set(REFRESH_KEY, d.refresh)
-    cacheUser(kv, d.user)
+    persistSession(d)
     setUser(d.user)
   }, [])
 
@@ -67,9 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authStore.access = d.access
       authStore.refresh = d.refresh
       authStore.outletId = d.user?.outletId ?? authStore.outletId
-      const kv = getKV()
-      kv.set(REFRESH_KEY, d.refresh)
-      if (d.user) cacheUser(kv, d.user)
+      persistSession(d)
+      // Replaces an offline-restored cached profile once the session renews.
+      if (d.user) setUser(d.user)
     }
     // Only a server 401 ends the session. Offline / timeout / 5xx keeps the
     // token and restores the cached user; the first sync request then 401s
@@ -84,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           authStore.outletId = r.user.outletId ?? null
           setUser(r.user)
         } else if (r.kind === 'login-keep-token') {
-          authStore.refresh = getKV().get(REFRESH_KEY)
+          authStore.refresh = r.refresh
         } else if (r.kind === 'rejected') clear()
       })
       .catch(() => {
