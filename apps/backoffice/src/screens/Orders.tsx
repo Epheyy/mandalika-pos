@@ -188,6 +188,14 @@ export function OrdersPanel() {
                         ⚠ Diskon
                       </span>
                     )}
+                    {o.tenderWarning && (
+                      <span
+                        title={o.tenderWarningReason === 'cash_short' ? 'Tunai kurang dari total' : 'Nominal non-tunai beda dari total'}
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                      >
+                        ⚠ Bayar
+                      </span>
+                    )}
                     <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                     {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
