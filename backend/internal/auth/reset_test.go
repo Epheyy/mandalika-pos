@@ -304,7 +304,9 @@ func TestRefreshHandlerFailsClosedOnMarkerError(t *testing.T) {
 	h, mr, _ := newResetHarness(t, &fakeResetStore{})
 	tok := signRefresh(t, h, "j1", time.Now())
 	mr.Set("refresh:j1", targetID)
-	mr.SetError("READONLY simulated") // every command now errors, incl. the marker read
+	// Marker key holds the wrong type: GET fails with WRONGTYPE while the jti GET
+	// succeeds, so only a raw-client marker read (not Cache.Get) fails closed.
+	mr.HSet(refreshRevokedKey(targetID), "f", "v")
 	if rec := callRefresh(h, tok); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d want 401", rec.Code)
 	}
@@ -331,5 +333,30 @@ func TestRevokedDuringRotationKillsNewPair(t *testing.T) {
 	}
 	if mr.Exists("refresh:new-jti") {
 		t.Fatal("newly issued jti must be deleted")
+	}
+}
+
+func TestRevokedSinceLoginDecision(t *testing.T) {
+	h, mr, _ := newResetHarness(t, &fakeResetStore{})
+	ctx := context.Background()
+	newTok := signRefresh(t, h, "login-jti", time.Now())
+	mr.Set("refresh:login-jti", targetID)
+	decision := jwt.NewNumericDate(time.Now().Add(-time.Second))
+
+	if h.revokedSince(ctx, targetID, decision, newTok) || !mr.Exists("refresh:login-jti") {
+		t.Fatal("no marker: login must proceed")
+	}
+	// Reset landed after the password check: marker is newer than the decision.
+	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(time.Now().Unix()+2))
+	if !h.revokedSince(ctx, targetID, decision, newTok) {
+		t.Fatal("login decided before the reset must be rejected")
+	}
+	if mr.Exists("refresh:login-jti") {
+		t.Fatal("new refresh key must be deleted")
+	}
+	// A decision made after the marker is fine.
+	later := jwt.NewNumericDate(time.Now().Add(5 * time.Second))
+	if h.revokedSince(ctx, targetID, later, newTok) {
+		t.Fatal("decision after the marker must pass")
 	}
 }

@@ -112,6 +112,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
+	decisionAt := time.Now()
 	u, err := h.Store.Authenticate(r.Context(), normalizeEmail(req.Email), req.Password)
 	if err != nil {
 		h.Cache.Incr(r.Context(), emailKey, loginEmailFailWindow)
@@ -121,6 +122,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.issue(r.Context(), u)
 	if err != nil {
 		httpx.Err(w, http.StatusInternalServerError, "token issue failed")
+		return
+	}
+	// Authenticated against a password that a concurrent admin reset replaced:
+	// treat as a bad login and kill the pair just issued.
+	if h.revokedSince(r.Context(), u.ID, jwt.NewNumericDate(decisionAt), resp.Refresh) {
+		httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, resp)
@@ -209,26 +216,36 @@ func (h *Handler) refreshUsable(ctx context.Context, rc *RefreshClaims) bool {
 // markerRevokes reads the per-user marker with the raw client so a Redis error
 // is distinguishable from "no marker": anything other than redis.Nil fails closed.
 func (h *Handler) markerRevokes(ctx context.Context, rc *RefreshClaims) bool {
-	marker, err := h.Cache.R.Get(ctx, refreshRevokedKey(rc.UserID)).Result()
+	return h.markerRevokesAt(ctx, rc.UserID, rc.IssuedAt)
+}
+
+func (h *Handler) markerRevokesAt(ctx context.Context, userID string, iat *jwt.NumericDate) bool {
+	marker, err := h.Cache.R.Get(ctx, refreshRevokedKey(userID)).Result()
 	if errors.Is(err, redis.Nil) {
 		return false
 	}
 	if err != nil {
 		return true
 	}
-	return refreshRevoked(rc.IssuedAt, marker, true)
+	return refreshRevoked(iat, marker, true)
 }
 
 // revokedDuringRotation re-checks the marker after a new pair was issued. When
 // the old token is now revoked it deletes the new jti (Redis + DB row) and
 // reports true; the caller must not hand the new tokens out.
 func (h *Handler) revokedDuringRotation(ctx context.Context, old *RefreshClaims, newRefresh string) bool {
-	if !h.markerRevokes(ctx, old) {
+	return h.revokedSince(ctx, old.UserID, old.IssuedAt, newRefresh)
+}
+
+// revokedSince is the shared post-issue check: a credential decision made at
+// iat is stale if the user's marker is newer; the pair just issued is killed.
+func (h *Handler) revokedSince(ctx context.Context, userID string, iat *jwt.NumericDate, newRefresh string) bool {
+	if !h.markerRevokesAt(ctx, userID, iat) {
 		return false
 	}
 	if nc, err := ParseRefresh(h.Cfg.RefreshSecret, newRefresh); err == nil {
 		if err := h.Cache.R.Del(ctx, "refresh:"+nc.ID).Err(); err != nil {
-			slog.Error("refresh_rotation_cleanup_failed", "err", err, "user", old.UserID)
+			slog.Error("refresh_rotation_cleanup_failed", "err", err, "user", userID)
 		}
 		if h.Store != nil && h.Store.Pool != nil {
 			_, _ = h.Store.Pool.Exec(ctx, `UPDATE refresh_tokens SET revoked=true WHERE jti=$1`, nc.ID)
