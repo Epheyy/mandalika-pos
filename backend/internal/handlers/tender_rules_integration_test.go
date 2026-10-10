@@ -510,6 +510,93 @@ func TestTenderRulesPostgres(t *testing.T) {
 		}
 		check("after rejected writes", flags(settings))
 	})
+	sub("17b shift close: explicit isCash=false excludes tunai (incl. TUNAI); isCash=true on qris moves it out of the qris bucket", func(t *testing.T) {
+		defer setMethods(`[{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":false},{"id":"qris","label":"QRIS","isEnabled":true,"isCash":true}]`)()
+		const shift = "00000000-0000-4000-8300-0000000000a2"
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,$3,'TD','open',now())`, shift, outlet, user)
+		for i, o := range []struct {
+			method string
+			total  float64
+		}{{"tunai", 1000}, {"TUNAI", 2000}, {"qris", 4000}, {"cash", 8000}, {"card", 16000}} {
+			exec(`INSERT INTO orders(order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,shift_id)
+			      VALUES($1,gen_random_uuid(),$1,$2,$3,'TD',$4,$4,$5,'completed',$6)`, fmt.Sprintf("TD17B-%d", i), outlet, user, o.total, o.method, shift)
+		}
+		if err := osvc.CloseShift(ctx, outlet, shift, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+		var cash, qris, card, totalSales float64
+		if err := pool.QueryRow(ctx, `SELECT cash_sales,qris_sales,card_sales,total_sales FROM shifts WHERE id=$1`, shift).Scan(&cash, &qris, &card, &totalSales); err != nil {
+			t.Fatal(err)
+		}
+		if cash != 12000 || qris != 0 || card != 16000 || totalSales != 31000 {
+			t.Fatalf("cash=%v qris=%v card=%v total=%v; want 12000/0/16000/31000", cash, qris, card, totalSales)
+		}
+	})
+	sub("19 legacy settings row (live shape plus an unknown key) reads and pulls", func(t *testing.T) {
+		defer setMethods(`[{"id":"tunai","label":"Tunai","isEnabled":true,"legacyField":"x"},{"id":"qris","label":"QRIS","isEnabled":true}]`)()
+		settings, err := rd.AppSettings(ctx)
+		if err != nil || len(settings.PaymentMethods) != 2 {
+			t.Fatalf("AppSettings: %v %+v", err, settings.PaymentMethods)
+		}
+		bundle, err := h.Sync.Pull(ctx, read.Scope{OutletID: outlet}, outlet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(bundle)
+		if strings.Contains(string(b), "isCash") {
+			t.Fatal("legacy row without isCash must not invent the flag")
+		}
+		// And the default rule still makes it cash for tender.
+		if got := send("direct", "td-19", payload("tunai", 90000)); got.code != 422 {
+			t.Fatalf("legacy tunai short status=%d", got.code)
+		}
+	})
+	sub("20 HTTP 400 for a bad config; null paymentMethods stores []; isCash null round-trips", func(t *testing.T) {
+		defer setMethods("[]")()
+		put := authWrap(http.HandlerFunc(h.UpdateAppSettings))
+		body := func(methods string) map[string]any {
+			var m map[string]any
+			_ = json.Unmarshal([]byte(`{"taxEnabled":false,"taxRate":0,"roundingEnabled":false,"roundingType":"none","autoOpenShift":false,"allowNegativeStock":true,"receipt":{},"paymentMethods":`+methods+`}`), &m)
+			return m
+		}
+		for name, methods := range map[string]string{
+			"duplicate": `[{"id":"a","label":"A","isEnabled":true},{"id":"A","label":"B","isEnabled":true}]`,
+			"non-bool":  `[{"id":"a","label":"A","isEnabled":true,"isCash":"yes"}]`,
+			"empty id":  `[{"id":"","label":"A","isEnabled":true}]`,
+		} {
+			if w := request(put, "PUT", "/settings/app", "", body(methods)); w.Code != 400 {
+				t.Fatalf("%s: status=%d %s", name, w.Code, w.Body.String())
+			}
+		}
+		if w := request(put, "PUT", "/settings/app", "", body("null")); w.Code != 200 {
+			t.Fatalf("null paymentMethods: %d %s", w.Code, w.Body.String())
+		}
+		var stored string
+		if err := pool.QueryRow(ctx, `SELECT payment_methods::text FROM app_settings`).Scan(&stored); err != nil || stored != "[]" {
+			t.Fatalf("stored=%q err=%v", stored, err)
+		}
+		if w := request(put, "PUT", "/settings/app", "", body(`[{"id":"tunai","label":"T","isEnabled":true,"isCash":null}]`)); w.Code != 200 {
+			t.Fatalf("isCash null write: %d %s", w.Code, w.Body.String())
+		}
+		settings, err := rd.AppSettings(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(settings)
+		var m struct {
+			PaymentMethods []map[string]any `json:"paymentMethods"`
+		}
+		if err := json.Unmarshal(b, &m); err != nil || len(m.PaymentMethods) != 1 {
+			t.Fatalf("read: %v %s", err, b)
+		}
+		if v, ok := m.PaymentMethods[0]["isCash"]; !ok || v != nil {
+			t.Fatalf("isCash null must round-trip as null, got %v (present=%v)", v, ok)
+		}
+		// Null means "default by id": tunai is still cash.
+		if got := send("direct", "td-20", payload("tunai", 90000)); got.code != 422 {
+			t.Fatalf("null-flag tunai short status=%d", got.code)
+		}
+	})
 	// Last: mutates app settings.
 	sub("8 batch: tax raised after capture flags cash_short, captured amount kept", func(t *testing.T) {
 		exec(`UPDATE app_settings SET tax_enabled=true,tax_rate=10`)
