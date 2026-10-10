@@ -101,14 +101,22 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (*User
 }
 
 // UpdateUser patches mutable fields; only non-nil args are applied. perms,
-// when non-nil, replaces the permission set. password, when non-empty, rehashes.
-func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID, photo, password *string, perms *[]string) error {
+// when non-nil, replaces the permission set. Passwords are not changed here;
+// admins use ResetPassword. ErrNotFound when the user does not exist.
+func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID, photo *string, perms *[]string) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
 	if name != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET display_name=$1 WHERE id=$2`, *name, id); err != nil {
 			return err
@@ -130,15 +138,6 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 	}
 	if photo != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET photo_url=$1 WHERE id=$2`, *photo, id); err != nil {
-			return err
-		}
-	}
-	if password != nil && *password != "" {
-		hash, err := HashPassword(*password)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id); err != nil {
 			return err
 		}
 	}

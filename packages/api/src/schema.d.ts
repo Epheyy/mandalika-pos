@@ -1974,8 +1974,6 @@ export interface components {
             outletId?: string | null;
             photoURL?: string | null;
             permissions?: string[];
-            /** Format: password */
-            password?: string;
         };
         Outlet: {
             /** Format: uuid */

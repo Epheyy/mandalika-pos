@@ -115,7 +115,6 @@ components:
         outletId: { type: string, format: uuid, nullable: true }
         photoURL: { type: string, nullable: true }
         permissions: { type: array, items: { type: string } }
-        password: { type: string, format: password, minLength: 8 }
     Outlet:
       type: object
       required: [id, name, isActive, createdAt]
