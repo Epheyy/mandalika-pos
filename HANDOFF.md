@@ -34,6 +34,24 @@ across devices (new follow-up); (4) admin's outlet choice not remembered across 
 BXGY / bundle), refund, Rekapan/Riwayat, shift close, transfer receive (needs owner PIN).
 Test sales are tagged "EMU TEST" in notes.
 
+**APK 1.2 emulator checklist (2026-10-11, build 38070526937, `db1a275`):** pass — login survives
+upgrade; customer+loyalty sale (Danny, BCA, 225 pts, tier Baru→Biasa, `BSD-G0003`); stacked
+combinable promos Tierison+TEST 2 + 225-pt redemption, cash (`BSD-G0004` Rp 87,750, synced, tier
+→Setia); BXGY/min-spend guards greyed correctly; Riwayat lists all; refund of G0003 synced with reason;
+Rekapan loads; shift close (Selisih 0) + new shift open synced; queue 0 throughout. **Fail:**
+restart-while-offline STILL logs out (slice 5 only fixed the mid-session refresh; app-start path in
+`auth.tsx` cleared the session on any error and read the token from localStorage because `getKV()`
+was captured at import) → fix on `fix/pos-offline-boot` (39b4df7 + 1028b65, Opus-reviewed), ships
+in APK 1.3. **Findings:** after upgrade with no outlet picked the app shows "Offline" (outlet-less
+`/sync/version` 500 → engine treats as unreachable); receipt numbers `MND-698667`/`MND-467330` vs
+server `BSD-G0003/4` again; receipt shows one promo label for two stacked promos and omits the points
+redemption line (printed lines don't add up); points earned on pre-redemption total (110 on Rp 110,250
+not 87 on Rp 87,750 — policy?); refund claws back earned points but clamps at 0 when already spent
+(115 pts written off — policy?); Riwayat date defaults to the UTC day before 07:00 WIB; Rekapan shift
+totals include older test orders (not reconciled). **Not run:** linked discount code, bundle,
+transfer receive (needs owner PIN). Android stylus-handwriting popup disabled on the AVD
+(`settings put secure stylus_handwriting_enabled 0`).
+
 **Emulator:** AVD `mandalika-tab` (Android 15 google_apis x86_64, 2560×1600, 4 GB) in
 `%USERPROFILE%\.android\avd`; start `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab`.
 Drive with `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (install, `input tap`, `screencap`,
