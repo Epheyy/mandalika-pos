@@ -160,6 +160,15 @@ column exists — refunder isn't recorded). Administrator has 149 unexpired refr
 
 ## Known gaps (not P0)
 
+- **Duplicate order numbers across devices (owner-flagged 2026-10-11).** `apps/pos/src/cashier/orderRef.ts`
+  builds `{OUTLET}-{DEV}{SEQ}`: DEV is ONE base36 char hashed from the deviceId (1-in-36
+  chance two tablets in an outlet share it) and SEQ is a per-install counter in KV, so a
+  reinstall/new device restarts at 0001. Data stays correct (uniqueness key is
+  `order_uuid`), but receipts/history can show the same number twice. Also seen: receipt
+  `MND-127242` vs server `BSD-G0001` on APK 1.1. Fix options (owner to pick): server-assigned
+  per-outlet sequence on sync with the client number as a provisional label, or a longer
+  registered device code (fits slice 10 device registration).
+
 - No APK/OTA release ledger (artifacts expired, OTA bucket empty) → no rollback artifact.
 - Cloud Run runs as the default compute SA with `roles/editor` (over-privileged).
 - A34 parent (CI enforcement) and all release gates remain open.
