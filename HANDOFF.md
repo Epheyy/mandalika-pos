@@ -7,6 +7,25 @@ read it by section only if a task needs old detail.
 
 Last updated: 2026-10-10 by Claude (Opus 5.5).
 
+## Progress board (update when a slice moves; show it at the end of every reply)
+
+Goal: production-ready POS = 8 P0 audit findings closed + release gates. As of 2026-10-10:
+
+| P0 | Finding | Status |
+|---|---|---|
+| A13 | Concurrent transfers double-move stock | **Done** — live (slice 1) |
+| A11 | Retried writes applied twice | **Done** for /sync/batch — live (slice 2) |
+| A01 | Sale not durable on device | **Partial** — APK 1.1 awaits writes; full fix = SQLite journal (slice 9) |
+| A02 | Network failures park/delete financial events | **In review** — slice 5 on branch, ships in APK 1.2 |
+| A03 | Transfer-receive errors treated as competing receipt | **In review** — slice 5 (server side done in slice 3) |
+| A04 | Queued events not bound to cashier/outlet | Open — slice 6 (+ slice 10 device registration) |
+| A06 | Refund permission bypassed via sync | **Partial** — server gate live; slice 7 completes it |
+| A09 | Sale/tender invariants not enforced | **Partial** — line validation live; slice 8 = tender rules |
+
+Supporting work done: A34 client-IP spoofing fix, sync error contract (slice 3), backend CI
+green, audit branch merged. **Waiting on owner:** APK 1.1 install + checklist
+(`Downloads/mandalika-apk/mandalika-pos-1.1-build2.apk`).
+
 ## Now
 
 - **Live:** Cloud Run `mandalika-pos` revision `00086-pac` (100%, tag `errc`), built from
