@@ -1,3 +1,4 @@
+export { isCashMethod, type CashFlagMethod } from './paymentMethod'
 export { promotionKeysOverlap, promotionKeySetsOverlap, promotionKeyGroupsOverlap, promotionHasKeyOverlap } from './promotionKeys'
 
 /** Variant size stored for a single-unit product (no real variant). Internal sentinel — never shown to a human. */
@@ -99,6 +100,8 @@ export interface PaymentMethodConfig {
   id: string
   label: string
   isEnabled: boolean
+  /** Money goes into the cash drawer; absent/null = default by id (cash, tunai). */
+  isCash?: boolean | null
 }
 
 export interface ReceiptSettings {
