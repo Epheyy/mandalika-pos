@@ -136,7 +136,12 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 	router.Post("/sync/batch", h.SyncBatch)
 
 	// lastBody is the raw response of the latest one() call, for wire-level checks.
-	var lastBody string
+	// Guarded because the concurrency subtests call one() from two goroutines.
+	var (
+		lastBodyMu sync.Mutex
+		lastBodyV  string
+	)
+	lastBody := func() string { lastBodyMu.Lock(); defer lastBodyMu.Unlock(); return lastBodyV }
 	// one sends a single-item /sync/batch request and returns that item's result.
 	one := func(t testing.TB, token, typ, key, payload string) syncpkg.ItemResult {
 		t.Helper()
@@ -145,7 +150,9 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
-		lastBody = w.Body.String()
+		lastBodyMu.Lock()
+		lastBodyV = w.Body.String()
+		lastBodyMu.Unlock()
 		var out struct {
 			Data syncpkg.BatchResult `json:"data"`
 		}
@@ -159,8 +166,8 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		if r.Status != "ok" || r.Error != "" || r.OrderID == "" {
 			t.Fatalf("want ok with an id, got %+v", r)
 		}
-		if r.Code != "" || r.Retryable != nil || strings.Contains(lastBody, `"code"`) || strings.Contains(lastBody, `"retryable"`) {
-			t.Fatalf("ok results must carry neither code nor retryable: %s", lastBody)
+		if r.Code != "" || r.Retryable != nil || strings.Contains(lastBody(), `"code"`) || strings.Contains(lastBody(), `"retryable"`) {
+			t.Fatalf("ok results must carry neither code nor retryable: %s", lastBody())
 		}
 	}
 	// wantCode asserts the machine-readable outcome on the decoded result and on
@@ -170,8 +177,8 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		if r.Status != "error" || r.Code != code || r.Retryable == nil || *r.Retryable != retryable {
 			t.Fatalf("want error %s retryable=%v, got %+v", code, retryable, r)
 		}
-		if !strings.Contains(lastBody, fmt.Sprintf(`"code":%q`, code)) || !strings.Contains(lastBody, fmt.Sprintf(`"retryable":%v`, retryable)) {
-			t.Fatalf("wire JSON lacks code/retryable: %s", lastBody)
+		if !strings.Contains(lastBody(), fmt.Sprintf(`"code":%q`, code)) || !strings.Contains(lastBody(), fmt.Sprintf(`"retryable":%v`, retryable)) {
+			t.Fatalf("wire JSON lacks code/retryable: %s", lastBody())
 		}
 	}
 	const conflictText = "kunci idempotensi sudah dipakai untuk operasi lain"
