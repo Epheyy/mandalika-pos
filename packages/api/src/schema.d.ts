@@ -2887,13 +2887,15 @@ export interface components {
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             discountWarning?: boolean;
             discountWarningReason?: string | null;
+            tenderWarning?: boolean;
+            tenderWarningReason?: string | null;
             surchargeType?: string | null;
             surchargeValue?: number | null;
             surchargeAmount?: number | null;
             taxAmount: number;
             total: number;
-            /** @enum {string} */
-            paymentMethod: "cash" | "card" | "transfer" | "qris";
+            /** @description configured payment method id (free-form since migration 0005) */
+            paymentMethod: string;
             amountPaid: number;
             change: number;
             /** @enum {string} */
@@ -3060,6 +3062,8 @@ export interface components {
             id: string;
             label: string;
             isEnabled: boolean;
+            /** @description Money goes into the cash drawer. Absent/null = default by id (cash, tunai). */
+            isCash?: boolean | null;
         };
         ReceiptSettings: {
             headerText: string;
@@ -3198,8 +3202,8 @@ export interface components {
             customerId?: string | null;
             customerName?: string | null;
             items: components["schemas"]["OrderItemInput"][];
-            /** @enum {string} */
-            paymentMethod: "cash" | "card" | "transfer" | "qris";
+            /** @description configured payment method id (free-form since migration 0005) */
+            paymentMethod: string;
             amountPaid?: number;
             /** @enum {string|null} */
             discountType?: "percentage" | "fixed" | null;
@@ -6332,6 +6336,15 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+            /** @description discount or tender rejected (online only; cash shortfall or invalid discount) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getOrder: {

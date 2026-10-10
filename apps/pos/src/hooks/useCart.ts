@@ -44,8 +44,6 @@ export interface CartDerived {
   redeemedPoints: number
   total: number
   earnedPoints: number
-  paid: number
-  change: number
   totalCartItems: number
 }
 
@@ -70,9 +68,6 @@ export function useCart(opts: UseCartOptions): {
     customerPoints: state.selectedCustomer?.points ?? 0,
   })
 
-  const paid =
-    parseFloat(state.amountPaid.replace(/\./g, '')) || 0
-  const change = Math.max(0, paid - pricing.total)
   const totalCartItems = state.cart.reduce((s: number, i: CartItem) => s + i.quantity, 0)
 
   const addVariants = useCallback(
@@ -135,8 +130,6 @@ export function useCart(opts: UseCartOptions): {
     },
     derived: {
       ...pricing,
-      paid,
-      change,
       totalCartItems,
     },
   }

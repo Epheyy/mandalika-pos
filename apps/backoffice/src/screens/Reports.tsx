@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { fetchAllPages } from '@mandalika/api'
-import type { Order, Shift, Outlet } from '@mandalika/api'
+import type { AppSettings, Order, Shift, Outlet } from '@mandalika/api'
 import {
   format,
   parseISO,
@@ -16,6 +16,7 @@ import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
+import { paymentFilterOptions } from '../lib/paymentOptions'
 import { OrdersPanel } from './Orders'
 import { PromoGrantsTab } from './reports/PromoGrantsTab'
 import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
@@ -71,6 +72,8 @@ export default function Reports() {
   const sq = usePolledQuery<Shift[]>(() => fetchAllPages((page, limit) => api.listShifts({ page, limit })), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const orders = oq.data ?? []
+  const aq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
+  const payOptions = paymentFilterOptions(aq.data?.paymentMethods, orders)
   const shifts = sq.data ?? []
   const outlets = ouq.data ?? []
 
@@ -86,7 +89,7 @@ export default function Reports() {
   }
 
   const fOrders = orders.filter(
-    (o) => inRange(o.createdAt) && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod === fPay),
+    (o) => inRange(o.createdAt) && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod.trim().toLowerCase() === fPay.trim().toLowerCase()),
   )
   const fShifts = shifts.filter((s) => inRange(s.openedAt))
   const completed = fOrders.filter((o) => o.status === 'completed')
@@ -209,10 +212,7 @@ export default function Reports() {
               className="w-auto"
             >
               <option value="">Semua</option>
-              <option value="cash">Tunai</option>
-              <option value="card">Kartu</option>
-              <option value="qris">QRIS</option>
-              <option value="transfer">Transfer</option>
+              {payOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </Select>
           </>
         )}

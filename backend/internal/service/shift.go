@@ -100,6 +100,10 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	if status == "closed" {
 		return nil
 	}
+	cashIDs, err := shiftCashMethodIDs(ctx, tx, shiftID)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, `
 		UPDATE shifts s SET
 		  status='closed', closed_at=now(), closing_cash=$3,
@@ -116,15 +120,45 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		    sum(total) FILTER (WHERE status='completed') AS total_sales,
 		    count(*)   FILTER (WHERE status='completed') AS total_orders,
 		    sum(total) FILTER (WHERE status='refunded')  AS total_refunds,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='cash')     AS cash_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='card')     AS card_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer') AS transfer_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris')     AS qris_sales
+		    sum(total) FILTER (WHERE status='completed' AND payment_method = ANY($5::text[])) AS cash_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
+		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
 		  FROM orders WHERE shift_id=$1
 		) a
 		WHERE s.id=$1 AND s.outlet_id=$2`,
-		shiftID, outletID, closingCash, countedJSON)
+		shiftID, outletID, closingCash, countedJSON, cashIDs)
 	return err
+}
+
+// shiftCashMethodIDs lists the payment method ids on this shift's completed orders
+// that are cash at close time (the flag in force now decides; closed shifts are a
+// snapshot and never change). The UPDATE aggregates cash_sales and excludes these
+// ids from the card/transfer/qris buckets, so nothing is counted twice. Custom
+// non-cash methods land in no bucket. Always non-nil: a NULL array would make the
+// FILTER predicates NULL.
+func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]string, error) {
+	settings, err := loadAppSettings(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx,
+		`SELECT DISTINCT payment_method FROM orders WHERE shift_id=$1 AND status='completed'`, shiftID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var method string
+		if err := rows.Scan(&method); err != nil {
+			return nil, err
+		}
+		if IsCashMethod(settings.PaymentMethods, method) {
+			ids = append(ids, method)
+		}
+	}
+	return ids, rows.Err()
 }
 
 type CashFlowInput struct {

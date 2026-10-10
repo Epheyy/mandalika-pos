@@ -5,7 +5,7 @@
 
 import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
-import { variantLabel } from '@mandalika/types'
+import { isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
@@ -23,6 +23,7 @@ import { buildScanIndex, resolveScan } from './scan'
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning'
 import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
+import { cashTender } from './tender'
 import { CustomerPicker } from './CustomerPicker'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
@@ -287,7 +288,8 @@ export default function CashierScreen() {
   }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer?.id, offlineData.isOnline])
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
-  const defaultMethod = (enabledMethods[0]?.id ?? 'cash') as 'cash' | 'card' | 'transfer' | 'qris'
+  const defaultMethod = enabledMethods[0]?.id ?? 'cash'
+  const tender = cashTender(isCashMethod(settings.paymentMethods, state.paymentMethod), state.amountPaid, derived.total)
 
   // A shift must be open before anything can be sold. Returns false (and
   // pops the open-shift modal) when there is no active shift.
@@ -646,7 +648,7 @@ export default function CashierScreen() {
         orderNumber: orderNo,
         items: state.cart,
         paymentMethod: state.paymentMethod,
-        amountPaid: state.paymentMethod === 'cash' ? derived.paid : derived.total,
+        amountPaid: tender.amountPaid,
         customerId: state.selectedCustomer?.id ?? null,
         customerName: state.selectedCustomer?.name ?? null,
         salesmanId: state.selectedSalesman?.id ?? null,
@@ -686,8 +688,8 @@ export default function CashierScreen() {
         taxAmount: derived.taxAmount,
         total: derived.total,
         paymentLabel: PAYMENT_LABELS[state.paymentMethod] ?? state.paymentMethod,
-        amountPaid: state.paymentMethod === 'cash' ? derived.paid : derived.total,
-        change: state.paymentMethod === 'cash' ? derived.change : 0,
+        amountPaid: tender.amountPaid,
+        change: tender.change,
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
@@ -1040,8 +1042,8 @@ export default function CashierScreen() {
         isOpen={state.isSuccessOpen} orderId={state.lastOrderId} items={state.cart}
         total={derived.total} discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         paymentMethod={state.paymentMethod}
-        amountPaid={state.paymentMethod === 'cash' ? derived.paid : derived.total}
-        change={state.paymentMethod === 'cash' ? derived.change : 0}
+        amountPaid={tender.amountPaid}
+        change={tender.change}
         customerName={state.selectedCustomer?.name ?? null} cashierName={user.displayName}
         settings={settings} isPendingSync={offlineData.pendingCount > 0}
         canReprint={printer.isPaired} printError={printError}

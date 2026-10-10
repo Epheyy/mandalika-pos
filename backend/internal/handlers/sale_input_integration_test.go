@@ -199,7 +199,13 @@ func TestSaleInputPostgres(t *testing.T) {
 			if kind == "free" || kind == "full-discount" {
 				want = 0
 			}
-			if total != want || paid != want {
+			// A09: non-cash keeps the captured amount; bca with no amountPaid stores 0
+			// (and is flagged, see TestTenderRulesPostgres) instead of being overwritten.
+			wantPaid := want
+			if kind == "bca" {
+				wantPaid = 0
+			}
+			if total != want || paid != wantPaid {
 				t.Fatalf("total=%v paid=%v", total, paid)
 			}
 		})

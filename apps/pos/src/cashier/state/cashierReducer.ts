@@ -16,7 +16,7 @@ import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionS
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
 type Promotion = components['schemas']['Promotion']
-type PaymentMethod = 'cash' | 'card' | 'transfer' | 'qris'
+type PaymentMethod = string
 
 export interface CashierState {
   // Cart

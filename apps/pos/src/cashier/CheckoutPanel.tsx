@@ -1,7 +1,9 @@
 import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
+import { isCashMethod } from '@mandalika/types'
 import { formatRupiah } from './pricing'
+import { cashTender } from './tender'
 import { stockFor, overstockLines } from './stock'
 import type { CartLineLike } from './stock'
 
@@ -10,7 +12,7 @@ type Customer = components['schemas']['Customer']
 type LoyaltyPreviewReward = components['schemas']['LoyaltyPreviewReward']
 type Product = components['schemas']['Product']
 
-type PaymentMethod = 'cash' | 'card' | 'transfer' | 'qris'
+type PaymentMethod = string
 
 interface CheckoutPanelProps {
   isOpen: boolean
@@ -50,7 +52,7 @@ interface CheckoutPanelProps {
   cartLines: CartLineLike[]
 }
 
-const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Tunai',
   card: 'Kartu',
   transfer: 'Transfer',
@@ -98,10 +100,9 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   if (!isOpen) return null
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
-  const paidNum = parseFloat(amountPaid.replace(/\./g, '')) || 0
-  const changeAmt = Math.max(0, paidNum - derived.total)
-  const isCashShort =
-    paymentMethod === 'cash' && paidNum < derived.total
+  const isCash = isCashMethod(settings.paymentMethods, paymentMethod)
+  const tender = cashTender(isCash, amountPaid, derived.total)
+  const isCashShort = tender.isShort
 
   const quickAmounts = [
     derived.total,
@@ -378,7 +379,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 <button type="button"
                   key={m.id}
                   onClick={() =>
-                    onPaymentMethodChange(m.id as PaymentMethod)
+                    onPaymentMethodChange(m.id)
                   }
                   className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${
                     paymentMethod === m.id
@@ -386,14 +387,14 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                       : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  {PAYMENT_LABELS[m.id as PaymentMethod] ?? m.label}
+                  {PAYMENT_LABELS[m.id] ?? m.label}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Amount paid (cash only) */}
-          {paymentMethod === 'cash' && (
+          {isCash && (
             <div>
               <p className="text-xs font-semibold text-gray-700 mb-2">
                 Jumlah Dibayar
@@ -419,15 +420,15 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                   </button>
                 ))}
               </div>
-              {paidNum > 0 && paidNum >= derived.total && (
+              {tender.change > 0 && (
                 <div className="flex justify-between text-sm font-bold text-green-600 mt-2">
                   <span>Kembalian</span>
-                  <span>{formatRupiah(changeAmt)}</span>
+                  <span>{formatRupiah(tender.change)}</span>
                 </div>
               )}
               {isCashShort && (
                 <p className="text-xs text-red-500 mt-1">
-                  Kurang {formatRupiah(derived.total - paidNum)}
+                  Kurang {formatRupiah(derived.total - tender.amountPaid)}
                 </p>
               )}
             </div>

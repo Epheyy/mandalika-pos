@@ -21,15 +21,16 @@ func (r inputTestRow) Scan(dest ...any) error { return r(dest...) }
 // It records attempted SQL effects, not PostgreSQL balances or durability.
 type inputTestTx struct {
 	pgx.Tx
-	writes      int
-	commits     int
-	queries     []string
-	existing    string
-	allowWrites bool
-	stock       int
-	taxRate     float64
-	orderArgs   []any
-	key         string
+	writes         int
+	commits        int
+	queries        []string
+	existing       string
+	allowWrites    bool
+	stock          int
+	taxRate        float64
+	paymentMethods []byte
+	orderArgs      []any
+	key            string
 }
 
 func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
@@ -48,6 +49,9 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 			*d[1].(*float64) = tx.taxRate
 			*d[2].(*bool) = false
 			*d[3].(*string) = "none"
+			if len(d) > 4 {
+				*d[4].(*[]byte) = tx.paymentMethods
+			}
 			return nil
 		case strings.Contains(sql, "FROM loyalty_settings"):
 			*d[0].(*bool) = false
@@ -250,6 +254,9 @@ func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 		t.Run(map[bool]string{false: "direct floor", true: "batch warning"}[offline], func(t *testing.T) {
 			in := ordinaryInput()
 			in.Offline = offline
+			// Current tax raises the total to 110000; tender covers it (A09), so this
+			// keeps exercising the stock floor/warning, not the tender rule.
+			in.AmountPaid = 110000
 			original := append([]OrderItem(nil), in.Items...)
 			tx := &inputTestTx{allowWrites: true, stock: 0, taxRate: 10}
 			begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
@@ -261,8 +268,8 @@ func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 			if err != nil || dup || id != "accepted-original" || warn != offline || tx.commits != 1 || tx.stock != wantStock {
 				t.Fatalf("id=%s dup=%v warn=%v err=%v tx=%+v", id, dup, warn, err, tx)
 			}
-			// Current tax raises total; the new validator must not claim a new payment.
-			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 100000 {
+			// Current tax raises total; capture is kept and tender is not flagged.
+			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 110000 || tx.orderArgs[36] != false {
 				t.Fatalf("capture/total: %v", tx.orderArgs)
 			}
 			if !reflect.DeepEqual(in.Items, original) {
@@ -280,6 +287,59 @@ func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 		})
 	}
 }
+
+// A09: the same raised total with cash captured at 100000 is a cash shortfall.
+func TestTenderShortfallBeforeEffects(t *testing.T) {
+	for _, offline := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct rejected", true: "batch flagged"}[offline], func(t *testing.T) {
+			in := ordinaryInput() // cash 100000 vs 110000 after tax
+			in.Offline = offline
+			tx := &inputTestTx{allowWrites: true, stock: 0, taxRate: 10}
+			begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
+			id, _, _, err := (&OrderService{}).createOrder(context.Background(), in, begin)
+			if !offline {
+				if !errors.Is(err, ErrTenderRejected) || tx.writes != 0 || tx.commits != 0 || tx.stock != 0 {
+					t.Fatalf("direct shortfall must reject before effects: id=%s err=%v tx=%+v", id, err, tx)
+				}
+				return
+			}
+			if err != nil || tx.commits != 1 || tx.orderArgs[22].(float64) != 100000 || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderCashShort) {
+				t.Fatalf("batch must accept and flag: err=%v args=%v", err, tx.orderArgs)
+			}
+		})
+	}
+}
+
+// Slice 8c: the live cash method id is "tunai"; the configured flag decides.
+func TestTenderCashIdentityFromSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, methods string
+		wantReject            bool
+	}{
+		{"tunai is cash by default", "tunai", ``, true},
+		{"TUNAI is cash by default", "TUNAI", ``, true},
+		{"explicit isCash=false makes tunai non-cash", "tunai", `[{"id":"tunai","label":"T","isEnabled":true,"isCash":false}]`, false},
+		{"explicit isCash=true makes a custom id cash", "kas_kecil", `[{"id":"kas_kecil","label":"K","isEnabled":true,"isCash":true}]`, true},
+		{"unflagged custom id is non-cash", "bca", ``, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := ordinaryInput() // 100000 line, no tax
+			in.PaymentMethod, in.AmountPaid = tc.method, 90000
+			tx := &inputTestTx{allowWrites: true, stock: 5, paymentMethods: []byte(tc.methods)}
+			_, _, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+			if tc.wantReject {
+				if !errors.Is(err, ErrTenderRejected) || tx.writes != 0 {
+					t.Fatalf("want 422 before effects: err=%v tx=%+v", err, tx)
+				}
+				return
+			}
+			if err != nil || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderNoncashMismatch) {
+				t.Fatalf("want accepted + mismatch flag: err=%v args=%v", err, tx.orderArgs)
+			}
+		})
+	}
+}
+
 func (tx *inputTestTx) Rollback(context.Context) error { return nil }
 func (tx *inputTestTx) Commit(context.Context) error   { tx.commits++; return nil }
 

@@ -988,6 +988,11 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 			httpx.Err(w, http.StatusUnprocessableEntity, discountRejectMessage(rej.Violations))
 			return
 		}
+		if errors.Is(err, service.ErrTenderRejected) {
+			// The message carries only the cashier's own captured/due amounts.
+			httpx.Err(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -179,7 +180,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	}
 	discountWarning := discountWarnReason != ""
 
-	taxEnabled, taxRate, roundEnabled, roundType, err := loadAppSettings(ctx, tx)
+	settings, err := loadAppSettings(ctx, tx)
 	if err != nil {
 		return "", false, false, err
 	}
@@ -242,8 +243,8 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	res := Compute(PricingInput{
 		Items: items, ManualDiscount: in.ManualValue, ManualKind: in.ManualKind,
 		Surcharge: in.Surcharge, SurchargeKind: in.SurchargeKind, Promos: promos,
-		TaxEnabled: taxEnabled, TaxRate: taxRate,
-		RoundingEnabled: roundEnabled, RoundingType: roundType,
+		TaxEnabled: settings.TaxEnabled, TaxRate: settings.TaxRate,
+		RoundingEnabled: settings.RoundingEnabled, RoundingType: settings.RoundingType,
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
 		HasCustomer: in.CustomerID != "",
 	})
@@ -307,6 +308,15 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if err := saleMoney("finalTotal", finalTotal); err != nil {
 		return "", false, false, err
 	}
+
+	// A09 tender rules, judged once per new sale (replays returned above). Online
+	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
+	// non-cash mismatches are accepted with the captured amount and flagged.
+	amountPaid, change, tenderReason := evaluateTender(IsCashMethod(settings.PaymentMethods, in.PaymentMethod), in.AmountPaid, finalTotal)
+	if tenderReason == TenderCashShort && !in.Offline {
+		return "", false, false, tenderRejectedError(in.AmountPaid, finalTotal)
+	}
+	tenderWarning := tenderReason != ""
 
 	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
@@ -400,17 +410,6 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		}
 	}
 
-	amountPaid := in.AmountPaid
-	change := 0.0
-	if in.PaymentMethod == "cash" {
-		change = amountPaid - finalTotal
-		if change < 0 {
-			change = 0
-		}
-	} else {
-		amountPaid = finalTotal
-	}
-
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (
 		  order_number, order_uuid, idempotency_key, device_id, outlet_id,
@@ -419,9 +418,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb,$37,$38)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -433,6 +432,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
+		tenderWarning, nullStr(tenderReason),
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {
@@ -1072,14 +1072,41 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	return specs, codeIDs, appliedCodes, warn, nil
 }
 
-func loadAppSettings(ctx context.Context, tx pgx.Tx) (bool, float64, bool, string, error) {
-	var te, re bool
-	var tr float64
-	var rt string
+// appSettings is the slice of app_settings an order needs: pricing switches and
+// the configured payment methods (for the cash/non-cash decision).
+type appSettings struct {
+	TaxEnabled      bool
+	TaxRate         float64
+	RoundingEnabled bool
+	RoundingType    string
+	PaymentMethods  []api.PaymentMethodConfig
+}
+
+func loadAppSettings(ctx context.Context, tx pgx.Tx) (appSettings, error) {
+	var a appSettings
+	var methods []byte
 	err := tx.QueryRow(ctx,
-		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type
-		   FROM app_settings WHERE id=1`).Scan(&te, &tr, &re, &rt)
-	return te, tr, re, rt, err
+		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type, payment_methods
+		   FROM app_settings WHERE id=1`).Scan(&a.TaxEnabled, &a.TaxRate, &a.RoundingEnabled, &a.RoundingType, &methods)
+	if err != nil {
+		return a, err
+	}
+	a.PaymentMethods = parsePaymentMethods(methods)
+	return a, nil
+}
+
+// parsePaymentMethods is tolerant: a malformed stored value must not stop sales,
+// it just falls back to the id defaults in IsCashMethod. Writes are validated.
+func parsePaymentMethods(raw []byte) []api.PaymentMethodConfig {
+	if len(raw) == 0 {
+		return nil
+	}
+	var methods []api.PaymentMethodConfig
+	if err := json.Unmarshal(raw, &methods); err != nil {
+		slog.Warn("payment_methods decode failed; using id defaults", "err", err)
+		return nil
+	}
+	return methods
 }
 
 // rowQueryRower is satisfied by both *pgxpool.Pool and pgx.Tx, so loadLoyalty

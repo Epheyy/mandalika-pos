@@ -1207,12 +1207,14 @@ components:
           items: { $ref: '#/components/schemas/DiscountComponent' }
         discountWarning: { type: boolean }
         discountWarningReason: { type: string, nullable: true }
+        tenderWarning: { type: boolean }
+        tenderWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, nullable: true }
         surchargeAmount: { type: number, nullable: true }
         taxAmount: { type: number }
         total: { type: number }
-        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number }
         change: { type: number }
         status: { type: string, enum: [completed, refunded, cancelled] }
@@ -1401,6 +1403,10 @@ components:
         id: { type: string }
         label: { type: string }
         isEnabled: { type: boolean }
+        isCash:
+          type: boolean
+          nullable: true
+          description: Money goes into the cash drawer. Absent/null = default by id (cash, tunai).
     ReceiptSettings:
       type: object
       required: [headerText, footerText, showTax, showCashier]
@@ -1576,7 +1582,7 @@ components:
         customerId: { type: string, nullable: true }
         customerName: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/OrderItemInput' } }
-        paymentMethod: { type: string, enum: [cash, card, transfer, qris] }
+        paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number }
         discountType: { type: string, enum: [percentage, fixed], nullable: true }
         discountValue: { type: number, nullable: true }
@@ -3560,6 +3566,11 @@ paths:
               schema: { $ref: '#/components/schemas/OrderResponse' }
         '400': { description: invalid order }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: discount or tender rejected (online only; cash shortfall or invalid discount)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
     get:
       operationId: listOrders
       tags: [sales]
