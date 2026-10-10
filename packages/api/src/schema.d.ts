@@ -2887,6 +2887,8 @@ export interface components {
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             discountWarning?: boolean;
             discountWarningReason?: string | null;
+            tenderWarning?: boolean;
+            tenderWarningReason?: string | null;
             surchargeType?: string | null;
             surchargeValue?: number | null;
             surchargeAmount?: number | null;

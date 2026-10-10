@@ -1207,6 +1207,8 @@ components:
           items: { $ref: '#/components/schemas/DiscountComponent' }
         discountWarning: { type: boolean }
         discountWarningReason: { type: string, nullable: true }
+        tenderWarning: { type: boolean }
+        tenderWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, nullable: true }
         surchargeAmount: { type: number, nullable: true }
