@@ -11,12 +11,14 @@ const kv: KV = {
   get: (key) => store.get(key) ?? null,
   set: (key, value) => { store.set(key, value) },
   remove: (key) => { store.delete(key) },
+  setDurable: async (key, value) => { store.set(key, value) },
+  removeDurable: async (key) => { store.delete(key) },
 }
 const engine = new SyncEngine({ request: async () => { throw new Error('No API in synthetic harness') } }, {}, kv)
 for (const type of ['order', 'refund'] as const) {
   const key = `synthetic-device:${type}`
-  engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })
-  for (let n = 0; n < 5; n++) engine.outbox.fail(key, 'synthetic gateway failure')
+  await engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })
+  for (let n = 0; n < 5; n++) await engine.outbox.fail(key, 'synthetic gateway failure')
 }
 const original = JSON.stringify(engine.outbox.all())
 

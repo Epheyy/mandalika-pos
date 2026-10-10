@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   verifyPin,
   canAttempt,
@@ -10,6 +10,7 @@ import {
   type Lockout,
 } from '@mandalika/sync'
 import type { ReceiveApprover } from './receiveTypes'
+import { createSubmitGate, notSavedMessage } from '../../lib/durableSubmit'
 
 const LOCKOUT_KEY = 'mandalika.pos.pinLockout'
 
@@ -24,7 +25,8 @@ function saveLockout(s: Lockout): void {
 interface Props {
   approvers: ReceiveApprover[]
   onCancel: () => void
-  onApproved: (approverUserId: string, pin: string) => void
+  /** Resolve once the receive is durably queued; reject if it could not be stored. */
+  onApproved: (approverUserId: string, pin: string) => void | Promise<void>
 }
 
 export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
@@ -33,6 +35,7 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [lock, setLock] = useState<Lockout>(loadLockout)
+  const submitGate = useRef(createSubmitGate())
 
   const approver = useMemo(
     () => approvers.find((a) => a.userId === approverId),
@@ -49,22 +52,32 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
       setErr('Pilih penyetuju')
       return
     }
+    if (submitGate.current.isBusy()) return
     setBusy(true)
     setErr(null)
-    const ok = await verifyPin(pin, approver.receivePinHash)
+    const outcome = await submitGate.current.run(async () => {
+      const ok = await verifyPin(pin, approver.receivePinHash)
+      if (!ok) return false
+      const cleared = resetLockout()
+      setLock(cleared)
+      saveLockout(cleared)
+      await onApproved(approver.userId, pin)
+      return true
+    })
     setBusy(false)
-    if (!ok) {
+    if (outcome.status === 'busy') return
+    if (outcome.status === 'failed') {
+      // PIN was right but the receive was not stored: stay open, allow retry.
+      setErr(notSavedMessage('Penerimaan'))
+      return
+    }
+    if (!outcome.value) {
       const next = recordFailure(lock, Date.now())
       setLock(next)
       saveLockout(next)
       setErr('PIN salah')
       setPin('')
-      return
     }
-    const cleared = resetLockout()
-    setLock(cleared)
-    saveLockout(cleared)
-    onApproved(approver.userId, pin)
   }
 
   // Empty-approvers state

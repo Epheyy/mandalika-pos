@@ -10,6 +10,8 @@ function memKV(): KV {
     get: (key) => store.get(key) ?? null,
     set: (key, value) => { store.set(key, value) },
     remove: (key) => { store.delete(key) },
+    setDurable: async (key, value) => { store.set(key, value) },
+    removeDurable: async (key) => { store.delete(key) },
   }
 }
 
@@ -66,7 +68,7 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
     await engine.resync()
 
     // First order: 2 × p1|10ml, 1 × p2|30ml
-    engine.enqueue('order', {
+    await engine.enqueue('order', {
       items: [
         { productId: 'p1', variantSize: '10ml', quantity: 2 },
         { productId: 'p2', variantSize: '30ml', quantity: 1 },
@@ -74,7 +76,7 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
     })
 
     // Second order: 3 × p1|10ml (same variant — should accumulate)
-    engine.enqueue('order', {
+    await engine.enqueue('order', {
       items: [
         { productId: 'p1', variantSize: '10ml', quantity: 3 },
       ],
@@ -89,7 +91,7 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
     const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
     await engine.resync()
 
-    engine.enqueue('order', {
+    await engine.enqueue('order', {
       items: [
         { productId: 'p1', variantSize: '10ml', quantity: 1 },
         { productId: 'pReward', variantSize: '5ml', quantity: 1, isReward: true, rewardConditionId: 'rc1' },
@@ -105,8 +107,8 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
     const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
     await engine.resync()
 
-    engine.enqueue('shift_open', { startingCash: 100000 })
-    engine.enqueue('order', {
+    await engine.enqueue('shift_open', { startingCash: 100000 })
+    await engine.enqueue('order', {
       items: [{ productId: 'p1', variantSize: '10ml', quantity: 2 }],
     })
 

@@ -15,7 +15,9 @@ function Harness() {
   const update = () => refresh((n) => n + 1)
   const denyFive = async () => { for (let n = 0; n < 5; n++) await engine.flush(); update() }
   const reconstruct = () => { engine = fixture.reconstruct(); setRemount((n) => n + 1); setReconstructions((n) => n + 1) }
-  const retry = async () => { engine.retryFailed(); await engine.flush(); update() }
+  // retryFailed() starts its own flush; the synthetic transport settles within microtasks and
+  // outbox bookkeeping is now awaited writes, so yield one macrotask before re-rendering.
+  const retry = async () => { await engine.retryFailed(); await engine.flush(); await new Promise((r) => setTimeout(r, 0)); update() }
   return <main>
     <h1>S0b synthetic refund retention</h1>
     <p>Successful memory storage and synthetic API only. No live database or native durability claim.</p>

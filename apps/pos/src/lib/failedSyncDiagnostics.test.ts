@@ -5,19 +5,21 @@ import { Outbox, SyncEngine, type KV } from '@mandalika/sync'
 import { SyncStatus } from '../components/SyncStatus'
 import { diagnosticExportMessages, shareFailedSyncDiagnostics } from './failedSyncDiagnostics'
 
-function fixture() {
+async function fixture() {
   const store = new Map<string, string>()
   const kv: KV = {
     get: (key) => store.get(key) ?? null,
     set: (key, value) => { store.set(key, value) },
     remove: (key) => { store.delete(key) },
+    setDurable: async (key, value) => { store.set(key, value) },
+    removeDurable: async (key) => { store.delete(key) },
   }
   const request = vi.fn().mockRejectedValue(new Error('unexpected request'))
   const engine = new SyncEngine({ request }, {}, kv)
   for (const type of ['order', 'refund'] as const) {
     const key = `synthetic-device:${type}`
-    engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })
-    for (let n = 0; n < 5; n++) engine.outbox.fail(key, 'synthetic gateway failure')
+    await engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })
+    for (let n = 0; n < 5; n++) await engine.outbox.fail(key, 'synthetic gateway failure')
   }
   const renderStatus = (isOnline = true) => renderToStaticMarkup(createElement(SyncStatus, {
     isOnline, pendingCount: engine.pendingCount(), failed: engine.deadLettered(),
@@ -39,7 +41,7 @@ describe('failed-sync diagnostic delivery and visible unresolved state', () => {
     ['clipboard failure', 'failed'],
     ['no supported delivery', 'unavailable'],
   ] as const)('%s preserves the queue and visible count through repeated export', async (scenario, outcome) => {
-    const { engine, store, kv, request, renderStatus } = fixture()
+    const { engine, store, kv, request, renderStatus } = await fixture()
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     const markupBefore = renderStatus()
@@ -74,7 +76,7 @@ describe('failed-sync diagnostic delivery and visible unresolved state', () => {
   })
 
   it('reports diagnostic generation failure without invoking sharing or changing operations', async () => {
-    const { engine, store } = fixture()
+    const { engine, store } = await fixture()
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     const share = vi.fn()

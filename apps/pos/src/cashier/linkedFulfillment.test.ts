@@ -261,7 +261,7 @@ it('stale ambiguous bundle picks are rejected even when the reduced cart is now 
   expect(commit(changed, codeOwner(p), products, choice)).toBe(changed)
 })
 
-const memoryKV = (): KV => { const m = new Map<string,string>(); return { get: k => m.get(k) ?? null, set: (k,v) => { m.set(k,v) }, remove: k => { m.delete(k) } } }
+const memoryKV = (): KV => { const m = new Map<string,string>(); return { get: k => m.get(k) ?? null, set: (k,v) => { m.set(k,v) }, remove: k => { m.delete(k) }, setDurable: async (k,v) => { m.set(k,v) }, removeDurable: async k => { m.delete(k) } } }
 it.each(['bundle', 'buy_x_get_y'] as const)('%s queue/reconstruction/response-loss retry preserves code-only provenance, quantities and original key', async type => {
   vi.stubGlobal('navigator', { onLine: false })
   const kv = memoryKV(), sent: unknown[] = [], p = promo(type), state = commit(initial(p), codeOwner(p))
@@ -272,7 +272,7 @@ it.each(['bundle', 'buy_x_get_y'] as const)('%s queue/reconstruction/response-lo
     return { data: { processed: 1, results: [{ idempotencyKey: key, status: 'ok' }], version: 0 } } as T
   } }
   const engine = new SyncEngine(api, {}, kv), derived = price(state)
-  const receipt = engine.enqueue('order', { items: state.cart, amountPaid: derived.total, paymentMethod: 'cash', ...buildPromotionMetadata(state, derived) }, `original-${type}`)
+  const receipt = await engine.enqueue('order', { items: state.cart, amountPaid: derived.total, paymentMethod: 'cash', ...buildPromotionMetadata(state, derived) }, `original-${type}`)
   const captured = structuredClone(engine.outbox.all()[0])
   expect(captured.payload).toMatchObject({ promotionIds: [], promotionId: null, discountCodes: ['Raw-Winner'], discountCode: 'Raw-Winner', discountLabel: 'Raw-Winner' })
   expect(captured.payload.items).toEqual(state.cart)
@@ -287,17 +287,17 @@ it.each(['bundle', 'buy_x_get_y'] as const)('%s queue/reconstruction/response-lo
   expect(rebuilt.pendingCount()).toBe(0)
 })
 
-it('historical duplicate queued sale stays byte-identical while new physical sales are captured', () => {
+it('historical duplicate queued sale stays byte-identical while new physical sales are captured', async () => {
   vi.stubGlobal('navigator', { onLine: false })
   const kv = memoryKV(), old: OutboxItem = { type: 'order', idempotencyKey: 'old:old-sale', seq: 7, status: 'failed', attempts: 5,
     clientCreatedAt: '2026-09-01T00:00:00Z', lastError: 'Historical evidence', payload: { promotionIds: ['P'], discountCodes: ['Raw-Winner', 'Second'], items: [line('buy', 1)] } }
   const bytes = JSON.stringify(old); kv.set('mandalika.pos.outbox', JSON.stringify([old]))
   const api: ApiLike = { async request() { throw new Error('No network') } }, engine = new SyncEngine(api, {}, kv), p = promo('bundle'), state = commit(initial(p), codeOwner(p))
-  engine.enqueue('order', { items: state.cart, ...buildPromotionMetadata(state, price(state)) }, 'new-physical')
+  await engine.enqueue('order', { items: state.cart, ...buildPromotionMetadata(state, price(state)) }, 'new-physical')
   expect(JSON.stringify(new SyncEngine(api, {}, kv).outbox.deadLettered()[0])).toBe(bytes)
 })
 
-it('shared server fixtures are produced by real direct/code fulfillment and queued metadata', () => {
+it('shared server fixtures are produced by real direct/code fulfillment and queued metadata', async () => {
   vi.stubGlobal('navigator', { onLine: false })
   const uuid = (n: number) => `00000000-0000-4000-8300-${String(n).padStart(12, '0')}`
   const catalog = [product(uuid(1), 100000), product(uuid(2), 20000)]
@@ -316,7 +316,7 @@ it('shared server fixtures are produced by real direct/code fulfillment and queu
       const raw = `Raw-LF-${p.type}`, owner = kind === 'direct' ? directOwner(p) : codeOwner(p, raw)
       const state = commit(start, owner, catalog), derived = price(state)
       expect(state.cart.filter(c => c.rewardPromotionId === p.id)).toHaveLength(1)
-      const created = engine.enqueue('order', { items: state.cart, paymentMethod: 'cash', amountPaid: derived.total, ...buildPromotionMetadata(state, derived) }, uuid(100 + ++seq))
+      const created = await engine.enqueue('order', { items: state.cart, paymentMethod: 'cash', amountPaid: derived.total, ...buildPromotionMetadata(state, derived) }, uuid(100 + ++seq))
       const item = structuredClone(engine.outbox.all().find(i => i.idempotencyKey === created.idempotencyKey)!)
       cases.push({ name: `${p.type}-${kind}`, kind, promotionId: p.id, code: raw, expectedTotal: derived.total,
         expectedRewardNet: p.type === 'bundle' ? 5000 : 10000, expectedQuantities: { [uuid(1)]: 1, [uuid(2)]: 1 },

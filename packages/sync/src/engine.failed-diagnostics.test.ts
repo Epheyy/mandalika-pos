@@ -5,25 +5,27 @@ import type { KV } from './storage'
 
 // Successful synchronous test storage, reused on reconstruction. This is not
 // evidence of Android Preferences durability (A01).
-function fixture(count = 2) {
+async function fixture(count = 2) {
   const store = new Map<string, string>()
   const kv: KV = {
     get: (key) => store.get(key) ?? null,
     set: vi.fn((key, value) => { store.set(key, value) }),
     remove: vi.fn((key) => { store.delete(key) }),
+    setDurable: vi.fn(async (key, value) => { store.set(key, value) }),
+    removeDurable: vi.fn(async (key) => { store.delete(key) }),
   }
   const request = vi.fn().mockRejectedValue(new Error('unexpected request'))
   const onOutboxChange = vi.fn()
   const engine = new SyncEngine({ request }, { onOutboxChange }, kv)
   for (let i = 0; i < count; i++) {
     const key = `synthetic-device:operation-${i}`
-    engine.outbox.add(i % 2 ? 'refund' : 'order', key, {
+    await engine.outbox.add(i % 2 ? 'refund' : 'order', key, {
       orderId: `synthetic-sale-${i}`,
       items: [{ productId: 'synthetic-product', quantity: 1, metadata: { marker: 'keep-original' } }],
       pin: 'SYNTHETIC-PIN-NOT-A-CREDENTIAL',
     })
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      engine.outbox.fail(key, `synthetic rejection ${attempt + 1}`)
+      await engine.outbox.fail(key, `synthetic rejection ${attempt + 1}`)
     }
   }
   return { engine, kv, store, request, onOutboxChange }
@@ -40,11 +42,14 @@ beforeEach(() => { vi.stubGlobal('navigator', { onLine: true }) })
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('A02-export: failed diagnostic retention', () => {
-  it('exports twice without changing sale/refund identity, payload, attempts, errors or stored state (D03 corrected)', () => {
-    const { engine, kv, store, request, onOutboxChange } = fixture()
+  it('exports twice without changing sale/refund identity, payload, attempts, errors or stored state (D03 corrected)', async () => {
+    const { engine, kv, store, request, onOutboxChange } = await fixture()
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     const failedBefore = engine.deadLettered()
+    // Seeding went through setDurable; only writes made BY the export count below.
+    vi.mocked(kv.setDurable).mockClear()
+    vi.mocked(kv.removeDurable).mockClear()
 
     const first = engine.buildFailedSyncDiagnostics()
     const second = engine.buildFailedSyncDiagnostics()
@@ -62,10 +67,12 @@ describe('A02-export: failed diagnostic retention', () => {
     expect(onOutboxChange).not.toHaveBeenCalled()
     expect(request).not.toHaveBeenCalled()
     expect(kv.remove).not.toHaveBeenCalled()
+    expect(kv.setDurable).not.toHaveBeenCalled()
+    expect(kv.removeDurable).not.toHaveBeenCalled()
   })
 
-  it('redacts detached diagnostics while frozen nested operations remain untouched', () => {
-    const { engine, store } = fixture()
+  it('redacts detached diagnostics while frozen nested operations remain untouched', async () => {
+    const { engine, store } = await fixture()
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     freezeDeep(engine.outbox.all())
@@ -73,6 +80,7 @@ describe('A02-export: failed diagnostic retention', () => {
       vi.spyOn(engine.outbox, 'ack'), vi.spyOn(engine.outbox, 'fail'),
       vi.spyOn(engine.outbox, 'prune'), vi.spyOn(engine.outbox, 'discard'),
       vi.spyOn(engine.outbox, 'retryDeadLettered'), vi.spyOn(engine.outbox, 'add'),
+      vi.spyOn(engine.outbox, 'settle'),
     ]
 
     const text = engine.buildFailedSyncDiagnostics()
@@ -88,8 +96,8 @@ describe('A02-export: failed diagnostic retention', () => {
     mutations.forEach((mutation) => expect(mutation).not.toHaveBeenCalled())
   })
 
-  it('caps only the support log, retaining all operations through large repeated exports', () => {
-    const { engine, kv, store } = fixture(205)
+  it('caps only the support log, retaining all operations through large repeated exports', async () => {
+    const { engine, kv, store } = await fixture(205)
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     for (let i = 0; i < 3; i++) {
@@ -102,26 +110,29 @@ describe('A02-export: failed diagnostic retention', () => {
   })
 
   it('manual retry after export uses the original operation keys and original unredacted payloads', async () => {
-    const { engine, request } = fixture()
+    const { engine, request } = await fixture()
     const before = structuredClone(engine.outbox.all())
     engine.buildFailedSyncDiagnostics()
     request.mockResolvedValue({ data: {
       results: before.map((item) => ({ idempotencyKey: item.idempotencyKey, status: 'ok' })),
       processed: before.length, version: 0,
     } })
-    engine.retryFailed()
+    await engine.retryFailed()
     expect(request).toHaveBeenCalledExactlyOnceWith('POST', '/api/v1/sync/batch', {
       items: before.map(({ type, idempotencyKey, payload }) => ({ type, idempotencyKey, payload })),
     })
     await vi.waitFor(() => expect(engine.outbox.all()).toEqual([]))
   })
 
-  it('exporting an empty failed set neither writes nor starts delivery', () => {
-    const { engine, kv, request } = fixture(0)
+  it('exporting an empty failed set neither writes nor starts delivery', async () => {
+    const { engine, kv, request } = await fixture(0)
     vi.mocked(kv.set).mockClear()
+    vi.mocked(kv.setDurable).mockClear()
     expect(engine.buildFailedSyncDiagnostics()).toBe('[]')
     expect(kv.set).not.toHaveBeenCalled()
     expect(kv.remove).not.toHaveBeenCalled()
+    expect(kv.setDurable).not.toHaveBeenCalled()
+    expect(kv.removeDurable).not.toHaveBeenCalled()
     expect(request).not.toHaveBeenCalled()
   })
 })

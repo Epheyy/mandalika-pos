@@ -22,7 +22,8 @@ export interface OfflineDataState {
   isResyncing: boolean
   resync: () => Promise<void>
   flush: () => void
-  retryFailed: () => void
+  /** Re-queue parked items. Rejects if the reset could not be stored (items stay parked). */
+  retryFailed: () => Promise<void>
   /** Detached diagnostic JSON. Leaves failed operations and retry state intact. */
   buildFailedSyncDiagnostics: () => string
 }
@@ -97,8 +98,8 @@ export function useOfflineData(): OfflineDataState {
     return () => clearInterval(interval)
   }, [engine])
 
-  const retryFailed = useCallback(() => {
-    engine.retryFailed()
+  const retryFailed = useCallback(async () => {
+    await engine.retryFailed()
     setFailed(engine.deadLettered())
     setPendingCount(engine.pendingCount())
   }, [engine])

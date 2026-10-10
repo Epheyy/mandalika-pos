@@ -8,7 +8,10 @@ interface ShiftBarProps {
   currentShift: Shift | null
   isLoading: boolean
   isOpening: boolean
-  onOpenShift: (startingCash: number) => void
+  /** Resolves true once the shift is durably queued (false = not saved, keep the modal). */
+  onOpenShift: (startingCash: number) => Promise<boolean>
+  /** Persistent error when the open could not be stored on the device. */
+  error?: string | null
   /** Closing is reconciled in the Rekap screen (counted income is mandatory),
    *  so the header "Tutup" routes there instead of a quick-close modal. */
   onRequestClose: () => void
@@ -23,6 +26,7 @@ export const ShiftBar = memo(function ShiftBar({
   isLoading,
   isOpening,
   onOpenShift,
+  error,
   onRequestClose,
   promptOpen,
   onPromptConsumed,
@@ -58,9 +62,10 @@ export const ShiftBar = memo(function ShiftBar({
     return <span className="text-xs text-gray-400">Memuat shift…</span>
   }
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     const cash = parseFloat(depositStr) || 0
-    onOpenShift(cash)
+    // Keep the modal (and the typed amount) open unless the shift was saved.
+    if (!(await onOpenShift(cash))) return
     setShowOpenModal(false)
     setDepositStr('')
   }
@@ -152,9 +157,14 @@ export const ShiftBar = memo(function ShiftBar({
               placeholder="0"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-green-400"
             />
+            {error && (
+              <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                {error}
+              </p>
+            )}
             <div className="flex gap-2">
               <button type="button"
-                onClick={handleOpen}
+                onClick={() => void handleOpen()}
                 disabled={isOpening}
                 className="flex-1 py-2 bg-green-600 text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
               >

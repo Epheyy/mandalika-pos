@@ -16,7 +16,7 @@ it.each(['shift_open', 'shift_close'] as const)('retains denied %s through parki
       : { shiftId: 'original-shift', closingCash: null, countedByMethod: { cash: 100 } },
   }
   const store = new Map([['mandalika.pos.outbox', JSON.stringify([original])]])
-  const kv: KV = { get: key => store.get(key) ?? null, set: (key, value) => { store.set(key, value) }, remove: key => { store.delete(key) } }
+  const kv: KV = { get: key => store.get(key) ?? null, set: (key, value) => { store.set(key, value) }, remove: key => { store.delete(key) }, setDurable: async (key, value) => { store.set(key, value) }, removeDurable: async key => { store.delete(key) } }
   const sent: unknown[] = []
   // Response contract only: backend guards are tested in Go, not reimplemented here.
   const api: ApiLike = { async request<T>(method: string, path: string, body?: unknown): Promise<T> {

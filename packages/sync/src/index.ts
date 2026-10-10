@@ -5,7 +5,7 @@
 export { SyncEngine } from './engine'
 export type { ApiLike, SyncEvents, WallState } from './engine'
 export { Outbox } from './outbox'
-export type { OutboxItem, OutboxType, OutboxStatus } from './outbox'
+export type { OutboxItem, OutboxType, OutboxStatus, OutboxCorruption } from './outbox'
 export { Snapshot } from './snapshot'
 export { getDeviceId, uuid } from './device'
 export { defaultKV, readJSON, writeJSON, getKV, initSecureKV } from './storage'

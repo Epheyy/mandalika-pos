@@ -14,8 +14,10 @@ describe('A06 permission containment: retained refund delivery failures', () => 
   it('retains capture evidence through five denials, repeated export, reconstruction and original-key retry', async () => {
     const onDeadLetter = vi.fn()
     const f = refundPermissionFixture({ onDeadLetter })
-    const ack = vi.spyOn(f.engine.outbox, 'ack')
-    const discard = vi.spyOn(f.engine.outbox, 'discard')
+    // flush settles results through outbox.settle(); ack/discard ops would be the
+    // only way to resolve the parked refund, so none may ever be requested.
+    const settle = vi.spyOn(f.engine.outbox, 'settle')
+    const resolving = () => settle.mock.calls.flatMap(([ops]) => ops).filter((o) => o.op !== 'fail')
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const result = await f.engine.flush()
       expect(result?.processed).toBe(0)
@@ -26,8 +28,7 @@ describe('A06 permission containment: retained refund delivery failures', () => 
       expect(f.engine.pendingCount()).toBe(attempt < MAX_ATTEMPTS ? 1 : 0)
       expect(f.engine.deadLettered()).toHaveLength(attempt < MAX_ATTEMPTS ? 0 : 1)
     }
-    expect(ack).not.toHaveBeenCalled()
-    expect(discard).not.toHaveBeenCalled()
+    expect(resolving()).toEqual([])
     expect(f.delivery.mutationCalls).toBe(0)
     expect(onDeadLetter).toHaveBeenCalledTimes(1)
     const parked = structuredClone(f.engine.outbox.all())
@@ -44,7 +45,7 @@ describe('A06 permission containment: retained refund delivery failures', () => 
     expect(await reconstructed.flush()).toBeNull() // parked does not auto-retry
     expect(f.sent).toHaveLength(5)
     f.delivery.permission = true // same synthetic identity/scope, no recapture
-    reconstructed.retryFailed()
+    await reconstructed.retryFailed()
     await vi.waitFor(() => expect(reconstructed.outbox.all()).toEqual([]))
     expect(f.delivery.mutationCalls).toBe(1)
     expect(f.sent).toHaveLength(6)
@@ -60,8 +61,10 @@ describe('A06 permission containment: retained refund delivery failures', () => 
     expect(await f.engine.flush()).toBeNull()
     expect(f.delivery.mutationCalls).toBe(1) // simulated commit, not a real payout
     expect(f.engine.outbox.all()[0].lastError).toContain('response lost')
-    const ack = vi.spyOn(f.engine.outbox, 'ack')
-    const discard = vi.spyOn(f.engine.outbox, 'discard')
+    // flush settles results through outbox.settle(); ack/discard ops would be the
+    // only way to resolve the parked refund, so none may ever be requested.
+    const settle = vi.spyOn(f.engine.outbox, 'settle')
+    const resolving = () => settle.mock.calls.flatMap(([ops]) => ops).filter((o) => o.op !== 'fail')
     f.delivery.permission = false
     for (let i = 1; i < MAX_ATTEMPTS; i++) await f.engine.flush()
     expect(f.engine.deadLettered()).toHaveLength(1)
@@ -69,15 +72,14 @@ describe('A06 permission containment: retained refund delivery failures', () => 
     expect(captured(f.engine.outbox.all()[0])).toEqual(captured(f.original))
     expect(f.engine.outbox.all()[0].lastError).toBe(refundPermissionError)
     // lastError follows existing retry semantics; it is not a full error journal.
-    expect(ack).not.toHaveBeenCalled()
-    expect(discard).not.toHaveBeenCalled()
+    expect(resolving()).toEqual([])
     expect(f.delivery.mutationCalls).toBe(1)
     expect(f.reconstruct().outbox.all()).toEqual(f.engine.outbox.all())
   })
 
   it('acknowledges independent mixed-batch successes while retaining the denied original refund', async () => {
     const f = refundPermissionFixture()
-    f.engine.outbox.add('customer_create', 'independent-customer', { name: 'Synthetic' })
+    await f.engine.outbox.add('customer_create', 'independent-customer', { name: 'Synthetic' })
     const result = await f.engine.flush()
     expect(result?.processed).toBe(1)
     expect(result?.results.map(({ idempotencyKey, status }) => ({ idempotencyKey, status }))).toEqual([

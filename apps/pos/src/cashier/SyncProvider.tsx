@@ -19,6 +19,7 @@ import { api } from '../api'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
+import { OUTBOX_CORRUPT_MESSAGE } from '../lib/durableSubmit'
 
 type Transfer = components['schemas']['Transfer']
 
@@ -96,6 +97,19 @@ export function SyncProvider({
     [],
   )
 
+  // The stored queue was unreadable: its raw bytes were quarantined and the
+  // queue started empty. Say so on every screen, and ship it to the error log.
+  const corruption = engine.outboxCorruption()
+  useEffect(() => {
+    if (!corruption) return
+    void reportErrors([{
+      source: 'runtime',
+      kind: 'outbox_corrupt',
+      action: 'Antrean sinkronisasi rusak',
+      message: `Outbox tidak terbaca; salinan asli disimpan di ${corruption.quarantineKey}`,
+    }])
+  }, [corruption])
+
   useEffect(() => {
     // Bootstrap: pull snapshot, then start periodic polling
     engine
@@ -120,6 +134,12 @@ export function SyncProvider({
 
   return (
     <SyncContext.Provider value={engine}>
+      {corruption && (
+        // Persistent and non-dismissable; pointer-events-none so it never blocks the header.
+        <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-red-700 text-white text-sm font-bold px-4 py-2 text-center safe-top">
+          {OUTBOX_CORRUPT_MESSAGE}
+        </div>
+      )}
       <SyncReceiveRejectedRefContext.Provider value={onReceiveRejectedRef}>
         <SyncReceiveAcceptedRefContext.Provider value={onReceiveAcceptedRef}>
           {children}

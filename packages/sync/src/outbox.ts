@@ -1,7 +1,11 @@
 import type { KV } from './storage'
-import { readJSON, writeJSON } from './storage'
 
 const OUTBOX_KEY = 'mandalika.pos.outbox'
+/** An unreadable outbox is copied here (never deleted) before anything can overwrite it. */
+export const OUTBOX_QUARANTINE_PREFIX = 'mandalika.outbox.corrupt.'
+/** Durable marker (JSON OutboxCorruption) so the warning outlives the session that detected it.
+ *  Deliberately NOT under the quarantine prefix. Nothing clears it yet (admin follow-up). */
+export const OUTBOX_CORRUPTION_MARKER_KEY = 'mandalika.outbox.corruptionNotice'
 
 export type OutboxType =
   | 'order'
@@ -32,35 +36,132 @@ export interface OutboxItem {
 /** A server rejection that recurs this many times is treated as permanent. */
 export const MAX_ATTEMPTS = 5
 
+/** The stored outbox could not be parsed; its raw bytes were quarantined. */
+export interface OutboxCorruption {
+  quarantineKey: string
+  detectedAt: string
+}
+
+/** One settled-result update applied by {@link Outbox.settle}. */
+export type OutboxSettle =
+  | { key: string; op: 'ack' }
+  | { key: string; op: 'discard' }
+  // retryable === true: record the error but do not count it toward MAX_ATTEMPTS.
+  | { key: string; op: 'fail'; error: string; retryable?: boolean }
+
+function readMarker(kv: KV): OutboxCorruption | null {
+  const raw = kv.get(OUTBOX_CORRUPTION_MARKER_KEY)
+  if (!raw) return null
+  try {
+    const m = JSON.parse(raw) as Partial<OutboxCorruption>
+    if (typeof m.quarantineKey === 'string' && typeof m.detectedAt === 'string') {
+      return { quarantineKey: m.quarantineKey, detectedAt: m.detectedAt }
+    }
+  } catch {
+    /* unreadable marker: fall through and still warn */
+  }
+  return { quarantineKey: 'unknown', detectedAt: 'unknown' }
+}
+
 // Append-only durable queue. Survives app restart/crash (plan §5). Ordered by
 // monotonic seq; flushed one in flight at a time.
+//
+// Every mutation goes through ONE serialized promise chain: the next whole
+// array is computed inside the chain, written with `kv.setDurable`, and only
+// then does `this.items` change. So `pending()` (and therefore flush) only
+// ever sees committed items, a rejected write leaves no trace, and the
+// whole-array writes can never land out of order.
 export class Outbox {
   private items: OutboxItem[]
   private seqCounter: number
+  private tail: Promise<void> = Promise.resolve()
+  private corruption: OutboxCorruption | null = null
+  // Resolves once the quarantine copy and marker (if any) are durably written;
+  // rejects if they could not be, in which case NO outbox write may ever proceed.
+  private ready: Promise<void> = Promise.resolve()
 
   constructor(private kv: KV) {
-    this.items = readJSON<OutboxItem[]>(kv, OUTBOX_KEY, [])
-    this.seqCounter = this.items.reduce((m, i) => Math.max(m, i.seq), 0)
-  }
-
-  private persist() {
-    writeJSON(this.kv, OUTBOX_KEY, this.items)
-  }
-
-  add(type: OutboxType, idempotencyKey: string, payload: Record<string, unknown>): OutboxItem {
-    const existing = this.items.find((i) => i.idempotencyKey === idempotencyKey)
-    if (existing) return existing // never enqueue the same key twice
-    const item: OutboxItem = {
-      idempotencyKey,
-      type,
-      payload,
-      seq: ++this.seqCounter,
-      status: 'pending',
-      clientCreatedAt: new Date().toISOString(),
+    const raw = kv.get(OUTBOX_KEY)
+    let items: OutboxItem[] = []
+    if (raw) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        parsed = undefined
+      }
+      if (Array.isArray(parsed)) {
+        items = parsed as OutboxItem[]
+      } else {
+        const detectedAt = new Date().toISOString()
+        const quarantineKey = OUTBOX_QUARANTINE_PREFIX + detectedAt
+        this.corruption = { quarantineKey, detectedAt }
+        const info = this.corruption
+        this.ready = kv
+          .setDurable(quarantineKey, raw)
+          .then(() => kv.setDurable(OUTBOX_CORRUPTION_MARKER_KEY, JSON.stringify(info)))
+        this.ready.catch(() => {}) // surfaced by commit(); avoid an unhandled rejection
+      }
     }
-    this.items.push(item)
-    this.persist()
-    return item
+    if (!this.corruption) this.corruption = readMarker(kv)
+    this.items = items
+    this.seqCounter = items.reduce((m, i) => Math.max(m, i.seq), 0)
+  }
+
+  /** Set when the stored queue was unreadable and quarantined (now or on an
+   *  earlier boot, via the durable marker). */
+  corruptionInfo(): OutboxCorruption | null {
+    return this.corruption
+  }
+
+  private run<T>(op: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(op)
+    this.tail = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
+  }
+
+  /** Write `next` durably, then (only on success) make it the live queue. */
+  private async commit(next: OutboxItem[]): Promise<void> {
+    await this.ready
+    await this.kv.setDurable(OUTBOX_KEY, JSON.stringify(next))
+    this.items = next
+  }
+
+  /** Best-effort mutation: server receipts make a resend safe, so a failed
+   *  write is logged and the in-memory queue is simply left unchanged. */
+  private mutate(fn: (items: OutboxItem[]) => OutboxItem[] | null): Promise<void> {
+    return this.run(async () => {
+      const next = fn(this.items)
+      if (!next) return
+      try {
+        await this.commit(next)
+      } catch (err) {
+        console.error('[outbox] write failed; queue unchanged', err)
+      }
+    })
+  }
+
+  /** Durably append. Resolves with the item only after it is on disk; rejects
+   *  (leaving no trace) if the write fails. Same key twice returns the first. */
+  add(type: OutboxType, idempotencyKey: string, payload: Record<string, unknown>): Promise<OutboxItem> {
+    return this.run(async () => {
+      const existing = this.items.find((i) => i.idempotencyKey === idempotencyKey)
+      if (existing) return existing // never enqueue the same key twice
+      const item: OutboxItem = {
+        idempotencyKey,
+        type,
+        payload,
+        seq: this.seqCounter + 1,
+        status: 'pending',
+        clientCreatedAt: new Date().toISOString(),
+      }
+      await this.commit([...this.items, item])
+      this.seqCounter = item.seq
+      return item
+    })
   }
 
   /** Items still needing delivery, in submission order. Parked (repeatedly
@@ -87,49 +188,73 @@ export class Outbox {
     return this.pending().length
   }
 
-  ack(idempotencyKey: string) {
-    const it = this.items.find((i) => i.idempotencyKey === idempotencyKey)
-    if (it) {
-      it.status = 'acked'
-      this.persist()
-    }
-  }
-
-  fail(idempotencyKey: string, error: string) {
-    const it = this.items.find((i) => i.idempotencyKey === idempotencyKey)
-    if (it) {
-      it.status = 'failed'
-      it.lastError = error
-      it.attempts = (it.attempts ?? 0) + 1
-      this.persist()
-    }
-  }
-
-  /** Re-queue every parked (dead-lettered) item: reset status + attempts so
-   *  the next flush retries them. Used by the manual "retry" action. */
-  retryDeadLettered() {
-    let changed = false
-    for (const i of this.items) {
-      if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS) {
-        i.status = 'pending'
-        i.attempts = 0
-        changed = true
+  /** Apply many server results with ONE write (a per-item whole-array rewrite
+   *  would be O(n²) on a long offline queue). Best-effort, see {@link mutate}. */
+  settle(updates: readonly OutboxSettle[]): Promise<void> {
+    if (!updates.length) return Promise.resolve()
+    return this.mutate((items) => {
+      const byKey = new Map(updates.map((u) => [u.key, u]))
+      let changed = false
+      const next: OutboxItem[] = []
+      for (const it of items) {
+        const u = byKey.get(it.idempotencyKey)
+        if (!u) {
+          next.push(it)
+        } else if (u.op === 'discard') {
+          changed = true
+        } else if (u.op === 'ack') {
+          changed = true
+          next.push({ ...it, status: 'acked' })
+        } else {
+          changed = true
+          next.push({ ...it, status: 'failed', lastError: u.error, attempts: (it.attempts ?? 0) + (u.retryable === true ? 0 : 1) })
+        }
       }
-    }
-    if (changed) this.persist()
+      return changed ? next : null
+    })
+  }
+
+  ack(idempotencyKey: string): Promise<void> {
+    return this.settle([{ key: idempotencyKey, op: 'ack' }])
+  }
+
+  fail(idempotencyKey: string, error: string): Promise<void> {
+    return this.settle([{ key: idempotencyKey, op: 'fail', error }])
   }
 
   /** Remove a single resolved item from the outbox (e.g. a handled terminal rejection). */
-  discard(idempotencyKey: string): void {
-    const before = this.items.length
-    this.items = this.items.filter((i) => i.idempotencyKey !== idempotencyKey)
-    if (this.items.length !== before) this.persist()
+  discard(idempotencyKey: string): Promise<void> {
+    return this.settle([{ key: idempotencyKey, op: 'discard' }])
+  }
+
+  /** Re-queue every parked (dead-lettered) item: reset status + attempts so
+   *  the next flush retries them. Used by the manual "retry" action. Unlike the
+   *  ack/fail bookkeeping this is user-initiated, so a failed write rejects. */
+  retryDeadLettered(): Promise<void> {
+    return this.run(async () => {
+      let changed = false
+      const next = this.items.map((i) => {
+        if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS) {
+          changed = true
+          return { ...i, status: 'pending' as const, attempts: 0 }
+        }
+        return i
+      })
+      if (changed) await this.commit(next)
+    })
   }
 
   /** Drop acked rows once their canonical order is reconciled locally. */
-  prune() {
-    this.items = this.items.filter((i) => i.status !== 'acked')
-    this.persist()
+  prune(): Promise<void> {
+    return this.mutate((items) => {
+      const next = items.filter((i) => i.status !== 'acked')
+      return next.length === items.length ? null : next
+    })
+  }
+
+  /** Resolves when every mutation queued so far has settled (tests/diagnostics). */
+  idle(): Promise<void> {
+    return this.tail
   }
 
   all(): readonly OutboxItem[] {

@@ -88,8 +88,11 @@ interface ShiftRecapPanelProps {
   outletName: string
   closeIntent?: boolean
   receipt: ReceiptSettings
-  onOpenShift: (startingCash: number) => void
-  onCloseShift: (closingCash: number, countedByMethod?: Record<string, number>) => void
+  /** Resolve true once the op is durably queued; false = not saved (inputs are kept). */
+  onOpenShift: (startingCash: number) => Promise<boolean>
+  onCloseShift: (closingCash: number, countedByMethod?: Record<string, number>) => Promise<boolean>
+  /** Persistent error when a shift op could not be stored on the device. */
+  shiftError?: string | null
   isOpeningShift: boolean
   isClosingShift: boolean
 }
@@ -123,6 +126,7 @@ function ShiftRecapPanelBody({
   receipt,
   onOpenShift,
   onCloseShift,
+  shiftError,
   isOpeningShift,
   isClosingShift,
 }: Omit<ShiftRecapPanelProps, 'isOpen'>) {
@@ -233,12 +237,12 @@ function ShiftRecapPanelBody({
     }
   }
 
-  const handleOpen = () => {
-    onOpenShift(parseInt(depositAmount, 10) || 0)
+  const handleOpen = async () => {
+    if (!(await onOpenShift(parseInt(depositAmount, 10) || 0))) return
     setDepositAmount('')
     setTimeout(() => void loadRekap(), 1700)
   }
-  const handleClose = () => {
+  const handleClose = async () => {
     // Counted income is mandatory for every enabled method that took money —
     // the cashier must reconcile each tender before the shift can close.
     const needCount = paymentMethods.filter(
@@ -249,10 +253,11 @@ function ShiftRecapPanelBody({
       return
     }
     setCloseError(null)
-    onCloseShift(
+    const saved = await onCloseShift(
       parseInt(closingCash, 10) || 0,
       Object.keys(counted).length ? counted : undefined,
     )
+    if (!saved) return // not stored: keep the counted amounts for a retry
     setClosingCash('')
     setTimeout(() => void loadRekap(), 1700)
   }
@@ -478,7 +483,10 @@ function ShiftRecapPanelBody({
                     onChange={(e) => setDepositAmount(e.target.value)} placeholder="0"
                     className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
                 </div>
-                <button type="button" onClick={handleOpen} disabled={isOpeningShift}
+                {shiftError && (
+                  <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{shiftError}</p>
+                )}
+                <button type="button" onClick={() => void handleOpen()} disabled={isOpeningShift}
                   className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl transition-all">
                   {isOpeningShift ? 'Membuka…' : 'Buka Shift'}
                 </button>
@@ -497,7 +505,10 @@ function ShiftRecapPanelBody({
                 {closeError && (
                   <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{closeError}</p>
                 )}
-                <button type="button" onClick={handleClose} disabled={isClosingShift}
+                {shiftError && (
+                  <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{shiftError}</p>
+                )}
+                <button type="button" onClick={() => void handleClose()} disabled={isClosingShift}
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
                 </button>

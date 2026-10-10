@@ -43,7 +43,7 @@ for (const failure of [false, true]) test(`BO-RACE-${failure ? 'ERROR' : 'SUCCES
 
 for (const [id, run, count] of [
   ['POS-PICKERS', qualifyPos, 10], ['POS-INVALIDATION', posBoundaries, 9],
-  ['POS-PHYSICAL-QUEUE', physicalQueue, 4], ['POS-GUEST', guestSales, 10],
+  ['POS-PHYSICAL-QUEUE', physicalQueue, 5], ['POS-GUEST', guestSales, 10],
 ] as const) test(`${id} accepted rendered flow and synthetic evidence`, async ({ page }, info) => {
   const p = page as ScenarioPage
   await setupPos(p)

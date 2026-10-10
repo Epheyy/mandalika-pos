@@ -4,14 +4,24 @@ import { initSecureKV } from '@mandalika/sync'
 import './index.css'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
-import { bootNativeShell } from './native'
+import { bootNativeShell, hideSplash } from './native'
 import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
+import { BootError } from './BootError'
 
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
 async function boot(): Promise<void> {
-  await initSecureKV()
+  try {
+    await initSecureKV()
+  } catch (err) {
+    // Never fall back to an empty queue: stop with a visible, retryable error.
+    void hideSplash()
+    createRoot(document.getElementById('root')!).render(
+      <BootError detail={err instanceof Error ? err.message : 'storage init failed'} />,
+    )
+    return
+  }
   await bootNativeShell()
   installGlobalErrorHandler()
 

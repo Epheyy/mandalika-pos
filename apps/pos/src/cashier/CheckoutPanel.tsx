@@ -41,6 +41,8 @@ interface CheckoutPanelProps {
   onPaymentMethodChange: (method: PaymentMethod) => void
   onAmountPaidChange: (amount: string) => void
   onConfirm: () => void
+  /** Persistent error shown when the sale could not be stored on the device. */
+  saveError?: string | null
   onClose: () => void
   discountAmount: number
   taxAmount: number
@@ -80,6 +82,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   onPaymentMethodChange,
   onAmountPaidChange,
   onConfirm,
+  saveError,
   onClose,
   discountAmount,
   taxAmount,
@@ -434,6 +437,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
         {/* Confirm button */}
         <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
+          {saveError && (
+            <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+              {saveError}
+            </p>
+          )}
           <button type="button"
             onClick={handleConfirmClick}
             disabled={isProcessing || isCashShort}

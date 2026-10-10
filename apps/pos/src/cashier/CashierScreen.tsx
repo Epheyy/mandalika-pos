@@ -51,6 +51,7 @@ import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
 import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
 import { track } from '../lib/activityLog'
+import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import logoGold from '../assets/logo-gold.png'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -137,6 +138,14 @@ export default function CashierScreen() {
       ignore = true
     }
   }, [state.customerSearch, offlineData.isOnline])
+  // Single-flight gates for actions that mean "durably queued on this device".
+  // A ref flips synchronously, unlike the isProcessing/disabled render state.
+  const saleGate = useRef(createSubmitGate())
+  const refundGate = useRef(createSubmitGate())
+  const customerGate = useRef(createSubmitGate())
+  const receiveGate = useRef(createSubmitGate())
+  const [saleError, setSaleError] = useState<string | null>(null)
+  const [refundError, setRefundError] = useState<string | null>(null)
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [isValidatingCode, setIsValidatingCode] = useState(false)
@@ -427,7 +436,8 @@ export default function CashierScreen() {
     for (const id of invalidPhysicalPromotionIds(state)) dispatch({ type: 'REMOVE_PROMOTION', id })
   }, [state.cart, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.bundleApplications])
 
-  const handleAddCustomer = () => {
+  const handleAddCustomer = async () => {
+    if (customerGate.current.isBusy()) return
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
       setCustomerError('Nama dan telepon wajib diisi')
       return
@@ -437,33 +447,38 @@ export default function CashierScreen() {
     const name = newCustomerForm.name.trim()
     const phone = newCustomerForm.phone.trim()
     const email = newCustomerForm.email.trim()
-    try {
-      // Offline-first: generate the customer UUID on-device and queue a
-      // `customer_create` op (works with no connection). The queued op flushes
-      // before the sale (FIFO outbox) so the order's customerId resolves
-      // server-side. Optimistically add + select so it's usable immediately.
-      const id =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      engine.enqueue('customer_create', { customerId: id, name, phone, email }, id)
-      const created: components['schemas']['Customer'] = {
-        id,
-        name,
-        phone,
-        email: email || null,
-        points: 0,
-        totalSpent: 0,
-        visitCount: 0,
-        createdAt: new Date().toISOString(),
-      }
-      setLocalCustomers((prev) => [created, ...prev])
-      dispatch({ type: 'SET_CUSTOMER', customer: created })
-      setIsAddingCustomer(false)
-      setNewCustomerForm({ name: '', phone: '', email: '' })
-    } finally {
-      setIsSavingCustomer(false)
+    // Offline-first: generate the customer UUID on-device and queue a
+    // `customer_create` op (works with no connection). The queued op flushes
+    // before the sale (FIFO outbox) so the order's customerId resolves
+    // server-side. Optimistically add + select so it's usable immediately.
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const outcome = await customerGate.current.run(
+      () => engine.enqueue('customer_create', { customerId: id, name, phone, email }, id),
+    )
+    if (outcome.status === 'busy') return
+    setIsSavingCustomer(false)
+    if (outcome.status === 'failed') {
+      // Nothing was queued: keep the form so the cashier can retry.
+      setCustomerError(notSavedMessage('Pelanggan'))
+      return
     }
+    const created: components['schemas']['Customer'] = {
+      id,
+      name,
+      phone,
+      email: email || null,
+      points: 0,
+      totalSpent: 0,
+      visitCount: 0,
+      createdAt: new Date().toISOString(),
+    }
+    setLocalCustomers((prev) => [created, ...prev])
+    dispatch({ type: 'SET_CUSTOMER', customer: created })
+    setIsAddingCustomer(false)
+    setNewCustomerForm({ name: '', phone: '', email: '' })
   }
 
   // Unified search → add-new: numeric query becomes the phone, otherwise the
@@ -513,8 +528,8 @@ export default function CashierScreen() {
     }
   }
 
-  const handleConfirmPayment = () => {
-    if (state.isProcessing) return
+  const handleConfirmPayment = async () => {
+    if (state.isProcessing || saleGate.current.isBusy()) return
     // Re-confirm a clean total if a stale customer benefit survives a UI transition.
     if (!state.selectedCustomer && (state.pointsToRedeem > 0 || state.cart.some(c => c.isReward && c.rewardConditionId))) {
       dispatch({ type: 'SET_CUSTOMER', customer: null })
@@ -619,12 +634,15 @@ export default function CashierScreen() {
       dispatch({ type: 'CLEAR_PROMOTIONS' })
       return
     }
+    setSaleError(null)
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
       // Client-authoritative number: receipt == history, generated on-device.
       const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId)
       const promotionMetadata = buildPromotionMetadata(state, derived)
-      const { orderUuid } = engine.enqueue('order', {
+      // The sale only counts once it is durably queued: await the outbox write
+      // BEFORE any success state, cart reset or receipt print.
+      const outcome = await saleGate.current.run(() => engine.enqueue('order', {
         orderNumber: orderNo,
         items: state.cart,
         paymentMethod: state.paymentMethod,
@@ -641,7 +659,17 @@ export default function CashierScreen() {
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id ?? null,
-      })
+      }))
+      if (outcome.status === 'busy') return
+      if (outcome.status === 'failed') {
+        // Nothing was queued or sent. Keep the cart/checkout open, show a
+        // persistent error and do NOT print.
+        dispatch({ type: 'SET_PROCESSING', processing: false })
+        setSaleError(notSavedMessage('Transaksi'))
+        void reportErrors([{ source: 'runtime', kind: 'outbox_write', action: `Simpan transaksi ${orderNo}`, message: outcome.error instanceof Error ? outcome.error.message : 'penyimpanan lokal gagal', outletName: snapshot.outletName }])
+        return
+      }
+      const { orderUuid } = outcome.value
       const receipt: ReceiptData = {
         orderRef: orderNo,
         pending: false, // client-authoritative number; matches history
@@ -743,13 +771,35 @@ export default function CashierScreen() {
       })
   }
 
-  const handleRefundConfirm = (orderId: string, reason: string) => {
+  const handleRefundConfirm = async (orderId: string, reason: string) => {
+    if (refundGate.current.isBusy()) return
+    setRefundError(null)
     setIsRefunding(true)
-    try {
-      engine.enqueue('refund', { orderId, reason })
-      setRefundOrder(null)
-      showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
-    } finally { setIsRefunding(false) }
+    const outcome = await refundGate.current.run(() => engine.enqueue('refund', { orderId, reason }))
+    if (outcome.status === 'busy') return
+    setIsRefunding(false)
+    if (outcome.status === 'failed') {
+      setRefundError(notSavedMessage('Refund'))
+      return
+    }
+    setRefundOrder(null)
+    showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
+  }
+
+  const handleReceiveApproved = async (approverUserId: string, pin: string) => {
+    if (!pendingReceive) return
+    const outcome = await receiveGate.current.run(() => engine.enqueueTransferReceive({
+      transferId: pendingReceive.transferId,
+      items: pendingReceive.items,
+      discrepancyReason: pendingReceive.reason,
+      approverUserId,
+      pin,
+    }))
+    if (outcome.status === 'busy') return
+    // The PIN modal stays open and shows the error so the receive can be retried.
+    if (outcome.status === 'failed') throw outcome.error
+    setPendingReceive(null)
+    showToast('Diterima — akan disinkronkan')
   }
 
   const handleFontSize = (s: FontSize) => { setFontSize(s); localStorage.setItem('pos_fontSize', s) }
@@ -829,6 +879,7 @@ export default function CashierScreen() {
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
             onOpenShift={shift.openShift}
+            error={shift.shiftError}
             onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
           />
@@ -849,7 +900,7 @@ export default function CashierScreen() {
             failed={offlineData.failed} wall={offlineData.wall}
             isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
-            onRetryFailed={offlineData.retryFailed} onExportLog={() => { void handleExportLog() }}
+            onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />
           <button type="button"
             onClick={() => setShowMenu(true)}
@@ -865,6 +916,13 @@ export default function CashierScreen() {
           </button>
         </div>
       </header>
+
+      {shift.shiftError && (
+        <div role="alert" className="bg-red-700 text-white text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3 flex-shrink-0">
+          <span>{shift.shiftError}</span>
+          <button type="button" onClick={shift.clearShiftError} className="text-xs underline flex-shrink-0">Tutup</button>
+        </div>
+      )}
 
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
@@ -970,8 +1028,9 @@ export default function CashierScreen() {
         onPointsRedeemedChange={(p) => dispatch({ type: 'SET_POINTS_REDEEMED', points: p })}
         onPaymentMethodChange={(m) => dispatch({ type: 'SET_PAYMENT_METHOD', method: m })}
         onAmountPaidChange={(a) => dispatch({ type: 'SET_AMOUNT_PAID', amount: a })}
-        onConfirm={handleConfirmPayment}
-        onClose={() => dispatch({ type: 'CLOSE_CHECKOUT' })}
+        onConfirm={() => void handleConfirmPayment()}
+        saveError={saleError}
+        onClose={() => { setSaleError(null); dispatch({ type: 'CLOSE_CHECKOUT' }) }}
         discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         allowNegativeStock={settings.allowNegativeStock ?? true}
         cartLines={state.cart}
@@ -1007,6 +1066,7 @@ export default function CashierScreen() {
         receipt={settings.receipt}
         onOpenShift={shift.openShift}
         onCloseShift={shift.closeShift}
+        shiftError={shift.shiftError}
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
       />
@@ -1043,8 +1103,9 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
       />
 
-      <RefundDialog order={refundOrder} isProcessing={isRefunding}
-        onConfirm={handleRefundConfirm} onClose={() => setRefundOrder(null)} />
+      <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}
+        onConfirm={(id, reason) => { void handleRefundConfirm(id, reason) }}
+        onClose={() => { setRefundError(null); setRefundOrder(null) }} />
 
       {showReceive && (
         <ReceiveTransferPanel
@@ -1070,17 +1131,7 @@ export default function CashierScreen() {
         <PinStepUpModal
           approvers={approvers}
           onCancel={() => setPendingReceive(null)}
-          onApproved={(approverUserId, pin) => {
-            engine.enqueueTransferReceive({
-              transferId: pendingReceive.transferId,
-              items: pendingReceive.items,
-              discrepancyReason: pendingReceive.reason,
-              approverUserId,
-              pin,
-            })
-            setPendingReceive(null)
-            showToast('Diterima — akan disinkronkan')
-          }}
+          onApproved={handleReceiveApproved}
         />
       )}
 

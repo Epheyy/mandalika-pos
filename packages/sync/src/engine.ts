@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, type OutboxItem, type OutboxType } from './outbox'
+import { Outbox, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -60,6 +60,14 @@ export interface SyncEvents {
    *  resolved receiver letterhead) so the UI can render the post-receive slip
    *  without a second roundtrip. */
   onReceiveAccepted?: (transfer: Transfer) => void
+}
+
+/** A transfer_receive result is final (discard + roll back the credit) only for
+ *  these codes, or when the server sent none (older server = pre-contract behaviour).
+ *  busy / internal / forbidden (e.g. wrong PIN) / rejected / key_conflict keep the item. */
+const FINAL_RECEIVE_CODES = new Set(['competing_receipt', 'conflict', 'not_found'])
+function isFinalReceiveRejection(code: string | undefined): boolean {
+  return code === undefined || FINAL_RECEIVE_CODES.has(code)
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -167,19 +175,39 @@ export class SyncEngine {
     return `${this.deviceId}:${orderUuid}`
   }
 
-  /** Queue a mutation. Returns the idempotency key + generated order uuid. */
-  enqueue(
+  /** Non-null when the stored outbox was unreadable and has been quarantined
+   *  (raw bytes kept under `mandalika.outbox.corrupt.*`). The UI shows a
+   *  persistent banner; the queue itself started empty. */
+  outboxCorruption(): OutboxCorruption | null {
+    return this.outbox.corruptionInfo()
+  }
+
+  /** Durably commit a mutation without triggering a flush. Resolves only once
+   *  the outbox write succeeded; rejects (no trace left) if it failed. */
+  private async commitOutbox(
     type: OutboxType,
     payload: Record<string, unknown>,
-    orderUuid = uuid(),
-  ): { idempotencyKey: string; orderUuid: string } {
+    orderUuid: string,
+  ): Promise<string> {
     const idempotencyKey = this.key(orderUuid)
-    this.outbox.add(type, idempotencyKey, {
+    await this.outbox.add(type, idempotencyKey, {
       ...payload,
       orderUuid,
       deviceId: this.deviceId,
       clientCreatedAt: new Date().toISOString(),
     })
+    return idempotencyKey
+  }
+
+  /** Queue a mutation. Resolves with the idempotency key + order uuid only
+   *  after the item is durably stored; rejects if the write failed, in which
+   *  case nothing was queued and nothing will be sent. */
+  async enqueue(
+    type: OutboxType,
+    payload: Record<string, unknown>,
+    orderUuid = uuid(),
+  ): Promise<{ idempotencyKey: string; orderUuid: string }> {
+    const idempotencyKey = await this.commitOutbox(type, payload, orderUuid)
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
     return { idempotencyKey, orderUuid }
@@ -188,25 +216,33 @@ export class SyncEngine {
   /** Enqueue a POS transfer receive and optimistically credit the counted qty.
    *  The PIN is validated by the UI before this; it rides in the payload for
    *  server re-validation and is dropped from the outbox when the item acks. */
-  enqueueTransferReceive(input: {
+  async enqueueTransferReceive(input: {
     transferId: string
     items: { productId: string; variantSize: string; receivedQty: number }[]
     discrepancyReason?: string
     approverUserId: string
     pin: string
-  }): { idempotencyKey: string } {
-    const { idempotencyKey } = this.enqueue('transfer_receive', {
+  }): Promise<{ idempotencyKey: string }> {
+    const orderUuid = uuid()
+    const idempotencyKey = this.key(orderUuid)
+    const lines: CreditLine[] = input.items
+      .filter((it) => it.receivedQty > 0)
+      .map((it) => ({ productId: it.productId, variantSize: it.variantSize, qty: it.receivedQty }))
+    // Outbox first: if the write fails nothing exists, so there is no credit to
+    // roll back (a lost rollback would leave inflated stock that never retires).
+    // Do not add an await between the commit and pending.add: an ack can only
+    // arrive in a later macrotask, so stampAck always finds the credit.
+    await this.commitOutbox('transfer_receive', {
       transferId: input.transferId,
       items: input.items,
       discrepancyReason: input.discrepancyReason ?? '',
       approverUserId: input.approverUserId,
       pin: input.pin,
-    })
-    const lines: CreditLine[] = input.items
-      .filter((it) => it.receivedQty > 0)
-      .map((it) => ({ productId: it.productId, variantSize: it.variantSize, qty: it.receivedQty }))
+    }, orderUuid)
     this.pending.add({ idempotencyKey, lines, ackVersion: null })
     this.recomputeCredited()
+    this.events.onOutboxChange?.(this.outbox.count())
+    void this.flush()
     return { idempotencyKey }
   }
 
@@ -241,9 +277,9 @@ export class SyncEngine {
     }))
   }
 
-  /** Manual retry of parked items. */
-  retryFailed(): void {
-    this.outbox.retryDeadLettered()
+  /** Manual retry of parked items. Rejects if the reset could not be stored. */
+  async retryFailed(): Promise<void> {
+    await this.outbox.retryDeadLettered()
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
   }
@@ -302,9 +338,10 @@ export class SyncEngine {
         '/api/v1/sync/batch',
         { items },
       )
+      const updates: OutboxSettle[] = []
       for (const res of r.data.results) {
         if (res.status === 'ok' || res.status === 'duplicate') {
-          this.outbox.ack(res.idempotencyKey)
+          updates.push({ key: res.idempotencyKey, op: 'ack' })
           this.pending.stampAck(res.idempotencyKey, r.data.version ?? 0)
           // SP4: surface the completed transfer to the UI so the tanda-terima
           // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
@@ -316,22 +353,33 @@ export class SyncEngine {
           ) {
             this.events.onReceiveAccepted?.(res.transfer)
           }
-        } else if (typeByKey.get(res.idempotencyKey) === 'transfer_receive') {
-          // Deterministic rejection (e.g. already received elsewhere): roll back the
+        } else if (
+          typeByKey.get(res.idempotencyKey) === 'transfer_receive' &&
+          isFinalReceiveRejection(res.code)
+        ) {
+          // Final rejection (e.g. already received elsewhere): roll back the
           // optimistic credit and resolve the item cleanly — not a failed sync.
           this.pending.remove(res.idempotencyKey)
-          this.outbox.discard(res.idempotencyKey)
+          updates.push({ key: res.idempotencyKey, op: 'discard' })
           this.events.onReceiveRejected?.('Penerimaan dibatalkan — transfer sudah diterima di tempat lain. Stok dikembalikan.')
         } else {
           if (this.events.debug) {
             // eslint-disable-next-line no-console
             console.error('[sync] item rejected', res.idempotencyKey, res.error)
           }
-          this.outbox.fail(res.idempotencyKey, res.error ?? 'sync error')
+          updates.push({
+            key: res.idempotencyKey,
+            op: 'fail',
+            error: res.error ?? 'sync error',
+            retryable: res.retryable,
+          })
         }
       }
+      // One serialized write for the whole batch (settle is best-effort: a
+      // failed write leaves items pending and the server dedups the resend).
+      await this.outbox.settle(updates)
       this.recomputeCredited()
-      this.outbox.prune()
+      await this.outbox.prune()
       this.events.onOutboxChange?.(this.outbox.count())
       this.events.onReconcile?.(r.data)
       // Server returns its version on every ack — refresh wall state.
@@ -354,7 +402,7 @@ export class SyncEngine {
         // eslint-disable-next-line no-console
         console.error('[sync] batch failed', msg, err)
       }
-      for (const i of pending) this.outbox.fail(i.idempotencyKey, msg)
+      await this.outbox.settle(pending.map((i) => ({ key: i.idempotencyKey, op: 'fail' as const, error: msg })))
       this.events.onOutboxChange?.(this.outbox.count())
       return null
     } finally {

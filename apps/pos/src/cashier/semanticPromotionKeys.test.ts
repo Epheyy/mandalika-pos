@@ -60,7 +60,7 @@ it.each(['bundle', 'buy_x_get_y'] as const)('distinct variants of same product r
 afterEach(() => vi.unstubAllGlobals())
 it('stored legacy physical sale retains original evidence when reconstructed after validation changes', () => {
   vi.stubGlobal('navigator', { onLine: false })
-  const values = new Map<string, string>(), kv: KV = { get: k => values.get(k) ?? null, set: (k,v) => { values.set(k,v) }, remove: k => { values.delete(k) } }
+  const values = new Map<string, string>(), kv: KV = { get: k => values.get(k) ?? null, set: (k,v) => { values.set(k,v) }, remove: k => { values.delete(k) }, setDurable: async (k,v) => { values.set(k,v) }, removeDurable: async k => { values.delete(k) } }
   const old: OutboxItem = { type: 'order', idempotencyKey: 'original-overlap-key', seq: 1, attempts: 5, status: 'failed', clientCreatedAt: '2026-08-01T01:00:00Z', lastError: 'Original capture evidence', payload: { promotionIds: ['legacy'], discountCodes: ['Raw'], items: [{ ...cart[0], isReward: true, rewardPromotionId: 'legacy', price: 7, subtotal: 7 }] } }
   const bytes = JSON.stringify(old); kv.set('mandalika.pos.outbox', JSON.stringify([old]))
   const engine = new SyncEngine({ async request() { throw new Error('No network') } }, {}, kv)

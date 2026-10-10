@@ -1,6 +1,6 @@
 import type { components } from '@mandalika/api'
 import type { KV } from './storage'
-import { readJSON, writeJSON } from './storage'
+import { writeJSON } from './storage'
 
 type Bundle = components['schemas']['SyncPullBundle']
 
@@ -45,7 +45,25 @@ export function retireByVersion(credits: PendingCredit[], snapshotVersion: numbe
 /** Persisted list of optimistic credits (survives restart + snapshot.replace). */
 export class PendingCredits {
   constructor(private kv: KV) {}
-  list(): PendingCredit[] { return readJSON<PendingCredit[]>(this.kv, KEY, []) }
+  private quarantined = false
+  list(): PendingCredit[] {
+    const raw = this.kv.get(KEY)
+    if (!raw) return []
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed as PendingCredit[]
+    } catch {
+      /* fall through to quarantine */
+    }
+    // Display-only optimistic stock (the receive itself lives in the outbox), so
+    // an unreadable list is not fatal — but keep the bytes before a save() can
+    // overwrite them. Best-effort: issued before any later write to KEY.
+    if (!this.quarantined) {
+      this.quarantined = true
+      this.kv.setDurable(`mandalika.pendingCredits.corrupt.${new Date().toISOString()}`, raw).catch(() => {})
+    }
+    return []
+  }
   private save(v: PendingCredit[]): void { writeJSON(this.kv, KEY, v) }
   add(c: PendingCredit): void { this.save([...this.list(), c]) }
   stampAck(idempotencyKey: string, version: number): void {

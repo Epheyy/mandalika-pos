@@ -6,6 +6,11 @@ export interface KV {
   get(key: string): string | null
   set(key: string, value: string): void
   remove(key: string): void
+  /** Awaited write that REJECTS when the value could not be stored. Reads
+   *  (`get`) stay synchronous and only ever see values a durable write has
+   *  committed. Use for money/stock state (the outbox). */
+  setDurable(key: string, value: string): Promise<void>
+  removeDurable(key: string): Promise<void>
 }
 
 class LocalStorageKV implements KV {
@@ -29,6 +34,14 @@ class LocalStorageKV implements KV {
     } catch {
       /* ignore */
     }
+  }
+  // localStorage is synchronous: a throw here (quota / private mode) is the
+  // failure signal, so let it become a rejection instead of swallowing it.
+  async setDurable(key: string, value: string): Promise<void> {
+    localStorage.setItem(key, value)
+  }
+  async removeDurable(key: string): Promise<void> {
+    localStorage.removeItem(key)
   }
 }
 
@@ -58,6 +71,13 @@ export function writeJSON(kv: KV, key: string, value: unknown): void {
 // mirror: reads are sync from the mirror, writes update the mirror and are
 // flushed to Preferences fire-and-forget. On the web/dev shell this is never
 // used — `defaultKV` (localStorage) stays in effect.
+//
+// `set`/`remove` stay fire-and-forget for low-value state. `setDurable` /
+// `removeDurable` await the Preferences promise FIRST and update the mirror
+// only on success, so a failed write never leaves the mirror ahead of disk.
+// NOTE: on Android the plugin resolves right after SharedPreferences
+// `editor.apply()` (disk write is still async), so this narrows but does not
+// close the process-kill window — that needs the SQLite journal (A01).
 
 const KEY_PREFIX = 'mandalika.'
 
@@ -74,20 +94,21 @@ class CapacitorPreferencesKV implements KV {
       const { value } = await this.prefs.get({ key: k })
       if (value != null) this.mem.set(k, value)
     }
-    // One-time migration: lift any pre-native localStorage state.
+    // One-time migration: lift any pre-native localStorage state. A missing
+    // localStorage is fine; a failed Preferences write is NOT (the app would
+    // start with an empty queue), so it propagates to the caller.
+    const legacy: [string, string][] = []
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i)
         if (!k || !k.startsWith(KEY_PREFIX) || this.mem.has(k)) continue
         const v = localStorage.getItem(k)
-        if (v != null) {
-          this.mem.set(k, v)
-          void this.prefs.set({ key: k, value: v })
-        }
+        if (v != null) legacy.push([k, v])
       }
     } catch {
       /* no localStorage on this platform — nothing to migrate */
     }
+    for (const [k, v] of legacy) await this.setDurable(k, v)
   }
 
   get(key: string): string | null {
@@ -101,7 +122,18 @@ class CapacitorPreferencesKV implements KV {
     this.mem.delete(key)
     void this.prefs.remove({ key })
   }
+  async setDurable(key: string, value: string): Promise<void> {
+    await this.prefs.set({ key, value })
+    this.mem.set(key, value)
+  }
+  async removeDurable(key: string): Promise<void> {
+    await this.prefs.remove({ key })
+    this.mem.delete(key)
+  }
 }
+
+/** @internal exported for tests */
+export { CapacitorPreferencesKV }
 
 let activeKV: KV = defaultKV
 
@@ -117,15 +149,18 @@ export function getKV(): KV {
  */
 export async function initSecureKV(): Promise<KV> {
   if (activeKV !== defaultKV) return activeKV
+  let prefs: unknown
   try {
     const { Capacitor } = await import('@capacitor/core')
     if (!Capacitor.isNativePlatform()) return activeKV
-    const { Preferences } = await import('@capacitor/preferences')
-    const kv = new CapacitorPreferencesKV(Preferences)
-    await kv.hydrate()
-    activeKV = kv
+    prefs = (await import('@capacitor/preferences')).Preferences
   } catch {
-    /* plugin missing / web — stay on localStorage */
+    return activeKV /* plugin missing / web — stay on localStorage */
   }
+  // Native: a hydrate/migration failure must NOT fall back to localStorage —
+  // that would start the app with an empty queue. Let it reject to the boot.
+  const kv = new CapacitorPreferencesKV(prefs)
+  await kv.hydrate()
+  activeKV = kv
   return activeKV
 }

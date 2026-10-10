@@ -8,6 +8,8 @@ type Order = components['schemas']['Order']
 interface RefundDialogProps {
   order: Order | null
   isProcessing: boolean
+  /** Persistent error when the refund could not be stored on the device. */
+  error?: string | null
   onConfirm: (orderId: string, reason: string) => void
   onClose: () => void
 }
@@ -15,6 +17,7 @@ interface RefundDialogProps {
 export const RefundDialog = memo(function RefundDialog({
   order,
   isProcessing,
+  error,
   onConfirm,
   onClose,
 }: RefundDialogProps) {
@@ -70,6 +73,12 @@ export const RefundDialog = memo(function RefundDialog({
         <p className="text-[10px] text-gray-400 mb-4">
           Stok akan dipulihkan oleh server saat sinkronisasi.
         </p>
+
+        {error && (
+          <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+            {error}
+          </p>
+        )}
 
         <div className="flex gap-2">
           <button type="button"

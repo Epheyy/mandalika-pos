@@ -116,6 +116,23 @@ export const physicalQueue = async (page: ScenarioPage) =>{
   assert(owner==='direct'?p.promotionIds.length===1&&p.discountCodes.length===0:p.promotionIds.length===0&&p.discountCodes.length===1&&p.discountCodes[0]==='Raw-'+kind,'one usage identity');
   out.push({kind,owner,individualRemoval:true,item,receipt:await page.locator('body').innerText()});
  }
+ // A01a: a sale whose outbox write fails must not look successful, and a double tap must queue exactly one.
+ await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();
+ await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');
+ const outboxLength=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')||'[]').length);
+ const before=await outboxLength();
+ await page.evaluate(()=>{const orig=Storage.prototype.setItem;(window as any).__a01OrigSetItem=orig;Storage.prototype.setItem=function(k:string,v:string){if(k==='mandalika.pos.outbox')throw new DOMException('quota','QuotaExceededError');return orig.call(this,k,v)}});
+ await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();
+ const confirm=page.getByRole('button',{name:/^Konfirmasi Rp/});await confirm.click();
+ await page.getByText(/BELUM tersimpan di perangkat/).first().waitFor();
+ assert(await page.getByRole('heading',{name:'Pembayaran Berhasil'}).count()===0,'no success screen when the write failed');
+ assert(await confirm.isEnabled(),'checkout stays open and retryable');
+ assert(await outboxLength()===before,'failed write queued nothing');
+ await page.evaluate(()=>{Storage.prototype.setItem=(window as any).__a01OrigSetItem});
+ await confirm.dblclick();
+ await page.getByRole('heading',{name:'Pembayaran Berhasil'}).waitFor();
+ assert(await outboxLength()===before+1,'retry plus double tap queued exactly one sale');
+ out.push({kind:'durable-write-failure',queuedBefore:before,queuedAfterRetry:before+1});
  page.__a24.physicalQueue=out;return out;
 }
 

@@ -22,6 +22,8 @@ export function refundPermissionFixture(events: SyncEvents = {}) {
     get: (key) => store.get(key) ?? null,
     set: (key, value) => { store.set(key, value) },
     remove: (key) => { store.delete(key) },
+    setDurable: async (key, value) => { store.set(key, value) },
+    removeDurable: async (key) => { store.delete(key) },
   }
   const delivery = { permission: false, loseNextResponse: false, mutationCalls: 0 }
   const sent: Item[][] = []

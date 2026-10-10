@@ -9,11 +9,12 @@
  * engine.enqueue('cash_flow', ...).
  */
 
-import { memo, use, useState } from 'react'
+import { memo, use, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
 import { usePrinter } from '../printer'
+import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 
 type AppSettings = components['schemas']['AppSettings']
 type Shift = components['schemas']['Shift']
@@ -134,8 +135,10 @@ export const SettingsScreen = memo(function SettingsScreen({
   const [isSavingCashFlow, setIsSavingCashFlow] = useState(false)
   const [cashFlowMsg, setCashFlowMsg] = useState<string | null>(null)
 
-  const handleSaveCashFlow = () => {
-    if (!engine) return
+  const cashFlowGate = useRef(createSubmitGate())
+
+  const handleSaveCashFlow = async () => {
+    if (!engine || cashFlowGate.current.isBusy()) return
     const amt = parseFloat(cashFlowAmount)
     if (!amt || amt <= 0) {
       setCashFlowMsg('Masukkan jumlah yang valid')
@@ -146,19 +149,23 @@ export const SettingsScreen = memo(function SettingsScreen({
       return
     }
     setIsSavingCashFlow(true)
-    try {
-      engine.enqueue('cash_flow', {
-        shiftId: currentShift?.id ?? null,
-        type: cashFlowType,
-        amount: amt,
-        description: cashFlowDesc.trim(),
-      })
-      setCashFlowAmount('')
-      setCashFlowDesc('')
-      setCashFlowMsg('Berhasil disimpan (akan disinkronisasi)')
-    } finally {
-      setIsSavingCashFlow(false)
+    setCashFlowMsg(null)
+    const outcome = await cashFlowGate.current.run(() => engine.enqueue('cash_flow', {
+      shiftId: currentShift?.id ?? null,
+      type: cashFlowType,
+      amount: amt,
+      description: cashFlowDesc.trim(),
+    }))
+    if (outcome.status === 'busy') return
+    setIsSavingCashFlow(false)
+    if (outcome.status === 'failed') {
+      // Not stored: keep the typed amount/description so the cashier can retry.
+      setCashFlowMsg(notSavedMessage('Kas masuk/keluar'))
+      return
     }
+    setCashFlowAmount('')
+    setCashFlowDesc('')
+    setCashFlowMsg('Berhasil disimpan (akan disinkronisasi)')
   }
 
   return (
@@ -394,7 +401,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 </p>
               )}
               <button type="button"
-                onClick={handleSaveCashFlow}
+                onClick={() => void handleSaveCashFlow()}
                 disabled={isSavingCashFlow || !engine}
                 className="w-full py-2 bg-gray-800 text-white rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-gray-900 transition-colors"
               >

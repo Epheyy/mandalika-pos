@@ -151,11 +151,12 @@ it('pricing and capture project stale duplicate draft identities without mutatin
 
 function memoryKV(): KV {
   const values = new Map<string, string>()
-  return { get: key => values.get(key) ?? null, set: (key, value) => { values.set(key, value) }, remove: key => { values.delete(key) } }
+  return { get: key => values.get(key) ?? null, set: (key, value) => { values.set(key, value) }, remove: key => { values.delete(key) },
+    setDurable: async (key, value) => { values.set(key, value) }, removeDurable: async key => { values.delete(key) } }
 }
 
 it.each(['direct-first', 'linked-first', 'two-linked', 'code-only', 'different-ids', 'unlinked'] as const)(
-  'real enqueue/reconstruction captures one identity effect and usage intent: %s', order => {
+  'real enqueue/reconstruction captures one identity effect and usage intent: %s', async order => {
     vi.stubGlobal('navigator', { onLine: false })
     const kv = memoryKV(), request = vi.fn(async () => { throw new Error('No network permitted in this fixture') })
     const engine = new SyncEngine({ request }, {}, kv), p = promo()
@@ -168,7 +169,7 @@ it.each(['direct-first', 'linked-first', 'two-linked', 'code-only', 'different-i
       unlinked: cashierReducer(direct(initial(), p), { type: 'APPLY_PROMO_CODE', code: { code: 'Unlinked-Raw', type: 'percentage', value: 10, combinable: true }, combinable: true }),
     }
     const state = states[order], derived = quote(state), metadata = buildPromotionMetadata(state, derived)
-    const receipt = engine.enqueue('order', { outletId: 'fixture-outlet', customerId: 'Raw-Customer', items: state.cart,
+    const receipt = await engine.enqueue('order', { outletId: 'fixture-outlet', customerId: 'Raw-Customer', items: state.cart,
       paymentMethod: 'cash', amountPaid: derived.total, ...metadata }, `lp05-${order}`)
     const queued = new SyncEngine({ request }, {}, kv).outbox.pending()[0]
     const codeWinner = order === 'two-linked' || order === 'code-only'
@@ -195,7 +196,7 @@ it('capture keeps manual discount evidence independent of promotion identity', (
   ])
 })
 
-it('new capture and reconstruction leave a historical duplicate queued sale and error evidence intact', () => {
+it('new capture and reconstruction leave a historical duplicate queued sale and error evidence intact', async () => {
   vi.stubGlobal('navigator', { onLine: false })
   const kv = memoryKV(), request = vi.fn(async () => { throw new Error('No network permitted in this fixture') })
   const historical: OutboxItem = { idempotencyKey: 'original-device:original-sale', type: 'order', seq: 17, status: 'failed', attempts: 5,
@@ -204,7 +205,7 @@ it('new capture and reconstruction leave a historical duplicate queued sale and 
   const originalBytes = JSON.stringify(historical)
   kv.set('mandalika.pos.outbox', JSON.stringify([historical]))
   const engine = new SyncEngine({ request }, {}, kv), state = linked(direct(initial(), promo()), promo())
-  engine.enqueue('order', { ...buildPromotionMetadata(state, quote(state)), amountPaid: quote(state).total }, 'new-sale')
+  await engine.enqueue('order', { ...buildPromotionMetadata(state, quote(state)), amountPaid: quote(state).total }, 'new-sale')
   const reconstructed = new SyncEngine({ request }, {}, kv)
   expect(reconstructed.outbox.deadLettered()).toEqual([historical])
   expect(JSON.stringify(reconstructed.outbox.deadLettered()[0])).toBe(originalBytes)

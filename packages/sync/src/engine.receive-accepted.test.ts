@@ -14,6 +14,8 @@ function memKV(): KV {
     get: (key) => store.get(key) ?? null,
     set: (key, value) => { store.set(key, value) },
     remove: (key) => { store.delete(key) },
+    setDurable: async (key, value) => { store.set(key, value) },
+    removeDurable: async (key) => { store.delete(key) },
   }
 }
 
@@ -104,7 +106,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
     // Seed the snapshot.
     await engine.resync()
 
-    engine.enqueueTransferReceive({
+    await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
       approverUserId: 'u1',
@@ -129,7 +131,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
 
     await engine.resync()
 
-    engine.enqueueTransferReceive({
+    await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
       approverUserId: 'u1',
@@ -150,7 +152,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
 
     await engine.resync()
 
-    engine.enqueueTransferReceive({
+    await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
       approverUserId: 'u1',
