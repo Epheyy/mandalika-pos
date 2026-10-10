@@ -247,23 +247,32 @@ func TestSaleInputDerivedArithmeticBeforeEffects(t *testing.T) {
 
 func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 	for _, offline := range []bool{false, true} {
-		t.Run(map[bool]string{false: "direct floor", true: "batch warning"}[offline], func(t *testing.T) {
+		t.Run(map[bool]string{false: "direct shortfall rejected", true: "batch warning"}[offline], func(t *testing.T) {
 			in := ordinaryInput()
 			in.Offline = offline
 			original := append([]OrderItem(nil), in.Items...)
 			tx := &inputTestTx{allowWrites: true, stock: 0, taxRate: 10}
 			begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
 			id, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, begin)
-			wantStock := 0
-			if offline {
-				wantStock = -1
+			if !offline {
+				// A09: current tax raises the total above the captured cash, so a direct
+				// (online) sale is now a 422 cash shortfall rejected before any effect.
+				if !errors.Is(err, ErrTenderRejected) || dup || tx.writes != 0 || tx.commits != 0 || tx.stock != 0 {
+					t.Fatalf("direct shortfall must reject before effects: id=%s err=%v tx=%+v", id, err, tx)
+				}
+				return
 			}
+			wantStock := -1
 			if err != nil || dup || id != "accepted-original" || warn != offline || tx.commits != 1 || tx.stock != wantStock {
 				t.Fatalf("id=%s dup=%v warn=%v err=%v tx=%+v", id, dup, warn, err, tx)
 			}
 			// Current tax raises total; the new validator must not claim a new payment.
 			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 100000 {
 				t.Fatalf("capture/total: %v", tx.orderArgs)
+			}
+			// A09: the batch sale is accepted and flagged (tender_warning, reason).
+			if tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderCashShort) {
+				t.Fatalf("tender flag args: %v", tx.orderArgs[36:])
 			}
 			if !reflect.DeepEqual(in.Items, original) {
 				t.Fatal("caller capture mutated")
