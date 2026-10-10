@@ -165,3 +165,8 @@ methods (same SELECT); `evaluateTender(isCash,…)`; shift close sums cash in Go
 validation (strict decode, no empty/duplicate ids → 400). TD gate additions 14–18 failing-first.
 Tasks T1–T12 (Opus review on all logic; Haiku on literals/docs). Old APKs: tunai now cash, paid=total
 ⇒ change 0, no flag (drift residual as in slice 8).
+
+**8c owner answers (2026-10-11):** Q1 empty cash-received input = exact total (amountPaid=total,
+change 0; a typed amount below total stays blocked as short); Q2 POS ships as **APK 1.4**; Q3/Q4/Q6
+accepted (several cash methods allowed with a no-cash warning; flag at close time decides, closed
+shifts never change; no recompute of old test shifts); Q5 settings-driven backoffice filters now (T10).
