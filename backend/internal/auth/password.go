@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -60,4 +61,23 @@ func VerifyPassword(password, encoded string) (bool, error) {
 	}
 	got := argon2.IDKey([]byte(password), salt, t, mem, p, uint32(len(want)))
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
+}
+
+// Password length bounds for admin-set passwords. Min counts runes, not bytes,
+// so non-ASCII passwords are not penalised; max keeps argon2 input bounded.
+const (
+	MinPasswordRunes = 8
+	MaxPasswordRunes = 128
+)
+
+// ErrWeakPassword is returned by ValidatePassword; safe to show to the client.
+var ErrWeakPassword = errors.New("password must be 8-128 characters")
+
+// ValidatePassword enforces the password strength rule.
+func ValidatePassword(password string) error {
+	n := utf8.RuneCountInString(password)
+	if n < MinPasswordRunes || n > MaxPasswordRunes {
+		return ErrWeakPassword
+	}
+	return nil
 }

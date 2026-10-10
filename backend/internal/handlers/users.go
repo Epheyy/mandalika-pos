@@ -98,7 +98,7 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.Store.UpdateUser(r.Context(), id, req.DisplayName, role, outlet,
-		photo, req.Password, req.Permissions); err != nil {
+		photo, req.Permissions); err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
 			httpx.Err(w, http.StatusNotFound, "not found")
 			return

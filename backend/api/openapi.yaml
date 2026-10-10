@@ -115,7 +115,6 @@ components:
         outletId: { type: string, format: uuid, nullable: true }
         photoURL: { type: string, nullable: true }
         permissions: { type: array, items: { type: string } }
-        password: { type: string, format: password, minLength: 8 }
     Outlet:
       type: object
       required: [id, name, isActive, createdAt]
@@ -1877,6 +1876,11 @@ components:
         userId: { type: string, format: uuid }
         displayName: { type: string }
         receivePinHash: { type: string }
+    ResetUserPasswordRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, format: password, minLength: 8, maxLength: 128 }
     SetReceivePinRequest:
       type: object
       properties:
@@ -4218,6 +4222,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UploadSignResponse' }
         '503': { description: cloudinary not configured }
+  /api/v1/users/{id}/reset-password:
+    post:
+      operationId: resetUserPassword
+      tags: [users]
+      summary: Admin sets a new password for a user and revokes their sessions
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetUserPasswordRequest' }
+      responses:
+        '204': { description: password reset and sessions revoked }
+        '400': { description: 'weak password | invalid body | invalid user id', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/users/{id}/receive-pin:
     put:
       operationId: setUserReceivePin

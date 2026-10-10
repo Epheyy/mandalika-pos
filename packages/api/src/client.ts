@@ -80,6 +80,7 @@ export type OutletConfigItemInput = S['OutletConfigItemInput']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
 export type SetReceivePinRequest = S['SetReceivePinRequest']
+export type ResetUserPasswordRequest = S['ResetUserPasswordRequest']
 export type UploadSignature = S['UploadSignature']
 export type WarehouseInput = S['WarehouseInput']
 export type GoodsReceiptInput = S['GoodsReceiptInput']
@@ -330,6 +331,8 @@ export interface Api {
   updateUser: (id: string, input: UpdateUserRequest) => Promise<User>
   setUserReceivePin: (id: string, input: SetReceivePinRequest) => Promise<void>
   deleteUser: (id: string) => Promise<void>
+  /** Admin-only: set a new password for the user and revoke their sessions. */
+  resetUserPassword: (id: string, input: ResetUserPasswordRequest) => Promise<void>
   listCustomRoles: () => Promise<CustomRole[]>
   createCustomRole: (input: { name: string; permissions: string[] }) => Promise<CustomRole>
   updateCustomRole: (id: string, input: { name: string; permissions: string[] }) => Promise<CustomRole>
@@ -822,6 +825,9 @@ export function createClient(opts: ClientOptions): Api {
     },
     deleteUser: async (id) => {
       await request('DELETE', `${API}/users/${id}`)
+    },
+    resetUserPassword: async (id, input) => {
+      await request('POST', `${API}/users/${id}/reset-password`, input)
     },
     listCustomRoles: () => data<CustomRole[]>('GET', `${API}/custom-roles`),
     createCustomRole: (input) => data<CustomRole>('POST', `${API}/custom-roles`, input),

@@ -101,14 +101,22 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (*User
 }
 
 // UpdateUser patches mutable fields; only non-nil args are applied. perms,
-// when non-nil, replaces the permission set. password, when non-empty, rehashes.
-func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID, photo, password *string, perms *[]string) error {
+// when non-nil, replaces the permission set. Passwords are not changed here;
+// admins use ResetPassword. ErrNotFound when the user does not exist.
+func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID, photo *string, perms *[]string) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
 	if name != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET display_name=$1 WHERE id=$2`, *name, id); err != nil {
 			return err
@@ -130,15 +138,6 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 	}
 	if photo != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET photo_url=$1 WHERE id=$2`, *photo, id); err != nil {
-			return err
-		}
-	}
-	if password != nil && *password != "" {
-		hash, err := HashPassword(*password)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id); err != nil {
 			return err
 		}
 	}
@@ -226,4 +225,62 @@ func (s *Store) CreateUser(ctx context.Context, email, password, name, role, out
 		return "", err
 	}
 	return id, nil
+}
+
+// ResetResult is what an admin password reset reports about the target user.
+type ResetResult struct {
+	Email string
+	Role  string
+	// JTIs are the user's unexpired refresh jtis (including already-revoked
+	// ones from the last hour, so a retry after a failed Redis cleanup still
+	// finds them; the marker covers older rotated rows).
+	JTIs []string
+}
+
+// ResetPassword sets a new password hash for the user and revokes every
+// refresh_tokens row in one transaction. ErrNotFound when the user is gone.
+func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult, error) {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return ResetResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var res ResetResult
+	err = tx.QueryRow(ctx,
+		`UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING email, role`, hash, id,
+	).Scan(&res.Email, &res.Role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ResetResult{}, ErrNotFound
+	}
+	if err != nil {
+		return ResetResult{}, err
+	}
+	rows, err := tx.Query(ctx,
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND expires_at>now()
+		    AND (NOT revoked OR created_at > now() - interval '1 hour') RETURNING jti`, id)
+	if err != nil {
+		return ResetResult{}, err
+	}
+	for rows.Next() {
+		var j string
+		if err := rows.Scan(&j); err != nil {
+			rows.Close()
+			return ResetResult{}, err
+		}
+		res.JTIs = append(res.JTIs, j)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return ResetResult{}, err
+	}
+	// Rows already expired stay as they are; they cannot be exchanged anyway.
+	if _, err := tx.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND NOT revoked`, id); err != nil {
+		return ResetResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ResetResult{}, err
+	}
+	return res, nil
 }
