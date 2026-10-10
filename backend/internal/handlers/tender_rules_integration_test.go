@@ -197,6 +197,24 @@ func TestTenderRulesPostgres(t *testing.T) {
 		}
 	}
 
+	sub("1b 422 envelope, and same-key retry with sufficient cash then succeeds", func(t *testing.T) {
+		p := payload("cash", 90000)
+		w := request(direct, "POST", "/orders", "td-1b", p)
+		var env struct {
+			Error string         `json:"error"`
+			Data  map[string]any `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil || w.Code != 422 || env.Data != nil ||
+			!strings.Contains(env.Error, "kurang dari total") || !strings.Contains(env.Error, "90000.00") || !strings.Contains(env.Error, "100000.00") {
+			t.Fatalf("422 envelope: %d %s", w.Code, w.Body.String())
+		}
+		// The rejected attempt consumed nothing: the same key succeeds with enough cash.
+		p["amountPaid"] = 100000
+		if w := request(direct, "POST", "/orders", "td-1b", p); w.Code != 201 {
+			t.Fatalf("retry after 422: %d %s", w.Code, w.Body.String())
+		}
+		expectStored("retry after 422", load("td-1b"), 100000, 100000, 0, "")
+	})
 	sub("1 direct cash shortfall is rejected 422 with zero writes", func(t *testing.T) {
 		beforeOrders, beforeStock := orderCount(), stock()
 		got := send("direct", "td-1", payload("cash", 90000))
@@ -284,6 +302,55 @@ func TestTenderRulesPostgres(t *testing.T) {
 	sub("3b batch custom method with missing amountPaid stores 0 and flags", func(t *testing.T) {
 		send("batch", "td-3b", payload("bca", nil))
 		expectStored("bca missing", load("td-3b"), 100000, 0, 0, mismatch)
+	})
+	sub("3c batch custom method over-pay keeps the amount and flags", func(t *testing.T) {
+		send("batch", "td-3c", payload("bca", 120000))
+		expectStored("bca 120000", load("td-3c"), 100000, 120000, 0, mismatch)
+	})
+	sub("12 points redemption: tender is judged against finalTotal within Rp1", func(t *testing.T) {
+		const cust = "00000000-0000-4000-8000-000000000009"
+		exec(`INSERT INTO customers(id,name,phone,points) VALUES($1,'Synthetic customer','td-not-a-number',1000)`, cust)
+		// 10 points x 1000.5 = 10005 off: finalTotal 89995 (not a whole thousand).
+		exec(`UPDATE loyalty_settings SET enabled=true,points_per_thousand=1,redemption_rate=1000.5`)
+		defer exec(`UPDATE loyalty_settings SET enabled=false`)
+		redeem := func(method string, paid float64) map[string]any {
+			p := payload(method, paid)
+			p["customerId"], p["pointsRedeemed"] = cust, 10
+			return p
+		}
+		for _, route := range []string{"direct", "batch"} {
+			send(route, "td-12a-"+route, redeem("cash", 89995))
+			expectStored("cash == finalTotal", load("td-12a-"+route), 89995, 89995, 0, "")
+			send(route, "td-12b-"+route, redeem("cash", 89994))
+			expectStored("cash finalTotal-Rp1", load("td-12b-"+route), 89995, 89994, 0, "")
+			send(route, "td-12c-"+route, redeem("qris", 100000))
+			expectStored("qris at pre-redemption total", load("td-12c-"+route), 89995, 100000, 0, mismatch)
+		}
+		got := send("direct", "td-12d", redeem("cash", 89993))
+		if got.code != 422 {
+			t.Fatalf("direct finalTotal-Rp2 status=%d", got.code)
+		}
+		send("batch", "td-12e", redeem("cash", 89993))
+		expectStored("batch finalTotal-Rp2", load("td-12e"), 89995, 89993, 0, short)
+	})
+	sub("13 rounding: tender is judged against the rounded total", func(t *testing.T) {
+		exec(`UPDATE app_settings SET rounding_enabled=true,rounding_type='nearest_1000'`)
+		defer exec(`UPDATE app_settings SET rounding_enabled=false,rounding_type='none'`)
+		priced := func(method string, paid float64) map[string]any {
+			p := payload(method, paid)
+			line := p["items"].([]map[string]any)[0]
+			line["price"], line["subtotal"] = 100500, 100500
+			return p
+		}
+		for _, route := range []string{"direct", "batch"} {
+			send(route, "td-13a-"+route, priced("cash", 101000))
+			expectStored("cash at rounded total", load("td-13a-"+route), 101000, 101000, 0, "")
+			send(route, "td-13b-"+route, priced("qris", 100500))
+			expectStored("qris at unrounded", load("td-13b-"+route), 101000, 100500, 0, mismatch)
+		}
+		if got := send("direct", "td-13c", priced("cash", 100500)); got.code != 422 {
+			t.Fatalf("direct cash at unrounded status=%d", got.code)
+		}
 	})
 	sub("9 batch replay of a flagged order is a duplicate, one row, flag unchanged", func(t *testing.T) {
 		before := orderCount()
