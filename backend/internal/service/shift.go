@@ -100,6 +100,10 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	if status == "closed" {
 		return nil
 	}
+	cashSales, err := shiftCashSales(ctx, tx, shiftID)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, `
 		UPDATE shifts s SET
 		  status='closed', closed_at=now(), closing_cash=$3,
@@ -116,15 +120,44 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		    sum(total) FILTER (WHERE status='completed') AS total_sales,
 		    count(*)   FILTER (WHERE status='completed') AS total_orders,
 		    sum(total) FILTER (WHERE status='refunded')  AS total_refunds,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='cash')     AS cash_sales,
+		    $5::numeric AS cash_sales,
 		    sum(total) FILTER (WHERE status='completed' AND payment_method='card')     AS card_sales,
 		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer') AS transfer_sales,
 		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris')     AS qris_sales
 		  FROM orders WHERE shift_id=$1
 		) a
 		WHERE s.id=$1 AND s.outlet_id=$2`,
-		shiftID, outletID, closingCash, countedJSON)
+		shiftID, outletID, closingCash, countedJSON, cashSales)
 	return err
+}
+
+// shiftCashSales sums completed sales over every method that is cash at close time
+// (the flag in force now decides; closed shifts are a snapshot and never change).
+// card/transfer/qris stay literal columns; custom non-cash methods land in none.
+func shiftCashSales(ctx context.Context, tx pgx.Tx, shiftID string) (float64, error) {
+	settings, err := loadAppSettings(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := tx.Query(ctx,
+		`SELECT payment_method, sum(total)::float8 FROM orders
+		  WHERE shift_id=$1 AND status='completed' GROUP BY payment_method`, shiftID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var cash float64
+	for rows.Next() {
+		var method string
+		var sum float64
+		if err := rows.Scan(&method, &sum); err != nil {
+			return 0, err
+		}
+		if IsCashMethod(settings.PaymentMethods, method) {
+			cash += sum
+		}
+	}
+	return cash, rows.Err()
 }
 
 type CashFlowInput struct {
