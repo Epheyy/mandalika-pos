@@ -385,6 +385,131 @@ func TestTenderRulesPostgres(t *testing.T) {
 			t.Fatalf("clean read JSON: %v", out.Data)
 		}
 	})
+	// ---- Slice 8c: payment-method cash identity (live cash method id is "tunai").
+	setMethods := func(js string) func() {
+		exec(`UPDATE app_settings SET payment_methods=$1::jsonb`, js)
+		return func() { exec(`UPDATE app_settings SET payment_methods='[]'::jsonb`) }
+	}
+	const tunaiConfig = `[{"id":"tunai","label":"Tunai","isEnabled":true},{"id":"qris","label":"QRIS","isEnabled":true}]`
+	sub("14 tunai (no flag in config) is cash: short 422 direct / flagged batch, overpay gives change", func(t *testing.T) {
+		defer setMethods(tunaiConfig)()
+		if got := send("direct", "td-14a", payload("tunai", 90000)); got.code != 422 {
+			t.Fatalf("direct tunai 90000 status=%d", got.code)
+		}
+		send("batch", "td-14b", payload("tunai", 90000))
+		expectStored("batch tunai 90000", load("td-14b"), 100000, 90000, 0, short)
+		for _, route := range []string{"direct", "batch"} {
+			send(route, "td-14c-"+route, payload("tunai", 150000))
+			expectStored("tunai 150000", load("td-14c-"+route), 100000, 150000, 50000, "")
+			send(route, "td-14d-"+route, payload("TUNAI", 150000))
+			expectStored("TUNAI 150000", load("td-14d-"+route), 100000, 150000, 50000, "")
+		}
+	})
+	sub("15 old-APK shape: tunai with amountPaid == total has change 0 and no flag", func(t *testing.T) {
+		defer setMethods(tunaiConfig)()
+		for _, route := range []string{"direct", "batch"} {
+			send(route, "td-15-"+route, payload("tunai", 100000))
+			expectStored("tunai paid=total", load("td-15-"+route), 100000, 100000, 0, "")
+		}
+	})
+	sub("16 explicit isCash flag wins over the id default; absent cash id still cash", func(t *testing.T) {
+		defer setMethods(`[{"id":"kas_kecil","label":"Kas Kecil","isEnabled":true,"isCash":true},{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":false}]`)()
+		if got := send("direct", "td-16a", payload("kas_kecil", 90000)); got.code != 422 {
+			t.Fatalf("direct kas_kecil 90000 status=%d", got.code)
+		}
+		send("batch", "td-16b", payload("tunai", 95000))
+		expectStored("tunai isCash=false 95000", load("td-16b"), 100000, 95000, 0, mismatch)
+		if got := send("direct", "td-16c", payload("cash", 90000)); got.code != 422 {
+			t.Fatalf("direct cash (absent from config) status=%d", got.code)
+		}
+	})
+	sub("17 shift close sums cash_sales over every cash-identified method, completed only", func(t *testing.T) {
+		defer setMethods(`[{"id":"kas_kecil","label":"Kas Kecil","isEnabled":true,"isCash":true}]`)()
+		const shift = "00000000-0000-4000-8300-0000000000a1"
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,$3,'TD','open',now())`, shift, outlet, user)
+		for i, o := range []struct {
+			method, status string
+			total          float64
+		}{{"cash", "completed", 1000}, {"tunai", "completed", 2000}, {"kas_kecil", "completed", 4000}, {"qris", "completed", 8000}, {"bca", "completed", 16000}, {"tunai", "refunded", 32000}} {
+			exec(`INSERT INTO orders(order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,shift_id)
+			      VALUES($1,gen_random_uuid(),$1,$2,$3,'TD',$4,$4,$5,$6,$7)`, fmt.Sprintf("TD17-%d", i), outlet, user, o.total, o.method, o.status, shift)
+		}
+		if err := osvc.CloseShift(ctx, outlet, shift, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+		var cash, qris, totalSales float64
+		if err := pool.QueryRow(ctx, `SELECT cash_sales,qris_sales,total_sales FROM shifts WHERE id=$1`, shift).Scan(&cash, &qris, &totalSales); err != nil {
+			t.Fatal(err)
+		}
+		if cash != 7000 || qris != 8000 || totalSales != 31000 {
+			t.Fatalf("cash_sales=%v qris_sales=%v total_sales=%v; want 7000/8000/31000", cash, qris, totalSales)
+		}
+	})
+	sub("18 isCash round-trips write -> AppSettings read -> sync pull; invalid methods rejected", func(t *testing.T) {
+		defer setMethods("[]")()
+		raw := func(methods string) json.RawMessage {
+			return json.RawMessage(`{"taxEnabled":false,"taxRate":0,"roundingEnabled":false,"roundingType":"none","autoOpenShift":false,"allowNegativeStock":true,"paymentMethods":` + methods + `,"receipt":{}}`)
+		}
+		if err := wr.UpdateAppSettings(ctx, raw(`[{"id":"kas_kecil","label":"Kas Kecil","isEnabled":true,"isCash":true},{"id":"qris","label":"QRIS","isEnabled":true,"isCash":false}]`)); err != nil {
+			t.Fatal(err)
+		}
+		// Compare through JSON so the assertion is about the wire, not a Go field.
+		flags := func(v any) map[string]any {
+			b, err := json.Marshal(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m struct {
+				PaymentMethods []map[string]any `json:"paymentMethods"`
+			}
+			if err := json.Unmarshal(b, &m); err != nil {
+				t.Fatal(err)
+			}
+			out := map[string]any{}
+			for _, pm := range m.PaymentMethods {
+				out[fmt.Sprint(pm["id"])] = pm["isCash"]
+			}
+			return out
+		}
+		check := func(where string, got map[string]any) {
+			if got["kas_kecil"] != true || got["qris"] != false {
+				t.Fatalf("%s: isCash flags=%v", where, got)
+			}
+		}
+		settings, err := rd.AppSettings(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check("AppSettings read", flags(settings))
+		bundle, err := h.Sync.Pull(ctx, read.Scope{OutletID: outlet}, outlet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(bundle)
+		var pulled struct {
+			AppSettings any `json:"appSettings"`
+		}
+		if err := json.Unmarshal(b, &pulled); err != nil {
+			t.Fatal(err)
+		}
+		check("sync pull bundle", flags(pulled.AppSettings))
+		for name, methods := range map[string]string{
+			"non-bool isCash":       `[{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":"yes"}]`,
+			"duplicate id":          `[{"id":"tunai","label":"A","isEnabled":true},{"id":"TUNAI","label":"B","isEnabled":true}]`,
+			"empty id":              `[{"id":" ","label":"A","isEnabled":true}]`,
+			"paymentMethods not []": `{"id":"tunai"}`,
+		} {
+			if err := wr.UpdateAppSettings(ctx, raw(methods)); err == nil {
+				t.Fatalf("%s accepted", name)
+			}
+		}
+		// Rejected writes leave the stored config untouched.
+		settings, err = rd.AppSettings(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check("after rejected writes", flags(settings))
+	})
 	// Last: mutates app settings.
 	sub("8 batch: tax raised after capture flags cash_short, captured amount kept", func(t *testing.T) {
 		exec(`UPDATE app_settings SET tax_enabled=true,tax_rate=10`)
