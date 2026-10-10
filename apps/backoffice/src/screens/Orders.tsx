@@ -57,7 +57,7 @@ export function OrdersPanel() {
       o.orderNumber.toLowerCase().includes(s) ||
       o.cashierName.toLowerCase().includes(s) ||
       (o.customerName || '').toLowerCase().includes(s)
-    return mS && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod === fPay)
+    return mS && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod.trim().toLowerCase() === fPay.trim().toLowerCase())
   })
   const revenue = filtered
     .filter((o) => o.status === 'completed')

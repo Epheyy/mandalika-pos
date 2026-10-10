@@ -89,7 +89,7 @@ export default function Reports() {
   }
 
   const fOrders = orders.filter(
-    (o) => inRange(o.createdAt) && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod === fPay),
+    (o) => inRange(o.createdAt) && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod.trim().toLowerCase() === fPay.trim().toLowerCase()),
   )
   const fShifts = shifts.filter((s) => inRange(s.openedAt))
   const completed = fOrders.filter((o) => o.status === 'completed')
