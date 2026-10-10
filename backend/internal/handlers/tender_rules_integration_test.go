@@ -62,10 +62,21 @@ func TestTenderRulesPostgres(t *testing.T) {
 	if err = (&db.DB{Pool: pool}).Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// Subtests share these helpers; failures must target the running subtest, not
+	// the parent (a parent Fatal from a subtest goroutine would skip the rest).
+	cur := t
+	sub := func(name string, fn func(t *testing.T)) {
+		t.Run(name, func(st *testing.T) {
+			prev := cur
+			cur = st
+			defer func() { cur = prev }()
+			fn(st)
+		})
+	}
 	exec := func(sql string, args ...any) {
-		t.Helper()
+		cur.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {
-			t.Fatal(err)
+			cur.Fatal(err)
 		}
 	}
 	const outlet = "00000000-0000-4000-8000-000000000001"
@@ -93,12 +104,12 @@ func TestTenderRulesPostgres(t *testing.T) {
 	}
 
 	request := func(handler http.Handler, method, path, key string, body any) *httptest.ResponseRecorder {
-		t.Helper()
+		cur.Helper()
 		rdr := strings.NewReader("")
 		if body != nil {
 			raw, err := json.Marshal(body)
 			if err != nil {
-				t.Fatal(err)
+				cur.Fatal(err)
 			}
 			rdr = strings.NewReader(string(raw))
 		}
@@ -129,7 +140,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 		status string // batch item status, "" for direct
 	}
 	send := func(route, key string, p map[string]any) result {
-		t.Helper()
+		cur.Helper()
 		if route == "direct" {
 			w := request(direct, "POST", "/orders", key, p)
 			return result{code: w.Code}
@@ -139,7 +150,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 			Data syncpkg.BatchResult `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 || len(out.Data.Results) != 1 {
-			t.Fatalf("batch %d %s", w.Code, w.Body.String())
+			cur.Fatalf("batch %d %s", w.Code, w.Body.String())
 		}
 		return result{code: w.Code, status: out.Data.Results[0].Status}
 	}
@@ -149,24 +160,24 @@ func TestTenderRulesPostgres(t *testing.T) {
 		reason              *string
 	}
 	load := func(key string) row {
-		t.Helper()
+		cur.Helper()
 		var r row // via to_jsonb so the gate also runs (and fails behaviourally) before migration 0046
 		if err := pool.QueryRow(ctx, `SELECT total,amount_paid,change,
 			COALESCE((to_jsonb(o)->>'tender_warning')::boolean,false),to_jsonb(o)->>'tender_warning_reason'
 			FROM orders o WHERE idempotency_key=$1`, key).Scan(&r.total, &r.paid, &r.change, &r.warn, &r.reason); err != nil {
-			t.Fatalf("load %s: %v", key, err)
+			cur.Fatalf("load %s: %v", key, err)
 		}
 		return r
 	}
 	orderCount := func() (n int) {
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM orders`).Scan(&n); err != nil {
-			t.Fatal(err)
+			cur.Fatal(err)
 		}
 		return
 	}
 	stock := func() (n int) {
 		if err := pool.QueryRow(ctx, `SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2`, outlet, product).Scan(&n); err != nil {
-			t.Fatal(err)
+			cur.Fatal(err)
 		}
 		return
 	}
@@ -179,14 +190,14 @@ func TestTenderRulesPostgres(t *testing.T) {
 	const short, mismatch = "cash_short", "noncash_amount_mismatch"
 	// expectStored asserts the stored tender columns of an accepted order.
 	expectStored := func(name string, r row, total, paid, change float64, reason string) {
-		t.Helper()
+		cur.Helper()
 		if r.total != total || r.paid != paid || r.change != change || r.warn != (reason != "") || reasonOf(r) != reason {
-			t.Fatalf("%s: total=%v paid=%v change=%v warn=%v reason=%q; want total=%v paid=%v change=%v reason=%q",
+			cur.Fatalf("%s: total=%v paid=%v change=%v warn=%v reason=%q; want total=%v paid=%v change=%v reason=%q",
 				name, r.total, r.paid, r.change, r.warn, reasonOf(r), total, paid, change, reason)
 		}
 	}
 
-	t.Run("1 direct cash shortfall is rejected 422 with zero writes", func(t *testing.T) {
+	sub("1 direct cash shortfall is rejected 422 with zero writes", func(t *testing.T) {
 		beforeOrders, beforeStock := orderCount(), stock()
 		got := send("direct", "td-1", payload("cash", 90000))
 		if got.code != 422 {
@@ -200,7 +211,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 			t.Fatalf("idempotency key recorded for rejected sale: %d %v", keys, err)
 		}
 	})
-	t.Run("2 batch cash shortfall is accepted and flagged cash_short", func(t *testing.T) {
+	sub("2 batch cash shortfall is accepted and flagged cash_short", func(t *testing.T) {
 		before := stock()
 		got := send("batch", "td-2", payload("cash", 90000))
 		if got.status != "ok" {
@@ -211,30 +222,30 @@ func TestTenderRulesPostgres(t *testing.T) {
 			t.Fatalf("stock=%d want %d", stock(), before-1)
 		}
 	})
-	t.Run("3 batch qris amount mismatch is accepted, captured amount kept, flagged", func(t *testing.T) {
+	sub("3 batch qris amount mismatch is accepted, captured amount kept, flagged", func(t *testing.T) {
 		if got := send("batch", "td-3", payload("qris", 95000)); got.status != "ok" {
 			t.Fatalf("status=%q", got.status)
 		}
 		expectStored("batch qris 95000", load("td-3"), 100000, 95000, 0, mismatch)
 	})
-	t.Run("4 direct qris amount mismatch is accepted and flagged (online rejects cash_short only)", func(t *testing.T) {
+	sub("4 direct qris amount mismatch is accepted and flagged (online rejects cash_short only)", func(t *testing.T) {
 		if got := send("direct", "td-4", payload("qris", 95000)); got.code != 201 {
 			t.Fatalf("status=%d", got.code)
 		}
 		expectStored("direct qris 95000", load("td-4"), 100000, 95000, 0, mismatch)
 	})
 	for _, route := range []string{"direct", "batch"} {
-		t.Run("5 cash overpay gives change, no flag/"+route, func(t *testing.T) {
+		sub("5 cash overpay gives change, no flag/"+route, func(t *testing.T) {
 			key := "td-5-" + route
 			send(route, key, payload("cash", 150000))
 			expectStored("cash 150000", load(key), 100000, 150000, 50000, "")
 		})
-		t.Run("6 qris exact has no flag/"+route, func(t *testing.T) {
+		sub("6 qris exact has no flag/"+route, func(t *testing.T) {
 			key := "td-6-" + route
 			send(route, key, payload("qris", 100000))
 			expectStored("qris 100000", load(key), 100000, 100000, 0, "")
 		})
-		t.Run("7 zero total passes cash 0 and qris 0/"+route, func(t *testing.T) {
+		sub("7 zero total passes cash 0 and qris 0/"+route, func(t *testing.T) {
 			for _, method := range []string{"cash", "qris"} {
 				p := payload(method, 0)
 				line := p["items"].([]map[string]any)[0]
@@ -244,7 +255,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 				expectStored(method+" zero total", load(key), 0, 0, 0, "")
 			}
 		})
-		t.Run("11 Rp1 tolerance/"+route, func(t *testing.T) {
+		sub("11 Rp1 tolerance/"+route, func(t *testing.T) {
 			// Exactly due-Rp1 (and Rp1 over) is fine; no change is owed on the short side.
 			send(route, "td-11a-"+route, payload("cash", 99999))
 			expectStored("cash 99999", load("td-11a-"+route), 100000, 99999, 0, "")
@@ -270,11 +281,11 @@ func TestTenderRulesPostgres(t *testing.T) {
 			expectStored("qris 99998", load("td-11e-"+route), 100000, 99998, 0, mismatch)
 		})
 	}
-	t.Run("3b batch custom method with missing amountPaid stores 0 and flags", func(t *testing.T) {
+	sub("3b batch custom method with missing amountPaid stores 0 and flags", func(t *testing.T) {
 		send("batch", "td-3b", payload("bca", nil))
 		expectStored("bca missing", load("td-3b"), 100000, 0, 0, mismatch)
 	})
-	t.Run("9 batch replay of a flagged order is a duplicate, one row, flag unchanged", func(t *testing.T) {
+	sub("9 batch replay of a flagged order is a duplicate, one row, flag unchanged", func(t *testing.T) {
 		before := orderCount()
 		got := send("batch", "td-2", payload("cash", 90000))
 		if got.status != "duplicate" || orderCount() != before {
@@ -282,7 +293,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 		}
 		expectStored("replay", load("td-2"), 100000, 90000, 0, short)
 	})
-	t.Run("10 read path exposes tenderWarning and reason", func(t *testing.T) {
+	sub("10 read path exposes tenderWarning and reason", func(t *testing.T) {
 		var id string
 		if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE idempotency_key='td-2'`).Scan(&id); err != nil {
 			t.Fatal(err)
@@ -308,7 +319,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 		}
 	})
 	// Last: mutates app settings.
-	t.Run("8 batch: tax raised after capture flags cash_short, captured amount kept", func(t *testing.T) {
+	sub("8 batch: tax raised after capture flags cash_short, captured amount kept", func(t *testing.T) {
 		exec(`UPDATE app_settings SET tax_enabled=true,tax_rate=10`)
 		send("batch", "td-8", payload("cash", 100000))
 		expectStored("tax", load("td-8"), 110000, 100000, 0, short)
