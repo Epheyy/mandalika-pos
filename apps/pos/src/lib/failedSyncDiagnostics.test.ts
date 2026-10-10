@@ -22,7 +22,7 @@ async function fixture() {
     for (let n = 0; n < 5; n++) await engine.outbox.fail(key, 'synthetic gateway failure')
   }
   const renderStatus = (isOnline = true) => renderToStaticMarkup(createElement(SyncStatus, {
-    isOnline, pendingCount: engine.pendingCount(), failed: engine.deadLettered(),
+    isOnline, pendingCount: engine.pendingCount(), review: engine.reviewItems(), stuck: [],
     wall: engine.getWall(), isResyncing: false,
     onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
   }))
@@ -45,8 +45,8 @@ describe('failed-sync diagnostic delivery and visible unresolved state', () => {
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     const markupBefore = renderStatus()
-    expect(markupBefore).toContain('Sinkron gagal (2)')
-    expect(renderStatus(false)).toContain('Offline · 2 gagal')
+    expect(markupBefore).toContain('Perlu ditinjau (2)')
+    expect(renderStatus(false)).toContain('Offline · 2 perlu ditinjau')
     const share = vi.fn().mockImplementation(async (data: ShareData) => {
       expect(data.text).toContain('original-order')
       expect(data.text).toContain('original-refund')

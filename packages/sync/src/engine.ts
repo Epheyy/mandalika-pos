@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType } from './outbox'
+import { Outbox, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -26,7 +26,7 @@ type Transfer = components['schemas']['Transfer']
 
 // Minimal seam onto the generated API client (packages/api `request`).
 export interface ApiLike {
-  request<T>(method: string, path: string, body?: unknown): Promise<T>
+  request<T>(method: string, path: string, body?: unknown, opts?: { timeoutMs?: number }): Promise<T>
 }
 
 export interface WallState {
@@ -47,13 +47,21 @@ export interface SyncEvents {
    *  failures. Defaults off so release builds stay silent on devices; the app
    *  wires this to `import.meta.env.DEV`. */
   debug?: boolean
-  /** Fired once per item when it permanently dead-letters (server kept refusing
-   *  past the retry cap) so the app can ship it to the server error log. */
+  /** Fired once per item when it enters the needs-review state (the server refused
+   *  it for good, or kept refusing past the retry cap) so the app can ship it to the
+   *  server error log. `reviewCode` is unset for items parked by attempt counting. */
   onDeadLetter?: (
-    items: { type: OutboxType; idempotencyKey: string; payload: Record<string, unknown>; lastError?: string }[],
+    items: {
+      type: OutboxType
+      idempotencyKey: string
+      payload: Record<string, unknown>
+      lastError?: string
+      reviewCode?: string
+    }[],
   ) => void
-  /** Fired when a transfer_receive is terminally rejected by the server and rolled
-   *  back (handled — NOT a failed sync the cashier must retry). */
+  /** Fired when a transfer_receive lost to another receipt (or the transfer is gone):
+   *  the optimistic stock credit was removed and the receipt, with its counts, is
+   *  kept for review. First valid receipt wins. */
   onReceiveRejected?: (msg: string) => void
   /** Fired once per item when it has failed retryably many times in a row (it
    *  keeps retrying, but a persistent server problem needs a human). */
@@ -67,12 +75,49 @@ export interface SyncEvents {
   onReceiveAccepted?: (transfer: Transfer) => void
 }
 
-/** A transfer_receive result is final (discard + roll back the credit) only for
- *  these codes, or when the server sent none (older server = pre-contract behaviour).
- *  busy / internal / forbidden (e.g. wrong PIN) / rejected / key_conflict keep the item. */
-const FINAL_RECEIVE_CODES = new Set(['competing_receipt', 'conflict', 'not_found'])
-function isFinalReceiveRejection(code: string | undefined): boolean {
-  return code === undefined || FINAL_RECEIVE_CODES.has(code)
+/** A transfer_receive result goes to REVIEW (credit removed, payload kept) for these
+ *  codes. With no code (older server) the old behaviour stays: discard + roll back.
+ *  busy / internal / forbidden (e.g. wrong PIN) / rejected / key_conflict take the
+ *  normal item-failure path. */
+export const RECEIVE_CONFLICT_CODES: readonly string[] = ['competing_receipt', 'conflict', 'not_found']
+function isReceiveConflict(code: string | undefined): boolean {
+  return code !== undefined && RECEIVE_CONFLICT_CODES.includes(code)
+}
+
+/** Codes the server is known to send. A non-retryable result carrying one of these
+ *  goes straight to review; anything else keeps the attempt counting. */
+const KNOWN_ERROR_CODES = new Set([
+  'rejected', 'forbidden', 'not_found', 'conflict', 'competing_receipt',
+  'key_conflict', 'busy', 'internal', 'actor_mismatch',
+])
+
+/** The whole /sync/batch request is aborted after this long so a hung connection
+ *  cannot leave `flushing` stuck. */
+export const BATCH_TIMEOUT_MS = 30_000
+/** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
+export const BACKOFF_BASE_MS = 20_000
+export const BACKOFF_CAP_MS = 5 * 60_000
+
+type FailureKind = 'offline' | 'unauthorized' | 'transient' | 'rejected'
+interface Failure {
+  kind: FailureKind
+  message: string
+}
+
+/** Decide what a thrown request error means for the queue. Only a deterministic 4xx
+ *  ('rejected') may ever be held against an item. */
+function classifyFailure(err: unknown, online: boolean): Failure {
+  const message = err instanceof Error ? err.message : 'sync failed'
+  if (!online) return { kind: 'offline', message }
+  const e = (err ?? {}) as { kind?: unknown; status?: unknown }
+  const status = typeof e.status === 'number' ? e.status : 0
+  if (status === 401) return { kind: 'unauthorized', message }
+  if (e.kind === 'network') return { kind: 'offline', message }
+  if (e.kind === 'timeout' || e.kind === 'invalid_response') return { kind: 'transient', message }
+  if (status >= 500 || status === 429 || status === 408) return { kind: 'transient', message }
+  if (status >= 400) return { kind: 'rejected', message }
+  if (err instanceof TypeError) return { kind: 'offline', message }
+  return { kind: 'transient', message } // unknown: never blame the item
 }
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
@@ -87,6 +132,9 @@ export class SyncEngine {
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
+  // Transient whole-batch failures push this out (exponential backoff + jitter).
+  private nextFlushAt = 0
+  private backoffStep = 0
   private disposed = false
   private stopTimers: (() => void) | null = null
   private wall: WallState
@@ -305,8 +353,37 @@ export class SyncEngine {
     }))
   }
 
+  /** Items needing review: explicit server/client verdicts plus legacy attempt-count
+   *  parks. Never auto-retried, never deleted. */
+  reviewItems(): ReviewItem[] {
+    return this.outbox.reviewItems()
+  }
+
+  private resetBackoff(): void {
+    this.nextFlushAt = 0
+    this.backoffStep = 0
+  }
+
+  /** When the next automatic flush may run (epoch ms; 0 = no backoff). */
+  nextFlushTime(): number {
+    return this.nextFlushAt
+  }
+
+  private scheduleBackoff(): void {
+    const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** this.backoffStep)
+    this.backoffStep += 1
+    this.nextFlushAt = Date.now() + Math.round(delay * (0.5 + Math.random() * 0.5))
+  }
+
+  /** User-initiated flush ("Kirim sekarang"): ignores any backoff. */
+  flushNow(): Promise<BatchResult | null> {
+    this.resetBackoff()
+    return this.flush()
+  }
+
   /** Manual retry of parked items. Rejects if the reset could not be stored. */
   async retryFailed(): Promise<void> {
+    this.resetBackoff()
     await this.outbox.retryDeadLettered()
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
@@ -330,6 +407,8 @@ export class SyncEngine {
           type: d.type,
           idempotencyKey: d.idempotencyKey,
           lastError: d.lastError,
+          reviewCode: d.reviewCode,
+          reviewReason: d.reviewReason,
           clientCreatedAt: d.clientCreatedAt,
           payload: redactPayload(d.payload),
         })
@@ -348,97 +427,171 @@ export class SyncEngine {
   /**
    * Flush the outbox in order, one batch at a time. Always allowed even while
    * the sync wall is raised so pending revenue is never trapped (plan §5a).
+   * Skipped while a transient-failure backoff is running (see {@link flushNow}).
    */
   async flush(): Promise<BatchResult | null> {
     if (this.disposed || this.flushing || !ONLINE()) return null
+    if (Date.now() < this.nextFlushAt) return null
     const pending = this.outbox.pending()
     if (pending.length === 0) return null
     this.flushing = true
     try {
-      const items = pending.map((i) => ({
-        type: i.type,
-        idempotencyKey: i.idempotencyKey,
-        payload: i.payload,
-      }))
       const typeByKey = new Map(pending.map((i) => [i.idempotencyKey, i.type]))
-      const r = await this.api.request<{ data: BatchResult }>(
-        'POST',
-        '/api/v1/sync/batch',
-        { items },
-      )
-      if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
-      const updates: OutboxSettle[] = []
-      for (const res of r.data.results) {
-        if (res.status === 'ok' || res.status === 'duplicate') {
-          updates.push({ key: res.idempotencyKey, op: 'ack' })
-          this.pending.stampAck(res.idempotencyKey, r.data.version ?? 0)
-          // SP4: surface the completed transfer to the UI so the tanda-terima
-          // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
-          // the cashier already saw the prompt — skip the second modal).
-          if (
-            typeByKey.get(res.idempotencyKey) === 'transfer_receive' &&
-            res.status === 'ok' &&
-            res.transfer
-          ) {
-            this.events.onReceiveAccepted?.(res.transfer)
-          }
-        } else if (
-          typeByKey.get(res.idempotencyKey) === 'transfer_receive' &&
-          isFinalReceiveRejection(res.code)
-        ) {
-          // Final rejection (e.g. already received elsewhere): roll back the
-          // optimistic credit and resolve the item cleanly — not a failed sync.
-          this.pending.remove(res.idempotencyKey)
-          updates.push({ key: res.idempotencyKey, op: 'discard' })
-          this.events.onReceiveRejected?.('Penerimaan dibatalkan — transfer sudah diterima di tempat lain. Stok dikembalikan.')
-        } else {
-          if (this.events.debug) {
-            // eslint-disable-next-line no-console
-            console.error('[sync] item rejected', res.idempotencyKey, res.error)
-          }
-          updates.push({
-            key: res.idempotencyKey,
-            op: 'fail',
-            error: res.error ?? 'sync error',
-            retryable: res.retryable,
-          })
-        }
+      let data: BatchResult
+      try {
+        data = await this.post(pending)
+      } catch (err) {
+        if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
+        return await this.onBatchFailure(err, pending, typeByKey)
       }
-      // One serialized write for the whole batch (settle is best-effort: a
-      // failed write leaves items pending and the server dedups the resend).
-      await this.outbox.settle(updates)
-      this.recomputeCredited()
-      await this.outbox.prune()
-      this.events.onOutboxChange?.(this.outbox.count())
-      this.events.onReconcile?.(r.data)
-      // Server returns its version on every ack — refresh wall state.
-      const local = this.snapshot.localVersion()
-      this.wall = {
-        raised: (r.data.version ?? 0) > local,
-        localVersion: local,
-        serverVersion: r.data.version ?? 0,
-      }
-      this.events.onWall?.(this.wall)
-      return r.data
-    } catch (err) {
-      // Whole-batch failure (network blip OR a hard HTTP reject like 403
-      // "no active outlet"). A transient blip should retry; a persistent
-      // reject must not loop forever — count it against every in-flight item
-      // so a poison batch eventually dead-letters instead of showing
-      // "Menunggu sinkronisasi" indefinitely.
-      const msg = err instanceof Error ? err.message : 'sync failed'
-      if (this.events.debug) {
-        // eslint-disable-next-line no-console
-        console.error('[sync] batch failed', msg, err)
-      }
-      await this.outbox.settle(pending.map((i) => ({ key: i.idempotencyKey, op: 'fail' as const, error: msg })))
-      this.events.onOutboxChange?.(this.outbox.count())
-      return null
+      if (this.disposed) return null
+      await this.applyBatch(data, typeByKey)
+      return data
     } finally {
       this.flushing = false
       this.emitDeadLetters()
       this.emitStuckRetrying()
     }
+  }
+
+  private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
+    const r = await this.api.request<{ data: BatchResult }>(
+      'POST',
+      '/api/v1/sync/batch',
+      { items: items.map((i) => ({ type: i.type, idempotencyKey: i.idempotencyKey, payload: i.payload })) },
+      { timeoutMs: BATCH_TIMEOUT_MS },
+    )
+    if (!r?.data || !Array.isArray(r.data.results)) {
+      throw Object.assign(new Error('respons server tidak valid'), { kind: 'invalid_response' })
+    }
+    return r.data
+  }
+
+  /** A whole-batch request failed. Only a deterministic 4xx is ever isolated per item. */
+  private async onBatchFailure(
+    err: unknown,
+    items: readonly OutboxItem[],
+    typeByKey: Map<string, OutboxType>,
+  ): Promise<BatchResult | null> {
+    const failure = classifyFailure(err, ONLINE())
+    if (this.events.debug) {
+      // eslint-disable-next-line no-console
+      console.error('[sync] batch failed', failure.kind, failure.message, err)
+    }
+    if (failure.kind !== 'rejected') {
+      await this.settleNonRejected(failure, items)
+      return null
+    }
+    if (items.length === 1) {
+      await this.parkRejected(items, failure.message) // this request already was the isolated one
+      return null
+    }
+    // One malformed item must never park the whole queue: resend one per request,
+    // in order. Items that succeed settle normally; the bad one goes to review.
+    let last: BatchResult | null = null
+    let rest = [...items]
+    while (rest.length) {
+      const [it, ...tail] = rest
+      try {
+        const data = await this.post([it])
+        if (this.disposed) return null
+        await this.applyBatch(data, typeByKey)
+        last = data
+      } catch (e) {
+        if (this.disposed) return null
+        const f = classifyFailure(e, ONLINE())
+        if (f.kind !== 'rejected') {
+          await this.settleNonRejected(f, rest) // offline / 401 / transient: stop, hold nothing against them
+          return last
+        }
+        await this.parkRejected([it], f.message)
+      }
+      rest = tail
+    }
+    return last
+  }
+
+  /** offline / 401 / transient: nothing is held against the items. */
+  private async settleNonRejected(failure: Failure, items: readonly OutboxItem[]): Promise<void> {
+    if (failure.kind === 'offline') {
+      this.setReachable(false)
+    } else if (failure.kind === 'transient') {
+      // No attempt is burned, but a long outage still trips the after-10 report.
+      await this.outbox.settle(
+        items.map((i) => ({ key: i.idempotencyKey, op: 'fail' as const, error: failure.message, retryable: true })),
+      )
+      this.scheduleBackoff()
+    } // 'unauthorized': the api client already ran the refresh path; keep everything queued
+    this.events.onOutboxChange?.(this.outbox.count())
+  }
+
+  private async parkRejected(items: readonly OutboxItem[], message: string): Promise<void> {
+    await this.outbox.settle(
+      items.map((i) => ({ key: i.idempotencyKey, op: 'review' as const, code: 'batch_rejected', reason: message })),
+    )
+    this.events.onOutboxChange?.(this.outbox.count())
+  }
+
+  /** Apply a server batch response: ack/park each result, then refresh derived state. */
+  private async applyBatch(data: BatchResult, typeByKey: Map<string, OutboxType>): Promise<void> {
+    const updates: OutboxSettle[] = []
+    for (const res of data.results) {
+      const type = typeByKey.get(res.idempotencyKey)
+      if (res.status === 'ok' || res.status === 'duplicate') {
+        updates.push({ key: res.idempotencyKey, op: 'ack' })
+        this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
+        // SP4: surface the completed transfer to the UI so the tanda-terima
+        // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
+        // the cashier already saw the prompt — skip the second modal).
+        if (type === 'transfer_receive' && res.status === 'ok' && res.transfer) {
+          this.events.onReceiveAccepted?.(res.transfer)
+        }
+        continue
+      }
+      const error = res.error ?? 'sync error'
+      if (type === 'transfer_receive' && res.code === undefined) {
+        // Older server (no error contract): keep the pre-contract behaviour.
+        this.pending.remove(res.idempotencyKey)
+        updates.push({ key: res.idempotencyKey, op: 'discard' })
+        this.events.onReceiveRejected?.('Penerimaan dibatalkan — transfer sudah diterima di tempat lain. Stok dikembalikan.')
+        continue
+      }
+      if (type === 'transfer_receive' && isReceiveConflict(res.code)) {
+        // First valid receipt wins: take the optimistic credit back, but keep the
+        // counted quantities for a person to review. Nothing is deleted.
+        this.pending.remove(res.idempotencyKey)
+        updates.push({ key: res.idempotencyKey, op: 'review', code: res.code as string, reason: error })
+        this.events.onReceiveRejected?.(
+          'Penerimaan perlu ditinjau — transfer ini sudah diterima di perangkat/akun lain. Stok dikembalikan; hitungan Anda tetap tersimpan.',
+        )
+        continue
+      }
+      if (this.events.debug) {
+        // eslint-disable-next-line no-console
+        console.error('[sync] item rejected', res.idempotencyKey, res.error)
+      }
+      if (res.retryable === false && res.code !== undefined && KNOWN_ERROR_CODES.has(res.code)) {
+        updates.push({ key: res.idempotencyKey, op: 'review', code: res.code, reason: error })
+      } else {
+        updates.push({ key: res.idempotencyKey, op: 'fail', error, retryable: res.retryable })
+      }
+    }
+    // One serialized write for the whole batch (settle is best-effort: a
+    // failed write leaves items pending and the server dedups the resend).
+    await this.outbox.settle(updates)
+    this.recomputeCredited()
+    await this.outbox.prune()
+    this.resetBackoff()
+    this.events.onOutboxChange?.(this.outbox.count())
+    this.events.onReconcile?.(data)
+    // Server returns its version on every ack — refresh wall state.
+    const local = this.snapshot.localVersion()
+    this.wall = {
+      raised: (data.version ?? 0) > local,
+      localVersion: local,
+      serverVersion: data.version ?? 0,
+    }
+    this.events.onWall?.(this.wall)
   }
 
   /** Report (once each) items stuck in retryable failures; they keep retrying. */
@@ -475,6 +628,7 @@ export class SyncEngine {
         idempotencyKey: i.idempotencyKey,
         payload: redactPayload(i.payload),
         lastError: i.lastError,
+        reviewCode: i.reviewCode,
       })),
     )
   }
@@ -503,6 +657,7 @@ export class SyncEngine {
     this.disposed = false
     this.outbox.revive()
     const onOnline = () => {
+      this.resetBackoff()
       void this.flush()
       void this.checkVersion()
       void this.pollInbound()

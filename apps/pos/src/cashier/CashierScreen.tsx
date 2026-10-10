@@ -825,12 +825,12 @@ export default function CashierScreen() {
   const handleExportLog = async () => {
     // Report to the server error log too (covers the case where the items
     // dead-lettered while offline and weren't auto-reported yet).
-    const dead = engine.deadLettered()
+    const dead = engine.reviewItems()
     if (dead.length) {
       void reportErrors(dead.map((d) => ({
         source: 'sync' as const, kind: d.type,
         action: `Kirim log: ${d.type}`,
-        message: d.lastError ?? 'sync gagal',
+        message: d.reviewReason ?? d.lastError ?? 'sync gagal',
         outletName: snapshot.outletName,
       })))
     }
@@ -897,7 +897,7 @@ export default function CashierScreen() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
-            failed={offlineData.failed} wall={offlineData.wall}
+            review={offlineData.review} stuck={offlineData.stuck} wall={offlineData.wall}
             isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}

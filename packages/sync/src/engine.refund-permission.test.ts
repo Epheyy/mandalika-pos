@@ -66,7 +66,10 @@ describe('A06 permission containment: retained refund delivery failures', () => 
     const settle = vi.spyOn(f.engine.outbox, 'settle')
     const resolving = () => settle.mock.calls.flatMap(([ops]) => ops).filter((o) => o.op !== 'fail')
     f.delivery.permission = false
-    for (let i = 1; i < MAX_ATTEMPTS; i++) await f.engine.flush()
+    // The lost response was a transient failure: no attempt was burned and a backoff
+    // is running, so a person's "send now" is what drives the five denials.
+    expect(f.engine.outbox.all()[0].attempts ?? 0).toBe(0)
+    for (let i = 0; i < MAX_ATTEMPTS; i++) await f.engine.flushNow()
     expect(f.engine.deadLettered()).toHaveLength(1)
     expect(f.engine.outbox.all()[0].attempts).toBe(5)
     expect(captured(f.engine.outbox.all()[0])).toEqual(captured(f.original))

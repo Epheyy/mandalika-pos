@@ -134,7 +134,7 @@ for (const [id, description] of [
 
 test('S0A-DIAGNOSTICS repeated share cancellation and failures keep unresolved operations', async ({ page }, info) => {
   await page.goto(`${POS}/tests/failed-diagnostics/`)
-  await page.getByRole('button', { name: 'Sinkron gagal (2)', exact: true }).click()
+  await page.getByRole('button', { name: 'Perlu ditinjau (2)', exact: true }).click()
   const outcomes: object[] = []
   for (const scenario of ['share success', 'share success', 'cancel', 'share failure', 'clipboard failure']) {
     await page.getByLabel('Diagnostic outcome').selectOption(scenario)
@@ -142,7 +142,7 @@ test('S0A-DIAGNOSTICS repeated share cancellation and failures keep unresolved o
     await expect.poll(async () => JSON.parse(await page.locator('pre').innerText()).exports).toBe(outcomes.length + 1)
     const current = JSON.parse(await page.locator('pre').innerText())
     expect(current).toMatchObject({ retained: 2, unchanged: true, reconstructed: true, failed: 2 })
-    await expect(page.getByRole('button', { name: 'Sinkron gagal (2)', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Perlu ditinjau (2)', exact: true })).toBeVisible()
     outcomes.push({ scenario, current, message: await page.getByRole('status').innerText() })
   }
   await evidence(info, outcomes)
@@ -155,14 +155,14 @@ test('S0B-REFUND-RETENTION denied original refund survives export reconstruction
   await page.getByRole('button', { name: 'Deliver five permission denials' }).click()
   await expect.poll(async () => (await current()).failed).toBe(1)
   const parked = await current()
-  await page.getByRole('button', { name: 'Sinkron gagal (1)', exact: true }).click()
+  await page.getByRole('button', { name: 'Perlu ditinjau (1)', exact: true }).click()
   await page.getByRole('button', { name: 'Bagikan log diagnostik', exact: true }).click()
   await expect.poll(async () => (await current()).exports).toBe(1)
   expect((await current()).retained).toEqual(parked.retained)
   await page.getByRole('button', { name: 'Reconstruct from same storage' }).click()
   expect((await current()).retained).toEqual(parked.retained)
   await page.getByRole('button', { name: 'Restore synthetic permission' }).click()
-  await page.getByRole('button', { name: 'Sinkron gagal (1)', exact: true }).click()
+  await page.getByRole('button', { name: 'Perlu ditinjau (1)', exact: true }).click()
   await page.getByRole('button', { name: 'Coba lagi', exact: true }).click()
   await expect.poll(async () => (await current()).retained.length).toBe(0)
   const final = await current()

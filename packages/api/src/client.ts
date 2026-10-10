@@ -113,14 +113,27 @@ export interface ClientOptions {
   onTokens?: (d: AuthData) => void
 }
 
+/** How a request failed. `http` = the server answered with an error status;
+ *  `network` = no answer (offline, DNS, connection reset); `timeout` = we aborted
+ *  a hung request; `invalid_response` = an answer we could not parse (e.g. an HTML
+ *  502 page from a proxy, or a 200 with a non-JSON body). */
+export type ApiErrorKind = 'http' | 'network' | 'timeout' | 'invalid_response'
+
 export class ApiError extends Error {
   constructor(
+    /** HTTP status, or 0 when no response was received (network / timeout). */
     public status: number,
     message: string,
+    public kind: ApiErrorKind = 'http',
   ) {
     super(message)
     this.name = 'ApiError'
   }
+}
+
+/** Per-request options. `timeoutMs` aborts the request (fetch + body read). */
+export interface RequestOptions {
+  timeoutMs?: number
 }
 
 export interface ListResult<T> {
@@ -131,7 +144,7 @@ export interface ListResult<T> {
 const API = '/api/v1'
 
 export interface Api {
-  request: <T>(method: string, path: string, body?: unknown) => Promise<T>
+  request: <T>(method: string, path: string, body?: unknown, opts?: RequestOptions) => Promise<T>
 
   // auth
   login: (email: string, password: string) => Promise<AuthData>
@@ -330,27 +343,30 @@ export interface Api {
 export function createClient(opts: ClientOptions): Api {
   // De-dupe concurrent refreshes: many requests can 401 at once when the
   // access token expires; they all await the single in-flight refresh.
-  let refreshing: Promise<boolean> | null = null
+  let refreshing: Promise<'ok' | 'rejected' | 'error'> | null = null
 
-  async function trySilentRefresh(): Promise<boolean> {
+  /** 'ok' = new tokens stored; 'rejected' = the server refused the refresh token
+   *  (session is over); 'error' = we could not reach the server (not a verdict). */
+  async function trySilentRefresh(): Promise<'ok' | 'rejected' | 'error'> {
     const rt = opts.getRefresh?.()
-    if (!rt) return false
+    if (!rt) return 'rejected'
     if (!refreshing) {
-      refreshing = (async () => {
+      refreshing = (async (): Promise<'ok' | 'rejected' | 'error'> => {
         try {
           const res = await fetch(`${opts.baseUrl}${API}/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh: rt }),
           })
-          if (!res.ok) return false
+          if (res.status >= 500 || res.status === 429) return 'error'
+          if (!res.ok) return 'rejected'
           const j = await res.json()
           const d = (j?.data ?? j) as AuthData
-          if (!d?.access) return false
+          if (!d?.access) return 'rejected'
           opts.onTokens?.(d)
-          return true
+          return 'ok'
         } catch {
-          return false
+          return 'error'
         } finally {
           refreshing = null
         }
@@ -359,7 +375,17 @@ export function createClient(opts: ClientOptions): Api {
     return refreshing
   }
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    reqOpts?: RequestOptions,
+  ): Promise<T> {
+    const controller = reqOpts?.timeoutMs ? new AbortController() : null
+    let timedOut = false
+    const timer = controller
+      ? setTimeout(() => { timedOut = true; controller.abort() }, reqOpts?.timeoutMs)
+      : null
     const send = async (): Promise<Response> => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       const token = opts.getToken()
@@ -370,26 +396,66 @@ export function createClient(opts: ClientOptions): Api {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller?.signal,
       })
     }
+    // fetch rejects with a TypeError when there is no answer, and with an
+    // AbortError when we aborted: type both so callers never string-match.
+    const transportError = (e: unknown): ApiError => {
+      if (timedOut) return new ApiError(0, 'permintaan melebihi batas waktu', 'timeout')
+      return new ApiError(0, e instanceof Error ? e.message : 'network error', 'network')
+    }
 
-    let res = await send()
-    if (res.status === 401 && !path.includes('/auth/')) {
-      // Try one silent refresh+retry before giving up the session.
-      if (await trySilentRefresh()) {
+    try {
+      let res: Response
+      try {
         res = await send()
+      } catch (e) {
+        throw transportError(e)
       }
+      if (res.status === 401 && !path.includes('/auth/')) {
+        // Try one silent refresh+retry before giving up the session.
+        const refreshed = await trySilentRefresh()
+        if (refreshed === 'ok') {
+          try {
+            res = await send()
+          } catch (e) {
+            throw transportError(e)
+          }
+        } else if (refreshed === 'error') {
+          // Could not reach the server to refresh: that is not a verdict on the
+          // session, so do not log the cashier out (unsynced work may be queued).
+          throw new ApiError(0, 'tidak dapat memperbarui sesi (jaringan)', 'network')
+        }
+      }
+      if (res.status === 401) {
+        opts.onUnauthorized?.()
+        throw new ApiError(401, 'unauthorized')
+      }
+      let text: string
+      try {
+        text = await res.text()
+      } catch (e) {
+        throw transportError(e)
+      }
+      let json: { error?: string } | null = null
+      try {
+        json = text ? JSON.parse(text) : null
+      } catch {
+        // A proxy error page (HTML 502) or a truncated body. Server-side
+        // failures are transient; a non-JSON 4xx is still a deterministic reject.
+        if (res.ok || res.status >= 500) {
+          throw new ApiError(res.status, `respons server tidak valid (${res.status})`, 'invalid_response')
+        }
+        throw new ApiError(res.status, `request failed (${res.status})`)
+      }
+      if (!res.ok) {
+        throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`)
+      }
+      return json as T
+    } finally {
+      if (timer) clearTimeout(timer)
     }
-    if (res.status === 401) {
-      opts.onUnauthorized?.()
-      throw new ApiError(401, 'unauthorized')
-    }
-    const text = await res.text()
-    const json = text ? JSON.parse(text) : null
-    if (!res.ok) {
-      throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`)
-    }
-    return json as T
   }
 
   const qs = (params?: Record<string, string | number>): string => {

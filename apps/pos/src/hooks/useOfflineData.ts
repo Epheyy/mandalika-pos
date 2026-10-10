@@ -11,13 +11,19 @@ export interface FailedItem {
   idempotencyKey: string
   type: string
   lastError?: string
+  clientCreatedAt?: string
+  /** Server code or client reason (e.g. competing_receipt, batch_rejected); unset for legacy parks. */
+  reviewCode?: string
 }
 
 export interface OfflineDataState {
   isOnline: boolean
   wall: WallState
   pendingCount: number
-  failed: FailedItem[]
+  /** Parked items needing a person's review (never auto-retried, never deleted). */
+  review: FailedItem[]
+  /** Items still retrying that keep failing on the server (slice 4). */
+  stuck: FailedItem[]
   lastSyncedAt: string | null
   isResyncing: boolean
   resync: () => Promise<void>
@@ -31,15 +37,25 @@ export interface OfflineDataState {
 export const STUCK_RETRY_MESSAGE =
   'Belum tersinkron setelah beberapa kali coba — server sedang bermasalah. Tetap dicoba ulang otomatis; hubungi admin bila berlanjut.'
 
-/** Parked items plus still-retrying items that keep failing on the server. */
-function attention(engine: SyncEngine): FailedItem[] {
-  const dead = engine.deadLettered()
-  const deadKeys = new Set(dead.map((d) => d.idempotencyKey))
+/** Parked items (needs review) and, separately, still-retrying items that keep failing. */
+function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedItem[] } {
+  const review: FailedItem[] = engine.reviewItems().map((r) => ({
+    idempotencyKey: r.idempotencyKey,
+    type: r.type,
+    clientCreatedAt: r.clientCreatedAt,
+    reviewCode: r.reviewCode,
+    lastError: r.reviewReason ?? r.lastError,
+  }))
+  const reviewKeys = new Set(review.map((d) => d.idempotencyKey))
   const stuck = engine
     .stuckRetrying()
-    .filter((s) => !deadKeys.has(s.idempotencyKey))
+    .filter((s) => !reviewKeys.has(s.idempotencyKey))
     .map((s) => ({ ...s, lastError: STUCK_RETRY_MESSAGE }))
-  return [...dead, ...stuck]
+  return { review, stuck }
+}
+
+function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError)
 }
 
 export function useOfflineData(): OfflineDataState {
@@ -52,7 +68,7 @@ export function useOfflineData(): OfflineDataState {
   const [isOnline, setIsOnline] = useState(() => engine.isReachable())
   const [wall, setWall] = useState<WallState>(() => engine.getWall())
   const [pendingCount, setPendingCount] = useState(() => engine.pendingCount())
-  const [failed, setFailed] = useState<FailedItem[]>(() => attention(engine))
+  const [attn, setAttn] = useState(() => attention(engine))
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
@@ -98,7 +114,7 @@ export function useOfflineData(): OfflineDataState {
   }, [engine])
 
   const flush = useCallback(() => {
-    void engine.flush()
+    void engine.flushNow() // user-initiated: ignore any transient-failure backoff
   }, [engine])
 
   // Subscribe to engine events via polling (engine doesn't expose event emitter)
@@ -106,7 +122,10 @@ export function useOfflineData(): OfflineDataState {
     const interval = setInterval(() => {
       setWall(engine.getWall())
       setPendingCount(engine.pendingCount())
-      setFailed(attention(engine))
+      setAttn((prev) => {
+        const next = attention(engine)
+        return sameItems(prev.review, next.review) && sameItems(prev.stuck, next.stuck) ? prev : next
+      })
       setIsOnline(engine.isReachable())
     }, 2000)
     return () => clearInterval(interval)
@@ -114,7 +133,7 @@ export function useOfflineData(): OfflineDataState {
 
   const retryFailed = useCallback(async () => {
     await engine.retryFailed()
-    setFailed(attention(engine))
+    setAttn(attention(engine))
     setPendingCount(engine.pendingCount())
   }, [engine])
 
@@ -127,7 +146,8 @@ export function useOfflineData(): OfflineDataState {
     isOnline,
     wall,
     pendingCount,
-    failed,
+    review: attn.review,
+    stuck: attn.stuck,
     lastSyncedAt,
     isResyncing,
     resync,
