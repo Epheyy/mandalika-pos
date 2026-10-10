@@ -8,13 +8,18 @@ import {
   type ReactNode,
 } from 'react'
 import type { User } from '@mandalika/api'
-import { getKV } from '@mandalika/sync'
+import { defaultKV, getKV } from '@mandalika/sync'
 import { api, authStore } from './api'
+import {
+  BOOT_REFRESH_TIMEOUT_MS,
+  REFRESH_KEY,
+  bootSession,
+  dropSession,
+  persistSession,
+} from './authBoot'
 
-// Refresh token lives in secure storage on native (Capacitor Preferences →
-// app sandbox), localStorage on the web shell — same key, plan §7.
-const REFRESH_KEY = 'mandalika.pos.refresh'
-const tokenStore = getKV()
+// KV access goes through authBoot, which resolves getKV() at call time: main.tsx
+// swaps it to the secure (Preferences) store AFTER this module is loaded.
 
 // Any role may sign into the POS. The earlier cashier-only gate blocked
 // manager/admin accounts from operating a register, which broke the realistic
@@ -40,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.access = null
     authStore.refresh = null
     authStore.outletId = null
-    tokenStore.remove(REFRESH_KEY)
+    dropSession()
     setUser(null)
   }, [])
 
@@ -48,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.access = d.access
     authStore.refresh = d.refresh
     authStore.outletId = d.user.outletId ?? null
-    tokenStore.set(REFRESH_KEY, d.refresh)
+    persistSession(d)
     setUser(d.user)
   }, [])
 
@@ -57,21 +62,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Silent refresh persists rotated tokens; the POS session then lives
     // until the cashier explicitly logs out (refresh TTL is long server-side).
     authStore.onTokens = (d) => {
+      // A refresh that resolves after logout must not sign the cashier back in.
+      if (authStore.refresh === null) return
       authStore.access = d.access
       authStore.refresh = d.refresh
       authStore.outletId = d.user?.outletId ?? authStore.outletId
-      tokenStore.set(REFRESH_KEY, d.refresh)
+      persistSession(d)
+      // Replaces an offline-restored cached profile once the session renews.
+      if (d.user) setUser(d.user)
     }
-    const refresh = tokenStore.get(REFRESH_KEY)
-    if (refresh) authStore.refresh = refresh
-    if (!refresh) {
-      setReady(true)
-      return
-    }
-    api
-      .refresh(refresh)
-      .then((d) => apply(d))
-      .catch(() => clear())
+    // Only a server 401 ends the session. Offline / timeout / 5xx keeps the
+    // token and restores the cached user; the first sync request then 401s
+    // (no access token yet) and the client's silent refresh renews it online.
+    void bootSession(getKV(), defaultKV, (t) =>
+      api.refresh(t, { timeoutMs: BOOT_REFRESH_TIMEOUT_MS }),
+    )
+      .then((r) => {
+        if (r.kind === 'signed-in') apply(r.data)
+        else if (r.kind === 'offline') {
+          authStore.refresh = r.refresh
+          authStore.outletId = r.user.outletId ?? null
+          setUser(r.user)
+        } else if (r.kind === 'login-keep-token') {
+          authStore.refresh = r.refresh
+        } else if (r.kind === 'rejected') clear()
+      })
+      .catch(() => {
+        // Unexpected storage failure: do not drop the stored token.
+      })
       .finally(() => setReady(true))
   }, [clear, apply])
 
@@ -84,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
-    const refresh = tokenStore.get(REFRESH_KEY)
+    const refresh = getKV().get(REFRESH_KEY)
     if (refresh) void api.logout(refresh).catch(() => {})
     clear()
   }, [clear])
