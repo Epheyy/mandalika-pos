@@ -1,7 +1,19 @@
 # P0 slice 8 — A09 tender rules (plan, 2026-10-11)
 
 Planned by the Opus planner (read-only) against `prod-hardening` @ `db1a275` (backend identical to
-live `249fd35`). Status: **awaiting owner answers to §9 Q1–Q3 before T1.**
+live `249fd35`).
+
+**Owner answers (2026-10-11), these override the text below:**
+1. Yes — "reject online" applies to direct `POST /orders` only; tablet sales accept-and-flag.
+2. Migration 0046 **approved** (still confirm with the owner right before the deploy command).
+3. Non-cash with missing/0 `amountPaid`: store 0 and flag.
+4. Discount permission split out to slice 8b.
+5. Online non-cash mismatch: flag only (online rejects `cash_short` only).
+6. **Tolerance ±Rp1**: a difference of ≤ 100 cents (|captured−due| ≤ Rp1) is NOT a shortfall /
+   mismatch. Cash short = captured < due − Rp1. Test case 11 becomes: cash 99999 → passes
+   (change 0, no flag); cash 99998.99 → 422 direct / flag batch. For cash within tolerance below
+   due, change = 0 and amount_paid = captured.
+7. Badge only now.
 
 ## 0. Facts that limit what this slice can promise
 
