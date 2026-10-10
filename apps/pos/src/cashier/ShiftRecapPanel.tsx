@@ -8,7 +8,7 @@
  * All data is server-sourced. Brand gold comes free — index.css remaps the
  * indigo palette to gold, so the indigo-* classes here render gold.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isCashMethod } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
@@ -142,7 +142,13 @@ function ShiftRecapPanelBody({
 
   const [currentShift, setCurrentShift] = useState<Shift | null>(null)
   const [currentFlows, setCurrentFlows] = useState<CashFlow[]>([])
-  const [live, setLive] = useState<Breakdown | null>(null)
+  // Raw orders are kept so a settings change re-aggregates without a reload (which
+  // would also wipe the typed 'Terhitung' counts).
+  const [liveOrders, setLiveOrders] = useState<Order[] | null>(null)
+  const live: Breakdown | null = useMemo(
+    () => (liveOrders ? aggregate(liveOrders, paymentMethods) : null),
+    [liveOrders, paymentMethods],
+  )
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -174,7 +180,7 @@ function ShiftRecapPanelBody({
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
       setCurrentShift(shift)
       setCurrentFlows(flows)
-      setLive(shift ? aggregate(orders, paymentMethods) : null)
+      setLiveOrders(shift ? orders : null)
       setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       setIsStale(stale)
     } catch (e: unknown) {
@@ -182,7 +188,7 @@ function ShiftRecapPanelBody({
     } finally {
       setIsLoading(false)
     }
-  }, [paymentMethods])
+  }, [])
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
