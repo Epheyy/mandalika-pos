@@ -57,6 +57,10 @@ func classifyPg(pg *pgconn.PgError) itemOutcome {
 		class = class[:2]
 	}
 	switch {
+	case pg.Code == "23503":
+		// foreign_key_violation: in an offline outbox a missing parent row usually
+		// means "parent not synced yet" (e.g. a customer), so retry, don't review.
+		return internalOutcome()
 	case class == "22" || class == "23": // data exception, integrity constraint
 		return itemOutcome{Code: apperr.Rejected, Message: dataRejectedMessage, Sanitized: true}
 	case class == "40" || pg.Code == "55P03": // deadlock/serialization, lock not available

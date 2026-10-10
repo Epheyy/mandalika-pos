@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/write"
@@ -279,11 +280,10 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			`SELECT points, birthday, anniversary, visit_count
 			   FROM customers WHERE id=$1 FOR UPDATE`,
 			in.CustomerID).Scan(&balanceBefore, &evalCust.Birthday, &evalCust.Anniversary, &evalCust.VisitCount); e != nil {
-			err := fmt.Errorf("load customer points: %w", e)
-			if errors.Is(e, pgx.ErrNoRows) {
-				return "", false, false, apperr.Wrap(apperr.NotFound, err)
-			}
-			return "", false, false, err
+			// A missing customer is NOT a refusal: the POS creates customers on-device
+			// and syncs customer_create first, so a failed/late create makes this
+			// transient. Leave it unclassified (retryable internal).
+			return "", false, false, fmt.Errorf("load customer points: %w", e)
 		}
 	}
 	pointsRedeemed := 0
@@ -435,6 +435,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
 	).Scan(&orderID)
 	if err != nil {
+		if isIdempotencyConflict(err) {
+			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, err)
+		}
 		return "", false, false, fmt.Errorf("insert order: %w", err)
 	}
 
@@ -565,6 +568,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if _, e := tx.Exec(ctx,
 		`INSERT INTO processed_keys (idempotency_key, order_id) VALUES ($1,$2)`,
 		in.IdempotencyKey, orderID); e != nil {
+		if isIdempotencyConflict(e) {
+			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, e)
+		}
 		return "", false, false, fmt.Errorf("record idempotency: %w", e)
 	}
 
@@ -572,6 +578,37 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		return "", false, false, fmt.Errorf("commit: %w", e)
 	}
 	return orderID, false, stockWarning, nil
+}
+
+// Default PostgreSQL names of the unique constraints that make an order
+// idempotent (0001_init.sql: orders.order_uuid UNIQUE, orders.idempotency_key
+// UNIQUE, processed_keys.idempotency_key PRIMARY KEY).
+var idempotencyConstraints = map[string]bool{
+	"orders_order_uuid_key":      true,
+	"orders_idempotency_key_key": true,
+	"processed_keys_pkey":        true,
+}
+
+// isIdempotencyConflict reports a unique violation on one of those constraints,
+// i.e. a concurrent send of the same order won the race.
+func isIdempotencyConflict(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == "23505" && idempotencyConstraints[pg.ConstraintName]
+}
+
+// replayAfterConflict handles the loser of a same-key race: roll back, re-read the
+// winner's committed key and answer exactly like the normal duplicate path. If the
+// key is not visible yet, fail retryably (never as a rejection of an applied sale).
+func (s *OrderService) replayAfterConflict(ctx context.Context, tx pgx.Tx, key string, cause error) (string, bool, bool, error) {
+	_ = tx.Rollback(ctx)
+	var existing string
+	err := s.Pool.QueryRow(ctx,
+		`SELECT order_id FROM processed_keys WHERE idempotency_key=$1`, key).Scan(&existing)
+	if err == nil {
+		return existing, true, false, nil
+	}
+	slog.Warn("order idempotency conflict without a replayable key", "idempotencyKey", key, "cause", cause, "err", err)
+	return "", false, false, apperr.Wrap(apperr.Busy, write.ErrBusy)
 }
 
 // Refund flips the order to refunded and restores stock (Orders.tsx:47-72).

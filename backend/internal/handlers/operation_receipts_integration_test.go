@@ -507,4 +507,100 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-cancelled", recvPayload(id, pin)), "conflict", false)
 		})
 	})
+
+	// Orders over /sync/batch: concurrency and not-yet-synced parents.
+	const orderProduct = "00000000-0000-4000-8a02-0000000000f1"
+	exec(t, `INSERT INTO products(id,name) VALUES($1,'ORD product')`, orderProduct)
+	exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',10)`, outletA, orderProduct)
+	orderPayload := func(orderUUID, customerID string) string {
+		cust := "null"
+		if customerID != "" {
+			cust = fmt.Sprintf("%q", customerID)
+		}
+		return fmt.Sprintf(`{"orderUuid":%q,"orderNumber":"ORD-%s","items":[{"productId":%q,"productName":"ORD product","variantSize":"M","price":50,"quantity":2,"subtotal":100}],"paymentMethod":"cash","amountPaid":100,"customerId":%s}`,
+			orderUUID, orderUUID[len(orderUUID)-4:], orderProduct, cust)
+	}
+	orderStock := func(t *testing.T) int {
+		return count(t, `SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'`, outletA, orderProduct)
+	}
+
+	t.Run("concurrent-same-key-order-is-ok-then-duplicate", func(t *testing.T) {
+		const uuid = "00000000-0000-4000-8a06-000000000001"
+		const key = "or-dev:" + uuid
+		pl := orderPayload(uuid, "")
+		before := orderStock(t)
+		results := make([]syncpkg.ItemResult, 2)
+		op := func(i int) func(context.Context) error {
+			return func(context.Context) error {
+				results[i] = one(t, tokenA, "order", key, pl)
+				return nil
+			}
+		}
+		// Both requests pass the processed_keys check and park on the stock table
+		// lock; the loser then hits the unique violation instead of a replay.
+		tr.race(t, "outlet_variant_stock", op(0), op(1))
+		statuses := []string{results[0].Status, results[1].Status}
+		okN, dupN := 0, 0
+		for _, st := range statuses {
+			switch st {
+			case "ok":
+				okN++
+			case "duplicate":
+				dupN++
+			}
+		}
+		if okN != 1 || dupN != 1 {
+			t.Fatalf("want one ok + one duplicate, got %+v", results)
+		}
+		if results[0].OrderID == "" || results[0].OrderID != results[1].OrderID {
+			t.Fatalf("both results must carry the same order id: %+v", results)
+		}
+		for _, r := range results {
+			if r.Code != "" || r.Retryable != nil || r.Error != "" {
+				t.Fatalf("neither result may carry an error contract: %+v", r)
+			}
+		}
+		if n := count(t, `SELECT count(*) FROM orders WHERE idempotency_key=$1`, key); n != 1 {
+			t.Errorf("%d order rows, want 1", n)
+		}
+		if got := orderStock(t); got != before-2 {
+			t.Errorf("stock %d, want %d (decremented once)", got, before-2)
+		}
+	})
+
+	t.Run("order-for-unsynced-customer-is-retryable-then-ok", func(t *testing.T) {
+		for _, loyalty := range []bool{false, true} {
+			t.Run(fmt.Sprintf("loyalty-%v", loyalty), func(t *testing.T) {
+				exec(t, `UPDATE loyalty_settings SET enabled=$1`, loyalty)
+				defer exec(t, `UPDATE loyalty_settings SET enabled=false`)
+				suffix := "01"
+				if loyalty {
+					suffix = "02"
+				}
+				const customerBase = "00000000-0000-4000-8a07-0000000000"
+				cust := customerBase + suffix
+				uuid := "00000000-0000-4000-8a08-0000000000" + suffix
+				key := "or-dev:" + uuid
+				pl := orderPayload(uuid, cust)
+				before := orderStock(t)
+				r := one(t, tokenA, "order", key, pl)
+				wantCode(t, r, "internal", true)
+				if strings.Contains(r.Error, "customer") || strings.Contains(r.Error, "violates") {
+					t.Fatalf("raw error leaked: %q", r.Error)
+				}
+				if n := count(t, `SELECT count(*) FROM orders WHERE idempotency_key=$1`, key); n != 0 {
+					t.Fatalf("failed order left %d rows", n)
+				}
+				if got := orderStock(t); got != before {
+					t.Fatalf("failed order changed stock %d -> %d", before, got)
+				}
+				// The customer arrives; the same item (same key) now applies.
+				wantOK(t, one(t, tokenA, "customer_create", "or-dev:ec-cust-"+suffix, fmt.Sprintf(`{"customerId":%q,"name":"Late","phone":"0800-late-%s"}`, cust, suffix)))
+				wantOK(t, one(t, tokenA, "order", key, pl))
+				if n := count(t, `SELECT count(*) FROM orders WHERE idempotency_key=$1`, key); n != 1 {
+					t.Fatalf("%d order rows, want 1", n)
+				}
+			})
+		}
+	})
 }
