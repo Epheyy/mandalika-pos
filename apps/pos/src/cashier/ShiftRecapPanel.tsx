@@ -9,6 +9,7 @@
  * indigo palette to gold, so the indigo-* classes here render gold.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isCashMethod } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
 import { api } from '../api'
@@ -21,7 +22,7 @@ type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
 type Order = components['schemas']['Order']
-type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean }
+type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean; isCash?: boolean | null }
 
 interface Breakdown {
   byMethod: Record<string, number>
@@ -38,7 +39,7 @@ interface Breakdown {
   net: number
 }
 
-function aggregate(orders: Order[]): Breakdown {
+function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
   const b: Breakdown = {
     byMethod: {}, totalSales: 0, totalOrders: 0, refundCount: 0,
     refundTotal: 0, refundItems: 0, cashSales: 0, gross: 0, discount: 0,
@@ -55,7 +56,7 @@ function aggregate(orders: Order[]): Breakdown {
     b.totalSales += o.total
     b.totalOrders += 1
     b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + o.total
-    if (o.paymentMethod === 'cash') b.cashSales += o.total
+    if (isCashMethod(methods, o.paymentMethod)) b.cashSales += o.total
     b.gross += o.subtotal
     b.discount += o.discountAmount
     b.tax += o.taxAmount
@@ -173,7 +174,7 @@ function ShiftRecapPanelBody({
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
       setCurrentShift(shift)
       setCurrentFlows(flows)
-      setLive(shift ? aggregate(orders) : null)
+      setLive(shift ? aggregate(orders, paymentMethods) : null)
       setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       setIsStale(stale)
     } catch (e: unknown) {
@@ -181,7 +182,7 @@ function ShiftRecapPanelBody({
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [paymentMethods])
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
@@ -675,7 +676,7 @@ function ShiftRecapPanelBody({
           </div>
         ) : selected ? (
           (() => {
-            const b = aggregate(selectedOrders)
+            const b = aggregate(selectedOrders, paymentMethods)
             const countedMap = (selected.countedByMethod ?? {}) as Record<string, number>
             const countedTotal = Object.values(countedMap).reduce((a, n) => a + n, 0)
             const hasCounted = Object.keys(countedMap).length > 0
