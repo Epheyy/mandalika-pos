@@ -30,20 +30,31 @@ describe('fixed terminal wiring (A04)', () => {
     const assigners = sources().filter((f) => /authStore\.outletId\s*=(?!=)/.test(readFileSync(f, 'utf8')))
     expect(assigners.map(rel)).toEqual(['auth.tsx'])
     const lines = read('auth.tsx').split('\n').filter((l) => /authStore\.outletId\s*=(?!=)/.test(l)).map((l) => l.trim())
-    expect(lines).toEqual(['authStore.outletId = null', 'authStore.outletId = next?.outletId ?? null'])
+    expect(lines).toEqual(['authStore.outletId = null', "authStore.outletId = res.state === 'ok' && res.binding ? res.binding.outletId : null"])
   })
 
-  it('boot, offline restore, sign-in and token refresh all settle the terminal', () => {
+  it('boot, offline restore, sign-in and token refresh all settle the terminal, and only sign-in/pick are "fresh"', () => {
     const auth = read('auth.tsx')
-    expect(auth).toMatch(/const apply = useCallback\([\s\S]*?settleTerminal\(d\.user\)/)
-    expect(auth).toMatch(/authStore\.onTokens = [\s\S]*?settleTerminal\(d\.user\)/)
-    expect(auth).toMatch(/r\.kind === 'offline'[\s\S]*?settleTerminal\(r\.user\)/)
-    expect(auth).toMatch(/checkLoginAllowed\(getKV\(\), d\.user\)[\s\S]*?throw new Error\(verdict\.message\)[\s\S]*?apply\(d\)/)
+    expect(auth).toMatch(/const apply = useCallback\([\s\S]*?settleTerminal\(d\.user, \{ fresh \}\)/)
+    expect(auth).toMatch(/authStore\.onTokens = [\s\S]*?settleTerminal\(d\.user\)\.catch/)
+    expect(auth).toMatch(/r\.kind === 'offline'[\s\S]*?settleTerminal\(r\.user\)\.catch/)
+    expect(auth).toMatch(/checkLoginAllowed\(getKV\(\), d\.user\)[\s\S]*?throw new Error\(verdict\.message\)[\s\S]*?await apply\(d, true\)/)
+    expect(auth).toMatch(/settleTerminal\(user, \{ picked: outlet, fresh: true \}\)/)
+    // H2: the token-refresh and boot paths must never ask for fresh/cache-clearing binds.
+    const onTokens = auth.slice(auth.indexOf('authStore.onTokens = '), auth.indexOf('// Only a server 401'))
+    expect(onTokens).not.toMatch(/bfreshb/)
+    expect(auth.slice(auth.indexOf('void bootSession'), auth.indexOf('.finally(() => setReady(true))'))).not.toMatch(/fresh: true|apply\(r\.data, true\)/)
   })
 
-  it('an unassigned non-admin account is stopped before the cashier screen', () => {
-    expect(read('App.tsx')).toMatch(/outletUnassigned\) return <OutletUnassignedScreen \/>[\s\S]*?needsOutletPick\) return <OutletPickScreen \/>[\s\S]*?<SyncProvider>/)
-    expect(read('auth.tsx')).toMatch(/setOutletUnassigned\(next === null && u\.role !== 'admin'\)/)
+  it('a bound terminal is never rebound by the auth code: only resolveTerminal decides, and it does not rebind', () => {
+    expect(read('auth.tsx')).not.toMatch(/bindingFor/)
+    expect(read('auth.tsx')).toMatch(/resolveTerminal\(u, current, opts\.picked\)/)
+  })
+
+  it('unassigned, mismatch and pick are all stopped before the cashier screen', () => {
+    expect(read('App.tsx')).toMatch(/terminalState === 'unassigned'\) return <OutletUnassignedScreen \/>[\s\S]*?terminalState === 'mismatch'\) return <OutletMismatchScreen \/>[\s\S]*?terminalState === 'pick'\) return <OutletPickScreen \/>[\s\S]*?<SyncProvider>/)
+    // no outlet in effect on a mismatch: requests carry none and actor() refuses
+    expect(read('auth.tsx')).toMatch(/res\.state === 'ok' && res\.binding \? res\.binding\.outletId : null/)
   })
 
   it('the sync engine is built with the capture-time actor provider', () => {
@@ -57,14 +68,15 @@ describe('fixed terminal wiring (A04)', () => {
     // auth.tsx defines it (authBoot only mentions it in a comment); the pick and unassigned
     // screens offer an escape before any binding exists. Nothing in the cashier UI may call it.
     expect(users).toEqual(['App.tsx', 'auth.tsx', 'authBoot.ts', 'screens/OutletPickScreen.tsx'])
+    expect(read('screens/OutletMismatchScreen.tsx')).toMatch(/releaseTerminal/)
   })
 
   it('Lepas terminal is guarded by the queue and reachability checks', () => {
     const section = read('screens/TerminalSection.tsx')
     expect(section).toMatch(/releaseBlockedReason\(/)
-    expect(section).toMatch(/unsettled: engine\.unsettledCount\(\)/)
+    expect(section).toMatch(/parkedUnstamped: summary\.parkedUnstamped/)
     expect(section).toMatch(/online: engine\.isReachable\(\)/)
-    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueEmpty\(readQueueState\(kv\)\)[\s\S]*?clearBinding\(kv\)[\s\S]*?clearOutletCaches\(kv\)/)
+    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueReleasable\(readQueueState\(kv\)\)[\s\S]*?clearBinding\(kv\)[\s\S]*?clearOutletCaches\(kv, bound\?\.outletId\)/)
   })
 
   it('the shift header persists, overlays and only auto-opens after a successful fetch', () => {
@@ -73,13 +85,13 @@ describe('fixed terminal wiring (A04)', () => {
     expect(hook).toMatch(/writeShiftCache\(getKV\(\), outletId, r\.data\)/)
     expect(hook).toMatch(/overlayShift\(serverShift, ops/)
     expect(hook).toMatch(/shouldAutoOpen\(\{[\s\S]*?fetchedThisSession/)
-    expect(hook).toMatch(/if \(!engine\.isReachable\(\)\) \{[\s\S]*?OFFLINE_OPEN_MESSAGE/)
+    expect(hook).toMatch(/if \(!engine\.isReachable\(\) \|\| !fetchedThisSession\) \{[\s\S]*?OFFLINE_OPEN_MESSAGE/)
     // the old unconditional auto-open (gated only on "not loading, no shift") must not return
     expect(hook).not.toMatch(/if \(isLoadingShift \|\| currentShift \|\| isOpeningShift\) return/)
   })
 
   it('Buka Shift is disabled while offline', () => {
-    expect(read('cashier/ShiftBar.tsx')).toMatch(/disabled=\{!isOnline\}/)
-    expect(read('cashier/CashierScreen.tsx')).toMatch(/isOnline=\{offlineData\.isOnline\}/)
+    expect(read('cashier/ShiftBar.tsx')).toMatch(/disabled=\{!canOpen\}/)
+    expect(read('cashier/CashierScreen.tsx')).toMatch(/canOpen=\{shift\.canOpenShift\}/)
   })
 })

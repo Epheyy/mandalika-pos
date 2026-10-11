@@ -11,15 +11,16 @@ import type { User } from '@mandalika/api'
 import { defaultKV, getKV } from '@mandalika/sync'
 import { api, authStore } from './api'
 import {
-  bindingFor,
   checkLoginAllowed,
   clearBinding,
   clearOutletCaches,
-  isQueueEmpty,
+  isQueueReleasable,
   readBinding,
   readQueueState,
+  resolveTerminal,
   sameBinding,
   writeBinding,
+  type TerminalState,
 } from './terminalBinding'
 import {
   BOOT_REFRESH_TIMEOUT_MS,
@@ -42,10 +43,10 @@ import {
 interface AuthState {
   user: User | null
   ready: boolean
-  /** Signed in as an outlet-less ADMIN on a terminal with no outlet yet: must pick once. */
-  needsOutletPick: boolean
-  /** Signed in as a non-admin account with no outlet: it cannot operate a terminal at all. */
-  outletUnassigned: boolean
+  /** How the signed-in account relates to this terminal: ok, an admin must pick the outlet once,
+   *  a non-admin has no outlet (unassigned) or one different from the terminal's (mismatch). Null
+   *  when nobody is signed in. Anything but "ok" blocks the cashier screen. */
+  terminalState: TerminalState | null
   login: (email: string, password: string) => Promise<void>
   /** One-time terminal outlet pick for an outlet-less account; durable before it resolves. */
   pickOutlet: (outlet: { id: string; name: string }) => Promise<void>
@@ -54,13 +55,14 @@ interface AuthState {
   logout: () => void
 }
 
+const logBindingFailure = (err: unknown) => console.error('[terminal] binding write failed', err)
+
 const AuthCtx = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
-  const [needsOutletPick, setNeedsOutletPick] = useState(false)
-  const [outletUnassigned, setOutletUnassigned] = useState(false)
+  const [terminalState, setTerminalState] = useState<TerminalState | null>(null)
 
   const clear = useCallback(() => {
     authStore.access = null
@@ -69,33 +71,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.userId = null
     authStore.shiftId = null
     dropSession() // the terminal binding is deliberately NOT part of the session
-    setNeedsOutletPick(false)
-    setOutletUnassigned(false)
+    setTerminalState(null)
     setUser(null)
   }, [])
 
-  // The outlet a request/capture uses ALWAYS comes from the terminal binding: boot,
-  // offline restore, sign-in and token refresh all go through here (A04). The binding
-  // is rewritten when the account (and so the owner) or its stored outlet changed.
-  const settleTerminal = useCallback((u: User, picked?: { id: string; name: string }) => {
+  // The outlet a request/capture uses ALWAYS comes from the terminal binding: boot, offline
+  // restore, sign-in and token refresh all go through here (A04). It only ever CREATES a
+  // binding on an unbound terminal; a bound terminal is never rebound here (a non-admin whose
+  // outlet differs is a "mismatch": no outlet, so actor() refuses and requests carry no
+  // outlet, until "Lepas terminal"). `fresh` (sign-in / pick, not boot or token refresh) also
+  // clears the previous outlet's cached data when a new binding is created. Resolves once the
+  // binding is durable; callers that must not proceed without it await it.
+  const settleTerminal = useCallback((u: User, opts: { picked?: { id: string; name: string }; fresh?: boolean } = {}): Promise<void> => {
     const kv = getKV()
     const current = readBinding(kv)
-    const next = bindingFor(u, current, picked)
+    const res = resolveTerminal(u, current, opts.picked)
     authStore.userId = u.id
-    authStore.outletId = next?.outletId ?? null
-    setNeedsOutletPick(next === null && u.role === 'admin')
-    setOutletUnassigned(next === null && u.role !== 'admin')
-    if (next && !sameBinding(current, next)) {
-      writeBinding(kv, next).catch((err) => console.error('[terminal] binding write failed', err))
-    }
+    authStore.outletId = res.state === 'ok' && res.binding ? res.binding.outletId : null
+    setTerminalState(res.state)
+    if (res.state !== 'ok' || !res.binding) return Promise.resolve()
+    if (res.created && opts.fresh) clearOutletCaches(kv, res.binding.outletId)
+    return sameBinding(current, res.binding) ? Promise.resolve() : writeBinding(kv, res.binding)
   }, [])
 
-  const apply = useCallback((d: { access: string; refresh: string; user: User }) => {
+  const apply = useCallback((d: { access: string; refresh: string; user: User }, fresh = false): Promise<void> => {
     authStore.access = d.access
     authStore.refresh = d.refresh
-    settleTerminal(d.user)
+    const settled = settleTerminal(d.user, { fresh })
     persistSession(d)
     setUser(d.user)
+    return settled
   }, [settleTerminal])
 
   useEffect(() => {
@@ -110,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       persistSession(d)
       // Replaces an offline-restored cached profile once the session renews.
       if (d.user) {
-        settleTerminal(d.user)
+        void settleTerminal(d.user).catch(logBindingFailure)
         setUser(d.user)
       }
     }
@@ -121,10 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       api.refresh(t, { timeoutMs: BOOT_REFRESH_TIMEOUT_MS }),
     )
       .then((r) => {
-        if (r.kind === 'signed-in') apply(r.data)
+        if (r.kind === 'signed-in') void apply(r.data).catch(logBindingFailure)
         else if (r.kind === 'offline') {
           authStore.refresh = r.refresh
-          settleTerminal(r.user)
+          void settleTerminal(r.user).catch(logBindingFailure)
           setUser(r.user)
         } else if (r.kind === 'login-keep-token') {
           authStore.refresh = r.refresh
@@ -140,13 +145,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const d = await api.login(email, password)
       // A different account may not take over a terminal that still holds the previous
-      // account's queued / in-review transactions (A04). Revoke the session just issued.
+      // account's queued transactions (A04). Revoke the session just issued.
       const verdict = checkLoginAllowed(getKV(), d.user)
       if (!verdict.ok) {
         void api.logout(d.refresh).catch(() => {})
         throw new Error(verdict.message)
       }
-      apply(d)
+      try {
+        await apply(d, true) // the binding is durable before the sign-in completes
+      } catch (err) {
+        logBindingFailure(err)
+        void api.logout(d.refresh).catch(() => {})
+        throw new Error('Pengaturan terminal gagal tersimpan di perangkat. Coba masuk lagi.')
+      }
     },
     [apply],
   )
@@ -154,10 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pickOutlet = useCallback(
     async (outlet: { id: string; name: string }) => {
       if (!user) throw new Error('Belum masuk')
-      const next = bindingFor(user, readBinding(getKV()), outlet)
-      if (!next) throw new Error('Outlet tidak valid')
-      await writeBinding(getKV(), next) // durable first: only then does the terminal act as that outlet
-      settleTerminal(user, outlet)
+      await settleTerminal(user, { picked: outlet, fresh: true }) // durable first
     },
     [user, settleTerminal],
   )
@@ -170,17 +178,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const releaseTerminal = useCallback(async () => {
     const kv = getKV()
-    if (!isQueueEmpty(readQueueState(kv))) {
-      throw new Error('Masih ada transaksi yang belum terkirim atau perlu ditinjau. Terminal tidak dapat dilepas.')
+    if (!isQueueReleasable(readQueueState(kv))) {
+      throw new Error('Masih ada transaksi yang belum terkirim atau perlu ditinjau tanpa pemilik. Terminal tidak dapat dilepas.')
     }
+    const bound = readBinding(kv)
     await clearBinding(kv)
-    clearOutletCaches(kv)
+    clearOutletCaches(kv, bound?.outletId)
     logout()
   }, [logout])
 
   const value = useMemo<AuthState>(
-    () => ({ user, ready, needsOutletPick, outletUnassigned, login, pickOutlet, releaseTerminal, logout }),
-    [user, ready, needsOutletPick, outletUnassigned, login, pickOutlet, releaseTerminal, logout],
+    () => ({ user, ready, terminalState, login, pickOutlet, releaseTerminal, logout }),
+    [user, ready, terminalState, login, pickOutlet, releaseTerminal, logout],
   )
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
 }

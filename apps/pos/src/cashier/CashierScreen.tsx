@@ -16,6 +16,7 @@ import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useShift } from '../hooks/useShift'
+import { useTerminalLabel } from '../hooks/useTerminalLabel'
 import { useCart } from '../hooks/useCart'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
 import { ProductGrid } from './ProductGrid'
@@ -91,6 +92,7 @@ export default function CashierScreen() {
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([])
   const offlineData = useOfflineData()
   const shift = useShift()
+  const outletLabel = useTerminalLabel()
   const [state, dispatch] = useReducer(cashierReducer, CASHIER_INITIAL_STATE)
 
   // UI prefs. The layout is a single adaptive view (responsive by width); the
@@ -873,11 +875,13 @@ export default function CashierScreen() {
       <header className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain flex-shrink-0" />
+          {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
+          {outletLabel && <span className="text-xs font-semibold text-gray-600 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
           <ShiftBar
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
             onOpenShift={shift.openShift}
-            isOnline={offlineData.isOnline}
+            isOnline={offlineData.isOnline} canOpen={shift.canOpenShift}
             error={shift.shiftError}
             onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}

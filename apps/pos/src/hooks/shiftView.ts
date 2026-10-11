@@ -72,6 +72,23 @@ export function overlayShift(server: Shift | null, ops: readonly PendingShiftOp[
 export const opsSignature = (ops: readonly PendingShiftOp[]): string =>
   ops.map((o) => `${o.idempotencyKey}:${o.parked ? 'p' : 'q'}`).join('|')
 
+export type OpsPlan = 'none' | 'apply' | 'fetch-then-apply'
+
+/** How to move the DISPLAYED pending operations to the engine's current ones. Operations that
+ *  left the queue (acknowledged) or were parked change what the header must show, and the
+ *  overlay that was covering for them may only be dropped once a fresh server shift is known;
+ *  otherwise the header flashes "Buka Shift" (or hides a shift) in the gap. Decided against what
+ *  is displayed, not what was last observed, so a failed fetch is retried on the next tick. */
+export function planOpsUpdate(shown: readonly PendingShiftOp[], next: readonly PendingShiftOp[]): OpsPlan {
+  if (opsSignature(shown) === opsSignature(next)) return 'none'
+  const nextByKey = new Map(next.map((o) => [o.idempotencyKey, o]))
+  const settled = shown.some((o) => {
+    const n = nextByKey.get(o.idempotencyKey)
+    return !n || n.parked !== o.parked
+  })
+  return settled ? 'fetch-then-apply' : 'apply'
+}
+
 export interface AutoOpenInput {
   /** The outlet enables app_settings.autoOpenShift. */
   enabled: boolean
@@ -84,6 +101,10 @@ export interface AutoOpenInput {
   alreadyTried: boolean
   online: boolean
 }
+
+/** "Buka Shift" needs the server AND a shift answer from it this session: offline, or online
+ *  before the first successful GET /shifts/current, the header only has a guess. */
+export const canOpenShift = (online: boolean, fetchedThisSession: boolean): boolean => online && fetchedThisSession
 
 export function shouldAutoOpen(i: AutoOpenInput): boolean {
   return i.enabled && i.fetchedThisSession && i.online && !i.hasShift && !i.isOpening && !i.alreadyTried

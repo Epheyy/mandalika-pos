@@ -10,7 +10,7 @@
 
 import { useCallback, use, useEffect, useMemo, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
-import { getKV, type SyncEngine } from '@mandalika/sync'
+import { getKV } from '@mandalika/sync'
 import { api, authStore } from '../api'
 import { useAuth } from '../auth'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -18,9 +18,10 @@ import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import {
   OFFLINE_OPEN_MESSAGE,
   PENDING_CLOSE_MESSAGE,
+  canOpenShift,
   isPendingOpen,
-  opsSignature,
   overlayShift,
+  planOpsUpdate,
   readShiftCache,
   shouldAutoOpen,
   writeShiftCache,
@@ -33,27 +34,19 @@ export interface ShiftState {
   isLoadingShift: boolean
   isOpeningShift: boolean
   isClosingShift: boolean
+  /** Server reachable AND GET /shifts/current has succeeded this session. "Buka Shift" needs both. */
+  canOpenShift: boolean
   /** Resolve true once the shift op is durably queued; false if not saved, offline or already in flight. */
   openShift: (startingCash: number, outletName?: string) => Promise<boolean>
   closeShift: (closingCash: number, countedByMethod?: Record<string, number>) => Promise<boolean>
   /** Persistent error when a shift op could not be stored on the device. */
   shiftError: string | null
   clearShiftError: () => void
-  refreshShift: () => Promise<void>
+  /** Resolves true when the server answered (the shown shift is then authoritative). */
+  refreshShift: () => Promise<boolean>
 }
 
 const POLL_MS = 2000
-
-interface Observed {
-  online: boolean
-  sig: string
-  keys: Set<string>
-}
-
-function observe(engine: SyncEngine): Observed {
-  const ops = engine.pendingShiftOps()
-  return { online: engine.isReachable(), sig: opsSignature(ops), keys: new Set(ops.map((o) => o.idempotencyKey)) }
-}
 
 export function useShift(): ShiftState {
   const engine = use(SyncContext)
@@ -75,14 +68,16 @@ export function useShift(): ShiftState {
   const gate = useRef(createSubmitGate())
   const clearShiftError = useCallback(() => setShiftError(null), [])
 
-  const refreshShift = useCallback(async () => {
+  const refreshShift = useCallback(async (): Promise<boolean> => {
     try {
       const r = await api.request<{ data: Shift | null }>('GET', '/api/v1/shifts/current')
       setServerShift(r.data)
       writeShiftCache(getKV(), outletId, r.data)
       setFetchedThisSession(true)
+      return true
     } catch {
       // offline or a server hiccup: keep the last known shift, never conclude "no shift"
+      return false
     } finally {
       setIsLoadingShift(false)
     }
@@ -93,32 +88,33 @@ export function useShift(): ShiftState {
     void refreshShift()
   }, [refreshShift])
 
-  // Re-fetch when the server becomes reachable again and when a shift operation is
-  // acknowledged (the pending set shrinks): the engine is polled, as elsewhere in the POS.
-  const seen = useRef<Observed | null>(null)
+  // The displayed pending operations (overlay). Moved to the engine's only per planOpsUpdate:
+  // acknowledged or parked operations are dropped from the overlay AFTER a successful refetch.
+  const shownOps = useRef(ops)
+  const applyOps = useCallback((next: typeof ops) => {
+    shownOps.current = next
+    setOps(next)
+  }, [])
+  const fetching = useRef(false)
+  const lastOnline = useRef(engine.isReachable())
   useEffect(() => {
-    seen.current ??= observe(engine)
     const t = setInterval(() => {
       const nextOps = engine.pendingShiftOps()
       const nextOnline = engine.isReachable()
-      const sig = opsSignature(nextOps)
-      const prev = seen.current as Observed
-      const nextKeys = new Set(nextOps.map((o) => o.idempotencyKey))
-      seen.current = { online: nextOnline, sig, keys: nextKeys }
-      if (nextOnline !== prev.online) setOnline(nextOnline)
-      const changed = sig !== prev.sig
-      const acked = [...prev.keys].some((k) => !nextKeys.has(k)) // an operation left the queue
-      if (changed && acked && nextOnline) {
-        // Fetch the server's shift BEFORE dropping the overlay, so the header never
-        // flashes "Buka Shift" in the gap between the ack and the refetch.
-        void refreshShift().finally(() => setOps(nextOps))
-        return
-      }
-      if (changed) setOps(nextOps)
-      if (nextOnline && !prev.online) void refreshShift()
+      if (nextOnline !== lastOnline.current) setOnline(nextOnline)
+      const cameBack = nextOnline && !lastOnline.current
+      lastOnline.current = nextOnline
+      const plan = planOpsUpdate(shownOps.current, nextOps)
+      if (plan === 'apply') applyOps(nextOps)
+      const wantFetch = cameBack || plan === 'fetch-then-apply'
+      if (!wantFetch || !nextOnline || fetching.current) return
+      fetching.current = true
+      void refreshShift()
+        .then((ok) => { if (ok && plan === 'fetch-then-apply') applyOps(nextOps) }) // else retried next tick
+        .finally(() => { fetching.current = false })
     }, POLL_MS)
     return () => clearInterval(t)
-  }, [engine, refreshShift])
+  }, [engine, refreshShift, applyOps])
 
   const currentShift = useMemo(
     () =>
@@ -139,9 +135,10 @@ export function useShift(): ShiftState {
   const openShift = useCallback(
     async (startingCash: number, outletName?: string): Promise<boolean> => {
       if (gate.current.isBusy()) return false
-      if (!engine.isReachable()) {
-        // Offline we cannot know whether a shift is already open, and two opens at one
-        // outlet are what this prevents. Selling offline works once a shift is open.
+      if (!engine.isReachable() || !fetchedThisSession) {
+        // Without a fresh answer from the server we cannot know whether a shift is already
+        // open, and two opens at one outlet are what this prevents. Selling offline works
+        // once a shift is open.
         setShiftError(OFFLINE_OPEN_MESSAGE)
         return false
       }
@@ -153,14 +150,14 @@ export function useShift(): ShiftState {
         if (outcome.status === 'failed') setShiftError(notSavedMessage('Buka shift'))
         return false
       }
-      setOps(engine.pendingShiftOps()) // show it at once, before the next poll
+      applyOps(engine.pendingShiftOps()) // show it at once, before the next poll
       // Refresh after a short delay to pick up the newly opened shift
       setTimeout(() => {
         void refreshShift().finally(() => setIsOpeningShift(false))
       }, 1500)
       return true
     },
-    [engine, refreshShift],
+    [engine, refreshShift, fetchedThisSession, applyOps],
   )
 
   // Auto-open a zero-cash shift when the outlet enables it (app_settings.autoOpenShift),
@@ -204,13 +201,13 @@ export function useShift(): ShiftState {
         if (outcome.status === 'failed') setShiftError(notSavedMessage('Tutup shift'))
         return false
       }
-      setOps(engine.pendingShiftOps())
+      applyOps(engine.pendingShiftOps())
       setTimeout(() => {
         void refreshShift().finally(() => setIsClosingShift(false))
       }, 1500)
       return true
     },
-    [engine, currentShift, refreshShift],
+    [engine, currentShift, refreshShift, applyOps],
   )
 
   return {
@@ -218,6 +215,7 @@ export function useShift(): ShiftState {
     isLoadingShift,
     isOpeningShift,
     isClosingShift,
+    canOpenShift: canOpenShift(online, fetchedThisSession),
     openShift,
     closeShift,
     shiftError,

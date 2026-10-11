@@ -1,14 +1,16 @@
 import type { User } from '@mandalika/api'
-import { OUTBOX_KEY, type KV } from '@mandalika/sync'
+import { OUTBOX_KEY, summarizeQueue, type KV, type QueueSummary } from '@mandalika/sync'
 import { readCachedUser } from './authBoot'
 
 // A04: a tablet is one fixed terminal at one outlet. The outlet it sells for is a
 // durable property of the TERMINAL, not of whichever account happens to be signed in
 // or of a switcher chosen at flush time:
-//  - an account with a stored outlet (cashier/manager) always uses it;
-//  - an outlet-less account (admin) picks the outlet ONCE; it is remembered here and
-//    changes only through "Lepas terminal" (guarded by an empty queue);
-//  - while transactions are queued or in review, a different account is refused.
+//  - an admin (no stored outlet) picks the outlet ONCE; it is remembered here and changes
+//    only through "Lepas terminal";
+//  - a cashier/manager must have the stored outlet the terminal is bound to, otherwise the
+//    terminal is blocked ("mismatch") until it is released;
+//  - while transactions are waiting to be sent (or are parked without an owner stamp), a
+//    different account is refused; parked items that carry an envelope do not lock it.
 
 /** Durable terminal binding (JSON TerminalBinding). */
 export const TERMINAL_KEY = 'mandalika.pos.terminal'
@@ -51,8 +53,9 @@ export function clearBinding(kv: KV): Promise<void> {
 }
 
 /** Outlet-specific reference data cached on the device (snapshot incl. outletCode, prices,
- *  stock, promos; inbound transfers; optimistic credits). Cleared when the terminal is released
- *  so the next outlet can never sell from the previous outlet's data if its first pull fails. */
+ *  stock, promos; inbound transfers; optimistic credits). Cleared when the terminal is bound
+ *  to a (new) outlet or released, so an outlet can never sell from another outlet's data if
+ *  its first pull fails. */
 export const OUTLET_CACHE_KEYS: readonly string[] = [
   'mandalika.pos.snapshot',
   'mandalika.pos.contentVersion',
@@ -60,8 +63,12 @@ export const OUTLET_CACHE_KEYS: readonly string[] = [
   'mandalika.pos.pendingCredits',
 ]
 
-export function clearOutletCaches(kv: KV): void {
+/** Per-outlet last-known shift (see hooks/shiftView.ts). */
+export const shiftCacheKeyFor = (outletId: string): string => `mandalika.pos.shift.${outletId}`
+
+export function clearOutletCaches(kv: KV, outletId?: string | null): void {
   for (const k of OUTLET_CACHE_KEYS) kv.remove(k)
+  if (outletId) kv.remove(shiftCacheKeyFor(outletId))
 }
 
 export function sameBinding(a: TerminalBinding | null, b: TerminalBinding | null): boolean {
@@ -70,85 +77,122 @@ export function sameBinding(a: TerminalBinding | null, b: TerminalBinding | null
     && a.ownerUserId === b.ownerUserId && a.ownerName === b.ownerName
 }
 
-/** The binding after `user` is signed in (pure). The outlet is the account's stored one,
- *  else (admins only) the one just picked, else the terminal's remembered one. Null means
- *  the terminal cannot act as any outlet for this account: an admin on an unbound terminal
- *  must pick; any other outlet-less account is unassigned. The server only lets an admin
- *  act for an outlet other than their own (X-Outlet-Id), so a pick would never sync for them. */
-export function bindingFor(
+export type TerminalState =
+  /** The terminal acts as `binding.outletId`. */
+  | 'ok'
+  /** An outlet-less ADMIN on an unbound terminal: must pick once. */
+  | 'pick'
+  /** A non-admin account with no stored outlet: cannot operate a terminal. */
+  | 'unassigned'
+  /** A non-admin account whose outlet differs from the terminal outlet: blocked until released. */
+  | 'mismatch'
+
+export interface TerminalResolution {
+  state: TerminalState
+  /** The binding to act on / persist; null for pick and unassigned. For a mismatch it is the
+   *  EXISTING binding, untouched: nothing but "Lepas terminal" ever rebinds a bound terminal. */
+  binding: TerminalBinding | null
+  /** true = a new binding is being created (the terminal was unbound). */
+  created: boolean
+}
+
+/** Decide how `user` relates to this terminal (pure). Never changes an existing binding's
+ *  outlet: an admin always uses the binding (it wins over their home outlet); a non-admin
+ *  whose stored outlet differs from it is a mismatch. A new binding is only ever created on
+ *  an unbound terminal (first sign-in, a pick, or an upgraded tablet), never over a bound one. */
+export function resolveTerminal(
   user: Pick<User, 'id' | 'displayName' | 'outletId' | 'role'>,
   current: TerminalBinding | null,
   picked?: { id: string; name: string },
   now: () => string = () => new Date().toISOString(),
-): TerminalBinding | null {
-  const mayPick = user.role === 'admin'
-  const outletId = user.outletId || (mayPick ? picked?.id || current?.outletId : null) || null
-  if (!outletId) return null
-  const kept = current && current.outletId === outletId ? current : null
-  return {
-    outletId,
-    outletName: picked && picked.id === outletId ? picked.name : (kept?.outletName ?? null),
-    ownerUserId: user.id,
-    ownerName: user.displayName,
-    boundAt: kept?.boundAt || now(),
+): TerminalResolution {
+  const owned = (b: TerminalBinding): TerminalBinding => ({ ...b, ownerUserId: user.id, ownerName: user.displayName })
+  const fresh = (outletId: string, outletName: string | null): TerminalBinding =>
+    owned({ outletId, outletName, ownerUserId: '', ownerName: '', boundAt: now() })
+  if (user.role === 'admin') {
+    if (current) return { state: 'ok', binding: owned(current), created: false }
+    if (!picked) return { state: 'pick', binding: null, created: false }
+    return { state: 'ok', binding: fresh(picked.id, picked.name), created: true }
   }
+  if (!user.outletId) return { state: 'unassigned', binding: null, created: false }
+  if (!current) return { state: 'ok', binding: fresh(user.outletId, null), created: true }
+  if (current.outletId !== user.outletId) return { state: 'mismatch', binding: current, created: false }
+  return { state: 'ok', binding: owned(current), created: false }
 }
 
-export interface QueueState {
-  /** Items not yet acknowledged (queued, retrying or in review). */
-  count: number
+/** Fill in the human outlet name (never a UUID) once it is known; null = nothing to change. */
+export function withOutletName(b: TerminalBinding, name: string | null | undefined): TerminalBinding | null {
+  return name && b.outletName !== name ? { ...b, outletName: name } : null
+}
+
+export interface QueueState extends QueueSummary {
   /** false when the stored queue could not be parsed: it must then count as NOT empty. */
   readable: boolean
 }
 
 /** Reads the durable outbox without an engine (login happens before one exists). */
 export function readQueueState(kv: KV): QueueState {
+  const none = { pending: 0, parkedStamped: 0, parkedUnstamped: 0, owners: [] as string[] }
   const raw = kv.get(OUTBOX_KEY)
-  if (raw === null || raw === '') return { count: 0, readable: true }
+  if (raw === null || raw === '') return { ...none, readable: true }
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return { count: 0, readable: false }
-    const open = parsed.filter((i) => !(i && typeof i === 'object' && (i as { status?: unknown }).status === 'acked'))
-    return { count: open.length, readable: true }
+    if (!Array.isArray(parsed)) return { ...none, readable: false }
+    return { ...summarizeQueue(parsed), readable: true }
   } catch {
-    return { count: 0, readable: false }
+    return { ...none, readable: false }
   }
 }
 
-export const isQueueEmpty = (q: QueueState): boolean => q.readable && q.count === 0
+/** Everything still unacknowledged. */
+export const queueCount = (q: QueueSummary): number => q.pending + q.parkedStamped + q.parkedUnstamped
+
+/** The terminal may change hands / be released when nothing is waiting to be sent and every
+ *  parked item carries its capture-time envelope (so it stays attributable to its owner, stays
+ *  in the outbox and is never deleted). An unreadable queue is never releasable. */
+export const isQueueReleasable = (q: QueueState): boolean => q.readable && q.pending === 0 && q.parkedUnstamped === 0
 
 export type LoginVerdict = { ok: true } | { ok: false; message: string }
 
-/** Who owns the transactions on this terminal: the binding's owner, else (a tablet
- *  upgraded from before bindings existed) the last cached profile. */
-function ownerOf(kv: KV): { id: string; name: string } | null {
+/** Who owns the transactions on this terminal: the binding owner, else the last cached profile,
+ *  else the account named by the queued items own envelopes (name unknown, so its id). */
+function ownerOf(kv: KV, q: QueueState): { id: string; name: string } | null {
   const b = readBinding(kv)
   if (b) return { id: b.ownerUserId, name: b.ownerName }
   const u = readCachedUser(kv)
-  return u ? { id: u.id, name: u.displayName } : null
+  if (u) return { id: u.id, name: u.displayName }
+  return q.owners.length ? { id: q.owners[0], name: q.owners[0] } : null
 }
 
-/** A different account may not sign in while transactions are queued or in review:
- *  they belong to the account that captured them (A04). An unreadable queue counts as
- *  not empty. If no owner can be determined nothing can be compared, so the account is
- *  let in rather than locking the terminal out of its own queue. */
+/** A different account may not sign in while transactions are waiting to be sent or are parked
+ *  without an owner stamp: they belong to the account that captured them (A04). Parked items
+ *  that carry an envelope do not lock the terminal (they stay, labelled with their owner). An
+ *  unreadable queue counts as not empty. If no owner can be determined nothing can be compared,
+ *  so the account is let in rather than locking the terminal out of its own queue. */
 export function checkLoginAllowed(kv: KV, user: Pick<User, 'id'>): LoginVerdict {
   const q = readQueueState(kv)
-  if (isQueueEmpty(q)) return { ok: true }
-  const owner = ownerOf(kv)
+  if (isQueueReleasable(q)) return { ok: true }
+  const owner = ownerOf(kv, q)
   if (!owner || owner.id === user.id) return { ok: true }
-  const what = q.readable ? `${q.count} transaksi` : 'transaksi (antrean tidak terbaca)'
+  const what = q.readable ? `${queueCount(q)} transaksi` : 'transaksi (antrean tidak terbaca)'
   return {
     ok: false,
     message: `Terminal ini masih menyimpan ${what} milik akun ${owner.name} yang belum terkirim. Masuk dengan akun ${owner.name} sampai antrean kosong, lalu gunakan "Lepas terminal" di Pengaturan.`,
   }
 }
 
-/** Why "Lepas terminal" is not allowed right now, or null when it is. */
-export function releaseBlockedReason(input: { unsettled: number; corrupted: boolean; online: boolean }): string | null {
+/** Display name for an account id: the staff list in the snapshot, else the id itself. */
+export function ownerLabel(userId: string, users: readonly { id: string; displayName?: string }[] | null | undefined): string {
+  return users?.find((u) => u.id === userId)?.displayName || userId
+}
+
+/** Why "Lepas terminal" is not allowed right now, or null when it is. Parked items that carry an
+ *  envelope do not block it. */
+export function releaseBlockedReason(input: { pending: number; parkedUnstamped: number; corrupted: boolean; online: boolean }): string | null {
   if (input.corrupted) return 'Antrean sinkronisasi rusak. Hubungi admin sebelum melepas terminal.'
-  if (input.unsettled > 0) {
-    return `Masih ada ${input.unsettled} transaksi yang belum terkirim atau perlu ditinjau. Kirim/selesaikan dulu sebelum melepas terminal.`
+  const open = input.pending + input.parkedUnstamped
+  if (open > 0) {
+    return `Masih ada ${open} transaksi yang belum terkirim atau perlu ditinjau tanpa pemilik. Kirim/selesaikan dulu sebelum melepas terminal.`
   }
   if (!input.online) return 'Hubungkan internet untuk melepas terminal.'
   return null

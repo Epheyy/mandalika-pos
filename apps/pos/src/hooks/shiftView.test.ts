@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import type { KV, PendingShiftOp } from '@mandalika/sync'
-import { isPendingOpen, opsSignature, overlayShift, readShiftCache, shiftCacheKey, shouldAutoOpen, writeShiftCache } from './shiftView'
+import { canOpenShift, isPendingOpen, opsSignature, planOpsUpdate, overlayShift, readShiftCache, shiftCacheKey, shouldAutoOpen, writeShiftCache } from './shiftView'
 
 type Shift = components['schemas']['Shift']
 
@@ -108,5 +108,33 @@ describe('shouldAutoOpen: only on facts, never on a failed fetch', () => {
     ['offline', { online: false }],
   ])('does not open: %s', (_name, over) => {
     expect(shouldAutoOpen({ ...base, ...over })).toBe(false)
+  })
+})
+
+describe('planOpsUpdate: the overlay is dropped only after a fresh server shift (M1)', () => {
+  const a = op('shift_open', 'k1', {})
+  const b = op('shift_close', 'k2', { shiftId: 's' })
+  it('no change', () => expect(planOpsUpdate([a], [{ ...a }])).toBe('none'))
+  it('a newly queued op shows at once', () => expect(planOpsUpdate([], [a])).toBe('apply'))
+  it('an acknowledged op needs a refetch before the overlay goes (old behaviour applied immediately)', () => {
+    expect(planOpsUpdate([a], [])).toBe('fetch-then-apply')
+    expect(planOpsUpdate([a, b], [b])).toBe('fetch-then-apply')
+  })
+  it('an op that becomes parked also needs a refetch', () => {
+    expect(planOpsUpdate([a], [{ ...a, parked: true }])).toBe('fetch-then-apply')
+  })
+  it('is decided against what is displayed, so a failed fetch retries on the next tick', () => {
+    const shown = [a]
+    expect(planOpsUpdate(shown, [])).toBe('fetch-then-apply')
+    expect(planOpsUpdate(shown, [])).toBe('fetch-then-apply') // nothing was applied: still pending
+  })
+})
+
+describe('canOpenShift (M2)', () => {
+  it('needs reachability AND a successful shift fetch this session', () => {
+    expect(canOpenShift(true, true)).toBe(true)
+    expect(canOpenShift(true, false)).toBe(false)
+    expect(canOpenShift(false, true)).toBe(false)
+    expect(canOpenShift(false, false)).toBe(false)
   })
 })

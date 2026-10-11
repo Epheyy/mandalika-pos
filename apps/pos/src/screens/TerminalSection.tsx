@@ -1,7 +1,8 @@
 /**
  * "Lepas terminal" (A04): the only way to change the terminal's outlet or hand the
- * tablet to another account. Allowed only online with NOTHING queued or in review, so
- * a release can never strand or reassign unsent transactions. It clears the terminal
+ * tablet to another account. Allowed only online with nothing waiting to be sent and no
+ * parked item without an owner stamp (stamped review items stay in the outbox, labelled
+ * with their owner), so a release can never strand or reassign unsent transactions. It clears the terminal
  * binding and signs out; the next sign-in binds the terminal again.
  */
 
@@ -26,9 +27,11 @@ export function TerminalSection() {
   }, [])
 
   const binding = readBinding(getKV())
-  const blocked = engine
+  const summary = engine?.queueSummary()
+  const blocked = engine && summary
     ? releaseBlockedReason({
-        unsettled: engine.unsettledCount(),
+        pending: summary.pending,
+        parkedUnstamped: summary.parkedUnstamped,
         corrupted: engine.outboxCorruption() !== null,
         online: engine.isReachable(),
       })
@@ -52,7 +55,7 @@ export function TerminalSection() {
       <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
         <div className="flex justify-between">
           <span>Outlet terminal</span>
-          <span className="font-semibold text-gray-800">{binding?.outletName ?? binding?.outletId ?? '—'}</span>
+          <span className="font-semibold text-gray-800">{engine?.getSnapshot().outletName || binding?.outletName || '—'}</span>
         </div>
         <div className="flex justify-between">
           <span>Akun</span>
@@ -61,7 +64,7 @@ export function TerminalSection() {
       </div>
       <p className="text-xs text-gray-500">
         Outlet tablet ini tetap dan tidak bisa diganti dari layar kasir. Melepas terminal mengeluarkan akun dan
-        mengosongkan pilihan outlet; hanya bisa saat online dan tidak ada transaksi yang belum terkirim atau perlu ditinjau.
+        mengosongkan pilihan outlet; hanya bisa saat online dan tidak ada transaksi yang belum terkirim.
       </p>
       {blocked && (
         <p role="status" className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

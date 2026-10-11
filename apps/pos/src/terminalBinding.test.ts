@@ -4,15 +4,19 @@ import { OUTBOX_KEY } from '@mandalika/sync'
 import { USER_KEY } from './authBoot'
 import {
   TERMINAL_KEY,
-  bindingFor,
   checkLoginAllowed,
   clearBinding,
   clearOutletCaches,
-  isQueueEmpty,
+  isQueueReleasable,
+  ownerLabel,
+  queueCount,
   readBinding,
   readQueueState,
   releaseBlockedReason,
+  resolveTerminal,
   sameBinding,
+  shiftCacheKeyFor,
+  withOutletName,
   writeBinding,
   type TerminalBinding,
 } from './terminalBinding'
@@ -28,7 +32,10 @@ function memKV(seed: Record<string, string> = {}): KV {
   }
 }
 
-const queue = (...statuses: string[]) => JSON.stringify(statuses.map((status, i) => ({ idempotencyKey: `d:${i}`, status })))
+const stamp = (userId: string) => ({ v: 1, outletId: 'out-1', userId, deviceId: 'd', capturedAt: 'x' })
+const item = (status: string, over: Record<string, unknown> = {}) => ({ idempotencyKey: `d:${Math.random()}`, status, ...over })
+const parked = (over: Record<string, unknown> = {}) => item('failed', { attempts: 5, ...over })
+const queue = (...items: unknown[]) => JSON.stringify(items)
 const binding = (over: Partial<TerminalBinding> = {}): TerminalBinding => ({
   outletId: 'out-1', outletName: 'BSD', ownerUserId: 'u-a', ownerName: 'Admin A', boundAt: '2026-10-11T00:00:00.000Z', ...over,
 })
@@ -53,131 +60,172 @@ describe('binding storage', () => {
 })
 
 describe('clearOutletCaches', () => {
-  it('removes the previous outlet data but not the outbox, device id or session', () => {
+  it('removes the previous outlet data and its shift cache, but not the outbox, device id or session', () => {
     const kv = memKV({
       'mandalika.pos.snapshot': '{}', 'mandalika.pos.contentVersion': '3', 'mandalika.pos.inboundTransfers': '[]',
-      'mandalika.pos.pendingCredits': '[]', [OUTBOX_KEY]: '[]', 'mandalika.pos.deviceId': 'dev', 'mandalika.pos.refresh': 'r',
+      'mandalika.pos.pendingCredits': '[]', [shiftCacheKeyFor('out-1')]: '{}', [shiftCacheKeyFor('out-2')]: '{}',
+      [OUTBOX_KEY]: '[]', 'mandalika.pos.deviceId': 'dev', 'mandalika.pos.refresh': 'r',
     })
-    clearOutletCaches(kv)
-    expect(kv.get('mandalika.pos.snapshot')).toBeNull()
-    expect(kv.get('mandalika.pos.contentVersion')).toBeNull()
-    expect(kv.get('mandalika.pos.inboundTransfers')).toBeNull()
-    expect(kv.get('mandalika.pos.pendingCredits')).toBeNull()
+    clearOutletCaches(kv, 'out-1')
+    for (const k of ['mandalika.pos.snapshot', 'mandalika.pos.contentVersion', 'mandalika.pos.inboundTransfers', 'mandalika.pos.pendingCredits', shiftCacheKeyFor('out-1')]) {
+      expect(kv.get(k)).toBeNull()
+    }
+    expect(kv.get(shiftCacheKeyFor('out-2'))).toBe('{}')
     expect(kv.get(OUTBOX_KEY)).toBe('[]')
     expect(kv.get('mandalika.pos.deviceId')).toBe('dev')
     expect(kv.get('mandalika.pos.refresh')).toBe('r')
   })
 })
 
-describe('bindingFor: where the terminal sells', () => {
-  it('an account with a stored outlet always uses it', () => {
-    expect(bindingFor(cashier, binding({ outletId: 'out-1' }))).toMatchObject({ outletId: 'out-9', ownerUserId: 'u-c', ownerName: 'Yasmine', outletName: null })
-    expect(bindingFor(cashier, null)?.outletId).toBe('out-9')
+describe('resolveTerminal: a bound terminal is never rebound', () => {
+  it('an unbound terminal binds a fixed-outlet account to its stored outlet (created)', () => {
+    const r = resolveTerminal(cashier, null, undefined, () => 'NOW')
+    expect(r).toEqual({ state: 'ok', created: true, binding: { outletId: 'out-9', outletName: null, ownerUserId: 'u-c', ownerName: 'Yasmine', boundAt: 'NOW' } })
   })
 
-  it('an outlet-less account on an unbound terminal must pick (null)', () => {
-    expect(bindingFor(adminUser, null)).toBeNull()
+  it('a matching account keeps the binding (only the owner changes), nothing created', () => {
+    const r = resolveTerminal(cashier, binding({ outletId: 'out-9', outletName: 'Pondok' }))
+    expect(r).toMatchObject({ state: 'ok', created: false, binding: { outletId: 'out-9', outletName: 'Pondok', ownerUserId: 'u-c', boundAt: '2026-10-11T00:00:00.000Z' } })
   })
 
-  it('an outlet-less account inherits the terminal outlet and keeps its name and bind time', () => {
-    const b = bindingFor({ id: 'u-b', displayName: 'Admin B', outletId: undefined, role: 'admin' }, binding())
-    expect(b).toMatchObject({ outletId: 'out-1', outletName: 'BSD', ownerUserId: 'u-b', ownerName: 'Admin B', boundAt: '2026-10-11T00:00:00.000Z' })
+  it('a non-admin whose outlet differs is a MISMATCH and the existing binding comes back untouched', () => {
+    const b = binding({ outletId: 'out-1' })
+    const r = resolveTerminal(cashier, b)
+    expect(r.state).toBe('mismatch')
+    expect(r.binding).toEqual(b) // not rebound, owner not taken over
+    expect(r.created).toBe(false)
   })
 
-  it('a non-admin without an outlet never gets one: not from a pick, not from the terminal', () => {
+  it('token refresh or boot with a different outlet cannot rebind: it resolves to mismatch again, whatever the call site', () => {
+    const b = binding({ outletId: 'out-1' })
+    for (let i = 0; i < 3; i++) expect(resolveTerminal(cashier, b).state).toBe('mismatch')
+  })
+
+  it('an admin always uses the binding, even with a home outlet of their own', () => {
+    const adminWithHome = { ...adminUser, outletId: 'out-77' }
+    const r = resolveTerminal(adminWithHome, binding())
+    expect(r).toMatchObject({ state: 'ok', created: false, binding: { outletId: 'out-1' } })
+  })
+
+  it('an outlet-less admin on an unbound terminal must pick; a pick creates the binding with its name', () => {
+    expect(resolveTerminal(adminUser, null)).toEqual({ state: 'pick', binding: null, created: false })
+    const r = resolveTerminal(adminUser, null, { id: 'out-2', name: 'PMS' }, () => 'NOW')
+    expect(r).toEqual({ state: 'ok', created: true, binding: { outletId: 'out-2', outletName: 'PMS', ownerUserId: 'u-a', ownerName: 'Admin A', boundAt: 'NOW' } })
+  })
+
+  it('a pick cannot override an existing binding', () => {
+    expect(resolveTerminal(adminUser, binding(), { id: 'out-2', name: 'PMS' }).binding?.outletId).toBe('out-1')
+  })
+
+  it('a non-admin without an outlet is unassigned: not from a pick, not from the terminal', () => {
     const unassigned = { id: 'u-m', displayName: 'Manajer', outletId: null, role: 'manager' as const }
-    expect(bindingFor(unassigned, null)).toBeNull()
-    expect(bindingFor(unassigned, binding())).toBeNull()
-    expect(bindingFor(unassigned, null, { id: 'out-2', name: 'PMS' })).toBeNull()
-    expect(bindingFor({ ...unassigned, role: 'cashier' }, binding())).toBeNull()
+    for (const current of [null, binding()]) {
+      expect(resolveTerminal(unassigned, current).state).toBe('unassigned')
+      expect(resolveTerminal(unassigned, current, { id: 'out-2', name: 'PMS' }).state).toBe('unassigned')
+    }
   })
 
-  it('a pick becomes the terminal outlet with its name', () => {
-    const b = bindingFor(adminUser, null, { id: 'out-2', name: 'PMS' }, () => 'NOW')
-    expect(b).toEqual({ outletId: 'out-2', outletName: 'PMS', ownerUserId: 'u-a', ownerName: 'Admin A', boundAt: 'NOW' })
-  })
-
-  it('sameBinding detects owner or outlet changes', () => {
+  it('sameBinding and withOutletName', () => {
     expect(sameBinding(binding(), binding())).toBe(true)
     expect(sameBinding(binding(), binding({ ownerUserId: 'x' }))).toBe(false)
-    expect(sameBinding(binding(), binding({ outletId: 'x' }))).toBe(false)
     expect(sameBinding(null, null)).toBe(true)
     expect(sameBinding(binding(), null)).toBe(false)
+    expect(withOutletName(binding({ outletName: null }), 'Mandalika BSD')).toMatchObject({ outletName: 'Mandalika BSD' })
+    expect(withOutletName(binding({ outletName: 'BSD' }), 'BSD')).toBeNull()
+    expect(withOutletName(binding(), null)).toBeNull()
   })
 })
 
 describe('readQueueState reads the durable outbox without an engine', () => {
-  it('missing or empty = empty', () => {
-    expect(isQueueEmpty(readQueueState(memKV()))).toBe(true)
-    expect(isQueueEmpty(readQueueState(memKV({ [OUTBOX_KEY]: '[]' })))).toBe(true)
+  it('missing or empty = releasable', () => {
+    expect(isQueueReleasable(readQueueState(memKV()))).toBe(true)
+    expect(isQueueReleasable(readQueueState(memKV({ [OUTBOX_KEY]: '[]' })))).toBe(true)
   })
 
-  it('counts everything not acknowledged: pending, failed and parked', () => {
-    expect(readQueueState(memKV({ [OUTBOX_KEY]: queue('pending', 'failed', 'acked', 'sent') }))).toEqual({ count: 3, readable: true })
-    expect(isQueueEmpty(readQueueState(memKV({ [OUTBOX_KEY]: queue('acked') })))).toBe(true)
+  it('classifies pending, stamped-parked and unstamped-parked; acked is ignored', () => {
+    const q = readQueueState(memKV({ [OUTBOX_KEY]: queue(item('pending'), item('failed', { attempts: 1 }), parked({ envelope: stamp('u-a') }), parked(), item('acked')) }))
+    expect(q).toMatchObject({ readable: true, pending: 2, parkedStamped: 1, parkedUnstamped: 1, owners: ['u-a'] })
+    expect(queueCount(q)).toBe(4)
   })
 
-  it('a parse failure is NOT empty', () => {
+  it('a parse failure is NOT releasable', () => {
     for (const raw of ['{broken', '{"a":1}', '"x"', '12']) {
       const q = readQueueState(memKV({ [OUTBOX_KEY]: raw }))
       expect(q.readable).toBe(false)
-      expect(isQueueEmpty(q)).toBe(false)
+      expect(isQueueReleasable(q)).toBe(false)
     }
   })
 })
 
-describe('checkLoginAllowed: a different account may not take over a non-empty terminal', () => {
-  const withQueue = (extra: Record<string, string> = {}) => memKV({ [OUTBOX_KEY]: queue('pending', 'failed'), ...extra })
+describe('checkLoginAllowed (H1): only stamped review items leave the terminal unlocked', () => {
+  const withBinding = { [TERMINAL_KEY]: JSON.stringify(binding()) }
 
   it('an empty queue lets anyone in', () => {
-    expect(checkLoginAllowed(memKV({ [TERMINAL_KEY]: JSON.stringify(binding()) }), cashier)).toEqual({ ok: true })
+    expect(checkLoginAllowed(memKV(withBinding), cashier)).toEqual({ ok: true })
   })
 
-  it('the owner may always sign back in', () => {
-    const kv = withQueue({ [TERMINAL_KEY]: JSON.stringify(binding()) })
-    expect(checkLoginAllowed(kv, { id: 'u-a' })).toEqual({ ok: true })
+  it('only stamped parked items: another account may sign in (they stay in the outbox)', () => {
+    const kv = memKV({ ...withBinding, [OUTBOX_KEY]: queue(parked({ envelope: stamp('u-a') }), parked({ envelope: stamp('u-a') })) })
+    expect(checkLoginAllowed(kv, cashier)).toEqual({ ok: true })
   })
 
-  it('another account is refused with a message naming the owner and the count', () => {
-    const kv = withQueue({ [TERMINAL_KEY]: JSON.stringify(binding()) })
+  it('a pending item keeps the lock; the owner may always sign back in', () => {
+    const kv = memKV({ ...withBinding, [OUTBOX_KEY]: queue(item('pending', { envelope: stamp('u-a') }), parked({ envelope: stamp('u-a') })) })
     const v = checkLoginAllowed(kv, cashier)
     expect(v.ok).toBe(false)
     if (!v.ok) {
       expect(v.message).toContain('Admin A')
       expect(v.message).toContain('2 transaksi')
     }
+    expect(checkLoginAllowed(kv, { id: 'u-a' })).toEqual({ ok: true })
   })
 
-  it('an unreadable queue refuses another account (parse failure = not empty)', () => {
-    const kv = memKV({ [OUTBOX_KEY]: '{broken', [TERMINAL_KEY]: JSON.stringify(binding()) })
-    const v = checkLoginAllowed(kv, cashier)
+  it('a parked item WITHOUT an envelope keeps the lock', () => {
+    const kv = memKV({ ...withBinding, [OUTBOX_KEY]: queue(parked({ envelope: stamp('u-a') }), parked()) })
+    expect(checkLoginAllowed(kv, cashier).ok).toBe(false)
+  })
+
+  it('an unreadable queue refuses another account', () => {
+    const v = checkLoginAllowed(memKV({ ...withBinding, [OUTBOX_KEY]: '{broken' }), cashier)
     expect(v.ok).toBe(false)
     if (!v.ok) expect(v.message).toContain('tidak terbaca')
   })
 
-  it('a tablet upgraded from before bindings falls back to the last cached profile', () => {
-    const cached = JSON.stringify({ id: 'u-old', displayName: 'Kasir Lama' })
-    const kv = withQueue({ [USER_KEY]: cached })
-    const v = checkLoginAllowed(kv, cashier)
+  it('without a binding the owner falls back to the cached profile, then to the queued envelopes', () => {
+    const pending = queue(item('pending', { envelope: stamp('u-env') }))
+    const cached = memKV({ [OUTBOX_KEY]: pending, [USER_KEY]: JSON.stringify({ id: 'u-old', displayName: 'Kasir Lama' }) })
+    const v = checkLoginAllowed(cached, cashier)
     expect(v.ok).toBe(false)
     if (!v.ok) expect(v.message).toContain('Kasir Lama')
-    expect(checkLoginAllowed(kv, { id: 'u-old' })).toEqual({ ok: true })
+    const envOnly = memKV({ [OUTBOX_KEY]: pending })
+    const w = checkLoginAllowed(envOnly, cashier)
+    expect(w.ok).toBe(false)
+    if (!w.ok) expect(w.message).toContain('u-env')
+    expect(checkLoginAllowed(envOnly, { id: 'u-env' })).toEqual({ ok: true })
   })
 
-  it('with no owner to compare, nobody is locked out of their own queue', () => {
-    expect(checkLoginAllowed(withQueue(), cashier)).toEqual({ ok: true })
+  it('with no owner to compare at all, nobody is locked out of their own queue', () => {
+    expect(checkLoginAllowed(memKV({ [OUTBOX_KEY]: queue(item('pending')) }), cashier)).toEqual({ ok: true })
   })
 })
 
 describe('releaseBlockedReason (Lepas terminal guard)', () => {
-  it('only an empty, readable queue while online may release', () => {
-    expect(releaseBlockedReason({ unsettled: 0, corrupted: false, online: true })).toBeNull()
-    expect(releaseBlockedReason({ unsettled: 2, corrupted: false, online: true })).toContain('2 transaksi')
-    expect(releaseBlockedReason({ unsettled: 0, corrupted: true, online: true })).toContain('rusak')
-    expect(releaseBlockedReason({ unsettled: 0, corrupted: false, online: false })).toContain('internet')
+  const base = { pending: 0, parkedUnstamped: 0, corrupted: false, online: true }
+  it('allowed when nothing is pending or unowned, online', () => {
+    expect(releaseBlockedReason(base)).toBeNull()
   })
+  it('pending or unstamped-parked items, a corrupt queue and offline all block', () => {
+    expect(releaseBlockedReason({ ...base, pending: 2 })).toContain('2 transaksi')
+    expect(releaseBlockedReason({ ...base, parkedUnstamped: 1 })).toContain('1 transaksi')
+    expect(releaseBlockedReason({ ...base, corrupted: true })).toContain('rusak')
+    expect(releaseBlockedReason({ ...base, online: false })).toContain('internet')
+  })
+})
 
-  it('a queue with parked/review items also blocks (unsettled counts them)', () => {
-    expect(releaseBlockedReason({ unsettled: 1, corrupted: false, online: false })).toContain('1 transaksi')
+describe('ownerLabel', () => {
+  it('uses the staff name from the snapshot, else the id', () => {
+    expect(ownerLabel('u1', [{ id: 'u1', displayName: 'Yasmine' }])).toBe('Yasmine')
+    expect(ownerLabel('u2', [{ id: 'u1', displayName: 'Yasmine' }])).toBe('u2')
+    expect(ownerLabel('u2', null)).toBe('u2')
   })
 })
