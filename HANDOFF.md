@@ -14,7 +14,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **8 of 
 |---|---|---|
 | A13 | Concurrent transfers double-move stock | **Done** — slice 1 |
 | A11 | Retried writes applied twice | **Done** for /sync/batch — slice 2 |
-| A01 | Sale not durable on device | **Done (emulator-verified)** - slice 9 SQLite journal in APK 1.7 (versionCode 8): 1.6->1.7 offline upgrade migrated 2 queued sales byte-identical (sealed, TRUNCATE, synchronous FULL), synced once each; kill -9 at 50/200/800/2000 ms after Konfirmasi: every sale kept, rows intact. Not yet run: corruption-file-kept test, backup/restore clean-start test |
+| A01 | Sale not durable on device | **Done (emulator-verified)** - slice 9 SQLite journal in APK 1.7 (versionCode 8): 1.6->1.7 offline upgrade migrated 2 queued sales byte-identical (sealed, TRUNCATE, synchronous FULL), synced once each; kill -9 at 50/200/800/2000 ms after Konfirmasi: every sale kept, rows intact. corruption (random bytes over the DB header as root) -> BootError 'Penyimpanan perangkat tidak dapat dibaca', file kept (same size + md5), TRUNCATE confirmed (0-byte -journal); backup/restore via bmgr LocalTransport -> journal, CapacitorStorage, CapWebViewSettings, capgo_device_id, app_webview, versions NOT restored, app opens on login with a fresh empty sealed journal. Not run: kill during the first migration (unit-tested) |
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
@@ -103,7 +103,7 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
    implementer → Opus review → failing-first PG gate → hidden-revision deploy. Pre-go-live: audit real
    accounts' `process_refund` (test DB: all 4 accounts have it; no role grants it by default).
-2. **Slice 9 leftovers (emulator):** corruption test (garbage over the DB header with adb root -> BootError, file kept same size), backup/restore clean start (bmgr LocalTransport), kill during first migration. Each ends with `pm clear` + owner re-login. Before the first OTA: min-versionCode guard (needs migration). Then **rollout**: APK 1.7 to the fleet (0 pending first) -> set `SYNC_LEGACY_ENVELOPE_UNTIL`.
+2. **Slice 9 leftover:** kill during the first 1.6->1.7 migration on a device (unit crash tests cover it). Emulator was reinstalled during the backup test -> owner logs in again and picks the terminal outlet. Before the first OTA: min-versionCode guard (needs migration). Then **rollout**: APK 1.7 to the fleet (0 pending first) -> set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 3. **Rollout:** APK 1.5 to the fleet → set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 4. **Follow-ups (owner to prioritise):**
    - Slice 7: sales made while a shift_open is still syncing (incl. held by M3) carry no shift (envelope stamps only server-known shifts); pre-existing, window now longer.
