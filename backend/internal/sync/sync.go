@@ -207,8 +207,25 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	version func(context.Context, string) (VersionInfo, error),
 ) (BatchResult, error) {
 	out := BatchResult{Results: make([]ItemResult, 0, len(items))}
+	// A06/M3: the close snapshot is never recomputed, so a shift_close must not commit
+	// while an earlier item of this batch (a sale or refund the snapshot should count)
+	// failed retryably. Permanent refusals are review items the server never counts,
+	// so they do not hold it. Any earlier retryable failure holds (conservative; the
+	// POS sends FIFO and resends the same keys, so the held close just runs next flush).
+	earlierRetryable := false
 	for _, it := range items {
-		res := process(ctx, c, it)
+		var res ItemResult
+		if it.Type == "shift_close" && earlierRetryable {
+			// No receipt claimed, no effect: the same key runs normally on retry.
+			retryable := true
+			res = ItemResult{IdempotencyKey: it.IdempotencyKey, Status: "error", Error: closeHeldMessage,
+				Code: string(apperr.Busy), Retryable: &retryable}
+		} else {
+			res = process(ctx, c, it)
+		}
+		if res.Status == "error" && res.Retryable != nil && *res.Retryable {
+			earlierRetryable = true
+		}
 		out.Results = append(out.Results, res)
 		if res.Status != "error" {
 			out.Processed++
