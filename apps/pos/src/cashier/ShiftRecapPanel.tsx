@@ -218,17 +218,20 @@ function ShiftRecapPanelBody({
     setError(null)
     try {
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
+      // 'Terhitung' is only ever prefilled here, so it is applied even when a newer refresh
+      // superseded this response's figures.
+      setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       if (!loadGate.current.isLatest(ticket)) return
       setCurrentShift(shift)
       setCurrentFlows(flows)
       setLiveOrders(shift ? orders : null)
-      setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       setIsStale(stale)
     } catch (e: unknown) {
       if (!loadGate.current.isLatest(ticket)) return
       setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
-      if (loadGate.current.isLatest(ticket)) setIsLoading(false)
+      // Always clear: a refresh that superseded this load never sets isLoading itself.
+      setIsLoading(false)
     }
   }, [])
 
@@ -276,9 +279,13 @@ function ShiftRecapPanelBody({
         setCurrentFlows(flows)
         setLiveOrders(shift ? orders : null)
         setIsStale(false)
+        setError(null)
         appliedQueueSignature.current = queueSignature
       },
-      onGiveUp: () => setIsStale(true),
+      onGiveUp: () => {
+        setIsStale(true)
+        setIsLoading(false)
+      },
       maxAttempts: REFRESH_MAX_ATTEMPTS,
       baseMs: REFRESH_BASE_MS,
     })
