@@ -1698,7 +1698,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refund + restore stock (idempotent) */
+        /** Refund + restore stock (a completed order only; a second refund is refused) */
         post: operations["refundOrder"];
         delete?: never;
         options?: never;
@@ -2920,6 +2920,9 @@ export interface components {
             /** Format: date-time */
             refundedAt?: string | null;
             shiftId?: string | null;
+            refundShiftId?: string | null;
+            refundedBy?: string | null;
+            refundedByName?: string | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -3008,6 +3011,10 @@ export interface components {
             transferSales: number;
             qrisSales: number;
             countedByMethod?: {
+                [key: string]: number;
+            } | null;
+            cashRefundsPaid?: number;
+            refundsPaidByMethod?: {
                 [key: string]: number;
             } | null;
         };
@@ -7029,7 +7036,7 @@ export interface operations {
                     "application/json": components["schemas"]["OrderResponse"];
                 };
             };
-            /** @description not refundable */
+            /** @description invalid order id or reason (trimmed, 1-500 characters) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7037,6 +7044,13 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+            /** @description already refunded; not completed; or not found at this outlet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     closeShift: {

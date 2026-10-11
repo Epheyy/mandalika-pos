@@ -1221,6 +1221,11 @@ components:
         refundReason: { type: string, nullable: true }
         refundedAt: { type: string, format: date-time, nullable: true }
         shiftId: { type: string, nullable: true }
+        # A06: the shift whose drawer paid the refund (null for direct/backoffice or
+        # unattributable refunds) and who refunded.
+        refundShiftId: { type: string, nullable: true }
+        refundedBy: { type: string, nullable: true }
+        refundedByName: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
     DiscountComponent:
       type: object
@@ -1321,6 +1326,15 @@ components:
         # Per-method counted cash entered by the cashier at close (reconciliation
         # "Terhitung"). Keys are payment-method ids; null when not reconciled.
         countedByMethod:
+          type: object
+          additionalProperties: { type: number }
+          nullable: true
+        # A06: refunds this shift paid out for sales of OTHER shifts. Live while the
+        # shift is open, a close-time snapshot afterwards (null on shifts closed
+        # before the field existed). cashRefundsPaid is that snapshot's cash part
+        # (0 while open: readers derive it from refundsPaidByMethod and isCash).
+        cashRefundsPaid: { type: number }
+        refundsPaidByMethod:
           type: object
           additionalProperties: { type: number }
           nullable: true
@@ -1601,7 +1615,7 @@ components:
       type: object
       required: [reason]
       properties:
-        reason: { type: string }
+        reason: { type: string, minLength: 1, maxLength: 500 }
     OpenShiftRequest:
       type: object
       required: [startingCash]
@@ -4031,7 +4045,7 @@ paths:
     post:
       operationId: refundOrder
       tags: [sales]
-      summary: Refund + restore stock (idempotent)
+      summary: Refund + restore stock (a completed order only; a second refund is refused)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
       requestBody:
@@ -4045,8 +4059,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderResponse' }
-        '400': { description: not refundable }
+        '400': { description: "invalid order id or reason (trimmed, 1-500 characters)" }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: "already refunded; not completed; or not found at this outlet" }
   /api/v1/shifts/{id}/close:
     parameters:
       - name: id
