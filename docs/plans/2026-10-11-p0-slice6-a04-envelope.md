@@ -62,3 +62,12 @@ is open); Q2 allow admin/outlet-less accounts on tablets with a one-time termina
 changeable only with an empty queue; Q3 refuse login of a different account while items are queued/in review
 (message names the owning account); Q4 late sales keep their closed shift, no recompute; Q5 operator/refunder
 deferred to a follow-up slice (no migration in slice 6, T10 dropped).
+
+**Review round 1 (Opus, 2026-10-11): ship with fixes.** Owner decisions on the review: (H1) a terminal is no
+longer locked forever by review items — another account may sign in / Lepas terminal works once EVERY unsettled
+item is parked AND carries an envelope; those items stay on the tablet labelled "milik akun X" (never deleted);
+pending or unstamped parked items keep the lock; head-office resolve screen = follow-up. Non-admin accounts
+without an outlet get the blocking "Akun belum terikat ke outlet" screen (confirmed). Fixes in progress: H2 never
+rebind on token refresh/boot (account outlet ≠ binding → blocking screen; admins: binding wins; rebind clears
+outlet + shift caches), M1 shift overlay kept until a successful refetch, M2 Buka Shift needs a successful
+fetch this session, M3 already-applied retry replays instead of review, plus LOWs.
