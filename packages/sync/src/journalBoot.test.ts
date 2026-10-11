@@ -284,6 +284,7 @@ describe('crash at every step: same item set, no duplicate keys, sentinel and ba
     const { kv, store } = seedKV(items)
     const fj = createFakeJournal()
     await boot(kv, fj)
+    expect(fj.persisted.meta.get('migration')).toBe('sealed') // takeover is recorded in the journal itself
     adoptOutboxStore(null)
     resetJournalBootForTests()
     const next = fj.restart()
@@ -292,7 +293,7 @@ describe('crash at every step: same item set, no duplicate keys, sentinel and ba
     expect(keysOf((j.load() as { items: OutboxItem[] }).items)).toEqual(keysOf(items))
     expect(parseSentinel(store.get(OUTBOX_KEY) ?? null)).toMatchObject({ count: items.length })
   })
-  it('a verified marker with K unchanged but a damaged journal redoes the copy', async () => {
+  it('a verified marker with K unchanged but a lost journal row re-adds that row (never a destructive re-copy)', async () => {
     const items = variety()
     const { kv, store, ctl } = seedKV(items)
     const fj = createFakeJournal()
@@ -300,7 +301,13 @@ describe('crash at every step: same item set, no duplicate keys, sentinel and ba
     await expect(boot(kv, fj)).rejects.toThrow()
     ctl.modeFor = undefined
     fj.persisted.rows.delete('d:o3') // journal lost a row after verification
-    await finishAfterRestart(kv, store, fj, items)
+    const next = fj.restart()
+    const j = journalOf(await boot(kv, next))
+    expect(next.ctl.applies.filter((a) => a.replaceAll)).toHaveLength(0)
+    const out = (j.load() as { items: OutboxItem[] }).items
+    expect(new Set(keysOf(out))).toEqual(new Set(keysOf(items)))
+    expect(out).toHaveLength(items.length)
+    expect(parseSentinel(store.get(OUTBOX_KEY) ?? null)).toMatchObject({ count: items.length })
   })
 })
 
@@ -461,5 +468,101 @@ describe('corruption marker left by an old bundle that met the sentinel', () => 
     expect(j.noticeKV).toBe(kv)
     new Outbox(j)
     expect(store.get(OUTBOX_CORRUPTION_MARKER_KEY)).toBeUndefined()
+  })
+})
+
+// Opus review of phase B: once the journal is taken over (meta verified/sealed) Preferences can never
+// overwrite it, and no failure falls back to the old storage.
+const jitem = (k: string, seq: number): OutboxItem => sale(seq, { idempotencyKey: k, payload: { orderId: k } })
+
+describe('takeover is one-way: no destructive re-copy (CRITICAL-1)', () => {
+  for (const kval of ['[]', null, 'garbage{'] as const) {
+    it(`sealed empty migration, journal moved on, K later = ${kval}: rows and refund memory are kept`, async () => {
+      const { kv, store } = seedKV(null)
+      const fj = createFakeJournal()
+      expect((await boot(kv, fj)).kind).toBe('journal')
+      adoptOutboxStore(null)
+      resetJournalBootForTests()
+      for (const [k, seq] of [['d:a', 1], ['d:b', 2]] as const) fj.persisted.rows.set(k, { seq, json: JSON.stringify(jitem(k, seq)) })
+      const refunds = JSON.stringify([{ orderId: 'r1', at: Date.now() }])
+      fj.persisted.meta.set(REFUNDS_KEY, refunds) // recorded on the journal after takeover
+      if (kval === null) store.delete(OUTBOX_KEY)
+      else store.set(OUTBOX_KEY, kval)
+      const next = fj.restart()
+      const r = await boot(kv, next)
+      expect(r.kind).toBe('journal')
+      expect(next.ctl.applies.filter((a) => a.replaceAll)).toHaveLength(0)
+      expect(fj.persisted.rows.size).toBe(2)
+      expect(JSON.parse(fj.persisted.meta.get(REFUNDS_KEY) as string).map((e: { orderId: string }) => e.orderId)).toContain('r1')
+      expect(parseSentinel(store.get(OUTBOX_KEY) ?? null)).toMatchObject({ count: 2 })
+    })
+  }
+  it('a stale Preferences queue after a power-loss revert cannot remove journal rows', async () => {
+    const { kv, store } = seedKV([sale(1)])
+    const raw = store.get(OUTBOX_KEY) as string
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    fj.persisted.rows.set('d:o9', { seq: 9, json: JSON.stringify(sale(9)) })
+    store.set(OUTBOX_KEY, raw) // the un-fsynced Preferences write of the sentinel was lost
+    const j = journalOf(await boot(kv, fj.restart()))
+    expect(keysOf((j.load() as { items: OutboxItem[] }).items)).toEqual(['d:o1', 'd:o9'])
+  })
+  it('a malformed K in the verified state is kept raw in a backup and the journal still boots', async () => {
+    const { kv, store } = seedKV(null)
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    fj.persisted.rows.set('d:a', { seq: 1, json: JSON.stringify(jitem('d:a', 1)) })
+    const bad = JSON.stringify([jitem('n', 1), jitem('n', 1)])
+    store.set(OUTBOX_KEY, bad)
+    const j = journalOf(await boot(kv, fj.restart()))
+    expect(keysOf((j.load() as { items: OutboxItem[] }).items)).toEqual(['d:a'])
+    expect(legacyKeys(store).some((k) => store.get(k) === bad)).toBe(true)
+    expect(getJournalBootNotice()).toBeNull()
+  })
+})
+
+describe('after takeover no failure falls back to the old storage (MEDIUM-1)', () => {
+  async function takenOver() {
+    const { kv, store } = seedKV(null)
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    fj.persisted.rows.set('d:a', { seq: 1, json: JSON.stringify(jitem('d:a', 1)) })
+    store.set(OUTBOX_KEY, JSON.stringify([jitem('n', 1)])) // old bundle wrote an array
+    return { kv, store, fj }
+  }
+  it('open() failing with a legacy backup in Preferences is a boot error', async () => {
+    const { kv, store, fj } = await takenOver()
+    store.set(LEGACY_BACKUP_PREFIX + 'x', '[]')
+    const next = fj.restart()
+    next.ctl.openError = new Error('io')
+    await expect(boot(kv, next)).rejects.toThrow(/Journal antrean tidak dapat dibuka/)
+  })
+  it('open() failing with a corruption marker that points at our sentinel is a boot error', async () => {
+    const { kv, store, fj } = await takenOver()
+    const sentinel = JSON.stringify({ movedTo: 'journal', v: 1, at: 'x', count: 0, sha256: 'x' })
+    store.set(OUTBOX_QUARANTINE_PREFIX + 't', sentinel)
+    store.set(OUTBOX_CORRUPTION_MARKER_KEY, JSON.stringify({ quarantineKey: OUTBOX_QUARANTINE_PREFIX + 't', detectedAt: 't' }))
+    const next = fj.restart()
+    next.ctl.openError = new Error('io')
+    await expect(boot(kv, next)).rejects.toThrow(/Journal antrean tidak dapat dibuka/)
+  })
+  it('a merge that cannot be written is a boot error, not a fallback', async () => {
+    const { kv, fj } = await takenOver()
+    const next = fj.restart()
+    next.ctl.failAt = { nthApply: 1, at: 'beforeCommit' }
+    await expect(boot(kv, next)).rejects.toThrow()
+    expect(getJournalBootNotice()).toBeNull()
+  })
+  it('without any takeover evidence an open() failure still falls back (Q1)', async () => {
+    const { kv } = seedKV([sale(1)])
+    const fj = createFakeJournal()
+    fj.ctl.openError = new Error('io')
+    expect((await boot(kv, fj)).kind).toBe('fallback')
   })
 })

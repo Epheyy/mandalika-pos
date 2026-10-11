@@ -40,6 +40,7 @@ export function controllableKV(seed: Record<string, string> = {}) {
       })
     },
     removeDurable: (key) => { store.delete(key); return Promise.resolve() },
+    keys: () => [...store.keys()],
   }
   return { kv, store, ctl }
 }
