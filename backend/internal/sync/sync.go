@@ -198,6 +198,10 @@ func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) 
 	return processBatch(ctx, c, items, e.processOne, e.Version)
 }
 
+// closeHeldMessage is returned for a shift_close held back because an earlier item
+// in the same batch failed retryably (its effect must land in the close snapshot).
+const closeHeldMessage = "Tutup shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis."
+
 func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	process func(context.Context, Caller, BatchItem) ItemResult,
 	version func(context.Context, string) (VersionInfo, error),

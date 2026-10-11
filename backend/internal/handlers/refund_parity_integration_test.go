@@ -705,4 +705,86 @@ func TestRefundParityPostgres(t *testing.T) {
 		wantBatchReject("again", "conflict", batchRefundIn(tokAdminX, adminU, "c23c", o.id, "lagi", ""), before)
 		wantCols("not overwritten", readRefundCols(o.id), *first.shift, *first.by, *first.byName)
 	})
+	sub("24 a shift_close is held while an earlier refund in the same batch fails retryably (M3)", func(t *testing.T) {
+		// A second handler on a pool whose statements give up on a row lock after
+		// 300ms, so a lock held by another transaction yields a retryable busy item.
+		cfg2 := cfg.Copy()
+		cfg2.ConnConfig.RuntimeParams["lock_timeout"] = "300ms"
+		pool2, err := pgxpool.NewWithConfig(ctx, cfg2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool2.Close()
+		rd2, wr2, svc2 := read.New(pool2), write.New(pool2), service.NewOrderService(pool2)
+		h2 := New(rd2, nil, auth.NewStore(pool2), wr2, svc2, syncpkg.New(pool2, rd2, svc2, wr2), nil)
+		router2 := chi.NewRouter()
+		router2.With(authWrap).Post("/sync/batch", h2.SyncBatch)
+
+		s0 := newShift(outX, "open")
+		o := newOrderFull(outX, "completed", "cash", s0)
+		closeShift(s0)
+		s := newShift(outX, "open")
+		env := map[string]any{"v": 1, "outletId": outX, "userId": userX, "deviceId": device, "shiftId": s, "capturedAt": time.Now().UTC().Format(time.RFC3339)}
+		raw, err := json.Marshal(map[string]any{"items": []any{
+			map[string]any{"type": "refund", "idempotencyKey": device + ":c24r", "payload": map[string]any{"orderId": o.id, "reason": "rusak"}, "envelope": env},
+			map[string]any{"type": "shift_close", "idempotencyKey": device + ":c24c", "payload": map[string]any{"shiftId": s, "closingCash": 0}, "envelope": env},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		send := func() []result {
+			cur.Helper()
+			r := httptest.NewRequest("POST", "/sync/batch", bytes.NewReader(raw))
+			r.Header.Set("Authorization", "Bearer "+tokX)
+			w := httptest.NewRecorder()
+			router2.ServeHTTP(w, r)
+			var out struct {
+				Data struct {
+					Results []result `json:"results"`
+				} `json:"data"`
+			}
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Data.Results) != 2 {
+				cur.Fatalf("batch %d %s", w.Code, w.Body.String())
+			}
+			return out.Data.Results
+		}
+
+		// Another transaction holds the order row lock: the refund cannot apply.
+		blocker, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = blocker.Exec(ctx, `SELECT 1 FROM orders WHERE id=$1 FOR UPDATE`, o.id); err != nil {
+			t.Fatal(err)
+		}
+		held := send()
+		if err = blocker.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for i, r := range held {
+			if r.Status != "error" || r.Retryable == nil || !*r.Retryable {
+				t.Fatalf("item %d must fail retryably: %+v", i, r)
+			}
+		}
+		if held[1].Error != "Tutup shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis." {
+			t.Fatalf("close hold message: %+v", held[1])
+		}
+		var status string
+		if err = pool.QueryRow(ctx, `SELECT status FROM shifts WHERE id=$1`, s).Scan(&status); err != nil || status != "open" {
+			t.Fatalf("shift must still be open: %q %v", status, err)
+		}
+		if n := count(`SELECT count(*) FROM operation_receipts WHERE idempotency_key=$1`, device+":c24c"); n != 0 {
+			t.Fatalf("held close must not claim a receipt: %d", n)
+		}
+
+		// Retry the same batch (same keys): refund applies, then the close snapshot includes it.
+		for i, r := range send() {
+			if r.Status != "ok" {
+				t.Fatalf("retry item %d: %+v", i, r)
+			}
+		}
+		if got := readShift(s); got.CashRefundsPaid != 100 || !jsonEq(got.ByMethod, `{"cash":100}`) {
+			t.Fatalf("close snapshot must include the refund: %+v", got)
+		}
+	})
 }
