@@ -147,3 +147,18 @@ Not verified: QueuedWork drain on stop; community plugin internals; effective `s
 7. Keep `mandalika.outbox.legacy.*` backup (default).
 
 Execution split: Phase A = T1+T2+T3 (seam, journal store, parity tests); Phase B = T4+T5+T7 (boot migration, wiring, synced refunds); Phase C = T6+T8+T10 (Java plugin, version, decide.go); then T9/T11 ship + emulator.
+
+## Phase A review (Opus, 2026-10-11) — rules for the next phases
+
+Phase A (`6185819`, `ca935c5`) ships as committed (journal not wired; KV path byte-identical). Must fix before Phase B wiring:
+- **H1** apply commits in SQLite but rejects in-process -> mirror/Outbox miss the row, seqCounter not advanced -> every later add collides on UNIQUE(seq) until restart; after restart the "failed" sale reappears (possible duplicate if re-rung). Fix: (a) on apply rejection, `readAll()` inside the tail chain; if all upserts present and deletes gone -> treat as committed (patch mirror, resolve), else reject + resync mirror; (b) store exposes `maxSeq()`, `add` uses `max(seqCounter, store.maxSeq()) + 1`; (c) Java rejects only on rollback, resolves after `endTransaction()`.
+- **H2** meta facade `set` patches memory with an older value after a later write -> lost synced-refund entry. Fix: generation counter / drop background patch; Phase B `addMany` via `setDurable` and `SyncedRefunds.addMany` chains its own calls.
+- **M1** stale instance can overwrite a row: compare-and-swap in the apply chain (prev json must equal mirror json for each upsert; key absent from prev must be absent from mirror; else reject).
+- **M3** fake checks UNIQUE at end of tx; SQLite per statement. Fixed order in fake and Java: replaceAll, deletes, upserts, meta; fake checks per statement.
+Phase B/C rules:
+- `initJournal` uses `Capacitor.isPluginAvailable('OutboxJournal')`; no plugin -> silent KV path (not the Q1 warning path).
+- Java: resolve only after `endTransaction()`, reject only on rollback; UPDATE ... WHERE key=? then plain INSERT (abort on conflict), **never REPLACE / INSERT OR REPLACE** (would delete another sale on seq conflict; ON CONFLICT DO UPDATE needs SQLite 3.24+, not on API 24); return seq as JSON number; `synchronous=FULL` set and reported on the same connection that runs apply (e.g. onConfigure); readAll/apply on the same serialized thread.
+- M4 corrupt row after takeover refuses the whole journal -> needs an explicit, non-silent repair path (support/admin action: one apply moves raw row to meta `quarantine.<key>` and deletes it, lasting banner + report). Never via Outbox's KV corrupt branch (facade rejects non-whitelisted keys).
+- M5 corruption marker/quarantine keys must be read from Preferences (separate KV), not the facade; give the facade only to SyncedRefunds.
+- After restart, show pending/most recent queued orders before checkout (residual crash-after-commit duplicate risk ~1e-8/sale accepted).
+- Fake: async default or parity suite under `hold`; add a REPLACE-deletion risk test.
