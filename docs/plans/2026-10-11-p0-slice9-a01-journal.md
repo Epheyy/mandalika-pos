@@ -178,3 +178,16 @@ Decisions and notes:
 - M4 repair: `quarantineCorruptRows({kv, plugin})` (exported from `@mandalika/sync`) writes the Preferences corruption marker (`journal:quarantine.<key>,...`), then ONE apply moves each bad row raw into meta `quarantine.<key>` and deletes it. Never called automatically; a support screen/CDP must invoke it.
 - M5: a corruption marker whose quarantined raw is our sentinel is ignored by the new Outbox.
 - After-restart pending view: existing surface is enough. `useOfflineData` seeds `pendingCount` from `engine.pendingCount()` at mount (after `ready`, i.e. after rehydrate) and `SyncStatus` shows "Menyinkronkan n" / "Tertunda (n)"; no new screen. Residual duplicate-after-crash risk stays as accepted.
+
+### Phase B review fixes (Opus BLOCK -> fixed, 2026-10-11)
+
+- CRITICAL-1: once `meta.migration` is `verified` or `sealed` the journal is the system of record and Preferences can only ADD to it. No `replaceAll` is ever issued after that point; every non-sentinel `mandalika.pos.outbox` value (same-sha crash-before-seal, lost row, old-bundle array, `[]`, null, garbage, malformed) goes through `mergeLateWrites` (append missing keys after max seq, journal row wins, union synced refunds), then seals. After the sentinel is durable the journal records `meta.migration='sealed'` (FULL fsync), so a power-loss revert of the Preferences sentinel cannot wipe it. Unreadable K is kept raw (quarantine + legacy backup + marker).
+- MEDIUM-1: after takeover no failure falls back to the old storage. If `open()` fails and Preferences shows takeover evidence (sentinel, any `mandalika.outbox.legacy.*` key via the optional `KV.keys()`, or a corruption marker whose quarantined raw is our sentinel) it is a BootError; a merge/seal failure is a BootError. Only a never-taken-over tablet falls back (Q1). Backup/sentinel write failure after verify stays a BootError.
+- LOW: `previousEngine` is assigned in the effect, not during render; the amber and red banners are stacked in one fixed container.
+
+### Java contract notes for Phase C (additions)
+
+- `apply` with `replaceAll` deletes OUTBOX rows only, never `meta`. Meta-only applies (no upserts/deletes) must work.
+- Optional native guard: refuse `replaceAll` when `meta.migration` is `verified` or `sealed` (defence in depth for the JS rule above).
+- `open()` and `apply()` must ALWAYS settle (resolve or reject), never hang: JS has no timeout around them. `open()` is idempotent on one connection (JS may call it more than once per launch).
+- `meta` values such as `quarantine.<key>` can be large (a whole raw item row); do not cap them at CursorWindow-sized limits in a way that truncates silently.

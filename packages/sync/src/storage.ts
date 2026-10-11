@@ -13,6 +13,8 @@ export interface KV {
    *  committed. Use for money/stock state (the outbox). */
   setDurable(key: string, value: string): Promise<void>
   removeDurable(key: string): Promise<void>
+  /** Every stored key (boot-time evidence checks only). Optional: a KV without it reports no evidence. */
+  keys?(): string[]
 }
 
 class LocalStorageKV implements KV {
@@ -35,6 +37,13 @@ class LocalStorageKV implements KV {
       localStorage.removeItem(key)
     } catch {
       /* ignore */
+    }
+  }
+  keys(): string[] {
+    try {
+      return Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((k): k is string => k !== null)
+    } catch {
+      return []
     }
   }
   // localStorage is synchronous: a throw here (quota / private mode) is the
@@ -115,6 +124,9 @@ class CapacitorPreferencesKV implements KV {
 
   get(key: string): string | null {
     return this.mem.get(key) ?? null
+  }
+  keys(): string[] {
+    return [...this.mem.keys()]
   }
   set(key: string, value: string): void {
     this.mem.set(key, value)

@@ -140,31 +140,56 @@ export async function initJournal(deps: InitJournalDeps = {}): Promise<JournalBo
 
   const plugin = deps.plugin ?? OutboxJournal
   const now = deps.now ?? (() => new Date())
+  // Preferences-side proof that this tablet already moved to the journal, readable even when the
+  // journal itself will not open: the sentinel, a legacy backup, or a marker an old bundle left.
+  const tookOverBefore = src.kind === 'sentinel' || hasTakeoverEvidence(kv)
 
   let store: JournalOutboxStore
+  let disk: JournalReadAllResult
   try {
     store = await JournalOutboxStore.open(plugin, kv)
+    disk = await store.readDisk()
   } catch (err) {
-    if (src.kind === 'sentinel') throw openFailure(err)
+    if (tookOverBefore) throw openFailure(err)
     return fallback(err instanceof JournalUnavailableError ? err.code : 'open_failed', err)
   }
 
   if (src.kind === 'sentinel') {
-    await resumeSealed(store, src.sentinel)
-    adoptOutboxStore(store)
-    return { kind: 'journal', store }
-  }
-  if (src.kind === 'malformed') return fallback('malformed_queue', new Error('stored queue is not a well-formed item list'))
-
-  try {
-    await migrate(store, src, kv, now)
-  } catch (err) {
-    if (err instanceof JournalBootError) throw err
-    if (err instanceof Fallback) return fallback(err.code, err.cause ?? err)
-    return fallback('migration_failed', err)
+    resumeSealed(src.sentinel, disk)
+  } else if (isTakenOver(disk)) {
+    // The journal is the system of record: from here on every failure stops the app, never a fallback.
+    try {
+      await finishTakeover(store, src, kv, now)
+    } catch (err) {
+      throw err instanceof JournalBootError ? err : new JournalBootError(msgSealFailed(errMsg(err)), err)
+    }
+  } else {
+    if (src.kind === 'malformed') return fallback('malformed_queue', new Error('stored queue is not a well-formed item list'))
+    try {
+      await migrate(store, src, kv, now)
+    } catch (err) {
+      if (err instanceof JournalBootError) throw err
+      if (err instanceof Fallback) return fallback(err.code, err.cause ?? err)
+      return fallback('migration_failed', err)
+    }
   }
   adoptOutboxStore(store)
   return { kind: 'journal', store }
+}
+
+const isTakenOver = (disk: JournalReadAllResult): boolean =>
+  disk.meta[MIGRATION_KEY] === 'verified' || disk.meta[MIGRATION_KEY] === 'sealed'
+
+function hasTakeoverEvidence(kv: KV): boolean {
+  if (kv.keys?.().some((k) => k.startsWith(LEGACY_BACKUP_PREFIX))) return true
+  const marker = kv.get(OUTBOX_CORRUPTION_MARKER_KEY)
+  if (!marker) return false
+  try {
+    const m = JSON.parse(marker) as { quarantineKey?: unknown }
+    return typeof m.quarantineKey === 'string' && parseSentinel(kv.get(m.quarantineKey)) !== null
+  } catch {
+    return false
+  }
 }
 
 function openFailure(err: unknown): JournalBootError {
@@ -183,19 +208,14 @@ function fallback(code: JournalNoticeCode, err: unknown): JournalBootResult {
 }
 
 /** Preferences holds our sentinel: the journal must be the verified copy, or the app stops. */
-async function resumeSealed(store: JournalOutboxStore, sentinel: JournalSentinel): Promise<void> {
+function resumeSealed(sentinel: JournalSentinel, disk: JournalReadAllResult): void {
   if (sentinel.v !== SENTINEL_VERSION) throw new JournalBootError(MSG_VERSION_MISMATCH)
-  let disk: JournalReadAllResult
-  try {
-    disk = await store.readDisk()
-  } catch (err) {
-    throw openFailure(err)
-  }
-  if (disk.meta[MIGRATION_KEY] !== 'verified') throw new JournalBootError(MSG_JOURNAL_LOST)
+  if (!isTakenOver(disk)) throw new JournalBootError(MSG_JOURNAL_LOST)
 }
 
 // ── migration ───────────────────────────────────────────────────────────────
 
+/** First migration only (journal not yet verified): copy, verify, mark verified, seal. */
 async function migrate(
   store: JournalOutboxStore,
   src: Exclude<Source, { kind: 'sentinel' | 'malformed' }>,
@@ -206,23 +226,29 @@ async function migrate(
   const items = src.kind === 'array' ? src.items : []
   if (src.kind === 'other') await quarantineQueue(kv, src.raw, at)
   const sourceSha = await digestItems(items)
-  const disk = await store.readDisk()
+  await copyAll(store, items, kv, sourceSha)
+  const problem = await verifyCopy(items, await store.readDisk(), kv, sourceSha)
+  if (problem) throw new Fallback('verify_failed', `journal copy did not verify: ${problem}`)
+  await store.applyBoot({ upserts: [], deletes: [], meta: { [MIGRATION_KEY]: 'verified' } })
+  await sealQueue(store, kv, src.raw, at, { count: items.length, sha256: sourceSha })
+}
 
-  let seal: { count: number; sha256: string }
-  if (disk.meta[MIGRATION_KEY] === 'verified' && disk.meta[SOURCE_SHA_KEY] !== sourceSha) {
-    // An older OTA bundle wrote the queue after the seal: the journal stays the truth.
-    seal = await mergeLateWrites(store, items, disk, kv, sourceSha)
-  } else if (disk.meta[MIGRATION_KEY] === 'verified' && !(await verifyCopy(items, disk, kv, sourceSha))) {
-    // Crashed between "verified" and the seal, the journal still matches the source: seal only.
-    seal = { count: items.length, sha256: sourceSha }
-  } else {
-    await copyAll(store, items, kv, sourceSha)
-    const problem = await verifyCopy(items, await store.readDisk(), kv, sourceSha)
-    if (problem) throw new Fallback('verify_failed', `journal copy did not verify: ${problem}`)
-    await store.applyBoot({ upserts: [], deletes: [], meta: { [MIGRATION_KEY]: 'verified' } })
-    seal = { count: items.length, sha256: sourceSha }
-  }
-  await sealQueue(kv, src.raw, at, seal)
+/** The journal was already verified (a crash before the seal, a lost row, or an older OTA bundle that
+ *  wrote Preferences afterwards). Preferences can only ADD to the journal, never replace it: keys the
+ *  journal lacks are appended, journal rows win, nothing is deleted; then seal. Unreadable values are
+ *  kept raw (quarantine + backup). */
+async function finishTakeover(
+  store: JournalOutboxStore,
+  src: Exclude<Source, { kind: 'sentinel' }>,
+  kv: KV,
+  now: () => Date,
+): Promise<void> {
+  const at = now().toISOString()
+  const items = src.kind === 'array' ? src.items : []
+  if (src.kind === 'other' || src.kind === 'malformed') await quarantineQueue(kv, src.raw, at)
+  const disk = await store.readDisk()
+  const seal = await mergeLateWrites(store, items, disk, kv, await digestItems(items))
+  await sealQueue(store, kv, src.raw, at, seal)
 }
 
 async function copyAll(store: JournalOutboxStore, items: readonly OutboxItem[], kv: KV, sourceSha: string): Promise<void> {
@@ -321,9 +347,16 @@ async function quarantineQueue(kv: KV, raw: string, at: string): Promise<void> {
   await kv.setDurable(OUTBOX_CORRUPTION_MARKER_KEY, JSON.stringify({ quarantineKey, detectedAt: at }))
 }
 
-/** Verbatim backup, then the sentinel. Both durable; either failing is a (retryable) boot error:
- *  the next launch finds the verified journal and only seals. */
-async function sealQueue(kv: KV, raw: string | null, at: string, s: { count: number; sha256: string }): Promise<void> {
+/** Verbatim backup, then the sentinel, then `migration='sealed'` in the journal (durable, FULL) so the
+ *  takeover is recorded where Preferences cannot undo it. Each step failing is a (retryable) boot error:
+ *  the next launch finds the verified journal and only merges/seals again. */
+async function sealQueue(
+  store: JournalOutboxStore,
+  kv: KV,
+  raw: string | null,
+  at: string,
+  s: { count: number; sha256: string },
+): Promise<void> {
   try {
     if (raw !== null) {
       let key = LEGACY_BACKUP_PREFIX + at
@@ -331,6 +364,7 @@ async function sealQueue(kv: KV, raw: string | null, at: string, s: { count: num
       await kv.setDurable(key, raw)
     }
     await kv.setDurable(OUTBOX_KEY, makeSentinel(at, s.count, s.sha256))
+    await store.applyBoot({ upserts: [], deletes: [], meta: { [MIGRATION_KEY]: 'sealed' } })
   } catch (err) {
     throw new JournalBootError(msgSealFailed(errMsg(err)), err)
   }

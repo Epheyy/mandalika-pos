@@ -158,7 +158,7 @@ describe('first migration: copy, verify, backup, seal', () => {
     for (const it of items) expect(fj.persisted.rows.get(it.idempotencyKey)).toEqual({ seq: it.seq, json: JSON.stringify(it) })
     expect(j.load()).toEqual({ kind: 'ok', items: JSON.parse(JSON.stringify(items)) })
     expect(JSON.stringify((j.load() as { items: unknown[] }).items)).toBe(raw)
-    expect(fj.persisted.meta.get('migration')).toBe('verified')
+    expect(fj.persisted.meta.get('migration')).toBe('sealed')
     expect(fj.persisted.meta.get(REFUNDS_KEY)).toBe(JSON.stringify([{ orderId: 'o9', at: 5 }]))
 
     const s = parseSentinel(store.get(OUTBOX_KEY) ?? null)

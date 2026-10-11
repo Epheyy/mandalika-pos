@@ -66,7 +66,6 @@ export function SyncProvider({
   const [ready, setReady] = useState(false)
   const engineRef = useRef<SyncEngine | null>(null)
 
-  const predecessorRef = useRef<SyncEngine | null>(null)
   const engine = useMemo(
     () => {
       const e = new SyncEngine(
@@ -118,8 +117,6 @@ export function SyncProvider({
         // Every queued item is stamped with who/where it was captured (A04).
         { actor: currentActor, outboxStore: getOutboxStore() },
       )
-      predecessorRef.current = previousEngine
-      previousEngine = e
       engineRef.current = e
       return e
     },
@@ -162,10 +159,14 @@ export function SyncProvider({
     // until then: `ready` stays false.
     let live = true
     let stop: (() => void) | null = null
+    // Assigned in the effect (commit phase), not while rendering: a discarded render must not
+    // become "the previous engine" of a later one.
+    const predecessor = previousEngine !== engine ? previousEngine : null
+    previousEngine = engine
     void (async () => {
       try {
         engine.outbox.revive() // StrictMode re-run: cleanup disposed it, and refresh skips a disposed outbox
-        await predecessorRef.current?.idle()
+        await predecessor?.idle()
         await getOutboxStore().idle?.()
         await engine.rehydrate()
       } catch (err) {
@@ -206,17 +207,21 @@ export function SyncProvider({
 
   return (
     <SyncContext.Provider value={engine}>
-      {journalNotice && (
-        <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-amber-600 text-white text-sm font-bold px-4 py-2 text-center safe-top">
-          {JOURNAL_FALLBACK_MESSAGE}
-        </div>
-      )}
-      {corruption && (
-        // Persistent and non-dismissable; pointer-events-none so it never blocks the header.
-        <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-red-700 text-white text-sm font-bold px-4 py-2 text-center safe-top">
-          {quarantineOk === null
-            ? OUTBOX_CORRUPT_PENDING_MESSAGE
-            : quarantineOk ? OUTBOX_CORRUPT_MESSAGE : OUTBOX_CORRUPT_UNSECURED_MESSAGE}
+      {(journalNotice || corruption) && (
+        // Persistent, non-dismissable and stacked (never overlapping); pointer-events-none so it never blocks the header.
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex flex-col safe-top">
+          {journalNotice && (
+            <div role="alert" className="bg-amber-600 text-white text-sm font-bold px-4 py-2 text-center">
+              {JOURNAL_FALLBACK_MESSAGE}
+            </div>
+          )}
+          {corruption && (
+            <div role="alert" className="bg-red-700 text-white text-sm font-bold px-4 py-2 text-center">
+              {quarantineOk === null
+                ? OUTBOX_CORRUPT_PENDING_MESSAGE
+                : quarantineOk ? OUTBOX_CORRUPT_MESSAGE : OUTBOX_CORRUPT_UNSECURED_MESSAGE}
+            </div>
+          )}
         </div>
       )}
       <SyncReceiveRejectedRefContext.Provider value={onReceiveRejectedRef}>
