@@ -18,7 +18,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
-| A06 | Refund permission bypassed via sync | **Partial** — server gate live; **slice 7 is next** |
+| A06 | Refund permission bypassed via sync | **In progress** — slice 7: plan + owner answers done; Phase A (refund rules) committed locally `449152a`, Opus-reviewed ship; Phase B (mig 0047 shift cash) next |
 | A09 | Sale/tender invariants not enforced | **Done** — slice 8 + 8c (backend 00088-qoh+, APK 1.4+); discount permission split to 8b |
 
 ## Now (live state)
@@ -92,7 +92,7 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 
 ## Next
 
-1. **P0 slice 7 (A06 completion)** per `docs/plans/2026-10-10-p0-remediation-plan.md` §1/§2: refund reason
+1. **P0 slice 7 (A06 completion)** — plan `docs/plans/2026-10-11-p0-slice7-a06-refund.md` (owner answers Q1–Q6, B1–B4 recorded). Phase A done locally (not pushed). Phase B = migration 0047 refund_shift_id/refunded_by + shift cash math + OpenAPI; Phase C = POS/backoffice → APK 1.6. Original scope per remediation plan §1/§2: refund reason
    parity, POS UI gate ("Proses Refund"), denied refund → visible needs-review cash movement (never
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
    implementer → Opus review → failing-first PG gate → hidden-revision deploy. Pre-go-live: audit real
