@@ -1122,7 +1122,11 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		outlet = o
 	}
-	if err := h.OrderSvc.Refund(r.Context(), outlet, id, body.Reason); err != nil {
+	// Direct (backoffice/API) refunds are paid from no shift's drawer (owner B2).
+	if err := h.OrderSvc.Refund(r.Context(), service.RefundInput{
+		OutletID: outlet, OrderID: id, Reason: body.Reason,
+		UserID: c.userID, UserName: c.name,
+	}); err != nil {
 		fail(err)
 		return
 	}

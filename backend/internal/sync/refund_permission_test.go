@@ -34,7 +34,7 @@ func TestRefundPermissionParityRegression(t *testing.T) {
 	result := e.processOneWithRefund(ctx, Caller{OutletID: "outlet-original", UserID: "cashier-original"}, BatchItem{
 		Type: "refund", IdempotencyKey: "refund-original-key",
 		Payload: json.RawMessage(`{"orderId":"order-original","reason":"sealed return"}`),
-	}, func(context.Context, pgx.Tx, string, string, string) error { batchCalls++; return nil })
+	}, func(context.Context, pgx.Tx, service.RefundInput) error { batchCalls++; return nil })
 	if result.Status != "error" || result.IdempotencyKey != "refund-original-key" || batchCalls != 0 {
 		t.Fatalf("batch must deny before refund mutation: result=%+v refundCalls=%d", result, batchCalls)
 	}
@@ -61,10 +61,15 @@ func TestRefundPermissionDispatch(t *testing.T) {
 			item := BatchItem{Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"original-order","reason":"original reason","role":"admin","permissions":["process_refund"],"CanRefund":true,"alreadyPaid":true,"approvedBy":"historical-supervisor","clientCreatedAt":"2020-01-01T00:00:00Z","outletId":"forged-outlet","userId":"forged-user"}`)}
 			original := append([]byte(nil), item.Payload...)
 			calls := 0
-			result := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(_ context.Context, _ pgx.Tx, outlet, order, reason string) error {
+			result := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(_ context.Context, _ pgx.Tx, in service.RefundInput) error {
 				calls++
-				if outlet != "active-outlet" || order != "original-order" || reason != "original reason" {
-					t.Fatalf("scope/arguments changed: %s %s %s", outlet, order, reason)
+				if in.OutletID != "active-outlet" || in.OrderID != "original-order" || in.Reason != "original reason" {
+					t.Fatalf("scope/arguments changed: %s %s %s", in.OutletID, in.OrderID, in.Reason)
+				}
+				// Identity comes from the authenticated caller, never from the payload;
+				// no envelope means no shift.
+				if in.UserID != "original-user" || in.ShiftID != "" {
+					t.Fatalf("identity/shift changed: user=%q shift=%q", in.UserID, in.ShiftID)
 				}
 				return nil
 			})
@@ -87,8 +92,8 @@ func TestRefundScopeFailurePropagatesWithoutSuccess(t *testing.T) {
 	// scoped argument forwarding and propagation of its existing failure.
 	result := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{OutletID: "outlet-a", CanRefund: true}, BatchItem{
 		Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"order-in-b","reason":"sealed"}`),
-	}, func(_ context.Context, _ pgx.Tx, outlet, order, _ string) error {
-		if outlet != "outlet-a" || order != "order-in-b" {
+	}, func(_ context.Context, _ pgx.Tx, in service.RefundInput) error {
+		if in.OutletID != "outlet-a" || in.OrderID != "order-in-b" {
 			t.Fatal("scope changed")
 		}
 		return service.ErrOrderClosed
@@ -110,7 +115,7 @@ func TestMixedBatchPreservesIndependentResults(t *testing.T) {
 		func(ctx context.Context, caller Caller, item BatchItem) ItemResult {
 			seen = append(seen, item.IdempotencyKey)
 			if item.Type == "refund" {
-				return (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, string, string, string) error { refundCalls++; return nil })
+				return (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, service.RefundInput) error { refundCalls++; return nil })
 			}
 			// Independent successes are synthetic, not order/customer DB coverage.
 			return ItemResult{IdempotencyKey: item.IdempotencyKey, Status: "ok"}
@@ -157,7 +162,7 @@ func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 		t.Fatal("deserialized refund authority")
 	}
 	// Existing allowed service failures must stay non-success under the same key.
-	r := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
+	r := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, service.RefundInput) error {
 		return apperr.New(apperr.Rejected, "synthetic service rejection")
 	})
 	if r.Status != "error" || r.IdempotencyKey != "same" || !strings.Contains(r.Error, "service rejection") {
@@ -167,7 +172,7 @@ func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 		t.Fatalf("a marked rejection must be non-retryable: %+v", r)
 	}
 	// An unmarked error is a server fault: sanitized text, retryable.
-	r = (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "plain", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
+	r = (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "plain", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, service.RefundInput) error {
 		return errors.New("synthetic service fault")
 	})
 	if r.Status != "error" || r.Error != internalMessage || r.Code != string(apperr.Internal) || r.Retryable == nil || !*r.Retryable {
@@ -182,7 +187,7 @@ func TestRefundForbiddenReplaysACommittedKey(t *testing.T) {
 	item := BatchItem{Type: "refund", IdempotencyKey: "dev:committed", Payload: json.RawMessage(`{"orderId":"order-1","reason":"rusak"}`)}
 	caller := Caller{OutletID: "outlet-1", UserID: "u1", CanRefund: false}
 	refunds := 0
-	refund := func(context.Context, pgx.Tx, string, string, string) error { refunds++; return nil }
+	refund := func(context.Context, pgx.Tx, service.RefundInput) error { refunds++; return nil }
 
 	applied := (&Engine{Lookup: &fakeLookup{applied: map[string]string{"dev:committed": "order-1"}}}).
 		processOneWithRefund(context.Background(), caller, item, refund)
@@ -210,7 +215,7 @@ func TestRefundForbiddenProbeUsesEnvelopeOutlet(t *testing.T) {
 		Envelope: json.RawMessage(`{"v":1,"outletId":"X","userId":"u1","deviceId":"dev","capturedAt":"2026-01-01T00:00:00Z"}`)}
 	lk.outlets = map[string]bool{"X": true}
 	(&Engine{Lookup: lk}).processOneWithRefund(context.Background(), Caller{OutletID: "Y", UserID: "u1", Role: "admin"}, item,
-		func(context.Context, pgx.Tx, string, string, string) error { return nil })
+		func(context.Context, pgx.Tx, service.RefundInput) error { return nil })
 	if gotType != "refund" || gotScope != "X" {
 		t.Fatalf("probe type=%q scope=%q", gotType, gotScope)
 	}

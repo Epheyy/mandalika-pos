@@ -230,7 +230,7 @@ func TestAppliedProbesRejectAFingerprintMismatch(t *testing.T) {
 	lk := &fakeLookup{applied: map[string]string{"dev:k": "order-A"}, appliedFP: map[string]string{"dev:k": fpA}}
 	e := &Engine{Lookup: lk}
 	refunds := 0
-	refund := func(context.Context, pgx.Tx, string, string, string) error { refunds++; return nil }
+	refund := func(context.Context, pgx.Tx, service.RefundInput) error { refunds++; return nil }
 	conflict := func(t *testing.T, r ItemResult) {
 		t.Helper()
 		if r.Status != "error" || r.Code != string(apperr.KeyConflict) || r.OrderID != "" || r.Retryable == nil || *r.Retryable || refunds != 0 {
@@ -257,4 +257,46 @@ func TestAppliedProbesRejectAFingerprintMismatch(t *testing.T) {
 		t.Fatalf("mismatch + same payload must replay: %+v", r)
 	}
 	conflict(t, mism(payloadB))
+}
+
+// EnvelopeShiftID feeds the refund_shift_id foreign key: it may only ever be a shift
+// the lookup found at the attributed outlet (open or closed).
+func TestAttributeEnvelopeShiftIDOnlyForKnownShifts(t *testing.T) {
+	e := &Engine{Lookup: &fakeLookup{shifts: map[string]shiftState{"open": shiftOpen, "closed": shiftClosed, "other": shiftOtherOutlet}}}
+	for _, tc := range []struct{ name, shift, want string }{
+		{"open", "open", "open"},
+		{"closed", "closed", "closed"},
+		{"unknown", "ghost", ""},
+		{"none", "", ""},
+	} {
+		got, err := e.attribute(context.Background(), cashier(), BatchItem{Type: "refund", IdempotencyKey: "dev:1",
+			Envelope: env(func(e *Envelope) { e.ShiftID = tc.shift })})
+		if err != nil || got.EnvelopeShiftID != tc.want {
+			t.Errorf("%s: EnvelopeShiftID=%q err=%v want %q", tc.name, got.EnvelopeShiftID, err, tc.want)
+		}
+	}
+	// Another outlet's shift is refused outright, and legacy items carry none.
+	if _, err := e.attribute(context.Background(), cashier(), BatchItem{Type: "refund", IdempotencyKey: "dev:1",
+		Envelope: env(func(e *Envelope) { e.ShiftID = "other" })}); err == nil {
+		t.Error("shift of another outlet must be refused")
+	}
+	if got, err := e.attribute(context.Background(), cashier(), BatchItem{Type: "refund", IdempotencyKey: "dev:1"}); err != nil || got.EnvelopeShiftID != "" {
+		t.Errorf("legacy: %+v %v", got, err)
+	}
+}
+
+func TestBatchRefundForwardsAttributedShiftAndUser(t *testing.T) {
+	e := &Engine{Lookup: &fakeLookup{shifts: map[string]shiftState{"s1": shiftOpen}}}
+	var got service.RefundInput
+	refund := func(_ context.Context, _ pgx.Tx, in service.RefundInput) error { got = in; return nil }
+	it := BatchItem{Type: "refund", IdempotencyKey: "dev:1", Payload: json.RawMessage(`{"orderId":"o1","reason":"rusak"}`),
+		Envelope: env(func(e *Envelope) { e.ShiftID = "s1" })}
+	c := cashier()
+	c.CanRefund, c.DisplayName = true, "Kasir Satu"
+	if r := e.processOneWithRefund(context.Background(), c, it, refund); r.Status != "ok" {
+		t.Fatalf("%+v", r)
+	}
+	if got.OutletID != "X" || got.ShiftID != "s1" || got.UserID != "u1" || got.UserName != "Kasir Satu" {
+		t.Fatalf("refund input %+v", got)
+	}
 }

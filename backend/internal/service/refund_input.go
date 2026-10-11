@@ -30,6 +30,16 @@ var (
 	ErrRefundOrderNotFound = apperr.New(apperr.Conflict, "Transaksi tidak ditemukan di outlet ini."+refundWarning)
 )
 
+// RefundInput is one refund. ShiftID is the shift whose drawer paid it out ("" when
+// unknown or none: direct/backoffice refunds, legacy items, unknown envelope shift);
+// the caller must only set it to a shift row that exists at OutletID, because the
+// column is a foreign key. UserID/UserName record who refunded (A06 audit trail).
+type RefundInput struct {
+	OutletID, OrderID, Reason string
+	ShiftID                   string
+	UserID, UserName          string
+}
+
 // NormalizeRefund validates the refund input shared by the direct route and the
 // /sync/batch item and returns the reason to store (trimmed). It runs before any
 // SQL so a malformed id never reaches PostgreSQL as a raw 22P02.

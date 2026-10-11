@@ -221,6 +221,7 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 	} else if c.HomeOutletID == "" || !strings.EqualFold(env.OutletID, c.HomeOutletID) {
 		return c, mismatch(mismatchOutlet)
 	}
+	envelopeShift := ""
 	if env.ShiftID != "" {
 		st, err := lk.Shift(ctx, env.OutletID, env.ShiftID)
 		if err != nil {
@@ -230,8 +231,11 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 		case shiftOtherOutlet:
 			return c, mismatch(mismatchShift)
 		case shiftClosed:
+			envelopeShift = env.ShiftID
 			slog.Info("sync item for a closed shift (late sale keeps its shift)", "type", it.Type,
 				"idempotencyKey", it.IdempotencyKey, "shiftId", env.ShiftID, "outletId", env.OutletID)
+		case shiftOpen:
+			envelopeShift = env.ShiftID
 		case shiftMissing:
 			slog.Warn("sync item references an unknown shift", "type", it.Type,
 				"idempotencyKey", it.IdempotencyKey, "shiftId", env.ShiftID, "outletId", env.OutletID)
@@ -239,6 +243,7 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 	}
 	out := c
 	out.OutletID = env.OutletID
+	out.EnvelopeShiftID = envelopeShift
 	return out, nil
 }
 

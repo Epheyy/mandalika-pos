@@ -613,13 +613,13 @@ func (s *OrderService) replayAfterConflict(ctx context.Context, tx pgx.Tx, key s
 
 // Refund flips a completed order to refunded and restores stock (Orders.tsx:47-72).
 // Refunding an already-refunded or non-completed order is refused (A06).
-func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason string) error {
+func (s *OrderService) Refund(ctx context.Context, in RefundInput) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if err := s.RefundTx(ctx, tx, outletID, orderID, reason); err != nil {
+	if err := s.RefundTx(ctx, tx, in); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -642,8 +642,9 @@ func (s *OrderService) OrderOutlet(ctx context.Context, orderID string) (string,
 // RefundTx is Refund inside a caller-owned transaction (the caller commits or
 // rolls back). Used by the keyed /sync/batch path so the refund and its
 // operation receipt commit atomically.
-func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderID, reason string) error {
-	reason, err := NormalizeRefund(orderID, reason)
+func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) error {
+	outletID, orderID := in.OutletID, in.OrderID
+	reason, err := NormalizeRefund(orderID, in.Reason)
 	if err != nil {
 		return err
 	}
@@ -672,8 +673,11 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderI
 		return ErrOrderNotRefundable
 	}
 	if _, err = tx.Exec(ctx,
-		`UPDATE orders SET status='refunded', refund_reason=$1, refunded_at=now()
-		   WHERE id=$2`, reason, orderID); err != nil {
+		`UPDATE orders SET status='refunded', refund_reason=$1, refunded_at=now(),
+		        refund_shift_id=NULLIF($3::text,'')::uuid,
+		        refunded_by=NULLIF($4::text,'')::uuid,
+		        refunded_by_name=NULLIF($5::text,'')
+		   WHERE id=$2`, reason, orderID, in.ShiftID, in.UserID, in.UserName); err != nil {
 		return err
 	}
 	// SP-Promo-3a: restore usage for EVERY applied code. Fall back to the singular

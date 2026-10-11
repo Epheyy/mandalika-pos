@@ -186,6 +186,10 @@ type Caller struct {
 	HomeOutletID string `json:"-"`
 	// Server-derived from authenticated request claims; never from a batch body.
 	CanRefund bool `json:"-"`
+	// EnvelopeShiftID is set by attribute() only when the envelope's shift row exists
+	// at the attributed outlet (open or closed); unknown, non-uuid or absent -> "".
+	// Never taken from the request: a dangling id would hit the orders FK (23503).
+	EnvelopeShiftID string `json:"-"`
 }
 
 // ProcessBatch flushes outbox items in order, one at a time, each idempotent.
@@ -220,7 +224,7 @@ func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemRes
 
 // refundFunc runs a refund inside the transaction that also holds the item's
 // operation receipt.
-type refundFunc func(ctx context.Context, tx pgx.Tx, outletID, orderID, reason string) error
+type refundFunc func(ctx context.Context, tx pgx.Tx, in service.RefundInput) error
 
 // receiptOutcome is the stored result of a keyed write. Every type replays as
 // status "ok" with the same orderId the first attempt returned.
@@ -371,7 +375,11 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
-			return p.OrderID, refund(ctx, tx, c.OutletID, p.OrderID, p.Reason)
+			// ShiftID is only ever a shift attribute() found at the attributed outlet.
+			return p.OrderID, refund(ctx, tx, service.RefundInput{
+				OutletID: c.OutletID, OrderID: p.OrderID, Reason: p.Reason,
+				ShiftID: c.EnvelopeShiftID, UserID: c.UserID, UserName: c.DisplayName,
+			})
 		})
 		if err != nil {
 			return fail(err)
