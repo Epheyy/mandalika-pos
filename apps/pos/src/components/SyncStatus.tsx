@@ -30,6 +30,29 @@ function formatTime(iso: string): string {
     : d.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+/** One parked item: what it is, what the cashier captured (e.g. a refund's order, amount and method), why it is parked. */
+export function ReviewRow({ f }: { f: FailedItem }) {
+  return (
+    <div className="bg-red-50 rounded-lg px-2 py-1.5">
+      <p className="font-semibold text-red-700">
+        {typeLabel(f.type)}
+        {f.clientCreatedAt && (
+          <span className="font-normal text-red-500"> · {formatTime(f.clientCreatedAt)}</span>
+        )}
+      </p>
+      {f.detail && (
+        <p className="text-[11px] font-semibold text-red-700 break-words">{f.detail}</p>
+      )}
+      {f.ownedBy && (
+        <p className="text-[10px] font-semibold text-red-700">milik akun {f.ownedBy}</p>
+      )}
+      <p className="text-[10px] text-red-600 break-words">
+        {f.lastError ?? 'Alasan tidak diketahui'}
+      </p>
+    </div>
+  )
+}
+
 interface SyncStatusProps {
   isOnline: boolean
   pendingCount: number
@@ -149,28 +172,7 @@ export const SyncStatus = memo(function SyncStatus({
                   Perlu ditinjau ({review.length})
                 </p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
-                  {review.map((f) => (
-                    <div
-                      key={f.idempotencyKey}
-                      className="bg-red-50 rounded-lg px-2 py-1.5"
-                    >
-                      <p className="font-semibold text-red-700">
-                        {typeLabel(f.type)}
-                        {f.clientCreatedAt && (
-                          <span className="font-normal text-red-500"> · {formatTime(f.clientCreatedAt)}</span>
-                        )}
-                      </p>
-                      {f.detail && (
-                        <p className="text-[11px] font-semibold text-red-700 break-words">{f.detail}</p>
-                      )}
-                      {f.ownedBy && (
-                        <p className="text-[10px] font-semibold text-red-700">milik akun {f.ownedBy}</p>
-                      )}
-                      <p className="text-[10px] text-red-600 break-words">
-                        {f.lastError ?? 'Alasan tidak diketahui'}
-                      </p>
-                    </div>
-                  ))}
+                  {review.map((f) => <ReviewRow key={f.idempotencyKey} f={f} />)}
                 </div>
                 <button type="button"
                   onClick={() => { onRetryFailed(); setOpen(false) }}

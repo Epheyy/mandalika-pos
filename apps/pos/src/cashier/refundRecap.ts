@@ -14,7 +14,7 @@ export interface RefundRecap {
   /** Refunds stamped with this shift and parked for review: shown, never subtracted (the server never counted them). */
   parkedCount: number
   parkedTotal: number
-  /** Queued refunds stamped with this shift but captured without sale-shift detail: not in the math. */
+  /** Queued refunds stamped with this shift but captured without the display snapshot: not in the math. */
   unknownDetailCount: number
 }
 
@@ -44,7 +44,9 @@ export function refundRecap(shift: Shift | null, queued: readonly QueuedRefund[]
     }
     const method = r.payload.paymentMethod
     const saleShift = r.payload.saleShiftId
-    if (total === null || typeof method !== 'string' || method === '' || typeof saleShift !== 'string' || saleShift === '') {
+    // Key absent = captured before the snapshot (unknown). Present but null = the sale had no shift:
+    // the server counts that as "other shift" too (shift_id IS DISTINCT FROM this one).
+    if (total === null || typeof method !== 'string' || method === '' || !('saleShiftId' in r.payload) || (saleShift !== null && typeof saleShift !== 'string')) {
       unknownDetailCount += 1
       continue
     }

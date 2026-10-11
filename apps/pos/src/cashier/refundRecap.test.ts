@@ -78,6 +78,12 @@ describe('shift recap: refunds paid from this drawer for other shifts', () => {
     expect(applyRefundRecap(byMethod, 800000, rec).byMethod).toEqual(byMethod)
   })
 
+  it('subtracts a refund whose sale had no shift (saleShiftId null): the server counts it as another shift', () => {
+    const r = run(shift(), [q({ payload: { total: 40000, paymentMethod: 'cash', saleShiftId: null } })])
+    expect(r.byMethod.cash).toBe(460000)
+    expect(r.total).toBe(760000)
+  })
+
   it('lists legacy queued refunds without sale-shift detail as a note, not in the math', () => {
     const legacy = q({ payload: { orderId: 'o1', reason: 'x' } })
     const rec = refundRecap(shift(), [legacy])

@@ -243,14 +243,18 @@ function ShiftRecapPanelBody({
     setTab(next)
   }
 
-  // A refund leaving the queue moves into the server's per-shift figure: reload so it is counted once.
+  // A refund leaving the queue moves into the server's per-shift figure: refresh ONLY the shift so it
+  // is counted once. A full reload would wipe the 'Terhitung' counts the cashier is typing.
   const queueSignature = queuedRefunds.map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
   const lastQueueSignature = useRef(queueSignature)
   useEffect(() => {
     if (lastQueueSignature.current === queueSignature) return
     lastQueueSignature.current = queueSignature
-    if (tab === 'rekapan') void loadRekap()
-  }, [queueSignature, tab, loadRekap])
+    if (tab !== 'rekapan') return
+    void api.request<components['schemas']['ShiftResponse']>('GET', '/api/v1/shifts/current')
+      .then((r) => { if (r.data) setCurrentShift((prev) => (prev && prev.id === r.data!.id ? r.data : prev)) })
+      .catch(() => { /* offline: the next poll or reopen refreshes it */ })
+  }, [queueSignature, tab])
 
   // Load the active tab's data on mount (panel open) and on every tab change.
   useEffect(() => {

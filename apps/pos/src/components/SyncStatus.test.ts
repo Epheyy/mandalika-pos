@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { SyncStatus } from './SyncStatus'
+import { ReviewRow, SyncStatus } from './SyncStatus'
 
 const item = (k: string) => ({ idempotencyKey: k, type: 'order', lastError: 'x' })
 const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStaticMarkup(createElement(SyncStatus, {
@@ -44,5 +44,19 @@ describe('SyncStatus chip', () => {
 
   it('offline with review items still counts them', () => {
     expect(render({ isOnline: false, review: [item('a')] })).toContain('Offline · 1 perlu ditinjau')
+  })
+})
+
+describe('review row detail (A06)', () => {
+  const row = (f: Parameters<typeof ReviewRow>[0]['f']) => renderToStaticMarkup(createElement(ReviewRow, { f }))
+  it('shows what a refund captured, above the reason', () => {
+    const html = row({ idempotencyKey: 'k', type: 'refund', lastError: 'sudah direfund', detail: 'BSD-G0007 · Rp 225.000 · Tunai' })
+    expect(html).toContain('BSD-G0007 · Rp 225.000 · Tunai')
+    expect(html.indexOf('BSD-G0007')).toBeLessThan(html.indexOf('sudah direfund'))
+  })
+  it('renders an item without a snapshot exactly as before (no detail line)', () => {
+    const html = row({ idempotencyKey: 'k', type: 'refund', lastError: 'ditolak' })
+    expect(html).toContain('ditolak')
+    expect(html).not.toContain('text-[11px]')
   })
 })
