@@ -1113,7 +1113,7 @@ export default function CashierScreen() {
         onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds() })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds() })}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}

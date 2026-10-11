@@ -31,6 +31,8 @@ interface OrderHistoryPanelProps {
   shiftUnsynced?: boolean
   /** Orders with a refund already queued or parked on this device. */
   queuedRefundOrderIds: ReadonlySet<string>
+  /** Orders whose refund already synced from this tablet (stale cached rows may still say completed). */
+  syncedRefundOrderIds?: ReadonlySet<string>
 }
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', refunded: 'Refund', cancelled: 'Batal',
@@ -46,7 +48,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => today())
   const [to, setTo] = useState(() => today())
   const [search, setSearch] = useState('')
@@ -287,6 +289,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         hasOpenShift={hasOpenShift}
                         shiftUnsynced={shiftUnsynced}
                         queuedOrderIds={queuedRefundOrderIds}
+                        syncedRefundOrderIds={syncedRefundOrderIds}
                         onRefund={onRefund}
                       />
                     </div>

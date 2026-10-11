@@ -6,6 +6,7 @@ export { SyncEngine, RECEIVE_CONFLICT_CODES, BATCH_TIMEOUT_MS, BACKOFF_BASE_MS, 
 export type { ApiLike, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund } from './engine'
 export { Outbox, OUTBOX_KEY, MAX_ATTEMPTS, summarizeQueue } from './outbox'
 export type { QueueSummary, OutboxItem, OutboxEnvelope, OutboxType, OutboxStatus, OutboxCorruption, ReviewItem } from './outbox'
+export { SyncedRefunds, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
 export { Snapshot } from './snapshot'
 export { getDeviceId, uuid } from './device'
 export { defaultKV, readJSON, writeJSON, getKV, initSecureKV } from './storage'

@@ -3,6 +3,7 @@ import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type Ou
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
+import { SyncedRefunds } from './syncedRefunds'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
@@ -180,6 +181,7 @@ export class SyncEngine {
   readonly outbox: Outbox
   readonly snapshot: Snapshot
   readonly pending: PendingCredits
+  private readonly syncedRefunds: SyncedRefunds
   private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
@@ -210,6 +212,7 @@ export class SyncEngine {
     this.outbox = new Outbox(kv)
     this.snapshot = new Snapshot(kv)
     this.pending = new PendingCredits(kv)
+    this.syncedRefunds = new SyncedRefunds(kv)
     this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
   }
@@ -489,6 +492,11 @@ export class SyncEngine {
       }))
   }
 
+  /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */
+  syncedRefundOrderIds(): Set<string> {
+    return this.syncedRefunds.ids()
+  }
+
   /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
   queuedRefundOrderIds(): Set<string> {
     return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
@@ -701,6 +709,11 @@ export class SyncEngine {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
         updates.push({ key: res.idempotencyKey, op: 'ack' })
+        if (type === 'refund') {
+          // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
+          const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
+          if (typeof acked?.payload.orderId === 'string') this.syncedRefunds.add(acked.payload.orderId)
+        }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         // SP4: surface the completed transfer to the UI so the tanda-terima
         // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means

@@ -10,6 +10,7 @@ type Order = components['schemas']['Order']
 export const REFUND_NO_PERMISSION = 'Butuh izin Proses Refund'
 export const REFUND_QUEUED = 'Refund menunggu sinkronisasi'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
+export const REFUND_DONE = 'Sudah direfund'
 export const REFUND_SHIFT_UNSYNCED = 'Shift belum tersinkron'
 
 export const PAYMENT_LABELS: Record<string, string> = {
@@ -30,10 +31,13 @@ export interface RefundAvailabilityInput {
   shiftUnsynced?: boolean
   /** Orders with a queued or parked (unacknowledged) refund on this device. */
   queuedOrderIds: ReadonlySet<string>
+  /** Orders whose refund this tablet already saw acknowledged: a stale cached row may still say completed. */
+  syncedRefundOrderIds?: ReadonlySet<string>
 }
 
 export function refundAvailability(i: RefundAvailabilityInput): RefundAvailability {
   if (i.order.status !== 'completed') return { kind: 'hidden' }
+  if (i.syncedRefundOrderIds?.has(i.order.id)) return { kind: 'blocked', reason: REFUND_DONE }
   if (!i.canRefund) return { kind: 'blocked', reason: REFUND_NO_PERMISSION }
   if (i.queuedOrderIds.has(i.order.id)) return { kind: 'blocked', reason: REFUND_QUEUED }
   if (!i.hasOpenShift) return { kind: 'blocked', reason: i.shiftUnsynced ? REFUND_SHIFT_UNSYNCED : REFUND_NO_SHIFT }
@@ -122,11 +126,13 @@ export function refundGateProps(i: {
   user: Parameters<typeof userCanRefund>[0]
   currentShift: { id: string } | null | undefined
   queuedOrderIds: ReadonlySet<string>
+  syncedRefundOrderIds?: ReadonlySet<string>
 }) {
   return {
     canRefund: userCanRefund(i.user),
     hasOpenShift: !!i.currentShift?.id,
     shiftUnsynced: !!i.currentShift && !i.currentShift.id,
     queuedRefundOrderIds: i.queuedOrderIds,
+    syncedRefundOrderIds: i.syncedRefundOrderIds,
   }
 }
