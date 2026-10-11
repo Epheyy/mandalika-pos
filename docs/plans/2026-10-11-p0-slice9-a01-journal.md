@@ -191,3 +191,8 @@ Decisions and notes:
 - Optional native guard: refuse `replaceAll` when `meta.migration` is `verified` or `sealed` (defence in depth for the JS rule above).
 - `open()` and `apply()` must ALWAYS settle (resolve or reject), never hang: JS has no timeout around them. `open()` is idempotent on one connection (JS may call it more than once per launch).
 - `meta` values such as `quarantine.<key>` can be large (a whole raw item row); do not cap them at CursorWindow-sized limits in a way that truncates silently.
+
+### Phase B re-review LOWs (closed)
+
+- R1: every seal also writes a durable Preferences key `mandalika.pos.journalTakenOverAt` (ISO time, before the sentinel) and `hasTakeoverEvidence` counts it, so an empty-source migration (no legacy backup, the expected fleet case) still leaves evidence if the sentinel is lost and the journal then fails to open: BootError, not the Q1 fallback.
+- R2: if the journal opens but its `meta.migration` is not `verified`/`sealed` while Preferences shows takeover evidence and K is not a sentinel, boot stops with "journal hilang"; no fresh `migrate()` from Preferences ever runs over it.

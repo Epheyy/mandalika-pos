@@ -20,6 +20,9 @@ const MIGRATION_KEY = 'migration'
 const SOURCE_SHA_KEY = 'source_sha256'
 const SOURCE_COUNT_KEY = 'source_count'
 const MERGED_SHA_KEY = 'merged_from_sha256'
+/** Durable Preferences record (ISO time) written at every seal, so takeover evidence survives a lost
+ *  sentinel even when there was no legacy backup (empty queue, the expected fleet case). */
+export const TAKEOVER_KEY = 'mandalika.pos.journalTakenOverAt'
 const QUARANTINE_META_PREFIX = 'quarantine.'
 
 export const MSG_VERSION_MISMATCH =
@@ -163,6 +166,10 @@ export async function initJournal(deps: InitJournalDeps = {}): Promise<JournalBo
     } catch (err) {
       throw err instanceof JournalBootError ? err : new JournalBootError(msgSealFailed(errMsg(err)), err)
     }
+  } else if (tookOverBefore) {
+    // Preferences says this tablet moved to the journal but the journal does not say so: never start a
+    // fresh copy from Preferences over it.
+    throw new JournalBootError(MSG_JOURNAL_LOST)
   } else {
     if (src.kind === 'malformed') return fallback('malformed_queue', new Error('stored queue is not a well-formed item list'))
     try {
@@ -181,6 +188,7 @@ const isTakenOver = (disk: JournalReadAllResult): boolean =>
   disk.meta[MIGRATION_KEY] === 'verified' || disk.meta[MIGRATION_KEY] === 'sealed'
 
 function hasTakeoverEvidence(kv: KV): boolean {
+  if (kv.get(TAKEOVER_KEY) !== null) return true
   if (kv.keys?.().some((k) => k.startsWith(LEGACY_BACKUP_PREFIX))) return true
   const marker = kv.get(OUTBOX_CORRUPTION_MARKER_KEY)
   if (!marker) return false
@@ -363,6 +371,7 @@ async function sealQueue(
       for (let n = 2; kv.get(key) !== null && kv.get(key) !== raw; n++) key = `${LEGACY_BACKUP_PREFIX}${at}.${n}`
       await kv.setDurable(key, raw)
     }
+    await kv.setDurable(TAKEOVER_KEY, at)
     await kv.setDurable(OUTBOX_KEY, makeSentinel(at, s.count, s.sha256))
     await store.applyBoot({ upserts: [], deletes: [], meta: { [MIGRATION_KEY]: 'sealed' } })
   } catch (err) {
