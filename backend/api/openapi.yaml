@@ -1664,9 +1664,27 @@ components:
       type: object
       required: [type, idempotencyKey, payload]
       properties:
-        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow, customer_create] }
+        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive] }
         idempotencyKey: { type: string }
         payload: { type: object, additionalProperties: true }
+        # Optional and NOT nullable: openapi-typescript drops nullable on $ref schemas, so
+        # "absent" is the only legacy/unset form (A04). Sibling of payload, never inside it.
+        envelope: { $ref: '#/components/schemas/SyncEnvelope' }
+    SyncEnvelope:
+      type: object
+      description: >-
+        Capture-time identity stamped by the POS when the operation was committed to the
+        outbox (A04). The server attributes the item to this outlet/user instead of the
+        flush-time request headers, after verifying it against the authenticated caller.
+      required: [v, outletId, userId, deviceId, capturedAt]
+      properties:
+        v: { type: integer, description: Envelope format version; 1 is the only version defined. }
+        outletId: { type: string }
+        userId: { type: string }
+        deviceId: { type: string }
+        capturedAt: { type: string, format: date-time }
+        shiftId: { type: string }
+        appVersion: { type: string }
     SyncBatchRequest:
       type: object
       required: [items]
@@ -1687,7 +1705,7 @@ components:
           description: >-
             Machine-readable outcome, present exactly when status is "error". Clients must
             treat a missing or unknown code as the pre-contract behaviour (an older server,
-            e.g. after a rollback, omits it). actor_mismatch is reserved and not produced yet.
+            e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04).
         retryable:
           type: boolean
           description: >-
@@ -4107,6 +4125,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SyncVersionResponse' }
+        '403':
+          description: the caller has no active outlet
   /api/v1/sync/pull:
     get:
       operationId: syncPull
