@@ -14,7 +14,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 |---|---|---|
 | A13 | Concurrent transfers double-move stock | **Done** — slice 1 |
 | A11 | Retried writes applied twice | **Done** for /sync/batch — slice 2 |
-| A01 | Sale not durable on device | **Partial** — awaited writes (APK 1.1+); full fix = SQLite journal (slice 9) |
+| A01 | Sale not durable on device | **Partial** - awaited writes (APK 1.1+); slice 9 SQLite journal: plan `docs/plans/2026-10-11-p0-slice9-a01-journal.md` (owner answers recorded), Phase A (seam + journal store) done locally + Opus-reviewed twice, not pushed; next Phase B (initJournal migration, wiring, synced refunds) |
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
@@ -101,7 +101,7 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
    implementer → Opus review → failing-first PG gate → hidden-revision deploy. Pre-go-live: audit real
    accounts' `process_refund` (test DB: all 4 accounts have it; no role grants it by default).
-2. **P0 slice 9 (A01b)** SQLite journal with verified, resumable migration (APK).
+2. **P0 slice 9 (A01b)** in progress: Phase B next (T4 initJournal, T5 wiring, T7 synced refunds), then Phase C (T6 Java plugin, T8 version 1.7, T10 decide.go strictly newer), then APK 1.7 + emulator kill tests. Read the plan's review-rule sections first.
 3. **Rollout:** APK 1.5 to the fleet → set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 4. **Follow-ups (owner to prioritise):**
    - Slice 7: sales made while a shift_open is still syncing (incl. held by M3) carry no shift (envelope stamps only server-known shifts); pre-existing, window now longer.

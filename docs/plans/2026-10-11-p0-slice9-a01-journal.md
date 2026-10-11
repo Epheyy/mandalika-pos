@@ -162,3 +162,8 @@ Phase B/C rules:
 - M5 corruption marker/quarantine keys must be read from Preferences (separate KV), not the facade; give the facade only to SyncedRefunds.
 - After restart, show pending/most recent queued orders before checkout (residual crash-after-commit duplicate risk ~1e-8/sale accepted).
 - Fake: async default or parity suite under `hold`; add a REPLACE-deletion risk test.
+
+## Phase A closed (2026-10-11)
+
+Commits `6185819` `ca935c5` (seam + store) · `8b80eac` `e07c16f` (H1/H2/M1/M3/L1) · `25e08ba` `8b73f8b` (re-review HIGH-1 reload-on-reject, HIGH-2 resync never touches visible meta, idle()/refresh(), seqFloor, seq after ready). Sync 210 tests, quality:ci, browser:ci green. Not pushed.
+**Phase B wiring rule:** build or refresh a replacement Outbox/engine only after `old.idle()` and `store.idle()`, then `await outbox.refresh()`; `add` rejects stay loud; accepted residual: an add whose apply committed but could not be read back stays invisible until restart (seqFloor prevents collision).
