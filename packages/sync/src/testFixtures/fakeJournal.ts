@@ -77,7 +77,7 @@ export function createFakeJournal(persisted?: FakeJournalPersisted): FakeJournal
     mode: 'ok',
     failAt: undefined,
     held: [],
-    open: { quickCheck: 'ok', journalMode: 'wal', synchronous: SYNCHRONOUS_FULL, userVersion: 1 },
+    open: { quickCheck: 'ok', journalMode: 'truncate', synchronous: SYNCHRONOUS_FULL, userVersion: 1 },
     openError: undefined,
     readAllFails: false,
     applies: [],

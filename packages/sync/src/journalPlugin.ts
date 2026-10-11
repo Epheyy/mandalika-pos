@@ -6,7 +6,7 @@ import { registerPlugin } from '@capacitor/core'
 export interface JournalOpenResult {
   /** `PRAGMA quick_check` text; only the exact string 'ok' is acceptable. */
   quickCheck: string
-  /** Effective `journal_mode` (informational: 'wal' or 'delete'). */
+  /** Effective `journal_mode`; the store only accepts 'truncate' or 'persist'. */
   journalMode: string
   /** Effective `PRAGMA synchronous` as SQLite reports it: 0 OFF, 1 NORMAL, 2 FULL, 3 EXTRA. */
   synchronous: number

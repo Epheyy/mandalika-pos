@@ -532,6 +532,22 @@ describe('JournalOutboxStore refuses an unsafe database', () => {
     }
   })
 
+  it('journal mode that can lose a commit on power loss (wal, delete, memory, off)', async () => {
+    for (const mode of ['wal', 'delete', 'memory', 'off', '']) {
+      const fake = createFakeJournal()
+      fake.ctl.open = { ...fake.ctl.open, journalMode: mode }
+      await expectRefused(fake, 'journal_mode')
+    }
+  })
+
+  it('accepts the truncate and persist journal modes (any case)', async () => {
+    for (const mode of ['truncate', 'persist', 'TRUNCATE']) {
+      const fake = createFakeJournal()
+      fake.ctl.open = { ...fake.ctl.open, journalMode: mode }
+      await expect(JournalOutboxStore.open(fake.plugin)).resolves.toBeDefined()
+    }
+  })
+
   it('open() itself failing', async () => {
     const fake = createFakeJournal()
     fake.ctl.openError = new Error('unable to open database file')

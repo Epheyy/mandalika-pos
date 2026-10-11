@@ -10,7 +10,11 @@ export const JOURNAL_KV_KEY = 'mandalika.pos.syncedRefunds'
 /** SQLite `PRAGMA synchronous`: 2 = FULL, 3 = EXTRA. Anything lower can lose a commit on power loss. */
 const SYNCHRONOUS_FULL = 2
 
-export type JournalUnavailableCode = 'open_failed' | 'quick_check_failed' | 'not_full_sync' | 'row_corrupt'
+/** Rollback-journal modes that stay durable with synchronous=FULL. WAL is out (compat WAL drops to
+ *  NORMAL), and so is DELETE on old SQLite builds (power-loss window). */
+const SAFE_JOURNAL_MODES = new Set(['truncate', 'persist'])
+
+export type JournalUnavailableCode = 'open_failed' | 'quick_check_failed' | 'not_full_sync' | 'journal_mode' | 'row_corrupt'
 
 /** The journal cannot be adopted as the system of record. Typed so boot code can choose between
  *  "keep selling on the old storage" (before takeover) and a hard stop (after). */
@@ -110,6 +114,9 @@ export class JournalOutboxStore implements OutboxStore {
     }
     if (!(info.synchronous >= SYNCHRONOUS_FULL)) {
       throw new JournalUnavailableError('not_full_sync', `journal synchronous level ${info.synchronous} is below FULL`)
+    }
+    if (!SAFE_JOURNAL_MODES.has(String(info.journalMode).toLowerCase())) {
+      throw new JournalUnavailableError('journal_mode', `journal mode ${info.journalMode} is not truncate or persist`)
     }
     const { rows, meta } = await this.plugin.readAll()
     for (const row of rows) {
