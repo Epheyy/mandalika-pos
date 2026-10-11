@@ -725,9 +725,11 @@ func TestRefundParityPostgres(t *testing.T) {
 		closeShift(s0)
 		s := newShift(outX, "open")
 		env := map[string]any{"v": 1, "outletId": outX, "userId": userX, "deviceId": device, "shiftId": s, "capturedAt": time.Now().UTC().Format(time.RFC3339)}
+		openEnv := map[string]any{"v": 1, "outletId": outX, "userId": userX, "deviceId": device, "capturedAt": time.Now().UTC().Format(time.RFC3339)}
 		raw, err := json.Marshal(map[string]any{"items": []any{
 			map[string]any{"type": "refund", "idempotencyKey": device + ":c24r", "payload": map[string]any{"orderId": o.id, "reason": "rusak"}, "envelope": env},
 			map[string]any{"type": "shift_close", "idempotencyKey": device + ":c24c", "payload": map[string]any{"shiftId": s, "closingCash": 0}, "envelope": env},
+			map[string]any{"type": "shift_open", "idempotencyKey": device + ":c24o", "payload": map[string]any{"startingCash": 0}, "envelope": openEnv},
 		}})
 		if err != nil {
 			t.Fatal(err)
@@ -743,7 +745,7 @@ func TestRefundParityPostgres(t *testing.T) {
 					Results []result `json:"results"`
 				} `json:"data"`
 			}
-			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Data.Results) != 2 {
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Data.Results) != 3 {
 				cur.Fatalf("batch %d %s", w.Code, w.Body.String())
 			}
 			return out.Data.Results
@@ -757,6 +759,8 @@ func TestRefundParityPostgres(t *testing.T) {
 		if _, err = blocker.Exec(ctx, `SELECT 1 FROM orders WHERE id=$1 FOR UPDATE`, o.id); err != nil {
 			t.Fatal(err)
 		}
+		// A Fatalf must not leave the row lock held (it would hang pool.Close).
+		defer blocker.Rollback(ctx)
 		held := send()
 		if err = blocker.Rollback(ctx); err != nil {
 			t.Fatal(err)
@@ -769,9 +773,17 @@ func TestRefundParityPostgres(t *testing.T) {
 		if held[1].Error != "Tutup shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis." {
 			t.Fatalf("close hold message: %+v", held[1])
 		}
+		if held[2].Error != "Buka shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis." {
+			t.Fatalf("open hold message: %+v", held[2])
+		}
 		var status string
 		if err = pool.QueryRow(ctx, `SELECT status FROM shifts WHERE id=$1`, s).Scan(&status); err != nil || status != "open" {
 			t.Fatalf("shift must still be open: %q %v", status, err)
+		}
+		const openShifts = `SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`
+		openBefore := count(openShifts, outX)
+		if n := count(`SELECT count(*) FROM operation_receipts WHERE idempotency_key=$1`, device+":c24o"); n != 0 {
+			t.Fatalf("held open must claim no receipt: %d", n)
 		}
 		if n := count(`SELECT count(*) FROM operation_receipts WHERE idempotency_key=$1`, device+":c24c"); n != 0 {
 			t.Fatalf("held close must not claim a receipt: %d", n)
@@ -782,6 +794,12 @@ func TestRefundParityPostgres(t *testing.T) {
 			if r.Status != "ok" {
 				t.Fatalf("retry item %d: %+v", i, r)
 			}
+		}
+		if err = pool.QueryRow(ctx, `SELECT status FROM shifts WHERE id=$1`, s).Scan(&status); err != nil || status != "closed" {
+			t.Fatalf("old shift must be closed after the retry: %q %v", status, err)
+		}
+		if n := count(openShifts, outX); n != openBefore {
+			t.Fatalf("exactly the new shift replaces the old open one: before=%d after=%d", openBefore, n)
 		}
 		if got := readShift(s); got.CashRefundsPaid != 100 || !jsonEq(got.ByMethod, `{"cash":100}`) {
 			t.Fatalf("close snapshot must include the refund: %+v", got)

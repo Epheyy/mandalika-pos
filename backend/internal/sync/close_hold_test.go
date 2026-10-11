@@ -84,3 +84,29 @@ func TestOnlyShiftCloseIsHeldAndOnlyByEarlierItems(t *testing.T) {
 		t.Fatalf("called=%v res=%+v", called, res.Results)
 	}
 }
+
+func TestShiftOpenHeldWithCloseAfterEarlierRetryableFailure(t *testing.T) {
+	items := []BatchItem{{Type: "refund", IdempotencyKey: "r1"}, {Type: "shift_close", IdempotencyKey: "c1"},
+		{Type: "shift_open", IdempotencyKey: "n1"}, {Type: "order", IdempotencyKey: "o1"}}
+	res, called := runHoldBatch(t, items, map[string]ItemResult{"r1": retryableResult("r1")})
+	if len(called) != 2 || called[0] != "r1" || called[1] != "o1" {
+		t.Fatalf("only the refund and the sale may run: called=%v", called)
+	}
+	for i, want := range map[int]string{1: closeHeldMessage, 2: openHeldMessage} {
+		got := res.Results[i]
+		if got.Status != "error" || got.Retryable == nil || !*got.Retryable || got.Code != "busy" || got.Error != want {
+			t.Fatalf("item %d must be held: %+v", i, got)
+		}
+	}
+	if res.Results[3].Status != "ok" {
+		t.Fatalf("sales are never held: %+v", res.Results[3])
+	}
+}
+
+func TestShiftOpenRunsWithoutEarlierRetryableFailure(t *testing.T) {
+	items := []BatchItem{{Type: "refund", IdempotencyKey: "r1"}, {Type: "shift_open", IdempotencyKey: "n1"}}
+	res, called := runHoldBatch(t, items, map[string]ItemResult{"r1": permanentResult("r1")})
+	if len(called) != 2 || res.Results[1].Status != "ok" {
+		t.Fatalf("open must run: called=%v res=%+v", called, res.Results)
+	}
+}
