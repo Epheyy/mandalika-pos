@@ -30,7 +30,7 @@ func TestRefundPermissionParityRegression(t *testing.T) {
 		t.Fatalf("direct: status=%d calls=%d", w.Code, directCalls)
 	}
 	batchCalls := 0
-	e := &Engine{}
+	e := &Engine{Lookup: &fakeLookup{}}
 	result := e.processOneWithRefund(ctx, Caller{OutletID: "outlet-original", UserID: "cashier-original"}, BatchItem{
 		Type: "refund", IdempotencyKey: "refund-original-key",
 		Payload: json.RawMessage(`{"orderId":"order-original","reason":"sealed return"}`),
@@ -61,7 +61,7 @@ func TestRefundPermissionDispatch(t *testing.T) {
 			item := BatchItem{Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"original-order","reason":"original reason","role":"admin","permissions":["process_refund"],"CanRefund":true,"alreadyPaid":true,"approvedBy":"historical-supervisor","clientCreatedAt":"2020-01-01T00:00:00Z","outletId":"forged-outlet","userId":"forged-user"}`)}
 			original := append([]byte(nil), item.Payload...)
 			calls := 0
-			result := (&Engine{}).processOneWithRefund(ctx, caller, item, func(_ context.Context, _ pgx.Tx, outlet, order, reason string) error {
+			result := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(_ context.Context, _ pgx.Tx, outlet, order, reason string) error {
 				calls++
 				if outlet != "active-outlet" || order != "original-order" || reason != "original reason" {
 					t.Fatalf("scope/arguments changed: %s %s %s", outlet, order, reason)
@@ -85,7 +85,7 @@ func TestRefundPermissionDispatch(t *testing.T) {
 func TestRefundScopeFailurePropagatesWithoutSuccess(t *testing.T) {
 	// The real service's outlet/order SQL remains unchanged. This checks only
 	// scoped argument forwarding and propagation of its existing failure.
-	result := (&Engine{}).processOneWithRefund(context.Background(), Caller{OutletID: "outlet-a", CanRefund: true}, BatchItem{
+	result := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{OutletID: "outlet-a", CanRefund: true}, BatchItem{
 		Type: "refund", IdempotencyKey: "original-key", Payload: json.RawMessage(`{"orderId":"order-in-b","reason":"sealed"}`),
 	}, func(_ context.Context, _ pgx.Tx, outlet, order, _ string) error {
 		if outlet != "outlet-a" || order != "order-in-b" {
@@ -110,7 +110,7 @@ func TestMixedBatchPreservesIndependentResults(t *testing.T) {
 		func(ctx context.Context, caller Caller, item BatchItem) ItemResult {
 			seen = append(seen, item.IdempotencyKey)
 			if item.Type == "refund" {
-				return (&Engine{}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, string, string, string) error { refundCalls++; return nil })
+				return (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, string, string, string) error { refundCalls++; return nil })
 			}
 			// Independent successes are synthetic, not order/customer DB coverage.
 			return ItemResult{IdempotencyKey: item.IdempotencyKey, Status: "ok"}
@@ -136,7 +136,7 @@ func TestMixedBatchPreservesIndependentResults(t *testing.T) {
 
 func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 	for _, typ := range []string{"refund", "order", "shift_open", "shift_close", "cash_flow", "customer_create", "transfer_receive"} {
-		result := (&Engine{}).processOne(context.Background(), Caller{}, BatchItem{Type: typ, IdempotencyKey: typ, Payload: json.RawMessage(`{`)})
+		result := (&Engine{Lookup: &fakeLookup{}}).processOne(context.Background(), Caller{}, BatchItem{Type: typ, IdempotencyKey: typ, Payload: json.RawMessage(`{`)})
 		if result.Status != "error" || result.IdempotencyKey != typ {
 			t.Fatalf("%s result=%+v", typ, result)
 		}
@@ -157,7 +157,7 @@ func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 		t.Fatal("deserialized refund authority")
 	}
 	// Existing allowed service failures must stay non-success under the same key.
-	r := (&Engine{}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
+	r := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "same", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
 		return apperr.New(apperr.Rejected, "synthetic service rejection")
 	})
 	if r.Status != "error" || r.IdempotencyKey != "same" || !strings.Contains(r.Error, "service rejection") {
@@ -167,10 +167,61 @@ func TestRefundGuardPrecedesDecodeAndOtherDispatchIsUnchanged(t *testing.T) {
 		t.Fatalf("a marked rejection must be non-retryable: %+v", r)
 	}
 	// An unmarked error is a server fault: sanitized text, retryable.
-	r = (&Engine{}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "plain", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
+	r = (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), Caller{CanRefund: true}, BatchItem{Type: "refund", IdempotencyKey: "plain", Payload: json.RawMessage(`{}`)}, func(context.Context, pgx.Tx, string, string, string) error {
 		return errors.New("synthetic service fault")
 	})
 	if r.Status != "error" || r.Error != internalMessage || r.Code != string(apperr.Internal) || r.Retryable == nil || !*r.Retryable {
 		t.Fatalf("unmarked error must be internal and retryable: %+v", r)
 	}
+}
+
+// A06: a refund that already committed must replay as ok even when the caller's
+// permission was removed since (same rule as the M3 attribution replay); only a
+// key that never committed is forbidden.
+func TestRefundForbiddenReplaysACommittedKey(t *testing.T) {
+	item := BatchItem{Type: "refund", IdempotencyKey: "dev:committed", Payload: json.RawMessage(`{"orderId":"order-1","reason":"rusak"}`)}
+	caller := Caller{OutletID: "outlet-1", UserID: "u1", CanRefund: false}
+	refunds := 0
+	refund := func(context.Context, pgx.Tx, string, string, string) error { refunds++; return nil }
+
+	applied := (&Engine{Lookup: &fakeLookup{applied: map[string]string{"dev:committed": "order-1"}}}).
+		processOneWithRefund(context.Background(), caller, item, refund)
+	if applied.Status != "ok" || applied.OrderID != "order-1" || applied.IdempotencyKey != "dev:committed" || applied.Error != "" || refunds != 0 {
+		t.Fatalf("committed key must replay ok without a second refund: %+v refunds=%d", applied, refunds)
+	}
+
+	notApplied := (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(context.Background(), caller, item, refund)
+	if notApplied.Status != "error" || notApplied.Error != permissionMessage || notApplied.Code != string(apperr.Forbidden) ||
+		notApplied.Retryable == nil || *notApplied.Retryable || refunds != 0 {
+		t.Fatalf("uncommitted key must stay forbidden: %+v refunds=%d", notApplied, refunds)
+	}
+
+	broken := (&Engine{Lookup: &fakeLookup{err: errors.New("synthetic db blip")}}).processOneWithRefund(context.Background(), caller, item, refund)
+	if broken.Status != "error" || broken.Code != string(apperr.Internal) || broken.Retryable == nil || !*broken.Retryable || refunds != 0 {
+		t.Fatalf("a failed probe must be retryable, never a review item: %+v", broken)
+	}
+}
+
+// The probe is scoped by the capture-time outlet, like every other replay.
+func TestRefundForbiddenProbeUsesEnvelopeOutlet(t *testing.T) {
+	var gotType, gotScope string
+	lk := &scopeSpy{fakeLookup: fakeLookup{}, onApplied: func(typ, scope string) { gotType, gotScope = typ, scope }}
+	item := BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: json.RawMessage(`{}`),
+		Envelope: json.RawMessage(`{"v":1,"outletId":"X","userId":"u1","deviceId":"dev","capturedAt":"2026-01-01T00:00:00Z"}`)}
+	lk.outlets = map[string]bool{"X": true}
+	(&Engine{Lookup: lk}).processOneWithRefund(context.Background(), Caller{OutletID: "Y", UserID: "u1", Role: "admin"}, item,
+		func(context.Context, pgx.Tx, string, string, string) error { return nil })
+	if gotType != "refund" || gotScope != "X" {
+		t.Fatalf("probe type=%q scope=%q", gotType, gotScope)
+	}
+}
+
+type scopeSpy struct {
+	fakeLookup
+	onApplied func(typ, scope string)
+}
+
+func (s *scopeSpy) Applied(ctx context.Context, typ, key, scope string) (string, string, bool, error) {
+	s.onApplied(typ, scope)
+	return s.fakeLookup.Applied(ctx, typ, key, scope)
 }

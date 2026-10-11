@@ -26,7 +26,7 @@ func TestSaleInputBatchMappingAndIndependentResults(t *testing.T) {
 	calls, refundCalls := 0, 0
 	r, err := processBatch(context.Background(), Caller{OutletID: "trusted-outlet", UserID: "trusted-user"}, items,
 		func(ctx context.Context, c Caller, it BatchItem) ItemResult {
-			return (&Engine{}).processOneWithCommands(ctx, c, it,
+			return (&Engine{Lookup: &fakeLookup{}}).processOneWithCommands(ctx, c, it,
 				func(context.Context, pgx.Tx, string, string, string) error { refundCalls++; return nil },
 				func(_ context.Context, in service.CreateOrderInput) (string, bool, bool, error) {
 					calls++
