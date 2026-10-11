@@ -330,6 +330,32 @@ describe('review state is rollback-safe', () => {
     expect(engine.outbox.all()[0].payload).toEqual({ orderId: 'o1' })
   })
 
+  it.each(['rejected', 'conflict'])('a refund refused with `%s` (A06 rules) is review: payload kept, never deleted, retried under the same key', async (code) => {
+    const { kv } = controllableKV()
+    const sentKeys: string[] = []
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => {
+      sentKeys.push(...body.items.map((i) => i.idempotencyKey))
+      return {
+        data: {
+          processed: 0, version: 0,
+          results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'error', error: 'sudah direfund', code, retryable: false })),
+        },
+      }
+    })
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
+    const payload = { orderId: 'o1', reason: 'rusak', orderNumber: 'BSD-G0007', total: 225000, paymentMethod: 'cash', saleShiftId: 's0' }
+    await engine.outbox.add('refund', 'dev:r1', payload)
+    await engine.flush()
+    expect(engine.reviewItems()).toMatchObject([{ type: 'refund', reviewCode: code, payload }])
+    expect(engine.outbox.all()[0].payload).toEqual(payload)
+    expect(oldPending(engine.outbox.all() as OutboxItem[])).toEqual([])
+    expect(await engine.flush()).toBeNull() // never auto-retried
+    await engine.retryFailed()
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+    expect(sentKeys).toEqual(['dev:r1', 'dev:r1'])
+    expect(engine.outbox.all()[0].payload).toEqual(payload)
+  })
+
   it('manual retry clears the review fields, resets attempts and the backoff, and resends', async () => {
     const results: ('review' | 'ok')[] = ['review']
     const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => ({

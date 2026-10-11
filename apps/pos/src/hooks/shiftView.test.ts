@@ -138,3 +138,10 @@ describe('canOpenShift (M2)', () => {
     expect(canOpenShift(false, false)).toBe(false)
   })
 })
+
+describe('overlayShift refund defaults (A06)', () => {
+  it('a synthesized pending open has no refunds paid yet', () => {
+    const s = overlayShift(null, [op('shift_open', 'k1', { startingCash: 10000 })], ctx)
+    expect(s).toMatchObject({ cashRefundsPaid: 0, refundsPaidByMethod: {} })
+  })
+})
