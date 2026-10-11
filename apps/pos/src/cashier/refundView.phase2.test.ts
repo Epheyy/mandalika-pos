@@ -10,7 +10,7 @@ type Order = components['schemas']['Order']
 
 const order = (): Order => ({
   id: 'o1', orderNumber: 'BSD-G0007', status: 'completed', total: 225000, paymentMethod: 'cash', shiftId: 'shift-0', items: [],
-}) as Order
+}) as unknown as Order
 const user = (role: AppUser['role']): AppUser => ({
   uid: 'u', displayName: 'K', email: 'k@x', role, permissions: [], createdAt: '2026-10-11T00:00:00Z',
 })

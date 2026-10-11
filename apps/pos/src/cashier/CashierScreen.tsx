@@ -34,7 +34,7 @@ import { receiveApprovers } from './receive/receiveTypes'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
-import { prepareRefund } from './refundView'
+import { planRefundSubmit, refundGateProps } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
@@ -780,14 +780,13 @@ export default function CashierScreen() {
     setRefundError(null)
     // Defensive guards (the panel already hides the button): permission, an open synced shift, a valid
     // reason. The display snapshot is built here, once; nothing rewrites the payload after it is queued.
-    if (!refundOrder || refundOrder.id !== orderId) return
-    const prepared = prepareRefund({ order: refundOrder, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id })
-    if (!prepared.ok) {
-      setRefundError(prepared.message)
+    const plan = planRefundSubmit({ refundOrder, orderId, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id })
+    if (plan.kind === 'error') {
+      setRefundError(plan.message)
       return
     }
     setIsRefunding(true)
-    const outcome = await refundGate.current.run(() => engine.enqueue('refund', { ...prepared.payload }))
+    const outcome = await refundGate.current.run(() => engine.enqueue('refund', { ...plan.payload }))
     if (outcome.status === 'busy') return
     setIsRefunding(false)
     if (outcome.status === 'failed') {
@@ -1114,9 +1113,7 @@ export default function CashierScreen() {
         onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
-        canRefund={canRefund(user)}
-        hasOpenShift={!!shift.currentShift?.id}
-        queuedRefundOrderIds={engine.queuedRefundOrderIds()}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds() })}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}

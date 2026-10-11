@@ -218,6 +218,13 @@ export interface RecapData {
   /** Cash in/out — null skips the section (e.g. a past shift's flows aren't loaded). */
   cashIn: number | null
   cashOut: number | null
+  /** Refunds this drawer paid for other shifts' sales (A06): printed as a note, already out of Tercatat. */
+  crossShiftRefunds?: number
+  /** Refunds of this shift's own sales still waiting to sync: printed as a note, already out of Tercatat. */
+  unsyncedRefunds?: number
+  /** Refunds parked for review: printed as a note, NOT out of Tercatat (the server never counted them). */
+  parkedRefundCount?: number
+  parkedRefundTotal?: number
   gross: number
   refundTotal: number
   refundCount: number
@@ -264,6 +271,12 @@ export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Arr
     }
   }
   b.raw(BOLD_ON).line(pad('Total Tercatat', money(data.totalRecorded))).raw(BOLD_OFF)
+  if (data.crossShiftRefunds) b.line(pad('Refund transaksi shift lain', '-' + money(data.crossShiftRefunds)))
+  if (data.unsyncedRefunds) b.line(pad('Refund belum tersinkron', '-' + money(data.unsyncedRefunds)))
+  if (data.parkedRefundCount) {
+    b.line(`Refund perlu ditinjau: ${data.parkedRefundCount}`)
+    b.line(pad('  jumlah', money(data.parkedRefundTotal ?? 0)))
+  }
   if (data.totalCounted != null) {
     b.line(pad('Total Terhitung', money(data.totalCounted)))
     const d = data.totalCounted - data.totalRecorded

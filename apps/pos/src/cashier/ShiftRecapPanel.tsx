@@ -18,7 +18,8 @@ import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
 import { loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
-import { applyRefundRecap, refundRecap, type RefundRecap } from './refundRecap'
+import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
+import { startRefresh } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
@@ -103,17 +104,22 @@ interface ShiftRecapPanelProps {
 }
 
 const HISTORY_PAGE_SIZE = 20
+const REFRESH_MAX_ATTEMPTS = 4
+const REFRESH_BASE_MS = 2000
 
 type Tab = 'rekapan' | 'riwayat'
 
 /** Muted notes under the recorded total: refunds this drawer paid for other shifts' sales, refunds
  *  parked for review (not subtracted: the server never counted them) and legacy items without detail. */
 function RefundRecapNotes({ rec }: { rec: RefundRecap }) {
-  if (rec.crossTotal === 0 && rec.parkedCount === 0 && rec.unknownDetailCount === 0) return null
+  if (rec.crossTotal === 0 && rec.ownPendingTotal === 0 && rec.parkedCount === 0 && rec.unknownDetailCount === 0) return null
   return (
     <div className="space-y-0.5 text-[11px] text-gray-400">
       {rec.crossTotal !== 0 && (
         <div className="flex justify-between"><span>Refund transaksi shift lain</span><span>−{formatRupiah(rec.crossTotal)}</span></div>
+      )}
+      {rec.ownPendingTotal !== 0 && (
+        <div className="flex justify-between"><span>Refund belum tersinkron</span><span>−{formatRupiah(rec.ownPendingTotal)}</span></div>
       )}
       {rec.parkedCount > 0 && (
         <div className="flex justify-between"><span>Refund perlu ditinjau: {rec.parkedCount}</span><span>{formatRupiah(rec.parkedTotal)}</span></div>
@@ -175,8 +181,8 @@ function ShiftRecapPanelBody({
   )
 
   // Recorded cash after refunds this shift paid for other shifts' sales (server snapshot + still queued).
-  const curRecap = refundRecap(currentShift, queuedRefunds)
-  const cur = live ? applyRefundRecap(live.byMethod, live.totalSales, curRecap) : null
+  const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders) : null
+  const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -243,17 +249,24 @@ function ShiftRecapPanelBody({
     setTab(next)
   }
 
-  // A refund leaving the queue moves into the server's per-shift figure: refresh ONLY the shift so it
-  // is counted once. A full reload would wipe the 'Terhitung' counts the cashier is typing.
+  // A refund queued, acknowledged or parked changes what is already out of the server's figures: refetch
+  // shift, orders and flows together, WITHOUT touching 'Terhitung' (loadRekap would wipe typed counts).
+  // The signature counts as applied only once a refresh succeeded; failures retry with backoff.
   const queueSignature = queuedRefunds.map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
-  const lastQueueSignature = useRef(queueSignature)
+  const appliedQueueSignature = useRef(queueSignature)
   useEffect(() => {
-    if (lastQueueSignature.current === queueSignature) return
-    lastQueueSignature.current = queueSignature
-    if (tab !== 'rekapan') return
-    void api.request<components['schemas']['ShiftResponse']>('GET', '/api/v1/shifts/current')
-      .then((r) => { if (r.data) setCurrentShift((prev) => (prev && prev.id === r.data!.id ? r.data : prev)) })
-      .catch(() => { /* offline: the next poll or reopen refreshes it */ })
+    if (tab !== 'rekapan' || appliedQueueSignature.current === queueSignature) return
+    return startRefresh({
+      fetch: () => loadCurrentRecap(api).then((r) => r.data),
+      apply: ({ shift, flows, orders }) => {
+        setCurrentShift(shift)
+        setCurrentFlows(flows)
+        setLiveOrders(shift ? orders : null)
+        appliedQueueSignature.current = queueSignature
+      },
+      maxAttempts: REFRESH_MAX_ATTEMPTS,
+      baseMs: REFRESH_BASE_MS,
+    })
   }, [queueSignature, tab])
 
   // Load the active tab's data on mount (panel open) and on every tab change.
@@ -341,6 +354,10 @@ function ShiftRecapPanelBody({
     totalCounted: Object.keys(counted).length ? Object.values(counted).reduce((a, b) => a + b, 0) : null,
     cashIn,
     cashOut,
+    crossShiftRefunds: curRecap.crossTotal,
+    unsyncedRefunds: curRecap.ownPendingTotal,
+    parkedRefundCount: curRecap.parkedCount,
+    parkedRefundTotal: curRecap.parkedTotal,
     gross: live?.gross ?? 0,
     refundTotal: live?.refundTotal ?? 0,
     refundCount: live?.refundCount ?? 0,
@@ -762,6 +779,7 @@ function ShiftRecapPanelBody({
               totalCounted: hasCounted ? countedTotal : null,
               cashIn: selectedFlows.filter((f) => !isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
               cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
+              crossShiftRefunds: histRecap.crossTotal,
               gross: b.gross,
               refundTotal: b.refundTotal,
               refundCount: b.refundCount,

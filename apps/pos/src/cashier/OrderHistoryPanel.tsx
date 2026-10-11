@@ -27,6 +27,8 @@ interface OrderHistoryPanelProps {
   canRefund: boolean
   /** A synced open shift exists: a refund pays out of that drawer. */
   hasOpenShift: boolean
+  /** The shift shown has no server id yet. */
+  shiftUnsynced?: boolean
   /** Orders with a refund already queued or parked on this device. */
   queuedRefundOrderIds: ReadonlySet<string>
 }
@@ -44,7 +46,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, queuedRefundOrderIds }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => today())
   const [to, setTo] = useState(() => today())
   const [search, setSearch] = useState('')
@@ -283,6 +285,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         order={o}
                         canRefund={canRefund}
                         hasOpenShift={hasOpenShift}
+                        shiftUnsynced={shiftUnsynced}
                         queuedOrderIds={queuedRefundOrderIds}
                         onRefund={onRefund}
                       />

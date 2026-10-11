@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { MAX_REFUND_REASON_CHARS } from '@mandalika/types'
+import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund } from '@mandalika/types'
 import { formatRupiah } from './pricing'
 
 type Order = components['schemas']['Order']
@@ -10,6 +10,7 @@ type Order = components['schemas']['Order']
 export const REFUND_NO_PERMISSION = 'Butuh izin Proses Refund'
 export const REFUND_QUEUED = 'Refund menunggu sinkronisasi'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
+export const REFUND_SHIFT_UNSYNCED = 'Shift belum tersinkron'
 
 export const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Tunai', card: 'Kartu', transfer: 'Transfer', qris: 'QRIS',
@@ -25,6 +26,8 @@ export interface RefundAvailabilityInput {
   canRefund: boolean
   /** A synced open shift exists: a refund pays out of that drawer (B3). */
   hasOpenShift: boolean
+  /** The header shows a shift that has no server id yet (opened offline): its drawer cannot be attributed. */
+  shiftUnsynced?: boolean
   /** Orders with a queued or parked (unacknowledged) refund on this device. */
   queuedOrderIds: ReadonlySet<string>
 }
@@ -33,7 +36,7 @@ export function refundAvailability(i: RefundAvailabilityInput): RefundAvailabili
   if (i.order.status !== 'completed') return { kind: 'hidden' }
   if (!i.canRefund) return { kind: 'blocked', reason: REFUND_NO_PERMISSION }
   if (i.queuedOrderIds.has(i.order.id)) return { kind: 'blocked', reason: REFUND_QUEUED }
-  if (!i.hasOpenShift) return { kind: 'blocked', reason: REFUND_NO_SHIFT }
+  if (!i.hasOpenShift) return { kind: 'blocked', reason: i.shiftUnsynced ? REFUND_SHIFT_UNSYNCED : REFUND_NO_SHIFT }
   return { kind: 'allowed' }
 }
 
@@ -61,10 +64,11 @@ export function prepareRefund(i: {
   order: Pick<Order, 'id' | 'orderNumber' | 'total' | 'paymentMethod' | 'shiftId'>
   reason: string
   canRefund: boolean
-  /** Server id of the open shift; '' / null = none (a not-yet-synced open cannot be attributed). */
+  /** Server id of the open shift; '' = shown but not synced yet (cannot be attributed), null/undefined = none. */
   shiftId: string | null | undefined
 }): PreparedRefund {
   if (!i.canRefund) return { ok: false, message: REFUND_NO_PERMISSION }
+  if (i.shiftId === '') return { ok: false, message: REFUND_SHIFT_UNSYNCED }
   if (!i.shiftId) return { ok: false, message: REFUND_NO_SHIFT }
   const reason = i.reason.trim()
   if (!canSubmitRefundReason(reason)) {
@@ -91,4 +95,38 @@ export function refundDetail(payload: Readonly<Record<string, unknown>> | undefi
   if (typeof orderNumber !== 'string' || orderNumber === '' || typeof total !== 'number' || !Number.isFinite(total)) return undefined
   const method = typeof paymentMethod === 'string' && paymentMethod !== '' ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : null
   return [orderNumber, formatRupiah(total), method].filter((p) => p !== null).join(' · ')
+}
+
+export type RefundSubmitPlan =
+  | { kind: 'enqueue'; payload: RefundPayload }
+  | { kind: 'error'; message: string }
+
+/** What handleRefundConfirm does: the dialog's order must be the one confirmed, and every guard passes,
+ *  before anything is queued. The payload is the prepared one, verbatim. */
+export function planRefundSubmit(i: {
+  refundOrder: Order | null
+  orderId: string
+  reason: string
+  canRefund: boolean
+  shiftId: string | null | undefined
+}): RefundSubmitPlan {
+  if (!i.refundOrder || i.refundOrder.id !== i.orderId) {
+    return { kind: 'error', message: 'Transaksi refund tidak cocok. Tutup lalu coba lagi.' }
+  }
+  const prepared = prepareRefund({ order: i.refundOrder, reason: i.reason, canRefund: i.canRefund, shiftId: i.shiftId })
+  return prepared.ok ? { kind: 'enqueue', payload: prepared.payload } : { kind: 'error', message: prepared.message }
+}
+
+/** The refund-related props CashierScreen hands the order history panel. */
+export function refundGateProps(i: {
+  user: Parameters<typeof userCanRefund>[0]
+  currentShift: { id: string } | null | undefined
+  queuedOrderIds: ReadonlySet<string>
+}) {
+  return {
+    canRefund: userCanRefund(i.user),
+    hasOpenShift: !!i.currentShift?.id,
+    shiftUnsynced: !!i.currentShift && !i.currentShift.id,
+    queuedRefundOrderIds: i.queuedOrderIds,
+  }
 }
