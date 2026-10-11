@@ -154,7 +154,7 @@ export const SettingsScreen = memo(function SettingsScreen({
     setIsSavingCashFlow(true)
     setCashFlowMsg(null)
     const outcome = await cashFlowGate.current.run(() => engine.enqueue('cash_flow', {
-      shiftId: currentShift?.id ?? null,
+      shiftId: currentShift?.id || null, // '' = open not yet synced
       type: cashFlowType,
       amount: amt,
       description: cashFlowDesc.trim(),

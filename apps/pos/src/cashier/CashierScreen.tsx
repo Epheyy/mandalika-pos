@@ -659,7 +659,7 @@ export default function CashierScreen() {
         ...promotionMetadata,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
-        shiftId: shift.currentShift?.id ?? null,
+        shiftId: shift.currentShift?.id || null, // '' = open not yet synced
       }))
       if (outcome.status === 'busy') return
       if (outcome.status === 'failed') {
@@ -877,6 +877,7 @@ export default function CashierScreen() {
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
             onOpenShift={shift.openShift}
+            isOnline={offlineData.isOnline}
             error={shift.shiftError}
             onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}

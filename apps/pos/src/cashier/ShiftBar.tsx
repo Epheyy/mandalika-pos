@@ -10,6 +10,9 @@ interface ShiftBarProps {
   isOpening: boolean
   /** Resolves true once the shift is durably queued (false = not saved, keep the modal). */
   onOpenShift: (startingCash: number) => Promise<boolean>
+  /** Real server reachability. Opening a shift needs the server (A04), so "Buka Shift"
+   *  is disabled while offline; an already-open shift keeps selling offline. */
+  isOnline: boolean
   /** Persistent error when the open could not be stored on the device. */
   error?: string | null
   /** Closing is reconciled in the Rekap screen (counted income is mandatory),
@@ -26,6 +29,7 @@ export const ShiftBar = memo(function ShiftBar({
   isLoading,
   isOpening,
   onOpenShift,
+  isOnline,
   error,
   onRequestClose,
   promptOpen,
@@ -53,10 +57,11 @@ export const ShiftBar = memo(function ShiftBar({
 
   useEffect(() => {
     if (promptOpen && !currentShift) {
-      setShowOpenModal(true)
+      // Offline the modal could only fail; the header already says why.
+      if (isOnline) setShowOpenModal(true)
       onPromptConsumed?.()
     }
-  }, [promptOpen, currentShift, onPromptConsumed])
+  }, [promptOpen, currentShift, isOnline, onPromptConsumed])
 
   if (isLoading) {
     return <span className="text-xs text-gray-400">Memuat shift…</span>
@@ -133,10 +138,17 @@ export const ShiftBar = memo(function ShiftBar({
           <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
           <button type="button"
             onClick={() => setShowOpenModal(true)}
-            className="px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+            disabled={!isOnline}
+            title={isOnline ? undefined : 'Buka Shift butuh koneksi internet'}
+            className="px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             Buka Shift
           </button>
+          {!isOnline && (
+            <span role="status" className="text-[10px] font-semibold text-amber-700 whitespace-nowrap">
+              Offline — butuh internet
+            </span>
+          )}
         </div>
       )}
 

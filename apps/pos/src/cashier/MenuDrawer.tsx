@@ -183,7 +183,7 @@ export const MenuDrawer = memo(function MenuDrawer({
               {settingItems.map(renderItem)}
             </nav>
             <div className="mt-auto px-2 pb-2 border-t border-gray-100 pt-2">
-              {/* No logout and no outlet switcher: the terminal is fixed (A04). The only way
+              {/* No sign-out button and no outlet switcher: the terminal is fixed (A04). The only way
                   out is the guarded "Lepas terminal" in Pengaturan. */}
               <button type="button" onClick={() => { onClose(); onTerminal() }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all text-left">
