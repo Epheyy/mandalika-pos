@@ -196,3 +196,11 @@ Decisions and notes:
 
 - R1: every seal also writes a durable Preferences key `mandalika.pos.journalTakenOverAt` (ISO time, before the sentinel) and `hasTakeoverEvidence` counts it, so an empty-source migration (no legacy backup, the expected fleet case) still leaves evidence if the sentinel is lost and the journal then fails to open: BootError, not the Q1 fallback.
 - R2: if the journal opens but its `meta.migration` is not `verified`/`sealed` while Preferences shows takeover evidence and K is not a sentinel, boot stops with "journal hilang"; no fresh `migrate()` from Preferences ever runs over it.
+
+## Phase C review fixes (Opus, 2026-10-11)
+
+- **Journal mode:** the plugin runs a rollback journal in `TRUNCATE` mode (not WAL, not DELETE: DELETE + FULL has a power-loss window on API 24's SQLite) with `synchronous=FULL`, set in `onConfigure` after `disableWriteAheadLogging()`. JS refuses adoption (`JournalUnavailableError` code `journal_mode`) unless `open()` reports `truncate` or `persist`.
+- **Never delete the file:** the helper gets a `DatabaseErrorHandler` that only logs. A latch makes every later call reject after corruption, after the file went missing following a successful open, or when the connection was closed under us. A failed COMMIT discards the connection (lazy reopen, no latch).
+- **Backup exclusions:** journal (+ `-journal`, `-wal`, `-shm`), `CapacitorStorage.xml`, `CapWebViewSettings.xml`, `capgo_device_id.xml`, Capgo bundles (`files/versions`) and `app_webview` are excluded from both backup rule files: a restored tablet starts clean.
+- **OTA release rule (owner decision):** `decide.go` offers any parseable release to a device reporting `builtin`. Therefore **every OTA bundle must be built from the newest APK's web layer or later.** A proper min-versionCode guard is needed before the first OTA is published.
+- Logging: `loggingBehavior` is `production` from APK 1.7. Other TEMP item left as is: `webContentsDebuggingEnabled: true` in `apps/pos/capacitor.config.ts`.

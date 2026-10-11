@@ -60,6 +60,7 @@ func TestDecideLatestVersionShapes(t *testing.T) {
 		{"later prerelease id is newer", "1.2.0-beta.2", "1.2.0-beta.1", true},
 		{"numeric prerelease ids compare numerically", "1.2.0-beta.10", "1.2.0-beta.9", true},
 		{"older prerelease id not offered", "1.2.0-beta.1", "1.2.0-beta.2", false},
+		{"builtin is offered a prerelease latest (release rule: bundles come from the newest APK)", "1.2.0-rc.1", "builtin", true},
 		{"larger prerelease set is newer", "1.2.0-beta.1.1", "1.2.0-beta.1", true},
 	}
 	for _, tt := range tests {

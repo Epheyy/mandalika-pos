@@ -123,6 +123,8 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 
 ## Known gaps (not P0)
 
+- OTA: `decide.go` offers any parseable release to `builtin` devices. Every OTA bundle must be built from the newest APK's web layer or later; a proper min-versionCode guard is needed before the first OTA is published.
+- Journal (APK 1.7) runs `journal_mode=TRUNCATE` + `synchronous=FULL`; `webContentsDebuggingEnabled: true` is still a TEMP item in `apps/pos/capacitor.config.ts`.
 - No APK/OTA release ledger (artifacts expire after 90 days; OTA bucket empty) → keep APKs in `Downloads/mandalika-apk/`.
 - Cloud Run runs as the default compute SA with `roles/editor` (over-privileged).
 - A34 parent (CI enforcement) and all release gates remain open. Backoffice polls all order pages every 12 s.
