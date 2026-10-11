@@ -37,6 +37,18 @@ func (s *OrderService) OpenShift(ctx context.Context, in OpenShiftInput) (string
 
 // OpenShiftTx is OpenShift inside a caller-owned transaction.
 func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftInput) (string, error) {
+	// Serialize concurrent opens at one outlet: the count-then-insert below is a race
+	// without it (A04). FOR NO KEY UPDATE still conflicts with itself, but not with
+	// the FOR KEY SHARE every order/shift/cash_flow insert takes on this row, so
+	// sales are never blocked by an open. Nothing else locks outlets, so there is no
+	// lock-order cycle with the transfer paths (transfer row, then stock rows).
+	var locked int
+	switch err := tx.QueryRow(ctx, `SELECT 1 FROM outlets WHERE id=$1 FOR NO KEY UPDATE`, in.OutletID).Scan(&locked); {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", apperr.New(apperr.NotFound, "outlet tidak ditemukan")
+	case err != nil:
+		return "", err
+	}
 	var n int
 	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`,

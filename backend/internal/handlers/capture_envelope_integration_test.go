@@ -89,6 +89,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		outX     = "00000000-0000-4000-8e00-000000000001"
 		outY     = "00000000-0000-4000-8e00-000000000002"
 		outW     = "00000000-0000-4000-8e00-000000000003"
+		outV     = "00000000-0000-4000-8e00-000000000004"
 		userX    = "00000000-0000-4000-8e00-000000000011"
 		userY    = "00000000-0000-4000-8e00-000000000012"
 		adminU   = "00000000-0000-4000-8e00-000000000013"
@@ -101,7 +102,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec(`INSERT INTO outlets(id,name) VALUES($1,'EV outlet X'),($2,'EV outlet Y'),($3,'EV outlet W')`, outX, outY, outW)
+	exec(`INSERT INTO outlets(id,name) VALUES($1,'EV outlet X'),($2,'EV outlet Y'),($3,'EV outlet W'),($4,'EV outlet V')`, outX, outY, outW, outV)
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES
 		($1,'x@example.invalid','x','EV cashier X','cashier',$3),
 		($2,'y@example.invalid','x','EV cashier Y','cashier',$4)`, userX, userY, outX, outY)
@@ -354,7 +355,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		wantOK("unset cutoff", flush(tokX, "", item("order", "legacy-unset", orderPayload(nil), nil)))
 	})
 	sub("9 a keyed retry from another header outlet replays instead of key_conflict", func(t *testing.T) {
-		it := item("shift_open", "replay-open", map[string]any{"startingCash": 7, "outletName": "EV outlet Y"}, envelope(outY, adminU, device, ""))
+		it := item("shift_open", "replay-open", map[string]any{"startingCash": 7, "outletName": "EV outlet V"}, envelope(outV, adminU, device, ""))
 		first := flush(tokAdmin, outX, it)
 		wantOK("first", first)
 		again := flush(tokAdmin, outW, it)
@@ -362,8 +363,8 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		if again.OrderID != first.OrderID {
 			t.Fatalf("replay returned %s, want %s", again.OrderID, first.OrderID)
 		}
-		if n := count(`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`, outY); n != 1 {
-			t.Fatalf("%d open shifts at Y", n)
+		if n := count(`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`, outV); n != 1 {
+			t.Fatalf("%d open shifts at V", n)
 		}
 	})
 	sub("10 concurrent shift_open at one outlet yields exactly one open shift", func(t *testing.T) {

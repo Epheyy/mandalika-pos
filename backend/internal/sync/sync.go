@@ -35,6 +35,8 @@ type Engine struct {
 	LegacyEnvelopeUntil time.Time
 	// Now is injectable for tests; nil = time.Now.
 	Now func() time.Time
+	// Lookup is injectable for tests; nil = queries on Pool.
+	Lookup attributionLookup
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -277,11 +279,22 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		return r
 	}
 
+	// Attribution first (A04): from here on c is the capture-time identity, never the
+	// flush-time request headers. A refused item has no effect and stores no receipt.
+	c, err := e.attribute(ctx, c, it)
+	if err != nil {
+		return fail(err)
+	}
+
 	switch it.Type {
 	case "order":
 		var p orderPayload
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
+		}
+		shiftID, err := e.payloadShift(ctx, c, it, p.ShiftID)
+		if err != nil {
+			return fail(err)
 		}
 		in := service.CreateOrderInput{
 			IdempotencyKey:    it.IdempotencyKey,
@@ -310,7 +323,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			DiscountBreakdown: p.DiscountBreakdown,
 			PointsRedeemed:    p.PointsRedeemed,
 			Notes:             p.Notes,
-			ShiftID:           p.ShiftID,
+			ShiftID:           shiftID,
 			ClientCreated:     p.ClientCreatedAt,
 			Offline:           true,
 		}
@@ -384,9 +397,13 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
+		flowShift, err := e.payloadShift(ctx, c, it, p.ShiftID)
+		if err != nil {
+			return fail(err)
+		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
 			return e.Orders.AddCashFlowTx(ctx, tx, service.CashFlowInput{
-				OutletID: c.OutletID, ShiftID: p.ShiftID, Type: p.Type,
+				OutletID: c.OutletID, ShiftID: flowShift, Type: p.Type,
 				Amount: p.Amount, Description: p.Description,
 				CashierID: c.UserID, CashierName: c.DisplayName,
 			})

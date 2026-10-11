@@ -117,3 +117,24 @@ func TestBatchEnvelopeCarriesCaptureEnvelope(t *testing.T) {
 		t.Fatalf("null/absent envelope must be nil: %q %q", items[1].Envelope, items[2].Envelope)
 	}
 }
+
+// Attribution authority (A04): the caller handed to the sync engine carries the
+// role and stored outlet from the users row, and the raw envelope rides on the item.
+func TestSyncBatchPassesStoredIdentityAndEnvelope(t *testing.T) {
+	raw := `{"items":[{"type":"shift_open","idempotencyKey":"d:1","payload":{"startingCash":0},"envelope":{"v":1}}]}`
+	var gotCaller syncpkg.Caller
+	var gotItems []syncpkg.BatchItem
+	w := httptest.NewRecorder()
+	(&Handlers{}).syncBatch(w, httptest.NewRequest("POST", "/sync/batch", strings.NewReader(raw)),
+		func(*http.Request) (callerID, error) {
+			return callerID{outletID: "hdr", userID: "u", role: "admin", homeOutletID: "home"}, nil
+		},
+		func(_ context.Context, c syncpkg.Caller, items []syncpkg.BatchItem) (syncpkg.BatchResult, error) {
+			gotCaller, gotItems = c, items
+			return syncpkg.BatchResult{}, nil
+		})
+	if w.Code != 200 || gotCaller.Role != "admin" || gotCaller.HomeOutletID != "home" || gotCaller.OutletID != "hdr" ||
+		len(gotItems) != 1 || string(gotItems[0].Envelope) != `{"v":1}` {
+		t.Fatalf("status=%d caller=%+v items=%+v", w.Code, gotCaller, gotItems)
+	}
+}
