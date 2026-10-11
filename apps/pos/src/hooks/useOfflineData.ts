@@ -9,6 +9,7 @@ import { SyncContext } from '../cashier/SyncProvider'
 import { authStore } from '../api'
 import { ownerLabel } from '../terminalBinding'
 import { refundDetail } from '../cashier/refundView'
+import { STUCK_RETRY_MESSAGE, stuckMessage } from '../lib/stuckMessage'
 
 export interface FailedItem {
   idempotencyKey: string
@@ -43,8 +44,7 @@ export interface OfflineDataState {
   buildFailedSyncDiagnostics: () => string
 }
 
-export const STUCK_RETRY_MESSAGE =
-  'Belum tersinkron setelah beberapa kali coba — server sedang bermasalah. Tetap dicoba ulang otomatis; hubungi admin bila berlanjut.'
+export { STUCK_RETRY_MESSAGE }
 
 /** Parked items (needs review) and, separately, still-retrying items that keep failing. */
 function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedItem[] } {
@@ -64,7 +64,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
   const stuck = engine
     .stuckRetrying()
     .filter((s) => !reviewKeys.has(s.idempotencyKey))
-    .map((s) => ({ ...s, lastError: STUCK_RETRY_MESSAGE }))
+    .map((s) => ({ ...s, lastError: stuckMessage(s) }))
   return { review, stuck }
 }
 

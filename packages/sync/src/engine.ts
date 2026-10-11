@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { MAX_ATTEMPTS, Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -672,6 +672,12 @@ export class SyncEngine {
           return last
         }
         await this.parkRejected([it], f.message)
+      }
+      // An item that came back retryable (e.g. busy) stops the loop: the server hold on shift_close and
+      // shift_open only sees items of the same request, so a later one must not be sent alone ahead of it.
+      if (this.outbox.all().some((i) => i.idempotencyKey === it.idempotencyKey && i.status === 'failed' && (i.attempts ?? 0) < MAX_ATTEMPTS)) {
+        this.events.onOutboxChange?.(this.outbox.count())
+        return last
       }
       rest = tail
     }

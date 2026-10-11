@@ -222,9 +222,9 @@ export interface RecapData {
   crossShiftRefunds?: number
   /** Refunds of this shift's own sales still waiting to sync: printed as a note, already out of Tercatat. */
   unsyncedRefunds?: number
-  /** Refunds parked for review: printed as a note, NOT out of Tercatat (the server never counted them). */
   /** Queued refunds captured without detail (older app): printed as a note, not in the figures. */
   unknownRefundDetailCount?: number
+  /** Refunds parked for review: count and amount are printed as a note, NOT out of Tercatat (the server never counted them). */
   parkedRefundCount?: number
   parkedRefundTotal?: number
   gross: number

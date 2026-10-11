@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { latestGate, startRefresh } from './recapRefresh'
+import { startRefresh } from './recapRefresh'
 
 describe('startRefresh give up', () => {
   it('calls onGiveUp once after the final failed attempt, never on success', async () => {
@@ -23,15 +23,5 @@ describe('startRefresh give up', () => {
     await vi.advanceTimersByTimeAsync(60000)
     expect(onGiveUp).not.toHaveBeenCalled()
     vi.useRealTimers()
-  })
-})
-
-describe('latestGate (an older response never overwrites a newer one)', () => {
-  it('only the most recently issued ticket is current', () => {
-    const g = latestGate()
-    const slowInitialLoad = g.next()
-    const refresh = g.next()
-    expect(g.isLatest(refresh)).toBe(true)
-    expect(g.isLatest(slowInitialLoad)).toBe(false)
   })
 })

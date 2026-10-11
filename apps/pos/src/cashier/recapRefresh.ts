@@ -31,8 +31,62 @@ export function startRefresh<T>(o: {
   }
 }
 
-/** Tickets for overlapping loads: only the most recently issued one may apply its result. */
-export function latestGate() {
-  let n = 0
-  return { next: () => ++n, isLatest: (t: number) => t === n }
+/** Ordering rules for overlapping loads of one panel view (a pure state machine; the panel only wires
+ *  state setters around it). Every request takes a ticket. A response applies only when no NEWER ticket
+ *  has already applied, so a slow old response never overwrites newer data, yet a fresh in-flight load is
+ *  never discarded merely because a refresh started after it. */
+export class RecapLoadGate {
+  private issued = 0
+  private applied = 0
+  private pending = 0
+  private fresh = 0
+  private lastRefresh = 0
+  /** Tickets up to this one predate a refresh that gave up: their data cannot be called fresh. */
+  private heldAfter: number | null = null
+
+  /** A load (shows the loading state). */
+  begin(): number {
+    this.pending += 1
+    return ++this.issued
+  }
+
+  /** A background refresh attempt (no loading state). */
+  issue(): number {
+    this.lastRefresh = ++this.issued
+    return this.lastRefresh
+  }
+
+  /** A load finished: true when none is still pending, so the loading state may clear. */
+  end(): boolean {
+    this.pending = Math.max(0, this.pending - 1)
+    return this.pending === 0
+  }
+
+  canApply(ticket: number): boolean {
+    return ticket > this.applied
+  }
+
+  /** Record an applied response; returns whether the stale banner must show for it. */
+  apply(ticket: number, loadStale: boolean): boolean {
+    this.applied = ticket
+    const held = this.heldAfter !== null && ticket <= this.heldAfter
+    if (!loadStale) {
+      this.fresh = Math.max(this.fresh, ticket)
+      if (!held) this.heldAfter = null
+    }
+    return loadStale || held
+  }
+
+  /** A refresh attempt came back: apply it, count it as covered by a newer fresh load, or retry. */
+  resolveRefresh(ticket: number): 'apply' | 'covered' | 'retry' {
+    if (this.canApply(ticket)) return 'apply'
+    return this.fresh >= ticket ? 'covered' : 'retry'
+  }
+
+  /** The refresh gave up: true when the stale banner must show (false if newer fresh data exists). */
+  giveUp(): boolean {
+    if (this.fresh > this.lastRefresh) return false
+    this.heldAfter = this.issued
+    return true
+  }
 }

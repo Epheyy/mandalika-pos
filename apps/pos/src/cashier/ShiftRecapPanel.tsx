@@ -19,7 +19,7 @@ import { formatRupiah } from './pricing'
 import { freshCurrentRecap, loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
-import { latestGate, startRefresh } from './recapRefresh'
+import { RecapLoadGate, startRefresh } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
@@ -208,44 +208,51 @@ function ShiftRecapPanelBody({
   // Keyed by payment-method id; only filled keys are sent on close.
   const [counted, setCounted] = useState<Record<string, number>>({})
 
-  // Every load or refresh takes a ticket; a response whose ticket is no longer the latest is dropped,
-  // so a slow older fetch can never overwrite a newer one.
-  const loadGate = useRef(latestGate())
+  // Rekapan and Riwayat share the loading/stale/error flags, so each tab has its own ordering gate and
+  // only the visible tab may touch the flags. (Ordering rules: RecapLoadGate.)
+  const rekapGate = useRef(new RecapLoadGate())
+  const histGate = useRef(new RecapLoadGate())
+  const tabRef = useRef(tab)
+  useEffect(() => { tabRef.current = tab }, [tab])
 
   const loadRekap = useCallback(async () => {
-    const ticket = loadGate.current.next()
+    const gate = rekapGate.current
+    const ticket = gate.begin()
     setIsLoading(true)
     setError(null)
     try {
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
-      // 'Terhitung' is only ever prefilled here, so it is applied even when a newer refresh
-      // superseded this response's figures.
+      // 'Terhitung' is only ever prefilled by a load, so it is set even when a newer refresh already applied figures.
       setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
-      if (!loadGate.current.isLatest(ticket)) return
+      if (!gate.canApply(ticket)) return
+      const showStale = gate.apply(ticket, stale)
       setCurrentShift(shift)
       setCurrentFlows(flows)
       setLiveOrders(shift ? orders : null)
-      setIsStale(stale)
+      if (tabRef.current === 'rekapan') setIsStale(showStale)
     } catch (e: unknown) {
-      if (!loadGate.current.isLatest(ticket)) return
-      setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
+      // Swallowed only when newer data already applied; otherwise the cashier must see the failure.
+      if (gate.canApply(ticket) && tabRef.current === 'rekapan') setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
-      // Always clear: a refresh that superseded this load never sets isLoading itself.
-      setIsLoading(false)
+      if (gate.end() && tabRef.current === 'rekapan') setIsLoading(false)
     }
   }, [])
 
   const loadHistory = useCallback(async () => {
+    const gate = histGate.current
+    const ticket = gate.begin()
     setIsLoading(true)
     setError(null)
     try {
       const { data, stale } = await loadRecapHistory(api)
+      if (!gate.canApply(ticket)) return
+      gate.apply(ticket, stale)
       setHistory(data)
-      setIsStale(stale)
+      if (tabRef.current === 'riwayat') setIsStale(stale)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift lengkap')
+      if (gate.canApply(ticket) && tabRef.current === 'riwayat') setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift lengkap')
     } finally {
-      setIsLoading(false)
+      if (gate.end() && tabRef.current === 'riwayat') setIsLoading(false)
     }
   }, [])
 
@@ -257,6 +264,10 @@ function ShiftRecapPanelBody({
     setShowMobileDetail(false)
     setPrintMsg(null)
     setCloseError(null)
+    // The previous tab's loading/stale/error flags must not leak into the next tab.
+    setIsLoading(false)
+    setIsStale(false)
+    setError(null)
     setTab(next)
   }
 
@@ -269,22 +280,25 @@ function ShiftRecapPanelBody({
     if (tab !== 'rekapan' || appliedQueueSignature.current === queueSignature) return
     return startRefresh({
       fetch: async () => {
-        const ticket = loadGate.current.next()
+        const ticket = rekapGate.current.issue()
         const data = await freshCurrentRecap(api) // the cached fallback counts as a failure here
-        if (!loadGate.current.isLatest(ticket)) throw new Error('superseded by a newer load')
-        return data
+        const outcome = rekapGate.current.resolveRefresh(ticket)
+        if (outcome === 'retry') throw new Error('superseded by a load that was not fresh')
+        return { ticket, outcome, data }
       },
-      apply: ({ shift, flows, orders }) => {
-        setCurrentShift(shift)
-        setCurrentFlows(flows)
-        setLiveOrders(shift ? orders : null)
-        setIsStale(false)
-        setError(null)
+      apply: ({ ticket, outcome, data: { shift, flows, orders } }) => {
+        if (outcome === 'apply') {
+          const showStale = rekapGate.current.apply(ticket, false)
+          setCurrentShift(shift)
+          setCurrentFlows(flows)
+          setLiveOrders(shift ? orders : null)
+          setIsStale(showStale)
+          setError(null)
+        } // 'covered': a newer fresh load already applied
         appliedQueueSignature.current = queueSignature
       },
       onGiveUp: () => {
-        setIsStale(true)
-        setIsLoading(false)
+        if (rekapGate.current.giveUp()) setIsStale(true)
       },
       maxAttempts: REFRESH_MAX_ATTEMPTS,
       baseMs: REFRESH_BASE_MS,
