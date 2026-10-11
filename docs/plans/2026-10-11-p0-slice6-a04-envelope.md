@@ -56,3 +56,9 @@ T1 version 403 · T2 OpenAPI+regen · T3 batch decoder · T4 attribute + config 
 Q1 offline Buka Shift (block vs client ids) · Q2 admin/outlet-less accounts on tablets · Q3 different account
 with queued items · Q4 late sale for closed shift (keep, no recompute — recommended) · Q5 operator/refunder now
 (migration 0047) or later.
+
+**Owner answers (2026-10-11):** Q1 block "Buka Shift" while offline (selling offline still works once a shift
+is open); Q2 allow admin/outlet-less accounts on tablets with a one-time terminal outlet pick, remembered,
+changeable only with an empty queue; Q3 refuse login of a different account while items are queued/in review
+(message names the owning account); Q4 late sales keep their closed shift, no recompute; Q5 operator/refunder
+deferred to a follow-up slice (no migration in slice 6, T10 dropped).
