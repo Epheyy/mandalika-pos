@@ -20,9 +20,8 @@ const config: CapacitorConfig = {
     // chrome://inspect on the CI release APK. Revert before true-final.
     webContentsDebuggingEnabled: true,
   },
-  // TEMP (polish phase): verbose native logs on the release APK.
-  // Revert to 'production' before true-final.
-  loggingBehavior: 'debug',
+  // Native logs: production only (APK 1.7 turned the TEMP debug logging off).
+  loggingBehavior: 'production',
   ios: {
     contentInset: 'always',
   },
