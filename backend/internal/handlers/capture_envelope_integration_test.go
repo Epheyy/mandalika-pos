@@ -260,6 +260,9 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 	sub("4 unknown or malformed outlet is actor_mismatch", func(t *testing.T) {
 		before := snap()
 		wantMismatch("unknown uuid", flush(tokAdmin, outX, item("order", "unk", orderPayload(nil), envelope(ghostUID, adminU, device, ""))), before)
+		const outOff = "00000000-0000-4000-8e00-0000000000d1"
+		exec(`INSERT INTO outlets(id,name,is_active) VALUES($1,'EV inactive',false)`, outOff)
+		wantMismatch("inactive outlet", flush(tokAdmin, outX, item("order", "inactive", orderPayload(nil), envelope(outOff, adminU, device, ""))), before)
 		wantMismatch("not a uuid", flush(tokAdmin, outX, item("order", "unk2", orderPayload(nil), envelope("not-a-uuid", adminU, device, ""))), before)
 		wantMismatch("cashier at a foreign outlet", flush(tokX, "", item("order", "foreign", orderPayload(nil), envelope(outY, userX, device, ""))), before)
 	})
@@ -421,6 +424,73 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		}
 		if n := count(`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`, outW); n != 1 {
 			t.Fatalf("%d open shifts at W, want 1", n)
+		}
+	})
+	sub("11 non-admin cashier: shift_open, refund and transfer_receive with an envelope", func(t *testing.T) {
+		r := flush(tokX, "", item("shift_open", "na-open", map[string]any{"startingCash": 3, "outletName": "EV outlet X"}, envelope(outX, userX, device, "")))
+		wantOK("non-admin shift_open", r)
+		if got := count(`SELECT count(*) FROM shifts WHERE id=$1 AND outlet_id=$2`, r.OrderID, outX); got != 1 {
+			t.Fatal("non-admin shift_open did not land at the stored outlet")
+		}
+		var orderID string
+		if err := pool.QueryRow(ctx, `SELECT id::text FROM orders WHERE idempotency_key=$1`, device+":a04").Scan(&orderID); err != nil {
+			t.Fatal(err)
+		}
+		wantOK("non-admin refund", flush(tokX, "", item("refund", "na-refund", map[string]any{"orderId": orderID, "reason": "ev"}, envelope(outX, userX, device, ""))))
+		before := snap()
+		wantMismatch("non-admin refund captured at another outlet", flush(tokX, "", item("refund", "na-refund-y", map[string]any{"orderId": orderID, "reason": "ev"}, envelope(outY, userX, device, ""))), before)
+		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',100) ON CONFLICT (outlet_id,product_id,variant_size) DO UPDATE SET stock=100`, outY, product)
+		tid, err := wr.CreateTransfer(ctx, "", write.TransferCreate{
+			Source: write.TransferLoc{Kind: "outlet", ID: outY}, Dest: write.TransferLoc{Kind: "outlet", ID: outX},
+			Items: []write.TransferItemInput{{ProductID: product, VariantSize: "M", Qty: 1}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := wr.SendTransfer(ctx, tid); err != nil {
+			t.Fatal(err)
+		}
+		recv := map[string]any{"transferId": tid, "items": []any{}, "approverUserId": adminU, "pin": pin}
+		wantOK("non-admin transfer_receive", flush(tokX, "", item("transfer_receive", "na-recv", recv, envelope(outX, userX, device, ""))))
+	})
+	sub("12 replay under a different envelope outlet is key_conflict, not a second effect", func(t *testing.T) {
+		p := map[string]any{"customerId": "00000000-0000-4000-8e00-0000000000c2", "name": "EV replay", "phone": "ev-1"}
+		wantOK("first", flush(tokAdmin, outX, item("customer_create", "replay-env", p, envelope(outV, adminU, device, ""))))
+		before := snap()
+		r := flush(tokAdmin, outX, item("customer_create", "replay-env", p, envelope(outW, adminU, device, "")))
+		if r.Status != "error" || r.Code != "key_conflict" {
+			t.Fatalf("replay under another outlet: %+v", r)
+		}
+		if after := snap(); after != before || count(`SELECT count(*) FROM customers WHERE name='EV replay'`) != 1 {
+			t.Fatalf("replay had effects: %+v -> %+v", before, after)
+		}
+	})
+	sub("13 an already-applied item retried after reassignment replays as duplicate (no review, no double effect)", func(t *testing.T) {
+		it := item("order", "applied-before", orderPayload(nil), envelope(outX, userX, device, ""))
+		first := flush(tokX, "", it)
+		wantOK("first", first)
+		exec(`UPDATE users SET outlet_id=$1 WHERE id=$2`, outY, userX)
+		defer exec(`UPDATE users SET outlet_id=$1 WHERE id=$2`, outX, userX)
+		before := snap()
+		again := flush(tokX, "", it)
+		if again.Status != "duplicate" || again.OrderID != first.OrderID || again.Code != "" {
+			t.Fatalf("retry after reassignment: %+v (first %+v)", again, first)
+		}
+		if after := snap(); after != before {
+			t.Fatalf("retry had effects: %+v -> %+v", before, after)
+		}
+		// A NEW item from the reassigned cashier for the old outlet is still refused.
+		wantMismatch("new item at the old outlet", flush(tokX, "", item("order", "new-after-reassign", orderPayload(nil), envelope(outX, userX, device, ""))), before)
+		// A keyed op replays too (receipt scope = the captured outlet), and never doubles.
+		exec(`UPDATE users SET outlet_id=$1 WHERE id=$2`, outX, userX)
+		cust := item("customer_create", "applied-cust", map[string]any{"customerId": "00000000-0000-4000-8e00-0000000000c3", "name": "EV applied", "phone": "ev-2"}, envelope(outX, userX, device, ""))
+		firstCust := flush(tokX, "", cust)
+		wantOK("customer first", firstCust)
+		exec(`UPDATE users SET outlet_id=$1 WHERE id=$2`, outY, userX)
+		replay := flush(tokX, "", cust)
+		wantOK("customer replay after reassignment", replay)
+		if replay.OrderID != firstCust.OrderID || count(`SELECT count(*) FROM customers WHERE name='EV applied'`) != 1 {
+			t.Fatalf("customer replay %+v vs %+v", replay, firstCust)
 		}
 	})
 }

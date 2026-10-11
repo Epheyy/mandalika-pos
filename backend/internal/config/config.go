@@ -92,7 +92,8 @@ func parseHops(v string) int {
 }
 
 // parseLegacyUntil parses SYNC_LEGACY_ENVELOPE_UNTIL: blank = unset (zero time),
-// otherwise RFC 3339 or a bare YYYY-MM-DD (start of that day, UTC).
+// otherwise RFC 3339 or a bare YYYY-MM-DD, which means 00:00 UTC of that day, i.e.
+// 07:00 WIB: write an explicit offset (e.g. 2026-11-01T00:00:00+07:00) for a WIB midnight.
 func parseLegacyUntil(v string) (t time.Time, ok bool) {
 	v = strings.TrimSpace(v)
 	if v == "" {

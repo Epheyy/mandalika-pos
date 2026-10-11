@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 type fakeLookup struct {
 	outlets  map[string]bool
 	shifts   map[string]shiftState
 	err      error
+	applied  map[string]string // key -> id
 	outletQs int
 	shiftQs  int
 }
@@ -21,6 +23,11 @@ type fakeLookup struct {
 func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
 	f.outletQs++
 	return f.outlets[id], f.err
+}
+
+func (f *fakeLookup) Applied(_ context.Context, _, key, _ string) (string, string, bool, error) {
+	id, ok := f.applied[key]
+	return id, "duplicate", ok, f.err
 }
 
 func (f *fakeLookup) Shift(_ context.Context, _, id string) (shiftState, error) {
@@ -172,5 +179,34 @@ func TestPayloadShift(t *testing.T) {
 	}
 	if lk.shiftQs != 4 {
 		t.Errorf("legacy and empty ids must not query, queries=%d", lk.shiftQs)
+	}
+}
+
+func TestMismatchOfAnAlreadyAppliedItemReplaysInsteadOfReview(t *testing.T) {
+	lk := &fakeLookup{applied: map[string]string{"dev:1": "order-1"}}
+	e := &Engine{Lookup: lk}
+	calls := 0
+	create := func(context.Context, service.CreateOrderInput) (string, bool, bool, error) {
+		calls++
+		return "x", false, false, nil
+	}
+	item := func(key string) BatchItem {
+		return BatchItem{Type: "order", IdempotencyKey: key, Payload: json.RawMessage(`{}`), Envelope: env(func(e *Envelope) { e.UserID = "someone-else" })}
+	}
+	// Already applied: replayed as duplicate, never re-applied, never review.
+	r := e.processOneWithCommands(context.Background(), cashier(), item("dev:1"), nil, create)
+	if r.Status != "duplicate" || r.OrderID != "order-1" || r.Code != "" || calls != 0 {
+		t.Fatalf("applied item: %+v calls=%d", r, calls)
+	}
+	// Not applied: still a non-retryable actor_mismatch and nothing runs.
+	r = e.processOneWithCommands(context.Background(), cashier(), item("dev:2"), nil, create)
+	if r.Status != "error" || r.Code != "actor_mismatch" || r.Retryable == nil || *r.Retryable || calls != 0 {
+		t.Fatalf("unapplied item: %+v calls=%d", r, calls)
+	}
+	// A failing probe is a retryable internal error, never a verdict.
+	lk.err = errors.New("connection reset")
+	r = e.processOneWithCommands(context.Background(), cashier(), item("dev:3"), nil, create)
+	if r.Code != "internal" || r.Retryable == nil || !*r.Retryable {
+		t.Fatalf("probe failure: %+v", r)
 	}
 }

@@ -283,6 +283,16 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 	// flush-time request headers. A refused item has no effect and stores no receipt.
 	c, err := e.attribute(ctx, c, it)
 	if err != nil {
+		if code, _ := apperr.CodeOf(err); code == apperr.ActorMismatch {
+			id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+			if aerr != nil {
+				return fail(aerr)
+			}
+			if applied {
+				r.Status, r.OrderID = status, id
+				return r
+			}
+		}
 		return fail(err)
 	}
 

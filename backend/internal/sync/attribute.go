@@ -55,6 +55,9 @@ const (
 type attributionLookup interface {
 	OutletExists(ctx context.Context, outletID string) (bool, error)
 	Shift(ctx context.Context, outletID, shiftID string) (shiftState, error)
+	// Applied reports whether an item with this key and type was already applied at
+	// scope (an outlet id), and the id/status a replay returns (M3).
+	Applied(ctx context.Context, typ, key, scope string) (id, status string, ok bool, err error)
 }
 
 type poolLookup struct{ q pgxQuerier }
@@ -68,7 +71,7 @@ func (p poolLookup) OutletExists(ctx context.Context, outletID string) (bool, er
 		return false, nil // not a uuid cannot be an existing outlet (never reaches SQL: 22P02)
 	}
 	var one int
-	err := p.q.QueryRow(ctx, `SELECT 1 FROM outlets WHERE id=$1`, outletID).Scan(&one)
+	err := p.q.QueryRow(ctx, `SELECT 1 FROM outlets WHERE id=$1 AND is_active`, outletID).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -94,6 +97,54 @@ func (p poolLookup) Shift(ctx context.Context, outletID, shiftID string) (shiftS
 		return shiftClosed, nil
 	}
 	return shiftOpen, nil
+}
+
+// Applied implements the already-applied probe: orders via processed_keys, transfer
+// receives via the stored receive key, every other keyed op via its receipt. The scope
+// (outlet) must match what was recorded, like the receipt replay rule.
+func (p poolLookup) Applied(ctx context.Context, typ, key, scope string) (string, string, bool, error) {
+	var id string
+	var err error
+	status := "ok"
+	switch typ {
+	case "order":
+		status = "duplicate"
+		err = p.q.QueryRow(ctx, `SELECT p.order_id::text FROM processed_keys p JOIN orders o ON o.id=p.order_id
+			WHERE p.idempotency_key=$1 AND o.outlet_id::text=$2`, key, scope).Scan(&id)
+	case "transfer_receive":
+		err = p.q.QueryRow(ctx, `SELECT id::text FROM transfers WHERE received_idempotency_key=$1 AND dest_outlet_id::text=$2`, key, scope).Scan(&id)
+	case "refund", "shift_open", "shift_close", "cash_flow", "customer_create":
+		var outcome []byte
+		err = p.q.QueryRow(ctx, `SELECT outcome FROM operation_receipts WHERE idempotency_key=$1 AND op_type=$2 AND scope=$3`, key, typ, scope).Scan(&outcome)
+		if err == nil {
+			var o receiptOutcome
+			if json.Unmarshal(outcome, &o) != nil || o.OrderID == "" && typ != "customer_create" {
+				return "", "", false, nil // receipt not completed: not applied
+			}
+			id = o.OrderID
+		}
+	default:
+		return "", "", false, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, err
+	}
+	return id, status, true, nil
+}
+
+// alreadyApplied is consulted only when attribution is refused: an item that landed
+// before (e.g. the cashier was reassigned after a lost response) must replay as the
+// first attempt's result, not go to review, and never apply twice (M3).
+func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (id, status string, ok bool, err error) {
+	scope := c.OutletID
+	var env Envelope
+	if len(it.Envelope) > 0 && json.Unmarshal(it.Envelope, &env) == nil && env.OutletID != "" {
+		scope = env.OutletID
+	}
+	return e.lookup().Applied(ctx, it.Type, it.IdempotencyKey, scope)
 }
 
 func (e *Engine) lookup() attributionLookup {
