@@ -18,7 +18,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
-| A06 | Refund permission bypassed via sync | **Live, device check pending** - slice 7 backend 00092-naf (mig 0047) + backoffice 64a608a + APK 1.6 built; emulator refund/close walkthrough not yet run |
+| A06 | Refund permission bypassed via sync | **Done (emulator-verified same-shift)** - slice 7 backend 00092-naf (mig 0047) + backoffice 64a608a + APK 1.6; not yet seen: cross-shift refund at close, backoffice refunder line visual |
 | A09 | Sale/tender invariants not enforced | **Done** — slice 8 + 8c (backend 00088-qoh+, APK 1.4+); discount permission split to 8b |
 
 ## Now (live state)
@@ -34,7 +34,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 - **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev` from `prod-hardening` (auto-deploys on
   push unless the head commit starts with `[CF-Pages-Skip]`). Has: payment-method "Tunai (masuk laci kas)"
   toggle, ⚠ Bayar badge, settings-driven payment filters, admin reset-password button.
-- **POS:** **APK 1.6** (versionCode 7, run 38126838968) -> `Downloads/mandalika-apk/mandalika-pos-1.6-build7.apk` (slice 7: refund gate, review detail, recap net of refunds, synced-refund memory, isolation hold); NOT yet emulator-verified.
+- **POS:** **APK 1.6** (versionCode 7, run 38126838968) -> `Downloads/mandalika-apk/mandalika-pos-1.6-build7.apk` (slice 7: refund gate, review detail, recap net of refunds, synced-refund memory, isolation hold); Emulator-verified 2026-10-11: refund button + reason counter/disabled-when-blank; offline refund of BSD-G0007 (same shift) gives Tunai Tercatat 675.000 to 450.000 with 'Refund belum tersinkron -Rp 225.000', Riwayat 'Refund menunggu sinkronisasi'; online sync: server refunded, refund_shift_id = sale shift, refunded_by_name Administrator; Tercatat stays 450.000, 1 refund counted once, synced-refund memory recorded. Not run: cross-shift refund + close, printed slip, account without process_refund.
   Previous: **APK 1.5** (versionCode 6, run 38106865965) → `Downloads/mandalika-apk/mandalika-pos-1.5-build6.apk`.
   Emulator-verified: one-time "Pilih outlet terminal ini" for admin (binding `mandalika.pos.terminal`),
   outlet name in header, no logout/switcher (menu "Terminal" + guarded "Lepas terminal"), offline restart
@@ -76,6 +76,7 @@ Prefer reading the WebView over screenshots: `adb forward tcp:9222 localabstract
 then CDP `Runtime.evaluate` (helper: a small `cdp.mjs`; Preferences keys `mandalika.pos.outbox`,
 `mandalika.pos.terminal`, `mandalika.pos.user`). Claude may not type passwords/PINs — the owner logs in
 (admin `admin@mandalika.test`). Stylus popup disabled via `settings put secure stylus_handwriting_enabled 0`.
+Emulator DNS broke on 2026-10-11 (every host unknown, even with -dns-server); fixed with Private DNS: `adb shell settings put global private_dns_mode hostname` and `settings put global private_dns_specifier dns.google`.
 Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 
 ## Decisions (owner)
@@ -94,7 +95,7 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 
 ## Next
 
-1. **Slice 7 device check (APK 1.6 on emulator):** refund gate (permission / no shift / queued), offline refund -> review detail, recap Tercatat with same- and cross-shift refunds, backoffice 'Refund dibayar (Tunai)' + 'oleh'. Then mark A06 done.
+1. **Slice 7 leftovers (optional):** cross-shift refund then close (server snapshot cash_refunds_paid), printed recap lines, refund as an account without process_refund, backoffice 'Refund dibayar (Tunai)' column and refunder line on BSD-G0007 (owner login).
 0. ~~P0 slice 7 (A06 completion)~~ shipped 2026-10-11 — plan `docs/plans/2026-10-11-p0-slice7-a06-refund.md` (owner answers Q1–Q6, B1–B4 recorded). Phase A done locally (not pushed). Phase B = migration 0047 refund_shift_id/refunded_by + shift cash math + OpenAPI; Phase C = POS/backoffice → APK 1.6. Original scope per remediation plan §1/§2: refund reason
    parity, POS UI gate ("Proses Refund"), denied refund → visible needs-review cash movement (never
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
