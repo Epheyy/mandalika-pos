@@ -411,7 +411,7 @@ describe('JournalOutboxStore commits', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await stale.fail('dev:Z', 'denied') // best-effort: swallowed, but must not write
     expect((persistedItems(fake.persisted) as OutboxItem[])[0].status).toBe('acked')
-    expect(stale.all()[0].status).toBe('pending') // memory not ahead of disk
+    expect(stale.all()[0].status).toBe('acked') // view resynced to what is on disk
     expect(console.error).toHaveBeenCalled()
   })
 

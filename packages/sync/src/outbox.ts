@@ -234,13 +234,44 @@ export class Outbox {
     return result
   }
 
-  /** Write `next` durably, then (only on success) make it the live queue. */
-  private async commit(next: OutboxItem[]): Promise<void> {
+  private async writable(): Promise<void> {
     if (this.disposed) throw new Error('outbox disposed')
     await this.ready
     if (this.disposed) throw new Error('outbox disposed')
-    await this.store.commit(this.items, next)
+  }
+
+  /** Starts the store write synchronously (so a journal store can reserve the seq at once). If the
+   *  store rejects and it can reload (journal), the live view is resynced from it before rethrowing:
+   *  a stale view would otherwise fail every later compare-and-swap. No retry here. */
+  private async write(next: OutboxItem[]): Promise<void> {
+    try {
+      await this.store.commit(this.items, next)
+    } catch (err) {
+      this.resync()
+      throw err
+    }
     this.items = next
+  }
+
+  private resync(): void {
+    const fresh = this.store.reload?.()
+    if (!fresh) return
+    this.items = fresh
+    this.seqCounter = fresh.reduce((m, i) => Math.max(m, i.seq), this.seqCounter)
+  }
+
+  /** Write `next` durably, then (only on success) make it the live queue. */
+  private async commit(next: OutboxItem[]): Promise<void> {
+    await this.writable()
+    await this.write(next)
+  }
+
+  /** Re-read the committed queue from the store (journal only; no-op on KV). Call only after the
+   *  previous instance and the store are idle, e.g. when an engine is replaced. */
+  refresh(): Promise<void> {
+    return this.run(async () => {
+      if (!this.disposed) this.resync()
+    })
   }
 
   /** Best-effort mutation: server receipts make a resend safe, so a failed
@@ -270,6 +301,7 @@ export class Outbox {
     return this.run(async () => {
       const existing = this.items.find((i) => i.idempotencyKey === idempotencyKey)
       if (existing) return existing // never enqueue the same key twice
+      await this.writable() // before the seq is picked, so no await sits between picking and writing
       const item: OutboxItem = {
         idempotencyKey,
         type,
@@ -279,7 +311,7 @@ export class Outbox {
         clientCreatedAt: new Date().toISOString(),
       }
       if (envelope) item.envelope = envelope
-      await this.commit([...this.items, item])
+      await this.write([...this.items, item])
       this.seqCounter = item.seq
       return item
     })

@@ -52,6 +52,8 @@ export class JournalOutboxStore implements OutboxStore {
   private readonly metaGen = new Map<string, number>()
   /** seq -> number of applies in flight that will insert it. */
   private readonly inflight = new Map<number, number>()
+  /** Highest seq whose outcome could not be confirmed (apply rejected AND readAll failed). */
+  private seqFloor = 0
   private tail: Promise<void> = Promise.resolve()
   readonly kv: KV
 
@@ -125,12 +127,22 @@ export class JournalOutboxStore implements OutboxStore {
   /** Highest seq the journal holds or is about to hold (mirror plus applies still in flight), so a
    *  new Outbox instance never hands out a seq another instance owns. */
   maxSeq(): number {
-    let max = 0
+    let max = this.seqFloor
     for (const r of this.rows.values()) if (r.seq > max) max = r.seq
     for (const s of this.inflight.keys()) if (s > max) max = s
     return max
   }
 
+  reload(): OutboxItem[] {
+    return (this.load() as { items: OutboxItem[] }).items
+  }
+
+  idle(): Promise<void> {
+    return this.tail
+  }
+
+  /** Deletes are not compare-and-swap checked: removing an already-absent row is idempotent and a
+   *  stale instance can only delete keys it saw in its own prev. */
   commit(prev: readonly OutboxItem[], next: readonly OutboxItem[]): Promise<void> {
     // Diff against the CALLER's prev, not the mirror: an instance that never saw a row cannot
     // delete it, and an item it merely carried along unchanged is never written back over a
@@ -192,10 +204,12 @@ export class JournalOutboxStore implements OutboxStore {
       } catch (err) {
         const disk = await this.plugin.readAll().catch(() => null)
         if (disk && this.matches(op.request, disk)) {
+          this.rebuildRows(disk) // trust the file just read, then apply the (idempotent) patch
           op.patch()
           return
         }
         if (disk) this.resync(disk)
+        else for (const u of op.request.upserts) this.seqFloor = Math.max(this.seqFloor, u.seq)
         op.onFail?.()
         throw err
       }
@@ -217,15 +231,17 @@ export class JournalOutboxStore implements OutboxStore {
     return true
   }
 
-  private resync(disk: JournalReadAllResult): void {
+  private rebuildRows(disk: JournalReadAllResult): void {
     this.rows.clear()
     for (const r of disk.rows) this.rows.set(r.key, { seq: r.seq, json: r.json })
-    this.meta.clear()
+  }
+
+  /** Rows and the on-disk meta view only. VISIBLE meta is owned by the generation-guarded
+   *  patch/onFail of the writes in flight; touching it here would drop newer synced-refund entries. */
+  private resync(disk: JournalReadAllResult): void {
+    this.rebuildRows(disk)
     this.metaDisk.clear()
-    for (const [k, v] of Object.entries(disk.meta)) {
-      this.meta.set(k, v)
-      this.metaDisk.set(k, v)
-    }
+    for (const [k, v] of Object.entries(disk.meta)) this.metaDisk.set(k, v)
   }
 
   private makeKV(): KV {

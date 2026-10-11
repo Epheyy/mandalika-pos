@@ -17,6 +17,12 @@ export interface OutboxStore {
   /** Highest seq the store holds or is about to hold. The Outbox never hands out a seq at or below it.
    *  Absent on the KV store (a single writer owns the whole array). */
   maxSeq?(): number
+  /** Journal only: the store's current committed view, for resyncing an Outbox whose commit was
+   *  rejected or that was built before another instance's write landed. Absent on the KV store, so
+   *  the KV path never reloads. */
+  reload?(): OutboxItem[]
+  /** Journal only: resolves when every apply queued so far has settled. */
+  idle?(): Promise<void>
 }
 
 export function isOutboxStore(x: KV | OutboxStore): x is OutboxStore {
