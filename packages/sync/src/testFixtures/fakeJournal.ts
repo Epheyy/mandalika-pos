@@ -46,6 +46,8 @@ export interface FakeJournal {
     open: JournalOpenResult
     /** When set, `open()` rejects with it. */
     openError: Error | undefined
+    /** When true, `readAll()` rejects (the file is unreadable right after a failed apply). */
+    readAllFails: boolean
     /** Every apply attempted, in issue order (deep copies), including failed ones. */
     applies: JournalApplyRequest[]
     /** Number of open() calls. */
@@ -77,6 +79,7 @@ export function createFakeJournal(persisted?: FakeJournalPersisted): FakeJournal
     held: [],
     open: { quickCheck: 'ok', journalMode: 'wal', synchronous: SYNCHRONOUS_FULL, userVersion: 1 },
     openError: undefined,
+    readAllFails: false,
     applies: [],
     opens: 0,
   }
@@ -115,6 +118,7 @@ export function createFakeJournal(persisted?: FakeJournalPersisted): FakeJournal
       return { ...ctl.open }
     },
     async readAll(): Promise<JournalReadAllResult> {
+      if (ctl.readAllFails) throw new Error('readAll failed (synthetic)')
       const rows: JournalRow[] = [...state.rows.entries()]
         .map(([key, r]) => ({ key, seq: r.seq, json: r.json }))
         .sort((a, b) => a.seq - b.seq)

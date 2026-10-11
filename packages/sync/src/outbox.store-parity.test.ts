@@ -342,6 +342,63 @@ describe('JournalOutboxStore commits', () => {
     expect((await inFlight).seq).toBe(1)
     expect((await second).seq).toBe(2)
     expect([...fake.persisted.rows.values()].map((r) => r.seq).sort()).toEqual([1, 2])
+    // Phase B rule: refresh the replacement once the old instance and the store are idle.
+    await store.idle()
+    await fresh.refresh()
+    expect(fresh.all().map((i) => i.idempotencyKey)).toEqual(['dev:A', 'dev:B'])
+  })
+
+  it('HIGH-1: after a conflicting round the live outbox reloads, so the next settle lands both acks', async () => {
+    const { fake, store } = await setup()
+    const old = new Outbox(store)
+    await old.add('order', 'dev:K', {})
+    await old.add('order', 'dev:L', {})
+    fake.ctl.mode = 'hold'
+    const inFlight = old.ack('dev:K') // old engine's settle in flight
+    await tick()
+    old.dispose()
+    const live = new Outbox(store) // new engine built after logout: sees K and L pending
+    fake.ctl.held.shift()!.resolve()
+    fake.ctl.mode = 'ok'
+    await inFlight
+    await tick()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const both = [{ key: 'dev:K', op: 'ack' as const }, { key: 'dev:L', op: 'ack' as const }]
+    await live.settle(both) // CAS conflict on K: swallowed, but the view must resync
+    await live.settle(both)
+    const rows = persistedItems(fake.persisted) as OutboxItem[]
+    expect(rows.map((i) => [i.idempotencyKey, i.status])).toEqual([['dev:K', 'acked'], ['dev:L', 'acked']])
+    expect(live.pending()).toEqual([])
+  })
+
+  it('HIGH-1: a rejected add still rejects loudly, and the outbox view is reloaded from the store', async () => {
+    const { fake, store } = await setup()
+    const a = new Outbox(store)
+    await a.add('customer_create', 'dev:C1', {})
+    const stale = new Outbox(store)
+    await a.ack('dev:C1')
+    fake.ctl.failAt = 'beforeCommit'
+    await expect(stale.add('order', 'dev:O', {})).rejects.toThrow('crash before commit')
+    expect(stale.all().map((i) => [i.idempotencyKey, i.status])).toEqual([['dev:C1', 'acked']])
+  })
+
+  it('L1: when readAll also fails after a rejected apply, the next add still gets a fresh seq', async () => {
+    const { fake, outbox } = await setup()
+    fake.ctl.failAt = 'afterCommit'
+    fake.ctl.readAllFails = true
+    await expect(outbox.add('order', 'dev:A', {})).rejects.toThrow('crash after commit')
+    fake.ctl.readAllFails = false
+    const next = await outbox.add('order', 'dev:B', {})
+    expect(next.seq).toBe(2) // A committed with seq 1 even though nobody could confirm it
+  })
+
+  it('L4: two live instances adding at the same moment pick different seqs', async () => {
+    const { fake, store } = await setup()
+    const a = new Outbox(store)
+    const b = new Outbox(store)
+    const [x, y] = await Promise.all([a.add('order', 'dev:A', {}), b.add('order', 'dev:B', {})])
+    expect([x.seq, y.seq].sort()).toEqual([1, 2])
+    expect(fake.persisted.rows.size).toBe(2)
   })
 
   it('M1: a stale instance cannot overwrite a row another instance changed', async () => {
@@ -617,5 +674,28 @@ describe('JournalOutboxStore meta facade ordering (H2)', () => {
     await tick()
     expect(console.error).toHaveBeenCalled()
     expect(store.kv.get(SYNCED_REFUNDS_KEY)).toBe('v1')
+  })
+})
+
+describe('JournalOutboxStore meta facade vs resync (HIGH-2)', () => {
+  it('a failed older write does not clobber newer visible synced-refund entries', async () => {
+    const fake = createFakeJournal()
+    const store = await JournalOutboxStore.open(fake.plugin)
+    const refunds = new SyncedRefunds(store.kv)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.ctl.mode = 'hold'
+    refunds.add('o1')
+    refunds.add('o2')
+    await tick()
+    fake.ctl.held.shift()!.reject() // o1's write fails; the resync must not touch visible meta
+    await tick()
+    await tick()
+    expect([...refunds.ids()].sort()).toEqual(['o1', 'o2'])
+    refunds.add('o3')
+    for (let i = 0; i < 10; i++) { await tick(); fake.ctl.held.shift()?.resolve() }
+    await tick()
+    expect([...refunds.ids()].sort()).toEqual(['o1', 'o2', 'o3'])
+    const disk = JSON.parse(fake.persisted.meta.get(SYNCED_REFUNDS_KEY)!) as { orderId: string }[]
+    expect(disk.map((e) => e.orderId).sort()).toEqual(['o1', 'o2', 'o3'])
   })
 })
