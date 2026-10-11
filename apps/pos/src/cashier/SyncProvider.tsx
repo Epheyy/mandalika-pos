@@ -16,6 +16,7 @@ import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
+import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
@@ -105,6 +106,8 @@ export function SyncProvider({
           onReceiveAccepted: (transfer) => onReceiveAcceptedRef.current?.(transfer),
         },
         getKV(),
+        // Every queued item is stamped with who/where it was captured (A04).
+        { actor: currentActor },
       )
       engineRef.current = e
       return e

@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { hideSplash, otaNotifyReady } from './native'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
+import OutletPickScreen from './screens/OutletPickScreen'
 import logoGold from './assets/logo-gold.png'
 
 function LoginScreen() {
@@ -130,7 +131,7 @@ function LoginScreen() {
 }
 
 export default function App() {
-  const { user, ready } = useAuth()
+  const { user, ready, needsOutletPick } = useAuth()
   // The native launch splash has launchAutoHide:false. SyncProvider hides it
   // post-login, but the pre-login screen never mounts SyncProvider — so on a
   // fresh/logged-out app the splash covered the WebView forever (blank app).
@@ -150,6 +151,8 @@ export default function App() {
     )
   }
   if (!user) return <LoginScreen />
+  // An outlet-less account on an unbound terminal picks the outlet once (A04).
+  if (needsOutletPick) return <OutletPickScreen />
   // Phase C: offline-first CashierScreen wrapped in SyncProvider
   return (
     <SyncProvider>

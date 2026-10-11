@@ -5,7 +5,8 @@ import type { KV } from './storage'
  *  the item and sent as a sibling of `payload`; never derived later, never backfilled. */
 export type OutboxEnvelope = components['schemas']['SyncEnvelope']
 
-const OUTBOX_KEY = 'mandalika.pos.outbox'
+/** Storage key of the durable queue; the POS login guard reads it before an engine exists. */
+export const OUTBOX_KEY = 'mandalika.pos.outbox'
 /** An unreadable outbox is copied here (never deleted) before anything can overwrite it. */
 export const OUTBOX_QUARANTINE_PREFIX = 'mandalika.outbox.corrupt.'
 /** Durable marker (JSON OutboxCorruption) so the warning outlives the session that detected it.
