@@ -25,3 +25,20 @@ describe('shift recap slip: refunds of other shifts (A06)', () => {
     expect(t).toContain(money(80000))
   })
 })
+
+describe('shift recap slip: unsynced and legacy refund notes', () => {
+  const base = {
+    title: 'Rekap Shift', outletName: 'BSD', cashierName: 'Kasir', openedAt: null, closedAt: null,
+    startingCash: null, closingCash: null, methods: [], totalRecorded: 0, totalCounted: null, cashIn: null, cashOut: null,
+    gross: 0, refundTotal: 0, refundCount: 0, discount: 0, surcharge: 0, net: 0, tax: 0, totalSales: 0, totalOrders: 0,
+    generatedAt: new Date('2026-10-11T00:00:00Z'),
+  } as RecapData
+  it('prints the unsynced refunds line', () => {
+    expect(txt(buildRecap({ ...base, unsyncedRefunds: 225000 }, settings))).toContain(pad('Refund belum tersinkron', '-' + money(225000)))
+  })
+  it('prints the "tanpa detail" note for legacy queued refunds', () => {
+    const t = txt(buildRecap({ ...base, unknownRefundDetailCount: 2 }, settings))
+    expect(t).toContain('tanpa detail: 2')
+    expect(t).toContain('tidak dihitung')
+  })
+})

@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { createClient } from '@mandalika/api'
-import { loadCurrentRecap, loadHistoricalRecap, loadRecapHistory } from './recapData'
+import { freshCurrentRecap, loadCurrentRecap, loadHistoricalRecap, loadRecapHistory } from './recapData'
 
 const storage = new Map<string, string>()
 let fail: string | null
@@ -86,4 +86,15 @@ it('retains a complete multi-page history on page-two failure', async () => {
   fail = '/api/v1/shifts'
   expect(await loadRecapHistory(client())).toEqual({ data: initial.data, stale: true })
   expect(storage.get('mandalika.cache.rekap:history')).toBe(saved)
+})
+
+it('freshCurrentRecap rejects when the real completeRecap path fell back to the cache (stale = failure)', async () => {
+  const api = client()
+  await loadCurrentRecap(api) // online: fills the rekap:current cache
+  offline = true
+  expect((await loadCurrentRecap(api)).stale).toBe(true) // what the panel used to apply silently
+  await expect(freshCurrentRecap(api)).rejects.toThrow()
+  offline = false
+  const fresh = await freshCurrentRecap(api)
+  expect(fresh.shift?.id).toBe('current')
 })
