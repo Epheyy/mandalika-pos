@@ -8,13 +8,13 @@ Last updated: 2026-10-11 by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 8 done.**
+Goal: production-ready POS = 8 P0 audit findings closed + release gates. **8 of 8 done** (A06/A01 emulator-verified; see leftovers).
 
 | P0 | Finding | Status |
 |---|---|---|
 | A13 | Concurrent transfers double-move stock | **Done** — slice 1 |
 | A11 | Retried writes applied twice | **Done** for /sync/batch — slice 2 |
-| A01 | Sale not durable on device | **Partial** - awaited writes (APK 1.1+); slice 9 SQLite journal: plan `docs/plans/2026-10-11-p0-slice9-a01-journal.md` (owner answers recorded), Phase A (seam + journal store) done locally + Opus-reviewed twice, not pushed; next Phase B (initJournal migration, wiring, synced refunds) |
+| A01 | Sale not durable on device | **Done (emulator-verified)** - slice 9 SQLite journal in APK 1.7 (versionCode 8): 1.6->1.7 offline upgrade migrated 2 queued sales byte-identical (sealed, TRUNCATE, synchronous FULL), synced once each; kill -9 at 50/200/800/2000 ms after Konfirmasi: every sale kept, rows intact. Not yet run: corruption-file-kept test, backup/restore clean-start test |
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
@@ -23,7 +23,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00092-naf`** (100%, tag `rf7`) from `prod-hardening`
+- **Backend:** Cloud Run `mandalika-pos` revision **`00094-per`** (100%, tag `ota9`) = slice 7 + OTA strictly-newer (decide.go), from `be3a3dd`; rollback `--to-revisions mandalika-pos-00092-naf=100`. Before that: revision **`00092-naf`** (tag `rf7`) from `prod-hardening`
   @ `c3f86d0`. Contains slices 1–3, 6, 7, 8 + 8c, admin reset password. Migrations applied through **0047**.
   - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00090-wof=100`
     (0047 columns are ignored by 00090-wof; refunds parked by the new rules would pass the old rules if retried).
@@ -34,7 +34,8 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 - **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev` from `prod-hardening` (auto-deploys on
   push unless the head commit starts with `[CF-Pages-Skip]`). Has: payment-method "Tunai (masuk laci kas)"
   toggle, ⚠ Bayar badge, settings-driven payment filters, admin reset-password button.
-- **POS:** **APK 1.6** (versionCode 7, run 38126838968) -> `Downloads/mandalika-apk/mandalika-pos-1.6-build7.apk` (slice 7: refund gate, review detail, recap net of refunds, synced-refund memory, isolation hold); Emulator-verified 2026-10-11: refund button + reason counter/disabled-when-blank; offline refund of BSD-G0007 (same shift) gives Tunai Tercatat 675.000 to 450.000 with 'Refund belum tersinkron -Rp 225.000', Riwayat 'Refund menunggu sinkronisasi'; online sync: server refunded, refund_shift_id = sale shift, refunded_by_name Administrator; Tercatat stays 450.000, 1 refund counted once, synced-refund memory recorded. Not run: cross-shift refund + close, printed slip, account without process_refund.
+- **POS:** **APK 1.7** (versionCode 8, run 38147374197, rerun after a Docker Hub rate limit) -> `Downloads/mandalika-apk/mandalika-pos-1.7-build8.apk`: slice 9 journal, backup exclusions, production logging. Emulator-verified 2026-10-11 (see A01 row).
+  Previous: **APK 1.6** (versionCode 7, run 38126838968) -> `Downloads/mandalika-apk/mandalika-pos-1.6-build7.apk` (slice 7: refund gate, review detail, recap net of refunds, synced-refund memory, isolation hold); Emulator-verified 2026-10-11: refund button + reason counter/disabled-when-blank; offline refund of BSD-G0007 (same shift) gives Tunai Tercatat 675.000 to 450.000 with 'Refund belum tersinkron -Rp 225.000', Riwayat 'Refund menunggu sinkronisasi'; online sync: server refunded, refund_shift_id = sale shift, refunded_by_name Administrator; Tercatat stays 450.000, 1 refund counted once, synced-refund memory recorded. Not run: cross-shift refund + close, printed slip, account without process_refund.
   Previous: **APK 1.5** (versionCode 6, run 38106865965) → `Downloads/mandalika-apk/mandalika-pos-1.5-build6.apk`.
   Emulator-verified: one-time "Pilih outlet terminal ini" for admin (binding `mandalika.pos.terminal`),
   outlet name in header, no logout/switcher (menu "Terminal" + guarded "Lepas terminal"), offline restart
@@ -102,7 +103,7 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
    implementer → Opus review → failing-first PG gate → hidden-revision deploy. Pre-go-live: audit real
    accounts' `process_refund` (test DB: all 4 accounts have it; no role grants it by default).
-2. **P0 slice 9 (A01b)** in progress: Phase B next (T4 initJournal, T5 wiring, T7 synced refunds), then Phase C (T6 Java plugin, T8 version 1.7, T10 decide.go strictly newer), then APK 1.7 + emulator kill tests. Read the plan's review-rule sections first.
+2. **Slice 9 leftovers (emulator):** corruption test (garbage over the DB header with adb root -> BootError, file kept same size), backup/restore clean start (bmgr LocalTransport), kill during first migration. Each ends with `pm clear` + owner re-login. Before the first OTA: min-versionCode guard (needs migration). Then **rollout**: APK 1.7 to the fleet (0 pending first) -> set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 3. **Rollout:** APK 1.5 to the fleet → set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 4. **Follow-ups (owner to prioritise):**
    - Slice 7: sales made while a shift_open is still syncing (incl. held by M3) carry no shift (envelope stamps only server-known shifts); pre-existing, window now longer.
