@@ -41,13 +41,15 @@ export class RecapLoadGate {
   private pending = 0
   private fresh = 0
   private lastRefresh = 0
+  private lastBegin = 0
   /** Tickets up to this one predate a refresh that gave up: their data cannot be called fresh. */
   private heldAfter: number | null = null
 
   /** A load (shows the loading state). */
   begin(): number {
     this.pending += 1
-    return ++this.issued
+    this.lastBegin = ++this.issued
+    return this.lastBegin
   }
 
   /** A background refresh attempt (no loading state). */
@@ -56,10 +58,16 @@ export class RecapLoadGate {
     return this.lastRefresh
   }
 
-  /** A load finished: true when none is still pending, so the loading state may clear. */
-  end(): boolean {
+  /** A load finished: true when the loading state may clear, i.e. it is the newest load (a hung older
+   *  load must not keep the skeleton up) or none is pending any more. */
+  end(ticket: number): boolean {
     this.pending = Math.max(0, this.pending - 1)
-    return this.pending === 0
+    return ticket === this.lastBegin || this.pending === 0
+  }
+
+  /** Only the newest begun load may prefill the typed counts. */
+  isNewestLoad(ticket: number): boolean {
+    return ticket === this.lastBegin
   }
 
   canApply(ticket: number): boolean {
@@ -89,4 +97,14 @@ export class RecapLoadGate {
     this.heldAfter = this.issued
     return true
   }
+}
+
+/** Switching to the tab that is already active changes nothing (and must not wipe its flags). */
+export function switchTab<T extends string>(current: T, next: T): T | null {
+  return next === current ? null : next
+}
+
+/** Rekapan and Riwayat share loading/stale/error flags: only the visible tab's loads may touch them. */
+export function ownsFlags(visibleTab: string, loaderTab: string): boolean {
+  return visibleTab === loaderTab
 }

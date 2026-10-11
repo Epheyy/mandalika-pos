@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { MAX_ATTEMPTS, Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -657,13 +657,22 @@ export class SyncEngine {
     // in order. Items that succeed settle normally; the bad one goes to review.
     let last: BatchResult | null = null
     let rest = [...items]
+    // Mirrors the server (processBatch): once an isolated item came back retryable, a later shift_close or
+    // shift_open must not go out alone, because the server hold only sees items of the same request.
+    // They stay pending and unsent; every other item is still isolated so a malformed one parks.
+    let earlierRetryable = false
     while (rest.length) {
       const [it, ...tail] = rest
+      if (earlierRetryable && (it.type === 'shift_close' || it.type === 'shift_open')) {
+        rest = tail
+        continue
+      }
       try {
         const data = await this.post([it])
         if (this.disposed) return null
         await this.applyBatch(data, typeByKey)
         last = data
+        if (data.results.some((r) => r.idempotencyKey === it.idempotencyKey && r.status === 'error' && r.retryable === true)) earlierRetryable = true
       } catch (e) {
         if (this.disposed) return null
         const f = classifyFailure(e, ONLINE())
@@ -672,12 +681,6 @@ export class SyncEngine {
           return last
         }
         await this.parkRejected([it], f.message)
-      }
-      // An item that came back retryable (e.g. busy) stops the loop: the server hold on shift_close and
-      // shift_open only sees items of the same request, so a later one must not be sent alone ahead of it.
-      if (this.outbox.all().some((i) => i.idempotencyKey === it.idempotencyKey && i.status === 'failed' && (i.attempts ?? 0) < MAX_ATTEMPTS)) {
-        this.events.onOutboxChange?.(this.outbox.count())
-        return last
       }
       rest = tail
     }

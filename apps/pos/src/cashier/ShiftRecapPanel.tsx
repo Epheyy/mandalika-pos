@@ -19,7 +19,7 @@ import { formatRupiah } from './pricing'
 import { freshCurrentRecap, loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
-import { RecapLoadGate, startRefresh } from './recapRefresh'
+import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
@@ -218,12 +218,15 @@ function ShiftRecapPanelBody({
   const loadRekap = useCallback(async () => {
     const gate = rekapGate.current
     const ticket = gate.begin()
-    setIsLoading(true)
-    setError(null)
+    if (ownsFlags(tabRef.current, 'rekapan')) { // a delayed load while on Riwayat must not touch its flags
+      setIsLoading(true)
+      setError(null)
+    }
     try {
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
-      // 'Terhitung' is only ever prefilled by a load, so it is set even when a newer refresh already applied figures.
-      setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
+      // 'Terhitung' is only ever prefilled by the newest load (a refresh does not prefill it), so a late
+      // older load cannot wipe counts typed since.
+      if (gate.isNewestLoad(ticket)) setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       if (!gate.canApply(ticket)) return
       const showStale = gate.apply(ticket, stale)
       setCurrentShift(shift)
@@ -234,15 +237,17 @@ function ShiftRecapPanelBody({
       // Swallowed only when newer data already applied; otherwise the cashier must see the failure.
       if (gate.canApply(ticket) && tabRef.current === 'rekapan') setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
-      if (gate.end() && tabRef.current === 'rekapan') setIsLoading(false)
+      if (gate.end(ticket) && ownsFlags(tabRef.current, 'rekapan')) setIsLoading(false)
     }
   }, [])
 
   const loadHistory = useCallback(async () => {
     const gate = histGate.current
     const ticket = gate.begin()
-    setIsLoading(true)
-    setError(null)
+    if (ownsFlags(tabRef.current, 'riwayat')) {
+      setIsLoading(true)
+      setError(null)
+    }
     try {
       const { data, stale } = await loadRecapHistory(api)
       if (!gate.canApply(ticket)) return
@@ -252,13 +257,16 @@ function ShiftRecapPanelBody({
     } catch (e: unknown) {
       if (gate.canApply(ticket) && tabRef.current === 'riwayat') setError(e instanceof Error ? e.message : 'Gagal memuat riwayat shift lengkap')
     } finally {
-      if (gate.end() && tabRef.current === 'riwayat') setIsLoading(false)
+      if (gate.end(ticket) && ownsFlags(tabRef.current, 'riwayat')) setIsLoading(false)
     }
   }, [])
 
   // Switching tabs clears the previous tab's transient view state (selected
   // history shift, detail overlay, status messages) before the new tab loads.
-  const changeTab = (next: Tab) => {
+  const changeTab = (requested: Tab) => {
+    const next = switchTab(tab, requested)
+    if (next === null) return // already on this tab: nothing to reset or reload
+    tabRef.current = next
     selectionRequest.current++
     setSelected(null)
     setShowMobileDetail(false)
@@ -287,7 +295,8 @@ function ShiftRecapPanelBody({
         return { ticket, outcome, data }
       },
       apply: ({ ticket, outcome, data: { shift, flows, orders } }) => {
-        if (outcome === 'apply') {
+        // Re-checked here: a newer load may have applied between the fetch resolving and this callback.
+        if (outcome === 'apply' && rekapGate.current.resolveRefresh(ticket) === 'apply') {
           const showStale = rekapGate.current.apply(ticket, false)
           setCurrentShift(shift)
           setCurrentFlows(flows)
