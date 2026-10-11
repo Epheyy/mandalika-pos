@@ -1267,6 +1267,13 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
+	// Outlet-less accounts (admin before a terminal outlet is chosen) get the same
+	// 403 as /sync/pull, not a 500 from an empty-uuid lookup. Clients read a 4xx as
+	// "reachable, account problem" (A04).
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
 	v, err := h.Sync.Version(r.Context(), c.outletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
