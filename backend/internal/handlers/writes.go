@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/service"
@@ -1057,21 +1060,73 @@ func (h *Handlers) returnOrder(w http.ResponseWriter, r *http.Request, id string
 	writeJSON(w, http.StatusCreated, map[string]any{"data": o})
 }
 
+// refundHTTPError maps a refund failure to the direct route's response. Business
+// refusals keep their (Indonesian) text; anything else is a server fault whose raw
+// text stays in the log, never in the response (A06).
+func refundHTTPError(err error) (int, string) {
+	if code, ok := apperr.CodeOf(err); ok {
+		switch code {
+		case apperr.Rejected:
+			return http.StatusBadRequest, err.Error()
+		case apperr.Forbidden:
+			return http.StatusForbidden, err.Error()
+		case apperr.Conflict, apperr.Busy:
+			return http.StatusConflict, err.Error()
+		}
+	}
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) {
+		switch pg.Code {
+		case "40P01", "40001", "55P03": // lock conflict: nothing applied, retry later
+			return http.StatusConflict, write.ErrBusy.Error()
+		}
+	}
+	return http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi"
+}
+
 func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
-	if err := httpx.DecodeLoose(r, &body); err != nil || body.Reason == "" {
-		httpx.Err(w, http.StatusBadRequest, "refund reason required")
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	fail := func(err error) {
+		status, msg := refundHTTPError(err)
+		if status >= http.StatusInternalServerError {
+			slog.Error("refund failed", "orderId", id, "err", err)
+		}
+		httpx.Err(w, status, msg)
+	}
+	// The shared input rules run first so a malformed id or reason never reaches SQL.
+	if _, err := service.NormalizeRefund(id, body.Reason); err != nil {
+		fail(err)
 		return
 	}
 	c, _ := h.caller(r)
-	if err := h.OrderSvc.Refund(r.Context(), c.outletID, chi.URLParam(r, "id"), body.Reason); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+	outlet := c.outletID
+	if outlet == "" {
+		// An admin on "Semua outlet" refunds at the order's own outlet (no new
+		// authority); any other caller without an outlet is refused.
+		if c.role != "admin" {
+			httpx.Err(w, http.StatusForbidden, "no active outlet")
+			return
+		}
+		o, err := h.OrderSvc.OrderOutlet(r.Context(), id)
+		if err != nil {
+			fail(err)
+			return
+		}
+		outlet = o
+	}
+	if err := h.OrderSvc.Refund(r.Context(), outlet, id, body.Reason); err != nil {
+		fail(err)
 		return
 	}
 	h.invalidate(r)
-	h.returnOrder(w, r, chi.URLParam(r, "id"))
+	h.returnOrder(w, r, id)
 }
 
 func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {

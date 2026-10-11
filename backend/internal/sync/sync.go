@@ -350,6 +350,17 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		return r
 	case "refund":
 		if !c.CanRefund {
+			// A06: a refund that already committed replays as ok even if the
+			// permission was removed since (M3 rule); only an uncommitted key is
+			// forbidden. A failed probe is a retryable server error, never a review item.
+			id, _, applied, aerr := e.alreadyApplied(ctx, c, it)
+			if aerr != nil {
+				return fail(aerr)
+			}
+			if applied {
+				r.Status, r.OrderID = "ok", id
+				return r
+			}
 			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
 		}
 		var p struct {

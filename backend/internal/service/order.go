@@ -611,8 +611,8 @@ func (s *OrderService) replayAfterConflict(ctx context.Context, tx pgx.Tx, key s
 	return "", false, false, apperr.Wrap(apperr.Busy, write.ErrBusy)
 }
 
-// Refund flips the order to refunded and restores stock (Orders.tsx:47-72).
-// Idempotent: refunding an already-refunded order is a no-op.
+// Refund flips a completed order to refunded and restores stock (Orders.tsx:47-72).
+// Refunding an already-refunded or non-completed order is refused (A06).
 func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason string) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -625,11 +625,28 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 	return tx.Commit(ctx)
 }
 
+// OrderOutlet returns the outlet an order belongs to, so an admin without an
+// active outlet can refund it there. A missing order is ErrOrderClosed.
+func (s *OrderService) OrderOutlet(ctx context.Context, orderID string) (string, error) {
+	if _, err := NormalizeRefund(orderID, "x"); err != nil {
+		return "", err
+	}
+	var outlet string
+	err := s.Pool.QueryRow(ctx, `SELECT outlet_id::text FROM orders WHERE id=$1`, orderID).Scan(&outlet)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrOrderClosed
+	}
+	return outlet, err
+}
+
 // RefundTx is Refund inside a caller-owned transaction (the caller commits or
 // rolls back). Used by the keyed /sync/batch path so the refund and its
 // operation receipt commit atomically.
 func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderID, reason string) error {
-	var err error
+	reason, err := NormalizeRefund(orderID, reason)
+	if err != nil {
+		return err
+	}
 	var status, orderNumber string
 	var custID *string
 	var discountCode *string
@@ -646,8 +663,13 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderI
 	if err != nil {
 		return err
 	}
+	// A06/Q1: a second refund is a second payout. Refuse it (the batch path turns
+	// this into a review item); same-key replays never get here (receipt replay).
 	if status == "refunded" {
-		return nil // already refunded — idempotent
+		return ErrAlreadyRefunded
+	}
+	if status != "completed" {
+		return ErrOrderNotRefundable
 	}
 	if _, err = tx.Exec(ctx,
 		`UPDATE orders SET status='refunded', refund_reason=$1, refunded_at=now()
@@ -656,7 +678,7 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderI
 	}
 	// SP-Promo-3a: restore usage for EVERY applied code. Fall back to the singular
 	// discount_code for pre-feature orders (applied_discount_codes is NULL there).
-	// GREATEST(-1,0) + the already-refunded short-circuit keep this idempotent.
+	// GREATEST(-1,0) + the completed-only check keep this at most once.
 	restore := appliedCodes
 	if len(restore) == 0 && discountCode != nil && *discountCode != "" {
 		restore = []string{*discountCode}
@@ -703,8 +725,7 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderI
 	}
 
 	// Points reversal (SP-CRM-7): claw back earned (floor 0, forgive remainder) and
-	// restore redeemed. Idempotent: the already-refunded short-circuit above means
-	// this runs at most once per order.
+	// restore redeemed. Runs at most once per order: only a completed order gets here.
 	// SP-CRM-8: orders.points_earned now stores the FULL engine total (base × mult +
 	// bonuses), so this clawback reverses bonuses too with no change here. Condition
 	// application rows are immutable order-time facts and are intentionally not reversed.
