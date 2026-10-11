@@ -2,6 +2,8 @@
 // restart, and works in both the browser and the Capacitor WebView. Phase E
 // swaps the implementation for Capacitor SQLite behind this interface.
 
+import { KVOutboxStore, type OutboxStore } from './outboxStore'
+
 export interface KV {
   get(key: string): string | null
   set(key: string, value: string): void
@@ -163,4 +165,17 @@ export async function initSecureKV(): Promise<KV> {
   await kv.hydrate()
   activeKV = kv
   return activeKV
+}
+
+let activeOutboxStore: OutboxStore | null = null
+
+/** The store the outbox persists through: the SQLite journal once `initJournal` adopted it, else
+ *  the whole-array KV store over {@link getKV} (web, dev, iOS, shells without the native plugin). */
+export function getOutboxStore(): OutboxStore {
+  return activeOutboxStore ?? new KVOutboxStore(getKV())
+}
+
+/** @internal boot/test only: `initJournal` hands over the journal; `null` reverts to the KV store. */
+export function adoptOutboxStore(store: OutboxStore | null): void {
+  activeOutboxStore = store
 }

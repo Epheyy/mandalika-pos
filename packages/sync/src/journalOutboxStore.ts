@@ -29,6 +29,21 @@ export class JournalConflictError extends Error {
   }
 }
 
+/** Why a stored row is not a well-formed outbox item, or null when it is. */
+export function rowProblem(row: JournalRow): string | null {
+  let item: unknown
+  try {
+    item = JSON.parse(row.json)
+  } catch {
+    return 'is not valid JSON'
+  }
+  const o = item as Partial<OutboxItem> | null
+  if (!o || typeof o !== 'object' || Array.isArray(o) || o.idempotencyKey !== row.key || o.seq !== row.seq) {
+    return 'does not match its item'
+  }
+  return null
+}
+
 interface MirrorRow {
   seq: number
   /** The exact text stored in item_json. Never re-serialized: the server fingerprints number text. */
@@ -57,18 +72,22 @@ export class JournalOutboxStore implements OutboxStore {
   private tail: Promise<void> = Promise.resolve()
   readonly kv: KV
 
-  private constructor(private readonly plugin: OutboxJournalPlugin) {
+  private constructor(
+    private readonly plugin: OutboxJournalPlugin,
+    /** Where the corruption marker/quarantine live (Preferences), never the journal meta. */
+    readonly noticeKV?: KV,
+  ) {
     this.kv = this.makeKV()
   }
 
   /** Adopt the journal: refuses (typed error) unless open() reports quick_check ok and synchronous
    *  FULL, and every row is a well-formed item. Concurrent/repeat calls share one instance; a
    *  refusal is not cached, so a later launch (or retry) can try again. */
-  static open(plugin: OutboxJournalPlugin): Promise<JournalOutboxStore> {
+  static open(plugin: OutboxJournalPlugin, noticeKV?: KV): Promise<JournalOutboxStore> {
     const existing = adopted.get(plugin)
     if (existing) return existing
     const attempt = (async () => {
-      const store = new JournalOutboxStore(plugin)
+      const store = new JournalOutboxStore(plugin, noticeKV)
       await store.hydrate()
       return store
     })()
@@ -104,16 +123,31 @@ export class JournalOutboxStore implements OutboxStore {
   }
 
   private validateRow(row: JournalRow): void {
-    let item: unknown
-    try {
-      item = JSON.parse(row.json)
-    } catch (cause) {
-      throw new JournalUnavailableError('row_corrupt', `journal row ${row.key} is not valid JSON`, cause)
-    }
-    const o = item as Partial<OutboxItem> | null
-    if (!o || typeof o !== 'object' || Array.isArray(o) || o.idempotencyKey !== row.key || o.seq !== row.seq) {
-      throw new JournalUnavailableError('row_corrupt', `journal row ${row.key} does not match its item`)
-    }
+    const problem = rowProblem(row)
+    if (problem) throw new JournalUnavailableError('row_corrupt', `journal row ${row.key} ${problem}`)
+  }
+
+  /** The journal as it is on disk right now (waits for queued applies). Boot/migration only. */
+  async readDisk(): Promise<JournalReadAllResult> {
+    await this.tail
+    return this.plugin.readAll()
+  }
+
+  /** One boot/migration transaction through the same serialized chain as every other write, so the
+   *  mirror follows it (replaceAll, deletes, upserts, meta). Rejects if the change is not on disk. */
+  applyBoot(request: JournalApplyRequest): Promise<void> {
+    return this.enqueue({
+      request,
+      patch: () => {
+        if (request.replaceAll) this.rows.clear()
+        for (const k of request.deletes) this.rows.delete(k)
+        for (const u of request.upserts) this.rows.set(u.key, { seq: u.seq, json: u.json })
+        for (const [k, v] of Object.entries(request.meta ?? {})) {
+          this.meta.set(k, v)
+          this.metaDisk.set(k, v)
+        }
+      },
+    })
   }
 
   /** Always `ok`: a journal that does not parse is refused at {@link open}, never silently emptied. */

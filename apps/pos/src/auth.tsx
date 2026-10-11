@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { User } from '@mandalika/api'
-import { defaultKV, getKV } from '@mandalika/sync'
+import { defaultKV, getKV, getOutboxStore } from '@mandalika/sync'
 import { api, authStore } from './api'
 import {
   checkLoginAllowed,
@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const d = await api.login(email, password)
       // A different account may not take over a terminal that still holds the previous
       // account's queued transactions (A04). Revoke the session just issued.
-      const verdict = checkLoginAllowed(getKV(), d.user)
+      const verdict = checkLoginAllowed(getOutboxStore(), d.user)
       if (!verdict.ok) {
         void api.logout(d.refresh).catch(() => {})
         throw new Error(verdict.message)
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const releaseTerminal = useCallback(async () => {
     const kv = getKV()
-    if (!isQueueReleasable(readQueueState(kv))) {
+    if (!isQueueReleasable(readQueueState(getOutboxStore()))) {
       throw new Error('Masih ada transaksi yang belum terkirim atau perlu ditinjau tanpa pemilik. Terminal tidak dapat dilepas.')
     }
     const bound = readBinding(kv)

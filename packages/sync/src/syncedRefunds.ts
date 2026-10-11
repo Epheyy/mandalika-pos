@@ -12,6 +12,9 @@ interface Entry { orderId: string; at: number }
  *  history row can still say "completed": this keeps the refund button from coming back (a second
  *  cash payout). Best effort and bounded; the server remains the authority and refuses duplicates. */
 export class SyncedRefunds {
+  /** Serializes {@link addMany}: each call reads the stored list only after the previous write landed. */
+  private chain: Promise<unknown> = Promise.resolve()
+
   constructor(private kv: KV) {}
 
   private read(): Entry[] {
@@ -29,6 +32,26 @@ export class SyncedRefunds {
     if (!orderId) return
     const kept = this.read().filter((e) => e.orderId !== orderId)
     writeJSON(this.kv, SYNCED_REFUNDS_KEY, this.live([...kept, { orderId, at: Date.now() }]))
+  }
+
+  /** Durably remember several orders. Resolves only once stored and REJECTS otherwise, so the caller can
+   *  keep the acked refund row (the other copy of this fact) until it is safe to drop. */
+  addMany(orderIds: readonly string[]): Promise<void> {
+    const ids = [...new Set(orderIds.filter(Boolean))]
+    if (!ids.length) return Promise.resolve()
+    const run = this.chain.then(() => {
+      const incoming = new Set(ids)
+      const at = Date.now()
+      const kept = this.read().filter((e) => !incoming.has(e.orderId))
+      return this.kv.setDurable(SYNCED_REFUNDS_KEY, JSON.stringify(this.live([...kept, ...ids.map((orderId) => ({ orderId, at }))])))
+    })
+    this.chain = run.catch(() => {})
+    return run
+  }
+
+  /** Resolves when every addMany queued so far has settled. */
+  idle(): Promise<unknown> {
+    return this.chain
   }
 
   ids(): Set<string> {

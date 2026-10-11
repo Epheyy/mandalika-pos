@@ -1,6 +1,5 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { initSecureKV } from '@mandalika/sync'
 import './index.css'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
@@ -8,12 +7,13 @@ import { bootNativeShell, hideSplash } from './native'
 import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
 import { BootError } from './BootError'
+import { bootStorage } from './bootStorage'
 
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
 async function boot(): Promise<void> {
   try {
-    await initSecureKV()
+    await bootStorage()
   } catch (err) {
     // Never fall back to an empty queue: stop with a visible, retryable error.
     void hideSplash()

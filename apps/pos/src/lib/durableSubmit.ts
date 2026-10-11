@@ -49,3 +49,8 @@ export const OUTBOX_CORRUPT_UNSECURED_MESSAGE =
 
 export const OUTBOX_CORRUPT_MESSAGE =
   'Antrean sinkronisasi rusak dan telah diamankan; hubungi admin sebelum melanjutkan transaksi.'
+
+/** Owner Q1: the SQLite journal could not be adopted on this launch, so sales continue on the previous
+ *  storage; the journal is retried at the next launch. */
+export const JOURNAL_FALLBACK_MESSAGE =
+  'Penyimpanan antrean versi baru belum dapat dipakai; transaksi tetap tersimpan seperti biasa. Hubungi admin agar diperiksa.'

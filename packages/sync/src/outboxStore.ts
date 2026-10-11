@@ -14,6 +14,9 @@ export interface OutboxStore {
   commit(prev: readonly OutboxItem[], next: readonly OutboxItem[]): Promise<void>
   /** Side-channel KV: the corruption quarantine/marker today, synced-refund memory for the journal. */
   readonly kv: KV
+  /** Where the corruption quarantine/marker live when `kv` cannot hold them (the journal's `kv` is a
+   *  meta facade for synced refunds only). Falls back to `kv`. */
+  readonly noticeKV?: KV
   /** Highest seq the store holds or is about to hold. The Outbox never hands out a seq at or below it.
    *  Absent on the KV store (a single writer owns the whole array). */
   maxSeq?(): number

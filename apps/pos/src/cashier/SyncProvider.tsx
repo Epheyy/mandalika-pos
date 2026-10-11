@@ -12,7 +12,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react'
-import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV } from '@mandalika/sync'
+import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV, getOutboxStore, getJournalBootNotice } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
@@ -20,9 +20,13 @@ import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { AppLoadingSkeleton } from '../components/Skeleton'
-import { OUTBOX_CORRUPT_MESSAGE, OUTBOX_CORRUPT_UNSECURED_MESSAGE, OUTBOX_CORRUPT_PENDING_MESSAGE } from '../lib/durableSubmit'
+import { JOURNAL_FALLBACK_MESSAGE, OUTBOX_CORRUPT_MESSAGE, OUTBOX_CORRUPT_UNSECURED_MESSAGE, OUTBOX_CORRUPT_PENDING_MESSAGE } from '../lib/durableSubmit'
 
 type Transfer = components['schemas']['Transfer']
+
+// The engine before the one being built (sign-out or account change replaces it). The wiring rule for the
+// journal: its writes must have settled before the new engine reads the queue.
+let previousEngine: SyncEngine | null = null
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SyncContext = createContext<SyncEngine | null>(null)
@@ -62,6 +66,7 @@ export function SyncProvider({
   const [ready, setReady] = useState(false)
   const engineRef = useRef<SyncEngine | null>(null)
 
+  const predecessorRef = useRef<SyncEngine | null>(null)
   const engine = useMemo(
     () => {
       const e = new SyncEngine(
@@ -111,8 +116,10 @@ export function SyncProvider({
         },
         getKV(),
         // Every queued item is stamped with who/where it was captured (A04).
-        { actor: currentActor },
+        { actor: currentActor, outboxStore: getOutboxStore() },
       )
+      predecessorRef.current = previousEngine
+      previousEngine = e
       engineRef.current = e
       return e
     },
@@ -137,28 +144,56 @@ export function SyncProvider({
     return () => { live = false }
   }, [corruption, engine])
 
+  // Q1 fallback: the journal was not adopted this launch (selling continues on the old storage).
+  const journalNotice = useMemo(() => getJournalBootNotice(), [])
   useEffect(() => {
-    // Bootstrap: pull snapshot, then start periodic polling
-    if (flushOnly) {
-      setReady(true)
-      void hideSplash()
-    } else {
-      engine
-        .resync()
-        .catch(() => {
-          // Offline on first load — engine keeps selling from empty snapshot
-        })
-        .finally(() => {
-          setReady(true)
-          void hideSplash()
-        })
-    }
+    if (!journalNotice) return
+    void reportErrors([{
+      source: 'runtime',
+      kind: 'journal_fallback',
+      action: 'Journal antrean tidak dapat dipakai',
+      message: `${journalNotice.code}: ${journalNotice.detail}`,
+    }])
+  }, [journalNotice])
 
-    // Poll every 12s: flushes the outbox and refreshes real server
-    // reachability (drives the header online/offline dot).
-    const stop = engine.start(12_000, { flushOnly })
+  useEffect(() => {
+    // Journal wiring rule: the previous engine and the store must be idle before this engine reads
+    // the queue, so an add that was still in flight is not missed. Nothing is shown (or queued)
+    // until then: `ready` stays false.
+    let live = true
+    let stop: (() => void) | null = null
+    void (async () => {
+      try {
+        engine.outbox.revive() // StrictMode re-run: cleanup disposed it, and refresh skips a disposed outbox
+        await predecessorRef.current?.idle()
+        await getOutboxStore().idle?.()
+        await engine.rehydrate()
+      } catch (err) {
+        console.error('[sync] could not refresh the queue before start', err)
+      }
+      if (!live) return
+      // Bootstrap: pull snapshot, then start periodic polling
+      if (flushOnly) {
+        setReady(true)
+        void hideSplash()
+      } else {
+        engine
+          .resync()
+          .catch(() => {
+            // Offline on first load — engine keeps selling from empty snapshot
+          })
+          .finally(() => {
+            setReady(true)
+            void hideSplash()
+          })
+      }
+      // Poll every 12s: flushes the outbox and refreshes real server
+      // reachability (drives the header online/offline dot).
+      stop = engine.start(12_000, { flushOnly })
+    })()
     return () => {
-      stop()
+      live = false
+      stop?.()
       // Logout/unmount: this engine must never write the outbox again (the next
       // login builds a new one). start() revives it for StrictMode's dev re-run.
       engine.dispose()
@@ -171,6 +206,11 @@ export function SyncProvider({
 
   return (
     <SyncContext.Provider value={engine}>
+      {journalNotice && (
+        <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-amber-600 text-white text-sm font-bold px-4 py-2 text-center safe-top">
+          {JOURNAL_FALLBACK_MESSAGE}
+        </div>
+      )}
       {corruption && (
         // Persistent and non-dismissable; pointer-events-none so it never blocks the header.
         <div role="alert" className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-red-700 text-white text-sm font-bold px-4 py-2 text-center safe-top">

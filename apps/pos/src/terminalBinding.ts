@@ -1,5 +1,5 @@
 import type { User } from '@mandalika/api'
-import { OUTBOX_KEY, summarizeQueue, type KV, type QueueSummary } from '@mandalika/sync'
+import { OUTBOX_KEY, isOutboxStore, summarizeQueue, type KV, type OutboxStore, type QueueSummary } from '@mandalika/sync'
 import { readCachedUser } from './authBoot'
 
 // A04: a tablet is one fixed terminal at one outlet. The outlet it sells for is a
@@ -130,9 +130,18 @@ export interface QueueState extends QueueSummary {
   readable: boolean
 }
 
-/** Reads the durable outbox without an engine (login happens before one exists). */
-export function readQueueState(kv: KV): QueueState {
+/** The Preferences-backed KV behind a queue source (the journal's own `kv` is a meta facade). */
+const prefsOf = (source: KV | OutboxStore): KV => (isOutboxStore(source) ? source.noticeKV ?? source.kv : source)
+
+/** Reads the durable outbox without an engine (login happens before one exists). Pass the outbox
+ *  store the app runs on (journal or KV); a bare KV is read as the legacy whole-array key. */
+export function readQueueState(source: KV | OutboxStore): QueueState {
   const none = { pending: 0, parkedStamped: 0, parkedUnstamped: 0, owners: [] as string[] }
+  if (isOutboxStore(source)) {
+    const loaded = source.load()
+    return loaded.kind === 'ok' ? { ...summarizeQueue(loaded.items), readable: true } : { ...none, readable: false }
+  }
+  const kv = source
   const raw = kv.get(OUTBOX_KEY)
   if (raw === null || raw === '') return { ...none, readable: true }
   try {
@@ -169,8 +178,9 @@ function ownerOf(kv: KV, q: QueueState): { id: string; name: string } | null {
  *  that carry an envelope do not lock the terminal (they stay, labelled with their owner). An
  *  unreadable queue counts as not empty. If no owner can be determined nothing can be compared,
  *  so the account is let in rather than locking the terminal out of its own queue. */
-export function checkLoginAllowed(kv: KV, user: Pick<User, 'id'>): LoginVerdict {
-  const q = readQueueState(kv)
+export function checkLoginAllowed(source: KV | OutboxStore, user: Pick<User, 'id'>): LoginVerdict {
+  const kv = prefsOf(source)
+  const q = readQueueState(source)
   if (isQueueReleasable(q)) return { ok: true }
   const owner = ownerOf(kv, q)
   if (!owner || owner.id === user.id) return { ok: true }

@@ -3,6 +3,7 @@ import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type Ou
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
+import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 
@@ -147,6 +148,9 @@ export interface SyncEngineOptions {
   /** Stamps every new outbox item with its capture-time envelope. REQUIRED so a new call
    *  site cannot forget it: `null` (tests only) sends items without one (server: legacy path). */
   actor: ActorProvider | null
+  /** Where the outbox persists (the SQLite journal once adopted). Default: the whole-array KV store
+   *  over the engine's `kv`. Synced-refund memory follows the store (`store.kv`). */
+  outboxStore?: OutboxStore
 }
 
 /** A refund not yet acknowledged by the server, as the POS gate and shift recap see it. */
@@ -182,6 +186,7 @@ export class SyncEngine {
   readonly snapshot: Snapshot
   readonly pending: PendingCredits
   private readonly syncedRefunds: SyncedRefunds
+  private refundMemory: Promise<boolean> = Promise.resolve(true)
   private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
@@ -209,12 +214,50 @@ export class SyncEngine {
     this.kv = kv
     this.actorProvider = options.actor
     this.deviceId = getDeviceId(kv)
-    this.outbox = new Outbox(kv)
+    const store = options.outboxStore ?? new KVOutboxStore(kv)
+    this.outbox = new Outbox(store)
     this.snapshot = new Snapshot(kv)
     this.pending = new PendingCredits(kv)
-    this.syncedRefunds = new SyncedRefunds(kv)
+    this.syncedRefunds = new SyncedRefunds(store.kv)
+    // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
+    // synced-refund write; fold it into the memory now.
+    this.refundMemory = this.foldAckedRefunds()
     this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
+  }
+
+  /** Durably record the orders of acked refunds (those just acked plus any still sitting in the
+   *  queue). Resolves false, never rejects, when the write failed: the caller must then keep the rows. */
+  private foldAckedRefunds(extra: readonly string[] = []): Promise<boolean> {
+    const ids = new Set(extra)
+    for (const i of this.outbox.all()) {
+      if (i.type === 'refund' && i.status === 'acked' && typeof i.payload.orderId === 'string') ids.add(i.payload.orderId)
+    }
+    ids.delete('')
+    if (!ids.size) return Promise.resolve(true)
+    return this.syncedRefunds.addMany([...ids]).then(
+      () => true,
+      (err) => {
+        console.error('[sync] synced-refund memory write failed; acked refund rows are kept', err)
+        return false
+      },
+    )
+  }
+
+  /** Resolves when this engine has nothing queued to write (outbox, refund memory). Call on the
+   *  old engine before building its replacement (journal wiring rule). */
+  async idle(): Promise<void> {
+    await this.outbox.idle()
+    await this.syncedRefunds.idle()
+    await this.refundMemory
+  }
+
+  /** Re-read the committed queue from the store and re-fold acked refunds. Only after the previous
+   *  engine and the store are idle (see {@link idle}); no-op on the KV store. */
+  async rehydrate(): Promise<void> {
+    await this.outbox.refresh()
+    this.refundMemory = this.foldAckedRefunds()
+    await this.refundMemory
   }
 
   /** Retire this engine (SyncProvider unmounted / replaced after logout): stop
@@ -714,6 +757,7 @@ export class SyncEngine {
   /** Apply a server batch response: ack/park each result, then refresh derived state. */
   private async applyBatch(data: BatchResult, typeByKey: Map<string, OutboxType>): Promise<void> {
     const updates: OutboxSettle[] = []
+    const ackedRefundOrderIds: string[] = []
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
@@ -721,7 +765,7 @@ export class SyncEngine {
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          if (typeof acked?.payload.orderId === 'string') this.syncedRefunds.add(acked.payload.orderId)
+          if (typeof acked?.payload.orderId === 'string') ackedRefundOrderIds.push(acked.payload.orderId)
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         // SP4: surface the completed transfer to the UI so the tanda-terima
@@ -764,7 +808,9 @@ export class SyncEngine {
     // failed write leaves items pending and the server dedups the resend).
     await this.outbox.settle(updates)
     this.recomputeCredited()
-    await this.outbox.prune()
+    // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
+    // the rows (the next engine start or batch folds them again).
+    if (await this.foldAckedRefunds(ackedRefundOrderIds)) await this.outbox.prune()
     this.accountProblemMsg = null
     this.resetBackoff()
     this.events.onOutboxChange?.(this.outbox.count())

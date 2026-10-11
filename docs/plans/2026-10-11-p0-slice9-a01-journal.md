@@ -167,3 +167,14 @@ Phase B/C rules:
 
 Commits `6185819` `ca935c5` (seam + store) · `8b80eac` `e07c16f` (H1/H2/M1/M3/L1) · `25e08ba` `8b73f8b` (re-review HIGH-1 reload-on-reject, HIGH-2 resync never touches visible meta, idle()/refresh(), seqFloor, seq after ready). Sync 210 tests, quality:ci, browser:ci green. Not pushed.
 **Phase B wiring rule:** build or refresh a replacement Outbox/engine only after `old.idle()` and `store.idle()`, then `await outbox.refresh()`; `add` rejects stay loud; accepted residual: an add whose apply committed but could not be read back stays invisible until restart (seqFloor prevents collision).
+
+## Phase B done (2026-10-11, Sonnet implementer; pending Opus review)
+
+T4 `journalBoot.ts` (`initJournal`, decision table, copy/verify/seal, merge, `quarantineCorruptRows`), `journalSentinel.ts`; T5 wiring (`SyncEngineOptions.outboxStore`, `getOutboxStore()`/`adoptOutboxStore()` in `storage.ts`, `bootStorage.ts` called from `main.tsx` in the BootError try, `readQueueState`/`checkLoginAllowed` accept `KV | OutboxStore`, `SyncProvider` passes the store, waits for `previous engine.idle()` + `store.idle()` then `engine.rehydrate()` before `ready`, amber banner + error report for the Q1 fallback); T7 `SyncedRefunds.addMany` (self-chained, `setDurable`), `engine.applyBatch` = settle -> addMany -> prune (prune skipped if addMany fails), construction/rehydrate self-heal from acked refund rows.
+Decisions and notes:
+- Store additions: `noticeKV` (Preferences, used for corruption marker/quarantine; `store.kv` stays the meta facade, handed only to SyncedRefunds), `readDisk()`, `applyBoot()`, exported `rowProblem`.
+- Sentinel with M != verified (meta lost) = "journal hilang"; sentinel version != 1 = version-mismatch BootError. Backup/sentinel write failure = BootError, retryable (next launch finds `verified` and only seals). Backup keys collide-proofed (`.2`, `.3`).
+- `verified` + K array with same sha: re-verify journal against K, seal only; if the journal no longer matches, redo the copy. Different sha: merge (missing keys appended after max seq in K order, journal rows win, synced refunds unioned, `merged_from_sha256` meta), then re-seal with the journal digest.
+- M4 repair: `quarantineCorruptRows({kv, plugin})` (exported from `@mandalika/sync`) writes the Preferences corruption marker (`journal:quarantine.<key>,...`), then ONE apply moves each bad row raw into meta `quarantine.<key>` and deletes it. Never called automatically; a support screen/CDP must invoke it.
+- M5: a corruption marker whose quarantined raw is our sentinel is ignored by the new Outbox.
+- After-restart pending view: existing surface is enough. `useOfflineData` seeds `pendingCount` from `engine.pendingCount()` at mount (after `ready`, i.e. after rehydrate) and `SyncStatus` shows "Menyinkronkan n" / "Tertunda (n)"; no new screen. Residual duplicate-after-crash risk stays as accepted.

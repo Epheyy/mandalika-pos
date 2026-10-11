@@ -38,7 +38,7 @@ describe('fixed terminal wiring (A04)', () => {
     expect(auth).toMatch(/const apply = useCallback\([\s\S]*?settleTerminal\(d\.user, \{ fresh \}\)/)
     expect(auth).toMatch(/authStore\.onTokens = [\s\S]*?settleTerminal\(d\.user\)\.catch/)
     expect(auth).toMatch(/r\.kind === 'offline'[\s\S]*?settleTerminal\(r\.user\)\.catch/)
-    expect(auth).toMatch(/checkLoginAllowed\(getKV\(\), d\.user\)[\s\S]*?throw new Error\(verdict\.message\)[\s\S]*?await apply\(d, true\)/)
+    expect(auth).toMatch(/checkLoginAllowed\(getOutboxStore\(\), d\.user\)[\s\S]*?throw new Error\(verdict\.message\)[\s\S]*?await apply\(d, true\)/)
     expect(auth).toMatch(/settleTerminal\(user, \{ picked: outlet, fresh: true \}\)/)
     // H2: the token-refresh and boot paths must never ask for fresh/cache-clearing binds.
     const onTokens = auth.slice(auth.indexOf('authStore.onTokens = '), auth.indexOf('// Only a server 401'))
@@ -69,7 +69,7 @@ describe('fixed terminal wiring (A04)', () => {
   })
 
   it('the sync engine is built with the capture-time actor provider', () => {
-    expect(read('cashier/SyncProvider.tsx')).toMatch(/\{\s*actor:\s*currentActor\s*\}/)
+    expect(read('cashier/SyncProvider.tsx')).toMatch(/\{\s*actor:\s*currentActor,\s*outboxStore:\s*getOutboxStore\(\)\s*\}/)
   })
 
   it('logout is not reachable from the cashier UI; the terminal entry opens Pengaturan', () => {
@@ -87,7 +87,7 @@ describe('fixed terminal wiring (A04)', () => {
     expect(section).toMatch(/releaseBlockedReason\(/)
     expect(section).toMatch(/parkedUnstamped: summary\.parkedUnstamped/)
     expect(section).toMatch(/online: engine\.isReachable\(\)/)
-    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueReleasable\(readQueueState\(kv\)\)[\s\S]*?clearBinding\(kv\)[\s\S]*?clearOutletCaches\(kv, bound\?\.outletId\)/)
+    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueReleasable\(readQueueState\(getOutboxStore\(\)\)\)[\s\S]*?clearBinding\(kv\)[\s\S]*?clearOutletCaches\(kv, bound\?\.outletId\)/)
   })
 
   it('the shift header persists, overlays and only auto-opens after a successful fetch', () => {

@@ -1,6 +1,7 @@
 import type { components } from '@mandalika/api'
 import type { KV } from './storage'
 import { isOutboxStore, KVOutboxStore, type OutboxStore } from './outboxStore'
+import { parseSentinel } from './journalSentinel'
 
 /** Capture-time identity stamped on an item when it is committed (A04). Persisted with
  *  the item and sent as a sibling of `payload`; never derived later, never backfilled. */
@@ -147,6 +148,9 @@ function readMarker(kv: KV): OutboxCorruption | null {
   try {
     const m = JSON.parse(raw) as Partial<OutboxCorruption>
     if (typeof m.quarantineKey === 'string' && typeof m.detectedAt === 'string') {
+      // An older bundle that met our journal sentinel quarantined it and left this marker; those
+      // "corrupt" bytes are the pointer to the journal, not damage, so the marker means nothing.
+      if (parseSentinel(kv.get(m.quarantineKey))) return null
       return { quarantineKey: m.quarantineKey, detectedAt: m.detectedAt }
     }
   } catch {
@@ -180,9 +184,9 @@ export class Outbox {
   /** A bare KV keeps today's behaviour (whole array under {@link OUTBOX_KEY}); pass an
    *  {@link OutboxStore} to persist elsewhere (the SQLite journal). */
   constructor(source: KV | OutboxStore) {
-    const store = isOutboxStore(source) ? source : new KVOutboxStore(source)
+    const store: OutboxStore = isOutboxStore(source) ? source : new KVOutboxStore(source)
     this.store = store
-    const kv = store.kv
+    const kv = store.noticeKV ?? store.kv
     const loaded = store.load()
     let items: OutboxItem[] = []
     if (loaded.kind === 'ok') {
