@@ -18,22 +18,24 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
-| A06 | Refund permission bypassed via sync | **In progress** - slice 7 code complete locally (commits 1944b0c..cdac99f and later, not yet pushed): refund rules parity, mig 0047 refund_shift_id/refunded_by + shift cash snapshot, POS gate/review/recap, M2 synced-refund memory, M3 server holds shift_close/shift_open behind an earlier retryable failure. Final POS review fixes in progress; then push, hidden deploy (0047), APK 1.6 |
+| A06 | Refund permission bypassed via sync | **Live, device check pending** - slice 7 backend 00092-naf (mig 0047) + backoffice 64a608a + APK 1.6 built; emulator refund/close walkthrough not yet run |
 | A09 | Sale/tender invariants not enforced | **Done** — slice 8 + 8c (backend 00088-qoh+, APK 1.4+); discount permission split to 8b |
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00090-wof`** (100%, tag `ev6`) from `prod-hardening`
-  @ `6dd7baf`. Contains slices 1–3, 6, 8 + 8c, admin reset password. Migrations applied through **0046**.
-  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00088-qoh=100`
-    (00088-qoh ignores the envelope; earlier: 00086-pac = before slice 8, 0046 columns harmless).
+- **Backend:** Cloud Run `mandalika-pos` revision **`00092-naf`** (100%, tag `rf7`) from `prod-hardening`
+  @ `c3f86d0`. Contains slices 1–3, 6, 7, 8 + 8c, admin reset password. Migrations applied through **0047**.
+  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --to-revisions mandalika-pos-00090-wof=100`
+    (0047 columns are ignored by 00090-wof; refunds parked by the new rules would pass the old rules if retried).
+  - Slice 7 (A06) `docs/plans/2026-10-11-p0-slice7-a06-refund.md`: shared refund rules (reason trimmed 1-500, only completed orders, already-refunded/cancelled -> conflict -> review, sanitized errors, admin no-outlet -> order's outlet); refund_shift_id/refunded_by(_name); shift close snapshots cross-shift refunds per method + cash_refunds_paid (live while open, null pre-0047); fingerprint-checked probes; server holds shift_close/shift_open behind an earlier retryable failure in the batch. Hosted smoke 11/11 (rejects-only, zero receipts).
   - `SYNC_LEGACY_ENVELOPE_UNTIL` is **unset on purpose** (envelope-less items from APK ≤1.4 accepted +
     logged). Set it to *APK 1.5 on every tablet + 14 days* via `--set-env-vars` on the next deploy.
     Date-only = 00:00 UTC = 07:00 WIB; use an explicit `+07:00` offset for WIB midnight.
 - **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev` from `prod-hardening` (auto-deploys on
   push unless the head commit starts with `[CF-Pages-Skip]`). Has: payment-method "Tunai (masuk laci kas)"
   toggle, ⚠ Bayar badge, settings-driven payment filters, admin reset-password button.
-- **POS:** **APK 1.5** (versionCode 6, run 38106865965) → `Downloads/mandalika-apk/mandalika-pos-1.5-build6.apk`.
+- **POS:** **APK 1.6** (versionCode 7, run 38126838968) -> `Downloads/mandalika-apk/mandalika-pos-1.6-build7.apk` (slice 7: refund gate, review detail, recap net of refunds, synced-refund memory, isolation hold); NOT yet emulator-verified.
+  Previous: **APK 1.5** (versionCode 6, run 38106865965) → `Downloads/mandalika-apk/mandalika-pos-1.5-build6.apk`.
   Emulator-verified: one-time "Pilih outlet terminal ini" for admin (binding `mandalika.pos.terminal`),
   outlet name in header, no logout/switcher (menu "Terminal" + guarded "Lepas terminal"), offline restart
   keeps session + open shift, offline sale carries envelope and syncs to the bound outlet (`BSD-G0007`).
@@ -92,7 +94,8 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 
 ## Next
 
-1. **P0 slice 7 (A06 completion)** — plan `docs/plans/2026-10-11-p0-slice7-a06-refund.md` (owner answers Q1–Q6, B1–B4 recorded). Phase A done locally (not pushed). Phase B = migration 0047 refund_shift_id/refunded_by + shift cash math + OpenAPI; Phase C = POS/backoffice → APK 1.6. Original scope per remediation plan §1/§2: refund reason
+1. **Slice 7 device check (APK 1.6 on emulator):** refund gate (permission / no shift / queued), offline refund -> review detail, recap Tercatat with same- and cross-shift refunds, backoffice 'Refund dibayar (Tunai)' + 'oleh'. Then mark A06 done.
+0. ~~P0 slice 7 (A06 completion)~~ shipped 2026-10-11 — plan `docs/plans/2026-10-11-p0-slice7-a06-refund.md` (owner answers Q1–Q6, B1–B4 recorded). Phase A done locally (not pushed). Phase B = migration 0047 refund_shift_id/refunded_by + shift cash math + OpenAPI; Phase C = POS/backoffice → APK 1.6. Original scope per remediation plan §1/§2: refund reason
    parity, POS UI gate ("Proses Refund"), denied refund → visible needs-review cash movement (never
    deleted; deferred item: effect on shift expected cash), parity test table. Opus planner → Sonnet
    implementer → Opus review → failing-first PG gate → hidden-revision deploy. Pre-go-live: audit real
