@@ -1,6 +1,6 @@
 import type { OutboxItem } from './outbox'
 import type { OutboxLoad, OutboxStore } from './outboxStore'
-import type { JournalApplyRequest, JournalRow, OutboxJournalPlugin } from './journalPlugin'
+import type { JournalApplyRequest, JournalReadAllResult, JournalRow, OutboxJournalPlugin } from './journalPlugin'
 import type { KV } from './storage'
 
 /** The only meta key the facade serves (synced-refund memory, plan §2.3). Everything else in
@@ -21,6 +21,14 @@ export class JournalUnavailableError extends Error {
   }
 }
 
+/** A commit was built from a view of a row that is no longer what the journal holds. */
+export class JournalConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'JournalConflictError'
+  }
+}
+
 interface MirrorRow {
   seq: number
   /** The exact text stored in item_json. Never re-serialized: the server fingerprints number text. */
@@ -37,7 +45,13 @@ const adopted = new WeakMap<OutboxJournalPlugin, Promise<JournalOutboxStore>>()
  *  that apply resolved (memory is never ahead of disk). */
 export class JournalOutboxStore implements OutboxStore {
   private readonly rows = new Map<string, MirrorRow>()
+  /** Visible meta values (may briefly lead the disk for fire-and-forget `set`). */
   private readonly meta = new Map<string, string>()
+  /** Meta values known to be on disk. */
+  private readonly metaDisk = new Map<string, string>()
+  private readonly metaGen = new Map<string, number>()
+  /** seq -> number of applies in flight that will insert it. */
+  private readonly inflight = new Map<number, number>()
   private tail: Promise<void> = Promise.resolve()
   readonly kv: KV
 
@@ -81,7 +95,10 @@ export class JournalOutboxStore implements OutboxStore {
       this.validateRow(row)
       this.rows.set(row.key, { seq: row.seq, json: row.json })
     }
-    for (const [k, v] of Object.entries(meta)) this.meta.set(k, v)
+    for (const [k, v] of Object.entries(meta)) {
+      this.meta.set(k, v)
+      this.metaDisk.set(k, v)
+    }
   }
 
   private validateRow(row: JournalRow): void {
@@ -105,56 +122,152 @@ export class JournalOutboxStore implements OutboxStore {
     return { kind: 'ok', items }
   }
 
+  /** Highest seq the journal holds or is about to hold (mirror plus applies still in flight), so a
+   *  new Outbox instance never hands out a seq another instance owns. */
+  maxSeq(): number {
+    let max = 0
+    for (const r of this.rows.values()) if (r.seq > max) max = r.seq
+    for (const s of this.inflight.keys()) if (s > max) max = s
+    return max
+  }
+
   commit(prev: readonly OutboxItem[], next: readonly OutboxItem[]): Promise<void> {
     // Diff against the CALLER's prev, not the mirror: an instance that never saw a row cannot
     // delete it, and an item it merely carried along unchanged is never written back over a
-    // newer row.
+    // newer row. Each upsert also remembers what it expects to find on disk (compare-and-swap).
     const prevByKey = new Map(prev.map((i) => [i.idempotencyKey, i]))
     const nextKeys = new Set(next.map((i) => i.idempotencyKey))
     const upserts: JournalRow[] = []
+    const expected: [string, string | undefined][] = []
     for (const item of next) {
       const before = prevByKey.get(item.idempotencyKey)
       if (before === item) continue // same reference: Outbox only copies items it changed
       const json = JSON.stringify(item)
-      if (before && JSON.stringify(before) === json) continue
+      const beforeJson = before ? JSON.stringify(before) : undefined
+      if (beforeJson === json) continue
       upserts.push({ key: item.idempotencyKey, seq: item.seq, json })
+      expected.push([item.idempotencyKey, beforeJson])
     }
     const deletes = prev.filter((i) => !nextKeys.has(i.idempotencyKey)).map((i) => i.idempotencyKey)
     if (!upserts.length && !deletes.length) return Promise.resolve()
-    return this.enqueue({ upserts, deletes }, () => {
-      for (const u of upserts) this.rows.set(u.key, { seq: u.seq, json: u.json })
-      for (const k of deletes) this.rows.delete(k)
-    })
+    for (const u of upserts) this.inflight.set(u.seq, (this.inflight.get(u.seq) ?? 0) + 1)
+    const release = () => {
+      for (const u of upserts) {
+        const n = (this.inflight.get(u.seq) ?? 1) - 1
+        if (n <= 0) this.inflight.delete(u.seq)
+        else this.inflight.set(u.seq, n)
+      }
+    }
+    return this.enqueue({
+      request: { upserts, deletes },
+      check: () => {
+        for (const [key, beforeJson] of expected) {
+          if (this.rows.get(key)?.json !== beforeJson) {
+            throw new JournalConflictError(`journal conflict on ${key}: the row changed since this instance last saw it`)
+          }
+        }
+      },
+      patch: () => {
+        for (const u of upserts) this.rows.set(u.key, { seq: u.seq, json: u.json })
+        for (const k of deletes) this.rows.delete(k)
+      },
+    }).finally(release)
   }
 
   /** Serialized across every Outbox sharing this store, so applies and their mirror patches
-   *  happen in one order. A failed apply leaves the mirror untouched and does not poison the chain. */
-  private enqueue(request: JournalApplyRequest, patch: () => void): Promise<void> {
+   *  happen in one order; a failed apply does not poison the chain.
+   *  A rejected apply is NOT assumed to have rolled back (the commit may have landed before the
+   *  failure surfaced): the file is re-read, and if it already holds exactly what was asked the
+   *  change counts as committed. Otherwise the mirror is resynced from disk and the error stands. */
+  private enqueue(op: {
+    request: JournalApplyRequest
+    check?: () => void
+    patch: () => void
+    onFail?: () => void
+  }): Promise<void> {
     const result = this.tail.then(async () => {
-      await this.plugin.apply(request)
-      patch()
+      op.check?.()
+      try {
+        await this.plugin.apply(op.request)
+      } catch (err) {
+        const disk = await this.plugin.readAll().catch(() => null)
+        if (disk && this.matches(op.request, disk)) {
+          op.patch()
+          return
+        }
+        if (disk) this.resync(disk)
+        op.onFail?.()
+        throw err
+      }
+      op.patch()
     })
     this.tail = result.then(() => undefined, () => undefined)
     return result
+  }
+
+  private matches(req: JournalApplyRequest, disk: JournalReadAllResult): boolean {
+    const byKey = new Map(disk.rows.map((r) => [r.key, r]))
+    if (req.replaceAll && byKey.size !== req.upserts.length) return false
+    for (const u of req.upserts) {
+      const r = byKey.get(u.key)
+      if (!r || r.json !== u.json || r.seq !== u.seq) return false
+    }
+    for (const k of req.deletes) if (byKey.has(k)) return false
+    for (const [k, v] of Object.entries(req.meta ?? {})) if (disk.meta[k] !== v) return false
+    return true
+  }
+
+  private resync(disk: JournalReadAllResult): void {
+    this.rows.clear()
+    for (const r of disk.rows) this.rows.set(r.key, { seq: r.seq, json: r.json })
+    this.meta.clear()
+    this.metaDisk.clear()
+    for (const [k, v] of Object.entries(disk.meta)) {
+      this.meta.set(k, v)
+      this.metaDisk.set(k, v)
+    }
   }
 
   private makeKV(): KV {
     const refuse = (op: string, key: string): never => {
       throw new Error(`journal kv: ${op} of ${key} is not supported (only ${JOURNAL_KV_KEY})`)
     }
-    const putMeta = (key: string, value: string): Promise<void> =>
-      this.enqueue({ upserts: [], deletes: [], meta: { [key]: value } }, () => { this.meta.set(key, value) })
+    const nextGen = (key: string): number => {
+      const gen = (this.metaGen.get(key) ?? 0) + 1
+      this.metaGen.set(key, gen)
+      return gen
+    }
+    // A write patches the visible value only while it is still the newest write for its key, so a
+    // slow older apply can never put an older value back over a newer one.
+    const write = (key: string, value: string, gen: number, failure: () => void): Promise<void> =>
+      this.enqueue({
+        request: { upserts: [], deletes: [], meta: { [key]: value } },
+        patch: () => {
+          this.metaDisk.set(key, value)
+          if (this.metaGen.get(key) === gen) this.meta.set(key, value)
+        },
+        onFail: failure,
+      })
     return {
       get: (key) => (key === JOURNAL_KV_KEY ? this.meta.get(key) ?? null : null),
       set: (key, value) => {
         if (key !== JOURNAL_KV_KEY) return refuse('set', key)
         // Fire-and-forget like Preferences.set: visible immediately, persisted in the background.
+        // If the write fails it is logged and the value falls back to what is on disk.
+        const gen = nextGen(key)
         this.meta.set(key, value)
-        putMeta(key, value).catch((err) => console.error('[journal] meta write failed', err))
+        write(key, value, gen, () => {
+          if (this.metaGen.get(key) !== gen) return
+          const onDisk = this.metaDisk.get(key)
+          if (onDisk === undefined) this.meta.delete(key)
+          else this.meta.set(key, onDisk)
+        }).catch((err) => console.error('[journal] meta write failed; reverted to the stored value', err))
       },
       remove: (key) => refuse('remove', key),
       setDurable: (key, value) =>
-        key === JOURNAL_KV_KEY ? putMeta(key, value) : Promise.reject(new Error(`journal kv: setDurable of ${key} is not supported`)),
+        key === JOURNAL_KV_KEY
+          ? write(key, value, nextGen(key), () => {})
+          : Promise.reject(new Error(`journal kv: setDurable of ${key} is not supported`)),
       removeDurable: (key) => Promise.reject(new Error(`journal kv: removeDurable of ${key} is not supported`)),
     }
   }

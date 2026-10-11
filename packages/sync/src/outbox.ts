@@ -274,7 +274,7 @@ export class Outbox {
         idempotencyKey,
         type,
         payload,
-        seq: this.seqCounter + 1,
+        seq: Math.max(this.seqCounter, this.store.maxSeq?.() ?? 0) + 1,
         status: 'pending',
         clientCreatedAt: new Date().toISOString(),
       }
