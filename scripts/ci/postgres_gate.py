@@ -34,6 +34,7 @@ GATES = (
     ("TR", "TestTransferConcurrencyPostgres", 56445, "tr"),
     ("OR", "TestOperationReceiptsPostgres", 56446, "or"),
     ("TD", "TestTenderRulesPostgres", 56447, "td"),
+    ("EV", "TestCaptureEnvelopePostgres", 56448, "ev"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 

@@ -15,7 +15,7 @@ describe('dispose: only the live instance writes the outbox', () => {
     const { kv, store } = controllableKV()
     let failOldRequest!: (e: Error) => void
     const oldRequest = vi.fn(() => new Promise((_res, rej) => { failOldRequest = rej }))
-    const oldEngine = new SyncEngine(api(oldRequest), {}, kv)
+    const oldEngine = new SyncEngine(api(oldRequest), {}, kv, { actor: null })
     await oldEngine.outbox.add('order', 'dev:old', {})
     const flushing = oldEngine.flush() // old request now in flight
     await vi.waitFor(() => expect(oldRequest).toHaveBeenCalled())
@@ -51,7 +51,7 @@ describe('dispose: only the live instance writes the outbox', () => {
     const { kv, store } = controllableKV()
     let finish!: (v: unknown) => void
     const request = vi.fn(() => new Promise((res) => { finish = res }))
-    const engine = new SyncEngine(api(request), {}, kv)
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
     await engine.outbox.add('order', 'dev:1', {})
     const flushing = engine.flush()
     await vi.waitFor(() => expect(request).toHaveBeenCalled())
@@ -79,7 +79,7 @@ describe('retryable failures: keep retrying but surface after N in a row', () =>
             : { idempotencyKey: i.idempotencyKey, status: 'error', error: 'fk violation', code: 'internal', retryable: true }),
       },
     }))
-    const engine = new SyncEngine(api(request), { onStuckRetrying, onDeadLetter }, kv)
+    const engine = new SyncEngine(api(request), { onStuckRetrying, onDeadLetter }, kv, { actor: null })
     return { engine, mode, request, onStuckRetrying, onDeadLetter }
   }
 
@@ -133,7 +133,7 @@ describe('retryable failures: keep retrying but surface after N in a row', () =>
     const request = vi.fn(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => ({
       data: { processed: 0, version: 0, results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'error', error: 'e', code: 'busy', retryable: true })) },
     }))
-    const first = new SyncEngine(api(request), {}, kv)
+    const first = new SyncEngine(api(request), {}, kv, { actor: null })
     await first.outbox.add('order', 'dev:1', {})
     for (let i = 0; i < 3; i++) await first.flush()
     expect(new Outbox(kv).all()[0].retryableFailures).toBe(3)

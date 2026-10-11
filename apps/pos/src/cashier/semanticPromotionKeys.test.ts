@@ -63,7 +63,7 @@ it('stored legacy physical sale retains original evidence when reconstructed aft
   const values = new Map<string, string>(), kv: KV = { get: k => values.get(k) ?? null, set: (k,v) => { values.set(k,v) }, remove: k => { values.delete(k) }, setDurable: async (k,v) => { values.set(k,v) }, removeDurable: async k => { values.delete(k) } }
   const old: OutboxItem = { type: 'order', idempotencyKey: 'original-overlap-key', seq: 1, attempts: 5, status: 'failed', clientCreatedAt: '2026-08-01T01:00:00Z', lastError: 'Original capture evidence', payload: { promotionIds: ['legacy'], discountCodes: ['Raw'], items: [{ ...cart[0], isReward: true, rewardPromotionId: 'legacy', price: 7, subtotal: 7 }] } }
   const bytes = JSON.stringify(old); kv.set('mandalika.pos.outbox', JSON.stringify([old]))
-  const engine = new SyncEngine({ async request() { throw new Error('No network') } }, {}, kv)
+  const engine = new SyncEngine({ async request() { throw new Error('No network') } }, {}, kv, { actor: null })
   expect(JSON.stringify(engine.outbox.deadLettered()[0])).toBe(bytes)
   expect(engine.outbox.deadLettered()).toHaveLength(1)
   expect(engine.pendingCount()).toBe(0) // Parked, not eligible for automatic flush.

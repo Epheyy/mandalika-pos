@@ -3284,11 +3284,24 @@ export interface components {
         };
         SyncBatchItem: {
             /** @enum {string} */
-            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create";
+            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
             payload: {
                 [key: string]: unknown;
             };
+            envelope?: components["schemas"]["SyncEnvelope"];
+        };
+        /** @description Capture-time identity stamped by the POS when the operation was committed to the outbox (A04). The server attributes the item to this outlet/user instead of the flush-time request headers, after verifying it against the authenticated caller. */
+        SyncEnvelope: {
+            /** @description Envelope format version; 1 is the only version defined. */
+            v: number;
+            outletId: string;
+            userId: string;
+            deviceId: string;
+            /** Format: date-time */
+            capturedAt: string;
+            shiftId?: string;
+            appVersion?: string;
         };
         SyncBatchRequest: {
             items: components["schemas"]["SyncBatchItem"][];
@@ -3301,7 +3314,7 @@ export interface components {
             stockWarning?: boolean;
             error?: string;
             /**
-             * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch is reserved and not produced yet.
+             * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04).
              * @enum {string}
              */
             code?: "rejected" | "forbidden" | "not_found" | "conflict" | "competing_receipt" | "key_conflict" | "busy" | "internal" | "actor_mismatch";
@@ -7129,6 +7142,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SyncVersionResponse"];
                 };
+            };
+            /** @description the caller has no active outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

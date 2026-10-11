@@ -18,7 +18,7 @@ const (
 	KeyConflict      Code = "key_conflict"      // idempotency key reused for another operation
 	Busy             Code = "busy"              // lock conflict; nothing applied, retry later
 	Internal         Code = "internal"          // unclassified; treat as retryable
-	ActorMismatch    Code = "actor_mismatch"    // reserved (A04); not produced yet
+	ActorMismatch    Code = "actor_mismatch"    // capture-time envelope does not match the caller (A04)
 )
 
 // Coded is implemented by errors that carry an outcome code.

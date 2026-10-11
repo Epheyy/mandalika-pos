@@ -21,6 +21,8 @@ import (
 // request body (plan §2a, §5).
 type callerID struct {
 	outletID, userID, name string
+	// role and homeOutletID are read from the users row, never from the request (A04).
+	role, homeOutletID string
 }
 
 func (h *Handlers) caller(r *http.Request) (callerID, error) {
@@ -29,6 +31,7 @@ func (h *Handlers) caller(r *http.Request) (callerID, error) {
 	c := callerID{outletID: outlet, userID: uid}
 	if u, err := h.Store.ByID(r.Context(), uid); err == nil {
 		c.name = u.DisplayName
+		c.role, c.homeOutletID = u.Role, u.OutletID
 		if c.outletID == "" {
 			c.outletID = u.OutletID
 		}
@@ -1267,6 +1270,13 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
+	// Outlet-less accounts (admin before a terminal outlet is chosen) get the same
+	// 403 as /sync/pull, not a 500 from an empty-uuid lookup. Clients read a 4xx as
+	// "reachable, account problem" (A04).
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusForbidden, "no active outlet")
+		return
+	}
 	v, err := h.Sync.Version(r.Context(), c.outletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -1310,6 +1320,7 @@ func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
 	}
 	res, err := process(r.Context(), syncpkg.Caller{
 		OutletID: c.outletID, UserID: c.userID, DisplayName: c.name,
+		Role: c.role, HomeOutletID: c.homeOutletID,
 		CanRefund: auth.HasPermission(r.Context(), "process_refund"),
 	}, items)
 	if err != nil {

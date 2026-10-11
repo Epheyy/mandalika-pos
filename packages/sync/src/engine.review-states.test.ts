@@ -31,7 +31,7 @@ afterEach(() => {
 
 async function setup(request: unknown, keys = ['dev:1']) {
   const { kv, store } = controllableKV()
-  const engine = new SyncEngine(api(request), {}, kv)
+  const engine = new SyncEngine(api(request), {}, kv, { actor: null })
   for (const k of keys) await engine.outbox.add('order', k, { total: 1 })
   return { engine, store, kv }
 }
@@ -92,7 +92,7 @@ describe('whole-batch failures are typed and never blame the item unless determi
     const onStuckRetrying = vi.fn()
     const { kv } = controllableKV()
     const request = vi.fn().mockRejectedValue(apiError(503, 'down'))
-    const engine = new SyncEngine(api(request), { onStuckRetrying }, kv)
+    const engine = new SyncEngine(api(request), { onStuckRetrying }, kv, { actor: null })
     await engine.outbox.add('order', 'dev:1', {})
     for (let i = 0; i < 10; i++) {
       await engine.flushNow()
@@ -322,7 +322,7 @@ describe('review state is rollback-safe', () => {
         results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'error', error: 'no permission', code: 'forbidden', retryable: false })),
       },
     }))
-    const engine = new SyncEngine(api(request), {}, kv)
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
     await engine.outbox.add('refund', 'dev:r1', { orderId: 'o1' })
     await engine.flush()
     expect(engine.reviewItems()).toMatchObject([{ type: 'refund', reviewCode: 'forbidden' }])
@@ -371,7 +371,7 @@ describe('review state is rollback-safe', () => {
         { idempotencyKey: 'dev:old', type: 'order', payload: {}, seq: 1, status: 'failed', attempts: MAX_ATTEMPTS, lastError: 'boom', clientCreatedAt: 't' },
       ]),
     })
-    const engine = new SyncEngine(api(vi.fn()), {}, kv)
+    const engine = new SyncEngine(api(vi.fn()), {}, kv, { actor: null })
     expect(engine.reviewItems()).toEqual([
       { idempotencyKey: 'dev:old', type: 'order', clientCreatedAt: 't', reviewCode: undefined, reviewReason: 'boom', lastError: 'boom' },
     ])
@@ -391,7 +391,7 @@ describe('transfer_receive competing receipt', () => {
       },
     }))
     vi.stubGlobal('navigator', { onLine: false }) // enqueue must not auto-flush
-    const engine = new SyncEngine(api(request), { onReceiveRejected }, kv)
+    const engine = new SyncEngine(api(request), { onReceiveRejected }, kv, { actor: null })
     await engine.enqueueTransferReceive({
       transferId: 't1', approverUserId: 'u1', pin: '1234', discrepancyReason: 'rusak 1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }],
@@ -430,7 +430,7 @@ describe('transfer_receive competing receipt', () => {
       },
     }))
     vi.stubGlobal('navigator', { onLine: false })
-    const engine = new SyncEngine(api(request), {}, kv)
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
     await engine.enqueueTransferReceive({
       transferId: 't1', approverUserId: 'u1', pin: '1234',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }],

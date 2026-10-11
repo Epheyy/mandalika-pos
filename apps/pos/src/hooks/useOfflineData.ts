@@ -6,6 +6,8 @@
 import { useCallback, use, useEffect, useState } from 'react'
 import type { SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
+import { authStore } from '../api'
+import { ownerLabel } from '../terminalBinding'
 
 export interface FailedItem {
   idempotencyKey: string
@@ -14,6 +16,8 @@ export interface FailedItem {
   clientCreatedAt?: string
   /** Server code or client reason (e.g. competing_receipt, batch_rejected); unset for legacy parks. */
   reviewCode?: string
+  /** Set when the item was captured by ANOTHER account (its envelope userId): shown as "milik akun X". */
+  ownedBy?: string
 }
 
 export interface OfflineDataState {
@@ -47,6 +51,10 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
     clientCreatedAt: r.clientCreatedAt,
     reviewCode: r.reviewCode,
     lastError: r.reviewReason ?? r.lastError,
+    ownedBy:
+      r.ownerUserId && r.ownerUserId !== authStore.userId
+        ? ownerLabel(r.ownerUserId, engine.getSnapshot().users)
+        : undefined,
   }))
   const reviewKeys = new Set(review.map((d) => d.idempotencyKey))
   const stuck = engine
@@ -57,7 +65,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
 }
 
 function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
-  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError)
+  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy)
 }
 
 export function useOfflineData(): OfflineDataState {

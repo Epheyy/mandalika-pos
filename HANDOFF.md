@@ -5,7 +5,7 @@ and "Next" sections at each milestone; keep it under ~150 lines.** History lives
 and `docs/`. The old `SESSION_HANDOFF.md` (~435 KB, Codex era, local-only) is historical:
 read it by section only if a task needs old detail.
 
-Last updated: 2026-10-11 by Claude (Opus 5.5).
+Last updated: 2026-10-11 by Claude (Opus 5.5; slice 6 code by Sonnet 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -18,7 +18,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. As of 2
 | A01 | Sale not durable on device | **Partial** — APK 1.1 awaits writes; full fix = SQLite journal (slice 9) |
 | A02 | Network failures park/delete financial events | **Done** — slice 5 in APK 1.2/1.3 (emulator-verified 2026-10-11) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slice 5 client + slice 3 server (transfer receive not yet run on device) |
-| A04 | Queued events not bound to cashier/outlet | Open — slice 6 (+ slice 10 device registration) |
+| A04 | Queued events not bound to cashier/outlet | **In review** — slice 6 (A04a) on `feat/a04-envelope`, not merged/deployed: capture-time envelope + server attribution + fixed terminal; legacy cutoff (`SYNC_LEGACY_ENVELOPE_UNTIL`) to be set at fleet rollout (a date-only value means 00:00 UTC = 07:00 WIB; use an explicit +07:00 offset for a WIB midnight) (APK 1.5 on all tablets + 14 days); slice 10 device registration still open |
 | A06 | Refund permission bypassed via sync | **Partial** — server gate live; slice 7 completes it |
 | A09 | Sale/tender invariants not enforced | **Done (backend live)** — slice 8 tender rules + 8c cash identity live as 00088-qoh; POS cash input ships in APK 1.4; discount permission split to 8b |
 

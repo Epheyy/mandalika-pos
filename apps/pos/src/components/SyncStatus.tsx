@@ -160,6 +160,9 @@ export const SyncStatus = memo(function SyncStatus({
                           <span className="font-normal text-red-500"> · {formatTime(f.clientCreatedAt)}</span>
                         )}
                       </p>
+                      {f.ownedBy && (
+                        <p className="text-[10px] font-semibold text-red-700">milik akun {f.ownedBy}</p>
+                      )}
                       <p className="text-[10px] text-red-600 break-words">
                         {f.lastError ?? 'Alasan tidak diketahui'}
                       </p>

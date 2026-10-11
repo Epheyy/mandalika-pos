@@ -20,7 +20,7 @@ function fixture() {
     removeDurable: async (key) => { store.delete(key) },
   }
   const request = vi.fn().mockRejectedValue(new Error('offline'))
-  const engine = new SyncEngine({ request }, {}, kv)
+  const engine = new SyncEngine({ request }, {}, kv, { actor: null })
   return { engine, ctl, request }
 }
 

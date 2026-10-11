@@ -46,6 +46,6 @@ export function refundPermissionFixture(events: SyncEvents = {}) {
       return { data: { results, processed: results.filter((item) => item.status === 'ok').length, version: 0 } } as T
     },
   }
-  const reconstruct = () => new SyncEngine(api, events, kv)
+  const reconstruct = () => new SyncEngine(api, events, kv, { actor: null })
   return { original, store, kv, delivery, sent, reconstruct, engine: reconstruct() }
 }

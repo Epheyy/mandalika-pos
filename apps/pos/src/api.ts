@@ -5,7 +5,12 @@ import { createClient, type AuthData } from '@mandalika/api'
 export const authStore: {
   access: string | null
   refresh: string | null
+  /** Always derived from the terminal binding (see terminalBinding.ts), never set ad hoc. */
   outletId: string | null
+  /** The signed-in account, stamped on every queued item at capture time (A04). */
+  userId: string | null
+  /** Server id of the shift in progress, when known; stamped on captured items. */
+  shiftId: string | null
   onUnauthorized: (() => void) | null
   // Persist tokens after a silent refresh (set by AuthProvider).
   onTokens: ((d: AuthData) => void) | null
@@ -13,6 +18,8 @@ export const authStore: {
   access: null,
   refresh: null,
   outletId: null,
+  userId: null,
+  shiftId: null,
   onUnauthorized: null,
   onTokens: null,
 }

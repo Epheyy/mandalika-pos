@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -130,6 +130,37 @@ function classifyFailure(err: unknown, online: boolean): Failure {
   return { kind: 'transient', message } // unknown: never blame the item
 }
 
+/** Who is operating the terminal right now, as known to the app at capture time. The
+ *  engine adds deviceId/capturedAt/v. Returning null means "no verified identity":
+ *  the mutation is refused and nothing is stored (A04). */
+export interface ActorContext {
+  outletId: string
+  userId: string
+  /** The shift the cashier is in, when its server id is known (offline-opened shifts have none yet). */
+  shiftId?: string | null
+  appVersion?: string
+}
+export type ActorProvider = () => ActorContext | null
+
+export interface SyncEngineOptions {
+  /** Stamps every new outbox item with its capture-time envelope. REQUIRED so a new call
+   *  site cannot forget it: `null` (tests only) sends items without one (server: legacy path). */
+  actor: ActorProvider | null
+}
+
+/** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
+export interface PendingShiftOp {
+  type: 'shift_open' | 'shift_close'
+  idempotencyKey: string
+  payload: Record<string, unknown>
+  clientCreatedAt: string
+  /** Parked for review: it will NOT be sent until a person retries it. */
+  parked: boolean
+}
+
+export const ENVELOPE_REFUSED_MESSAGE =
+  'Akun atau outlet terminal belum terverifikasi. Masuk ulang atau hubungi admin.'
+
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
 
 export class SyncEngine {
@@ -153,13 +184,16 @@ export class SyncEngine {
   private reachable: boolean = ONLINE()
 
   private readonly kv: KV
+  private actorProvider: ActorProvider | null
 
   constructor(
     private api: ApiLike,
     private events: SyncEvents = {},
     kv: KV = defaultKV,
+    options: SyncEngineOptions,
   ) {
     this.kv = kv
+    this.actorProvider = options.actor
     this.deviceId = getDeviceId(kv)
     this.outbox = new Outbox(kv)
     this.snapshot = new Snapshot(kv)
@@ -249,10 +283,19 @@ export class SyncEngine {
         serverVersion: server,
       }
       this.events.onWall?.(this.wall)
-    } catch {
-      // The GET failed → the server is unreachable (navigator.onLine can falsely
-      // report online on Android WebViews). Keep selling on last snapshot.
-      this.setReachable(false)
+      this.accountProblemMsg = null // the account/outlet is fine again (e.g. a terminal outlet was picked)
+    } catch (err) {
+      const failure = classifyFailure(err, true)
+      if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
+        // A 4xx means the server ANSWERED: reachable, but this account/outlet is refused
+        // (e.g. 403 no active outlet). Not "offline" and not a reason to block selling.
+        this.setReachable(true)
+        if (failure.kind !== 'unauthorized') this.accountProblemMsg = ACCOUNT_PROBLEM_MESSAGE
+      } else {
+        // The GET failed → the server is unreachable (navigator.onLine can falsely
+        // report online on Android WebViews). Keep selling on last snapshot.
+        this.setReachable(false)
+      }
     }
     return this.wall
   }
@@ -270,6 +313,25 @@ export class SyncEngine {
     return this.outbox.corruptionInfo()
   }
 
+  /** Capture-time identity for a new item, or undefined when no provider is configured
+   *  (tests/legacy). A configured provider that returns null refuses the mutation: nothing
+   *  may be queued under an unknown account/outlet (A04). */
+  private captureEnvelope(capturedAt: string): OutboxEnvelope | undefined {
+    if (!this.actorProvider) return undefined
+    const a = this.actorProvider()
+    if (!a || !a.outletId || !a.userId) throw new Error(ENVELOPE_REFUSED_MESSAGE)
+    const env: OutboxEnvelope = {
+      v: 1,
+      outletId: a.outletId,
+      userId: a.userId,
+      deviceId: this.deviceId,
+      capturedAt,
+    }
+    if (a.shiftId) env.shiftId = a.shiftId
+    if (a.appVersion) env.appVersion = a.appVersion
+    return env
+  }
+
   /** Durably commit a mutation without triggering a flush. Resolves only once
    *  the outbox write succeeded; rejects (no trace left) if it failed. */
   private async commitOutbox(
@@ -278,12 +340,14 @@ export class SyncEngine {
     orderUuid: string,
   ): Promise<string> {
     const idempotencyKey = this.key(orderUuid)
+    const capturedAt = new Date().toISOString()
+    const envelope = this.captureEnvelope(capturedAt)
     await this.outbox.add(type, idempotencyKey, {
       ...payload,
       orderUuid,
       deviceId: this.deviceId,
-      clientCreatedAt: new Date().toISOString(),
-    })
+      clientCreatedAt: capturedAt,
+    }, envelope)
     return idempotencyKey
   }
 
@@ -336,6 +400,35 @@ export class SyncEngine {
 
   pendingCount(): number {
     return this.outbox.count()
+  }
+
+  /** Shift opens/closes not yet acknowledged by the server (queued, retrying or parked),
+   *  oldest first. The shift header overlays these on the last known server shift so an
+   *  offline open/close is visible and a second open is never offered (A04). */
+  pendingShiftOps(): PendingShiftOp[] {
+    const parked = new Set(this.outbox.deadLettered().map((i) => i.idempotencyKey))
+    return this.outbox
+      .all()
+      .filter((i) => (i.type === 'shift_open' || i.type === 'shift_close') && i.status !== 'acked')
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
+      .map((i) => ({
+        type: i.type as 'shift_open' | 'shift_close',
+        idempotencyKey: i.idempotencyKey,
+        payload: i.payload,
+        clientCreatedAt: i.clientCreatedAt,
+        parked: parked.has(i.idempotencyKey),
+      }))
+  }
+
+  /** The queue by what it means for releasing the terminal / signing in another account. */
+  queueSummary(): QueueSummary {
+    return summarizeQueue(this.outbox.all())
+  }
+
+  /** Items waiting to be sent or needing review (the terminal-release guard, A04). */
+  unsettledCount(): number {
+    return this.outbox.all().filter((i) => i.status !== 'acked').length
   }
 
   /** SP-CRM-9c: sum unsynced order quantities per `${productId}|${variantSize}` so
@@ -402,7 +495,10 @@ export class SyncEngine {
   /** Manual retry of parked items. Rejects if the reset could not be stored. */
   async retryFailed(): Promise<void> {
     this.resetBackoff()
-    await this.outbox.retryDeadLettered()
+    // Another account's parked items stay parked: re-sending them would only be refused
+    // again (actor_mismatch). Items without an envelope are retried as before.
+    const me = this.actorProvider?.()?.userId
+    await this.outbox.retryDeadLettered((i) => !i.envelope || !me || i.envelope.userId === me)
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
   }
@@ -476,7 +572,16 @@ export class SyncEngine {
     const r = await this.api.request<{ data: BatchResult }>(
       'POST',
       '/api/v1/sync/batch',
-      { items: items.map((i) => ({ type: i.type, idempotencyKey: i.idempotencyKey, payload: i.payload })) },
+      {
+        items: items.map((i) => ({
+          type: i.type,
+          idempotencyKey: i.idempotencyKey,
+          payload: i.payload,
+          // Sibling of payload (the A11 fingerprint covers the payload only). Items stored
+          // before A04 have none and are sent as they are: never backfilled with today's actor.
+          ...(i.envelope ? { envelope: i.envelope } : {}),
+        })),
+      },
       { timeoutMs: BATCH_TIMEOUT_MS },
     )
     if (!r?.data || !Array.isArray(r.data.results)) {
@@ -675,23 +780,32 @@ export class SyncEngine {
   }
 
   /** Wire connectivity + periodic version polling. Returns a disposer. */
-  start(pollMs = 20000): () => void {
+  start(pollMs = 20000, opts: { flushOnly?: boolean } = {}): () => void {
     this.disposed = false
     this.outbox.revive()
+    // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
+    // fresh, but never read outlet data (no inbound-transfer cache) for an outlet that is not
+    // the terminal's.
+    const inbound = () => { if (!opts.flushOnly) void this.pollInbound() }
     const onOnline = () => {
       this.resetBackoff()
       void this.flush()
       void this.checkVersion()
-      void this.pollInbound()
+      inbound()
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
     }
-    void this.pollInbound()
+    inbound()
+    if (opts.flushOnly) {
+      // Nothing else (no resync) kicks the queue off here: drain it right away.
+      void this.flush()
+      void this.checkVersion()
+    }
     const timer = setInterval(() => {
       void this.flush()
       void this.checkVersion()
-      void this.pollInbound()
+      inbound()
     }, pollMs)
     const stop = () => {
       if (typeof window !== 'undefined') {

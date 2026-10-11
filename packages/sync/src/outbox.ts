@@ -1,6 +1,12 @@
+import type { components } from '@mandalika/api'
 import type { KV } from './storage'
 
-const OUTBOX_KEY = 'mandalika.pos.outbox'
+/** Capture-time identity stamped on an item when it is committed (A04). Persisted with
+ *  the item and sent as a sibling of `payload`; never derived later, never backfilled. */
+export type OutboxEnvelope = components['schemas']['SyncEnvelope']
+
+/** Storage key of the durable queue; the POS login guard reads it before an engine exists. */
+export const OUTBOX_KEY = 'mandalika.pos.outbox'
 /** An unreadable outbox is copied here (never deleted) before anything can overwrite it. */
 export const OUTBOX_QUARANTINE_PREFIX = 'mandalika.outbox.corrupt.'
 /** Durable marker (JSON OutboxCorruption) so the warning outlives the session that detected it.
@@ -26,6 +32,9 @@ export interface OutboxItem {
   seq: number
   status: OutboxStatus
   clientCreatedAt: string
+  /** Who/where/when the operation was captured. Absent on items written by bundles
+   *  older than A04 (the server treats those as legacy). */
+  envelope?: OutboxEnvelope
   lastError?: string
   /** Server-rejection count. After MAX_ATTEMPTS the item is parked (kept,
    *  surfaced via deadLettered()) so one poison item can't block the queue
@@ -74,6 +83,49 @@ export interface ReviewItem {
   reviewCode?: string
   reviewReason?: string
   lastError?: string
+  /** The account that captured the item (its envelope's userId), when it has one. */
+  ownerUserId?: string
+}
+
+/** What the durable queue holds, by what it means for handing the terminal to someone else. */
+export interface QueueSummary {
+  /** Queued or still retrying: the owning account must flush them. */
+  pending: number
+  /** Parked for review WITH a capture-time envelope: they stay in the outbox, never sent
+   *  by another account (the server refuses a foreign envelope) and never deleted. */
+  parkedStamped: number
+  /** Parked without an envelope (written before A04): ownership is unknowable. */
+  parkedUnstamped: number
+  /** Distinct envelope userIds across all unacknowledged items. */
+  owners: string[]
+}
+
+export interface QueueItemLike {
+  status?: unknown
+  attempts?: unknown
+  envelope?: unknown
+}
+
+/** Pure so the engine and the login guard (which reads raw KV before any engine exists)
+ *  classify the queue identically. */
+export function summarizeQueue(items: readonly QueueItemLike[]): QueueSummary {
+  const s: QueueSummary = { pending: 0, parkedStamped: 0, parkedUnstamped: 0, owners: [] }
+  const owners = new Set<string>()
+  for (const i of items) {
+    if (!i || typeof i !== 'object' || i.status === 'acked') {
+      if (!i || typeof i !== 'object') s.pending += 1 // junk entries count as not-empty
+      continue
+    }
+    const env = i.envelope as { userId?: unknown } | undefined
+    const owner = env && typeof env === 'object' && typeof env.userId === 'string' && env.userId ? env.userId : null
+    if (owner) owners.add(owner)
+    const parked = i.status === 'failed' && (typeof i.attempts === 'number' ? i.attempts : 0) >= MAX_ATTEMPTS
+    if (!parked) s.pending += 1
+    else if (owner) s.parkedStamped += 1
+    else s.parkedUnstamped += 1
+  }
+  s.owners = [...owners]
+  return s
 }
 
 /** Secrets must not outlive their use in a parked item (WebView-debuggable storage).
@@ -205,7 +257,12 @@ export class Outbox {
 
   /** Durably append. Resolves with the item only after it is on disk; rejects
    *  (leaving no trace) if the write fails. Same key twice returns the first. */
-  add(type: OutboxType, idempotencyKey: string, payload: Record<string, unknown>): Promise<OutboxItem> {
+  add(
+    type: OutboxType,
+    idempotencyKey: string,
+    payload: Record<string, unknown>,
+    envelope?: OutboxEnvelope,
+  ): Promise<OutboxItem> {
     return this.run(async () => {
       const existing = this.items.find((i) => i.idempotencyKey === idempotencyKey)
       if (existing) return existing // never enqueue the same key twice
@@ -217,6 +274,7 @@ export class Outbox {
         status: 'pending',
         clientCreatedAt: new Date().toISOString(),
       }
+      if (envelope) item.envelope = envelope
       await this.commit([...this.items, item])
       this.seqCounter = item.seq
       return item
@@ -252,6 +310,7 @@ export class Outbox {
       reviewCode: i.reviewCode,
       reviewReason: i.reviewReason ?? i.lastError,
       lastError: i.lastError,
+      ownerUserId: i.envelope?.userId,
     }))
   }
 
@@ -330,11 +389,11 @@ export class Outbox {
   /** Re-queue every parked (dead-lettered) item: reset status + attempts so
    *  the next flush retries them. Used by the manual "retry" action. Unlike the
    *  ack/fail bookkeeping this is user-initiated, so a failed write rejects. */
-  retryDeadLettered(): Promise<void> {
+  retryDeadLettered(include: (i: OutboxItem) => boolean = () => true): Promise<void> {
     return this.run(async () => {
       let changed = false
       const next = this.items.map((i): OutboxItem => {
-        if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS) {
+        if (i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS && include(i)) {
           changed = true
           const requeued: OutboxItem = { ...i, status: 'pending', attempts: 0 }
           delete requeued.reviewCode

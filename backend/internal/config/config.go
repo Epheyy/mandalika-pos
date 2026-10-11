@@ -42,6 +42,12 @@ type Config struct {
 	// A negative value means TRUSTED_PROXY_HOPS was not a non-negative integer;
 	// Validate rejects it, and also anything above MaxTrustedProxyHops.
 	TrustedProxyHops int
+	// SyncLegacyEnvelopeUntil is the instant after which /sync/batch refuses items
+	// that carry no capture-time envelope (A04). Zero = unset: accept and warn.
+	SyncLegacyEnvelopeUntil time.Time
+	// syncLegacyUntilBad is set when SYNC_LEGACY_ENVELOPE_UNTIL did not parse;
+	// Validate fails fast so a typo can never silently mean "no cutoff".
+	syncLegacyUntilBad bool
 }
 
 func getenv(k, def string) string {
@@ -85,9 +91,27 @@ func parseHops(v string) int {
 	return n
 }
 
+// parseLegacyUntil parses SYNC_LEGACY_ENVELOPE_UNTIL: blank = unset (zero time),
+// otherwise RFC 3339 or a bare YYYY-MM-DD, which means 00:00 UTC of that day, i.e.
+// 07:00 WIB: write an explicit offset (e.g. 2026-11-01T00:00:00+07:00) for a WIB midnight.
+func parseLegacyUntil(v string) (t time.Time, ok bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return time.Time{}, true
+	}
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse("2006-01-02", v); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
+}
+
 // Load reads .env (if present) then environment. Env always overrides .env.
 func Load() *Config {
 	_ = godotenv.Load()
+	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
 	return &Config{
 		Port:             getenv("PORT", "8080"),
 		Env:              getenv("ENV", "development"),
@@ -108,6 +132,9 @@ func Load() *Config {
 		RateLimitRPS:     atoi("RATE_LIMIT_RPS", 20),
 		RateLimitBurst:   atoi("RATE_LIMIT_BURST", 40),
 		TrustedProxyHops: parseHops(os.Getenv("TRUSTED_PROXY_HOPS")),
+
+		SyncLegacyEnvelopeUntil: legacyUntil,
+		syncLegacyUntilBad:      !legacyOK,
 	}
 }
 
@@ -138,6 +165,9 @@ func (c *Config) Validate() error {
 	}
 	if c.TrustedProxyHops > MaxTrustedProxyHops {
 		return fmt.Errorf("invalid config: TRUSTED_PROXY_HOPS must be <= %d (got %d)", MaxTrustedProxyHops, c.TrustedProxyHops)
+	}
+	if c.syncLegacyUntilBad {
+		return errors.New("invalid config: SYNC_LEGACY_ENVELOPE_UNTIL must be RFC 3339 or YYYY-MM-DD")
 	}
 	if !c.IsProd() {
 		return nil

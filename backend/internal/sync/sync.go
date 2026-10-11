@@ -30,6 +30,13 @@ type Engine struct {
 	// Receipts gives refund, shift_open, shift_close, cash_flow and customer_create
 	// exactly-once semantics per idempotency key (A11). Nil runs them unkeyed.
 	Receipts service.ReceiptRunner
+	// LegacyEnvelopeUntil ends the grace period for items without a capture-time
+	// envelope (SYNC_LEGACY_ENVELOPE_UNTIL). Zero = no cutoff: accept and warn.
+	LegacyEnvelopeUntil time.Time
+	// Now is injectable for tests; nil = time.Now.
+	Now func() time.Time
+	// Lookup is injectable for tests; nil = queries on Pool.
+	Lookup attributionLookup
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -143,6 +150,8 @@ type BatchItem struct {
 	Type           string          `json:"type"` // order|refund|shift_open|shift_close|cash_flow
 	IdempotencyKey string          `json:"idempotencyKey"`
 	Payload        json.RawMessage `json:"payload"`
+	// Envelope is the raw capture-time identity (A04), absent for legacy clients.
+	Envelope json.RawMessage `json:"envelope,omitempty"`
 }
 
 type ItemResult struct {
@@ -171,6 +180,10 @@ type Caller struct {
 	OutletID    string
 	UserID      string
 	DisplayName string
+	// Role and HomeOutletID come from the users row (not the request): the outlet a
+	// non-admin may be attributed to is only ever their stored outlet (A04).
+	Role         string `json:"-"`
+	HomeOutletID string `json:"-"`
 	// Server-derived from authenticated request claims; never from a batch body.
 	CanRefund bool `json:"-"`
 }
@@ -266,11 +279,32 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		return r
 	}
 
+	// Attribution first (A04): from here on c is the capture-time identity, never the
+	// flush-time request headers. A refused item has no effect and stores no receipt.
+	c, err := e.attribute(ctx, c, it)
+	if err != nil {
+		if code, _ := apperr.CodeOf(err); code == apperr.ActorMismatch {
+			id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+			if aerr != nil {
+				return fail(aerr)
+			}
+			if applied {
+				r.Status, r.OrderID = status, id
+				return r
+			}
+		}
+		return fail(err)
+	}
+
 	switch it.Type {
 	case "order":
 		var p orderPayload
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
+		}
+		shiftID, err := e.payloadShift(ctx, c, it, p.ShiftID)
+		if err != nil {
+			return fail(err)
 		}
 		in := service.CreateOrderInput{
 			IdempotencyKey:    it.IdempotencyKey,
@@ -299,7 +333,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			DiscountBreakdown: p.DiscountBreakdown,
 			PointsRedeemed:    p.PointsRedeemed,
 			Notes:             p.Notes,
-			ShiftID:           p.ShiftID,
+			ShiftID:           shiftID,
 			ClientCreated:     p.ClientCreatedAt,
 			Offline:           true,
 		}
@@ -373,9 +407,13 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
+		flowShift, err := e.payloadShift(ctx, c, it, p.ShiftID)
+		if err != nil {
+			return fail(err)
+		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
 			return e.Orders.AddCashFlowTx(ctx, tx, service.CashFlowInput{
-				OutletID: c.OutletID, ShiftID: p.ShiftID, Type: p.Type,
+				OutletID: c.OutletID, ShiftID: flowShift, Type: p.Type,
 				Amount: p.Amount, Description: p.Description,
 				CashierID: c.UserID, CashierName: c.DisplayName,
 			})

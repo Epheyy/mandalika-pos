@@ -73,7 +73,7 @@ func decodeBatchEnvelope(r io.Reader) ([]syncpkg.BatchItem, error) {
 	}
 	items := make([]syncpkg.BatchItem, 0, len(entries))
 	for _, entry := range entries {
-		fields, err := batchObject(bytes.NewReader(entry), "type", "idempotencyKey", "payload")
+		fields, err := batchObject(bytes.NewReader(entry), "type", "idempotencyKey", "payload", "envelope")
 		if err != nil {
 			return nil, err
 		}
@@ -86,6 +86,12 @@ func decodeBatchEnvelope(r io.Reader) ([]syncpkg.BatchItem, error) {
 		}
 		// Do not trim/rekey captured identity, or normalize payload content.
 		item.Payload = fields["payload"]
+		// The capture-time envelope (A04) rides as an opaque sibling of payload; it is
+		// parsed and verified per item in sync.attribute so one malformed envelope
+		// fails that item (actor_mismatch), not the whole batch. JSON null = absent.
+		if raw, ok := fields["envelope"]; ok && string(bytes.TrimSpace(raw)) != "null" {
+			item.Envelope = raw
+		}
 		items = append(items, item)
 	}
 	return items, nil

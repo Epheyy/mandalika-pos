@@ -55,8 +55,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		APIKey:    cfg.CloudinaryKey,
 		APISecret: cfg.CloudinarySecret,
 	}
-	h := handlers.New(rd, c, store, wr, os,
-		syncpkg.New(database.Pool, rd, os, wr), signer)
+	syncEngine := syncpkg.New(database.Pool, rd, os, wr)
+	syncEngine.LegacyEnvelopeUntil = cfg.SyncLegacyEnvelopeUntil
+	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		if err := database.Pool.Ping(req.Context()); err != nil {

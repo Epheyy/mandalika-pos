@@ -24,7 +24,7 @@ it.each(['shift_open', 'shift_close'] as const)('retains whole-request rejected 
     sent.push(structuredClone(body))
     throw Object.assign(new Error(error), { status: 400, kind: 'http' })
   } }
-  const reconstruct = () => new SyncEngine(api, {}, kv)
+  const reconstruct = () => new SyncEngine(api, {}, kv, { actor: null })
   const engine = reconstruct()
   const ack = vi.spyOn(engine.outbox, 'ack'), discard = vi.spyOn(engine.outbox, 'discard')
   // A deterministic whole-request rejection of a single item is isolated already:

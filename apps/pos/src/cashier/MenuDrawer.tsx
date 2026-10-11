@@ -28,7 +28,7 @@ interface MenuDrawerProps {
   onPrintSettings: () => void
   onProductDisplay: () => void
   onBackOffice: () => void
-  onLogout: () => void
+  onTerminal: () => void
   onReceiveTransfer: () => void
   onOpenTransferHistory: () => void
   inboundCount: number
@@ -107,7 +107,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   onPrintSettings,
   onProductDisplay,
   onBackOffice,
-  onLogout,
+  onTerminal,
   onReceiveTransfer,
   onOpenTransferHistory,
   inboundCount,
@@ -183,12 +183,14 @@ export const MenuDrawer = memo(function MenuDrawer({
               {settingItems.map(renderItem)}
             </nav>
             <div className="mt-auto px-2 pb-2 border-t border-gray-100 pt-2">
-              <button type="button" onClick={() => { onClose(); onLogout() }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-all text-left">
-                <div className="p-1.5 rounded-lg bg-red-50 flex-shrink-0">
-                  <LogoutIcon className="w-4 h-4 text-red-500" />
+              {/* No sign-out button and no outlet switcher: the terminal is fixed (A04). The only way
+                  out is the guarded "Lepas terminal" in Pengaturan. */}
+              <button type="button" onClick={() => { onClose(); onTerminal() }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all text-left">
+                <div className="p-1.5 rounded-lg bg-gray-100 flex-shrink-0">
+                  <LogoutIcon className="w-4 h-4 text-gray-500" />
                 </div>
-                Keluar dari Aplikasi
+                Terminal
               </button>
             </div>
           </div>

@@ -16,6 +16,7 @@ import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useShift } from '../hooks/useShift'
+import { useTerminalLabel } from '../hooks/useTerminalLabel'
 import { useCart } from '../hooks/useCart'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
 import { ProductGrid } from './ProductGrid'
@@ -36,7 +37,6 @@ import { RefundDialog } from './RefundDialog'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
-import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
@@ -83,7 +83,7 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
 }
 
 export default function CashierScreen() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const engine = use(SyncContext)!
   const receiveRejectedRef = use(SyncReceiveRejectedRefContext)
   const receiveAcceptedRef = use(SyncReceiveAcceptedRefContext)
@@ -92,6 +92,7 @@ export default function CashierScreen() {
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([])
   const offlineData = useOfflineData()
   const shift = useShift()
+  const outletLabel = useTerminalLabel()
   const [state, dispatch] = useReducer(cashierReducer, CASHIER_INITIAL_STATE)
 
   // UI prefs. The layout is a single adaptive view (responsive by width); the
@@ -660,7 +661,7 @@ export default function CashierScreen() {
         ...promotionMetadata,
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
-        shiftId: shift.currentShift?.id ?? null,
+        shiftId: shift.currentShift?.id || null, // '' = open not yet synced
       }))
       if (outcome.status === 'busy') return
       if (outcome.status === 'failed') {
@@ -874,13 +875,13 @@ export default function CashierScreen() {
       <header className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain flex-shrink-0" />
-          <div className="flex-shrink min-w-0">
-            <OutletSwitcher user={user} onResync={offlineData.resync} />
-          </div>
+          {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
+          {outletLabel && <span className="text-xs font-semibold text-gray-600 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
           <ShiftBar
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
             onOpenShift={shift.openShift}
+            isOnline={offlineData.isOnline} canOpen={shift.canOpenShift}
             error={shift.shiftError}
             onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
@@ -1091,7 +1092,7 @@ export default function CashierScreen() {
         onPrintSettings={() => openSettings('printer')}
         onProductDisplay={() => openSettings('display')}
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
-        onLogout={logout}
+        onTerminal={() => openSettings('terminal')}
         onReceiveTransfer={() => setShowReceive(true)}
         onOpenTransferHistory={() => setShowTransferHistory(true)}
         inboundCount={inbound.length}

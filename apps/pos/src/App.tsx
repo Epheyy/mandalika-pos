@@ -3,6 +3,8 @@ import { useAuth } from './auth'
 import { hideSplash, otaNotifyReady } from './native'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
+import OutletPickScreen from './screens/OutletPickScreen'
+import OutletMismatchScreen from './screens/OutletMismatchScreen'
 import logoGold from './assets/logo-gold.png'
 
 function LoginScreen() {
@@ -129,8 +131,28 @@ function LoginScreen() {
   )
 }
 
+/** A non-admin account without an outlet cannot sell: the server only attributes it to its own
+ *  stored outlet, so a chosen outlet would never sync. Tell the cashier instead of letting them sell. */
+function OutletUnassignedScreen() {
+  const { user, logout } = useAuth()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 safe-top safe-bottom">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h1 className="text-xl font-black text-gray-900">Akun belum terikat ke outlet</h1>
+        <p className="text-sm text-gray-500 mt-2">
+          Akun {user?.displayName ?? ''} belum memiliki outlet, jadi tidak bisa dipakai untuk transaksi di kasir.
+          Hubungi admin untuk menetapkan outlet pada akun ini, lalu masuk kembali.
+        </p>
+        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-amber-700 hover:text-amber-800 underline">
+          Keluar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
-  const { user, ready } = useAuth()
+  const { user, ready, terminalState } = useAuth()
   // The native launch splash has launchAutoHide:false. SyncProvider hides it
   // post-login, but the pre-login screen never mounts SyncProvider — so on a
   // fresh/logged-out app the splash covered the WebView forever (blank app).
@@ -150,6 +172,13 @@ export default function App() {
     )
   }
   if (!user) return <LoginScreen />
+  // An outlet-less account on an unbound terminal picks the outlet once (A04).
+  if (terminalState === 'unassigned') return <OutletUnassignedScreen />
+  // A mismatch still mounts a FLUSH-ONLY engine: the queued items (stamped with the terminal's
+  // outlet) must be able to replay or be parked for review, otherwise Lepas terminal could
+  // never unlock. Capture stays refused (no outlet in effect, so actor() is null).
+  if (terminalState === 'mismatch') return <SyncProvider flushOnly><OutletMismatchScreen /></SyncProvider>
+  if (terminalState === 'pick') return <OutletPickScreen />
   // Phase C: offline-first CashierScreen wrapped in SyncProvider
   return (
     <SyncProvider>
