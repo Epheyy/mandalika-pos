@@ -42,6 +42,52 @@ describe('isolation loop stops at the first retryable item', () => {
     expect(engine.outbox.all().map((i) => [i.type, i.status])).toEqual([['order', 'failed'], ['shift_close', 'pending']])
   })
 
+  it('a retryable item does not stop isolation: a malformed item still parks, the close stays unsent', async () => {
+    const sent: string[][] = []
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { type: string; idempotencyKey: string; payload: { kind?: string } }[] }) => {
+      sent.push(body.items.map((i) => i.payload.kind ?? i.type))
+      if (body.items.length > 1) throw Object.assign(new Error('bad request'), { status: 400, kind: 'http' })
+      const [it] = body.items
+      if (it.payload.kind === 'retry') {
+        return { data: { processed: 0, version: 0, results: [{ idempotencyKey: it.idempotencyKey, status: 'error', error: 'sibuk', code: 'busy', retryable: true }] } }
+      }
+      if (it.payload.kind === 'bad') throw Object.assign(new Error('malformed'), { status: 400, kind: 'http' })
+      return { data: { processed: 1, version: 0, results: [{ idempotencyKey: it.idempotencyKey, status: 'ok' }] } }
+    })
+    const { kv } = controllableKV()
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
+    await engine.enqueue('order', { kind: 'retry' })
+    await engine.enqueue('order', { kind: 'bad' })
+    await engine.enqueue('shift_close', { closingCash: 0 })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(sent).toEqual([['retry', 'bad', 'shift_close'], ['retry'], ['bad']])
+    expect(engine.reviewItems()).toHaveLength(1) // the malformed one is parked on the first flush
+    expect(engine.outbox.all().find((i) => i.type === 'shift_close')).toMatchObject({ status: 'pending' })
+  })
+
+  it('later sales are still isolated and sent after a retryable item', async () => {
+    const sent: string[][] = []
+    const request = vi.fn(async (_m: string, _p: string, body: { items: { type: string; idempotencyKey: string; payload: { kind?: string } }[] }) => {
+      sent.push(body.items.map((i) => i.payload.kind ?? i.type))
+      if (body.items.length > 1) throw Object.assign(new Error('bad request'), { status: 400, kind: 'http' })
+      const [it] = body.items
+      if (it.payload.kind === 'retry') {
+        return { data: { processed: 0, version: 0, results: [{ idempotencyKey: it.idempotencyKey, status: 'error', error: 'sibuk', code: 'busy', retryable: true }] } }
+      }
+      return { data: { processed: 1, version: 0, results: [{ idempotencyKey: it.idempotencyKey, status: 'ok' }] } }
+    })
+    const { kv } = controllableKV()
+    const engine = new SyncEngine(api(request), {}, kv, { actor: null })
+    await engine.enqueue('order', { kind: 'retry' })
+    await engine.enqueue('order', { kind: 'sale1' })
+    await engine.enqueue('order', { kind: 'sale2' })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(sent).toEqual([['retry', 'sale1', 'sale2'], ['retry'], ['sale1'], ['sale2']])
+    expect(engine.outbox.all().map((i) => i.payload.kind)).toEqual(['retry']) // both sales acked and pruned
+  })
+
   it('still isolates a permanent refusal and continues to the next item', async () => {
     const sent: string[][] = []
     const request = vi.fn(async (_m: string, _p: string, body: Body) => {

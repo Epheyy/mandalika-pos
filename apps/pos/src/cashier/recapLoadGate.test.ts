@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RecapLoadGate } from './recapRefresh'
+import { RecapLoadGate, ownsFlags, switchTab } from './recapRefresh'
 
 // The recap panel load, refresh and history races as a pure state machine.
 describe('RecapLoadGate', () => {
@@ -65,11 +65,46 @@ describe('RecapLoadGate', () => {
     expect(g.resolveRefresh(g.issue())).toBe('apply')
   })
 
-  it('loading clears only when no load is still pending', () => {
+  it('loading clears when the newest load settles, or when none is pending (never waits on a hung older load)', () => {
     const g = new RecapLoadGate()
-    g.begin(); g.begin()
-    expect(g.end()).toBe(false)
-    expect(g.end()).toBe(true)
+    const t1 = g.begin()
+    const t2 = g.begin()
+    expect(g.end(t1)).toBe(false) // an older load ending while a newer one runs
+    expect(g.end(t2)).toBe(true)
+    const g2 = new RecapLoadGate()
+    const a = g2.begin()
+    const b = g2.begin()
+    expect(g2.end(b)).toBe(true) // newest done: a hung older load must not keep the skeleton up
+    expect(g2.end(a)).toBe(true)
+  })
+
+  it('only the newest begun load may prefill the typed counts', () => {
+    const g = new RecapLoadGate()
+    const first = g.begin()
+    g.issue() // a refresh does not count as a load
+    expect(g.isNewestLoad(first)).toBe(true)
+    const second = g.begin()
+    expect(g.isNewestLoad(first)).toBe(false)
+    expect(g.isNewestLoad(second)).toBe(true)
+  })
+
+  it('an older refresh cannot move applied backwards after a newer load applied', () => {
+    const g = new RecapLoadGate()
+    const refresh = g.issue()
+    const load = g.begin()
+    g.apply(load, false)
+    expect(g.resolveRefresh(refresh)).toBe('covered')
+  })
+})
+
+describe('tab helpers', () => {
+  it('switching to the already active tab is a no-op', () => {
+    expect(switchTab('rekapan', 'rekapan')).toBeNull()
+    expect(switchTab('rekapan', 'riwayat')).toBe('riwayat')
+  })
+  it('only the visible tab owns the shared loading/stale/error flags', () => {
+    expect(ownsFlags('riwayat', 'rekapan')).toBe(false) // a delayed loadRekap while on Riwayat
+    expect(ownsFlags('rekapan', 'rekapan')).toBe(true)
   })
 
   it('history and rekapan use independent gates', () => {
