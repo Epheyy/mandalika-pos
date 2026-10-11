@@ -148,6 +148,18 @@ export interface SyncEngineOptions {
   actor: ActorProvider | null
 }
 
+/** A refund not yet acknowledged by the server, as the POS gate and shift recap see it. */
+export interface QueuedRefund {
+  idempotencyKey: string
+  /** '' when a legacy item carries no usable orderId. */
+  orderId: string
+  /** Shift stamped on the item at capture (envelope); null when unknown (offline-opened shift, legacy). */
+  shiftId: string | null
+  /** Parked for review: it will NOT be sent until a person retries it. */
+  parked: boolean
+  readonly payload: Readonly<Record<string, unknown>>
+}
+
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
 export interface PendingShiftOp {
   type: 'shift_open' | 'shift_close'
@@ -456,6 +468,30 @@ export class SyncEngine {
       type: i.type,
       lastError: i.lastError,
     }))
+  }
+
+  /** Unacknowledged refunds (queued, retrying or parked for review), oldest first. A parked refund
+   *  is NOT settled: the cashier may already have paid the customer. Feeds the POS refund gate and
+   *  the shift recap; read-only, the payload stays exactly as captured (A11 fingerprint). */
+  queuedRefunds(): QueuedRefund[] {
+    const parked = new Set(this.outbox.deadLettered().map((i) => i.idempotencyKey))
+    return this.outbox
+      .all()
+      .filter((i) => i.type === 'refund' && i.status !== 'acked')
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
+      .map((i) => ({
+        idempotencyKey: i.idempotencyKey,
+        orderId: typeof i.payload.orderId === 'string' ? i.payload.orderId : '',
+        shiftId: i.envelope?.shiftId ?? null,
+        parked: parked.has(i.idempotencyKey),
+        payload: i.payload,
+      }))
+  }
+
+  /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
+  queuedRefundOrderIds(): Set<string> {
+    return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
   }
 
   /** Items needing review: explicit server/client verdicts plus legacy attempt-count

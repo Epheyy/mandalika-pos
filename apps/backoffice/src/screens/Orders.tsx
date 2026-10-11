@@ -17,6 +17,7 @@ import { Select, Textarea, fieldClass } from '../ui/Field'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
+import { refundedByLine } from './refundDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
   cash_short: 'Tunai kurang dari total',
@@ -258,7 +259,11 @@ export function OrdersPanel() {
                           {o.refundedAt && (
                             <p className="text-xs text-red-400 mt-1">
                               {format(parseISO(o.refundedAt), 'dd MMM yyyy HH:mm', { locale: id })}
+                              {refundedByLine(o) ? ` · ${refundedByLine(o)}` : ''}
                             </p>
+                          )}
+                          {!o.refundedAt && refundedByLine(o) && (
+                            <p className="text-xs text-red-400 mt-1">{refundedByLine(o)}</p>
                           )}
                         </div>
                       )}

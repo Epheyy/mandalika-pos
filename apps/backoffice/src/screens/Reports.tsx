@@ -27,6 +27,7 @@ import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from './refundDisplay'
 
 type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport'
 
@@ -142,6 +143,7 @@ export default function Reports() {
         'Kas Akhir': s.closingCash || 0,
         'Total Penjualan': s.totalSales,
         'Total Refund': s.totalRefunds || 0,
+        [CASH_REFUNDS_PAID_HEADER]: cashRefundsPaidCell(s),
         'Jumlah Transaksi': s.totalOrders,
         Tunai: s.cashSales,
         Kartu: s.cardSales,
@@ -340,7 +342,7 @@ export default function Reports() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {['Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Transaksi', 'Refund', 'Penjualan', 'Tunai', 'QRIS', 'Transfer', 'Kartu'].map((h) => (
+                      {['Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Transaksi', 'Refund', CASH_REFUNDS_PAID_HEADER, 'Penjualan', 'Tunai', 'QRIS', 'Transfer', 'Kartu'].map((h) => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -354,6 +356,7 @@ export default function Reports() {
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{s.closedAt ? format(parseISO(s.closedAt), 'dd MMM HH:mm', { locale: idLocale }) : <span className="text-green-600 font-bold">Buka</span>}</td>
                         <td className="px-4 py-3 text-sm font-bold text-gray-900">{s.totalOrders}</td>
                         <td className="px-4 py-3 text-sm font-bold text-red-600">{BRAND.currency.format(s.totalRefunds || 0)}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{cashRefundsPaidCell(s, (n) => BRAND.currency.format(n))}</td>
                         <td className="px-4 py-3 text-sm font-black text-gold-600">{BRAND.currency.format(s.totalSales)}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.cashSales)}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.qrisSales)}</td>

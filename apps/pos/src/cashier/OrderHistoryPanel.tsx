@@ -9,6 +9,8 @@ import { formatRupiah } from './pricing'
 import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
+import { RefundAction } from './RefundAction'
+import { PAYMENT_LABELS } from './refundView'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -21,10 +23,12 @@ interface OrderHistoryPanelProps {
   onReprint: (order: Order) => void
   /** A printer is paired — gates the reprint button. */
   canReprint: boolean
-}
-
-const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai', card: 'Kartu', transfer: 'Transfer', qris: 'QRIS',
+  /** The signed-in user may refund (UI gate only; the server decides). */
+  canRefund: boolean
+  /** A synced open shift exists: a refund pays out of that drawer. */
+  hasOpenShift: boolean
+  /** Orders with a refund already queued or parked on this device. */
+  queuedRefundOrderIds: ReadonlySet<string>
 }
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', refunded: 'Refund', cancelled: 'Batal',
@@ -40,7 +44,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, queuedRefundOrderIds }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => today())
   const [to, setTo] = useState(() => today())
   const [search, setSearch] = useState('')
@@ -275,14 +279,13 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                       >
                         🖨 Cetak Ulang
                       </button>
-                      {o.status === 'completed' && (
-                        <button type="button"
-                          onClick={() => onRefund(o)}
-                          className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
-                        >
-                          Refund Transaksi Ini
-                        </button>
-                      )}
+                      <RefundAction
+                        order={o}
+                        canRefund={canRefund}
+                        hasOpenShift={hasOpenShift}
+                        queuedOrderIds={queuedRefundOrderIds}
+                        onRefund={onRefund}
+                      />
                     </div>
                   )}
                 </div>

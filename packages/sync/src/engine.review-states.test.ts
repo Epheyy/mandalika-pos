@@ -399,7 +399,7 @@ describe('review state is rollback-safe', () => {
     })
     const engine = new SyncEngine(api(vi.fn()), {}, kv, { actor: null })
     expect(engine.reviewItems()).toEqual([
-      { idempotencyKey: 'dev:old', type: 'order', clientCreatedAt: 't', reviewCode: undefined, reviewReason: 'boom', lastError: 'boom' },
+      { idempotencyKey: 'dev:old', type: 'order', clientCreatedAt: 't', reviewCode: undefined, reviewReason: 'boom', lastError: 'boom', payload: {} },
     ])
   })
 })

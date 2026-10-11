@@ -53,6 +53,10 @@ export const UserPermission = {
 } as const
 export type UserPermission = typeof UserPermission[keyof typeof UserPermission]
 
+/** Longest refund reason the server accepts (runes, after trimming). Mirrors the backend's MaxRefundReasonRunes. */
+export const MAX_REFUND_REASON_CHARS = 500
+
+
 export interface AppUser {
   id?: string
   uid: string
@@ -63,6 +67,13 @@ export interface AppUser {
   outletId?: string
   photoURL?: string
   createdAt: string
+}
+
+/** UI-only refund gate, read from the cached signed-in user so it works offline on the last-known
+ *  permissions. The server decides (admin bypass or `process_refund`), this only hides what would be refused. */
+export function canRefund(user: { role: string; permissions?: readonly string[] | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.PROCESS_REFUND)
 }
 
 export interface CustomRole {

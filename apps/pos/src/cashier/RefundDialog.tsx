@@ -1,7 +1,8 @@
 import { memo, useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
-import { variantLabel } from '@mandalika/types'
+import { MAX_REFUND_REASON_CHARS, variantLabel } from '@mandalika/types'
+import { canSubmitRefundReason } from './refundView'
 
 type Order = components['schemas']['Order']
 
@@ -32,7 +33,7 @@ export const RefundDialog = memo(function RefundDialog({
   if (!order) return null
 
   const handleConfirm = () => {
-    if (!reason.trim()) return
+    if (!canSubmitRefundReason(reason)) return
     onConfirm(order.id, reason.trim())
   }
 
@@ -67,8 +68,10 @@ export const RefundDialog = memo(function RefundDialog({
           onChange={(e) => setReason(e.target.value)}
           placeholder="Masukkan alasan refund…"
           rows={3}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-400 mb-4 resize-none"
+          maxLength={MAX_REFUND_REASON_CHARS}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-400 mb-1 resize-none"
         />
+        <p className="text-[10px] text-gray-400 text-right mb-3">{`${[...reason].length}/${MAX_REFUND_REASON_CHARS}`}</p>
 
         <p className="text-[10px] text-gray-400 mb-4">
           Stok akan dipulihkan oleh server saat sinkronisasi.
@@ -83,7 +86,7 @@ export const RefundDialog = memo(function RefundDialog({
         <div className="flex gap-2">
           <button type="button"
             onClick={handleConfirm}
-            disabled={isProcessing || !reason.trim()}
+            disabled={isProcessing || !canSubmitRefundReason(reason)}
             className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-red-700 transition-colors"
           >
             {isProcessing ? 'Memproses…' : 'Konfirmasi Refund'}

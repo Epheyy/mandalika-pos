@@ -85,6 +85,9 @@ export interface ReviewItem {
   lastError?: string
   /** The account that captured the item (its envelope's userId), when it has one. */
   ownerUserId?: string
+  /** What was captured, read-only (e.g. the refund display snapshot for the review row).
+   *  Never written back: the payload is what the server fingerprints. */
+  readonly payload: Readonly<Record<string, unknown>>
 }
 
 /** What the durable queue holds, by what it means for handing the terminal to someone else. */
@@ -311,6 +314,7 @@ export class Outbox {
       reviewReason: i.reviewReason ?? i.lastError,
       lastError: i.lastError,
       ownerUserId: i.envelope?.userId,
+      payload: i.payload,
     }))
   }
 

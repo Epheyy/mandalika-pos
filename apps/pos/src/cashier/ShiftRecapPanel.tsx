@@ -12,11 +12,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isCashMethod } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
+import type { QueuedRefund } from '@mandalika/sync'
 import { api } from '../api'
 import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
 import { loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
+import { applyRefundRecap, refundRecap, type RefundRecap } from './refundRecap'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
@@ -96,11 +98,32 @@ interface ShiftRecapPanelProps {
   shiftError?: string | null
   isOpeningShift: boolean
   isClosingShift: boolean
+  /** Refunds on this device not yet acknowledged by the server (incl. parked), from the sync engine. */
+  queuedRefunds: readonly QueuedRefund[]
 }
 
 const HISTORY_PAGE_SIZE = 20
 
 type Tab = 'rekapan' | 'riwayat'
+
+/** Muted notes under the recorded total: refunds this drawer paid for other shifts' sales, refunds
+ *  parked for review (not subtracted: the server never counted them) and legacy items without detail. */
+function RefundRecapNotes({ rec }: { rec: RefundRecap }) {
+  if (rec.crossTotal === 0 && rec.parkedCount === 0 && rec.unknownDetailCount === 0) return null
+  return (
+    <div className="space-y-0.5 text-[11px] text-gray-400">
+      {rec.crossTotal !== 0 && (
+        <div className="flex justify-between"><span>Refund transaksi shift lain</span><span>−{formatRupiah(rec.crossTotal)}</span></div>
+      )}
+      {rec.parkedCount > 0 && (
+        <div className="flex justify-between"><span>Refund perlu ditinjau: {rec.parkedCount}</span><span>{formatRupiah(rec.parkedTotal)}</span></div>
+      )}
+      {rec.unknownDetailCount > 0 && (
+        <p>Refund belum tersinkron tanpa detail: {rec.unknownDetailCount} (tidak dihitung)</p>
+      )}
+    </div>
+  )
+}
 
 const sumRow = (label: string, value: string, bold = false) => (
     <div className={`flex justify-between text-sm py-1 ${bold ? 'font-black text-gray-900' : ''}`}>
@@ -130,6 +153,7 @@ function ShiftRecapPanelBody({
   shiftError,
   isOpeningShift,
   isClosingShift,
+  queuedRefunds,
 }: Omit<ShiftRecapPanelProps, 'isOpen'>) {
   const printer = usePrinter()
   const [printMsg, setPrintMsg] = useState<string | null>(null)
@@ -149,6 +173,10 @@ function ShiftRecapPanelBody({
     () => (liveOrders ? aggregate(liveOrders, paymentMethods) : null),
     [liveOrders, paymentMethods],
   )
+
+  // Recorded cash after refunds this shift paid for other shifts' sales (server snapshot + still queued).
+  const curRecap = refundRecap(currentShift, queuedRefunds)
+  const cur = live ? applyRefundRecap(live.byMethod, live.totalSales, curRecap) : null
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -214,6 +242,15 @@ function ShiftRecapPanelBody({
     setCloseError(null)
     setTab(next)
   }
+
+  // A refund leaving the queue moves into the server's per-shift figure: reload so it is counted once.
+  const queueSignature = queuedRefunds.map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
+  const lastQueueSignature = useRef(queueSignature)
+  useEffect(() => {
+    if (lastQueueSignature.current === queueSignature) return
+    lastQueueSignature.current = queueSignature
+    if (tab === 'rekapan') void loadRekap()
+  }, [queueSignature, tab, loadRekap])
 
   // Load the active tab's data on mount (panel open) and on every tab change.
   useEffect(() => {
@@ -294,9 +331,9 @@ function ShiftRecapPanelBody({
     startingCash: currentShift?.startingCash ?? null,
     closingCash: currentShift?.closingCash ?? null,
     methods: paymentMethods.flatMap((pm) =>
-      pm.isEnabled ? [{ label: pm.label, recorded: live?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null }] : [],
+      pm.isEnabled ? [{ label: pm.label, recorded: cur?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null }] : [],
     ),
-    totalRecorded: live?.totalSales ?? 0,
+    totalRecorded: cur?.total ?? 0,
     totalCounted: Object.keys(counted).length ? Object.values(counted).reduce((a, b) => a + b, 0) : null,
     cashIn,
     cashOut,
@@ -410,7 +447,7 @@ function ShiftRecapPanelBody({
             <div className="space-y-2">
               {paymentMethods.flatMap((pm) => {
                 if (!pm.isEnabled) return []
-                const recorded = live?.byMethod[pm.id] ?? 0
+                const recorded = cur?.byMethod[pm.id] ?? 0
                 const hasC = counted[pm.id] !== undefined
                 const diff = (counted[pm.id] ?? 0) - recorded
                 return (
@@ -455,7 +492,7 @@ function ShiftRecapPanelBody({
             </div>
 
             {(() => {
-              const recordedTotal = live?.totalSales ?? 0
+              const recordedTotal = cur?.total ?? 0
               const hasCounted = Object.keys(counted).length > 0
               const countedTotal = Object.values(counted).reduce((a, b) => a + b, 0)
               const diffTotal = countedTotal - recordedTotal
@@ -467,6 +504,7 @@ function ShiftRecapPanelBody({
                     <span className="text-sm font-semibold text-indigo-800">Total Tercatat</span>
                     <span className="text-sm font-black text-indigo-700">{formatRupiah(recordedTotal)}</span>
                   </div>
+                  <RefundRecapNotes rec={curRecap} />
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-indigo-800">Total Terhitung</span>
                     <span className="text-sm font-black text-indigo-700">{hasCounted ? formatRupiah(countedTotal) : '—'}</span>
@@ -683,10 +721,13 @@ function ShiftRecapPanelBody({
         ) : selected ? (
           (() => {
             const b = aggregate(selectedOrders, paymentMethods)
+            // A closed shift's snapshot is final: only what the server recorded, never the live queue.
+            const histRecap = refundRecap(selected, undefined)
+            const hist = applyRefundRecap(b.byMethod, b.totalSales, histRecap)
             const countedMap = (selected.countedByMethod ?? {}) as Record<string, number>
             const countedTotal = Object.values(countedMap).reduce((a, n) => a + n, 0)
             const hasCounted = Object.keys(countedMap).length > 0
-            const totalDiff = countedTotal - b.totalSales
+            const totalDiff = countedTotal - hist.total
             // Products + variants sold this shift (exclude refunded/cancelled).
             const soldMap = new Map<string, { name: string; variant: string; qty: number; amount: number }>()
             for (const o of selectedOrders) {
@@ -710,10 +751,10 @@ function ShiftRecapPanelBody({
               closingCash: selected.closingCash ?? null,
               methods: paymentMethods.map((pm) => ({
                 label: pm.label,
-                recorded: b.byMethod[pm.id] ?? 0,
+                recorded: hist.byMethod[pm.id] ?? 0,
                 counted: pm.id in countedMap ? countedMap[pm.id] : null,
               })),
-              totalRecorded: b.totalSales,
+              totalRecorded: hist.total,
               totalCounted: hasCounted ? countedTotal : null,
               cashIn: selectedFlows.filter((f) => !isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
               cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
@@ -760,7 +801,7 @@ function ShiftRecapPanelBody({
                       <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Pembayaran</p>
                       <div className="space-y-2">
                         {paymentMethods.map((pm) => {
-                          const recorded = b.byMethod[pm.id] ?? 0
+                          const recorded = hist.byMethod[pm.id] ?? 0
                           const hasC = pm.id in countedMap
                           const c = countedMap[pm.id] ?? 0
                           const diff = c - recorded
@@ -789,8 +830,9 @@ function ShiftRecapPanelBody({
                       </div>
                       <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
                         <div className="flex justify-between text-xs font-black text-gray-900">
-                          <span>Total Tercatat</span><span>{formatRupiah(b.totalSales)}</span>
+                          <span>Total Tercatat</span><span>{formatRupiah(hist.total)}</span>
                         </div>
+                        <RefundRecapNotes rec={histRecap} />
                         {hasCounted && (
                           <>
                             <div className="flex justify-between text-xs font-bold text-gray-600">

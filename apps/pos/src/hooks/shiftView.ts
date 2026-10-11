@@ -60,6 +60,7 @@ export function overlayShift(server: Shift | null, ops: readonly PendingShiftOp[
         openedAt: op.clientCreatedAt,
         startingCash: cash,
         totalSales: 0, totalOrders: 0, totalRefunds: 0, cashSales: 0, cardSales: 0, transferSales: 0, qrisSales: 0,
+        cashRefundsPaid: 0, refundsPaidByMethod: {},
       }
     } else if (shift && (shift.id === '' || op.payload.shiftId === shift.id)) {
       shift = null

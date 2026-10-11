@@ -8,6 +8,7 @@ import type { SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 import { authStore } from '../api'
 import { ownerLabel } from '../terminalBinding'
+import { refundDetail } from '../cashier/refundView'
 
 export interface FailedItem {
   idempotencyKey: string
@@ -18,6 +19,8 @@ export interface FailedItem {
   reviewCode?: string
   /** Set when the item was captured by ANOTHER account (its envelope userId): shown as "milik akun X". */
   ownedBy?: string
+  /** What the cashier captured, e.g. a refund as "BSD-G0007 · Rp 225.000 · Tunai". Unset for items without a snapshot. */
+  detail?: string
 }
 
 export interface OfflineDataState {
@@ -51,6 +54,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
     clientCreatedAt: r.clientCreatedAt,
     reviewCode: r.reviewCode,
     lastError: r.reviewReason ?? r.lastError,
+    detail: r.type === 'refund' ? refundDetail(r.payload) : undefined,
     ownedBy:
       r.ownerUserId && r.ownerUserId !== authStore.userId
         ? ownerLabel(r.ownerUserId, engine.getSnapshot().users)
@@ -65,7 +69,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
 }
 
 function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
-  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy)
+  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy && x.detail === b[i].detail)
 }
 
 export function useOfflineData(): OfflineDataState {

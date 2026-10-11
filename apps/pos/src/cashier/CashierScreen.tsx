@@ -5,7 +5,7 @@
 
 import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
-import { isCashMethod, variantLabel } from '@mandalika/types'
+import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
@@ -34,6 +34,7 @@ import { receiveApprovers } from './receive/receiveTypes'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
+import { prepareRefund } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
@@ -777,8 +778,16 @@ export default function CashierScreen() {
   const handleRefundConfirm = async (orderId: string, reason: string) => {
     if (refundGate.current.isBusy()) return
     setRefundError(null)
+    // Defensive guards (the panel already hides the button): permission, an open synced shift, a valid
+    // reason. The display snapshot is built here, once; nothing rewrites the payload after it is queued.
+    if (!refundOrder || refundOrder.id !== orderId) return
+    const prepared = prepareRefund({ order: refundOrder, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id })
+    if (!prepared.ok) {
+      setRefundError(prepared.message)
+      return
+    }
     setIsRefunding(true)
-    const outcome = await refundGate.current.run(() => engine.enqueue('refund', { orderId, reason }))
+    const outcome = await refundGate.current.run(() => engine.enqueue('refund', { ...prepared.payload }))
     if (outcome.status === 'busy') return
     setIsRefunding(false)
     if (outcome.status === 'failed') {
@@ -1072,6 +1081,7 @@ export default function CashierScreen() {
         shiftError={shift.shiftError}
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
+        queuedRefunds={engine.queuedRefunds()}
       />
 
       <MenuDrawer
@@ -1104,6 +1114,9 @@ export default function CashierScreen() {
         onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
+        canRefund={canRefund(user)}
+        hasOpenShift={!!shift.currentShift?.id}
+        queuedRefundOrderIds={engine.queuedRefundOrderIds()}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}

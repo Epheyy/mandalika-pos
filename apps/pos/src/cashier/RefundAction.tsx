@@ -1,0 +1,26 @@
+import type { components } from '@mandalika/api'
+import { refundAvailability, type RefundAvailabilityInput } from './refundView'
+
+type Order = components['schemas']['Order']
+
+interface RefundActionProps extends RefundAvailabilityInput {
+  order: Order
+  onRefund: (order: Order) => void
+}
+
+/** "Refund Transaksi Ini" for a completed order, or a muted line saying why it is not offered. */
+export function RefundAction({ order, canRefund, hasOpenShift, queuedOrderIds, onRefund }: RefundActionProps) {
+  const a = refundAvailability({ order, canRefund, hasOpenShift, queuedOrderIds })
+  if (a.kind === 'hidden') return null
+  if (a.kind === 'blocked') {
+    return <p className="mt-2 text-center text-[11px] text-gray-400">{a.reason}</p>
+  }
+  return (
+    <button type="button"
+      onClick={() => onRefund(order)}
+      className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
+    >
+      Refund Transaksi Ini
+    </button>
+  )
+}
