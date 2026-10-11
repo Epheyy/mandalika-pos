@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ACCOUNT_PROBLEM_MESSAGE, ENVELOPE_REFUSED_MESSAGE, SyncEngine, type ActorContext, type ApiLike } from './engine'
-import type { OutboxItem } from './outbox'
+import { summarizeQueue, type OutboxItem } from './outbox'
 import { controllableKV } from './testFixtures/controllableKV'
 
 type Err = Error & { status?: number; kind?: string }
@@ -25,7 +25,7 @@ const actorA: ActorContext = { outletId: 'outlet-a', userId: 'user-a', shiftId: 
 
 function make(request: unknown, actor?: () => ActorContext | null) {
   const { kv, store, ctl } = controllableKV()
-  const engine = new SyncEngine(api(request), {}, kv, actor ? { actor } : {})
+  const engine = new SyncEngine(api(request), {}, kv, { actor: actor ?? null })
   return { engine, store, ctl, kv }
 }
 
@@ -171,5 +171,56 @@ describe('pendingShiftOps / unsettledCount', () => {
     await engine.outbox.settle([{ key: ops[1].idempotencyKey, op: 'ack' }])
     expect(engine.pendingShiftOps()).toHaveLength(1)
     expect(engine.unsettledCount()).toBe(2)
+  })
+})
+
+describe('summarizeQueue / foreign parked items (A04 H1)', () => {
+  const stamped = (userId: string) => ({ v: 1, outletId: 'o', userId, deviceId: 'd', capturedAt: 'x' })
+  const parked = { status: 'failed', attempts: 5 }
+
+  it('classifies pending, stamped-parked and unstamped-parked, ignoring acked', () => {
+    const s = summarizeQueue([
+      { status: 'pending' },
+      { status: 'failed', attempts: 2, envelope: stamped('a') }, // still retrying, not parked
+      { ...parked, envelope: stamped('a') },
+      { ...parked, envelope: stamped('b') },
+      { ...parked },
+      { status: 'acked', envelope: stamped('z') },
+    ])
+    expect(s).toMatchObject({ pending: 2, parkedStamped: 2, parkedUnstamped: 1 })
+    expect(s.owners.sort()).toEqual(['a', 'b'])
+    expect(summarizeQueue([])).toEqual({ pending: 0, parkedStamped: 0, parkedUnstamped: 0, owners: [] })
+  })
+
+  it('a junk entry is never treated as empty', () => {
+    expect(summarizeQueue([null as never]).pending).toBe(1)
+  })
+
+  it('retryFailed re-queues only the current account\'s and unstamped parked items', async () => {
+    const request = vi.fn().mockRejectedValue(new TypeError('offline'))
+    const { engine } = make(request, () => ({ outletId: 'o', userId: 'me' }))
+    const add = (key: string, userId?: string) => engine.outbox.add('order', key, { total: 1 }, userId ? { ...stamped(userId) } as never : undefined)
+    await add('d:mine', 'me'); await add('d:theirs', 'other'); await add('d:legacy')
+    await engine.outbox.settle(['d:mine', 'd:theirs', 'd:legacy'].map((key) => ({ key, op: 'review' as const, code: 'actor_mismatch', reason: 'x' })))
+    expect(engine.reviewItems().map((r) => [r.idempotencyKey, r.ownerUserId])).toEqual([['d:mine', 'me'], ['d:theirs', 'other'], ['d:legacy', undefined]])
+    await engine.retryFailed()
+    expect(engine.reviewItems().map((r) => r.idempotencyKey)).toEqual(['d:theirs'])
+    expect(engine.queueSummary()).toMatchObject({ pending: 2, parkedStamped: 1, parkedUnstamped: 0 })
+  })
+
+  it('a foreign parked item never blocks the current account\'s own item from being sent', async () => {
+    const sent: string[] = []
+    const request = vi.fn(async (_m: string, _p: string, body?: unknown) => {
+      const keys = (body as { items: { idempotencyKey: string }[] }).items.map((i) => i.idempotencyKey)
+      sent.push(...keys)
+      return okBatch(keys)
+    })
+    const { engine } = make(request, () => ({ outletId: 'o', userId: 'me' }))
+    await engine.outbox.add('order', 'd:theirs', { total: 1 }, stamped('other') as never)
+    await engine.outbox.settle([{ key: 'd:theirs', op: 'review', code: 'actor_mismatch', reason: 'x' }])
+    await engine.enqueue('order', { total: 2 })
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0]).not.toBe('d:theirs')
+    expect(engine.reviewItems()).toHaveLength(1)
   })
 })

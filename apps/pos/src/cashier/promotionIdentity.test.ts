@@ -159,7 +159,7 @@ it.each(['direct-first', 'linked-first', 'two-linked', 'code-only', 'different-i
   'real enqueue/reconstruction captures one identity effect and usage intent: %s', async order => {
     vi.stubGlobal('navigator', { onLine: false })
     const kv = memoryKV(), request = vi.fn(async () => { throw new Error('No network permitted in this fixture') })
-    const engine = new SyncEngine({ request }, {}, kv), p = promo()
+    const engine = new SyncEngine({ request }, {}, kv, { actor: null }), p = promo()
     const states = {
       'direct-first': linked(direct(initial(), p), p),
       'linked-first': direct(linked(initial(), p), p),
@@ -171,7 +171,7 @@ it.each(['direct-first', 'linked-first', 'two-linked', 'code-only', 'different-i
     const state = states[order], derived = quote(state), metadata = buildPromotionMetadata(state, derived)
     const receipt = await engine.enqueue('order', { outletId: 'fixture-outlet', customerId: 'Raw-Customer', items: state.cart,
       paymentMethod: 'cash', amountPaid: derived.total, ...metadata }, `lp05-${order}`)
-    const queued = new SyncEngine({ request }, {}, kv).outbox.pending()[0]
+    const queued = new SyncEngine({ request }, {}, kv, { actor: null }).outbox.pending()[0]
     const codeWinner = order === 'two-linked' || order === 'code-only'
     const independent = order === 'different-ids' || order === 'unlinked'
     expect(queued.idempotencyKey).toBe(receipt.idempotencyKey)
@@ -204,9 +204,9 @@ it('new capture and reconstruction leave a historical duplicate queued sale and 
       promotionId: 'P', discountCode: 'Raw-Code-1', total: 70000, amountPaid: 70000, orderUuid: 'original-sale', clientCreatedAt: '2026-09-01T05:00:00Z' } }
   const originalBytes = JSON.stringify(historical)
   kv.set('mandalika.pos.outbox', JSON.stringify([historical]))
-  const engine = new SyncEngine({ request }, {}, kv), state = linked(direct(initial(), promo()), promo())
+  const engine = new SyncEngine({ request }, {}, kv, { actor: null }), state = linked(direct(initial(), promo()), promo())
   await engine.enqueue('order', { ...buildPromotionMetadata(state, quote(state)), amountPaid: quote(state).total }, 'new-sale')
-  const reconstructed = new SyncEngine({ request }, {}, kv)
+  const reconstructed = new SyncEngine({ request }, {}, kv, { actor: null })
   expect(reconstructed.outbox.deadLettered()).toEqual([historical])
   expect(JSON.stringify(reconstructed.outbox.deadLettered()[0])).toBe(originalBytes)
   expect(reconstructed.outbox.pending()).toHaveLength(1)

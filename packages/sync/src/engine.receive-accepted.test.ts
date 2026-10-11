@@ -101,7 +101,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
   it('fires onReceiveAccepted with the transfer on a fresh ok ack', async () => {
     const { api } = makeApi('ok', TRANSFER_FIXTURE)
     const onReceiveAccepted = vi.fn()
-    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV())
+    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV(), { actor: null })
 
     // Seed the snapshot.
     await engine.resync()
@@ -127,7 +127,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
   it('does NOT fire onReceiveAccepted on a duplicate ack', async () => {
     const { api } = makeApi('duplicate', TRANSFER_FIXTURE)
     const onReceiveAccepted = vi.fn()
-    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV())
+    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV(), { actor: null })
 
     await engine.resync()
 
@@ -148,7 +148,7 @@ describe('SyncEngine — onReceiveAccepted', () => {
     // ok status but no transfer payload — mirrors the backend soft-fail path
     const { api } = makeApi('ok', undefined)
     const onReceiveAccepted = vi.fn()
-    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV())
+    const engine = new SyncEngine(api, { onReceiveAccepted }, memKV(), { actor: null })
 
     await engine.resync()
 

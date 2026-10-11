@@ -14,7 +14,7 @@ const kv: KV = {
   setDurable: async (key, value) => { store.set(key, value) },
   removeDurable: async (key) => { store.delete(key) },
 }
-const engine = new SyncEngine({ request: async () => { throw new Error('No API in synthetic harness') } }, {}, kv)
+const engine = new SyncEngine({ request: async () => { throw new Error('No API in synthetic harness') } }, {}, kv, { actor: null })
 for (const type of ['order', 'refund'] as const) {
   const key = `synthetic-device:${type}`
   await engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })

@@ -15,7 +15,7 @@ async function fixture() {
     removeDurable: async (key) => { store.delete(key) },
   }
   const request = vi.fn().mockRejectedValue(new Error('unexpected request'))
-  const engine = new SyncEngine({ request }, {}, kv)
+  const engine = new SyncEngine({ request }, {}, kv, { actor: null })
   for (const type of ['order', 'refund'] as const) {
     const key = `synthetic-device:${type}`
     await engine.outbox.add(type, key, { items: [{ marker: `original-${type}` }], pin: 'SYNTHETIC-PIN' })

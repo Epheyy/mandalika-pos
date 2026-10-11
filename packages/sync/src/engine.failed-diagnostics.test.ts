@@ -16,7 +16,7 @@ async function fixture(count = 2) {
   }
   const request = vi.fn().mockRejectedValue(new Error('unexpected request'))
   const onOutboxChange = vi.fn()
-  const engine = new SyncEngine({ request }, { onOutboxChange }, kv)
+  const engine = new SyncEngine({ request }, { onOutboxChange }, kv, { actor: null })
   for (let i = 0; i < count; i++) {
     const key = `synthetic-device:operation-${i}`
     await engine.outbox.add(i % 2 ? 'refund' : 'order', key, {
@@ -61,7 +61,7 @@ describe('A02-export: failed diagnostic retention', () => {
     expect(first).toBe(second)
     expect(JSON.parse(first)).toHaveLength(2)
     expect(new Outbox(kv).all()).toEqual(before)
-    const reconstructed = new SyncEngine({ request }, {}, kv)
+    const reconstructed = new SyncEngine({ request }, {}, kv, { actor: null })
     expect(reconstructed.deadLettered()).toEqual(failedBefore)
     expect(reconstructed.buildFailedSyncDiagnostics()).toBe(first)
     expect(onOutboxChange).not.toHaveBeenCalled()

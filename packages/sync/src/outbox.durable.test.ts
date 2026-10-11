@@ -164,7 +164,7 @@ describe('SyncEngine durable enqueue', () => {
   const makeEngine = (kv: ReturnType<typeof controllableKV>['kv']) => {
     const request = vi.fn().mockRejectedValue(new Error('offline'))
     const onOutboxChange = vi.fn()
-    return { engine: new SyncEngine({ request }, { onOutboxChange }, kv), request, onOutboxChange }
+    return { engine: new SyncEngine({ request }, { onOutboxChange }, kv, { actor: null }), request, onOutboxChange }
   }
   type Body = { items: { idempotencyKey: string }[] }
   const echoOk = async (_m: string, _p: string, body: Body) => ({

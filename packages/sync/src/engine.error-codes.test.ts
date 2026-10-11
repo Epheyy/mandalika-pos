@@ -12,7 +12,7 @@ async function setup(result: Result, type: 'transfer_receive' | 'order' = 'trans
   const { kv } = controllableKV()
   const onReceiveRejected = vi.fn()
   const request = vi.fn()
-  const engine = new SyncEngine({ request }, { onReceiveRejected }, kv)
+  const engine = new SyncEngine({ request }, { onReceiveRejected }, kv, { actor: null })
   request.mockImplementation(async (_m: string, _p: string, body: { items: { idempotencyKey: string }[] }) => ({
     data: {
       processed: 0, version: 0,

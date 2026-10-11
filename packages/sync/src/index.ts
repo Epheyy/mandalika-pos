@@ -4,8 +4,8 @@
 
 export { SyncEngine, RECEIVE_CONFLICT_CODES, BATCH_TIMEOUT_MS, BACKOFF_BASE_MS, BACKOFF_CAP_MS, ACCOUNT_PROBLEM_MESSAGE, ENVELOPE_REFUSED_MESSAGE } from './engine'
 export type { ApiLike, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp } from './engine'
-export { Outbox, OUTBOX_KEY } from './outbox'
-export type { OutboxItem, OutboxEnvelope, OutboxType, OutboxStatus, OutboxCorruption, ReviewItem } from './outbox'
+export { Outbox, OUTBOX_KEY, MAX_ATTEMPTS, summarizeQueue } from './outbox'
+export type { QueueSummary, OutboxItem, OutboxEnvelope, OutboxType, OutboxStatus, OutboxCorruption, ReviewItem } from './outbox'
 export { Snapshot } from './snapshot'
 export { getDeviceId, uuid } from './device'
 export { defaultKV, readJSON, writeJSON, getKV, initSecureKV } from './storage'

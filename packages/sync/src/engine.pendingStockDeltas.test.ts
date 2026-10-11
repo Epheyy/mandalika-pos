@@ -58,13 +58,13 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
   })
 
   it('returns {} when the outbox is empty', async () => {
-    const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
+    const engine = new SyncEngine(makeOfflineApi(), {}, memKV(), { actor: null })
     await engine.resync()
     expect(engine.pendingStockDeltas()).toEqual({})
   })
 
   it('accumulates quantities from two pending orders for the same variant', async () => {
-    const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
+    const engine = new SyncEngine(makeOfflineApi(), {}, memKV(), { actor: null })
     await engine.resync()
 
     // First order: 2 × p1|10ml, 1 × p2|30ml
@@ -88,7 +88,7 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
   })
 
   it('includes reward lines (isReward=true) in the deltas', async () => {
-    const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
+    const engine = new SyncEngine(makeOfflineApi(), {}, memKV(), { actor: null })
     await engine.resync()
 
     await engine.enqueue('order', {
@@ -104,7 +104,7 @@ describe('SyncEngine.pendingStockDeltas — SP-CRM-9c', () => {
   })
 
   it('ignores non-order outbox items (shift_open, refund, etc.)', async () => {
-    const engine = new SyncEngine(makeOfflineApi(), {}, memKV())
+    const engine = new SyncEngine(makeOfflineApi(), {}, memKV(), { actor: null })
     await engine.resync()
 
     await engine.enqueue('shift_open', { startingCash: 100000 })

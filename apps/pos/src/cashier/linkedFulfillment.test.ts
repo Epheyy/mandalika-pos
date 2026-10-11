@@ -271,14 +271,14 @@ it.each(['bundle', 'buy_x_get_y'] as const)('%s queue/reconstruction/response-lo
     const key = (body as { items: OutboxItem[] }).items[0].idempotencyKey
     return { data: { processed: 1, results: [{ idempotencyKey: key, status: 'ok' }], version: 0 } } as T
   } }
-  const engine = new SyncEngine(api, {}, kv), derived = price(state)
+  const engine = new SyncEngine(api, {}, kv, { actor: null }), derived = price(state)
   const receipt = await engine.enqueue('order', { items: state.cart, amountPaid: derived.total, paymentMethod: 'cash', ...buildPromotionMetadata(state, derived) }, `original-${type}`)
   const captured = structuredClone(engine.outbox.all()[0])
   expect(captured.payload).toMatchObject({ promotionIds: [], promotionId: null, discountCodes: ['Raw-Winner'], discountCode: 'Raw-Winner', discountLabel: 'Raw-Winner' })
   expect(captured.payload.items).toEqual(state.cart)
   vi.stubGlobal('navigator', { onLine: true })
   await engine.flush()
-  const rebuilt = new SyncEngine(api, {}, kv)
+  const rebuilt = new SyncEngine(api, {}, kv, { actor: null })
   expect(rebuilt.outbox.all()[0].payload).toEqual(captured.payload)
   expect(rebuilt.outbox.all()[0].idempotencyKey).toBe(receipt.idempotencyKey)
   await rebuilt.flush()
@@ -292,9 +292,9 @@ it('historical duplicate queued sale stays byte-identical while new physical sal
   const kv = memoryKV(), old: OutboxItem = { type: 'order', idempotencyKey: 'old:old-sale', seq: 7, status: 'failed', attempts: 5,
     clientCreatedAt: '2026-09-01T00:00:00Z', lastError: 'Historical evidence', payload: { promotionIds: ['P'], discountCodes: ['Raw-Winner', 'Second'], items: [line('buy', 1)] } }
   const bytes = JSON.stringify(old); kv.set('mandalika.pos.outbox', JSON.stringify([old]))
-  const api: ApiLike = { async request() { throw new Error('No network') } }, engine = new SyncEngine(api, {}, kv), p = promo('bundle'), state = commit(initial(p), codeOwner(p))
+  const api: ApiLike = { async request() { throw new Error('No network') } }, engine = new SyncEngine(api, {}, kv, { actor: null }), p = promo('bundle'), state = commit(initial(p), codeOwner(p))
   await engine.enqueue('order', { items: state.cart, ...buildPromotionMetadata(state, price(state)) }, 'new-physical')
-  expect(JSON.stringify(new SyncEngine(api, {}, kv).outbox.deadLettered()[0])).toBe(bytes)
+  expect(JSON.stringify(new SyncEngine(api, {}, kv, { actor: null }).outbox.deadLettered()[0])).toBe(bytes)
 })
 
 it('shared server fixtures are produced by real direct/code fulfillment and queued metadata', async () => {
@@ -307,7 +307,7 @@ it('shared server fixtures are produced by real direct/code fulfillment and queu
   ]
   const kv = memoryKV(); kv.set('mandalika.pos.deviceId', uuid(99))
   const api: ApiLike = { async request() { throw new Error('No network in generator') } }
-  const engine = new SyncEngine(api, {}, kv)
+  const engine = new SyncEngine(api, {}, kv, { actor: null })
   const cases = []
   let seq = 0
   for (const p of promotions) {

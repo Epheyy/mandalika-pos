@@ -24,7 +24,7 @@ it('retains a denied captured sale through parking, export, reconstruction and s
     sent.push(structuredClone(body))
     return { data: { processed: 0, results: [{ idempotencyKey: original.idempotencyKey, status: 'error', error }], version: 0 } } as T
   } }
-  const reconstruct = () => new SyncEngine(api, {}, kv)
+  const reconstruct = () => new SyncEngine(api, {}, kv, { actor: null })
   const engine = reconstruct()
   const ack = vi.spyOn(engine.outbox, 'ack'), discard = vi.spyOn(engine.outbox, 'discard')
   for (let n = 1; n <= MAX_ATTEMPTS; n++) {

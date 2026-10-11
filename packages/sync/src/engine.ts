@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -143,9 +143,9 @@ export interface ActorContext {
 export type ActorProvider = () => ActorContext | null
 
 export interface SyncEngineOptions {
-  /** Stamps every new outbox item with its capture-time envelope. Omitted only by
-   *  tests and legacy callers: items are then sent without one (server: legacy path). */
-  actor?: ActorProvider
+  /** Stamps every new outbox item with its capture-time envelope. REQUIRED so a new call
+   *  site cannot forget it: `null` (tests only) sends items without one (server: legacy path). */
+  actor: ActorProvider | null
 }
 
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
@@ -190,10 +190,10 @@ export class SyncEngine {
     private api: ApiLike,
     private events: SyncEvents = {},
     kv: KV = defaultKV,
-    options: SyncEngineOptions = {},
+    options: SyncEngineOptions,
   ) {
     this.kv = kv
-    this.actorProvider = options.actor ?? null
+    this.actorProvider = options.actor
     this.deviceId = getDeviceId(kv)
     this.outbox = new Outbox(kv)
     this.snapshot = new Snapshot(kv)
@@ -421,6 +421,11 @@ export class SyncEngine {
       }))
   }
 
+  /** The queue by what it means for releasing the terminal / signing in another account. */
+  queueSummary(): QueueSummary {
+    return summarizeQueue(this.outbox.all())
+  }
+
   /** Items waiting to be sent or needing review (the terminal-release guard, A04). */
   unsettledCount(): number {
     return this.outbox.all().filter((i) => i.status !== 'acked').length
@@ -490,7 +495,10 @@ export class SyncEngine {
   /** Manual retry of parked items. Rejects if the reset could not be stored. */
   async retryFailed(): Promise<void> {
     this.resetBackoff()
-    await this.outbox.retryDeadLettered()
+    // Another account's parked items stay parked: re-sending them would only be refused
+    // again (actor_mismatch). Items without an envelope are retried as before.
+    const me = this.actorProvider?.()?.userId
+    await this.outbox.retryDeadLettered((i) => !i.envelope || !me || i.envelope.userId === me)
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
   }
