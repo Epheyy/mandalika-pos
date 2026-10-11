@@ -6,6 +6,8 @@ export function startRefresh<T>(o: {
   apply: (value: T) => void
   maxAttempts: number
   baseMs: number
+  /** Called once when the last attempt failed (not after cancel). */
+  onGiveUp?: () => void
 }): () => void {
   let cancelled = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -14,7 +16,11 @@ export function startRefresh<T>(o: {
       const value = await o.fetch()
       if (!cancelled) o.apply(value)
     } catch {
-      if (cancelled || n + 1 >= o.maxAttempts) return
+      if (cancelled) return
+      if (n + 1 >= o.maxAttempts) {
+        o.onGiveUp?.()
+        return
+      }
       timer = setTimeout(() => { void attempt(n + 1) }, o.baseMs * 2 ** n)
     }
   }
@@ -23,4 +29,10 @@ export function startRefresh<T>(o: {
     cancelled = true
     if (timer !== undefined) clearTimeout(timer)
   }
+}
+
+/** Tickets for overlapping loads: only the most recently issued one may apply its result. */
+export function latestGate() {
+  let n = 0
+  return { next: () => ++n, isLatest: (t: number) => t === n }
 }

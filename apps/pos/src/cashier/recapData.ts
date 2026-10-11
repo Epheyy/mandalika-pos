@@ -39,6 +39,14 @@ export const loadCurrentRecap = (api: Client) => completeRecap('rekap:current', 
   return { shift: shift ?? null, orders, flows }
 })
 
+/** Like loadCurrentRecap, but a fallback to the cached snapshot is a failure: a refresh that is meant to
+ *  pick up newer server state must never "succeed" with the old data. */
+export async function freshCurrentRecap(api: Client) {
+  const r = await loadCurrentRecap(api)
+  if (r.stale) throw new Error(RECAP_STALE_NOTICE)
+  return r.data
+}
+
 export const loadRecapHistory = (api: Client) => completeRecap('rekap:history', () =>
   fetchAllPages((page, limit) => api.request<S['ShiftListResponse']>('GET', `/api/v1/shifts?page=${page}&limit=${limit}`)),
 )

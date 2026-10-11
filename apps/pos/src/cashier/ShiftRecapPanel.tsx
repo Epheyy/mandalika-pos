@@ -16,10 +16,10 @@ import type { QueuedRefund } from '@mandalika/sync'
 import { api } from '../api'
 import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
-import { loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
+import { freshCurrentRecap, loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
-import { startRefresh } from './recapRefresh'
+import { latestGate, startRefresh } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
@@ -180,7 +180,8 @@ function ShiftRecapPanelBody({
     [liveOrders, paymentMethods],
   )
 
-  // Recorded cash after refunds this shift paid for other shifts' sales (server snapshot + still queued).
+  // Recorded cash net of refunds paid out of this drawer: other shifts' sales (server snapshot + queued)
+  // and this shift's own sales whose refund has not synced yet.
   const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders) : null
   const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
 
@@ -207,20 +208,27 @@ function ShiftRecapPanelBody({
   // Keyed by payment-method id; only filled keys are sent on close.
   const [counted, setCounted] = useState<Record<string, number>>({})
 
+  // Every load or refresh takes a ticket; a response whose ticket is no longer the latest is dropped,
+  // so a slow older fetch can never overwrite a newer one.
+  const loadGate = useRef(latestGate())
+
   const loadRekap = useCallback(async () => {
+    const ticket = loadGate.current.next()
     setIsLoading(true)
     setError(null)
     try {
       const { data: { shift, flows, orders }, stale } = await loadCurrentRecap(api)
+      if (!loadGate.current.isLatest(ticket)) return
       setCurrentShift(shift)
       setCurrentFlows(flows)
       setLiveOrders(shift ? orders : null)
       setCounted((shift?.countedByMethod as Record<string, number> | null | undefined) ?? {})
       setIsStale(stale)
     } catch (e: unknown) {
+      if (!loadGate.current.isLatest(ticket)) return
       setError(e instanceof Error ? e.message : 'Gagal memuat rekap lengkap')
     } finally {
-      setIsLoading(false)
+      if (loadGate.current.isLatest(ticket)) setIsLoading(false)
     }
   }, [])
 
@@ -257,13 +265,20 @@ function ShiftRecapPanelBody({
   useEffect(() => {
     if (tab !== 'rekapan' || appliedQueueSignature.current === queueSignature) return
     return startRefresh({
-      fetch: () => loadCurrentRecap(api).then((r) => r.data),
+      fetch: async () => {
+        const ticket = loadGate.current.next()
+        const data = await freshCurrentRecap(api) // the cached fallback counts as a failure here
+        if (!loadGate.current.isLatest(ticket)) throw new Error('superseded by a newer load')
+        return data
+      },
       apply: ({ shift, flows, orders }) => {
         setCurrentShift(shift)
         setCurrentFlows(flows)
         setLiveOrders(shift ? orders : null)
+        setIsStale(false)
         appliedQueueSignature.current = queueSignature
       },
+      onGiveUp: () => setIsStale(true),
       maxAttempts: REFRESH_MAX_ATTEMPTS,
       baseMs: REFRESH_BASE_MS,
     })
@@ -356,6 +371,7 @@ function ShiftRecapPanelBody({
     cashOut,
     crossShiftRefunds: curRecap.crossTotal,
     unsyncedRefunds: curRecap.ownPendingTotal,
+    unknownRefundDetailCount: curRecap.unknownDetailCount,
     parkedRefundCount: curRecap.parkedCount,
     parkedRefundTotal: curRecap.parkedTotal,
     gross: live?.gross ?? 0,

@@ -223,6 +223,8 @@ export interface RecapData {
   /** Refunds of this shift's own sales still waiting to sync: printed as a note, already out of Tercatat. */
   unsyncedRefunds?: number
   /** Refunds parked for review: printed as a note, NOT out of Tercatat (the server never counted them). */
+  /** Queued refunds captured without detail (older app): printed as a note, not in the figures. */
+  unknownRefundDetailCount?: number
   parkedRefundCount?: number
   parkedRefundTotal?: number
   gross: number
@@ -273,6 +275,10 @@ export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Arr
   b.raw(BOLD_ON).line(pad('Total Tercatat', money(data.totalRecorded))).raw(BOLD_OFF)
   if (data.crossShiftRefunds) b.line(pad('Refund transaksi shift lain', '-' + money(data.crossShiftRefunds)))
   if (data.unsyncedRefunds) b.line(pad('Refund belum tersinkron', '-' + money(data.unsyncedRefunds)))
+  if (data.unknownRefundDetailCount) {
+    b.line(`Refund tanpa detail: ${data.unknownRefundDetailCount}`)
+    b.line('  (tidak dihitung)')
+  }
   if (data.parkedRefundCount) {
     b.line(`Refund perlu ditinjau: ${data.parkedRefundCount}`)
     b.line(pad('  jumlah', money(data.parkedRefundTotal ?? 0)))
