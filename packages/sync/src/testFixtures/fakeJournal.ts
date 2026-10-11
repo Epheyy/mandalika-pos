@@ -85,18 +85,19 @@ export function createFakeJournal(persisted?: FakeJournalPersisted): FakeJournal
   function commitTx(req: JournalApplyRequest): void {
     const rows = new Map(state.rows)
     const meta = new Map(state.meta)
+    // Order matches the Java plugin: replaceAll, deletes, upserts, meta. UNIQUE/NOT NULL are checked
+    // per statement like SQLite; upserts are UPDATE-then-INSERT, never REPLACE, so a seq owned by
+    // another row aborts the transaction instead of silently deleting that row.
     if (req.replaceAll) rows.clear()
+    for (const k of req.deletes) rows.delete(k)
     for (const u of req.upserts) {
       if (typeof u.key !== 'string' || typeof u.json !== 'string' || !Number.isInteger(u.seq)) {
         throw new Error('NOT NULL constraint failed (synthetic)')
       }
+      for (const [k, r] of rows) {
+        if (k !== u.key && r.seq === u.seq) throw new Error('UNIQUE constraint failed: outbox.seq (synthetic)')
+      }
       rows.set(u.key, { seq: u.seq, json: u.json })
-    }
-    for (const k of req.deletes) rows.delete(k)
-    const seqs = new Set<number>()
-    for (const r of rows.values()) {
-      if (seqs.has(r.seq)) throw new Error('UNIQUE constraint failed: outbox.seq (synthetic)')
-      seqs.add(r.seq)
     }
     for (const [k, v] of Object.entries(req.meta ?? {})) {
       if (typeof v !== 'string') throw new Error('NOT NULL constraint failed: meta.v (synthetic)')
@@ -139,12 +140,17 @@ export function createFakeJournal(persisted?: FakeJournalPersisted): FakeJournal
 
       if (ctl.mode === 'reject') return Promise.reject(new Error('disk full (synthetic)'))
       if (ctl.mode === 'ok') {
-        try {
-          run()
-          return Promise.resolve()
-        } catch (err) {
-          return Promise.reject(err)
-        }
+        // Settle on a later macrotask, like a real plugin call, so interleavings are exercised.
+        return new Promise<void>((resolve, reject) => {
+          setTimeout(() => {
+            try {
+              run()
+              resolve()
+            } catch (err) {
+              reject(err)
+            }
+          }, 0)
+        })
       }
       return new Promise<void>((resolve, reject) => {
         ctl.held.push({

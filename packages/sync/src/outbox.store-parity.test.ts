@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Outbox, type OutboxItem } from './outbox'
 import { KVOutboxStore } from './outboxStore'
+import { SyncedRefunds } from './syncedRefunds'
 import { JournalOutboxStore, JournalUnavailableError } from './journalOutboxStore'
 import { controllableKV } from './testFixtures/controllableKV'
 import { createFakeJournal, persistedItems, type FakeJournal } from './testFixtures/fakeJournal'
@@ -274,14 +275,36 @@ describe('JournalOutboxStore commits', () => {
     expect(next.seq).toBe(2) // the failed add burned no seq
   })
 
-  it('crash after commit: caller saw a failure, mirror untouched, but the row survives a restart', async () => {
-    const { fake, outbox } = await setup()
+  it('crash after commit (H1): the add is recognised as committed and the next add gets a fresh seq', async () => {
+    const { fake, store, outbox } = await setup()
     fake.ctl.failAt = 'afterCommit'
-    await expect(outbox.add('order', 'dev:A', {})).rejects.toThrow('crash after commit')
+    const first = await outbox.add('order', 'dev:A', {})
+    expect(first.seq).toBe(1)
+    expect(outbox.all().map((i) => i.idempotencyKey)).toEqual(['dev:A'])
+    const second = await outbox.add('order', 'dev:B', {})
+    expect(second.seq).toBe(2)
+    expect([...fake.persisted.rows.keys()]).toEqual(['dev:A', 'dev:B'])
+    expect(new Outbox(store).all().map((i) => i.idempotencyKey)).toEqual(['dev:A', 'dev:B'])
+  })
+
+  it('crash after commit (H1): a delete that committed is not reported as failed either', async () => {
+    const { fake, outbox } = await setup()
+    await outbox.add('order', 'dev:A', {})
+    await outbox.ack('dev:A')
+    fake.ctl.failAt = 'afterCommit'
+    await outbox.prune()
     expect(outbox.all()).toEqual([])
-    const restarted = fake.restart()
-    const store2 = await JournalOutboxStore.open(restarted.plugin)
-    expect(new Outbox(store2).all().map((i) => i.idempotencyKey)).toEqual(['dev:A'])
+    expect(fake.persisted.rows.size).toBe(0)
+  })
+
+  it('a rejected apply that did not commit resyncs the mirror from disk and still rejects', async () => {
+    const { fake, store, outbox } = await setup()
+    await outbox.add('order', 'dev:A', {})
+    // Something changed the file behind the mirror's back.
+    fake.persisted.rows.set('dev:X', { seq: 9, json: JSON.stringify({ idempotencyKey: 'dev:X', seq: 9, type: 'order', payload: {}, status: 'pending', clientCreatedAt: 't' }) })
+    fake.ctl.failAt = 'beforeCommit'
+    await expect(outbox.add('order', 'dev:B', {})).rejects.toThrow('crash before commit')
+    expect(new Outbox(store).all().map((i) => i.idempotencyKey)).toEqual(['dev:A', 'dev:X'])
   })
 
   it('nthApply injection fails exactly that apply', async () => {
@@ -293,14 +316,57 @@ describe('JournalOutboxStore commits', () => {
     expect(outbox.all().map((i) => i.idempotencyKey)).toEqual(['dev:A', 'dev:C'])
   })
 
-  it('a seq collision from a second live writer rejects the add loudly and changes nothing', async () => {
+  it('a second live writer gets a fresh seq (store.maxSeq) instead of colliding', async () => {
     const { fake, store } = await setup()
     const a = new Outbox(store)
     const b = new Outbox(store)
-    await a.add('order', 'dev:A', {}) // seq 1
-    await expect(b.add('order', 'dev:B', {})).rejects.toThrow('UNIQUE')
-    expect([...fake.persisted.rows.keys()]).toEqual(['dev:A'])
-    expect(b.all()).toEqual([])
+    await a.add('order', 'dev:A', {})
+    const added = await b.add('order', 'dev:B', {})
+    expect(added.seq).toBe(2)
+    expect([...fake.persisted.rows.keys()]).toEqual(['dev:A', 'dev:B'])
+  })
+
+  it('an outbox replaced while an add is in flight: the new instance does not collide', async () => {
+    const { fake, store } = await setup()
+    fake.ctl.mode = 'hold'
+    const old = new Outbox(store)
+    const inFlight = old.add('order', 'dev:A', {})
+    await tick()
+    old.dispose()
+    const fresh = new Outbox(store)
+    const second = fresh.add('order', 'dev:B', {})
+    await tick()
+    fake.ctl.held.shift()!.resolve()
+    await tick()
+    fake.ctl.held.shift()!.resolve()
+    expect((await inFlight).seq).toBe(1)
+    expect((await second).seq).toBe(2)
+    expect([...fake.persisted.rows.values()].map((r) => r.seq).sort()).toEqual([1, 2])
+  })
+
+  it('M1: a stale instance cannot overwrite a row another instance changed', async () => {
+    const { fake, store } = await setup()
+    const seed = new Outbox(store)
+    await seed.add('order', 'dev:Z', {})
+    const stale = new Outbox(store)
+    const live = new Outbox(store)
+    await live.ack('dev:Z')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await stale.fail('dev:Z', 'denied') // best-effort: swallowed, but must not write
+    expect((persistedItems(fake.persisted) as OutboxItem[])[0].status).toBe('acked')
+    expect(stale.all()[0].status).toBe('pending') // memory not ahead of disk
+    expect(console.error).toHaveBeenCalled()
+  })
+
+  it('M1: compare-and-swap rejects loudly on a changed row, a duplicate insert and a resurrecting update', async () => {
+    const { fake, store } = await setup()
+    const item = (status: string) => ({ idempotencyKey: 'dev:Z', type: 'order', payload: {}, seq: 1, status, clientCreatedAt: 't' }) as OutboxItem
+    await store.commit([], [item('pending')])
+    await expect(store.commit([item('failed')], [item('acked')])).rejects.toThrow(/conflict/i) // prev != disk
+    await expect(store.commit([], [item('acked')])).rejects.toThrow(/conflict/i) // insert over existing key
+    await store.commit([item('pending')], []) // delete
+    await expect(store.commit([item('pending')], [item('acked')])).rejects.toThrow(/conflict/i) // update of a deleted row
+    expect(fake.persisted.rows.size).toBe(0)
   })
 
   it('restart: a new store over the same file sees every committed item in seq order', async () => {
@@ -491,5 +557,65 @@ describe('JournalOutboxStore meta kv facade', () => {
     fake.persisted.meta.set('migration', 'verified')
     const store = await JournalOutboxStore.open(fake.plugin)
     expect(store.kv.get('migration')).toBeNull()
+  })
+})
+
+describe('fake journal transaction semantics (M3)', () => {
+  const row = (key: string, seq: number) => ({ key, seq, json: JSON.stringify({ idempotencyKey: key, seq }) })
+
+  it('a REPLACE-style upsert would delete another sale; the fake aborts instead and keeps both rows', async () => {
+    const fake = createFakeJournal()
+    await fake.plugin.apply({ upserts: [row('A', 1)], deletes: [] })
+    await expect(fake.plugin.apply({ upserts: [row('B', 1)], deletes: [] })).rejects.toThrow('UNIQUE')
+    expect([...fake.persisted.rows.keys()]).toEqual(['A'])
+  })
+
+  it('applies deletes before upserts (a delete frees its seq for an upsert in the same batch)', async () => {
+    const fake = createFakeJournal()
+    await fake.plugin.apply({ upserts: [row('A', 1)], deletes: [] })
+    await fake.plugin.apply({ upserts: [row('B', 1)], deletes: ['A'] })
+    expect([...fake.persisted.rows.keys()]).toEqual(['B'])
+  })
+
+  it('a UNIQUE failure mid-batch rolls the whole transaction back', async () => {
+    const fake = createFakeJournal()
+    await fake.plugin.apply({ upserts: [row('A', 1)], deletes: [] })
+    await expect(fake.plugin.apply({ upserts: [row('C', 3), row('B', 1)], deletes: [], meta: { k: 'v' } })).rejects.toThrow('UNIQUE')
+    expect([...fake.persisted.rows.keys()]).toEqual(['A'])
+    expect(fake.persisted.meta.size).toBe(0)
+  })
+})
+
+describe('JournalOutboxStore meta facade ordering (H2)', () => {
+  it('rapid SyncedRefunds.add calls never lose an entry to an older background patch', async () => {
+    const fake = createFakeJournal()
+    const store = await JournalOutboxStore.open(fake.plugin)
+    const refunds = new SyncedRefunds(store.kv)
+    fake.ctl.mode = 'hold'
+    refunds.add('o1')
+    refunds.add('o2')
+    await tick()
+    fake.ctl.held.shift()!.resolve() // o1's apply lands while newer values are already in memory
+    await tick()
+    refunds.add('o3')
+    for (let i = 0; i < 10; i++) { await tick(); fake.ctl.held.shift()?.resolve() }
+    await tick()
+    expect([...refunds.ids()].sort()).toEqual(['o1', 'o2', 'o3'])
+    const persisted = JSON.parse(fake.persisted.meta.get(SYNCED_REFUNDS_KEY)!) as { orderId: string }[]
+    expect(persisted.map((e) => e.orderId).sort()).toEqual(['o1', 'o2', 'o3'])
+  })
+
+  it('a failed background write is logged and memory falls back to what is on disk', async () => {
+    const fake = createFakeJournal()
+    const store = await JournalOutboxStore.open(fake.plugin)
+    await store.kv.setDurable(SYNCED_REFUNDS_KEY, 'v1')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.ctl.mode = 'reject'
+    store.kv.set(SYNCED_REFUNDS_KEY, 'v2')
+    expect(store.kv.get(SYNCED_REFUNDS_KEY)).toBe('v2')
+    await tick()
+    await tick()
+    expect(console.error).toHaveBeenCalled()
+    expect(store.kv.get(SYNCED_REFUNDS_KEY)).toBe('v1')
   })
 })
