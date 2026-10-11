@@ -266,6 +266,14 @@ func TestRefundParityPostgres(t *testing.T) {
 			cur.Fatalf("%s: usage_count %d want 4", name, got)
 		}
 	}
+	// Every refusal of an unknown/foreign order is Indonesian and carries the warning
+	// (never the English "order not refundable" shared with shifts).
+	wantRepayWarning := func(name, text string) {
+		cur.Helper()
+		if !strings.Contains(text, "jangan bayar ulang") || strings.Contains(text, "order not refundable") {
+			cur.Fatalf("%s: refusal text lacks the do-not-repay warning: %s", name, text)
+		}
+	}
 	wantOK := func(name string, r result) {
 		cur.Helper()
 		if r.Status != "ok" {
@@ -357,13 +365,19 @@ func TestRefundParityPostgres(t *testing.T) {
 		before := snap()
 		code, out := direct(tokX, o.id, body("rusak"))
 		wantDirectReject("direct", 409, code, out, before)
-		wantBatchReject("batch", "conflict", batchRefund(tokX, userX, "c8", o.id, "rusak"), before)
+		b := batchRefund(tokX, userX, "c8", o.id, "rusak")
+		wantBatchReject("batch", "conflict", b, before)
+		wantRepayWarning("direct", out)
+		wantRepayWarning("batch", b.Error)
 	})
 	sub("9 unknown order id is a conflict", func(t *testing.T) {
 		before := snap()
 		code, out := direct(tokX, ghost, body("rusak"))
 		wantDirectReject("direct", 409, code, out, before)
-		wantBatchReject("batch", "conflict", batchRefund(tokX, userX, "c9", ghost, "rusak"), before)
+		b := batchRefund(tokX, userX, "c9", ghost, "rusak")
+		wantBatchReject("batch", "conflict", b, before)
+		wantRepayWarning("direct", out)
+		wantRepayWarning("batch", b.Error)
 	})
 	sub("10 malformed order id never leaks database text", func(t *testing.T) {
 		before := snap()
@@ -426,6 +440,9 @@ func TestRefundParityPostgres(t *testing.T) {
 		fresh := newOrder(outX, "completed")
 		before := snap()
 		wantBatchReject("uncommitted key", "forbidden", batchRefund(tokXNoPerm, userX, "c14b", fresh.id, "rusak"), before)
+		// The probe is bound to the payload: key c14 was committed for o, so the same
+		// key resent for another order is a key conflict, never ok with o's id.
+		wantBatchReject("committed key, other order", "key_conflict", batchRefund(tokXNoPerm, userX, "c14", fresh.id, "rusak"), before)
 	})
 	sub("15 admin with no outlet refunds at the order's own outlet (Q4)", func(t *testing.T) {
 		o := newOrder(outY, "completed")

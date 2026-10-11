@@ -626,7 +626,7 @@ func (s *OrderService) Refund(ctx context.Context, outletID, orderID, reason str
 }
 
 // OrderOutlet returns the outlet an order belongs to, so an admin without an
-// active outlet can refund it there. A missing order is ErrOrderClosed.
+// active outlet can refund it there. A missing order is ErrRefundOrderNotFound.
 func (s *OrderService) OrderOutlet(ctx context.Context, orderID string) (string, error) {
 	if _, err := NormalizeRefund(orderID, "x"); err != nil {
 		return "", err
@@ -634,7 +634,7 @@ func (s *OrderService) OrderOutlet(ctx context.Context, orderID string) (string,
 	var outlet string
 	err := s.Pool.QueryRow(ctx, `SELECT outlet_id::text FROM orders WHERE id=$1`, orderID).Scan(&outlet)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrOrderClosed
+		return "", ErrRefundOrderNotFound
 	}
 	return outlet, err
 }
@@ -658,7 +658,7 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, outletID, orderI
 		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
 		orderID, outletID).Scan(&status, &orderNumber, &custID, &oEarned, &oRedeemed, &discountCode, &appliedCodes)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrOrderClosed
+		return ErrRefundOrderNotFound
 	}
 	if err != nil {
 		return err

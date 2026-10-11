@@ -7,17 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/service"
 )
 
 type fakeLookup struct {
-	outlets  map[string]bool
-	shifts   map[string]shiftState
-	err      error
-	applied  map[string]string // key -> id
-	outletQs int
-	shiftQs  int
+	outlets map[string]bool
+	shifts  map[string]shiftState
+	err     error
+	applied map[string]string // key -> id
+	// appliedFP is the fingerprint stored with an applied key (receipt-backed types);
+	// a key absent here carries no fingerprint check (orders).
+	appliedFP map[string]string
+	outletQs  int
+	shiftQs   int
 }
 
 func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
@@ -25,8 +29,11 @@ func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
 	return f.outlets[id], f.err
 }
 
-func (f *fakeLookup) Applied(_ context.Context, _, key, _ string) (string, string, bool, error) {
+func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (string, string, bool, error) {
 	id, ok := f.applied[key]
+	if want, has := f.appliedFP[key]; ok && has && want != fp {
+		return "", "", false, service.ErrReceiptKeyConflict
+	}
 	return id, "duplicate", ok, f.err
 }
 
@@ -209,4 +216,45 @@ func TestMismatchOfAnAlreadyAppliedItemReplaysInsteadOfReview(t *testing.T) {
 	if r.Code != "internal" || r.Retryable == nil || !*r.Retryable {
 		t.Fatalf("probe failure: %+v", r)
 	}
+}
+
+// L1: the already-applied probe is bound to the payload. A key committed for order A
+// and resent with order B's payload is a key conflict (review), never "ok with A's id".
+func TestAppliedProbesRejectAFingerprintMismatch(t *testing.T) {
+	payloadA := json.RawMessage(`{"orderId":"order-A","reason":"rusak"}`)
+	payloadB := json.RawMessage(`{"orderId":"order-B","reason":"rusak"}`)
+	fpA, err := service.RequestFingerprint("refund", payloadA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lk := &fakeLookup{applied: map[string]string{"dev:k": "order-A"}, appliedFP: map[string]string{"dev:k": fpA}}
+	e := &Engine{Lookup: lk}
+	refunds := 0
+	refund := func(context.Context, pgx.Tx, string, string, string) error { refunds++; return nil }
+	conflict := func(t *testing.T, r ItemResult) {
+		t.Helper()
+		if r.Status != "error" || r.Code != string(apperr.KeyConflict) || r.OrderID != "" || r.Retryable == nil || *r.Retryable || refunds != 0 {
+			t.Fatalf("a different payload under a committed key must be a key conflict: %+v refunds=%d", r, refunds)
+		}
+	}
+	// Probe 1: the forbidden path (no permission).
+	noPerm := Caller{OutletID: "outlet-1", UserID: "u1", CanRefund: false}
+	same := e.processOneWithRefund(context.Background(), noPerm, BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: payloadA}, refund)
+	if same.Status != "ok" || same.OrderID != "order-A" || refunds != 0 {
+		t.Fatalf("the same payload must still replay: %+v", same)
+	}
+	conflict(t, e.processOneWithRefund(context.Background(), noPerm, BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: payloadB}, refund))
+	// An unparseable payload never matches a stored fingerprint either.
+	conflict(t, e.processOneWithRefund(context.Background(), noPerm, BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: json.RawMessage(`{`)}, refund))
+
+	// Probe 2: the M3 actor-mismatch path (enveloped by someone else).
+	mism := func(p json.RawMessage) ItemResult {
+		it := BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: p,
+			Envelope: env(func(e *Envelope) { e.UserID = "someone-else" })}
+		return e.processOneWithRefund(context.Background(), Caller{OutletID: "X", UserID: "u1", Role: "cashier", HomeOutletID: "X", CanRefund: true}, it, refund)
+	}
+	if r := mism(payloadA); r.Status == "error" || r.OrderID != "order-A" || refunds != 0 {
+		t.Fatalf("mismatch + same payload must replay: %+v", r)
+	}
+	conflict(t, mism(payloadB))
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -1089,7 +1090,7 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		httpx.Err(w, http.StatusBadRequest, "Isi permintaan refund tidak valid.")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -1111,7 +1112,7 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		// An admin on "Semua outlet" refunds at the order's own outlet (no new
 		// authority); any other caller without an outlet is refused.
 		if c.role != "admin" {
-			httpx.Err(w, http.StatusForbidden, "no active outlet")
+			httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
 			return
 		}
 		o, err := h.OrderSvc.OrderOutlet(r.Context(), id)
@@ -1126,7 +1127,15 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.invalidate(r)
-	h.returnOrder(w, r, id)
+	// The refund is committed: read it back at the outlet it ran at (the request's
+	// scope is empty for an admin on "Semua outlet"), and never echo a raw read error.
+	o, err := h.Repo.Order(r.Context(), read.Scope{OutletID: outlet}, id)
+	if err != nil {
+		slog.Error("refund committed but the read-back failed", "orderId", id, "outletId", outlet, "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "Refund tersimpan, tetapi data transaksi belum dapat dimuat. Segarkan halaman dan jangan refund ulang.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"data": o})
 }
 
 func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {

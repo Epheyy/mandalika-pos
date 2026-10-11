@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 // Envelope is the capture-time identity the POS stamps on every outbox item (A04):
@@ -56,8 +57,10 @@ type attributionLookup interface {
 	OutletExists(ctx context.Context, outletID string) (bool, error)
 	Shift(ctx context.Context, outletID, shiftID string) (shiftState, error)
 	// Applied reports whether an item with this key and type was already applied at
-	// scope (an outlet id), and the id/status a replay returns (M3).
-	Applied(ctx context.Context, typ, key, scope string) (id, status string, ok bool, err error)
+	// scope (an outlet id), and the id/status a replay returns (M3). fp is the request
+	// fingerprint of the item being probed; a receipt stored under the same key for a
+	// different payload is service.ErrReceiptKeyConflict, never a replay.
+	Applied(ctx context.Context, typ, key, scope, fp string) (id, status string, ok bool, err error)
 }
 
 type poolLookup struct{ q pgxQuerier }
@@ -102,7 +105,7 @@ func (p poolLookup) Shift(ctx context.Context, outletID, shiftID string) (shiftS
 // Applied implements the already-applied probe: orders via processed_keys, transfer
 // receives via the stored receive key, every other keyed op via its receipt. The scope
 // (outlet) must match what was recorded, like the receipt replay rule.
-func (p poolLookup) Applied(ctx context.Context, typ, key, scope string) (string, string, bool, error) {
+func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (string, string, bool, error) {
 	var id string
 	var err error
 	status := "ok"
@@ -115,8 +118,12 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope string) (string
 		err = p.q.QueryRow(ctx, `SELECT id::text FROM transfers WHERE received_idempotency_key=$1 AND dest_outlet_id::text=$2`, key, scope).Scan(&id)
 	case "refund", "shift_open", "shift_close", "cash_flow", "customer_create":
 		var outcome []byte
-		err = p.q.QueryRow(ctx, `SELECT outcome FROM operation_receipts WHERE idempotency_key=$1 AND op_type=$2 AND scope=$3`, key, typ, scope).Scan(&outcome)
+		var stored string
+		err = p.q.QueryRow(ctx, `SELECT outcome, fingerprint FROM operation_receipts WHERE idempotency_key=$1 AND op_type=$2 AND scope=$3`, key, typ, scope).Scan(&outcome, &stored)
 		if err == nil {
+			if stored != fp {
+				return "", "", false, service.ErrReceiptKeyConflict
+			}
 			var o receiptOutcome
 			if json.Unmarshal(outcome, &o) != nil || o.OrderID == "" && typ != "customer_create" {
 				return "", "", false, nil // receipt not completed: not applied
@@ -137,14 +144,21 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope string) (string
 
 // alreadyApplied is consulted only when attribution is refused: an item that landed
 // before (e.g. the cashier was reassigned after a lost response) must replay as the
-// first attempt's result, not go to review, and never apply twice (M3).
+// first attempt's result, not go to review, and never apply twice (M3). The replay
+// only holds for the same payload: the key was committed for one operation, and a
+// different payload under it is a key conflict (review), like RunWithReceipt.
 func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (id, status string, ok bool, err error) {
 	scope := c.OutletID
 	var env Envelope
 	if len(it.Envelope) > 0 && json.Unmarshal(it.Envelope, &env) == nil && env.OutletID != "" {
 		scope = env.OutletID
 	}
-	return e.lookup().Applied(ctx, it.Type, it.IdempotencyKey, scope)
+	fp, ferr := service.RequestFingerprint(it.Type, it.Payload)
+	if ferr != nil {
+		// An unparseable payload cannot equal what a receipt stored: never matches.
+		fp = "unparseable-payload"
+	}
+	return e.lookup().Applied(ctx, it.Type, it.IdempotencyKey, scope, fp)
 }
 
 func (e *Engine) lookup() attributionLookup {
