@@ -1,4 +1,9 @@
+import type { components } from '@mandalika/api'
 import type { KV } from './storage'
+
+/** Capture-time identity stamped on an item when it is committed (A04). Persisted with
+ *  the item and sent as a sibling of `payload`; never derived later, never backfilled. */
+export type OutboxEnvelope = components['schemas']['SyncEnvelope']
 
 const OUTBOX_KEY = 'mandalika.pos.outbox'
 /** An unreadable outbox is copied here (never deleted) before anything can overwrite it. */
@@ -26,6 +31,9 @@ export interface OutboxItem {
   seq: number
   status: OutboxStatus
   clientCreatedAt: string
+  /** Who/where/when the operation was captured. Absent on items written by bundles
+   *  older than A04 (the server treats those as legacy). */
+  envelope?: OutboxEnvelope
   lastError?: string
   /** Server-rejection count. After MAX_ATTEMPTS the item is parked (kept,
    *  surfaced via deadLettered()) so one poison item can't block the queue
@@ -205,7 +213,12 @@ export class Outbox {
 
   /** Durably append. Resolves with the item only after it is on disk; rejects
    *  (leaving no trace) if the write fails. Same key twice returns the first. */
-  add(type: OutboxType, idempotencyKey: string, payload: Record<string, unknown>): Promise<OutboxItem> {
+  add(
+    type: OutboxType,
+    idempotencyKey: string,
+    payload: Record<string, unknown>,
+    envelope?: OutboxEnvelope,
+  ): Promise<OutboxItem> {
     return this.run(async () => {
       const existing = this.items.find((i) => i.idempotencyKey === idempotencyKey)
       if (existing) return existing // never enqueue the same key twice
@@ -217,6 +230,7 @@ export class Outbox {
         status: 'pending',
         clientCreatedAt: new Date().toISOString(),
       }
+      if (envelope) item.envelope = envelope
       await this.commit([...this.items, item])
       this.seqCounter = item.seq
       return item
