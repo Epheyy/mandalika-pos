@@ -1,6 +1,18 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
 
+// A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
+// real picker is clicked here, exactly as a person would; the choice is then stored in the
+// app's own durable terminal binding, so later reloads in the same scenario do not ask again.
+export const passTerminalPicker = async (page: ScenarioPage, outletName = 'Synthetic Outlet') => {
+  const product = page.getByRole('button', { name: 'S Synthetic Scent', exact: true });
+  const picker = page.getByRole('heading', { name: 'Pilih outlet terminal ini' });
+  await picker.or(product).first().waitFor();
+  if (await picker.isVisible()) {
+    await page.getByRole('button', { name: outletName, exact: true }).click();
+  }
+};
+
 export const setupPos = async (page: ScenarioPage) => {
   const P = '00000000-0000-4000-8300-000000000001';
   const R = '00000000-0000-4000-8300-000000000002';
@@ -38,6 +50,7 @@ export const setupPos = async (page: ScenarioPage) => {
   await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.pos.refresh','SYNTHETIC-NON-TOKEN');});
   await page.reload();
   await page.setViewportSize({width:1440,height:1000});
+  await passTerminalPicker(page);
   await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();
   return {fixture:'real apps; synthetic intercepted APIs; all external hosts blocked',products:products.length};
 }
