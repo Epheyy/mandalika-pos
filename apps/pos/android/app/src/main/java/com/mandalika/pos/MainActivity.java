@@ -29,6 +29,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Must precede super.onCreate: the bridge loads plugins during it.
+        registerPlugin(OutboxJournalPlugin.class);
         super.onCreate(savedInstanceState);
         applyImmersive();
         installInsetBridge();
