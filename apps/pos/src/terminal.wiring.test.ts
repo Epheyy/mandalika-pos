@@ -52,9 +52,20 @@ describe('fixed terminal wiring (A04)', () => {
   })
 
   it('unassigned, mismatch and pick are all stopped before the cashier screen', () => {
-    expect(read('App.tsx')).toMatch(/terminalState === 'unassigned'\) return <OutletUnassignedScreen \/>[\s\S]*?terminalState === 'mismatch'\) return <OutletMismatchScreen \/>[\s\S]*?terminalState === 'pick'\) return <OutletPickScreen \/>[\s\S]*?<SyncProvider>/)
+    expect(read('App.tsx')).toMatch(/terminalState === 'unassigned'\) return <OutletUnassignedScreen \/>[\s\S]*?terminalState === 'mismatch'\) return <SyncProvider flushOnly>[\s\S]*?terminalState === 'pick'\) return <OutletPickScreen \/>[\s\S]*?<SyncProvider>/)
     // no outlet in effect on a mismatch: requests carry none and actor() refuses
     expect(read('auth.tsx')).toMatch(/res\.state === 'ok' && res\.binding \? res\.binding\.outletId : null/)
+  })
+
+  it('a mismatch mounts a flush-only engine (so the queue can drain) and the screen offers Keluar', () => {
+    expect(read('App.tsx')).toMatch(/terminalState === 'mismatch'\) return <SyncProvider flushOnly><OutletMismatchScreen \/><\/SyncProvider>/)
+    const provider = read('cashier/SyncProvider.tsx')
+    expect(provider).toMatch(/if \(flushOnly\) \{\s*setReady\(true\)/) // no snapshot pull for the account's outlet
+    expect(provider).toMatch(/engine\.start\(12_000, \{ flushOnly \}\)/)
+    const screen = read('screens/OutletMismatchScreen.tsx')
+    expect(screen).toMatch(/onClick=\{logout\}/)
+    expect(screen).toMatch(/queueSummary\(\)/)
+    expect(screen).toMatch(/Minta admin mengembalikan outlet akun ke/)
   })
 
   it('the sync engine is built with the capture-time actor provider', () => {
@@ -67,7 +78,7 @@ describe('fixed terminal wiring (A04)', () => {
     const users = sources().filter((f) => /\blogout\b/.test(readFileSync(f, 'utf8'))).map(rel).sort()
     // auth.tsx defines it (authBoot only mentions it in a comment); the pick and unassigned
     // screens offer an escape before any binding exists. Nothing in the cashier UI may call it.
-    expect(users).toEqual(['App.tsx', 'auth.tsx', 'authBoot.ts', 'screens/OutletPickScreen.tsx'])
+    expect(users).toEqual(['App.tsx', 'auth.tsx', 'authBoot.ts', 'screens/OutletMismatchScreen.tsx', 'screens/OutletPickScreen.tsx'])
     expect(read('screens/OutletMismatchScreen.tsx')).toMatch(/releaseTerminal/)
   })
 

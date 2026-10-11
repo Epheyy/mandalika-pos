@@ -39,11 +39,15 @@ export const SyncReceiveAcceptedRefContext = createContext<MutableRefObject<((tr
 
 interface SyncProviderProps {
   children: ReactNode
+  /** Terminal/outlet mismatch (A04): only drain the already-queued items. No snapshot pull and no
+   *  inbound polling for the account's outlet, and the engine cannot capture (actor() is null). */
+  flushOnly?: boolean
   onWall?: (w: WallState) => void
   onPendingChange?: (count: number) => void
 }
 
 export function SyncProvider({
+  flushOnly = false,
   children,
   onWall,
   onPendingChange,
@@ -135,26 +139,31 @@ export function SyncProvider({
 
   useEffect(() => {
     // Bootstrap: pull snapshot, then start periodic polling
-    engine
-      .resync()
-      .catch(() => {
-        // Offline on first load — engine keeps selling from empty snapshot
-      })
-      .finally(() => {
-        setReady(true)
-        void hideSplash()
-      })
+    if (flushOnly) {
+      setReady(true)
+      void hideSplash()
+    } else {
+      engine
+        .resync()
+        .catch(() => {
+          // Offline on first load — engine keeps selling from empty snapshot
+        })
+        .finally(() => {
+          setReady(true)
+          void hideSplash()
+        })
+    }
 
     // Poll every 12s: flushes the outbox and refreshes real server
     // reachability (drives the header online/offline dot).
-    const stop = engine.start(12_000)
+    const stop = engine.start(12_000, { flushOnly })
     return () => {
       stop()
       // Logout/unmount: this engine must never write the outbox again (the next
       // login builds a new one). start() revives it for StrictMode's dev re-run.
       engine.dispose()
     }
-  }, [engine])
+  }, [engine, flushOnly])
 
   if (!ready) {
     return <AppLoadingSkeleton />

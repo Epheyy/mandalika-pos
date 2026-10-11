@@ -174,7 +174,10 @@ export default function App() {
   if (!user) return <LoginScreen />
   // An outlet-less account on an unbound terminal picks the outlet once (A04).
   if (terminalState === 'unassigned') return <OutletUnassignedScreen />
-  if (terminalState === 'mismatch') return <OutletMismatchScreen />
+  // A mismatch still mounts a FLUSH-ONLY engine: the queued items (stamped with the terminal's
+  // outlet) must be able to replay or be parked for review, otherwise Lepas terminal could
+  // never unlock. Capture stays refused (no outlet in effect, so actor() is null).
+  if (terminalState === 'mismatch') return <SyncProvider flushOnly><OutletMismatchScreen /></SyncProvider>
   if (terminalState === 'pick') return <OutletPickScreen />
   // Phase C: offline-first CashierScreen wrapped in SyncProvider
   return (

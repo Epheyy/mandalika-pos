@@ -780,23 +780,32 @@ export class SyncEngine {
   }
 
   /** Wire connectivity + periodic version polling. Returns a disposer. */
-  start(pollMs = 20000): () => void {
+  start(pollMs = 20000, opts: { flushOnly?: boolean } = {}): () => void {
     this.disposed = false
     this.outbox.revive()
+    // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
+    // fresh, but never read outlet data (no inbound-transfer cache) for an outlet that is not
+    // the terminal's.
+    const inbound = () => { if (!opts.flushOnly) void this.pollInbound() }
     const onOnline = () => {
       this.resetBackoff()
       void this.flush()
       void this.checkVersion()
-      void this.pollInbound()
+      inbound()
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
     }
-    void this.pollInbound()
+    inbound()
+    if (opts.flushOnly) {
+      // Nothing else (no resync) kicks the queue off here: drain it right away.
+      void this.flush()
+      void this.checkVersion()
+    }
     const timer = setInterval(() => {
       void this.flush()
       void this.checkVersion()
-      void this.pollInbound()
+      inbound()
     }, pollMs)
     const stop = () => {
       if (typeof window !== 'undefined') {
