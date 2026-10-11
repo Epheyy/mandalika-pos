@@ -3013,7 +3013,7 @@ export interface components {
             countedByMethod?: {
                 [key: string]: number;
             } | null;
-            cashRefundsPaid?: number;
+            cashRefundsPaid?: number | null;
             refundsPaidByMethod?: {
                 [key: string]: number;
             } | null;

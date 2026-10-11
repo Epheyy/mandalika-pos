@@ -586,6 +586,9 @@ func TestRefundParityPostgres(t *testing.T) {
 	})
 	sub("18 a cross-shift QRIS refund is not drawer cash (B1)", func(t *testing.T) {
 		_, s, _ := crossShiftRefund("c18", "qris")
+		if open := getData(tokX, "/shifts/current"); open["cashRefundsPaid"] != float64(0) {
+			t.Fatalf("open shift: a QRIS refund is no cash, cashRefundsPaid=%v", open["cashRefundsPaid"])
+		}
 		closeShift(s)
 		got := readShift(s)
 		if got.CashRefundsPaid != 0 || !jsonEq(got.ByMethod, `{"qris":100}`) {
@@ -596,6 +599,9 @@ func TestRefundParityPostgres(t *testing.T) {
 		exec(`UPDATE app_settings SET payment_methods=$1::jsonb`, `[{"id":"kas_kecil","label":"Kas Kecil","isEnabled":true,"isCash":true}]`)
 		defer exec(`UPDATE app_settings SET payment_methods='[]'::jsonb`)
 		_, s, _ := crossShiftRefund("c19", "kas_kecil")
+		if open := getData(tokX, "/shifts/current"); open["cashRefundsPaid"] != float64(100) {
+			t.Fatalf("open shift: custom cash refund must count live, cashRefundsPaid=%v", open["cashRefundsPaid"])
+		}
 		closeShift(s)
 		got := readShift(s)
 		if got.CashRefundsPaid != 100 || !jsonEq(got.ByMethod, `{"kas_kecil":100}`) {
@@ -612,14 +618,26 @@ func TestRefundParityPostgres(t *testing.T) {
 		if !ok || len(by) != 1 || by["cash"] != float64(100) {
 			t.Fatalf("open shift refundsPaidByMethod must be live: %v", open["refundsPaidByMethod"])
 		}
-		if _, ok := open["cashRefundsPaid"]; !ok {
-			t.Fatal("open shift lost cashRefundsPaid in the typed decode")
+		if open["cashRefundsPaid"] != float64(100) {
+			t.Fatalf("open shift cashRefundsPaid must equal the live cash refunds before close: %v", open["cashRefundsPaid"])
+		}
+		if byID := getData(tokX, "/shifts/"+s); byID["cashRefundsPaid"] != float64(100) {
+			t.Fatalf("GET /shifts/{id} on an open shift: cashRefundsPaid=%v", byID["cashRefundsPaid"])
 		}
 		closeShift(s)
 		cl := getData(tokX, "/shifts/"+s)
 		by, ok = cl["refundsPaidByMethod"].(map[string]any)
 		if !ok || len(by) != 1 || by["cash"] != float64(100) || cl["cashRefundsPaid"] != float64(100) {
 			t.Fatalf("closed shift snapshot: refundsPaidByMethod=%v cashRefundsPaid=%v", cl["refundsPaidByMethod"], cl["cashRefundsPaid"])
+		}
+		// A shift closed before 0047 has no snapshot: both fields are null, not 0.
+		exec(`UPDATE shifts SET refunds_paid_by_method=NULL, cash_refunds_paid=0 WHERE id=$1`, s)
+		legacy := getData(tokX, "/shifts/"+s)
+		if v, ok := legacy["cashRefundsPaid"]; !ok || v != nil {
+			t.Fatalf("pre-0047 closed shift cashRefundsPaid must be null: %v (present=%v)", v, ok)
+		}
+		if v, ok := legacy["refundsPaidByMethod"]; !ok || v != nil {
+			t.Fatalf("pre-0047 closed shift refundsPaidByMethod must be null: %v (present=%v)", v, ok)
 		}
 		od := getData(tokX, "/orders/"+o.id)
 		if od["refundShiftId"] != s || od["refundedBy"] != userX || od["refundedByName"] != "RF cashier X" {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/ota"
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -1039,7 +1040,9 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
   'totalRefunds',s.total_refunds,'cashSales',s.cash_sales,'cardSales',s.card_sales,
   'transferSales',s.transfer_sales,'qrisSales',s.qris_sales,
   'countedByMethod',s.counted_by_method,
-  'cashRefundsPaid',s.cash_refunds_paid,
+  -- Closed: the close-time snapshot (NULL before 0047). Open: filled in Go from the
+  -- live refundsPaidByMethod, because the isCash rule lives in service.IsCashMethod.
+  'cashRefundsPaid',CASE WHEN s.status='closed' AND s.refunds_paid_by_method IS NOT NULL THEN s.cash_refunds_paid END,
   'refundsPaidByMethod',CASE WHEN s.status='closed' THEN s.refunds_paid_by_method
     ELSE (SELECT COALESCE(jsonb_object_agg(x.payment_method, x.amount),'{}'::jsonb) FROM (
       SELECT o.payment_method, sum(o.total) AS amount FROM orders o
@@ -1057,7 +1060,52 @@ func (r *Repo) Shifts(ctx context.Context, sc Scope, page, limit int) ([]api.Shi
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM shifts s %s
 	  ORDER BY s.opened_at DESC, s.id DESC LIMIT $%d OFFSET $%d`,
 		shiftObj, where, len(args)-1, len(args))
-	return listJSON[api.Shift](ctx, r.Pool, sql, args...)
+	rows, total, err := listJSON[api.Shift](ctx, r.Pool, sql, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, r.fillOpenCashRefunds(ctx, rows)
+}
+
+// fillOpenCashRefunds sets cashRefundsPaid on open shifts: the cash part of the live
+// refundsPaidByMethod, by the same isCash rule CloseShiftTx snapshots at close.
+func (r *Repo) fillOpenCashRefunds(ctx context.Context, shifts []api.Shift) error {
+	var methods []api.PaymentMethodConfig
+	loaded := false
+	for i := range shifts {
+		if shifts[i].Status != api.Open {
+			continue
+		}
+		if !loaded {
+			s, err := r.AppSettings(ctx)
+			if err != nil {
+				return err
+			}
+			methods, loaded = s.PaymentMethods, true
+		}
+		var cash float64
+		if by, err := shifts[i].RefundsPaidByMethod.Get(); err == nil {
+			for method, amount := range by {
+				if service.IsCashMethod(methods, method) {
+					cash += float64(amount)
+				}
+			}
+		}
+		shifts[i].CashRefundsPaid = nullable.NewNullableWithValue(float32(cash))
+	}
+	return nil
+}
+
+func (r *Repo) oneShift(ctx context.Context, sql string, args ...any) (api.Shift, error) {
+	s, err := oneJSON[api.Shift](ctx, r.Pool, sql, args...)
+	if err != nil {
+		return s, err
+	}
+	one := []api.Shift{s}
+	if err := r.fillOpenCashRefunds(ctx, one); err != nil {
+		return s, err
+	}
+	return one[0], nil
 }
 
 func (r *Repo) Shift(ctx context.Context, sc Scope, id string) (api.Shift, error) {
@@ -1067,7 +1115,7 @@ func (r *Repo) Shift(ctx context.Context, sc Scope, id string) (api.Shift, error
 		args = append(args, sc.OutletID)
 		cond = " AND s.outlet_id=$2"
 	}
-	return oneJSON[api.Shift](ctx, r.Pool,
+	return r.oneShift(ctx,
 		`SELECT `+shiftObj+` FROM shifts s WHERE s.id=$1`+cond, args...)
 }
 
@@ -1079,7 +1127,7 @@ func (r *Repo) CurrentShift(ctx context.Context, sc Scope) (api.Shift, error) {
 		args = append(args, sc.OutletID)
 		cond = " AND s.outlet_id=$1"
 	}
-	return oneJSON[api.Shift](ctx, r.Pool,
+	return r.oneShift(ctx,
 		`SELECT `+shiftObj+` FROM shifts s WHERE s.status='open'`+cond+
 			` ORDER BY s.opened_at DESC LIMIT 1`, args...)
 }

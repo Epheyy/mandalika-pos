@@ -1331,9 +1331,10 @@ components:
           nullable: true
         # A06: refunds this shift paid out for sales of OTHER shifts. Live while the
         # shift is open, a close-time snapshot afterwards (null on shifts closed
-        # before the field existed). cashRefundsPaid is that snapshot's cash part
-        # (0 while open: readers derive it from refundsPaidByMethod and isCash).
-        cashRefundsPaid: { type: number }
+        # before the field existed). cashRefundsPaid is its cash part by the isCash rule:
+        # computed live while open, the snapshot once closed, null when closed before
+        # the field existed.
+        cashRefundsPaid: { type: number, nullable: true }
         refundsPaidByMethod:
           type: object
           additionalProperties: { type: number }
