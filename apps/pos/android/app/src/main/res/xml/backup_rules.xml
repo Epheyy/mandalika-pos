@@ -3,6 +3,11 @@
 <full-backup-content>
     <exclude domain="database" path="mandalika_journal.db" />
     <exclude domain="database" path="mandalika_journal.db-journal" />
+    <exclude domain="database" path="mandalika_journal.db-wal" />
+    <exclude domain="database" path="mandalika_journal.db-shm" />
+    <exclude domain="sharedpref" path="CapWebViewSettings.xml" />
+    <exclude domain="sharedpref" path="capgo_device_id.xml" />
+    <exclude domain="file" path="versions" />
     <exclude domain="sharedpref" path="CapacitorStorage.xml" />
     <exclude domain="root" path="app_webview" />
 </full-backup-content>
