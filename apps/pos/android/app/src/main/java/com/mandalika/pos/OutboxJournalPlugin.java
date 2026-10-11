@@ -3,7 +3,9 @@ package com.mandalika.pos;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.DatabaseErrorHandler;
 import android.database.DatabaseUtils;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
@@ -19,6 +21,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -33,9 +36,15 @@ import java.util.concurrent.Executors;
  *
  * Thread model: ONE single-thread executor runs open/readAll/apply, so all
  * database work is serialized on one thread and one connection. The journal
- * mode is DELETE (rollback journal, no WAL), so the helper holds exactly one
+ * mode is TRUNCATE (rollback journal, no WAL), so the helper holds exactly one
  * connection and "PRAGMA synchronous=FULL" set in onConfigure applies to the
- * connection that runs apply; open() reports the value read back from it.
+ * connection that runs apply; open() reports the journal mode and synchronous
+ * level read back from it (JS refuses anything but truncate/persist + FULL).
+ *
+ * The database file is never deleted or silently recreated. A corruption
+ * callback only logs and latches the plugin; once latched (corruption, the file
+ * missing after a successful open, or the connection closed under us) every
+ * later call rejects instead of presenting an empty journal.
  *
  * Every call settles exactly once. apply() resolves only after
  * endTransaction() returned (the COMMIT happened) and rejects only when the
@@ -61,15 +70,29 @@ public class OutboxJournalPlugin extends Plugin {
     // Touched only from the executor thread.
     private JournalHelper helper;
     private SQLiteDatabase db;
+    private boolean everOpened;
+    // Non-null once the journal must not be used again in this process.
+    private volatile String latched;
+
+    // The default handler DELETES the database file on corruption; ours only records it.
+    private final DatabaseErrorHandler neverDelete = d -> {
+        latched = "database corruption reported";
+        Log.e(TAG, "corruption reported; file left in place");
+    };
 
     private static final class JournalHelper extends SQLiteOpenHelper {
-        JournalHelper(Context context) {
-            super(context, DB_NAME, null, DB_VERSION);
+        JournalHelper(Context context, DatabaseErrorHandler handler) {
+            super(context, DB_NAME, null, DB_VERSION, handler);
         }
 
         @Override
         public void onConfigure(SQLiteDatabase d) {
+            // Order matters: disabling compatibility WAL may reopen the connection, which would
+            // drop any pragma set before it. journal_mode returns a row, so execSQL would throw.
             d.disableWriteAheadLogging();
+            try (Cursor cur = d.rawQuery("PRAGMA journal_mode=TRUNCATE", null)) {
+                cur.moveToFirst();
+            }
             d.execSQL("PRAGMA synchronous=FULL");
         }
 
@@ -97,6 +120,7 @@ public class OutboxJournalPlugin extends Plugin {
                 try {
                     job.run(call);
                 } catch (Throwable e) {
+                    if (e instanceof SQLiteDatabaseCorruptException) latched = "database corruption";
                     Log.e(TAG, call.getMethodName() + " failed: " + e.getClass().getSimpleName());
                     call.reject(describe(e));
                 }
@@ -112,11 +136,48 @@ public class OutboxJournalPlugin extends Plugin {
     }
 
     private SQLiteDatabase database() {
-        if (db == null || !db.isOpen()) {
-            if (helper == null) helper = new JournalHelper(getContext().getApplicationContext());
+        if (latched != null) throw new IllegalStateException("journal unavailable: " + latched);
+        File file = getContext().getApplicationContext().getDatabasePath(DB_NAME);
+        if (everOpened && !file.exists()) {
+            latched = "journal file missing after a successful open";
+            throw new IllegalStateException("journal unavailable: " + latched);
+        }
+        if (db != null && !db.isOpen()) {
+            latched = "database closed unexpectedly";
+            throw new IllegalStateException("journal unavailable: " + latched);
+        }
+        if (db == null) {
+            // First-ever open creates the schema (JS decides via meta); a deliberate
+            // discardConnection() reopens the same existing file here.
+            if (helper == null) {
+                helper = new JournalHelper(getContext().getApplicationContext(), neverDelete);
+            }
             db = helper.getWritableDatabase();
+            everOpened = true;
+            if (latched != null) {
+                db = null;
+                throw new IllegalStateException("journal unavailable: " + latched);
+            }
         }
         return db;
+    }
+
+    /** Drops the connection (close rolls back any open transaction); the next call reopens lazily. */
+    private void discardConnection() {
+        try {
+            if (helper != null) helper.close();
+        } catch (Throwable e) {
+            Log.w(TAG, "close failed: " + e.getClass().getSimpleName());
+        }
+        db = null;
+    }
+
+    private static void requireType(JSObject data, String name, Class<?> type) {
+        if (!data.has(name)) return;
+        Object v = data.opt(name);
+        if (!type.isInstance(v)) {
+            throw new IllegalArgumentException(name + " has the wrong type");
+        }
     }
 
     @PluginMethod
@@ -219,6 +280,11 @@ public class OutboxJournalPlugin extends Plugin {
         submit(call, c -> {
             // Validate everything before touching the database: a malformed
             // request must reject with nothing written.
+            JSObject data = c.getData();
+            requireType(data, "upserts", JSONArray.class);
+            requireType(data, "deletes", JSONArray.class);
+            requireType(data, "meta", JSONObject.class);
+            requireType(data, "replaceAll", Boolean.class);
             List<Upsert> upserts = parseUpserts(c.getArray("upserts"));
             List<String> deletes = parseStrings(c.getArray("deletes"));
             JSObject metaIn = c.getObject("meta");
@@ -277,7 +343,14 @@ public class OutboxJournalPlugin extends Plugin {
                 // endTransaction performs the COMMIT (or the ROLLBACK when the
                 // success flag was never set). If it throws, the commit failed
                 // and the exception propagates to submit() -> reject.
-                d.endTransaction();
+                try {
+                    d.endTransaction();
+                } catch (RuntimeException e) {
+                    // Commit failed: do not keep a half-state connection; reopen lazily so the
+                    // next readAll reflects what is really on disk (not corruption: no latch).
+                    discardConnection();
+                    throw e;
+                }
             }
             if (committed) c.resolve();
         });
