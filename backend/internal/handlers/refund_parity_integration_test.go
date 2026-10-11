@@ -123,6 +123,9 @@ func TestRefundParityPostgres(t *testing.T) {
 	router := chi.NewRouter()
 	router.With(authWrap).Post("/sync/batch", h.SyncBatch)
 	router.With(authWrap, mw.RequirePermission("process_refund")).Post("/orders/{id}/refund", h.RefundOrder)
+	router.With(authWrap).Get("/orders/{id}", h.Order)
+	router.With(authWrap).Get("/shifts/current", h.CurrentShift)
+	router.With(authWrap).Get("/shifts/{id}", h.Shift)
 
 	// direct posts the refund body and returns status + raw body.
 	direct := func(token, id string, body string) (int, string) {
@@ -165,16 +168,23 @@ func TestRefundParityPostgres(t *testing.T) {
 	seq := 0
 	// batchRefund posts one enveloped refund captured at outlet X; a nil reason
 	// omits the field.
-	batchRefund := func(token, user, name, orderID string, reason any) result {
+	batchRefundIn := func(token, user, name, orderID string, reason any, shiftID string) result {
 		cur.Helper()
 		payload := map[string]any{"orderId": orderID}
 		if reason != nil {
 			payload["reason"] = reason
 		}
+		env := map[string]any{"v": 1, "outletId": outX, "userId": user, "deviceId": device, "capturedAt": time.Now().UTC().Format(time.RFC3339)}
+		if shiftID != "" {
+			env["shiftId"] = shiftID
+		}
 		return flush(token, map[string]any{
-			"type": "refund", "idempotencyKey": device + ":" + name, "payload": payload,
-			"envelope": map[string]any{"v": 1, "outletId": outX, "userId": user, "deviceId": device, "capturedAt": time.Now().UTC().Format(time.RFC3339)},
+			"type": "refund", "idempotencyKey": device + ":" + name, "payload": payload, "envelope": env,
 		})
+	}
+	batchRefund := func(token, user, name, orderID string, reason any) result {
+		cur.Helper()
+		return batchRefundIn(token, user, name, orderID, reason, "")
 	}
 	stock := func(outlet string) int {
 		return count(`SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='110ml'`, outlet, product)
@@ -182,7 +192,7 @@ func TestRefundParityPostgres(t *testing.T) {
 	// newOrder inserts an order with 2 units, a customer holding points and a
 	// discount code, so a refund has every effect to apply.
 	type fixture struct{ id, customer, code string }
-	newOrder := func(outlet, status string) fixture {
+	newOrderFull := func(outlet, status, method, shiftID string) fixture {
 		cur.Helper()
 		seq++
 		f := fixture{
@@ -196,11 +206,15 @@ func TestRefundParityPostgres(t *testing.T) {
 		}
 		exec(`INSERT INTO customers(id,name,phone,points) VALUES($1,'RF customer',$2,100)`, f.customer, fmt.Sprintf("rf-%d", seq))
 		exec(`INSERT INTO discount_codes(code,type,value,usage_count) VALUES($1,'fixed',1000,5)`, f.code)
-		exec(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,customer_id,points_earned,discount_code,applied_discount_codes)
-			VALUES($1,$2,gen_random_uuid(),$3,$4,$5,'RF cashier',100,100,'cash',$6,$7,10,$8,to_jsonb(ARRAY[$8]::text[]))`,
-			f.id, fmt.Sprintf("RF-%06d", seq), fmt.Sprintf("rf-order-key-%d", seq), outlet, cashier, status, f.customer, f.code)
+		exec(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,customer_id,points_earned,discount_code,applied_discount_codes,shift_id)
+			VALUES($1,$2,gen_random_uuid(),$3,$4,$5,'RF cashier',100,100,$9,$6,$7,10,$8,to_jsonb(ARRAY[$8]::text[]),NULLIF($10::text,'')::uuid)`,
+			f.id, fmt.Sprintf("RF-%06d", seq), fmt.Sprintf("rf-order-key-%d", seq), outlet, cashier, status, f.customer, f.code, method, shiftID)
 		exec(`INSERT INTO order_items(order_id,product_id,product_name,variant_size,price,quantity,subtotal) VALUES($1,$2,'RF product','110ml',50,2,100)`, f.id, product)
 		return f
+	}
+	newOrder := func(outlet, status string) fixture {
+		cur.Helper()
+		return newOrderFull(outlet, status, "cash", "")
 	}
 	// world is everything a refused refund must not touch.
 	type world struct {
@@ -461,5 +475,216 @@ func TestRefundParityPostgres(t *testing.T) {
 		before := snap()
 		code, out := direct(issue(userY, "cashier", "", "process_refund"), o2.id, body("rusak"))
 		wantDirectReject("non-admin without outlet", 403, code, out, before)
+	})
+
+	// ── A06/Q2b: refund cash is recorded against the refunding shift (migration 0047) ──
+	shiftSeq := 0
+	newShift := func(outlet, status string) string {
+		cur.Helper()
+		shiftSeq++
+		id := fmt.Sprintf("00000000-0000-4000-8f03-%012d", shiftSeq)
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,$3,'RF shift',$4,now())`, id, outlet, userX, status)
+		return id
+	}
+	closeShift := func(id string) {
+		cur.Helper()
+		if err := svc.CloseShift(ctx, outX, id, 0, nil); err != nil {
+			cur.Fatal(err)
+		}
+	}
+	type shiftRow struct {
+		CashSales, TotalSales, TotalRefunds, CashRefundsPaid float64
+		ByMethod                                             string
+	}
+	readShift := func(id string) shiftRow {
+		cur.Helper()
+		var r shiftRow
+		if err := pool.QueryRow(ctx, `SELECT cash_sales,total_sales,total_refunds,cash_refunds_paid,COALESCE(refunds_paid_by_method::text,'null') FROM shifts WHERE id=$1`, id).
+			Scan(&r.CashSales, &r.TotalSales, &r.TotalRefunds, &r.CashRefundsPaid, &r.ByMethod); err != nil {
+			cur.Fatal(err)
+		}
+		return r
+	}
+	// jsonEq compares jsonb text semantically ({"a": 1} == {"a":1}).
+	jsonEq := func(got, want string) bool {
+		var a, b any
+		return json.Unmarshal([]byte(got), &a) == nil && json.Unmarshal([]byte(want), &b) == nil && fmt.Sprint(a) == fmt.Sprint(b)
+	}
+	type refundCols struct{ shift, by, byName *string }
+	readRefundCols := func(orderID string) refundCols {
+		cur.Helper()
+		var c refundCols
+		if err := pool.QueryRow(ctx, `SELECT refund_shift_id::text, refunded_by::text, refunded_by_name FROM orders WHERE id=$1`, orderID).Scan(&c.shift, &c.by, &c.byName); err != nil {
+			cur.Fatal(err)
+		}
+		return c
+	}
+	wantCols := func(name string, got refundCols, shift, by, byName string) {
+		cur.Helper()
+		eq := func(p *string, want string) bool { return (p == nil && want == "") || (p != nil && *p == want) }
+		if !eq(got.shift, shift) || !eq(got.by, by) || !eq(got.byName, byName) {
+			show := func(p *string) string {
+				if p == nil {
+					return "NULL"
+				}
+				return *p
+			}
+			cur.Fatalf("%s: refund_shift_id=%s refunded_by=%s refunded_by_name=%s; want %q %q %q", name, show(got.shift), show(got.by), show(got.byName), shift, by, byName)
+		}
+	}
+	getData := func(token, path string) map[string]any {
+		cur.Helper()
+		r := httptest.NewRequest("GET", path, nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		var out struct {
+			Data map[string]any `json:"data"`
+		}
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || out.Data == nil {
+			cur.Fatalf("GET %s: %d %s", path, w.Code, w.Body.String())
+		}
+		return out.Data
+	}
+	// crossShiftRefund sells in a closed shift S0 and refunds from the open shift S.
+	crossShiftRefund := func(name, method string) (s0, s string, o fixture) {
+		cur.Helper()
+		s0 = newShift(outX, "open")
+		o = newOrderFull(outX, "completed", method, s0)
+		closeShift(s0)
+		s = newShift(outX, "open")
+		wantOK(name, batchRefundIn(tokX, userX, name, o.id, "rusak", s))
+		return
+	}
+
+	sub("16 cash refund of an earlier shift's sale is paid by the refunding shift", func(t *testing.T) {
+		s0, s, o := crossShiftRefund("c16", "cash")
+		wantCols("refund columns", readRefundCols(o.id), s, userX, "RF cashier X")
+		s0Before := readShift(s0)
+		closeShift(s)
+		got := readShift(s)
+		if got.CashRefundsPaid != 100 || !jsonEq(got.ByMethod, `{"cash":100}`) {
+			t.Fatalf("S close: %+v", got)
+		}
+		if got.CashSales != 0 || got.TotalSales != 0 || got.TotalRefunds != 0 {
+			t.Fatalf("S sales/refunds must be unchanged by a cross-shift refund: %+v", got)
+		}
+		if after := readShift(s0); after != s0Before || s0Before.CashSales != 100 || s0Before.CashRefundsPaid != 0 {
+			t.Fatalf("S0 snapshot changed: before=%+v after=%+v", s0Before, after)
+		}
+	})
+	sub("17 a sale and its refund in the same shift are not subtracted twice", func(t *testing.T) {
+		s := newShift(outX, "open")
+		o := newOrderFull(outX, "completed", "cash", s)
+		wantOK("refund", batchRefundIn(tokX, userX, "c17", o.id, "rusak", s))
+		wantCols("refund columns", readRefundCols(o.id), s, userX, "RF cashier X")
+		closeShift(s)
+		got := readShift(s)
+		if got.CashSales != 0 || got.TotalSales != 0 || got.TotalRefunds != 100 || got.CashRefundsPaid != 0 || !jsonEq(got.ByMethod, `{}`) {
+			t.Fatalf("same-shift refund: %+v", got)
+		}
+	})
+	sub("18 a cross-shift QRIS refund is not drawer cash (B1)", func(t *testing.T) {
+		_, s, _ := crossShiftRefund("c18", "qris")
+		closeShift(s)
+		got := readShift(s)
+		if got.CashRefundsPaid != 0 || !jsonEq(got.ByMethod, `{"qris":100}`) {
+			t.Fatalf("qris refund: %+v", got)
+		}
+	})
+	sub("19 a custom isCash method counts as cash", func(t *testing.T) {
+		exec(`UPDATE app_settings SET payment_methods=$1::jsonb`, `[{"id":"kas_kecil","label":"Kas Kecil","isEnabled":true,"isCash":true}]`)
+		defer exec(`UPDATE app_settings SET payment_methods='[]'::jsonb`)
+		_, s, _ := crossShiftRefund("c19", "kas_kecil")
+		closeShift(s)
+		got := readShift(s)
+		if got.CashRefundsPaid != 100 || !jsonEq(got.ByMethod, `{"kas_kecil":100}`) {
+			t.Fatalf("custom cash refund: %+v", got)
+		}
+	})
+	sub("20 shift and order reads carry the new fields (live while open, snapshot once closed)", func(t *testing.T) {
+		_, s, o := crossShiftRefund("c20", "cash")
+		open := getData(tokX, "/shifts/current")
+		if open["id"] != s {
+			t.Fatalf("current shift %v want %s", open["id"], s)
+		}
+		by, ok := open["refundsPaidByMethod"].(map[string]any)
+		if !ok || len(by) != 1 || by["cash"] != float64(100) {
+			t.Fatalf("open shift refundsPaidByMethod must be live: %v", open["refundsPaidByMethod"])
+		}
+		if _, ok := open["cashRefundsPaid"]; !ok {
+			t.Fatal("open shift lost cashRefundsPaid in the typed decode")
+		}
+		closeShift(s)
+		cl := getData(tokX, "/shifts/"+s)
+		by, ok = cl["refundsPaidByMethod"].(map[string]any)
+		if !ok || len(by) != 1 || by["cash"] != float64(100) || cl["cashRefundsPaid"] != float64(100) {
+			t.Fatalf("closed shift snapshot: refundsPaidByMethod=%v cashRefundsPaid=%v", cl["refundsPaidByMethod"], cl["cashRefundsPaid"])
+		}
+		od := getData(tokX, "/orders/"+o.id)
+		if od["refundShiftId"] != s || od["refundedBy"] != userX || od["refundedByName"] != "RF cashier X" {
+			t.Fatalf("order fields: refundShiftId=%v refundedBy=%v refundedByName=%v", od["refundShiftId"], od["refundedBy"], od["refundedByName"])
+		}
+	})
+	sub("21 a late refund against a closed shift succeeds and never rewrites its snapshot", func(t *testing.T) {
+		s0 := newShift(outX, "open")
+		o := newOrderFull(outX, "completed", "cash", s0)
+		closeShift(s0)
+		s := newShift(outX, "open")
+		closeShift(s)
+		before := readShift(s)
+		wantOK("late refund", batchRefundIn(tokX, userX, "c21", o.id, "rusak", s))
+		wantCols("refund columns", readRefundCols(o.id), s, userX, "RF cashier X")
+		if after := readShift(s); after != before {
+			t.Fatalf("closed shift snapshot changed: before=%+v after=%+v", before, after)
+		}
+	})
+	sub("22 an unknown shift, a legacy item and a direct refund all succeed without a refund shift", func(t *testing.T) {
+		// Unknown shift (valid uuid, no row) and a non-uuid shift: the refund must go
+		// through (a dangling id would hit the FK and abort it), shift stays NULL.
+		for i, sh := range []string{ghost, "abc"} {
+			o := newOrder(outX, "completed")
+			s0 := stock(outX)
+			wantOK(fmt.Sprintf("unknown shift %d", i), batchRefundIn(tokX, userX, fmt.Sprintf("c22u%d", i), o.id, "rusak", sh))
+			wantRefunded("unknown shift", o, outX, s0, "rusak")
+			wantCols("unknown shift", readRefundCols(o.id), "", userX, "RF cashier X")
+		}
+		// Legacy client: no envelope; request identity, never a flush-time open shift.
+		openShift := newShift(outX, "open")
+		defer closeShift(openShift)
+		lo := newOrder(outX, "completed")
+		s0 := stock(outX)
+		wantOK("legacy", flush(tokX, map[string]any{
+			"type": "refund", "idempotencyKey": device + ":c22l", "payload": map[string]any{"orderId": lo.id, "reason": "rusak"},
+		}))
+		wantRefunded("legacy", lo, outX, s0, "rusak")
+		wantCols("legacy", readRefundCols(lo.id), "", userX, "RF cashier X")
+		// Direct (backoffice/API): NULL shift (B2), refunded_by = the caller.
+		d := newOrder(outX, "completed")
+		s1 := stock(outX)
+		if code, out := direct(tokX, d.id, body("rusak")); code != 201 {
+			t.Fatalf("direct %d %s", code, out)
+		}
+		wantRefunded("direct", d, outX, s1, "rusak")
+		wantCols("direct", readRefundCols(d.id), "", userX, "RF cashier X")
+		da := newOrder(outX, "completed")
+		if code, out := direct(tokAdminX, da.id, body("rusak")); code != 201 {
+			t.Fatalf("direct admin %d %s", code, out)
+		}
+		wantCols("direct admin", readRefundCols(da.id), "", adminU, "RF admin")
+	})
+	sub("23 a refused refund leaves the new columns untouched", func(t *testing.T) {
+		s := newShift(outX, "open")
+		defer closeShift(s)
+		o := newOrder(outX, "completed")
+		before := snap()
+		wantBatchReject("empty reason", "rejected", batchRefundIn(tokX, userX, "c23a", o.id, "", s), before)
+		wantCols("rejected", readRefundCols(o.id), "", "", "")
+		// A second refund of an already refunded order must not overwrite the first.
+		wantOK("first", batchRefundIn(tokX, userX, "c23b", o.id, "rusak", s))
+		first := readRefundCols(o.id)
+		before = snap()
+		wantBatchReject("again", "conflict", batchRefundIn(tokAdminX, adminU, "c23c", o.id, "lagi", ""), before)
+		wantCols("not overwritten", readRefundCols(o.id), *first.shift, *first.by, *first.byName)
 	})
 }
