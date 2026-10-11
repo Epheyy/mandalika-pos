@@ -201,6 +201,7 @@ func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) 
 // closeHeldMessage is returned for a shift_close held back because an earlier item
 // in the same batch failed retryably (its effect must land in the close snapshot).
 const closeHeldMessage = "Tutup shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis."
+
 // openHeldMessage is the shift_open counterpart: a new shift must not open while the old
 // one is being held open, or it would be refused as a second open shift.
 const openHeldMessage = "Buka shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis."
