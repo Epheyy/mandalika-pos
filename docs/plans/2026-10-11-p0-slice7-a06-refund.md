@@ -227,3 +227,14 @@ NULL-shift refunds reduce no drawer; late refunds never adjust closed shift (fol
 B1 refund tender: original method vs always drawer cash (rec: original). B2 direct/backoffice refunds: NULL shift vs outlet's open shift (rec: NULL). B3 POS refund with no open shift: block vs allow (rec: block). B4 0047 includes refunded_by/_name now (rec: yes).
 
 **Owner answers (2026-10-11): B1 original method · B2 NULL (no drawer) · B3 block ("Buka shift dulu") · B4 yes, 0047 as designed.** Owner will confirm once more right before the deploy that applies 0047.
+
+## Phase C review decisions (owner, 2026-10-11)
+
+- **M2 stale history re-offers refund** → tablet remembers synced (acked) refund orderIds (bounded 500 / 30 days, persistent) and shows "Sudah direfund"; implemented `5703cbf`.
+- **M3 shift_close commits despite an earlier retryably-failed item in the same batch** → **server holds the close**: `shift_close` returns retryable when an earlier item in the same batch failed retryably (covers late sales and refunds; permanent refusals/parked items do not hold it).
+- Review H1 (same-shift pending refunds keyed on liveOrders membership), M1 (refresh retry, counts preserved), L2 (printed refund lines), L3 ("Shift belum tersinkron") fixed in `0fc7c4a`.
+- Accepted residual: lost-response-after-commit can double-subtract a cross-shift refund on the tablet display until the next ack (display only; server snapshot unaffected).
+
+## Commits so far (local, not pushed)
+
+Phase A `1944b0c` `449152a` · Phase B `f9412ad` `a009320` `11227bb` `d8094dc` `71dced8` `6aad19b` · Phase C `3aae9c7` `408d6f1` `a3a8137` `85eb0fd` `0fc7c4a` `b51b340` `5703cbf`.
