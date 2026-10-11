@@ -22,6 +22,7 @@ func invalidBatchEnvelopes() []struct{ name, raw string } {
 		{"second object", `{"items":[` + envelopeValidItem + `]} {}`},
 		{"duplicate Items alias", `{"items":[{"type":"shift_open","idempotencyKey":"discarded-key","payload":{"startingCash":null}}],"Items":[` + envelopeValidItem + `]}`},
 		{"duplicate payload", `{"items":[{"type":"shift_open","idempotencyKey":"original-key","payload":{"startingCash":null},"payload":{"startingCash":0}}]}`},
+		{"duplicate envelope", `{"items":[{"type":"shift_open","idempotencyKey":"original-key","payload":{"startingCash":0},"envelope":{"v":1},"ENVELOPE":{"v":1}}]}`},
 		{"duplicate type", `{"items":[{"type":"shift_close","type":"shift_open","idempotencyKey":"original-key","payload":{"startingCash":0}}]}`},
 	}
 	for _, suffix := range []string{` {`, ` 1`, ` []`, ` null`} {
@@ -92,5 +93,27 @@ func TestBatchEnvelopeCompatibility(t *testing.T) {
 	}
 	if _, err := decodeBatchEnvelope(failingBatchReader{}); err == nil {
 		t.Fatal("unreadable body accepted")
+	}
+}
+
+// The capture-time envelope (A04) is read as an opaque sibling of payload: kept
+// verbatim, JSON null and absence both mean "legacy item", and neither the
+// payload bytes nor the idempotency key are affected by it.
+func TestBatchEnvelopeCarriesCaptureEnvelope(t *testing.T) {
+	env := `{ "v":1, "outletId":"o", "userId":"u", "deviceId":"d", "capturedAt":"2026-10-11T00:00:00Z" }`
+	payload := `{"startingCash":0}`
+	raw := `{"items":[` +
+		`{"type":"shift_open","idempotencyKey":"d:1","payload":` + payload + `,"ENVELOPE":` + env + `},` +
+		`{"type":"shift_open","idempotencyKey":"d:2","payload":` + payload + `,"envelope":null},` +
+		`{"type":"shift_open","idempotencyKey":"d:3","payload":` + payload + `}]}`
+	items, err := decodeBatchEnvelope(strings.NewReader(raw))
+	if err != nil || len(items) != 3 {
+		t.Fatalf("decode: %+v %v", items, err)
+	}
+	if string(items[0].Envelope) != env || string(items[0].Payload) != payload || items[0].IdempotencyKey != "d:1" {
+		t.Fatalf("envelope item: %+v", items[0])
+	}
+	if items[1].Envelope != nil || items[2].Envelope != nil {
+		t.Fatalf("null/absent envelope must be nil: %q %q", items[1].Envelope, items[2].Envelope)
 	}
 }

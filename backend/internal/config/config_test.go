@@ -92,3 +92,31 @@ func TestValidateHopsUpperBound(t *testing.T) {
 		t.Fatalf("want error, got %v", err)
 	}
 }
+
+func TestParseLegacyUntilAndValidate(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		zero bool
+		ok   bool
+	}{
+		{"", true, true},
+		{"  ", true, true},
+		{"2026-11-01", false, true},
+		{"2026-11-01T10:00:00+07:00", false, true},
+		{"01/11/2026", true, false},
+		{"soon", true, false},
+	} {
+		got, ok := parseLegacyUntil(tc.in)
+		if ok != tc.ok || got.IsZero() != tc.zero {
+			t.Errorf("parseLegacyUntil(%q) = %v, %v", tc.in, got, ok)
+		}
+	}
+	if d, _ := parseLegacyUntil("2026-11-01"); !d.Equal(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("bare date must be start of day UTC, got %v", d)
+	}
+	c := base("development")
+	c.syncLegacyUntilBad = true
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "SYNC_LEGACY_ENVELOPE_UNTIL") {
+		t.Errorf("a malformed cutoff must fail fast even in development, got %v", err)
+	}
+}

@@ -30,6 +30,11 @@ type Engine struct {
 	// Receipts gives refund, shift_open, shift_close, cash_flow and customer_create
 	// exactly-once semantics per idempotency key (A11). Nil runs them unkeyed.
 	Receipts service.ReceiptRunner
+	// LegacyEnvelopeUntil ends the grace period for items without a capture-time
+	// envelope (SYNC_LEGACY_ENVELOPE_UNTIL). Zero = no cutoff: accept and warn.
+	LegacyEnvelopeUntil time.Time
+	// Now is injectable for tests; nil = time.Now.
+	Now func() time.Time
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -143,6 +148,8 @@ type BatchItem struct {
 	Type           string          `json:"type"` // order|refund|shift_open|shift_close|cash_flow
 	IdempotencyKey string          `json:"idempotencyKey"`
 	Payload        json.RawMessage `json:"payload"`
+	// Envelope is the raw capture-time identity (A04), absent for legacy clients.
+	Envelope json.RawMessage `json:"envelope,omitempty"`
 }
 
 type ItemResult struct {
@@ -171,6 +178,10 @@ type Caller struct {
 	OutletID    string
 	UserID      string
 	DisplayName string
+	// Role and HomeOutletID come from the users row (not the request): the outlet a
+	// non-admin may be attributed to is only ever their stored outlet (A04).
+	Role         string `json:"-"`
+	HomeOutletID string `json:"-"`
 	// Server-derived from authenticated request claims; never from a batch body.
 	CanRefund bool `json:"-"`
 }
