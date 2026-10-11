@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31+). A restored or reinstalled tablet must start clean: never restore the
+     outbox journal, the Capacitor Preferences (queue sentinel, takeover key, refresh token,
+     device id) or the WebView localStorage (pre-native outbox copies would be lifted back in). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="mandalika_journal.db" />
+        <exclude domain="database" path="mandalika_journal.db-journal" />
+        <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+        <exclude domain="root" path="app_webview" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="mandalika_journal.db" />
+        <exclude domain="database" path="mandalika_journal.db-journal" />
+        <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+        <exclude domain="root" path="app_webview" />
+    </device-transfer>
+</data-extraction-rules>

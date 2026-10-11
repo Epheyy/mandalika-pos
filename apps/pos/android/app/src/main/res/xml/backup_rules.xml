@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower (fullBackupContent). Same exclusions as data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="database" path="mandalika_journal.db" />
+    <exclude domain="database" path="mandalika_journal.db-journal" />
+    <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+    <exclude domain="root" path="app_webview" />
+</full-backup-content>
