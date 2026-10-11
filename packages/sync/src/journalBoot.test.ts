@@ -13,6 +13,7 @@ import {
   getJournalBootNotice,
   resetJournalBootForTests,
   LEGACY_BACKUP_PREFIX,
+  TAKEOVER_KEY,
   type JournalBootResult,
 } from './journalBoot'
 
@@ -564,5 +565,39 @@ describe('after takeover no failure falls back to the old storage (MEDIUM-1)', (
     const fj = createFakeJournal()
     fj.ctl.openError = new Error('io')
     expect((await boot(kv, fj)).kind).toBe('fallback')
+  })
+})
+
+describe('Preferences always records the takeover (R1/R2)', () => {
+  it('an empty-source seal (no backup) still writes the durable takeover key', async () => {
+    const { kv, store } = seedKV(null)
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    expect(legacyKeys(store)).toHaveLength(0)
+    expect(store.get(TAKEOVER_KEY)).toBe(NOW.toISOString())
+  })
+  it('R1: empty-source seal, sentinel lost, journal open() failing on the same boot -> boot error, not a fallback', async () => {
+    const { kv, store } = seedKV(null)
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    store.delete(OUTBOX_KEY) // un-fsynced Preferences write lost
+    const next = fj.restart()
+    next.ctl.openError = new Error('io')
+    await expect(boot(kv, next)).rejects.toThrow(/Journal antrean tidak dapat dibuka/)
+    expect(getJournalBootNotice()).toBeNull()
+  })
+  it('R2: journal opens without a takeover marker while Preferences shows takeover and K is not a sentinel -> journal hilang, no fresh copy', async () => {
+    const { kv, store } = seedKV(null)
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    store.set(OUTBOX_KEY, JSON.stringify([sale(1)]))
+    const wiped = createFakeJournal() // journal file replaced/recreated: no meta
+    await expect(boot(kv, wiped)).rejects.toThrow(/journal hilang/)
+    expect(wiped.ctl.applies).toHaveLength(0)
+    expect(wiped.persisted.rows.size).toBe(0)
   })
 })
