@@ -205,6 +205,20 @@ const closeHeldMessage = "Tutup shift ditunda: ada transaksi sebelumnya yang bel
 // one is being held open, or it would be refused as a second open shift.
 const openHeldMessage = "Buka shift ditunda: ada transaksi sebelumnya yang belum tersimpan, akan dicoba ulang otomatis."
 
+// heldMessage is the hold text for the item types that wait behind an earlier retryable
+// failure: shift_close (so its snapshot stays complete) and shift_open (so a new shift
+// is not refused as a second open one while the old close is held). Sales and refunds
+// are never held.
+func heldMessage(itemType string) string {
+	switch itemType {
+	case "shift_close":
+		return closeHeldMessage
+	case "shift_open":
+		return openHeldMessage
+	}
+	return ""
+}
+
 func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	process func(context.Context, Caller, BatchItem) ItemResult,
 	version func(context.Context, string) (VersionInfo, error),
@@ -218,10 +232,10 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	earlierRetryable := false
 	for _, it := range items {
 		var res ItemResult
-		if it.Type == "shift_close" && earlierRetryable {
+		if msg := heldMessage(it.Type); msg != "" && earlierRetryable {
 			// No receipt claimed, no effect: the same key runs normally on retry.
 			retryable := true
-			res = ItemResult{IdempotencyKey: it.IdempotencyKey, Status: "error", Error: closeHeldMessage,
+			res = ItemResult{IdempotencyKey: it.IdempotencyKey, Status: "error", Error: msg,
 				Code: string(apperr.Busy), Retryable: &retryable}
 		} else {
 			res = process(ctx, c, it)
