@@ -18,7 +18,7 @@ Goal: production-ready POS = 8 P0 audit findings closed + release gates. **6 of 
 | A02 | Network failures park/delete financial events | **Done** — slice 5 (APK 1.2+, emulator-verified) |
 | A03 | Transfer-receive errors treated as competing receipt | **Done** — slices 3+5 (transfer receive not yet run on a device) |
 | A04 | Queued events not bound to cashier/outlet | **Done** — slice 6, backend 00090-wof + APK 1.5 verified; legacy cutoff not set; slice 10 device registration open |
-| A06 | Refund permission bypassed via sync | **In progress** — slice 7: plan + owner answers done; Phase A (refund rules) committed locally `449152a`, Opus-reviewed ship; Phase B (mig 0047 shift cash) next |
+| A06 | Refund permission bypassed via sync | **In progress** - slice 7 code complete locally (commits 1944b0c..cdac99f and later, not yet pushed): refund rules parity, mig 0047 refund_shift_id/refunded_by + shift cash snapshot, POS gate/review/recap, M2 synced-refund memory, M3 server holds shift_close/shift_open behind an earlier retryable failure. Final POS review fixes in progress; then push, hidden deploy (0047), APK 1.6 |
 | A09 | Sale/tender invariants not enforced | **Done** — slice 8 + 8c (backend 00088-qoh+, APK 1.4+); discount permission split to 8b |
 
 ## Now (live state)
@@ -100,6 +100,8 @@ Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
 2. **P0 slice 9 (A01b)** SQLite journal with verified, resumable migration (APK).
 3. **Rollout:** APK 1.5 to the fleet → set `SYNC_LEGACY_ENVELOPE_UNTIL`.
 4. **Follow-ups (owner to prioritise):**
+   - Slice 7: sales made while a shift_open is still syncing (incl. held by M3) carry no shift (envelope stamps only server-known shifts); pre-existing, window now longer.
+   - Slice 7: backoffice list of late refunds (refunded_at > shifts.closed_at) missing; client sync batch has no size cap (413 risk on big backlogs); refund-vs-close race covered by reasoning only.
    - Head-office resolve screen for needs-review items (slice 6 review H1 follow-up).
    - Receipt numbers ≠ server numbers and can repeat across tablets (`apps/pos/src/cashier/orderRef.ts`:
      1-char device tag, per-install counter). Options: server per-outlet sequence, or registered device code (slice 10).
