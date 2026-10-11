@@ -14,6 +14,7 @@ import {
   bindingFor,
   checkLoginAllowed,
   clearBinding,
+  clearOutletCaches,
   isQueueEmpty,
   readBinding,
   readQueueState,
@@ -41,8 +42,10 @@ import {
 interface AuthState {
   user: User | null
   ready: boolean
-  /** Signed in as an outlet-less account on a terminal with no outlet yet: must pick once. */
+  /** Signed in as an outlet-less ADMIN on a terminal with no outlet yet: must pick once. */
   needsOutletPick: boolean
+  /** Signed in as a non-admin account with no outlet: it cannot operate a terminal at all. */
+  outletUnassigned: boolean
   login: (email: string, password: string) => Promise<void>
   /** One-time terminal outlet pick for an outlet-less account; durable before it resolves. */
   pickOutlet: (outlet: { id: string; name: string }) => Promise<void>
@@ -57,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   const [needsOutletPick, setNeedsOutletPick] = useState(false)
+  const [outletUnassigned, setOutletUnassigned] = useState(false)
 
   const clear = useCallback(() => {
     authStore.access = null
@@ -66,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.shiftId = null
     dropSession() // the terminal binding is deliberately NOT part of the session
     setNeedsOutletPick(false)
+    setOutletUnassigned(false)
     setUser(null)
   }, [])
 
@@ -78,7 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const next = bindingFor(u, current, picked)
     authStore.userId = u.id
     authStore.outletId = next?.outletId ?? null
-    setNeedsOutletPick(next === null)
+    setNeedsOutletPick(next === null && u.role === 'admin')
+    setOutletUnassigned(next === null && u.role !== 'admin')
     if (next && !sameBinding(current, next)) {
       writeBinding(kv, next).catch((err) => console.error('[terminal] binding write failed', err))
     }
@@ -168,12 +174,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Masih ada transaksi yang belum terkirim atau perlu ditinjau. Terminal tidak dapat dilepas.')
     }
     await clearBinding(kv)
+    clearOutletCaches(kv)
     logout()
   }, [logout])
 
   const value = useMemo<AuthState>(
-    () => ({ user, ready, needsOutletPick, login, pickOutlet, releaseTerminal, logout }),
-    [user, ready, needsOutletPick, login, pickOutlet, releaseTerminal, logout],
+    () => ({ user, ready, needsOutletPick, outletUnassigned, login, pickOutlet, releaseTerminal, logout }),
+    [user, ready, needsOutletPick, outletUnassigned, login, pickOutlet, releaseTerminal, logout],
   )
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
 }

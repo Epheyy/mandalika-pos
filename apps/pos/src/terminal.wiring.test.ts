@@ -41,6 +41,11 @@ describe('fixed terminal wiring (A04)', () => {
     expect(auth).toMatch(/checkLoginAllowed\(getKV\(\), d\.user\)[\s\S]*?throw new Error\(verdict\.message\)[\s\S]*?apply\(d\)/)
   })
 
+  it('an unassigned non-admin account is stopped before the cashier screen', () => {
+    expect(read('App.tsx')).toMatch(/outletUnassigned\) return <OutletUnassignedScreen \/>[\s\S]*?needsOutletPick\) return <OutletPickScreen \/>[\s\S]*?<SyncProvider>/)
+    expect(read('auth.tsx')).toMatch(/setOutletUnassigned\(next === null && u\.role !== 'admin'\)/)
+  })
+
   it('the sync engine is built with the capture-time actor provider', () => {
     expect(read('cashier/SyncProvider.tsx')).toMatch(/\{\s*actor:\s*currentActor\s*\}/)
   })
@@ -49,9 +54,9 @@ describe('fixed terminal wiring (A04)', () => {
     expect(read('cashier/MenuDrawer.tsx')).not.toMatch(/onLogout/)
     expect(read('cashier/MenuDrawer.tsx')).toMatch(/onTerminal/)
     const users = sources().filter((f) => /\blogout\b/.test(readFileSync(f, 'utf8'))).map(rel).sort()
-    // auth.tsx defines it (authBoot only mentions it in a comment); the pick screen offers
-    // an escape before any binding exists. Nothing in the cashier UI may call it.
-    expect(users).toEqual(['auth.tsx', 'authBoot.ts', 'screens/OutletPickScreen.tsx'])
+    // auth.tsx defines it (authBoot only mentions it in a comment); the pick and unassigned
+    // screens offer an escape before any binding exists. Nothing in the cashier UI may call it.
+    expect(users).toEqual(['App.tsx', 'auth.tsx', 'authBoot.ts', 'screens/OutletPickScreen.tsx'])
   })
 
   it('Lepas terminal is guarded by the queue and reachability checks', () => {
@@ -59,7 +64,7 @@ describe('fixed terminal wiring (A04)', () => {
     expect(section).toMatch(/releaseBlockedReason\(/)
     expect(section).toMatch(/unsettled: engine\.unsettledCount\(\)/)
     expect(section).toMatch(/online: engine\.isReachable\(\)/)
-    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueEmpty\(readQueueState\(kv\)\)[\s\S]*?clearBinding\(kv\)/)
+    expect(read('auth.tsx')).toMatch(/releaseTerminal[\s\S]*?isQueueEmpty\(readQueueState\(kv\)\)[\s\S]*?clearBinding\(kv\)[\s\S]*?clearOutletCaches\(kv\)/)
   })
 
   it('the shift header persists, overlays and only auto-opens after a successful fetch', () => {

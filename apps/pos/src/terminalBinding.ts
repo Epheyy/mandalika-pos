@@ -50,6 +50,20 @@ export function clearBinding(kv: KV): Promise<void> {
   return kv.removeDurable(TERMINAL_KEY)
 }
 
+/** Outlet-specific reference data cached on the device (snapshot incl. outletCode, prices,
+ *  stock, promos; inbound transfers; optimistic credits). Cleared when the terminal is released
+ *  so the next outlet can never sell from the previous outlet's data if its first pull fails. */
+export const OUTLET_CACHE_KEYS: readonly string[] = [
+  'mandalika.pos.snapshot',
+  'mandalika.pos.contentVersion',
+  'mandalika.pos.inboundTransfers',
+  'mandalika.pos.pendingCredits',
+]
+
+export function clearOutletCaches(kv: KV): void {
+  for (const k of OUTLET_CACHE_KEYS) kv.remove(k)
+}
+
 export function sameBinding(a: TerminalBinding | null, b: TerminalBinding | null): boolean {
   if (!a || !b) return a === b
   return a.outletId === b.outletId && a.outletName === b.outletName
@@ -57,15 +71,18 @@ export function sameBinding(a: TerminalBinding | null, b: TerminalBinding | null
 }
 
 /** The binding after `user` is signed in (pure). The outlet is the account's stored one,
- *  else the one just picked, else the terminal's remembered one; null = an outlet-less
- *  account on an unbound terminal, which must pick. */
+ *  else (admins only) the one just picked, else the terminal's remembered one. Null means
+ *  the terminal cannot act as any outlet for this account: an admin on an unbound terminal
+ *  must pick; any other outlet-less account is unassigned. The server only lets an admin
+ *  act for an outlet other than their own (X-Outlet-Id), so a pick would never sync for them. */
 export function bindingFor(
-  user: Pick<User, 'id' | 'displayName' | 'outletId'>,
+  user: Pick<User, 'id' | 'displayName' | 'outletId' | 'role'>,
   current: TerminalBinding | null,
   picked?: { id: string; name: string },
   now: () => string = () => new Date().toISOString(),
 ): TerminalBinding | null {
-  const outletId = user.outletId || picked?.id || current?.outletId || null
+  const mayPick = user.role === 'admin'
+  const outletId = user.outletId || (mayPick ? picked?.id || current?.outletId : null) || null
   if (!outletId) return null
   const kept = current && current.outletId === outletId ? current : null
   return {

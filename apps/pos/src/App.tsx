@@ -130,8 +130,28 @@ function LoginScreen() {
   )
 }
 
+/** A non-admin account without an outlet cannot sell: the server only attributes it to its own
+ *  stored outlet, so a chosen outlet would never sync. Tell the cashier instead of letting them sell. */
+function OutletUnassignedScreen() {
+  const { user, logout } = useAuth()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 safe-top safe-bottom">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h1 className="text-xl font-black text-gray-900">Akun belum terikat ke outlet</h1>
+        <p className="text-sm text-gray-500 mt-2">
+          Akun {user?.displayName ?? ''} belum memiliki outlet, jadi tidak bisa dipakai untuk transaksi di kasir.
+          Hubungi admin untuk menetapkan outlet pada akun ini, lalu masuk kembali.
+        </p>
+        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-amber-700 hover:text-amber-800 underline">
+          Keluar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
-  const { user, ready, needsOutletPick } = useAuth()
+  const { user, ready, needsOutletPick, outletUnassigned } = useAuth()
   // The native launch splash has launchAutoHide:false. SyncProvider hides it
   // post-login, but the pre-login screen never mounts SyncProvider — so on a
   // fresh/logged-out app the splash covered the WebView forever (blank app).
@@ -152,6 +172,7 @@ export default function App() {
   }
   if (!user) return <LoginScreen />
   // An outlet-less account on an unbound terminal picks the outlet once (A04).
+  if (outletUnassigned) return <OutletUnassignedScreen />
   if (needsOutletPick) return <OutletPickScreen />
   // Phase C: offline-first CashierScreen wrapped in SyncProvider
   return (

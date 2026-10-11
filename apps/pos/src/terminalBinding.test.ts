@@ -7,6 +7,7 @@ import {
   bindingFor,
   checkLoginAllowed,
   clearBinding,
+  clearOutletCaches,
   isQueueEmpty,
   readBinding,
   readQueueState,
@@ -31,8 +32,8 @@ const queue = (...statuses: string[]) => JSON.stringify(statuses.map((status, i)
 const binding = (over: Partial<TerminalBinding> = {}): TerminalBinding => ({
   outletId: 'out-1', outletName: 'BSD', ownerUserId: 'u-a', ownerName: 'Admin A', boundAt: '2026-10-11T00:00:00.000Z', ...over,
 })
-const adminUser = { id: 'u-a', displayName: 'Admin A', outletId: null }
-const cashier = { id: 'u-c', displayName: 'Yasmine', outletId: 'out-9' }
+const adminUser = { id: 'u-a', displayName: 'Admin A', outletId: null, role: 'admin' as const }
+const cashier = { id: 'u-c', displayName: 'Yasmine', outletId: 'out-9', role: 'cashier' as const }
 
 describe('binding storage', () => {
   it('round-trips durably and clears', async () => {
@@ -51,6 +52,23 @@ describe('binding storage', () => {
   })
 })
 
+describe('clearOutletCaches', () => {
+  it('removes the previous outlet data but not the outbox, device id or session', () => {
+    const kv = memKV({
+      'mandalika.pos.snapshot': '{}', 'mandalika.pos.contentVersion': '3', 'mandalika.pos.inboundTransfers': '[]',
+      'mandalika.pos.pendingCredits': '[]', [OUTBOX_KEY]: '[]', 'mandalika.pos.deviceId': 'dev', 'mandalika.pos.refresh': 'r',
+    })
+    clearOutletCaches(kv)
+    expect(kv.get('mandalika.pos.snapshot')).toBeNull()
+    expect(kv.get('mandalika.pos.contentVersion')).toBeNull()
+    expect(kv.get('mandalika.pos.inboundTransfers')).toBeNull()
+    expect(kv.get('mandalika.pos.pendingCredits')).toBeNull()
+    expect(kv.get(OUTBOX_KEY)).toBe('[]')
+    expect(kv.get('mandalika.pos.deviceId')).toBe('dev')
+    expect(kv.get('mandalika.pos.refresh')).toBe('r')
+  })
+})
+
 describe('bindingFor: where the terminal sells', () => {
   it('an account with a stored outlet always uses it', () => {
     expect(bindingFor(cashier, binding({ outletId: 'out-1' }))).toMatchObject({ outletId: 'out-9', ownerUserId: 'u-c', ownerName: 'Yasmine', outletName: null })
@@ -62,8 +80,16 @@ describe('bindingFor: where the terminal sells', () => {
   })
 
   it('an outlet-less account inherits the terminal outlet and keeps its name and bind time', () => {
-    const b = bindingFor({ id: 'u-b', displayName: 'Admin B', outletId: undefined }, binding())
+    const b = bindingFor({ id: 'u-b', displayName: 'Admin B', outletId: undefined, role: 'admin' }, binding())
     expect(b).toMatchObject({ outletId: 'out-1', outletName: 'BSD', ownerUserId: 'u-b', ownerName: 'Admin B', boundAt: '2026-10-11T00:00:00.000Z' })
+  })
+
+  it('a non-admin without an outlet never gets one: not from a pick, not from the terminal', () => {
+    const unassigned = { id: 'u-m', displayName: 'Manajer', outletId: null, role: 'manager' as const }
+    expect(bindingFor(unassigned, null)).toBeNull()
+    expect(bindingFor(unassigned, binding())).toBeNull()
+    expect(bindingFor(unassigned, null, { id: 'out-2', name: 'PMS' })).toBeNull()
+    expect(bindingFor({ ...unassigned, role: 'cashier' }, binding())).toBeNull()
   })
 
   it('a pick becomes the terminal outlet with its name', () => {
