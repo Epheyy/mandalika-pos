@@ -126,7 +126,9 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		  cash_sales     = COALESCE(a.cash_sales,0),
 		  card_sales     = COALESCE(a.card_sales,0),
 		  transfer_sales = COALESCE(a.transfer_sales,0),
-		  qris_sales     = COALESCE(a.qris_sales,0)
+		  qris_sales     = COALESCE(a.qris_sales,0),
+		  refunds_paid_by_method = r.by_method,
+		  cash_refunds_paid      = r.cash_paid
 		FROM (
 		  SELECT
 		    sum(total) FILTER (WHERE status='completed') AS total_sales,
@@ -137,25 +139,40 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
 		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
 		  FROM orders WHERE shift_id=$1
-		) a
+		) a,
+		-- A06/Q2b: refunds this shift paid out for sales of OTHER shifts. A refund of
+		-- this shift's own sale is already out of its sales and in total_refunds, so
+		-- it is excluded here (no double subtraction). Late refunds (after close)
+		-- never touch this snapshot.
+		(
+		  SELECT COALESCE(jsonb_object_agg(payment_method, amount), '{}'::jsonb) AS by_method,
+		         COALESCE(sum(amount) FILTER (WHERE payment_method = ANY($5::text[])), 0) AS cash_paid
+		  FROM (
+		    SELECT payment_method, sum(total) AS amount FROM orders
+		     WHERE refund_shift_id=$1 AND status='refunded' AND shift_id IS DISTINCT FROM $1
+		     GROUP BY payment_method
+		  ) x
+		) r
 		WHERE s.id=$1 AND s.outlet_id=$2`,
 		shiftID, outletID, closingCash, countedJSON, cashIDs)
 	return err
 }
 
-// shiftCashMethodIDs lists the payment method ids on this shift's completed orders
-// that are cash at close time (the flag in force now decides; closed shifts are a
-// snapshot and never change). The UPDATE aggregates cash_sales and excludes these
-// ids from the card/transfer/qris buckets, so nothing is counted twice. Custom
-// non-cash methods land in no bucket. Always non-nil: a NULL array would make the
-// FILTER predicates NULL.
+// shiftCashMethodIDs lists the payment method ids on this shift's completed orders,
+// and on refunds this shift paid out (refund_shift_id), that are cash at close time
+// (the flag in force now decides; closed shifts are a snapshot and never change).
+// The UPDATE aggregates cash_sales and cash_refunds_paid and excludes these ids from
+// the card/transfer/qris buckets, so nothing is counted twice. Custom non-cash
+// methods land in no bucket. Always non-nil: a NULL array would make the FILTER
+// predicates NULL.
 func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]string, error) {
 	settings, err := loadAppSettings(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT DISTINCT payment_method FROM orders WHERE shift_id=$1 AND status='completed'`, shiftID)
+		`SELECT DISTINCT payment_method FROM orders
+		  WHERE (shift_id=$1 AND status='completed') OR (refund_shift_id=$1 AND status='refunded')`, shiftID)
 	if err != nil {
 		return nil, err
 	}

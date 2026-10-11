@@ -973,6 +973,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
   'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,
+  'refundShiftId',o.refund_shift_id,'refundedBy',o.refunded_by,'refundedByName',o.refunded_by_name,
   'pointsRedeemed',o.points_redeemed,
   'items',COALESCE((SELECT json_agg(json_build_object(
      'productId',it.product_id,'productName',it.product_name,
@@ -1037,7 +1038,13 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
   'totalSales',s.total_sales,'totalOrders',s.total_orders,
   'totalRefunds',s.total_refunds,'cashSales',s.cash_sales,'cardSales',s.card_sales,
   'transferSales',s.transfer_sales,'qrisSales',s.qris_sales,
-  'countedByMethod',s.counted_by_method)`
+  'countedByMethod',s.counted_by_method,
+  'cashRefundsPaid',s.cash_refunds_paid,
+  'refundsPaidByMethod',CASE WHEN s.status='closed' THEN s.refunds_paid_by_method
+    ELSE (SELECT COALESCE(jsonb_object_agg(x.payment_method, x.amount),'{}'::jsonb) FROM (
+      SELECT o.payment_method, sum(o.total) AS amount FROM orders o
+       WHERE o.refund_shift_id=s.id AND o.status='refunded' AND o.shift_id IS DISTINCT FROM s.id
+       GROUP BY o.payment_method) x) END)`
 
 func (r *Repo) Shifts(ctx context.Context, sc Scope, page, limit int) ([]api.Shift, int, error) {
 	where := ""
