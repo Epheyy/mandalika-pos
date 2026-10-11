@@ -1,5 +1,6 @@
 import type { components } from '@mandalika/api'
 import type { KV } from './storage'
+import { isOutboxStore, KVOutboxStore, type OutboxStore } from './outboxStore'
 
 /** Capture-time identity stamped on an item when it is committed (A04). Persisted with
  *  the item and sent as a sibling of `payload`; never derived later, never backfilled. */
@@ -174,28 +175,28 @@ export class Outbox {
   // the outbox key: a stale whole-array write would drop items the live instance committed.
   private disposed = false
 
-  constructor(private kv: KV) {
-    const raw = kv.get(OUTBOX_KEY)
+  private store: OutboxStore
+
+  /** A bare KV keeps today's behaviour (whole array under {@link OUTBOX_KEY}); pass an
+   *  {@link OutboxStore} to persist elsewhere (the SQLite journal). */
+  constructor(source: KV | OutboxStore) {
+    const store = isOutboxStore(source) ? source : new KVOutboxStore(source)
+    this.store = store
+    const kv = store.kv
+    const loaded = store.load()
     let items: OutboxItem[] = []
-    if (raw) {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(raw)
-      } catch {
-        parsed = undefined
-      }
-      if (Array.isArray(parsed)) {
-        items = parsed as OutboxItem[]
-      } else {
-        const detectedAt = new Date().toISOString()
-        const quarantineKey = OUTBOX_QUARANTINE_PREFIX + detectedAt
-        this.corruption = { quarantineKey, detectedAt }
-        const info = this.corruption
-        this.ready = kv
-          .setDurable(quarantineKey, raw)
-          .then(() => kv.setDurable(OUTBOX_CORRUPTION_MARKER_KEY, JSON.stringify(info)))
-        this.ready.catch(() => {}) // surfaced by commit(); avoid an unhandled rejection
-      }
+    if (loaded.kind === 'ok') {
+      items = loaded.items
+    } else {
+      const raw = loaded.raw
+      const detectedAt = new Date().toISOString()
+      const quarantineKey = OUTBOX_QUARANTINE_PREFIX + detectedAt
+      this.corruption = { quarantineKey, detectedAt }
+      const info = this.corruption
+      this.ready = kv
+        .setDurable(quarantineKey, raw)
+        .then(() => kv.setDurable(OUTBOX_CORRUPTION_MARKER_KEY, JSON.stringify(info)))
+      this.ready.catch(() => {}) // surfaced by commit(); avoid an unhandled rejection
     }
     if (!this.corruption) this.corruption = readMarker(kv)
     this.items = items
@@ -238,7 +239,7 @@ export class Outbox {
     if (this.disposed) throw new Error('outbox disposed')
     await this.ready
     if (this.disposed) throw new Error('outbox disposed')
-    await this.kv.setDurable(OUTBOX_KEY, JSON.stringify(next))
+    await this.store.commit(this.items, next)
     this.items = next
   }
 
