@@ -65,6 +65,8 @@ re-pick for admin before going Online (outlet-less `/sync/version` 500).
 
 **APK 1.4 (2026-10-11, run 38086323189, `0021eb3`, versionCode 5): emulator-VERIFIED** after a Windows restart (old qemu hung): TUNAI shows "Jumlah Dibayar" + quick amounts; typed 100000 < 225000 → "Kurang Rp 125.000", Konfirmasi disabled; Rp 300.000 → Kembalian Rp 75.000, receipt prints tunai/Kembalian, server `BSD-G0005` tunai paid 300000 change 75000 no flag; blank field → `BSD-G0006` paid 225000 change 0 no flag. Session survived the reboot. Not re-checked: Rekapan "Terhitung" survives resync.
 
+**Emulator tip:** the AVD hangs after the PC sleeps (qemu becomes unkillable -> Windows restart). Close the emulator before the PC sleeps, or cold-boot it (emulator flag: no snapshot load).
+
 **Emulator:** AVD `mandalika-tab` (Android 15 google_apis x86_64, 2560×1600, 4 GB) in
 `%USERPROFILE%\.android\avd`; start `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab`.
 Drive with `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (install, `input tap`, `screencap`,
@@ -82,7 +84,8 @@ green, audit branch merged. **Waiting on owner:** APK 1.1 install + checklist
 
 ## Now
 
-- **Live (2026-10-11):** Cloud Run revision `00088-qoh` (100%, tag `s8c`) from `prod-hardening` @ `34f4da0` = slice 8 (A09 tender rules, migration **0046** applied) + 8c payment-method cash identity (`isCash` flag; `tunai` = cash; shift cash_sales per flag) + admin reset password (`POST /users/{id}/reset-password`, PUT password removed). Hosted smoke 16/16, zero residue. Rollback: `--to-revisions mandalika-pos-00086-pac=100` (0046 columns harmless). APK 1.3 (offline-restart fix) built run 38075138469.
+- **Live (2026-10-11, later):** Cloud Run `00090-wof` (100%, tag `ev6`) from `prod-hardening` @ `6dd7baf` = slice 6 (A04a capture-time envelope + fixed terminal) on top of 00088-qoh. **No migration.** `SYNC_LEGACY_ENVELOPE_UNTIL` deliberately UNSET (legacy items accepted + logged); set it to (APK 1.5 on every tablet + 14 days) — a date-only value means 00:00 UTC = 07:00 WIB. Hosted smoke 10/10, zero residue (refund-of-missing-order returns `conflict` "order not refundable"; envelope v!=1 returns `actor_mismatch`, not `rejected`). Rollback: `--to-revisions mandalika-pos-00088-qoh=100` (envelope ignored there). **APK 1.5** (versionCode 6, run 38106865965) built green -> `Downloads/mandalika-apk/mandalika-pos-1.5-build6.apk`, **install + emulator check pending** (emulator hung again after host sleep; needs a Windows restart). Check: one-time "Pilih outlet terminal ini" for admin -> BSD, outlet name in header, survives restart, no logout/switcher, offline start shows open shift, Buka Shift blocked offline, offline sale carries `envelope` in Preferences and syncs to BSD.
+- **Before that:** Cloud Run revision `00088-qoh` (tag `s8c`) from `prod-hardening` @ `34f4da0` = slice 8 (A09 tender rules, migration **0046** applied) + 8c payment-method cash identity (`isCash` flag; `tunai` = cash; shift cash_sales per flag) + admin reset password (`POST /users/{id}/reset-password`, PUT password removed). Hosted smoke 16/16, zero residue. Rollback: `--to-revisions mandalika-pos-00086-pac=100` (0046 columns harmless). APK 1.3 (offline-restart fix) built run 38075138469.
 - **Previous:** Cloud Run `mandalika-pos` revision `00086-pac` (tag `errc`), built from
   `prod-hardening` @ `249fd35` = merged audit work + P0 slices 1 (A13), 2 (A11) and 3 (sync
   error contract), deployed 2026-10-10. Migration 0045 applied. Backoffice on Cloudflare from
