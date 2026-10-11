@@ -36,7 +36,6 @@ import { RefundDialog } from './RefundDialog'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
-import { OutletSwitcher } from '../components/OutletSwitcher'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { nextOrderNo } from './orderRef'
 import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
@@ -83,7 +82,7 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
 }
 
 export default function CashierScreen() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const engine = use(SyncContext)!
   const receiveRejectedRef = use(SyncReceiveRejectedRefContext)
   const receiveAcceptedRef = use(SyncReceiveAcceptedRefContext)
@@ -874,9 +873,6 @@ export default function CashierScreen() {
       <header className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain flex-shrink-0" />
-          <div className="flex-shrink min-w-0">
-            <OutletSwitcher user={user} onResync={offlineData.resync} />
-          </div>
           <ShiftBar
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
@@ -1091,7 +1087,7 @@ export default function CashierScreen() {
         onPrintSettings={() => openSettings('printer')}
         onProductDisplay={() => openSettings('display')}
         onBackOffice={() => window.open('https://mandalika-pos.pages.dev', '_system')}
-        onLogout={logout}
+        onTerminal={() => openSettings('terminal')}
         onReceiveTransfer={() => setShowReceive(true)}
         onOpenTransferHistory={() => setShowTransferHistory(true)}
         inboundCount={inbound.length}

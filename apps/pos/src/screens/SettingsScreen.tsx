@@ -4,6 +4,7 @@
  *   - 'display'  → "Pengaturan Tampilan Produk" (font size + product grid)
  *   - 'printer'  → "Pengaturan Cetakan" (Bluetooth printer + receipt/tax info)
  *   - 'cashflow' → "Uang Masuk / Keluar" (cash in/out entry)
+ *   - 'terminal' → outlet/account of this tablet + guarded "Lepas terminal"
  * Each renders as a centered modal (portrait-friendly). Receipt/tax are
  * Backoffice-owned and shown read-only. Cash flow queues via
  * engine.enqueue('cash_flow', ...).
@@ -15,6 +16,7 @@ import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
 import { usePrinter } from '../printer'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
+import { TerminalSection } from './TerminalSection'
 
 type AppSettings = components['schemas']['AppSettings']
 type Shift = components['schemas']['Shift']
@@ -22,12 +24,13 @@ type Shift = components['schemas']['Shift']
 type FontSize = 'sm' | 'md' | 'lg'
 type GridCols = 2 | 3 | 4 | 6
 
-export type SettingsSection = 'display' | 'printer' | 'cashflow'
+export type SettingsSection = 'display' | 'printer' | 'cashflow' | 'terminal'
 
 const TITLES: Record<SettingsSection, string> = {
   display: 'Pengaturan Tampilan Produk',
   printer: 'Pengaturan Cetakan',
   cashflow: 'Uang Masuk / Keluar',
+  terminal: 'Terminal',
 }
 
 interface SettingsScreenProps {
@@ -352,6 +355,9 @@ export const SettingsScreen = memo(function SettingsScreen({
               </div>
             </div>
           )}
+
+          {/* ── Terminal (Lepas terminal) ── */}
+          {section === 'terminal' && <TerminalSection />}
 
           {/* ── Uang Masuk / Keluar ── */}
           {section === 'cashflow' && (
