@@ -73,8 +73,9 @@ AVD `mandalika-tab` (Android 15, 2560×1600). Start cold:
 **It hangs after the PC sleeps** (qemu becomes unkillable → Windows restart): close it before sleep.
 Drive with `adb` (`install -r`, `input tap`, `svc wifi/data disable|enable`, `am force-stop com.mandalika.pos`).
 Prefer reading the WebView over screenshots: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`
-then CDP `Runtime.evaluate` (helper: a small `cdp.mjs`; Preferences keys `mandalika.pos.outbox`,
-`mandalika.pos.terminal`, `mandalika.pos.user`). Claude may not type passwords/PINs — the owner logs in
+then CDP `Runtime.evaluate` (helper: a small `cdp.mjs`; Preferences keys `mandalika.pos.terminal`, `mandalika.pos.user`;
+on APK 1.7+ `mandalika.pos.outbox` is only a sentinel (`{"movedTo":"journal",...}`) after migration: inspect the queue with
+CDP `await Capacitor.Plugins.OutboxJournal.readAll()` -> `{rows:[{key,seq,json}], meta}`; `open()` reports `synchronous` (must be 2)). Claude may not type passwords/PINs — the owner logs in
 (admin `admin@mandalika.test`). Stylus popup disabled via `settings put secure stylus_handwriting_enabled 0`.
 Emulator DNS broke on 2026-10-11 (every host unknown, even with -dns-server); fixed with Private DNS: `adb shell settings put global private_dns_mode hostname` and `settings put global private_dns_specifier dns.google`.
 Test sales: Holy Sweet 10ml (Rp 225.000) at BSD; customer Danny (081929128271).
