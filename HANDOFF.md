@@ -98,8 +98,13 @@ not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalik
 
 ## Next
 
-0. **Now:** head-office review resolve screen — spec `docs/plans/2026-10-12-review-resolve-design.md` (approved) + plan
-   `docs/plans/2026-10-12-review-resolve-plan.md` (11 tasks, awaiting owner review + execution choice) → backend (mig 0048 + TTL) → backoffice → APK 1.8.
+0. **Now:** head-office review resolve **implemented on branch `feat/review-resolve`** (12 commits bb2cb36..7325a49, local,
+   not pushed): mig 0048 `sync_review_items`, `POST /sync/review-items` + `GET/POST /sync-review-items…` (perm
+   `resolve_sync_review`), guarded `Outbox.resolveReviewed`, engine check-in, POS toast/label, backoffice "Tinjauan Sinkron",
+   PG gate RV (12 gates), browser scenario BO-REVIEW-RESOLVE, revoke-marker TTL floor 8760 h. All gates green; Opus
+   whole-branch review done. **Open before APK 1.8:** N1 one-line fix (false resolved toast in a rare retry race, see
+   `.superpowers/sdd/2026-10-12-review-resolve-plan/progress.md`). Then (owner go-ahead): FF into prod-hardening, push, deploy
+   backend `--tag review` with `JWT_REFRESH_TTL_HOURS=720`, smoke, traffic; build APK 1.8; emulator check.
 1. **Rollout (held for 1.8):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
 2. **Before the first OTA release:** min-versionCode guard per OTA release (needs a migration; today any published bundle
