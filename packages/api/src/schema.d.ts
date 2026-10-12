@@ -1743,6 +1743,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync-review-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Head-office list of tablet review items (cross-outlet, paginated) */
+        get: operations["listSyncReviewItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync-review-items/{key}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a review item handled (idempotent) */
+        post: operations["resolveSyncReviewItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/version": {
         parameters: {
             query?: never;
@@ -1788,6 +1822,23 @@ export interface paths {
         put?: never;
         /** Flush the offline outbox; each item idempotent (plan §5) */
         post: operations["syncBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/review-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tablet check-in of parked review items; returns the keys head office resolved */
+        post: operations["reportSyncReviewItems"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3309,6 +3360,77 @@ export interface components {
             capturedAt: string;
             shiftId?: string;
             appVersion?: string;
+        };
+        SyncReviewReport: {
+            idempotencyKey: string;
+            /** @enum {string} */
+            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
+            reviewCode?: string;
+            reviewReason?: string;
+            lastError?: string;
+            ownerUserId?: string;
+            capturedOutletId?: string;
+            /** Format: date-time */
+            clientCreatedAt: string;
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        SyncReviewReportRequest: {
+            items: components["schemas"]["SyncReviewReport"][];
+        };
+        SyncReviewResolution: {
+            idempotencyKey: string;
+            /** Format: date-time */
+            resolvedAt: string;
+            resolvedByName: string;
+            note: string;
+        };
+        SyncReviewReportResult: {
+            resolved: components["schemas"]["SyncReviewResolution"][];
+        };
+        SyncReviewReportResponse: {
+            data: components["schemas"]["SyncReviewReportResult"];
+        };
+        SyncReviewItem: {
+            idempotencyKey: string;
+            /** Format: uuid */
+            outletId: string;
+            outletName: string;
+            capturedOutletId?: string | null;
+            capturedOutletName?: string | null;
+            type: string;
+            reviewCode?: string | null;
+            reviewReason?: string | null;
+            lastError?: string | null;
+            ownerUserId?: string | null;
+            ownerName?: string | null;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            clientCreatedAt: string;
+            /** Format: date-time */
+            firstReportedAt: string;
+            /** Format: date-time */
+            lastReportedAt: string;
+            reportedByName: string;
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            resolvedByName?: string | null;
+            resolutionNote?: string | null;
+            appliedOnServer: boolean;
+        };
+        SyncReviewItemListResponse: {
+            data: components["schemas"]["SyncReviewItem"][];
+            meta: components["schemas"]["Meta"];
+            openCount: number;
+        };
+        SyncReviewResolveRequest: {
+            note: string;
+        };
+        SyncReviewResolveResponse: {
+            data: components["schemas"]["SyncReviewResolution"];
         };
         SyncBatchRequest: {
             items: components["schemas"]["SyncBatchItem"][];
@@ -7136,6 +7258,61 @@ export interface operations {
             };
         };
     };
+    listSyncReviewItems: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                status?: "open" | "resolved";
+                outletId?: string;
+                reviewCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description review items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReviewItemListResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    resolveSyncReviewItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncReviewResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description resolution (the first one when already resolved) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReviewResolveResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     syncVersion: {
         parameters: {
             query?: never;
@@ -7215,6 +7392,33 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    reportSyncReviewItems: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncReviewReportRequest"];
+            };
+        };
+        responses: {
+            /** @description stored; resolved keys from this request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReviewReportResponse"];
+                };
+            };
         };
     };
     getInboundTransfers: {

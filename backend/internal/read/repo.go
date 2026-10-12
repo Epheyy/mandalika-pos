@@ -1073,7 +1073,7 @@ func (r *Repo) fillOpenCashRefunds(ctx context.Context, shifts []api.Shift) erro
 	var methods []api.PaymentMethodConfig
 	loaded := false
 	for i := range shifts {
-		if shifts[i].Status != api.Open {
+		if shifts[i].Status != api.ShiftStatusOpen {
 			continue
 		}
 		if !loaded {

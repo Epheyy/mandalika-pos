@@ -1700,6 +1700,93 @@ components:
         capturedAt: { type: string, format: date-time }
         shiftId: { type: string }
         appVersion: { type: string }
+    SyncReviewReport:
+      type: object
+      required: [idempotencyKey, type, clientCreatedAt, payload]
+      properties:
+        idempotencyKey: { type: string, maxLength: 200 }
+        type:
+          type: string
+          enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive]
+        reviewCode: { type: string }
+        reviewReason: { type: string }
+        lastError: { type: string }
+        ownerUserId: { type: string }
+        capturedOutletId: { type: string }
+        clientCreatedAt: { type: string, format: date-time }
+        payload: { type: object, additionalProperties: true }
+    SyncReviewReportRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: '#/components/schemas/SyncReviewReport' }
+    SyncReviewResolution:
+      type: object
+      required: [idempotencyKey, resolvedAt, resolvedByName, note]
+      properties:
+        idempotencyKey: { type: string }
+        resolvedAt: { type: string, format: date-time }
+        resolvedByName: { type: string }
+        note: { type: string }
+    SyncReviewReportResult:
+      type: object
+      required: [resolved]
+      properties:
+        resolved:
+          type: array
+          items: { $ref: '#/components/schemas/SyncReviewResolution' }
+    SyncReviewReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncReviewReportResult' }
+    SyncReviewItem:
+      type: object
+      required: [idempotencyKey, outletId, outletName, type, payload, clientCreatedAt, firstReportedAt, lastReportedAt, reportedByName, appliedOnServer]
+      properties:
+        idempotencyKey: { type: string }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        capturedOutletId: { type: string, nullable: true }
+        capturedOutletName: { type: string, nullable: true }
+        type: { type: string }
+        reviewCode: { type: string, nullable: true }
+        reviewReason: { type: string, nullable: true }
+        lastError: { type: string, nullable: true }
+        ownerUserId: { type: string, nullable: true }
+        ownerName: { type: string, nullable: true }
+        payload: { type: object, additionalProperties: true }
+        clientCreatedAt: { type: string, format: date-time }
+        firstReportedAt: { type: string, format: date-time }
+        lastReportedAt: { type: string, format: date-time }
+        reportedByName: { type: string }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        resolvedByName: { type: string, nullable: true }
+        resolutionNote: { type: string, nullable: true }
+        appliedOnServer: { type: boolean }
+    SyncReviewItemListResponse:
+      type: object
+      required: [data, meta, openCount]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SyncReviewItem' }
+        meta: { $ref: '#/components/schemas/Meta' }
+        openCount: { type: integer }
+    SyncReviewResolveRequest:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1, maxLength: 500 }
+    SyncReviewResolveResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncReviewResolution' }
     SyncBatchRequest:
       type: object
       required: [items]
@@ -4128,6 +4215,56 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorLogListResponse' }
+  /api/v1/sync-review-items:
+    get:
+      operationId: listSyncReviewItems
+      tags: [admin]
+      summary: Head-office list of tablet review items (cross-outlet, paginated)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved] }
+        - name: outletId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: reviewCode
+          in: query
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: review items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncReviewItemListResponse' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/sync-review-items/{key}/resolve:
+    post:
+      operationId: resolveSyncReviewItem
+      tags: [admin]
+      summary: Mark a review item handled (idempotent)
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncReviewResolveRequest' }
+      responses:
+        '200':
+          description: resolution (the first one when already resolved)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncReviewResolveResponse' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/sync/version:
     get:
       operationId: syncVersion
@@ -4175,6 +4312,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SyncBatchResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/sync/review-items:
+    post:
+      operationId: reportSyncReviewItems
+      tags: [sales]
+      summary: Tablet check-in of parked review items; returns the keys head office resolved
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncReviewReportRequest' }
+      responses:
+        '200':
+          description: stored; resolved keys from this request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncReviewReportResponse' }
   /api/v1/sync/inbound-transfers:
     get:
       operationId: getInboundTransfers
