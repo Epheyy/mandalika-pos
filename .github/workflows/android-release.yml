@@ -7,6 +7,12 @@ on:
         description: "VITE_API_URL the APK points at"
         required: true
         default: "https://mandalika-pos-538849926142.asia-southeast2.run.app"
+      release_type:
+        description: "test = keeps debug settings (polishing builds); production = fails on any debug setting"
+        type: choice
+        options: [test, production]
+        default: test
+        required: true
 
 permissions:
   contents: read
@@ -31,6 +37,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+
+      - name: Release debug gate (production only)
+        if: inputs.release_type == 'production'
+        run: node scripts/ci/release_debug_gate.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -93,9 +103,65 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/36.0.0)
           "$BT/apksigner" verify --print-certs "$APK"
 
+      - name: Release manifest
+        id: manifest
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          API_URL: ${{ github.event.inputs.api_url }}
+        run: |
+          OUT=apps/pos/android/app/build/outputs/apk/release
+          GRADLE=apps/pos/android/app/build.gradle
+          SHA=$(sha256sum "$OUT/app-release.apk" | cut -d' ' -f1)
+          VCODE=$(sed -n 's/^[[:space:]]*versionCode[[:space:]]\+\([0-9]\+\).*/\1/p' "$GRADLE" | head -1)
+          VNAME=$(sed -n 's/^[[:space:]]*versionName[[:space:]]\+"\([^"]*\)".*/\1/p' "$GRADLE" | head -1)
+          if [ -z "$VCODE" ] || [ -z "$VNAME" ]; then
+            echo "::error::could not read versionCode/versionName from $GRADLE"
+            exit 1
+          fi
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n \
+            --arg commit "${{ github.sha }}" \
+            --arg ref "${{ github.ref_name }}" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg release_type "$RELEASE_TYPE" \
+            --arg api_url "$API_URL" \
+            --arg version_name "$VNAME" \
+            --argjson version_code "$VCODE" \
+            --arg apk_sha256 "$SHA" \
+            --arg built_at "$BUILT_AT" \
+            '{commit:$commit, ref:$ref, run_id:$run_id, release_type:$release_type, api_url:$api_url, version_name:$version_name, version_code:$version_code, apk_sha256:$apk_sha256, built_at:$built_at}' \
+            > "$OUT/release-manifest.json"
+          cat "$OUT/release-manifest.json"
+          if [ "$RELEASE_TYPE" = "production" ]; then
+            RT="production (debug gate passed)"
+          else
+            RT="test (debug settings allowed)"
+          fi
+          {
+            echo "### Android release"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| release_type | $RT |"
+            echo "| commit | \`${{ github.sha }}\` |"
+            echo "| ref | ${{ github.ref_name }} |"
+            echo "| run_id | ${{ github.run_id }} |"
+            echo "| api_url | $API_URL |"
+            echo "| versionName | $VNAME |"
+            echo "| versionCode | $VCODE |"
+            echo "| APK SHA-256 | \`$SHA\` |"
+            echo "| built_at | $BUILT_AT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "version_name=$VNAME"
+            echo "version_code=$VCODE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mandalika-pos-release-apk
-          path: apps/pos/android/app/build/outputs/apk/release/app-release.apk
+          name: mandalika-pos-${{ steps.manifest.outputs.version_name }}-build${{ steps.manifest.outputs.version_code }}-${{ inputs.release_type }}-${{ substr(github.sha, 0, 7) }}
+          path: |
+            apps/pos/android/app/build/outputs/apk/release/app-release.apk
+            apps/pos/android/app/build/outputs/apk/release/release-manifest.json
           if-no-files-found: error
