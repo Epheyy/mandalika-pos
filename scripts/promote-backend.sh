@@ -7,7 +7,7 @@
 set -euo pipefail
 
 TAG="${1:-}"
-[[ "$TAG" =~ ^[a-z][a-z0-9-]{2,}$ ]] || { echo "usage: scripts/promote-backend.sh <tag>" >&2; exit 1; }
+[[ "$TAG" =~ ^[a-z][a-z0-9-]{1,38}[a-z0-9]$ ]] || { echo "usage: scripts/promote-backend.sh <tag>" >&2; exit 1; }
 
 ROOT="$(git rev-parse --show-toplevel)"
 # shellcheck source=lib/cloudrun.sh
@@ -19,7 +19,9 @@ TAG_URL=$(cr_field url "$TAG")
 [ -n "$TAG_URL" ] || { echo "no revision is tagged '$TAG'" >&2; exit 1; }
 PREV=$(cr_field revisionName)
 
-SHA=$(cr_revision_label "$TAG" commit-sha)
+SHA=$(cr_revision_label "$TAG" commit-sha) || { echo "promotion refused: could not read labels of the revision tagged '$TAG'" >&2; exit 1; }
+LABEL_TAG=$(cr_revision_label "$TAG" deploy-tag) || { echo "promotion refused: could not read labels of the revision tagged '$TAG'" >&2; exit 1; }
+[ "$LABEL_TAG" = "$TAG" ] || { echo "promotion refused: revision tagged '$TAG' has deploy-tag label '$LABEL_TAG'; it was not created by deploy-backend.sh for this tag" >&2; exit 1; }
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "promotion refused: revision tagged '$TAG' has no valid commit-sha label (got '$SHA')" >&2; exit 1; }
 require_green_ci_for_sha "$SHA" || exit 1
 

@@ -108,7 +108,7 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
    `/ota/publish` requires `nativeVersionCode`; `make ota-release VERSION=x.y.z` reads it from `apps/pos/android/app/build.gradle`
    (gated on a clean, pushed commit with all 4 CI gates green, built from a clean worktree of that SHA; `OTA_RELEASE_TYPE=test|production`,
    production also runs the debug gate; each release is bound to its commit via `commitSha`, mig 0050 — **pending deploy**:
-   deploy the backend (mig 0050) before the next `make ota-release`, or /ota/publish will reject the new payload)
+   deploy the backend (mig 0050) before the next `make ota-release`: the live backend decodes loosely and has no CommitSHA field, so it ACCEPTS the payload but silently drops `commitSha`, leaving the release unbound)
    (override `NATIVE_VERSION_CODE`, then build from the commit matching that APK). Live-smoked (throwaway release code 9999
    offered only to 9999, then deleted). **Release rules:** bump `versionCode` with every native change; keep Capgo
    `resetWhenUpdate` at its default (true); publish from a tree whose versionCode equals the fleet APK's.

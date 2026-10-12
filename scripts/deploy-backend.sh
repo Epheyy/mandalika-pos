@@ -51,7 +51,7 @@ PREV=$(cr_field revisionName)
 [ -n "$PREV" ] || { echo "could not determine the current 100% revision (rollback target)" >&2; exit 1; }
 echo "current 100% revision (rollback target): $PREV"
 
-ARGS=(--source "$TMP/backend" --labels "commit-sha=$RELEASE_SHA" --region "$REGION" --project "$PROJECT" --no-traffic --tag "$TAG" --quiet)
+ARGS=(--source "$TMP/backend" --labels "commit-sha=$RELEASE_SHA,deploy-tag=$TAG" --region "$REGION" --project "$PROJECT" --no-traffic --tag "$TAG" --quiet)
 if [ ${#ENV_VARS[@]} -gt 0 ]; then
   JOINED=$(IFS=,; echo "${ENV_VARS[*]}")
   ARGS+=(--update-env-vars "$JOINED")

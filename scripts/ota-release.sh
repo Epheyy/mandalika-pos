@@ -40,9 +40,9 @@ require_green_ci || exit 1
 
 # Build from a clean checkout of exactly the tested commit, never the working tree.
 WT="$(mktemp -d)"
-cleanup() { cd "$REPO_ROOT" && git worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"; }
+cleanup() { cd "$REPO_ROOT" && { git worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"; git worktree prune; }; }
 trap cleanup EXIT
-git worktree add --detach "$WT" "$RELEASE_SHA" >/dev/null
+git worktree add --detach "$WT" "$RELEASE_SHA" 2>/dev/null || { echo "could not create worktree for ${RELEASE_SHA:0:7}" >&2; exit 1; }
 ROOT="$WT"
 cd "$ROOT"
 echo "building from a clean checkout of ${RELEASE_SHA:0:7}"

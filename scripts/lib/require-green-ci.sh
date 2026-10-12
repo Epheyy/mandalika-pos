@@ -13,11 +13,11 @@ _rgc_fetch() { git fetch --quiet origin; }
 # Pushed = contained in at least one remote-tracking branch (works for detached HEAD / older commits).
 _rgc_in_remote() { [ -n "$(git branch -r --contains "$1" 2>/dev/null)" ]; }
 _rgc_have_gh() { command -v gh >/dev/null 2>&1; }
-# Prints "<status>\t<conclusion>\t<url>" for the latest PUSH-event run of workflow file $1 on
+# Prints "<status>|<conclusion>|<url>" for the latest PUSH-event run of workflow file $1 on
 # commit $2 (PR runs must not mask push runs); nothing when there is no run.
 _rgc_run_state() {
   gh run list --commit "$2" --workflow "$1" --event push --limit 1 \
-    --json status,conclusion,url --jq '.[] | [.status, (.conclusion // "none"), .url] | @tsv'
+    --json status,conclusion,url --jq '.[] | "\(.status)|\(if (.conclusion // "") == "" then "none" else .conclusion end)|\(.url)"'
 }
 
 # Require all four gates green on $1. Prints a refusal and returns 1 otherwise.
@@ -32,9 +32,9 @@ _rgc_gates_green() {
       echo "release refused: no $wf push run for ${sha:0:7} yet (CI not started; retry when it is done)" >&2
       return 1
     fi
-    IFS=$'\t' read -r status conclusion url <<<"$state"
+    IFS='|' read -r status conclusion url <<<"$state"
     if [ "$status" != completed ] || [ "$conclusion" != success ]; then
-      echo "release refused: $wf on ${sha:0:7} is status=$status conclusion=$conclusion $url (retry when CI is green)" >&2
+      echo "release refused: $wf on ${sha:0:7} is status=$status conclusion=${conclusion:-none} $url (retry when CI is green)" >&2
       return 1
     fi
   done

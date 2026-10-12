@@ -16,7 +16,7 @@ reset_stubs() {
   _rgc_fetch() { return 0; }
   _rgc_in_remote() { return 0; }
   _rgc_have_gh() { return 0; }
-  _rgc_run_state() { printf "completed	success	https://example.test/run/1
+  _rgc_run_state() { printf "completed|success|https://example.test/run/1
 "; }
   unset RELEASE_SHA
 }
@@ -51,19 +51,28 @@ expect "fetch failure fails" 1
 reset_stubs; _rgc_have_gh() { return 1; }
 expect "missing gh fails" 1
 
-reset_stubs; _rgc_run_state() { [ "$1" = backend.yml ] && printf "completed	failure	https://example.test/run/2
-" || printf "completed	success	u
+reset_stubs; _rgc_run_state() { [ "$1" = backend.yml ] && printf "completed|failure|https://example.test/run/2
+" || printf "completed|success|u
 "; }
 expect "one gate failed fails" 1
 case "$LAST_OUT" in *backend.yml*) ;; *) echo "FAIL: failure message names the gate"; FAILS=$((FAILS + 1));; esac
 
-reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && printf "in_progress	none	https://example.test/run/3
-" || printf "completed	success	u
+reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && printf "in_progress|none|https://example.test/run/3
+" || printf "completed|success|u
 "; }
 expect "one gate in progress fails" 1
+reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && printf "in_progress||https://example.test/run/4
+" || printf "completed|success|u
+"; }
+expect "in-progress with empty conclusion fails" 1
+case "$LAST_OUT" in *"status=in_progress conclusion=none https://example.test/run/4"*) echo "PASS: empty conclusion shown as none";; *) echo "FAIL: empty conclusion message: $LAST_OUT"; FAILS=$((FAILS + 1));; esac
+reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && printf "in_progress|none|https://example.test/run/3
+" || printf "completed|success|u
+"; }
+expect "in-progress with none conclusion fails" 1
 case "$LAST_OUT" in *"status=in_progress conclusion=none https://example.test/run/3"*) echo "PASS: in-progress message fields";; *) echo "FAIL: in-progress message: $LAST_OUT"; FAILS=$((FAILS + 1));; esac
 
-reset_stubs; _rgc_run_state() { [ "$1" = browser.yml ] && return 0 || printf "completed	success	u
+reset_stubs; _rgc_run_state() { [ "$1" = browser.yml ] && return 0 || printf "completed|success|u
 "; }
 expect "one gate missing (no run) fails" 1
 
@@ -91,8 +100,8 @@ expect_sha "for_sha ignores tree state, all green" 0 "$SHA40"
 expect_sha "for_sha rejects non-40-hex" 1 "abc123"
 expect_sha "for_sha rejects empty" 1 ""
 expect_sha "for_sha rejects uppercase" 1 "0123456789ABCDEF0123456789ABCDEF01234567"
-reset_stubs; _rgc_run_state() { [ "$1" = quality.yml ] && printf "completed	failure	u
-" || printf "completed	success	u
+reset_stubs; _rgc_run_state() { [ "$1" = quality.yml ] && printf "completed|failure|u
+" || printf "completed|success|u
 "; }
 expect_sha "for_sha fails when a gate failed" 1 "$SHA40"
 reset_stubs; _rgc_have_gh() { return 1; }
