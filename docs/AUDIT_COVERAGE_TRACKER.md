@@ -1,5 +1,15 @@
 # Canonical audit coverage tracker — A01–A44
 
+## A34 release gates — implemented 2026-10-12 (Claude workflow)
+
+APK: `release_type` test|production; production fails on debug settings (`scripts/ci/release_debug_gate*.mjs`, 12 tests;
+negative evidence run 38234410046); `release-manifest.json` binds APK sha256 to the commit (run 38234423013, 38238041869).
+OTA + backend: `scripts/lib/require-green-ci.sh` (22 tests) gates `ota-release.sh` and `deploy-backend.sh`/`promote-backend.sh`;
+artifacts built from a clean export of the tested SHA; OTA rows store `commit_sha` (mig 0050); Cloud Run revisions labelled
+commit-sha/deploy-tag, promote re-verifies (live: 00100-wul; refused untagged `ota10`). Capacitor loggingBehavior fixed to
+'debug' (was 'production' = always logs) in APK 1.9. Still open: branch protection (GitHub Pro), backoffice deploy ungated by
+owner choice, A38 dependency blockers. A34 parent: Partial → mostly implemented, owner-dependent items remain.
+
 ## A29 subset — sync error contract (2026-10-10)
 
 `/sync/batch` item results now carry `code` + `retryable` (commits `5612012`, `cde9765`,

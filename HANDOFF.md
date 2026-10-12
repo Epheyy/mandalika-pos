@@ -9,7 +9,7 @@ Last updated: 2026-10-12 (afternoon) by Claude (Opus 5.5).
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
 Goal: production-ready POS = 8 P0 audit findings closed + release gates. **8 of 8 P0s done.**
-Remaining before go-live: fleet rollout of APK 1.8, legacy-envelope cutoff, release gates (A34), follow-ups below.
+Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 leftovers (see Known gaps), follow-ups below.
 
 | P0 | Finding | Status |
 |---|---|---|
@@ -24,18 +24,20 @@ Remaining before go-live: fleet rollout of APK 1.8, legacy-envelope cutoff, rele
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00098-yun`** (100%, tag `ota10`) from `prod-hardening` @ `dc0b18d`.
-  = review resolve (mig 0048) + **OTA min-version guard (mig 0049)**; env `JWT_REFRESH_TTL_HOURS=720`. Migrations through **0049**.
-  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00096-neh=100`
-    (00096-neh = review resolve without the OTA guard; 00094-per = before review resolve, TTL 8760).
+- **Backend:** Cloud Run `mandalika-pos` revision **`00100-wul`** (100%, tag `gates50`, labels commit-sha=`f08c94f`,
+  deploy-tag=gates50), deployed + promoted with the new gated scripts. = review resolve (0048) + OTA guard (0049) +
+  OTA commit binding (**0050**); env `JWT_REFRESH_TTL_HOURS=720`. Migrations through **0050**.
+  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00098-yun=100`
+    (00098-yun = before 0050; it ignores the commit_sha column).
   - `SYNC_LEGACY_ENVELOPE_UNTIL` **unset on purpose** (envelope-less items from APK ≤1.4 accepted + logged).
     Set it to *APK ≥1.5 on every tablet + 14 days* via `--set-env-vars` on a deploy. Use an explicit `+07:00` offset.
 - **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev`, last deployed `307fb1b` (new "Tinjauan Sinkron" screen +
   badge, permission `resolve_sync_review`). Auto-deploys on push unless the head commit starts `[CF-Pages-Skip]`.
-- **POS:** **APK 1.8** (versionCode 9, run 38224294639, from `3fd19d5`) → `Downloads/mandalika-apk/mandalika-pos-1.8-build9.apk`
-  = 1.7 + review check-in/toast/label. **Emulator-verified 2026-10-12:** 1.7→1.8 `install -r` kept the admin session;
-  offline refund of BSD-G0013 + server refund → tablet copy parked `conflict` → reported in ~10 s ("Dilaporkan ke kantor
-  pusat") → resolved via API → tablet removed it 3m48s later with the exact toast + sync-log entry; open count 0.
+- **POS:** **APK 1.9** (versionCode 10, run 38238041869, from `f08c94f`, release_type test) →
+  `Downloads/mandalika-apk/mandalika-pos-1.9-build10.apk` + `.manifest.json` (sha256 `ceaf16cb…3ac4`). = 1.8 + native logging
+  fix (`loggingBehavior 'debug'`: 1.7/1.8 shipped `'production'`, which ALWAYS logs). Emulator: 1.8→1.9 `install -r` kept
+  session/terminal/queue; 0 console lines in logcat. **1.9 is the fleet APK** (1.8 build9 = superseded, same versionCode
+  was reused by a test build with different native config, so never OTA against code 9).
   Older APKs (1.1–1.7) are in the same folder. **Fleet still on old versions** — not rolled out.
   - Slice 9 (plan `docs/plans/2026-10-11-p0-slice9-a01-journal.md`): outbox in an in-repo SQLite plugin
     (`OutboxJournalPlugin.java`, TRUNCATE + synchronous FULL, one transaction per save, never REPLACE, corruption
@@ -101,17 +103,13 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 ## Next
 
 0. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
-1. **Rollout (ready):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
+1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
 2. **OTA guard DONE 2026-10-12** (rev 00098-yun, mig 0049): each OTA release targets exactly one APK build
    (`ota_releases.native_version_code`); `/ota/check` matches Capgo's `version_code` and fails safe (missing/invalid → no release);
    `/ota/publish` requires `nativeVersionCode`; `make ota-release VERSION=x.y.z` reads it from `apps/pos/android/app/build.gradle`
    (gated on a clean, pushed commit with all 4 CI gates green, built from a clean worktree of that SHA; `OTA_RELEASE_TYPE=test|production`,
-   production also runs the debug gate; each release is bound to its commit via `commitSha`, mig 0050 — **pending deploy**:
-   deploy the backend (mig 0050) before the next `make ota-release`: the live backend decodes loosely and has no CommitSHA field, so it ACCEPTS the payload but silently drops `commitSha`, leaving the release unbound)
-   (override `NATIVE_VERSION_CODE`, then build from the commit matching that APK). Live-smoked (throwaway release code 9999
-   offered only to 9999, then deleted). **Release rules:** bump `versionCode` with every native change; keep Capgo
-   `resetWhenUpdate` at its default (true); publish from a tree whose versionCode equals the fleet APK's.
+   production also runs the debug gate; each release is bound to its commit via `commitSha` (mig 0050, live in 00100-wul).
 3. **Optional device checks:** slice 7 cross-shift refund then close (cash_refunds_paid), printed recap lines, account
    without process_refund, backoffice refund column/"oleh" on BSD-G0007; slice 9 kill during first migration.
 4. **Follow-ups (owner to prioritise):**
@@ -130,7 +128,14 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 
 ## Known gaps (not P0)
 
-- A34 parent (CI enforcement) and all release gates remain open. Backoffice polls all order pages every 12 s.
+- A34 release gates (2026-10-12): APK workflow has `release_type` test|production — production FAILS on debug settings
+  (proven: run 38234410046 failed at the gate with exactly webContentsDebuggingEnabled + SyncProvider debug); every APK carries
+  `release-manifest.json` (commit, version, sha256). OTA + backend paths gated by `scripts/lib/require-green-ci.sh` (clean
+  tracked tree, HEAD on origin, 4 push-event gates green); builds/deploys come from a clean export of the tested SHA; Cloud
+  Run revisions carry commit-sha + deploy-tag labels and `promote-backend.sh` re-verifies them. Open A34 leftovers: branch
+  protection needs GitHub Pro (owner: spending); backoffice deploys on push (owner chose to keep); OTA release type defaults to
+  test and is not stored; dependency-security's 24 blockers = A38; gate misses a backtick computed key; Git Bash rewrites
+  `--env KEY=/path` values. Backoffice polls all order pages every 12 s. Backoffice polls all order pages every 12 s.
 - Cloud Run runs as the default compute SA with `roles/editor` (over-privileged).
 - No APK/OTA release ledger (CI artifacts expire after 90 days; OTA bucket empty) → keep APKs in `Downloads/mandalika-apk/`.
 - Administrator account had 149 unexpired refresh tokens (shared login) — cleanup/review later.
