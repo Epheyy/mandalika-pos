@@ -668,8 +668,10 @@ gh workflow run android-release.yml --ref prod-hardening \
 
 Watch it: `gh run list --workflow=android-release.yml`
 
-Download when green: the artifact is **`mandalika-pos-release-apk`**, containing
-the signed `app-release.apk`. Transfer to the tablet and install.
+Download when green: the artifact is named **`mandalika-pos-<versionName>-build<versionCode>-<release_type>-<sha7>`**
+(for example `mandalika-pos-1.8-build9-test-e6474b4`), containing the signed
+`app-release.apk` and `release-manifest.json` (commit, version, APK SHA-256).
+`gh run download <run-id>` unpacks into a directory with that name. Transfer to the tablet and install.
 
 The workflow does: Node 22 → pnpm 9.15.0 → install → build POS with your
 `api_url` → JDK 21 → Android SDK 36 → `cap sync android` → decode the keystore
@@ -934,7 +936,7 @@ local diff.
 1. Commit per logical cluster (both apps `tsc -b` + `pnpm -r build` green first).
 2. `git push origin prod-hardening` → auto-deploys the backoffice.
 3. If `apps/pos` changed → `gh workflow run android-release.yml --ref prod-hardening`.
-   Monitor to success, report the run id and the `gh run download <id>` command.
+   Monitor to success, report the run id and the `gh run download <id>` command (it unpacks into `mandalika-pos-<versionName>-build<versionCode>-<release_type>-<sha7>/` with the APK and `release-manifest.json`).
 4. If `backend/**` changed → `gcloud run deploy`.
 5. Report what deployed, plus a short on-device test checklist for any money-path
    or visual change.

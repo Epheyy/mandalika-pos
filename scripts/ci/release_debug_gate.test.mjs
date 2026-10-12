@@ -50,3 +50,41 @@ test('violations inside comments are ignored', () => {
     [],
   )
 })
+
+const syncOk = sync('debug: false,')
+const check = (capacitorConfig, syncProvider = syncOk) =>
+  checkReleaseDebug({ capacitorConfig, syncProvider })
+
+test('string containing // or /* before the key does not hide a violation', () => {
+  assert.equal(
+    check(`const u = 'https://x'; const config = { android: { webContentsDebuggingEnabled: true } }`).length,
+    1,
+  )
+  assert.equal(
+    check(`const g = 'dist/*'; const config = { android: { webContentsDebuggingEnabled: true } }`).length,
+    1,
+  )
+  assert.equal(check(`const g = "a//b"; const c = { loggingBehavior: 'production' }`).length, 1)
+})
+
+test('quoted keys are matched', () => {
+  assert.equal(check(`{ "webContentsDebuggingEnabled": true }`).length, 1)
+  assert.equal(check(`{ 'loggingBehavior': 'production' }`).length, 1)
+  assert.equal(
+    check(`{}`, `new SyncEngine(api, { 'debug': true })`).length,
+    1,
+  )
+})
+
+test('non-literal-false values are violations', () => {
+  assert.equal(check(`{ webContentsDebuggingEnabled: !0 }`).length, 1)
+  assert.equal(check(`{ webContentsDebuggingEnabled: process.env.X ? true : false }`).length, 1)
+  assert.equal(check(`{ loggingBehavior: process.env.LOG }`).length, 1)
+  assert.equal(check(`{}`, `{ debug: !!window.x }`).length, 1)
+})
+
+test('literal false / DEV values and absent keys are OK', () => {
+  assert.deepEqual(check(`{ webContentsDebuggingEnabled: false, loggingBehavior: "none" }`), [])
+  assert.deepEqual(check(`{}`, `{ debug: import.meta.env.DEV }`), [])
+  assert.deepEqual(check(`{}`, `{ onWall: x }`), [])
+})

@@ -61,7 +61,7 @@ Last 5 successful runs (newest first):
 
 ### Artifacts for those runs
 - `gh api .../runs/<id>/artifacts` returned `total_count: 0` for all 5 runs checked.
-- The workflow uploads `mandalika-pos-release-apk` via `actions/upload-artifact@v4`. Zero artifacts means expired, deleted, or cleaned up. Expiry dates are not exposed for removed artifacts.
+- The workflow uploads `mandalika-pos-<versionName>-build<versionCode>-<release_type>-<sha7>` (APK plus `release-manifest.json`; `gh run download <run-id>` unpacks into a directory with that name) via `actions/upload-artifact@v4`. Zero artifacts means expired, deleted, or cleaned up. Expiry dates are not exposed for removed artifacts.
 - Conclusion: the APKs are not available from Actions.
 
 ### GitHub Releases

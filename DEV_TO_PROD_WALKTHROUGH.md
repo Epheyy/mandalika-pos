@@ -46,7 +46,7 @@ Active branch: **`prod-hardening`**. Main is `main`.
 
 - **Backoffice**: just `git push` to `prod-hardening` → Cloudflare Pages builds.
 - **POS APK**: trigger the `Android Release APK` GitHub Action on `prod-hardening`
-  (manual). Download the `mandalika-pos-release-apk` artifact.
+  (manual). Download the `mandalika-pos-<versionName>-build<versionCode>-<release_type>-<sha7>` artifact (`gh run download <run-id>` unpacks it into a directory of that name holding `app-release.apk` and `release-manifest.json`).
 - **Backend**: CI (`.github/workflows/backend.yml`) only **builds + tests** on
   push — it does **NOT deploy**. Deploy is `gcloud run deploy mandalika-pos
   --source backend --region asia-southeast2 --quiet`. NOTE: `gcloud` is now

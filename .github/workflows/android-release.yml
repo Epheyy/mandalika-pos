@@ -80,6 +80,8 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Capacitor sync (android)
+        env:
+          VITE_API_URL: ${{ github.event.inputs.api_url }}
         run: corepack pnpm --filter @mandalika/pos exec cap sync android
 
       - name: Decode keystore
@@ -108,6 +110,7 @@ jobs:
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
           API_URL: ${{ github.event.inputs.api_url }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           OUT=apps/pos/android/app/build/outputs/apk/release
           GRADLE=apps/pos/android/app/build.gradle
@@ -121,7 +124,7 @@ jobs:
           BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           jq -n \
             --arg commit "${{ github.sha }}" \
-            --arg ref "${{ github.ref_name }}" \
+            --arg ref "$REF_NAME" \
             --arg run_id "${{ github.run_id }}" \
             --arg release_type "$RELEASE_TYPE" \
             --arg api_url "$API_URL" \
@@ -144,7 +147,7 @@ jobs:
             echo "|---|---|"
             echo "| release_type | $RT |"
             echo "| commit | \`${{ github.sha }}\` |"
-            echo "| ref | ${{ github.ref_name }} |"
+            echo "| ref | $REF_NAME |"
             echo "| run_id | ${{ github.run_id }} |"
             echo "| api_url | $API_URL |"
             echo "| versionName | $VNAME |"
@@ -155,12 +158,13 @@ jobs:
           {
             echo "version_name=$VNAME"
             echo "version_code=$VCODE"
+            echo "sha7=${GITHUB_SHA::7}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mandalika-pos-${{ steps.manifest.outputs.version_name }}-build${{ steps.manifest.outputs.version_code }}-${{ inputs.release_type }}-${{ substr(github.sha, 0, 7) }}
+          name: mandalika-pos-${{ steps.manifest.outputs.version_name }}-build${{ steps.manifest.outputs.version_code }}-${{ inputs.release_type }}-${{ steps.manifest.outputs.sha7 }}
           path: |
             apps/pos/android/app/build/outputs/apk/release/app-release.apk
             apps/pos/android/app/build/outputs/apk/release/release-manifest.json
