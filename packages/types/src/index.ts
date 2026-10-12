@@ -50,6 +50,7 @@ export const UserPermission = {
   VIEW_REPORTS: 'view_reports',
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_STOCK_COUNT: 'manage_stock_count',
+  RESOLVE_SYNC_REVIEW: 'resolve_sync_review',
 } as const
 export type UserPermission = typeof UserPermission[keyof typeof UserPermission]
 

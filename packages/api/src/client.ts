@@ -66,6 +66,16 @@ export type AdjustPointsInput = S['AdjustPointsInput']
 export type RewardGrant = S['RewardGrant']
 export type LoyaltyPreviewReward = S['LoyaltyPreviewReward']
 export type DupCandidate = S['DupCandidate']
+export type SyncReviewItem = S['SyncReviewItem']
+export type SyncReviewResolution = S['SyncReviewResolution']
+export type SyncReviewItemList = S['SyncReviewItemListResponse']
+export interface SyncReviewListParams {
+  status: 'open' | 'resolved'
+  page: number
+  limit: number
+  outletId?: string
+  reviewCode?: string
+}
 export type MergeCustomersInput = S['MergeCustomersInput']
 
 export type ProductInput = S['ProductInput']
@@ -246,6 +256,8 @@ export interface Api {
   refundOrder: (id: string, reason: string) => Promise<Order>
   listShifts: (params?: Record<string, string | number>) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
+  listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
+  resolveSyncReviewItem: (key: string, note: string) => Promise<SyncReviewResolution>
 
   // stock counts
   listStockCounts: (page?: number, limit?: number) => Promise<ListResult<StockCount>>
@@ -640,6 +652,14 @@ export function createClient(opts: ClientOptions): Api {
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason }),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
     listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
+    listSyncReviewItems: ({ status, page, limit, outletId, reviewCode }) =>
+      request<SyncReviewItemList>('GET', `${API}/sync-review-items` + qs({
+        status, page, limit,
+        ...(outletId ? { outletId } : {}),
+        ...(reviewCode ? { reviewCode } : {}),
+      })),
+    resolveSyncReviewItem: (key, note) =>
+      data<SyncReviewResolution>('POST', `${API}/sync-review-items/${encodeURIComponent(key)}/resolve`, { note }),
 
     listStockCounts: (page = 1, limit = 100) =>
       list<StockCount>(`${API}/stock-counts`, { page, limit }),
