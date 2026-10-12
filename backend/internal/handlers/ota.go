@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/mandalika/pos-backend/internal/auth"
@@ -14,6 +15,9 @@ import (
 
 var errOtaMissingFields = errors.New("version, url, and checksum are required")
 var errOtaNativeVersionCode = errors.New("nativeVersionCode (the target APK versionCode, >= 1) is required")
+var errOtaCommitSha = errors.New("commitSha (40-char lowercase hex of the tested commit) is required")
+
+var otaCommitShaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // validateOtaPublish checks the required fields of a publish request.
 func validateOtaPublish(in ota.Release) error {
@@ -22,6 +26,9 @@ func validateOtaPublish(in ota.Release) error {
 	}
 	if in.NativeVersionCode < 1 || in.NativeVersionCode > math.MaxInt32 {
 		return errOtaNativeVersionCode
+	}
+	if !otaCommitShaRe.MatchString(in.CommitSHA) {
+		return errOtaCommitSha
 	}
 	return nil
 }

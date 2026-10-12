@@ -50,9 +50,8 @@ Remaining before go-live: fleet rollout of APK 1.8, legacy-envelope cutoff, rele
     shift_close/shift_open behind an earlier retryable failure. Verified: offline same-shift refund BSD-G0007.
 - **Earlier slices:** plans in `docs/plans/2026-10-11-p0-slice6-a04-envelope.md`, `…slice8-a09-tender-rules.md`,
   `…admin-reset-password.md`, `docs/plans/2026-10-10-p0-remediation-plan.md`.
-- **Deploy pattern:** CI green on the pushed commit → `gcloud run deploy mandalika-pos --source backend --region
-  asia-southeast2 --project mandalika-pos --no-traffic --tag <≥3 chars> --quiet` → smoke the tag URL →
-  `update-traffic --to-tags <tag>=100`. APK builds use **origin**: push first, then
+- **Deploy pattern:** CI green on the pushed commit → `scripts/deploy-backend.sh <tag>` (refuses unless clean + pushed +
+  all 4 gates green; traffic-free; prints rollback) → smoke the tag URL → `scripts/promote-backend.sh <tag>` (checks `/readyz` first). APK builds use **origin**: push first, then
   `gh workflow run android-release.yml --ref prod-hardening -f api_url=https://mandalika-pos-538849926142.asia-southeast2.run.app`.
   The release workflow re-runs the PG gate; Docker Hub rate limits ("toomanyrequests") → `gh run rerun <id> --failed`.
 - **CI:** backend (`-race`, **gofmt** — committed files must be gofmt-clean; CRLF working copies look dirty locally,
@@ -106,6 +105,8 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 2. **OTA guard DONE 2026-10-12** (rev 00098-yun, mig 0049): each OTA release targets exactly one APK build
    (`ota_releases.native_version_code`); `/ota/check` matches Capgo's `version_code` and fails safe (missing/invalid → no release);
    `/ota/publish` requires `nativeVersionCode`; `make ota-release VERSION=x.y.z` reads it from `apps/pos/android/app/build.gradle`
+   (gated on a clean, pushed commit with all 4 CI gates green; `OTA_RELEASE_TYPE=test|production`, production also runs the
+   debug gate; each release is bound to its commit via `commitSha`, mig 0050)
    (override `NATIVE_VERSION_CODE`, then build from the commit matching that APK). Live-smoked (throwaway release code 9999
    offered only to 9999, then deleted). **Release rules:** bump `versionCode` with every native change; keep Capgo
    `resetWhenUpdate` at its default (true); publish from a tree whose versionCode equals the fleet APK's.

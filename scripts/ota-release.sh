@@ -11,7 +11,11 @@
 # Each bundle targets exactly ONE APK build (native versionCode): /ota/check only
 # offers it to devices on that build (min-version guard, backend mig 0049).
 #
-# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL, NATIVE_VERSION_CODE.
+# Gate: refuses unless HEAD is a clean, pushed commit whose four CI gates passed; the
+# release is bound to that commit (commitSha). OTA_RELEASE_TYPE=test (default) |
+# production (production also runs scripts/ci/release_debug_gate_cli.mjs).
+#
+# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL, NATIVE_VERSION_CODE, OTA_RELEASE_TYPE.
 set -euo pipefail
 
 # --- Inputs & validation -------------------------------------------------
@@ -27,6 +31,25 @@ APP_ID="com.mandalika.pos"                        # matches apps/pos/capacitor.c
 ADMIN_EMAIL="${OTA_ADMIN_EMAIL:-admin@mandalika.test}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
+
+# --- Release gate (A34): clean, pushed commit with all four CI gates green ---
+# shellcheck source=lib/require-green-ci.sh
+source "$ROOT/scripts/lib/require-green-ci.sh"
+require_green_ci || exit 1
+
+OTA_RELEASE_TYPE="${OTA_RELEASE_TYPE:-test}"
+case "$OTA_RELEASE_TYPE" in
+  test) echo "OTA release type: test (debug settings allowed)" ;;
+  production)
+    # The web bundle carries SyncProvider's debug flag; refuse a production bundle that enables it.
+    node "$ROOT/scripts/ci/release_debug_gate_cli.mjs" || {
+      echo "production OTA refused: debug gate failed" >&2
+      exit 1
+    }
+    echo "OTA release type: production (debug gate passed)"
+    ;;
+  *) echo "OTA_RELEASE_TYPE must be test or production (got '$OTA_RELEASE_TYPE')" >&2; exit 1 ;;
+esac
 
 # When overriding NATIVE_VERSION_CODE, build from the commit that matches the target APK.
 NATIVE_CODE="${NATIVE_VERSION_CODE:-$(sed -n 's/^[[:space:]]*versionCode[[:space:]]\+\([0-9]\+\).*/\1/p' apps/pos/android/app/build.gradle | head -1)}"
@@ -101,7 +124,7 @@ TOK=$(printf '%s' "$LOGIN" | json_get data.access)
 RESP=$(curl -sS -X POST "$BASE/api/v1/ota/publish" \
   -H "Authorization: Bearer $TOK" \
   -H 'Content-Type: application/json' \
-  -d "{\"platform\":\"android\",\"version\":\"$VERSION\",\"url\":\"$URL\",\"checksum\":\"$CHECKSUM\",\"size\":$SIZE,\"nativeVersionCode\":$NATIVE_CODE}") || true
+  -d "{\"platform\":\"android\",\"version\":\"$VERSION\",\"url\":\"$URL\",\"checksum\":\"$CHECKSUM\",\"size\":$SIZE,\"nativeVersionCode\":$NATIVE_CODE,\"commitSha\":\"$RELEASE_SHA\"}") || true
 ID=$(printf '%s' "$RESP" | json_get id)
 [ -n "$ID" ] || { echo "publish failed: $RESP" >&2; exit 1; }
 

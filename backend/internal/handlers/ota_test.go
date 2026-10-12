@@ -13,7 +13,7 @@ import (
 )
 
 func TestValidateOtaPublish(t *testing.T) {
-	valid := ota.Release{Version: "1.0.1", URL: "https://x/a.zip", Checksum: "abc", NativeVersionCode: 9}
+	valid := ota.Release{Version: "1.0.1", URL: "https://x/a.zip", Checksum: "abc", NativeVersionCode: 9, CommitSHA: "0123456789abcdef0123456789abcdef01234567"}
 	tests := []struct {
 		name   string
 		mutate func(r *ota.Release)
@@ -23,6 +23,10 @@ func TestValidateOtaPublish(t *testing.T) {
 		{"missing version", func(r *ota.Release) { r.Version = "" }, errOtaMissingFields},
 		{"missing url", func(r *ota.Release) { r.URL = "" }, errOtaMissingFields},
 		{"missing checksum", func(r *ota.Release) { r.Checksum = "" }, errOtaMissingFields},
+		{"missing commit sha", func(r *ota.Release) { r.CommitSHA = "" }, errOtaCommitSha},
+		{"short commit sha", func(r *ota.Release) { r.CommitSHA = "0123abc" }, errOtaCommitSha},
+		{"uppercase commit sha", func(r *ota.Release) { r.CommitSHA = "0123456789ABCDEF0123456789ABCDEF01234567" }, errOtaCommitSha},
+		{"non-hex commit sha", func(r *ota.Release) { r.CommitSHA = "g123456789abcdef0123456789abcdef01234567" }, errOtaCommitSha},
 		{"native code zero", func(r *ota.Release) { r.NativeVersionCode = 0 }, errOtaNativeVersionCode},
 		{"native code over int32", func(r *ota.Release) { r.NativeVersionCode = math.MaxInt32 + 1 }, errOtaNativeVersionCode},
 		{"native code max int32", func(r *ota.Release) { r.NativeVersionCode = math.MaxInt32 }, nil},

@@ -19,6 +19,9 @@ type Release struct {
 	// NativeVersionCode is the Android versionCode of the one APK build this
 	// bundle targets; /ota/check only offers it to devices on that build.
 	NativeVersionCode int `json:"nativeVersionCode"`
+	// CommitSHA binds the release to the tested commit it was built from (A34);
+	// recorded at publish, never returned by the public /ota/check.
+	CommitSHA string `json:"commitSha"`
 }
 
 // ParseVersionCode reads the Capgo plugin's version_code, sent as a JSON string
