@@ -53,6 +53,9 @@ func TestNormalizeReviewReportsClipsAndStrips(t *testing.T) {
 	r.OwnerUserID = "not-a-uuid"
 	r.CapturedOutletID = "00000000-0000-4000-8a00-000000000001"
 	out, _ := normalizeReviewReports([]reviewReportIn{r})
+	if len(out) != 1 {
+		t.Fatalf("want 1 item, got %d", len(out))
+	}
 	got := out[0]
 	if n := len([]rune(got.ReviewReason)); n != maxReviewTextRunes {
 		t.Fatalf("reason runes = %d", n)
@@ -78,6 +81,29 @@ func TestSanitizeReviewPayload(t *testing.T) {
 		if got := string(sanitizeReviewPayload(json.RawMessage(c.in))); got != c.want {
 			t.Errorf("%s: got %s want %s", c.name, got, c.want)
 		}
+	}
+	str := func(in, key string) string {
+		var m map[string]any
+		if err := json.Unmarshal(sanitizeReviewPayload(json.RawMessage(in)), &m); err != nil {
+			t.Fatalf("output not valid JSON for %s: %v", in, err)
+		}
+		s, _ := m[key].(string)
+		return s
+	}
+	if got := str(`{"n":"\ud83d"}`, "n"); got != "�" {
+		t.Errorf("lone surrogate: got %q", got)
+	}
+	if got := str("{\"a\":\"a\\\\u0000b\"}", "a"); got != "a\\u0000b" {
+		t.Errorf("escaped backslash text corrupted: got %q", got)
+	}
+	if got := string(sanitizeReviewPayload(json.RawMessage(`null`))); got != `{"_invalid":true}` {
+		t.Errorf("null: got %s", got)
+	}
+	if got := string(sanitizeReviewPayload(nil)); got != `{"_invalid":true}` {
+		t.Errorf("empty: got %s", got)
+	}
+	if got := string(sanitizeReviewPayload(json.RawMessage(`{"x":{"y":["a\u0000b"]}}`))); got != `{"x":{"y":["ab"]}}` {
+		t.Errorf("nested NUL: got %s", got)
 	}
 	big := json.RawMessage(`{"x":"` + strings.Repeat("a", maxReviewPayloadBytes) + `"}`)
 	var m map[string]any

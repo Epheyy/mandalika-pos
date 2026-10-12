@@ -98,26 +98,52 @@ func uuidOrEmpty(s string) string {
 var invalidPayload = []byte(`{"_invalid":true}`)
 
 // sanitizeReviewPayload returns a JSON object safe for jsonb: size-capped,
-// top-level pin removed (backstop; the tablet already strips it), NUL removed.
+// top-level pin removed (backstop; the tablet already strips it). The payload
+// is decoded and re-encoded so lone UTF-16 surrogate escapes become U+FFFD
+// (jsonb rejects them) and NUL is removed from every key and string value.
 func sanitizeReviewPayload(raw json.RawMessage) []byte {
 	if len(raw) > maxReviewPayloadBytes {
 		b, _ := json.Marshal(map[string]any{"_truncated": true, "bytes": len(raw)})
 		return b
 	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil || m == nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return invalidPayload
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
 		return invalidPayload
 	}
 	delete(m, "pin")
-	b, err := json.Marshal(m)
+	b, err := json.Marshal(stripNUL(m))
 	if err != nil {
 		return invalidPayload
 	}
-	b = bytes.ReplaceAll(b, []byte(`\u0000`), nil)
-	if !json.Valid(b) {
-		return invalidPayload
-	}
 	return b
+}
+
+// stripNUL removes NUL from every string, map key included, recursively.
+func stripNUL(v any) any {
+	switch t := v.(type) {
+	case string:
+		return strings.ReplaceAll(t, "\x00", "")
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[strings.ReplaceAll(k, "\x00", "")] = stripNUL(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = stripNUL(e)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func normalizeResolveNote(s string) (string, error) {
