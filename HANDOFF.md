@@ -98,13 +98,13 @@ not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalik
 
 ## Next
 
-0. **Now:** head-office review resolve **implemented on branch `feat/review-resolve`** (12 commits bb2cb36..7325a49, local,
-   not pushed): mig 0048 `sync_review_items`, `POST /sync/review-items` + `GET/POST /sync-review-items…` (perm
-   `resolve_sync_review`), guarded `Outbox.resolveReviewed`, engine check-in, POS toast/label, backoffice "Tinjauan Sinkron",
-   PG gate RV (12 gates), browser scenario BO-REVIEW-RESOLVE, revoke-marker TTL floor 8760 h. All gates green; Opus
-   whole-branch review done. **Open before APK 1.8:** N1 one-line fix (false resolved toast in a rare retry race, see
-   `.superpowers/sdd/2026-10-12-review-resolve-plan/progress.md`). Then (owner go-ahead): FF into prod-hardening, push, deploy
-   backend `--tag review` with `JWT_REFRESH_TTL_HOURS=720`, smoke, traffic; build APK 1.8; emulator check.
+0. **Now:** head-office review resolve **merged locally into prod-hardening** (not pushed): mig 0048 `sync_review_items`,
+   `POST /sync/review-items` + `GET/POST /sync-review-items…` (perm `resolve_sync_review`), guarded `Outbox.resolveReviewed`,
+   engine check-in, POS toast/label, backoffice "Tinjauan Sinkron", PG gate RV (12 gates), browser scenario BO-REVIEW-RESOLVE,
+   revoke-marker TTL floor 8760 h. All gates green; Opus whole-branch review + N1 fix reviewed. Deferred LOW items (page
+   step-back cascade, stale "reported" label races, minors) listed in docs/plans/2026-10-12-review-resolve-plan.md follow-ups
+   below. **Next (owner go-ahead):** push (head commit must NOT start with [CF-Pages-Skip] or the backoffice won't deploy),
+   deploy backend `--tag review` with `JWT_REFRESH_TTL_HOURS=720`, smoke, traffic; build APK 1.8; emulator check.
 1. **Rollout (held for 1.8):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
 2. **Before the first OTA release:** min-versionCode guard per OTA release (needs a migration; today any published bundle
@@ -112,6 +112,8 @@ not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalik
 3. **Optional device checks:** slice 7 cross-shift refund then close (cash_refunds_paid), printed recap lines, account
    without process_refund, backoffice refund column/"oleh" on BSD-G0007; slice 9 kill during first migration.
 4. **Follow-ups (owner to prioritise):**
+   - Review-resolve follow-ups (LOW): backoffice page step-back can cascade to page 1; "Dilaporkan" label can go stale after
+     "Coba lagi" races; report endpoint body cap 8 MiB vs tablet 50 items; English 404 text; moved-tablet items never cleared.
    - Quarantine action for a corrupt journal row (`quarantineCorruptRows`
      exists, nothing calls it).
    - Receipt numbers repeat across tablets/reinstalls (`apps/pos/src/cashier/orderRef.ts`) → server sequence or slice 10 device code.
