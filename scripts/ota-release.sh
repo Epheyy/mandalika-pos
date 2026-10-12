@@ -28,6 +28,7 @@ ADMIN_EMAIL="${OTA_ADMIN_EMAIL:-admin@mandalika.test}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+# When overriding NATIVE_VERSION_CODE, build from the commit that matches the target APK.
 NATIVE_CODE="${NATIVE_VERSION_CODE:-$(sed -n 's/^[[:space:]]*versionCode[[:space:]]\+\([0-9]\+\).*/\1/p' apps/pos/android/app/build.gradle | head -1)}"
 [[ "$NATIVE_CODE" =~ ^[1-9][0-9]*$ ]] || {
   echo "could not determine the APK versionCode (got '$NATIVE_CODE'); set NATIVE_VERSION_CODE=<n>" >&2

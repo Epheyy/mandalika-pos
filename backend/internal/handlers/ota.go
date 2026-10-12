@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 
@@ -19,7 +20,7 @@ func validateOtaPublish(in ota.Release) error {
 	if in.Version == "" || in.URL == "" || in.Checksum == "" {
 		return errOtaMissingFields
 	}
-	if in.NativeVersionCode < 1 {
+	if in.NativeVersionCode < 1 || in.NativeVersionCode > math.MaxInt32 {
 		return errOtaNativeVersionCode
 	}
 	return nil

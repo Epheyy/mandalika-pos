@@ -98,6 +98,9 @@ func TestParseVersionCode(t *testing.T) {
 		{"negative", `-3`, 0, false},
 		{"huge string", `"99999999999"`, 0, false},
 		{"over int32", `2147483648`, 0, false},
+		{"exponent number", `9e0`, 0, false}, // not a plain integer literal: fail safe
+		{"plus-signed string", `"+9"`, 9, true},
+		{"leading-zero string", `"09"`, 9, true},
 		{"bool", `true`, 0, false},
 		{"object", `{}`, 0, false},
 	}
