@@ -25,6 +25,9 @@ type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
 type VersionInfo = components['schemas']['SyncVersion']
 type Transfer = components['schemas']['Transfer']
+type ReviewReport = components['schemas']['SyncReviewReport']
+type ReviewReportRequest = components['schemas']['SyncReviewReportRequest']
+type ReviewReportResult = components['schemas']['SyncReviewReportResult']
 
 // Minimal seam onto the generated API client (packages/api `request`).
 export interface ApiLike {
@@ -75,6 +78,8 @@ export interface SyncEvents {
    *  resolved receiver letterhead) so the UI can render the post-receive slip
    *  without a second roundtrip. */
   onReceiveAccepted?: (transfer: Transfer) => void
+  /** Head office resolved review items and they were removed from the queue (toast). */
+  onReviewResolved?: (items: ReviewResolvedNotice[]) => void
 }
 
 /** A transfer_receive result goes to REVIEW (credit removed, payload kept) for these
@@ -96,6 +101,36 @@ const KNOWN_ERROR_CODES = new Set([
 /** The whole /sync/batch request is aborted after this long so a hung connection
  *  cannot leave `flushing` stuck. */
 export const BATCH_TIMEOUT_MS = 30_000
+
+/** Review check-in: re-report everything at most this often... */
+export const REVIEW_CHECKIN_MS = 5 * 60_000
+/** ...but report a not-yet-reported review item within this. */
+export const REVIEW_CHECKIN_NEW_MS = 30_000
+/** Items per check-in; the rest follow in later rounds (least recently sent first). */
+export const REVIEW_CHECKIN_MAX_ITEMS = 50
+const REVIEW_CHECKIN_TIMEOUT_MS = 20_000
+
+/** Head office resolved a review item and the tablet removed it. */
+export interface ReviewResolvedNotice {
+  idempotencyKey: string
+  type: OutboxType
+  note: string
+  resolvedByName: string
+}
+
+function toReviewReport(i: ReviewItem): ReviewReport {
+  return {
+    idempotencyKey: i.idempotencyKey,
+    type: i.type,
+    clientCreatedAt: i.clientCreatedAt,
+    payload: redactPayload({ ...i.payload }),
+    ...(i.reviewCode ? { reviewCode: i.reviewCode } : {}),
+    ...(i.reviewReason ? { reviewReason: i.reviewReason } : {}),
+    ...(i.lastError ? { lastError: i.lastError } : {}),
+    ...(i.ownerUserId ? { ownerUserId: i.ownerUserId } : {}),
+    ...(i.capturedOutletId ? { capturedOutletId: i.capturedOutletId } : {}),
+  }
+}
 /** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
 export const BACKOFF_BASE_MS = 20_000
 export const BACKOFF_CAP_MS = 5 * 60_000
@@ -198,6 +233,12 @@ export class SyncEngine {
   private nextFlushAt = 0
   private backoffStep = 0
   private disposed = false
+  // Review check-in (head-office resolve). Key -> last time it was sent in a successful check-in.
+  private reviewSentAt = new Map<string, number>()
+  private reviewCheckInAt = 0
+  private checkingIn = false
+  // Automatic check-ins run only after start() outside flushOnly mode.
+  private autoCheckIn = false
   private stopTimers: (() => void) | null = null
   private wall: WallState
   private reachable: boolean = ONLINE()
@@ -600,24 +641,78 @@ export class SyncEngine {
     const dead = JSON.parse(JSON.stringify(this.outbox.deadLettered())) as OutboxItem[]
     if (dead.length) {
       const now = new Date().toISOString()
-      const log = readJSON<unknown[]>(this.kv, SYNC_LOG_KEY, [])
-      for (const d of dead) {
-        log.push({
-          at: now,
-          deviceId: this.deviceId,
-          type: d.type,
-          idempotencyKey: d.idempotencyKey,
-          lastError: d.lastError,
-          reviewCode: d.reviewCode,
-          reviewReason: d.reviewReason,
-          clientCreatedAt: d.clientCreatedAt,
-          payload: redactPayload(d.payload),
-        })
-      }
-      writeJSON(this.kv, SYNC_LOG_KEY, log.slice(-200)) // keep last 200
+      this.appendSyncLog(dead.map((d) => ({
+        at: now,
+        deviceId: this.deviceId,
+        type: d.type,
+        idempotencyKey: d.idempotencyKey,
+        lastError: d.lastError,
+        reviewCode: d.reviewCode,
+        reviewReason: d.reviewReason,
+        clientCreatedAt: d.clientCreatedAt,
+        payload: redactPayload(d.payload),
+      })))
     }
     const redacted = dead.map((d) => ({ ...d, payload: redactPayload(d.payload) }))
     return JSON.stringify(redacted, null, 2)
+  }
+
+  private appendSyncLog(entries: readonly unknown[]): void {
+    const log = readJSON<unknown[]>(this.kv, SYNC_LOG_KEY, [])
+    log.push(...entries)
+    writeJSON(this.kv, SYNC_LOG_KEY, log.slice(-200)) // keep last 200
+  }
+
+  /** True once the item went out in a successful review check-in (cashier label). */
+  isReviewReported(key: string): boolean {
+    return this.reviewSentAt.has(key)
+  }
+
+  /** Report parked review items to head office and remove the ones it resolved.
+   *  Throttled; any failure leaves the queue untouched and is retried next cycle. */
+  async checkInReviews(): Promise<void> {
+    if (this.disposed || this.checkingIn || !ONLINE()) return
+    const all = this.outbox.reviewItems()
+    if (all.length === 0) return
+    const unreported = all.filter((i) => !this.reviewSentAt.has(i.idempotencyKey))
+    const wait = unreported.length ? REVIEW_CHECKIN_NEW_MS : REVIEW_CHECKIN_MS
+    if (Date.now() - this.reviewCheckInAt < wait) return
+    this.reviewCheckInAt = Date.now()
+    this.checkingIn = true
+    try {
+      const reported = all
+        .filter((i) => this.reviewSentAt.has(i.idempotencyKey))
+        .sort((a, b) => (this.reviewSentAt.get(a.idempotencyKey) ?? 0) - (this.reviewSentAt.get(b.idempotencyKey) ?? 0))
+      const batch = [...unreported, ...reported].slice(0, REVIEW_CHECKIN_MAX_ITEMS)
+      const body: ReviewReportRequest = { items: batch.map(toReviewReport) }
+      const r = await this.api.request<{ data?: ReviewReportResult }>(
+        'POST', '/api/v1/sync/review-items', body, { timeoutMs: REVIEW_CHECKIN_TIMEOUT_MS },
+      )
+      const resolved = r?.data?.resolved
+      if (!Array.isArray(resolved) || this.disposed) return
+      const sentAt = Date.now()
+      for (const i of batch) this.reviewSentAt.set(i.idempotencyKey, sentAt)
+      if (resolved.length === 0) return
+      const byKey = new Map(resolved.map((x) => [x.idempotencyKey, x]))
+      const removed = await this.outbox.resolveReviewed([...byKey.keys()])
+      if (removed.length === 0) return
+      const at = new Date().toISOString()
+      const notices = removed.map((i): ReviewResolvedNotice => {
+        const x = byKey.get(i.idempotencyKey)!
+        this.reviewSentAt.delete(i.idempotencyKey)
+        return { idempotencyKey: i.idempotencyKey, type: i.type, note: x.note, resolvedByName: x.resolvedByName }
+      })
+      this.appendSyncLog(notices.map((n) => ({
+        at, deviceId: this.deviceId, type: n.type, idempotencyKey: n.idempotencyKey,
+        event: 'diselesaikan kantor pusat', note: n.note, resolvedByName: n.resolvedByName,
+      })))
+      this.events.onReviewResolved?.(notices)
+    } catch {
+      // Offline, server error, expired login, older server or a failed queue write:
+      // nothing changed; the throttle above spaces out the retry.
+    } finally {
+      this.checkingIn = false
+    }
   }
 
   /** The recorded sync-failure debug log (most recent last, capped at 200). */
@@ -652,6 +747,7 @@ export class SyncEngine {
       this.flushing = false
       this.emitDeadLetters()
       this.emitStuckRetrying()
+      if (this.autoCheckIn) void this.checkInReviews()
     }
   }
 
@@ -887,6 +983,7 @@ export class SyncEngine {
   start(pollMs = 20000, opts: { flushOnly?: boolean } = {}): () => void {
     this.disposed = false
     this.outbox.revive()
+    this.autoCheckIn = !opts.flushOnly
     // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
     // fresh, but never read outlet data (no inbound-transfer cache) for an outlet that is not
     // the terminal's.
@@ -910,12 +1007,14 @@ export class SyncEngine {
       void this.flush()
       void this.checkVersion()
       inbound()
+      if (this.autoCheckIn) void this.checkInReviews()
     }, pollMs)
     const stop = () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', onOnline)
       }
       clearInterval(timer)
+      this.autoCheckIn = false
     }
     this.stopTimers = stop
     return stop
