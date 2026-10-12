@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-11 (evening) by Claude (Opus 5.5).
+Last updated: 2026-10-12 by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -92,23 +92,27 @@ not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalik
 - 2026-10-11 (slice 9): journal failure before takeover → keep selling on old storage + warning; after takeover → stop;
   in-repo SQLite plugin; transfer PIN stays in the queued item (follow-up: one-time server approval); OTA strictly newer;
   backup excludes journal + Preferences + WebView/Capgo state; debug logging off; OTA "builtin" risk = release rule now.
-- **Still open:** who resolves needs-review items (head office vs outlet TL) — no resolve screen exists yet.
+- 2026-10-12: **head office** resolves review items (see + mark handled, no approve-and-apply); resolved items are removed
+  from the tablet; new permission `resolve_sync_review`; refresh-token TTL **30 days** (`JWT_REFRESH_TTL_HOURS=720`, ships
+  with the next backend deploy); **APK 1.7 rollout held** for 1.8 (= 1.7 + review reporting); debug flag stays on until go-live.
 
 ## Next
 
-1. **Rollout:** APK 1.7 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
+0. **Now:** head-office review resolve screen — spec `docs/plans/2026-10-12-review-resolve-design.md` (awaiting owner
+   review) → implementation plan → backend (mig 0048 + TTL) → backoffice → APK 1.8.
+1. **Rollout (held for 1.8):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
 2. **Before the first OTA release:** min-versionCode guard per OTA release (needs a migration; today any published bundle
    would be offered to a fresh APK reporting `builtin`). Rule meanwhile: OTA bundles only from the newest APK's web layer.
 3. **Optional device checks:** slice 7 cross-shift refund then close (cash_refunds_paid), printed recap lines, account
    without process_refund, backoffice refund column/"oleh" on BSD-G0007; slice 9 kill during first migration.
 4. **Follow-ups (owner to prioritise):**
-   - Head-office resolve screen for review items; quarantine action for a corrupt journal row (`quarantineCorruptRows`
+   - Quarantine action for a corrupt journal row (`quarantineCorruptRows`
      exists, nothing calls it).
    - Receipt numbers repeat across tablets/reinstalls (`apps/pos/src/cashier/orderRef.ts`) → server sequence or slice 10 device code.
    - Sales made while a shift_open is still syncing carry no shift; backoffice list of late refunds; no client sync batch size cap.
    - Transfer-receive PIN → one-time server approval. `webContentsDebuggingEnabled: true` still TEMP in `capacitor.config.ts`.
-   - Refresh-token TTL is 8760 h (1 year) — decide before go-live. Slice 8b discount permission.
+   - Slice 8b discount permission.
    - Receipt with stacked promos names one promo and omits points redemption; points claw-back clamps at 0.
    - UTC-date-before-07:00-WIB screens (`CustomerDetail.tsx:41`, `OpnameTab.tsx`, `MovementSummary.tsx:25`, csv names).
    - Operator per shift; password ≥8 on user create/CSV import; slice 10 device registration; engine flush-only N1 LOW.
