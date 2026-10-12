@@ -24,7 +24,9 @@
 - A git hook blocks any command line containing `-n`/`--no-…` tokens, including commit text: always write the message to a file and `git commit -F <file>`.
 - Migration file numbering: `0048_sync_review_items.sql`; no registry to update.
 - New PG gate: code `RV`, test `TestSyncReviewPostgres`, port `56450`, slug `rv` (env `MANDALIKA_RV_TEST_DSN`, `MANDALIKA_RV_TEST_DATA_DIR`, db `mandalika_rv_synthetic`, user `rv_test`).
-- Any diff touching `packages/sync/src/outbox.ts`, `engine.ts`, OpenAPI/generated types or permissions gets an Opus review before merge (AGENTS.md routing).
+- Any diff touching `packages/sync/src/outbox.ts`, `engine.ts`, OpenAPI/generated types, auth or permissions gets an Opus review before merge (AGENTS.md routing).
+- `appliedOnServer` must use the same three dedupe sources as `sync/attribute.go` `Applied`: `operation_receipts`, `processed_keys` (orders), `transfers.received_idempotency_key`.
+- The TTL cut to 720 h must not shorten the password-reset revoke marker (Task 3b ships before Task 10's deploy).
 
 ## Review Focus
 
@@ -50,6 +52,7 @@
 | `backend/internal/handlers/sync_review_integration_test.go` (create) | PG gate `RV` |
 | `backend/internal/server/server.go` (modify) | Route wiring |
 | `scripts/ci/postgres_gate.py` (modify) | Register gate `RV` |
+| `backend/internal/auth/reset.go` (+ `reset_test.go`) (modify) | Revoke marker TTL ≥ 8760 h (TTL cutover safety) |
 | `packages/types/src/index.ts` (modify) | `RESOLVE_SYNC_REVIEW` |
 | `packages/api/src/client.ts` (modify) | `listSyncReviewItems`, `resolveSyncReviewItem` + type aliases |
 | `packages/sync/src/outbox.ts` (modify) | `capturedOutletId` on `ReviewItem`; `resolveReviewed()` |
@@ -716,7 +719,13 @@ func (r *Repo) SyncReviewItems(ctx context.Context, f SyncReviewFilter) ([]SyncR
 		  s.last_error, s.owner_user_id::text, ou.display_name, s.payload,
 		  s.client_created_at, s.first_reported_at, s.last_reported_at,
 		  COALESCE(rb.display_name, ''), s.resolved_at, rv.display_name, s.resolution_note,
-		  EXISTS (SELECT 1 FROM operation_receipts rc WHERE rc.idempotency_key = s.idempotency_key),
+		  -- Same probe as sync/attribute.go Applied: orders dedupe via processed_keys,
+		  -- transfer receives via transfers.received_idempotency_key, the A11 keyed
+		  -- types via operation_receipts. Missing one would hide "Sudah masuk ke server"
+		  -- and invite a manual re-entry (double sale / double stock move).
+		  (EXISTS (SELECT 1 FROM operation_receipts rc WHERE rc.idempotency_key = s.idempotency_key)
+		   OR EXISTS (SELECT 1 FROM processed_keys pk WHERE pk.idempotency_key = s.idempotency_key)
+		   OR EXISTS (SELECT 1 FROM transfers tr WHERE tr.received_idempotency_key = s.idempotency_key)),
 		  count(*) OVER()
 		FROM sync_review_items s
 		LEFT JOIN outlets o ON o.id = s.outlet_id
@@ -952,6 +961,7 @@ func TestSyncReviewPostgres(t *testing.T) {
 		}
 	})
 
+	// Runs before the appliedOnServer subtest adds three more open items.
 	t.Run("list needs the permission", func(t *testing.T) {
 		if code, _ := do("GET", "/sync-review-items", tokA, ""); code != 403 {
 			t.Fatalf("cashier list = %d", code)
@@ -1000,11 +1010,40 @@ func TestSyncReviewPostgres(t *testing.T) {
 		}
 	})
 
-	t.Run("appliedOnServer reflects an operation receipt", func(t *testing.T) {
-		exec(`INSERT INTO operation_receipts(idempotency_key,op_type,scope,fingerprint,outcome) VALUES('devA:nul','order',$1,'f','{}')`, outletA)
-		_, body := do("GET", "/sync-review-items?status=open", tokHO, "")
-		if !strings.Contains(body, `"idempotencyKey":"devA:nul"`) || !strings.Contains(body, `"appliedOnServer":true`) {
-			t.Fatalf("list: %s", body)
+	t.Run("appliedOnServer covers receipts, orders and transfer receives", func(t *testing.T) {
+		applied := func(key string) bool {
+			t.Helper()
+			_, body := do("GET", "/sync-review-items?status=open&limit=200", tokHO, "")
+			var out struct {
+				Data []read.SyncReviewItem `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(body), &out); err != nil {
+				t.Fatal(err)
+			}
+			for _, it := range out.Data {
+				if it.Key == key {
+					return it.AppliedOnServer
+				}
+			}
+			t.Fatalf("%s not listed: %s", key, body)
+			return false
+		}
+		report(tokA,
+			`{"idempotencyKey":"devA:refund-ok","type":"refund","clientCreatedAt":"2026-10-12T03:00:00Z","payload":{}}`,
+			`{"idempotencyKey":"devA:order-ok","type":"order","clientCreatedAt":"2026-10-12T03:00:00Z","payload":{}}`,
+			`{"idempotencyKey":"devA:trf-ok","type":"transfer_receive","clientCreatedAt":"2026-10-12T03:00:00Z","payload":{}}`)
+		for _, k := range []string{"devA:refund-ok", "devA:order-ok", "devA:trf-ok"} {
+			if applied(k) {
+				t.Fatalf("%s applied before any server record", k)
+			}
+		}
+		exec(`INSERT INTO operation_receipts(idempotency_key,op_type,scope,fingerprint,outcome) VALUES('devA:refund-ok','refund',$1,'f','{}')`, outletA)
+		exec(`INSERT INTO processed_keys(idempotency_key) VALUES('devA:order-ok')`)
+		exec(`INSERT INTO transfers(source_outlet_id,dest_outlet_id,status,received_idempotency_key) VALUES($1,$2,'received','devA:trf-ok')`, outletB, outletA)
+		for _, k := range []string{"devA:refund-ok", "devA:order-ok", "devA:trf-ok"} {
+			if !applied(k) {
+				t.Fatalf("%s not flagged applied", k)
+			}
 		}
 	})
 
@@ -1187,6 +1226,78 @@ git add backend/internal/handlers/sync_review.go backend/internal/handlers/sync_
 printf 'feat(backend): sync review report/list/resolve endpoints + PG gate RV\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n' > "$TEMP/msg.txt"
 git commit -F "$TEMP/msg.txt"
 ```
+
+---
+
+### Task 3b: Password-reset revoke marker outlives every issued refresh token
+
+Why: the 30-day TTL ships with this backend deploy (Task 10). `reset.go:85` stores the
+"refresh tokens issued before now are dead" marker with TTL = `RefreshTTL`. After the cut to
+720 h, a marker would expire after 30 days, while refresh tokens issued before the cutover
+carry a 1-year expiry. This is an auth change, so it gets an Opus review.
+
+**Files:**
+- Modify: `backend/internal/auth/reset.go:85`
+- Test: `backend/internal/auth/reset_test.go:169` (the existing marker-TTL assertion) + a new pure test
+
+**Interfaces:**
+- Produces: `const revokeMarkerMinTTL = 8760 * time.Hour`, `func revokeMarkerTTL(refreshTTL time.Duration) time.Duration`.
+
+- [ ] **Step 1: Write the failing tests.** In `reset_test.go`, change the assertion at line ~169 from `ttl != time.Hour` to:
+
+```go
+	if ttl := mr.TTL(refreshRevokedKey(targetID)); ttl != revokeMarkerMinTTL {
+		t.Fatalf("marker ttl = %v", ttl)
+	}
+```
+
+and append:
+
+```go
+func TestRevokeMarkerTTLNeverShorterThanLegacyRefresh(t *testing.T) {
+	if got := revokeMarkerTTL(720 * time.Hour); got != revokeMarkerMinTTL {
+		t.Fatalf("30-day refresh: marker ttl = %v", got)
+	}
+	if got := revokeMarkerTTL(2 * revokeMarkerMinTTL); got != 2*revokeMarkerMinTTL {
+		t.Fatalf("longer refresh: marker ttl = %v", got)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify failure**
+
+Run: `cd backend && go test ./internal/auth/ -run "Reset|RevokeMarker" -v`
+Expected: FAIL — `undefined: revokeMarkerMinTTL`.
+
+- [ ] **Step 3: Implement** in `reset.go` (next to `refreshRevokedKey`; `time` is already imported if `h.clock()` returns `time.Time` — add the import otherwise):
+
+```go
+// revokeMarkerMinTTL is the longest refresh-token TTL ever issued (8760 h until the
+// 2026-10 cut to 720 h). A reset marker must outlive every refresh token still in
+// circulation, so it never expires sooner than this.
+const revokeMarkerMinTTL = 8760 * time.Hour
+
+func revokeMarkerTTL(refreshTTL time.Duration) time.Duration {
+	if refreshTTL > revokeMarkerMinTTL {
+		return refreshTTL
+	}
+	return revokeMarkerMinTTL
+}
+```
+
+and change line 85 to `h.Cache.R.Set(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL))`.
+
+- [ ] **Step 4: Run tests** — `cd backend && go test ./internal/auth/... && gofmt -l internal/auth/` → PASS, no gofmt output.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/internal/auth/reset.go backend/internal/auth/reset_test.go
+printf 'fix(auth): reset revoke marker outlives 1-year legacy refresh tokens\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n' > "$TEMP/msg.txt"
+git commit -F "$TEMP/msg.txt"
+```
+
+- [ ] **Step 6: Opus review gate.** Dispatch `reviewer` on this commit (auth surface).
 
 ---
 
@@ -1706,7 +1817,7 @@ git commit -F "$TEMP/msg.txt"
 **Files:**
 - Create: `apps/pos/src/lib/reviewResolved.ts`, Test: `apps/pos/src/lib/reviewResolved.test.ts`
 - Modify: `apps/pos/src/cashier/SyncProvider.tsx` (engine events ~line 70-110)
-- Modify: `apps/pos/src/hooks/useOfflineData.ts:14-25` (`FailedItem`), `:50-68` (`attention`)
+- Modify: `apps/pos/src/hooks/useOfflineData.ts:14-25` (`FailedItem`), `:50-68` (`attention`), `:70-72` (`sameItems` — export it and compare `reported`), Test: `apps/pos/src/hooks/sameItems.test.ts`
 - Modify: `apps/pos/src/components/SyncStatus.tsx:34-54` (`ReviewRow`), Test: `apps/pos/src/components/SyncStatus.test.ts`
 
 **Interfaces:**
@@ -1739,10 +1850,25 @@ describe('review row reported label', () => {
 })
 ```
 
+`apps/pos/src/hooks/sameItems.test.ts` — the 2-second refresh only re-renders when `sameItems` sees a change, so a `reported` flip must count as one:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { sameItems } from './useOfflineData'
+
+describe('sameItems', () => {
+  it('treats a reported flag flip as a change', () => {
+    const a = [{ idempotencyKey: 'd:1', type: 'refund', lastError: 'x' }]
+    expect(sameItems(a, [{ ...a[0] }])).toBe(true)
+    expect(sameItems(a, [{ ...a[0], reported: true }])).toBe(false)
+  })
+})
+```
+
 - [ ] **Step 2: Run to verify failure**
 
-Run: `corepack pnpm --filter @mandalika/pos exec vitest run src/lib/reviewResolved.test.ts src/components/SyncStatus.test.ts`
-Expected: FAIL — module `./reviewResolved` not found; label missing.
+Run: `corepack pnpm --filter @mandalika/pos exec vitest run src/lib/reviewResolved.test.ts src/components/SyncStatus.test.ts src/hooks/sameItems.test.ts`
+Expected: FAIL — module `./reviewResolved` not found; label missing; `sameItems` not exported.
 
 - [ ] **Step 3: Implement.** `apps/pos/src/lib/reviewResolved.ts`:
 
@@ -1766,6 +1892,16 @@ and in `attention()` add to the mapped review object:
     reported: engine.isReviewReported(r.idempotencyKey),
 ```
 
+and replace `sameItems` with an exported version that also compares `reported`:
+
+```ts
+export function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy && x.detail === b[i].detail && x.reported === b[i].reported)
+}
+```
+
+If importing `./useOfflineData` in a plain vitest file pulls in something that needs a DOM or the SyncProvider, move `sameItems` into `apps/pos/src/hooks/sameItems.ts`, import it from both places, and point the test there.
+
 `SyncStatus.tsx` `ReviewRow` — after the `lastError` line add:
 
 ```tsx
@@ -1787,7 +1923,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/pos/src/lib/reviewResolved.ts apps/pos/src/lib/reviewResolved.test.ts apps/pos/src/cashier/SyncProvider.tsx apps/pos/src/hooks/useOfflineData.ts apps/pos/src/components/SyncStatus.tsx apps/pos/src/components/SyncStatus.test.ts
+git add apps/pos/src/lib/reviewResolved.ts apps/pos/src/lib/reviewResolved.test.ts apps/pos/src/cashier/SyncProvider.tsx apps/pos/src/hooks/ apps/pos/src/components/SyncStatus.tsx apps/pos/src/components/SyncStatus.test.ts
 printf 'feat(pos): head-office resolve toast and reported label on review rows\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n' > "$TEMP/msg.txt"
 git commit -F "$TEMP/msg.txt"
 ```
@@ -2363,7 +2499,7 @@ No new code. Steps that push, deploy or build an APK need the owner's go-ahead (
 Run: `corepack pnpm quality:ci`, `cd backend && go test -race ./... && gofmt -l internal/ cmd/` (gofmt prints nothing), the PG gate from Task 3 Step 6, `corepack pnpm browser:ci`.
 Expected: all green.
 
-- [ ] **Step 2: Whole-branch Opus review.** Dispatch `reviewer` on `git diff 3323b0d..HEAD` (spec + plan commit as base): contract vs handlers, outlet isolation, removal guard, PIN redaction, permission gating, Review Focus items 1–5. Fix CRITICAL/HIGH findings, re-run Step 1.
+- [ ] **Step 2: Whole-branch Opus review.** Dispatch `reviewer` on `git diff ad67e80..HEAD` (the plan commit as base; amend the hash if the plan was re-committed): contract vs handlers, outlet isolation, removal guard, PIN redaction, permission gating, appliedOnServer sources, revoke-marker TTL, Review Focus items 1–5. Fix CRITICAL/HIGH findings, re-run Step 1.
 
 - [ ] **Step 3 (owner go-ahead): Push and backend deploy.** `git push origin prod-hardening`; wait for CI green on the pushed commit; then
 
