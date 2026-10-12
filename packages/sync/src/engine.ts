@@ -720,8 +720,10 @@ export class SyncEngine {
       try {
         removed = await this.outbox.resolveReviewed([...parkedBefore.keys()])
       } catch {
-        const stillParked = new Set(this.outbox.reviewItems().map((i) => i.idempotencyKey))
-        removed = [...parkedBefore.values()].filter((i) => !stillParked.has(i.idempotencyKey))
+        // Judge by absence from the WHOLE queue, not reviewItems(): that lists parked items
+        // only, so a key a concurrent "Coba lagi" flipped to pending would look removed.
+        const present = new Set(this.outbox.all().map((i) => i.idempotencyKey))
+        removed = [...parkedBefore.values()].filter((i) => !present.has(i.idempotencyKey))
       }
       if (removed.length === 0) return
       const notices = removed.map((i): ReviewResolvedNotice => {

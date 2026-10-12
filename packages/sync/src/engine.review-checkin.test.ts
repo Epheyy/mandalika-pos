@@ -166,6 +166,36 @@ describe('SyncEngine.checkInReviews', () => {
     expect(onReviewResolved).not.toHaveBeenCalled()
   })
 
+  it('does not announce an item re-queued during the check-in when the removal write is rejected', async () => {
+    const onReviewResolved = vi.fn()
+    const handle = controllableKV()
+    let release!: (v: unknown) => void
+    const request = vi.fn(() => new Promise((r) => { release = r }))
+    const engine = new SyncEngine(api(request), { onReviewResolved }, handle.kv, {
+      actor: () => ({ outletId: 'outlet-a', userId: 'user-a', shiftId: null }),
+    })
+    const envelope = (userId: string) => ({ v: 1 as const, outletId: 'outlet-a', userId, deviceId: 'dev', capturedAt: '2026-10-12T03:00:00Z' })
+    await engine.outbox.add('transfer_receive', 'd:1', { transferId: 't1', pin: '1234' }, envelope('user-a'))
+    await engine.outbox.add('transfer_receive', 'd:2', { transferId: 't2', pin: '1234' }, envelope('user-b'))
+    await engine.outbox.settle(['d:1', 'd:2'].map((key) => ({ key, op: 'review' as const, code: 'forbidden', reason: 'PIN salah' })))
+    // The reply lands; the snapshot (d:1, d:2 parked) is taken. Then, inside the removal's
+    // window, "Coba lagi" re-queues the actor's own d:1 and the removal commit rejects.
+    const real = engine.outbox.resolveReviewed.bind(engine.outbox)
+    vi.spyOn(engine.outbox, 'resolveReviewed').mockImplementation(async (keys) => {
+      await engine.outbox.retryDeadLettered((i) => i.envelope?.userId === 'user-a') // d:2 is foreign, stays parked
+      handle.ctl.mode = 'reject' // removal of d:2 now rejects without landing
+      return real(keys)
+    })
+    const run = engine.checkInReviews()
+    release(resolvedReply(['d:1', 'd:2']))
+    await run
+    const all = engine.outbox.all()
+    expect(all.find((i) => i.idempotencyKey === 'd:1')?.status).toBe('pending')
+    const announced = onReviewResolved.mock.calls.flatMap((c) => (c[0] as { idempotencyKey: string }[]).map((n) => n.idempotencyKey))
+    expect(announced).not.toContain('d:1')
+    expect(JSON.stringify(engine.syncLog())).not.toContain('diselesaikan kantor pusat')
+  })
+
   it('a failing sync-log write cannot suppress the notice', async () => {
     const onReviewResolved = vi.fn()
     const { kv } = controllableKV()
