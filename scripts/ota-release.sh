@@ -29,13 +29,24 @@ BASE="${OTA_API_URL:-https://mandalika-pos-538849926142.asia-southeast2.run.app}
 BUCKET="gs://mandalika-pos-ota"
 APP_ID="com.mandalika.pos"                        # matches apps/pos/capacitor.config.ts
 ADMIN_EMAIL="${OTA_ADMIN_EMAIL:-admin@mandalika.test}"
-ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+ROOT="$REPO_ROOT"
 cd "$ROOT"
 
 # --- Release gate (A34): clean, pushed commit with all four CI gates green ---
 # shellcheck source=lib/require-green-ci.sh
-source "$ROOT/scripts/lib/require-green-ci.sh"
+source "$REPO_ROOT/scripts/lib/require-green-ci.sh"
 require_green_ci || exit 1
+
+# Build from a clean checkout of exactly the tested commit, never the working tree.
+WT="$(mktemp -d)"
+cleanup() { cd "$REPO_ROOT" && git worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"; }
+trap cleanup EXIT
+git worktree add --detach "$WT" "$RELEASE_SHA" >/dev/null
+ROOT="$WT"
+cd "$ROOT"
+echo "building from a clean checkout of ${RELEASE_SHA:0:7}"
+corepack pnpm install --frozen-lockfile
 
 OTA_RELEASE_TYPE="${OTA_RELEASE_TYPE:-test}"
 case "$OTA_RELEASE_TYPE" in

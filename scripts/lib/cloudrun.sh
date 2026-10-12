@@ -22,3 +22,15 @@ else:
 print((c[0].get(f,'') if c else ''))
 "
 }
+
+# cr_revision_label <tag> <label>: label value on the revision carrying that traffic tag.
+cr_revision_label() {
+  local rev
+  rev=$(cr_field revisionName "$1")
+  [ -n "$rev" ] || return 1
+  gcloud run revisions describe "$rev" --region "$REGION" --project "$PROJECT" --format=json |
+    CR_LABEL="$2" python -c "
+import sys,json,os
+print(json.load(sys.stdin).get('metadata',{}).get('labels',{}).get(os.environ['CR_LABEL'],''))
+"
+}

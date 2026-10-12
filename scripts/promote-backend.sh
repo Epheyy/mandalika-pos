@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Promote a tagged Cloud Run revision (from scripts/deploy-backend.sh) to 100% traffic,
-# but only if its /readyz answers 200.
+# but only if its commit-sha label names a commit whose four CI gates are green and its
+# /readyz answers 200.
 #
 # Usage: scripts/promote-backend.sh <tag>
 set -euo pipefail
@@ -11,12 +12,18 @@ TAG="${1:-}"
 ROOT="$(git rev-parse --show-toplevel)"
 # shellcheck source=lib/cloudrun.sh
 source "$ROOT/scripts/lib/cloudrun.sh"
+# shellcheck source=lib/require-green-ci.sh
+source "$ROOT/scripts/lib/require-green-ci.sh"
 
 TAG_URL=$(cr_field url "$TAG")
 [ -n "$TAG_URL" ] || { echo "no revision is tagged '$TAG'" >&2; exit 1; }
 PREV=$(cr_field revisionName)
 
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "$TAG_URL/readyz" || true)
+SHA=$(cr_revision_label "$TAG" commit-sha)
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "promotion refused: revision tagged '$TAG' has no valid commit-sha label (got '$SHA')" >&2; exit 1; }
+require_green_ci_for_sha "$SHA" || exit 1
+
+CODE=$(curl -s --max-time 15 -o /dev/null -w '%{http_code}' "$TAG_URL/readyz" || true)
 [ "$CODE" = 200 ] || { echo "promotion refused: $TAG_URL/readyz returned '$CODE' (want 200)" >&2; exit 1; }
 
 gcloud run services update-traffic "$SERVICE" --region "$REGION" --project "$PROJECT" --to-tags "$TAG=100"

@@ -14,9 +14,10 @@ reset_stubs() {
   _rgc_head_sha() { echo "$SHA40"; }
   _rgc_branch() { echo "prod-hardening"; }
   _rgc_fetch() { return 0; }
-  _rgc_is_pushed() { return 0; }
+  _rgc_in_remote() { return 0; }
   _rgc_have_gh() { return 0; }
-  _rgc_run_state() { echo "completed success https://example.test/run/1"; }
+  _rgc_run_state() { printf "completed	success	https://example.test/run/1
+"; }
   unset RELEASE_SHA
 }
 
@@ -35,20 +36,35 @@ expect() {
 reset_stubs; _rgc_tree_clean() { return 1; }
 expect "dirty tracked tree fails" 1
 
-reset_stubs; _rgc_is_pushed() { return 1; }
-expect "unpushed HEAD fails" 1
+reset_stubs; _rgc_in_remote() { return 1; }
+expect "HEAD not in any remote branch fails" 1
+
+reset_stubs; _rgc_branch() { echo HEAD; }
+expect "detached HEAD contained in a remote branch passes" 0
+
+reset_stubs; _rgc_branch() { echo HEAD; }; _rgc_in_remote() { return 1; }
+expect "detached HEAD not in a remote branch fails" 1
+
+reset_stubs; _rgc_fetch() { return 1; }
+expect "fetch failure fails" 1
 
 reset_stubs; _rgc_have_gh() { return 1; }
 expect "missing gh fails" 1
 
-reset_stubs; _rgc_run_state() { [ "$1" = backend.yml ] && echo "completed failure https://example.test/run/2" || echo "completed success https://example.test/run/1"; }
+reset_stubs; _rgc_run_state() { [ "$1" = backend.yml ] && printf "completed	failure	https://example.test/run/2
+" || printf "completed	success	u
+"; }
 expect "one gate failed fails" 1
 case "$LAST_OUT" in *backend.yml*) ;; *) echo "FAIL: failure message names the gate"; FAILS=$((FAILS + 1));; esac
 
-reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && echo "in_progress " || echo "completed success u"; }
+reset_stubs; _rgc_run_state() { [ "$1" = postgres.yml ] && printf "in_progress	none	https://example.test/run/3
+" || printf "completed	success	u
+"; }
 expect "one gate in progress fails" 1
+case "$LAST_OUT" in *"status=in_progress conclusion=none https://example.test/run/3"*) echo "PASS: in-progress message fields";; *) echo "FAIL: in-progress message: $LAST_OUT"; FAILS=$((FAILS + 1));; esac
 
-reset_stubs; _rgc_run_state() { [ "$1" = browser.yml ] && return 0 || echo "completed success u"; }
+reset_stubs; _rgc_run_state() { [ "$1" = browser.yml ] && return 0 || printf "completed	success	u
+"; }
 expect "one gate missing (no run) fails" 1
 
 reset_stubs; _rgc_run_state() { return 1; }
@@ -63,6 +79,24 @@ case "$LAST_OUT" in *"CI green on 0123456 (prod-hardening): quality, backend, po
 
 reset_stubs; _rgc_tree_clean() { return 1; }; require_green_ci >/dev/null 2>&1
 [ -z "${RELEASE_SHA:-}" ] && echo "PASS: RELEASE_SHA unset on failure" || { echo "FAIL: RELEASE_SHA set on failure"; FAILS=$((FAILS + 1)); }
+
+# --- require_green_ci_for_sha: no tree/branch requirement, just the four gates ---
+expect_sha() {
+  local name="$1" want="$2" sha="$3" rc
+  require_green_ci_for_sha "$sha" >/dev/null 2>&1; rc=$?
+  if { [ "$want" = 0 ] && [ $rc -eq 0 ]; } || { [ "$want" = 1 ] && [ $rc -ne 0 ]; }; then echo "PASS: $name"; else echo "FAIL: $name (rc=$rc)"; FAILS=$((FAILS + 1)); fi
+}
+reset_stubs; _rgc_tree_clean() { return 1; }; _rgc_in_remote() { return 1; }
+expect_sha "for_sha ignores tree state, all green" 0 "$SHA40"
+expect_sha "for_sha rejects non-40-hex" 1 "abc123"
+expect_sha "for_sha rejects empty" 1 ""
+expect_sha "for_sha rejects uppercase" 1 "0123456789ABCDEF0123456789ABCDEF01234567"
+reset_stubs; _rgc_run_state() { [ "$1" = quality.yml ] && printf "completed	failure	u
+" || printf "completed	success	u
+"; }
+expect_sha "for_sha fails when a gate failed" 1 "$SHA40"
+reset_stubs; _rgc_have_gh() { return 1; }
+expect_sha "for_sha fails without gh" 1 "$SHA40"
 
 [ "$FAILS" -eq 0 ] || { echo "$FAILS failure(s)"; exit 1; }
 echo "all passed"

@@ -7,3 +7,6 @@ sample_seed.sql
 README.md
 Makefile
 docker-compose.yml
+
+.claude/
+*.exe
