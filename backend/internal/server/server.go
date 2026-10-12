@@ -139,6 +139,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/version", h.SyncVersion)
 			r.Get("/sync/pull", h.SyncPull)
 			r.Post("/sync/batch", h.SyncBatch)
+			r.Post("/sync/review-items", h.ReportSyncReviewItems)
 			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
 			r.Get("/sync/customers/lookup", h.CustomersLookup)
@@ -183,6 +184,13 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Delete("/customers/{id}/interactions/{iid}", h.DeleteInteraction)
 				r.Get("/customers/{id}/points", h.PointTransactions)
 				r.Get("/customers/{id}/reward-grants", h.RewardGrants)
+			})
+
+			// Head-office review of refused tablet items (no content-version bump).
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("resolve_sync_review"))
+				r.Get("/sync-review-items", h.ListSyncReviewItems)
+				r.Post("/sync-review-items/{key}/resolve", h.ResolveSyncReviewItem)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_promotions"))
