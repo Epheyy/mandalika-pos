@@ -13,6 +13,7 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   manage_settings: { label: 'Pengaturan', desc: 'Ubah konfigurasi sistem' },
   manage_stock_count: { label: 'Stock Count', desc: 'Kelola penghitungan stok' },
   manage_inventory: { label: 'Kelola Gudang', desc: 'Gudang, barang masuk & stok' },
+  resolve_sync_review: { label: 'Tinjauan Sinkron', desc: 'Melihat dan menyelesaikan item sinkron yang ditolak tablet' },
 }
 
 interface PermissionPickerProps {

@@ -12,6 +12,7 @@ import {
   Settings,
   AlertTriangle,
   Warehouse,
+  ClipboardCheck,
 } from 'lucide-react'
 import { useAuth } from './auth'
 import { OutletSwitcher } from './outlet'
@@ -29,6 +30,8 @@ import Warehouses from './screens/Warehouses'
 import Users from './screens/Users'
 import SettingsScreen from './screens/SettingsScreen'
 import ErrorLogs from './screens/ErrorLogs'
+import SyncReview from './screens/syncReview/SyncReview'
+import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard', C: Dashboard },
@@ -38,6 +41,7 @@ const NAV = [
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
+  { id: 'syncReview', label: 'Tinjauan Sinkron', icon: ClipboardCheck, perm: 'resolve_sync_review', C: SyncReview },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
   // Admin-only: 'view_error_logs' isn't granted to any role, so it shows only
   // via the isAdmin bypass (and the GET endpoint is admin-gated server-side).
@@ -114,6 +118,8 @@ export default function App() {
     })
   }, [user])
 
+  const reviewCount = useSyncReviewCount(visible.some((n) => n.id === 'syncReview'))
+
   const [activeId, setActiveId] = useState<string>('dashboard')
 
   if (!ready)
@@ -184,6 +190,10 @@ export default function App() {
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1 text-left">{label}</span>
+                {id === 'syncReview' && reviewCount > 0 && (
+                  <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"
+                    aria-label={`${reviewCount} item terbuka`}>{reviewCount}</span>
+                )}
               </button>
             ))
           )}
