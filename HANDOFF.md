@@ -4,12 +4,12 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-12 by Claude (Opus 5.5).
+Last updated: 2026-10-12 (afternoon) by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
 Goal: production-ready POS = 8 P0 audit findings closed + release gates. **8 of 8 P0s done.**
-Remaining before go-live: fleet rollout of APK 1.7, legacy-envelope cutoff, release gates (A34), follow-ups below.
+Remaining before go-live: fleet rollout of APK 1.8, legacy-envelope cutoff, release gates (A34), follow-ups below.
 
 | P0 | Finding | Status |
 |---|---|---|
@@ -24,16 +24,20 @@ Remaining before go-live: fleet rollout of APK 1.7, legacy-envelope cutoff, rele
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00094-per`** (100%, tag `ota9`) from `prod-hardening` @ `be3a3dd`.
-  Contains slices 1–3, 6, 7, 8 + 8c, 9 (OTA `decide.go` strictly-newer), admin reset password. Migrations through **0047**.
-  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00092-naf=100`
-    (00092-naf = slice 7 without the OTA change; 00090-wof = before slice 7, ignores 0047 columns).
+- **Backend:** Cloud Run `mandalika-pos` revision **`00096-neh`** (100%, tag `review`) from `prod-hardening` @ `307fb1b`.
+  Adds head-office review resolve (mig **0048** `sync_review_items`) and the revoke-marker TTL floor; env
+  **`JWT_REFRESH_TTL_HOURS=720`** (was 8760). Migrations through **0048**.
+  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00094-per=100`
+    (00094-per = before review resolve, TTL 8760; it ignores the new table).
   - `SYNC_LEGACY_ENVELOPE_UNTIL` **unset on purpose** (envelope-less items from APK ≤1.4 accepted + logged).
     Set it to *APK ≥1.5 on every tablet + 14 days* via `--set-env-vars` on a deploy. Use an explicit `+07:00` offset.
-- **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev`, last deployed `64a608a` (slice 7: shift report
-  "Refund dibayar (Tunai)" column + "oleh {nama}" on refunds). Auto-deploys on push unless the head commit starts `[CF-Pages-Skip]`.
-- **POS:** **APK 1.7** (versionCode 8, run 38147374197) → `Downloads/mandalika-apk/mandalika-pos-1.7-build8.apk`.
-  Older APKs (1.1–1.6) are in the same folder. **Fleet still on old versions** — not rolled out.
+- **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev`, last deployed `307fb1b` (new "Tinjauan Sinkron" screen +
+  badge, permission `resolve_sync_review`). Auto-deploys on push unless the head commit starts `[CF-Pages-Skip]`.
+- **POS:** **APK 1.8** (versionCode 9, run 38224294639, from `3fd19d5`) → `Downloads/mandalika-apk/mandalika-pos-1.8-build9.apk`
+  = 1.7 + review check-in/toast/label. **Emulator-verified 2026-10-12:** 1.7→1.8 `install -r` kept the admin session;
+  offline refund of BSD-G0013 + server refund → tablet copy parked `conflict` → reported in ~10 s ("Dilaporkan ke kantor
+  pusat") → resolved via API → tablet removed it 3m48s later with the exact toast + sync-log entry; open count 0.
+  Older APKs (1.1–1.7) are in the same folder. **Fleet still on old versions** — not rolled out.
   - Slice 9 (plan `docs/plans/2026-10-11-p0-slice9-a01-journal.md`): outbox in an in-repo SQLite plugin
     (`OutboxJournalPlugin.java`, TRUNCATE + synchronous FULL, one transaction per save, never REPLACE, corruption
     never deletes the file); first-launch move copy→verify→backup→sentinel→sealed (resumable, one-way; after takeover
@@ -66,8 +70,7 @@ Remaining before go-live: fleet rollout of APK 1.7, legacy-envelope cutoff, rele
 
 AVD `mandalika-tab` (Android 15, `userdebug` → `adb root` works). Start cold:
 `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd mandalika-tab -no-snapshot-load`. **Close it before the PC
-sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.7 installed, admin logged in, **terminal outlet
-not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalika BSD).
+sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed, admin logged in, terminal outlet = Mandalika BSD, shift open, queue empty.
 - DNS often breaks after a cold boot: re-apply Private DNS
   (`settings put global private_dns_mode off`, then `hostname`, `private_dns_specifier dns.google`).
 - Read the WebView, not screenshots: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` + a small CDP
@@ -98,14 +101,8 @@ not yet picked** (prompt "Pilih outlet terminal ini" on next launch → Mandalik
 
 ## Next
 
-0. **Now:** head-office review resolve **merged locally into prod-hardening** (not pushed): mig 0048 `sync_review_items`,
-   `POST /sync/review-items` + `GET/POST /sync-review-items…` (perm `resolve_sync_review`), guarded `Outbox.resolveReviewed`,
-   engine check-in, POS toast/label, backoffice "Tinjauan Sinkron", PG gate RV (12 gates), browser scenario BO-REVIEW-RESOLVE,
-   revoke-marker TTL floor 8760 h. All gates green; Opus whole-branch review + N1 fix reviewed. Deferred LOW items (page
-   step-back cascade, stale "reported" label races, minors) listed in docs/plans/2026-10-12-review-resolve-plan.md follow-ups
-   below. **Next (owner go-ahead):** push (head commit must NOT start with [CF-Pages-Skip] or the backoffice won't deploy),
-   deploy backend `--tag review` with `JWT_REFRESH_TTL_HOURS=720`, smoke, traffic; build APK 1.8; emulator check.
-1. **Rollout (held for 1.8):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
+0. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
+1. **Rollout (ready):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
 2. **Before the first OTA release:** min-versionCode guard per OTA release (needs a migration; today any published bundle
    would be offered to a fresh APK reporting `builtin`). Rule meanwhile: OTA bundles only from the newest APK's web layer.
