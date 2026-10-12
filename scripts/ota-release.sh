@@ -8,7 +8,10 @@
 # password is passed to curl via stdin (never argv), and the bearer token only
 # ever lives in a shell variable / request header. Nothing sensitive is printed.
 #
-# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL.
+# Each bundle targets exactly ONE APK build (native versionCode): /ota/check only
+# offers it to devices on that build (min-version guard, backend mig 0049).
+#
+# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL, NATIVE_VERSION_CODE.
 set -euo pipefail
 
 # --- Inputs & validation -------------------------------------------------
@@ -24,6 +27,13 @@ APP_ID="com.mandalika.pos"                        # matches apps/pos/capacitor.c
 ADMIN_EMAIL="${OTA_ADMIN_EMAIL:-admin@mandalika.test}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
+
+NATIVE_CODE="${NATIVE_VERSION_CODE:-$(sed -n 's/^[[:space:]]*versionCode[[:space:]]\+\([0-9]\+\).*/\1/p' apps/pos/android/app/build.gradle | head -1)}"
+[[ "$NATIVE_CODE" =~ ^[1-9][0-9]*$ ]] || {
+  echo "could not determine the APK versionCode (got '$NATIVE_CODE'); set NATIVE_VERSION_CODE=<n>" >&2
+  exit 1
+}
+echo "targets APK versionCode $NATIVE_CODE (apps/pos/android/app/build.gradle; override with NATIVE_VERSION_CODE)"
 
 # Parse a value out of a JSON blob on stdin, tolerating leading/trailing noise
 # (the Capgo CLI prints progress lines before its JSON object). Prints an empty
@@ -49,7 +59,7 @@ except Exception:
 # whose body carries the latest .version. No release yet => empty => proceed.
 CUR=$(curl -sS -X POST "$BASE/api/v1/ota/check" \
   -H 'Content-Type: application/json' \
-  -d '{"platform":"android","version_name":"__none__"}' | json_get version) || true
+  -d '{"platform":"android","version_name":"__none__","version_code":"'"$NATIVE_CODE"'"}' | json_get version) || true
 if [ "$CUR" = "$VERSION" ]; then
   echo "version $VERSION is already the current published release; nothing to do" >&2
   exit 1
@@ -90,7 +100,7 @@ TOK=$(printf '%s' "$LOGIN" | json_get data.access)
 RESP=$(curl -sS -X POST "$BASE/api/v1/ota/publish" \
   -H "Authorization: Bearer $TOK" \
   -H 'Content-Type: application/json' \
-  -d "{\"platform\":\"android\",\"version\":\"$VERSION\",\"url\":\"$URL\",\"checksum\":\"$CHECKSUM\",\"size\":$SIZE}") || true
+  -d "{\"platform\":\"android\",\"version\":\"$VERSION\",\"url\":\"$URL\",\"checksum\":\"$CHECKSUM\",\"size\":$SIZE,\"nativeVersionCode\":$NATIVE_CODE}") || true
 ID=$(printf '%s' "$RESP" | json_get id)
 [ -n "$ID" ] || { echo "publish failed: $RESP" >&2; exit 1; }
 

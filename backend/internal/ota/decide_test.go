@@ -1,6 +1,9 @@
 package ota
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestDecide(t *testing.T) {
 	rel := &Release{Platform: "android", Version: "1.2.0", URL: "https://x/1.2.0.zip", Checksum: "abc"}
@@ -69,6 +72,44 @@ func TestDecideLatestVersionShapes(t *testing.T) {
 			got := Decide(rel, tt.device)
 			if (got.URL != "") != tt.wantURL {
 				t.Errorf("offered=%v want %v (resp %+v)", got.URL != "", tt.wantURL, got)
+			}
+		})
+	}
+}
+
+func TestParseVersionCode(t *testing.T) {
+	tests := []struct {
+		name   string
+		raw    string // "" means a nil/absent RawMessage
+		want   int
+		wantOK bool
+	}{
+		{"string 9", `"9"`, 9, true},
+		{"number 9", `9`, 9, true},
+		{"padded string", `" 12 "`, 12, true},
+		{"max int32", `2147483647`, 2147483647, true},
+		{"null", `null`, 0, false},
+		{"absent", ``, 0, false},
+		{"empty string", `""`, 0, false},
+		{"non-numeric string", `"abc"`, 0, false},
+		{"fractional string", `"9.5"`, 0, false},
+		{"fractional number", `9.5`, 0, false},
+		{"zero", `0`, 0, false},
+		{"negative", `-3`, 0, false},
+		{"huge string", `"99999999999"`, 0, false},
+		{"over int32", `2147483648`, 0, false},
+		{"bool", `true`, 0, false},
+		{"object", `{}`, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var raw json.RawMessage
+			if tt.raw != "" {
+				raw = json.RawMessage(tt.raw)
+			}
+			got, ok := ParseVersionCode(raw)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("got (%d,%v) want (%d,%v)", got, ok, tt.want, tt.wantOK)
 			}
 		})
 	}

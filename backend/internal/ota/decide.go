@@ -3,6 +3,9 @@
 package ota
 
 import (
+	"bytes"
+	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -13,6 +16,33 @@ type Release struct {
 	URL      string `json:"url"`
 	Checksum string `json:"checksum"`
 	Size     int64  `json:"size"`
+	// NativeVersionCode is the Android versionCode of the one APK build this
+	// bundle targets; /ota/check only offers it to devices on that build.
+	NativeVersionCode int `json:"nativeVersionCode"`
+}
+
+// ParseVersionCode reads the Capgo plugin's version_code, sent as a JSON string
+// ("9") or number (9). It returns (n, true) only for an integer 1..MaxInt32;
+// anything else (absent, null, empty, non-numeric, fractional, <=0, huge) is
+// (0, false) so the caller fails safe to "no release".
+func ParseVersionCode(raw json.RawMessage) (int, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var s string
+	if raw[0] == '"' {
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return 0, false
+		}
+	} else {
+		s = string(raw)
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n < 1 || n > math.MaxInt32 {
+		return 0, false
+	}
+	return int(n), true
 }
 
 // CheckResponse is the BARE JSON body returned to the Capgo plugin (no {data}

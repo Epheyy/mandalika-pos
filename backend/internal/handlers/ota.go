@@ -12,27 +12,47 @@ import (
 )
 
 var errOtaMissingFields = errors.New("version, url, and checksum are required")
+var errOtaNativeVersionCode = errors.New("nativeVersionCode (the target APK versionCode, >= 1) is required")
+
+// validateOtaPublish checks the required fields of a publish request.
+func validateOtaPublish(in ota.Release) error {
+	if in.Version == "" || in.URL == "" || in.Checksum == "" {
+		return errOtaMissingFields
+	}
+	if in.NativeVersionCode < 1 {
+		return errOtaNativeVersionCode
+	}
+	return nil
+}
 
 // errOtaUnavailable is the generic error surfaced to the PUBLIC /ota/check on a
 // backend fault — the real error is logged, never echoed to an unauth caller.
 var errOtaUnavailable = errors.New("ota check unavailable")
 
 // OtaCheck is the PUBLIC Capgo self-hosted update endpoint. The plugin POSTs
-// AppInfos; we read only platform + version_name and reply with the BARE Capgo
+// AppInfos; we read only platform + version_name + version_code (the APK
+// versionCode: a bundle is only offered to the build it targets) and reply with the BARE Capgo
 // JSON (no {data} envelope — Capgo parses the raw body). Lenient decode: a
 // malformed body defaults to android/empty so a bad request just yields
 // "no update".
 func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Platform    string `json:"platform"`
-		VersionName string `json:"version_name"`
+		Platform    string          `json:"platform"`
+		VersionName string          `json:"version_name"`
+		VersionCode json.RawMessage `json:"version_code"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	platform := strings.ToLower(strings.TrimSpace(body.Platform))
 	if platform == "" {
 		platform = "android"
 	}
-	latest, err := h.Repo.LatestOtaRelease(r.Context(), platform)
+	code, ok := ota.ParseVersionCode(body.VersionCode)
+	if !ok {
+		// No usable versionCode: fail safe, never offer a bundle (no DB hit).
+		writeJSON(w, http.StatusOK, ota.Decide(nil, body.VersionName))
+		return
+	}
+	latest, err := h.Repo.LatestOtaRelease(r.Context(), platform, code)
 	if err != nil {
 		// Public endpoint: log the real error, echo only a generic message.
 		slog.Error("ota check: latest release", "platform", platform, "err", err)
@@ -52,8 +72,8 @@ func (h *Handlers) OtaPublish(w http.ResponseWriter, r *http.Request) {
 	if in.Platform == "" {
 		in.Platform = "android"
 	}
-	if in.Version == "" || in.URL == "" || in.Checksum == "" {
-		writeErr(w, http.StatusBadRequest, errOtaMissingFields)
+	if err := validateOtaPublish(in); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
