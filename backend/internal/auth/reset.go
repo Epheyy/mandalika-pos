@@ -25,6 +25,18 @@ const jtiDeleteBatch = 100
 
 func refreshRevokedKey(userID string) string { return "refresh_revoked_before:" + userID }
 
+// revokeMarkerMinTTL is the longest refresh-token TTL ever issued (8760 h until the
+// 2026-10 cut to 720 h). A reset marker must outlive every refresh token still in
+// circulation, so it never expires sooner than this.
+const revokeMarkerMinTTL = 8760 * time.Hour
+
+func revokeMarkerTTL(refreshTTL time.Duration) time.Duration {
+	if refreshTTL > revokeMarkerMinTTL {
+		return refreshTTL
+	}
+	return revokeMarkerMinTTL
+}
+
 type resetPasswordReq struct {
 	Password string `json:"password"`
 }
@@ -82,7 +94,7 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	// Marker first: refresh tokens issued before it are dead from here. +2 (not
 	// +1) absorbs the gap between reading the clock and the SET landing.
 	marker := strconv.FormatInt(h.clock().Unix()+2, 10)
-	if err := h.Cache.R.Set(ctx, refreshRevokedKey(targetID), marker, h.Cfg.RefreshTTL).Err(); err != nil {
+	if err := h.Cache.R.Set(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL)).Err(); err != nil {
 		slog.Error("admin_password_reset_failed", "stage", "marker", "err", err, "actor", actorID, "target", targetID)
 		httpx.Err(w, http.StatusInternalServerError, "reset failed")
 		return

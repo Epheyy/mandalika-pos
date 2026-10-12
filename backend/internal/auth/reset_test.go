@@ -166,7 +166,7 @@ func TestAdminResetPasswordSuccessEffects(t *testing.T) {
 	if got, _ := mr.Get(refreshRevokedKey(targetID)); got != "1700000002" {
 		t.Fatalf("marker = %q", got)
 	}
-	if ttl := mr.TTL(refreshRevokedKey(targetID)); ttl != time.Hour {
+	if ttl := mr.TTL(refreshRevokedKey(targetID)); ttl != revokeMarkerMinTTL {
 		t.Fatalf("marker ttl = %v", ttl)
 	}
 	for _, j := range jtis {
@@ -358,5 +358,14 @@ func TestRevokedSinceLoginDecision(t *testing.T) {
 	later := jwt.NewNumericDate(time.Now().Add(5 * time.Second))
 	if h.revokedSince(ctx, targetID, later, newTok) {
 		t.Fatal("decision after the marker must pass")
+	}
+}
+
+func TestRevokeMarkerTTLNeverShorterThanLegacyRefresh(t *testing.T) {
+	if got := revokeMarkerTTL(720 * time.Hour); got != revokeMarkerMinTTL {
+		t.Fatalf("30-day refresh: marker ttl = %v", got)
+	}
+	if got := revokeMarkerTTL(2 * revokeMarkerMinTTL); got != 2*revokeMarkerMinTTL {
+		t.Fatalf("longer refresh: marker ttl = %v", got)
 	}
 }
