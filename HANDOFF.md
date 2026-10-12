@@ -24,11 +24,10 @@ Remaining before go-live: fleet rollout of APK 1.8, legacy-envelope cutoff, rele
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00096-neh`** (100%, tag `review`) from `prod-hardening` @ `307fb1b`.
-  Adds head-office review resolve (mig **0048** `sync_review_items`) and the revoke-marker TTL floor; env
-  **`JWT_REFRESH_TTL_HOURS=720`** (was 8760). Migrations through **0048**.
-  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00094-per=100`
-    (00094-per = before review resolve, TTL 8760; it ignores the new table).
+- **Backend:** Cloud Run `mandalika-pos` revision **`00098-yun`** (100%, tag `ota10`) from `prod-hardening` @ `dc0b18d`.
+  = review resolve (mig 0048) + **OTA min-version guard (mig 0049)**; env `JWT_REFRESH_TTL_HOURS=720`. Migrations through **0049**.
+  - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00096-neh=100`
+    (00096-neh = review resolve without the OTA guard; 00094-per = before review resolve, TTL 8760).
   - `SYNC_LEGACY_ENVELOPE_UNTIL` **unset on purpose** (envelope-less items from APK ≤1.4 accepted + logged).
     Set it to *APK ≥1.5 on every tablet + 14 days* via `--set-env-vars` on a deploy. Use an explicit `+07:00` offset.
 - **Backoffice:** Cloudflare Pages `https://mandalika-pos.pages.dev`, last deployed `307fb1b` (new "Tinjauan Sinkron" screen +
@@ -104,8 +103,12 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 0. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.8 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
-2. **Before the first OTA release:** min-versionCode guard per OTA release (needs a migration; today any published bundle
-   would be offered to a fresh APK reporting `builtin`). Rule meanwhile: OTA bundles only from the newest APK's web layer.
+2. **OTA guard DONE 2026-10-12** (rev 00098-yun, mig 0049): each OTA release targets exactly one APK build
+   (`ota_releases.native_version_code`); `/ota/check` matches Capgo's `version_code` and fails safe (missing/invalid → no release);
+   `/ota/publish` requires `nativeVersionCode`; `make ota-release VERSION=x.y.z` reads it from `apps/pos/android/app/build.gradle`
+   (override `NATIVE_VERSION_CODE`, then build from the commit matching that APK). Live-smoked (throwaway release code 9999
+   offered only to 9999, then deleted). **Release rules:** bump `versionCode` with every native change; keep Capgo
+   `resetWhenUpdate` at its default (true); publish from a tree whose versionCode equals the fleet APK's.
 3. **Optional device checks:** slice 7 cross-shift refund then close (cash_refunds_paid), printed recap lines, account
    without process_refund, backoffice refund column/"oleh" on BSD-G0007; slice 9 kill during first migration.
 4. **Follow-ups (owner to prioritise):**
