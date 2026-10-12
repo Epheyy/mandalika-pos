@@ -87,6 +87,8 @@ export interface ReviewItem {
   lastError?: string
   /** The account that captured the item (its envelope's userId), when it has one. */
   ownerUserId?: string
+  /** Outlet recorded in the item's envelope at capture time, when it has one. */
+  capturedOutletId?: string
   /** What was captured, read-only (e.g. the refund display snapshot for the review row).
    *  Never written back: the payload is what the server fingerprints. */
   readonly payload: Readonly<Record<string, unknown>>
@@ -351,6 +353,7 @@ export class Outbox {
       reviewReason: i.reviewReason ?? i.lastError,
       lastError: i.lastError,
       ownerUserId: i.envelope?.userId,
+      ...(i.envelope ? { capturedOutletId: i.envelope.outletId } : {}),
       payload: i.payload,
     }))
   }
@@ -445,6 +448,24 @@ export class Outbox {
         return i
       })
       if (changed) await this.commit(next)
+    })
+  }
+
+  /** Remove items head office resolved. Only items STILL parked are removed — an item the
+   *  cashier re-queued ("Coba lagi") in the meantime, or anything pending/unknown, is left
+   *  alone. Checked against the live queue inside the serialized run, never a snapshot.
+   *  Like retryDeadLettered, a failed durable write rejects and the queue is unchanged. */
+  resolveReviewed(keys: readonly string[]): Promise<OutboxItem[]> {
+    return this.run(async () => {
+      const wanted = new Set(keys)
+      const removed: OutboxItem[] = []
+      const next = this.items.filter((i) => {
+        const hit = wanted.has(i.idempotencyKey) && i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS
+        if (hit) removed.push(i)
+        return !hit
+      })
+      if (removed.length) await this.commit(next)
+      return removed
     })
   }
 
