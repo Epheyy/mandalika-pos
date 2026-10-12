@@ -20,8 +20,8 @@ const config: CapacitorConfig = {
     // chrome://inspect on the CI release APK. Revert before true-final.
     webContentsDebuggingEnabled: true,
   },
-  // Native logs: production only (APK 1.7 turned the TEMP debug logging off).
-  loggingBehavior: 'production',
+  // 'debug' = native/console logs only in debug builds; signed release APKs stay silent ('production' would always log).
+  loggingBehavior: 'debug',
   ios: {
     contentInset: 'always',
   },
