@@ -22,6 +22,8 @@ export interface FailedItem {
   ownedBy?: string
   /** What the cashier captured, e.g. a refund as "BSD-G0007 · Rp 225.000 · Tunai". Unset for items without a snapshot. */
   detail?: string
+  /** Sent to head office in a successful review check-in. */
+  reported?: boolean
 }
 
 export interface OfflineDataState {
@@ -55,6 +57,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
     reviewCode: r.reviewCode,
     lastError: r.reviewReason ?? r.lastError,
     detail: r.type === 'refund' ? refundDetail(r.payload) : undefined,
+    reported: engine.isReviewReported(r.idempotencyKey),
     ownedBy:
       r.ownerUserId && r.ownerUserId !== authStore.userId
         ? ownerLabel(r.ownerUserId, engine.getSnapshot().users)
@@ -68,8 +71,8 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
   return { review, stuck }
 }
 
-function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
-  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy && x.detail === b[i].detail)
+export function sameItems(a: FailedItem[], b: FailedItem[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.idempotencyKey === b[i].idempotencyKey && x.lastError === b[i].lastError && x.ownedBy === b[i].ownedBy && x.detail === b[i].detail && x.reported === b[i].reported)
 }
 
 export function useOfflineData(): OfflineDataState {

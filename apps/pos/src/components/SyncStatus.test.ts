@@ -60,3 +60,11 @@ describe('review row detail (A06)', () => {
     expect(html).not.toContain('text-[11px]')
   })
 })
+
+describe('review row reported label', () => {
+  it('shows "Dilaporkan ke kantor pusat" only once reported', () => {
+    const base = { idempotencyKey: 'd:1', type: 'refund', lastError: 'denied' }
+    expect(renderToStaticMarkup(createElement(ReviewRow, { f: { ...base, reported: true } }))).toContain('Dilaporkan ke kantor pusat')
+    expect(renderToStaticMarkup(createElement(ReviewRow, { f: base }))).not.toContain('Dilaporkan')
+  })
+})

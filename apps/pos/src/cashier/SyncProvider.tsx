@@ -19,6 +19,7 @@ import { api } from '../api'
 import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
+import { reviewResolvedMessage } from '../lib/reviewResolved'
 import { AppLoadingSkeleton } from '../components/Skeleton'
 import { JOURNAL_FALLBACK_MESSAGE, OUTBOX_CORRUPT_MESSAGE, OUTBOX_CORRUPT_UNSECURED_MESSAGE, OUTBOX_CORRUPT_PENDING_MESSAGE } from '../lib/durableSubmit'
 
@@ -112,6 +113,8 @@ export function SyncProvider({
           },
           onReceiveRejected: (msg) => onReceiveRejectedRef.current?.(msg),
           onReceiveAccepted: (transfer) => onReceiveAcceptedRef.current?.(transfer),
+          // Same toast sink CashierScreen registers for receive notices (a plain "show toast" ref).
+          onReviewResolved: (items) => onReceiveRejectedRef.current?.(reviewResolvedMessage(items)),
         },
         getKV(),
         // Every queued item is stamped with who/where it was captured (A04).

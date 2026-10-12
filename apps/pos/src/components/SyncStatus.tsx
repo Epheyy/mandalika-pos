@@ -49,6 +49,7 @@ export function ReviewRow({ f }: { f: FailedItem }) {
       <p className="text-[10px] text-red-600 break-words">
         {f.lastError ?? 'Alasan tidak diketahui'}
       </p>
+        {f.reported && <p className="text-[10px] font-semibold text-red-500">Dilaporkan ke kantor pusat</p>}
     </div>
   )
 }
