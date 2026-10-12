@@ -252,6 +252,20 @@ func TestSyncReviewPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("one badly typed item is skipped, the valid one is stored", func(t *testing.T) {
+		keyGood := "devA:00000000-0000-4000-8b00-0000000000a9"
+		keyBad := "devA:00000000-0000-4000-8b00-0000000000aa"
+		bad := fmt.Sprintf(`{"idempotencyKey":%q,"type":"refund","reviewCode":"forbidden","clientCreatedAt":12345,"payload":{}}`, keyBad)
+		report(tokA, bad, item(keyGood, "forbidden", `{}`))
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM sync_review_items WHERE idempotency_key=ANY($1)`, []string{keyGood, keyBad}).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Fatalf("stored %d of the two items, want only the valid one", n)
+		}
+	})
+
 	t.Run("bad batch sizes are 400", func(t *testing.T) {
 		if code, _ := do("POST", "/sync/review-items", tokA, `{"items":[]}`); code != 400 {
 			t.Fatalf("empty = %d", code)

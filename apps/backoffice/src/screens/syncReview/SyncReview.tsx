@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Outlet, SyncReviewItem, SyncReviewItemList } from '@mandalika/api'
 import { ClipboardCheck } from 'lucide-react'
 import { api } from '../../api'
@@ -10,7 +10,7 @@ import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
 import { Pagination } from '../../ui/Pagination'
 import { Select } from '../../ui/Field'
-import { REASON_FILTERS, fmtWib, isStale, reasonLabel, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, fmtWib, isStale, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 import { SyncReviewDetail } from './SyncReviewDetail'
 
 type Status = 'open' | 'resolved'
@@ -34,6 +34,11 @@ export default function SyncReview() {
   const openCount = q.data?.openCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  // Resolving the last row on a later page (here or by another user) leaves it empty.
+  useEffect(() => {
+    if (shouldStepBack({ loading: q.loading, error: q.error, rowCount: rows.length, page })) setPage(page - 1)
+  }, [q.loading, q.error, rows.length, page])
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader title="Tinjauan Sinkron"
@@ -54,7 +59,7 @@ export default function SyncReview() {
         {q.loading && rows.length === 0 ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<ClipboardCheck />} title={status === 'open' ? 'Tidak ada item terbuka' : 'Belum ada item selesai'} />
+          q.error ? null : <EmptyState icon={<ClipboardCheck />} title={status === 'open' ? 'Tidak ada item terbuka' : 'Belum ada item selesai'} />
         ) : (
           <ul className="divide-y divide-gray-50">
             {rows.map((it) => <ReviewListRow key={it.idempotencyKey} item={it} onOpen={() => setSelected(it)} />)}

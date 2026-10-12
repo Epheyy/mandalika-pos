@@ -95,3 +95,9 @@ export function payloadSummary(type: string, p: Record<string, unknown>): Array<
       return []
   }
 }
+
+/** True when a page past the first came back empty (its last row was resolved, possibly by
+ *  another user): step back instead of showing an empty state next to a non-zero open count. */
+export function shouldStepBack(s: { loading: boolean; error: string | null; rowCount: number; page: number }): boolean {
+  return !s.loading && !s.error && s.rowCount === 0 && s.page > 1
+}

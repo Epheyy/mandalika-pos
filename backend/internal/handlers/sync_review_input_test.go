@@ -123,3 +123,15 @@ func TestNormalizeResolveNote(t *testing.T) {
 		t.Fatalf("got %q %v", n, err)
 	}
 }
+
+func TestDecodeReviewReportsSkipsBadlyTypedItems(t *testing.T) {
+	raw := []json.RawMessage{
+		json.RawMessage(`{"idempotencyKey":"dev:1","type":"order"}`),
+		json.RawMessage(`{"idempotencyKey":5}`),
+		json.RawMessage(`"not an object"`),
+	}
+	out := decodeReviewReports(raw)
+	if len(out) != 1 || out[0].IdempotencyKey != "dev:1" {
+		t.Fatalf("decoded = %+v", out)
+	}
+}

@@ -15,8 +15,8 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-async function parked(request: unknown, keys: string[], events = {}) {
-  const { kv } = controllableKV()
+async function parked(request: unknown, keys: string[], events = {}, kvOverride?: ReturnType<typeof controllableKV>['kv']) {
+  const kv = kvOverride ?? controllableKV().kv
   const engine = new SyncEngine(api(request), events, kv, { actor: null })
   for (const k of keys) await engine.outbox.add('transfer_receive', k, { transferId: 't1', pin: '1234' })
   await engine.outbox.settle(keys.map((key) => ({ key, op: 'review' as const, code: 'forbidden', reason: 'PIN salah' })))
@@ -126,5 +126,58 @@ describe('SyncEngine.checkInReviews', () => {
     await vi.advanceTimersByTimeAsync(13_000)
     stop2()
     expect(request.mock.calls.some((c) => String(c[1]).endsWith('/sync/review-items'))).toBe(true)
+  })
+
+  it('replies with a malformed element are ignored entirely (not marked reported)', async () => {
+    const engine = await parked(vi.fn(async () => ({ data: { resolved: [null] } })), ['d:1'])
+    await engine.checkInReviews()
+    expect(engine.isReviewReported('d:1')).toBe(false)
+    expect(engine.reviewItems().map((i) => i.idempotencyKey)).toEqual(['d:1'])
+  })
+
+  it('retryFailed clears the reported stamp so a re-parked item counts as new', async () => {
+    const engine = await parked(vi.fn(async () => resolvedReply([])), ['d:1'])
+    await engine.checkInReviews()
+    expect(engine.isReviewReported('d:1')).toBe(true)
+    await engine.retryFailed()
+    expect(engine.isReviewReported('d:1')).toBe(false)
+  })
+
+  it('still notifies when resolveReviewed rejects but the removal had landed', async () => {
+    const onReviewResolved = vi.fn()
+    const engine = await parked(vi.fn(async () => resolvedReply(['d:1'])), ['d:1'], { onReviewResolved })
+    const real = engine.outbox.resolveReviewed.bind(engine.outbox)
+    vi.spyOn(engine.outbox, 'resolveReviewed').mockImplementation(async (keys) => {
+      await real(keys)
+      throw new Error('write failed after landing')
+    })
+    await engine.checkInReviews()
+    expect(engine.reviewItems()).toEqual([])
+    expect(onReviewResolved).toHaveBeenCalledWith([{ idempotencyKey: 'd:1', type: 'transfer_receive', note: 'refund manual', resolvedByName: 'HO' }])
+  })
+
+  it('does not notify when resolveReviewed rejects and the item is still parked', async () => {
+    const onReviewResolved = vi.fn()
+    const handle = controllableKV()
+    const engine = await parked(vi.fn(async () => resolvedReply(['d:1'])), ['d:1'], { onReviewResolved }, handle.kv)
+    handle.ctl.mode = 'reject'
+    await engine.checkInReviews()
+    expect(engine.reviewItems().map((i) => i.idempotencyKey)).toEqual(['d:1'])
+    expect(onReviewResolved).not.toHaveBeenCalled()
+  })
+
+  it('a failing sync-log write cannot suppress the notice', async () => {
+    const onReviewResolved = vi.fn()
+    const { kv } = controllableKV()
+    const engine = await parked(vi.fn(async () => resolvedReply(['d:1'])), ['d:1'], { onReviewResolved }, {
+      ...kv,
+      set: (key: string, value: string) => {
+        if (key === 'mandalika.pos.synclog') throw new Error('QuotaExceededError (synthetic)')
+        kv.set(key, value)
+      },
+    })
+    await engine.checkInReviews()
+    expect(engine.reviewItems()).toEqual([])
+    expect(onReviewResolved).toHaveBeenCalledTimes(1)
   })
 })

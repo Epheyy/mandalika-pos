@@ -215,6 +215,15 @@ export const ENVELOPE_REFUSED_MESSAGE =
 
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
 
+/** Every element must be an object with string idempotencyKey and note (name defaults to ''). */
+function isValidResolvedReply(v: unknown): v is { idempotencyKey: string; note: string; resolvedByName?: string }[] {
+  return Array.isArray(v) && v.every((x) => {
+    if (typeof x !== 'object' || x === null) return false
+    const o = x as Record<string, unknown>
+    return typeof o.idempotencyKey === 'string' && typeof o.note === 'string'
+  })
+}
+
 export class SyncEngine {
   readonly deviceId: string
   readonly outbox: Outbox
@@ -626,7 +635,14 @@ export class SyncEngine {
     // Another account's parked items stay parked: re-sending them would only be refused
     // again (actor_mismatch). Items without an envelope are retried as before.
     const me = this.actorProvider?.()?.userId
-    await this.outbox.retryDeadLettered((i) => !i.envelope || !me || i.envelope.userId === me)
+    const requeued: string[] = []
+    await this.outbox.retryDeadLettered((i) => {
+      const mine = !i.envelope || !me || i.envelope.userId === me
+      if (mine) requeued.push(i.idempotencyKey)
+      return mine
+    })
+    // A re-queued item that parks again is new to head office: clear its reported stamp.
+    for (const k of requeued) this.reviewSentAt.delete(k)
     this.events.onOutboxChange?.(this.outbox.count())
     void this.flush()
   }
@@ -689,24 +705,44 @@ export class SyncEngine {
         'POST', '/api/v1/sync/review-items', body, { timeoutMs: REVIEW_CHECKIN_TIMEOUT_MS },
       )
       const resolved = r?.data?.resolved
-      if (!Array.isArray(resolved) || this.disposed) return
+      if (!isValidResolvedReply(resolved) || this.disposed) return
       const sentAt = Date.now()
       for (const i of batch) this.reviewSentAt.set(i.idempotencyKey, sentAt)
       if (resolved.length === 0) return
       const byKey = new Map(resolved.map((x) => [x.idempotencyKey, x]))
-      const removed = await this.outbox.resolveReviewed([...byKey.keys()])
+      // Snapshot what is parked now: a rejected removal may still have landed (the journal
+      // store resyncs from disk on a failed write), so judge it by what is gone afterwards.
+      const parkedBefore = new Map(
+        this.outbox.reviewItems().filter((i) => byKey.has(i.idempotencyKey)).map((i) => [i.idempotencyKey, i]),
+      )
+      if (parkedBefore.size === 0) return
+      let removed: readonly Pick<OutboxItem, 'idempotencyKey' | 'type'>[]
+      try {
+        removed = await this.outbox.resolveReviewed([...parkedBefore.keys()])
+      } catch {
+        const stillParked = new Set(this.outbox.reviewItems().map((i) => i.idempotencyKey))
+        removed = [...parkedBefore.values()].filter((i) => !stillParked.has(i.idempotencyKey))
+      }
       if (removed.length === 0) return
-      const at = new Date().toISOString()
       const notices = removed.map((i): ReviewResolvedNotice => {
         const x = byKey.get(i.idempotencyKey)!
         this.reviewSentAt.delete(i.idempotencyKey)
-        return { idempotencyKey: i.idempotencyKey, type: i.type, note: x.note, resolvedByName: x.resolvedByName }
+        return { idempotencyKey: i.idempotencyKey, type: i.type, note: x.note, resolvedByName: x.resolvedByName ?? '' }
       })
-      this.appendSyncLog(notices.map((n) => ({
-        at, deviceId: this.deviceId, type: n.type, idempotencyKey: n.idempotencyKey,
-        event: 'diselesaikan kantor pusat', note: n.note, resolvedByName: n.resolvedByName,
-      })))
-      this.events.onReviewResolved?.(notices)
+      // Notify first; a failing event handler or sync-log write must not suppress the other.
+      try {
+        this.events.onReviewResolved?.(notices)
+      } finally {
+        try {
+          const at = new Date().toISOString()
+          this.appendSyncLog(notices.map((n) => ({
+            at, deviceId: this.deviceId, type: n.type, idempotencyKey: n.idempotencyKey,
+            event: 'diselesaikan kantor pusat', note: n.note, resolvedByName: n.resolvedByName,
+          })))
+        } catch {
+          // The log is best-effort diagnostics; the items are already gone and announced.
+        }
+      }
     } catch {
       // Offline, server error, expired login, older server or a failed queue write:
       // nothing changed; the throttle above spaces out the retry.

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -23,16 +24,25 @@ const reviewReportBodyLimit = 8 << 20
 func (h *Handlers) ReportSyncReviewItems(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, reviewReportBodyLimit)
 	var body struct {
-		Items []reviewReportIn `json:"items"`
+		Items []json.RawMessage `json:"items"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	items, err := normalizeReviewReports(body.Items)
-	if err != nil {
-		httpx.Err(w, http.StatusBadRequest, err.Error())
+	// The batch-size rule applies to the raw count; a badly typed single item is skipped
+	// (spec 4.3) rather than failing the whole check-in.
+	if len(body.Items) == 0 || len(body.Items) > maxReviewReports {
+		httpx.Err(w, http.StatusBadRequest, errReviewBatchSize.Error())
 		return
+	}
+	var items []write.SyncReviewReport
+	if decoded := decodeReviewReports(body.Items); len(decoded) > 0 {
+		var err error
+		if items, err = normalizeReviewReports(decoded); err != nil {
+			httpx.Err(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	c, _ := h.caller(r)
 	if c.outletID == "" || c.userID == "" {
@@ -41,6 +51,7 @@ func (h *Handlers) ReportSyncReviewItems(w http.ResponseWriter, r *http.Request)
 	}
 	resolved := []write.SyncReviewResolution{}
 	if len(items) > 0 {
+		var err error
 		resolved, err = h.Write.UpsertSyncReviewReports(r.Context(), c.outletID, c.userID, items)
 		if err != nil {
 			slog.Error("sync review report failed", "outletId", c.outletID, "err", err)

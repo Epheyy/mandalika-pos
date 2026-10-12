@@ -45,6 +45,21 @@ type reviewReportIn struct {
 	Payload          json.RawMessage `json:"payload"`
 }
 
+// decodeReviewReports unmarshals each raw item on its own and drops the ones that do
+// not fit the wire shape (e.g. a number where a string belongs), so one bad item
+// cannot fail the whole check-in.
+func decodeReviewReports(raw []json.RawMessage) []reviewReportIn {
+	out := make([]reviewReportIn, 0, len(raw))
+	for _, m := range raw {
+		var it reviewReportIn
+		if err := json.Unmarshal(m, &it); err != nil {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
+}
+
 // normalizeReviewReports validates a check-in. A wrong batch size rejects the
 // request; an invalid single item is skipped (the reply only lists resolved
 // keys, so a skipped item is simply reported again next time).
