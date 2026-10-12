@@ -88,3 +88,30 @@ test('literal false / DEV values and absent keys are OK', () => {
   assert.deepEqual(check(`{}`, `{ debug: import.meta.env.DEV }`), [])
   assert.deepEqual(check(`{}`, `{ onWall: x }`), [])
 })
+
+test('unterminated block comment (scanner out of sync) fails closed', () => {
+  const lost =
+    'const a = `${ f(`/*`) }`; const c = { webContentsDebuggingEnabled: true }'
+  const v = check(lost)
+  assert.ok(v.length >= 1)
+  assert.match(v.join('\n'), /could not parse/)
+  assert.ok(check(`{}`, '/* never closed\n debug: false').length >= 1)
+})
+
+test('shorthand keys are violations', () => {
+  assert.equal(check(`{ webContentsDebuggingEnabled }`).length, 1)
+  assert.equal(check(`{ android: { webContentsDebuggingEnabled, x: 1 } }`).length, 1)
+  for (const s of ['{ debug }', 'x({ onWall, debug })', 'x({ debug, onWall })', 'x({\n debug\n})']) {
+    assert.equal(check(`{}`, s).length, 1, s)
+  }
+})
+
+test('computed keys are matched', () => {
+  assert.equal(check(`{ ["webContentsDebuggingEnabled"]: true }`).length, 1)
+  assert.equal(check(`{}`, `x({ ['debug']: true })`).length, 1)
+  assert.deepEqual(check(`{ ["webContentsDebuggingEnabled"]: false }`), [])
+})
+
+test('member access and calls named debug are not shorthand', () => {
+  assert.deepEqual(check(`{}`, `console.debug('x'); log.debug(a, b)`), [])
+})

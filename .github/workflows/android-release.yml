@@ -40,7 +40,7 @@ jobs:
 
       - name: Release debug gate (production only)
         if: inputs.release_type == 'production'
-        run: node scripts/ci/release_debug_gate.mjs
+        run: node scripts/ci/release_debug_gate_cli.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4

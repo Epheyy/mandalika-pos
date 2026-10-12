@@ -1,10 +1,9 @@
-// Production-APK debug gate (A34 G1). Text-level checks, no dependencies.
+// Production-APK debug gate (A34 G1), pure module; CLI is release_debug_gate_cli.mjs.
+// Text-level checks, no dependencies.
 // Capacitor loggingBehavior: 'debug' (default) = logs only in debug builds,
 // 'none' = never, 'production' = ALWAYS logs, so only 'production' is flagged.
 // A release gate must not miss real violations; false alarms are acceptable,
 // so any value that is not a recognised safe literal is a violation.
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 // Remove // and /* */ comments while leaving string/template literals intact.
 export function stripComments(text) {
@@ -22,7 +21,8 @@ export function stripComments(text) {
       while (i < text.length && text[i] !== '\n') i++
     } else if (c === '/' && n === '*') {
       const end = text.indexOf('*/', i + 2)
-      i = end === -1 ? text.length : end + 2
+      if (end === -1) throw new Error('unterminated block comment')
+      i = end + 2
       out += ' '
     } else {
       out += c
@@ -32,47 +32,65 @@ export function stripComments(text) {
   return out
 }
 
-// Values of every `key: value` / `'key': value` property (value up to , } or newline).
+// Values of every `key: value` / `'key': value` / `['key']: value` property
+// (value up to , } or newline).
 function propertyValues(text, key) {
   const re = new RegExp(
-    String.raw`(?<![.\w$])['"]?${key}['"]?\s*:\s*([^,}\n]*)`,
+    String.raw`(?<![.\w$])\[?\s*['"]?${key}['"]?\s*\]?\s*:\s*([^,}\n]*)`,
     'g',
   )
   return [...text.matchAll(re)].map((m) => m[1].trim())
 }
 
-export function checkReleaseDebug({ capacitorConfig, syncProvider }) {
-  const violations = []
-  const cfg = stripComments(capacitorConfig)
-  const sync = stripComments(syncProvider)
-
-  if (propertyValues(cfg, 'webContentsDebuggingEnabled').some((v) => v !== 'false')) {
-    violations.push('android.webContentsDebuggingEnabled is not literally false')
-  }
-  for (const v of propertyValues(cfg, 'loggingBehavior')) {
-    if (/^['"]production['"]$/.test(v)) {
-      violations.push(
-        "loggingBehavior 'production' logs in release builds; use 'debug' (default) or 'none'",
-      )
-    } else if (!/^['"](debug|none)['"]$/.test(v)) {
-      violations.push("loggingBehavior must be a literal 'debug' or 'none'")
-    }
-  }
-  if (propertyValues(sync, 'debug').some((v) => v !== 'false' && v !== 'import.meta.env.DEV')) {
-    violations.push('SyncProvider passes a debug value to SyncEngine other than false or import.meta.env.DEV')
-  }
-  return violations
+// Bare `key` used as an object shorthand property (`{ key }`, `{ key,`, `, key }`).
+function hasShorthand(text, key) {
+  return new RegExp(String.raw`(?<![.\w$'"])${key}\s*(?=[,}])`).test(text)
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const violations = checkReleaseDebug({
-    capacitorConfig: readFileSync('apps/pos/capacitor.config.ts', 'utf8'),
-    syncProvider: readFileSync('apps/pos/src/cashier/SyncProvider.tsx', 'utf8'),
-  })
-  if (violations.length > 0) {
-    for (const v of violations) console.log(`::error::${v}`)
-    console.log(`release debug gate: ${violations.length} violation(s); production build refused`)
-    process.exit(1)
+function strip(text, file, violations) {
+  try {
+    return stripComments(text)
+  } catch (e) {
+    violations.push(`could not parse ${file} safely (${e.message})`)
+    return null
   }
-  console.log('release debug gate: clean')
+}
+
+export function checkReleaseDebug({ capacitorConfig, syncProvider }) {
+  const violations = []
+  const cfg = strip(capacitorConfig, 'capacitor.config.ts', violations)
+  const sync = strip(syncProvider, 'SyncProvider.tsx', violations)
+
+  if (cfg !== null) {
+    const web = 'webContentsDebuggingEnabled'
+    if (propertyValues(cfg, web).some((v) => v !== 'false')) {
+      violations.push('android.webContentsDebuggingEnabled is not literally false')
+    }
+    if (hasShorthand(cfg, web)) {
+      violations.push(`${web} set via shorthand/non-literal`)
+    }
+    for (const v of propertyValues(cfg, 'loggingBehavior')) {
+      if (/^['"]production['"]$/.test(v)) {
+        violations.push(
+          "loggingBehavior 'production' logs in release builds; use 'debug' (default) or 'none'",
+        )
+      } else if (!/^['"](debug|none)['"]$/.test(v)) {
+        violations.push("loggingBehavior must be a literal 'debug' or 'none'")
+      }
+    }
+    if (hasShorthand(cfg, 'loggingBehavior')) {
+      violations.push('loggingBehavior set via shorthand/non-literal')
+    }
+  }
+  if (sync !== null) {
+    if (propertyValues(sync, 'debug').some((v) => v !== 'false' && v !== 'import.meta.env.DEV')) {
+      violations.push(
+        'SyncProvider passes a debug value to SyncEngine other than false or import.meta.env.DEV',
+      )
+    }
+    if (hasShorthand(sync, 'debug')) {
+      violations.push('SyncProvider debug set via shorthand/non-literal')
+    }
+  }
+  return violations
 }
