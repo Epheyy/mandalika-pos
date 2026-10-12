@@ -156,6 +156,12 @@
       "finding": "A31",
       "description": "14 old interval after cleanup cannot start",
       "source": "apps/backoffice/tests/polling-harness.tsx"
+    },
+    {
+      "id": "BO-REVIEW-RESOLVE",
+      "finding": "review-resolve",
+      "description": "Sidebar badge, open list, detail, resolve with trimmed note and escaped key, badge clears",
+      "source": "tests/browser/backoffice-review-scenarios.ts"
     }
   ],
   "redundant": [

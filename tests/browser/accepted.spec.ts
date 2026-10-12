@@ -1,6 +1,7 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
 import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
+import { reviewResolveFlow } from './backoffice-review-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
@@ -63,6 +64,12 @@ test('POS-RECAP all pages cached and actual panel remount keeps complete snapsho
   await setupPos(p)
   await p.getByRole('button', { name: 'Menu', exact: true }).click()
   await evidence(info, await posRecap(p))
+})
+
+test('BO-REVIEW-RESOLVE head office resolves a parked tablet item and the badge clears', async ({ page }, info) => {
+  const result = await reviewResolveFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
 })
 
 // Independent test definitions: removing a registry row must not also remove its test.
