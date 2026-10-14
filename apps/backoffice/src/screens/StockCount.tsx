@@ -46,7 +46,9 @@ export default function StockCount() {
   const [busy, setBusy] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Record<string, StockCountItem[]>>({})
+  const [pageErr, setPageErr] = useState<string | null>(null)
+  // Unsaved local edits: count id -> line key -> counted qty (null = cleared).
+  const [edits, setEdits] = useState<Record<string, Record<string, number | null>>>({})
   const [form, setForm] = useState({
     name: '',
     locationKey: '',
@@ -54,7 +56,22 @@ export default function StockCount() {
     notes: '',
   })
 
-  const itemsFor = (sc: StockCount) => draft[sc.id] ?? sc.items
+  const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
+  const itemsFor = (sc: StockCount) =>
+    sc.items.map((it) => {
+      const e = edits[sc.id]?.[lineKey(it)]
+      return e === undefined ? it : { ...it, actualQty: e }
+    })
+  // Edited lines not yet saved, as payload lines.
+  const pendingLines = (sc: StockCount) =>
+    itemsFor(sc).filter((it) => edits[sc.id]?.[lineKey(it)] !== undefined)
+  const clearEdits = (scId: string, keys: string[]) =>
+    setEdits((d) => {
+      const rest = { ...(d[scId] ?? {}) }
+      keys.forEach((k) => delete rest[k])
+      return { ...d, [scId]: rest }
+    })
+  const fail = (e: unknown, fallback: string) => setPageErr(e instanceof Error ? e.message : fallback)
 
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
@@ -113,40 +130,72 @@ export default function StockCount() {
   }
 
   const start = async (sc: StockCount) => {
-    await api.updateStockCount(sc.id, { status: 'in_progress' })
-    setExpanded(sc.id)
+    setPageErr(null)
+    try {
+      await api.updateStockCount(sc.id, { status: 'in_progress' })
+      setExpanded(sc.id)
+    } catch (e) {
+      fail(e, 'Gagal memulai stock count.')
+    }
     await scq.refetch()
   }
   const cancel = async (sc: StockCount) => {
-    await api.updateStockCount(sc.id, { status: 'cancelled' })
+    setPageErr(null)
+    try {
+      await api.updateStockCount(sc.id, { status: 'cancelled' })
+    } catch (e) {
+      fail(e, 'Gagal membatalkan stock count.')
+    }
     await scq.refetch()
   }
-  const setQty = (sc: StockCount, idx: number, qty: number) => {
-    setDraft((d) => {
-      const base = (d[sc.id] ?? sc.items).map((it) => ({ ...it }))
-      base[idx] = { ...base[idx], actualQty: qty, difference: qty - base[idx].frozenQty }
-      return { ...d, [sc.id]: base }
-    })
+  const setQty = (sc: StockCount, it: StockCountItem, raw: string) => {
+    const qty = raw.trim() === '' ? null : Math.max(0, parseInt(raw, 10) || 0)
+    setEdits((d) => ({ ...d, [sc.id]: { ...(d[sc.id] ?? {}), [lineKey(it)]: qty } }))
+  }
+  // Save one line on blur/Enter so the server captures the stock at count time.
+  const saveLine = async (sc: StockCount, it: StockCountItem) => {
+    const key = lineKey(it)
+    const v = edits[sc.id]?.[key]
+    if (v === undefined) return
+    setPageErr(null)
+    try {
+      await api.updateStockCount(sc.id, { items: [{ ...it, actualQty: v }] })
+      clearEdits(sc.id, [key])
+      await scq.refetch()
+    } catch (e) {
+      fail(e, 'Gagal menyimpan hitungan.')
+    }
   }
   const saveProgress = async (sc: StockCount) => {
+    const lines = pendingLines(sc)
+    if (lines.length === 0) return
     setActiveId(sc.id)
+    setPageErr(null)
     try {
-      await api.updateStockCount(sc.id, { items: itemsFor(sc) })
+      await api.updateStockCount(sc.id, { items: lines })
+      clearEdits(sc.id, lines.map(lineKey))
       await scq.refetch()
+    } catch (e) {
+      fail(e, 'Gagal menyimpan progres.')
     } finally {
       setActiveId(null)
     }
   }
   const complete = async (sc: StockCount) => {
+    const ok = window.confirm(
+      'Selesaikan stock count? Selisih hitungan akan diterapkan ke stok saat ini. Penjualan yang terjadi selama penghitungan tetap dihitung.',
+    )
+    if (!ok) return
     setActiveId(sc.id)
+    setPageErr(null)
     try {
-      await api.completeStockCount(sc.id, itemsFor(sc))
-      setDraft((d) => {
-        const n = { ...d }
-        delete n[sc.id]
-        return n
-      })
+      const lines = pendingLines(sc)
+      await api.completeStockCount(sc.id, lines)
+      clearEdits(sc.id, lines.map(lineKey))
       await Promise.all([scq.refetch(), pq.refetch()])
+    } catch (e) {
+      fail(e, 'Gagal menyelesaikan stock count.')
+      await scq.refetch()
     } finally {
       setActiveId(null)
     }
@@ -183,7 +232,7 @@ export default function StockCount() {
     <div className="p-6 space-y-5">
       <PageHeader
         title="Stock Count"
-        subtitle="Stok dibekukan saat penghitungan. Transaksi tetap berjalan."
+        subtitle="Selisih hitungan diterapkan ke stok saat ini. Transaksi tetap berjalan."
         actions={
           <>
             <ImportExportBar
@@ -196,6 +245,13 @@ export default function StockCount() {
           </>
         }
       />
+
+      {pageErr && (
+        <div role="alert" className="bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm flex justify-between gap-3">
+          <span>{pageErr}</span>
+          <button type="button" className="font-bold" onClick={() => setPageErr(null)}>Tutup</button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {scq.loading ? (
@@ -254,13 +310,13 @@ export default function StockCount() {
                     <table className="w-full">
                       <thead className="sticky top-0 bg-gray-50">
                         <tr>
-                          {['Produk', 'Varian', 'SKU', 'Stok Beku', 'Stok Aktual', 'Selisih'].map((h) => (
+                          {['Produk', 'Varian', 'SKU', 'Stok Beku', 'Stok Aktual', 'Selisih', ...(sc.status === 'completed' ? ['Stok Sebelum → Sesudah'] : [])].map((h) => (
                             <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {items.map((it, idx) => (
+                        {items.map((it) => (
                           <tr key={`${it.productId}-${it.variantSize}`} className="hover:bg-gray-50">
                             <td className="px-4 py-2 text-sm font-bold text-gray-900">{it.productName}</td>
                             <td className="px-4 py-2 text-xs text-gray-600">{it.variantSize}</td>
@@ -268,18 +324,31 @@ export default function StockCount() {
                             <td className="px-4 py-2 text-sm font-bold text-gold-700">{it.frozenQty}</td>
                             <td className="px-4 py-2">
                               {sc.status === 'in_progress' ? (
-                                <input type="number" value={it.actualQty ?? ''} onChange={(e) => setQty(sc, idx, parseInt(e.target.value) || 0)} aria-label={`Jumlah aktual ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
+                                <div className="flex items-center gap-2">
+                                  <input type="number" min={0} value={it.actualQty ?? ''} onChange={(e) => setQty(sc, it, e.target.value)} onBlur={() => void saveLine(sc, it)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Jumlah aktual ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
+                                  {it.countedAt && edits[sc.id]?.[lineKey(it)] === undefined && (
+                                    <span className="text-[10px] text-gray-400">dihitung {format(parseISO(it.countedAt), 'HH:mm')}</span>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-sm font-bold text-gray-900">{it.actualQty ?? '—'}</span>
                               )}
                             </td>
                             <td className="px-4 py-2">
-                              {it.difference != null ? (
-                                <span className={`text-sm font-black ${it.difference > 0 ? 'text-green-600' : it.difference < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                                  {it.difference > 0 ? '+' : ''}{it.difference}
-                                </span>
-                              ) : '—'}
+                              {(() => {
+                                const diff = it.difference ?? (it.actualQty != null ? it.actualQty - (it.baselineQty ?? it.frozenQty) : null)
+                                return diff != null ? (
+                                  <span className={`text-sm font-black ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                    {diff > 0 ? '+' : ''}{diff}
+                                  </span>
+                                ) : '—'
+                              })()}
                             </td>
+                            {sc.status === 'completed' && (
+                              <td className="px-4 py-2 text-xs text-gray-600">
+                                {it.stockBefore != null && it.stockAfter != null ? `${it.stockBefore} → ${it.stockAfter}` : '—'}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
