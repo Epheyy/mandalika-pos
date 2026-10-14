@@ -1361,9 +1361,13 @@ components:
         productName: { type: string }
         variantSize: { type: string }
         sku: { type: string }
-        frozenQty: { type: integer }
+        frozenQty: { type: integer, description: "Stock when the count started; the server computes it and ignores a client-sent value." }
         actualQty: { type: integer, nullable: true }
-        difference: { type: integer, nullable: true }
+        difference: { type: integer, nullable: true, description: "Variance: counted minus the line's baseline (frozenQty when there is no baseline). Server-computed at completion." }
+        baselineQty: { type: integer, nullable: true, description: "Live stock when this line's count was saved; null until counted. Server-captured." }
+        countedAt: { type: string, format: date-time, nullable: true, description: "When this line's count was saved. Server-stamped." }
+        stockBefore: { type: integer, nullable: true, description: "Live stock just before the difference was applied at completion. Server-recorded." }
+        stockAfter: { type: integer, nullable: true, description: "Live stock after the difference was applied at completion. Server-recorded." }
     StockCount:
       type: object
       required: [id, name, status, items, createdBy, createdAt]
@@ -3841,7 +3845,11 @@ paths:
     put:
       operationId: updateStockCount
       tags: [sales]
-      summary: Update stock count (start / save progress / cancel; outlet-scoped)
+      summary: >
+        Update stock count (outlet-scoped). Start re-freezes frozen quantities from
+        live stock; in progress, items only update actualQty of existing lines and
+        capture the live stock as that line's baseline; planned counts replace the
+        line list. Repeating start or cancel is a no-op.
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
       requestBody:
@@ -3856,6 +3864,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "action not allowed in this status, another count at the location is in progress, or lock conflict (retryable)" }
     get:
       operationId: getStockCount
       tags: [sales]
@@ -3879,8 +3888,10 @@ paths:
       operationId: completeStockCount
       tags: [sales]
       summary: >
-        Complete stock count — applies actual quantities to product stock in
-        one tx and bumps the content version (outlet-scoped).
+        Complete stock count — adds each counted line's difference (counted minus
+        baseline) to live stock in one tx, so sales made during the count are kept,
+        and bumps the content version (outlet counts). Completing a completed count
+        is a no-op that returns it. Items may only update actualQty of existing lines.
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
       requestBody:
@@ -3895,6 +3906,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "count is not in progress, or lock conflict (retryable)" }
   /api/v1/cash-flows:
     post:
       operationId: createCashFlow

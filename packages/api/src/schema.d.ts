@@ -1509,7 +1509,7 @@ export interface paths {
         };
         /** Get stock count (outlet-scoped) */
         get: operations["getStockCount"];
-        /** Update stock count (start / save progress / cancel; outlet-scoped) */
+        /** Update stock count (outlet-scoped). Start re-freezes frozen quantities from live stock; in progress, items only update actualQty of existing lines and capture the live stock as that line's baseline; planned counts replace the line list. Repeating start or cancel is a no-op. */
         put: operations["updateStockCount"];
         post?: never;
         delete?: never;
@@ -1529,7 +1529,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Complete stock count — applies actual quantities to product stock in one tx and bumps the content version (outlet-scoped). */
+        /** Complete stock count — adds each counted line's difference (counted minus baseline) to live stock in one tx, so sales made during the count are kept, and bumps the content version (outlet counts). Completing a completed count is a no-op that returns it. Items may only update actualQty of existing lines. */
         post: operations["completeStockCount"];
         delete?: never;
         options?: never;
@@ -3081,9 +3081,22 @@ export interface components {
             productName: string;
             variantSize: string;
             sku: string;
+            /** @description Stock when the count started; the server computes it and ignores a client-sent value. */
             frozenQty: number;
             actualQty?: number | null;
+            /** @description Variance: counted minus the line's baseline (frozenQty when there is no baseline). Server-computed at completion. */
             difference?: number | null;
+            /** @description Live stock when this line's count was saved; null until counted. Server-captured. */
+            baselineQty?: number | null;
+            /**
+             * Format: date-time
+             * @description When this line's count was saved. Server-stamped.
+             */
+            countedAt?: string | null;
+            /** @description Live stock just before the difference was applied at completion. Server-recorded. */
+            stockBefore?: number | null;
+            /** @description Live stock after the difference was applied at completion. Server-recorded. */
+            stockAfter?: number | null;
         };
         StockCount: {
             /** Format: uuid */
@@ -6751,6 +6764,13 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description action not allowed in this status, another count at the location is in progress, or lock conflict (retryable) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     completeStockCount: {
@@ -6781,6 +6801,13 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description count is not in progress, or lock conflict (retryable) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listCashFlows: {

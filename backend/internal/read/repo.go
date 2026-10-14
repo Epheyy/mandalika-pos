@@ -1178,7 +1178,9 @@ const stockCountObj = `json_build_object('id',sc.id,'name',sc.name,
   'items',COALESCE((SELECT json_agg(json_build_object(
      'productId',i.product_id,'productName',i.product_name,
      'variantSize',i.variant_size,'sku',i.sku,'frozenQty',i.frozen_qty,
-     'actualQty',i.actual_qty,'difference',i.difference))
+     'actualQty',i.actual_qty,'difference',i.difference,
+     'baselineQty',i.baseline_qty,'countedAt',i.counted_at,
+     'stockBefore',i.stock_before,'stockAfter',i.stock_after))
      FROM stock_count_items i WHERE i.stock_count_id=sc.id),'[]'::json))`
 
 func (r *Repo) StockCounts(ctx context.Context, s Scope, page, limit int) ([]api.StockCount, int, error) {

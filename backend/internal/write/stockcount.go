@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/mandalika/pos-backend/internal/apperr"
 )
 
 // ── Custom roles (global reference data — bumps content version) ──
@@ -61,15 +63,27 @@ func (r *Repo) DeleteCustomRole(ctx context.Context, id string) error {
 }
 
 // ── Stock counts (outlet-scoped; not reference data) ──────────────
+//
+// A14: the server owns the baseline. Completion applies the counted difference to
+// live stock (stock = stock + counted - baseline) instead of writing the absolute
+// count, so sales made while a count runs are kept and a retried completion cannot
+// restore an old number. Client frozenQty/difference/baseline/stock* are never read.
+
+// ErrCountState: the requested action is not allowed in the count's current status.
+var ErrCountState = apperr.New(apperr.Conflict, "status stock count tidak mengizinkan aksi ini")
+
+// ErrCountRunning: another count at the same location is still in progress.
+var ErrCountRunning = apperr.New(apperr.Conflict, "stock count lain di lokasi ini masih berjalan")
 
 type StockCountItem struct {
 	ProductID   string `json:"productId"`
 	ProductName string `json:"productName"`
 	VariantSize string `json:"variantSize"`
 	SKU         string `json:"sku"`
-	FrozenQty   int    `json:"frozenQty"`
-	ActualQty   *int   `json:"actualQty"`
-	Difference  *int   `json:"difference"`
+	// FrozenQty and Difference are accepted for wire compatibility and ignored.
+	FrozenQty  int  `json:"frozenQty"`
+	ActualQty  *int `json:"actualQty"`
+	Difference *int `json:"difference"`
 }
 
 type StockCountCreate struct {
@@ -86,8 +100,154 @@ type StockCountUpdate struct {
 	Items  []StockCountItem `json:"items"`
 }
 
-// CreateStockCount freezes the supplied snapshot. Outlet + creator come from
-// the caller (server-resolved), never the body (plan §2a).
+// countStep is the status change a PUT requests, after checking it against the
+// count's current status.
+type countStep int
+
+const (
+	stepNone countStep = iota
+	stepStart
+	stepCancel
+)
+
+// countStatusStep is the lifecycle table for PUT status changes. Repeating the
+// action that already happened (double click) is a no-op; anything else out of
+// order is ErrCountState; a status PUT cannot set is a plain input error.
+func countStatusStep(current, requested string) (countStep, error) {
+	switch requested {
+	case "":
+		return stepNone, nil
+	case "in_progress":
+		switch current {
+		case "planned":
+			return stepStart, nil
+		case "in_progress":
+			return stepNone, nil
+		}
+	case "cancelled":
+		switch current {
+		case "planned", "in_progress":
+			return stepCancel, nil
+		case "cancelled":
+			return stepNone, nil
+		}
+	default:
+		return stepNone, fmt.Errorf("status %q tidak dikenal", requested)
+	}
+	return stepNone, fmt.Errorf("%w (status: %s)", ErrCountState, current)
+}
+
+// itemsMode says how a PUT items payload is applied in a given status.
+type itemsMode int
+
+const (
+	itemsReplace itemsMode = iota + 1 // planned: replace the line list (labels only)
+	itemsPartial                      // in_progress: update actualQty of existing lines
+)
+
+func countItemsMode(status string) (itemsMode, error) {
+	switch status {
+	case "planned":
+		return itemsReplace, nil
+	case "in_progress":
+		return itemsPartial, nil
+	}
+	return 0, fmt.Errorf("%w (status: %s)", ErrCountState, status)
+}
+
+// countDelta is the stock change a counted line applies: counted minus what the
+// stock was when the line was counted (its baseline), or minus the frozen
+// quantity for a line that has no per-line baseline.
+func countDelta(actual int, baseline *int, frozen int) int {
+	if baseline != nil {
+		return actual - *baseline
+	}
+	return actual - frozen
+}
+
+// countLoc is the one location a count belongs to.
+type countLoc struct{ outletID, warehouseID string }
+
+func (l countLoc) isWarehouse() bool { return l.warehouseID != "" }
+
+// stock returns the stock table, its location column and this count's location id.
+func (l countLoc) stock() (table, col, id string) {
+	if l.isWarehouse() {
+		return "warehouse_variant_stock", "warehouse_id", l.warehouseID
+	}
+	return "outlet_variant_stock", "outlet_id", l.outletID
+}
+
+// liveStockSQL is a scalar subquery of the live stock of a variant; a missing row
+// counts as 0. The arguments are SQL expressions or parameter placeholders.
+func (l countLoc) liveStockSQL(locExpr, pidExpr, sizeExpr string) string {
+	tbl, col, _ := l.stock()
+	return fmt.Sprintf(`COALESCE((SELECT s.stock FROM %s s WHERE s.%s=%s::uuid AND s.product_id=%s AND s.variant_size=%s),0)`,
+		tbl, col, locExpr, pidExpr, sizeExpr)
+}
+
+type countRow struct {
+	status string
+	loc    countLoc
+}
+
+// lockCount reads the count under a row lock (every state-changing path starts
+// here, so concurrent edits and completions are serialized per count) and
+// authorizes it: outlet counts must belong to the caller's outlet; warehouse
+// counts are permission-gated (existence check only — no outlet binding).
+func lockCount(ctx context.Context, t pgx.Tx, id, outletID string) (countRow, error) {
+	var c countRow
+	var oid, wid *string
+	e := t.QueryRow(ctx,
+		`SELECT status, outlet_id, warehouse_id FROM stock_counts WHERE id=$1 FOR UPDATE`, id).Scan(&c.status, &oid, &wid)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return c, ErrNotFound
+	}
+	if e != nil {
+		return c, e
+	}
+	switch {
+	case wid != nil:
+		c.loc.warehouseID = *wid
+	case oid != nil && *oid == outletID:
+		c.loc.outletID = *oid
+	default:
+		return c, ErrNotFound // outlet count: must match the caller's outlet
+	}
+	return c, nil
+}
+
+func validateCountItems(items []StockCountItem) error {
+	seen := make(map[[2]string]bool, len(items))
+	for _, i := range items {
+		if i.ProductID == "" || i.VariantSize == "" {
+			return fmt.Errorf("produk dan ukuran wajib diisi")
+		}
+		if i.ActualQty != nil && *i.ActualQty < 0 {
+			return fmt.Errorf("jumlah hitung tidak boleh negatif")
+		}
+		k := [2]string{i.ProductID, i.VariantSize}
+		if seen[k] {
+			return fmt.Errorf("produk %s (%s) muncul lebih dari sekali", i.ProductName, i.VariantSize)
+		}
+		seen[k] = true
+	}
+	return nil
+}
+
+// runningCountConflict maps the one-running-count-per-location unique indexes.
+func runningCountConflict(e error) error {
+	var pg *pgconn.PgError
+	if errors.As(e, &pg) && pg.Code == "23505" &&
+		(pg.ConstraintName == "stock_counts_one_running_outlet" || pg.ConstraintName == "stock_counts_one_running_warehouse") {
+		return ErrCountRunning
+	}
+	return e
+}
+
+// CreateStockCount records the line list. Frozen quantities are read from live
+// stock here; the client's frozen/actual/difference are ignored. Outlet + creator
+// come from the caller (server-resolved), never the body (plan §2a).
 func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string, s StockCountCreate) (string, error) {
 	// A count belongs to exactly one location. A warehouseId in the body makes it
 	// a warehouse count (ignore any outlet scope); otherwise it's an outlet count
@@ -96,6 +256,9 @@ func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string,
 		outletID = ""
 	} else if outletID == "" {
 		return "", fmt.Errorf("outlet atau gudang wajib")
+	}
+	if e := validateCountItems(s.Items); e != nil {
+		return "", e
 	}
 	var id string
 	t, err := r.Pool.Begin(ctx)
@@ -110,82 +273,126 @@ func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string,
 		nullStr(s.Notes), nullUUID(createdBy)).Scan(&id); e != nil {
 		return "", e
 	}
-	if e := insertStockItems(ctx, t, id, s.Items); e != nil {
+	if e := insertStockItems(ctx, t, id, countLoc{outletID: outletID, warehouseID: s.WarehouseID}, s.Items); e != nil {
 		return "", e
 	}
 	return id, t.Commit(ctx)
 }
 
-func insertStockItems(ctx context.Context, t pgx.Tx, scID string, items []StockCountItem) error {
+// insertStockItems inserts labelled lines with frozen_qty read from live stock.
+func insertStockItems(ctx context.Context, t pgx.Tx, scID string, loc countLoc, items []StockCountItem) error {
+	_, _, lid := loc.stock()
+	q := `INSERT INTO stock_count_items (stock_count_id, product_id, product_name, variant_size, sku, frozen_qty)
+		VALUES ($1::uuid,$2::uuid,$3::text,$4::text,$5::text,` + loc.liveStockSQL("$6", "$2::uuid", "$4::text") + `)`
 	for _, i := range items {
-		if _, e := t.Exec(ctx, `
-			INSERT INTO stock_count_items (stock_count_id, product_id, product_name,
-			  variant_size, sku, frozen_qty, actual_qty, difference)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-			scID, i.ProductID, i.ProductName, i.VariantSize, i.SKU,
-			i.FrozenQty, i.ActualQty, i.Difference); e != nil {
+		if _, e := t.Exec(ctx, q, scID, i.ProductID, i.ProductName, i.VariantSize, i.SKU, lid); e != nil {
 			return e
 		}
 	}
 	return nil
 }
 
-// scopeCount authorizes a stock count by id, handling both location types:
-// outlet counts must belong to the caller's outlet; warehouse counts are
-// permission-gated (existence check only — no outlet binding).
-func scopeCount(ctx context.Context, t pgx.Tx, id, outletID string) error {
-	var oid, wid *string
-	e := t.QueryRow(ctx,
-		`SELECT outlet_id, warehouse_id FROM stock_counts WHERE id=$1`, id).Scan(&oid, &wid)
-	if errors.Is(e, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if e != nil {
-		return e
-	}
-	if wid != nil {
-		return nil // warehouse count: gated by permission
-	}
-	if oid == nil || *oid != outletID {
-		return ErrNotFound // outlet count: must match the caller's outlet
+// refreezeCount re-reads every line's frozen quantity from live stock (a planned
+// count can sit for days before it starts).
+func refreezeCount(ctx context.Context, t pgx.Tx, id string, loc countLoc) error {
+	_, _, lid := loc.stock()
+	_, e := t.Exec(ctx,
+		`UPDATE stock_count_items i SET frozen_qty = `+loc.liveStockSQL("$2", "i.product_id", "i.variant_size")+`
+		  WHERE i.stock_count_id=$1`, id, lid)
+	return e
+}
+
+// saveCountLines stores actualQty on existing lines only (no adds or removals).
+// captureBaseline is true for per-line saves: a changed value records the live
+// stock at that moment as the line's baseline and stamps counted_at. A line whose
+// value is unchanged keeps its baseline; a cleared line drops all three. Lines
+// first set at completion get no baseline and fall back to frozen_qty.
+func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, items []StockCountItem, captureBaseline bool) error {
+	_, _, lid := loc.stock()
+	q := `UPDATE stock_count_items SET
+		baseline_qty = CASE WHEN $4::int IS NULL THEN NULL
+		                    WHEN actual_qty IS NOT DISTINCT FROM $4::int THEN baseline_qty
+		                    WHEN $5::boolean THEN ` + loc.liveStockSQL("$6", "$2::uuid", "$3::text") + `
+		                    ELSE NULL END,
+		counted_at = CASE WHEN $4::int IS NULL THEN NULL
+		                  WHEN actual_qty IS NOT DISTINCT FROM $4::int THEN counted_at
+		                  ELSE now() END,
+		actual_qty = $4::int
+		WHERE stock_count_id=$1::uuid AND product_id=$2::uuid AND variant_size=$3::text`
+	for _, i := range items {
+		ct, e := t.Exec(ctx, q, id, i.ProductID, i.VariantSize, i.ActualQty, captureBaseline, lid)
+		if e != nil {
+			return e
+		}
+		if ct.RowsAffected() == 0 {
+			return fmt.Errorf("produk %s (%s) tidak ada di stock count ini", i.ProductName, i.VariantSize)
+		}
 	}
 	return nil
 }
 
-// UpdateStockCount handles: start (status=in_progress → started_at), cancel
-// (status=cancelled), and save progress (items + notes replace).
+// UpdateStockCount handles start, cancel, notes and line edits, all against the
+// lifecycle table above and under the count's row lock.
 func (r *Repo) UpdateStockCount(ctx context.Context, id, outletID string, u StockCountUpdate) error {
+	return retryBusy(ctx, func() error { return r.updateStockCount(ctx, id, outletID, u) })
+}
+
+func (r *Repo) updateStockCount(ctx context.Context, id, outletID string, u StockCountUpdate) error {
+	if e := validateCountItems(u.Items); e != nil {
+		return e
+	}
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer t.Rollback(ctx)
-	if e := scopeCount(ctx, t, id, outletID); e != nil {
+	c, e := lockCount(ctx, t, id, outletID)
+	if e != nil {
 		return e
 	}
-	switch u.Status {
-	case "in_progress":
+	step, e := countStatusStep(c.status, u.Status)
+	if e != nil {
+		return e
+	}
+	status := c.status
+	switch step {
+	case stepStart:
 		if _, e := t.Exec(ctx,
-			`UPDATE stock_counts SET status='in_progress', started_at=now() WHERE id=$1`,
-			id); e != nil {
+			`UPDATE stock_counts SET status='in_progress', started_at=now() WHERE id=$1`, id); e != nil {
+			return runningCountConflict(e)
+		}
+		if e := refreezeCount(ctx, t, id, c.loc); e != nil {
 			return e
 		}
-	case "cancelled":
+		status = "in_progress"
+	case stepCancel:
 		if _, e := t.Exec(ctx,
 			`UPDATE stock_counts SET status='cancelled' WHERE id=$1`, id); e != nil {
 			return e
 		}
+		status = "cancelled"
 	}
 	if u.Items != nil {
-		if _, e := t.Exec(ctx,
-			`DELETE FROM stock_count_items WHERE stock_count_id=$1`, id); e != nil {
+		mode, e := countItemsMode(status)
+		if e != nil {
 			return e
 		}
-		if e := insertStockItems(ctx, t, id, u.Items); e != nil {
+		if mode == itemsReplace {
+			if _, e := t.Exec(ctx,
+				`DELETE FROM stock_count_items WHERE stock_count_id=$1`, id); e != nil {
+				return e
+			}
+			if e := insertStockItems(ctx, t, id, c.loc, u.Items); e != nil {
+				return e
+			}
+		} else if e := saveCountLines(ctx, t, id, c.loc, u.Items, true); e != nil {
 			return e
 		}
 	}
 	if u.Notes != "" {
+		if status != "planned" && status != "in_progress" {
+			return fmt.Errorf("%w (status: %s)", ErrCountState, status)
+		}
 		if _, e := t.Exec(ctx,
 			`UPDATE stock_counts SET notes=$1 WHERE id=$2`, u.Notes, id); e != nil {
 			return e
@@ -194,95 +401,99 @@ func (r *Repo) UpdateStockCount(ctx context.Context, id, outletID string, u Stoc
 	return t.Commit(ctx)
 }
 
-// CompleteStockCount applies actual quantities to product stock in one tx and
-// bumps the products content version so POS resyncs (plan §5a). If items are
-// supplied they replace the stored items first.
+// CompleteStockCount applies the counted difference of every counted line to live
+// stock in one tx and (for outlet counts) bumps the products content version so
+// POS resyncs (plan §5a). A payload only updates actualQty on existing lines (a
+// line first set here has no baseline and falls back to frozen_qty); it can never
+// add products. Completing an already completed count writes nothing.
 func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, items []StockCountItem) error {
-	// Determine the count's location up front: it picks the tx wrapper (outlet
-	// counts bump content_version so POS resyncs; warehouse counts don't) and the
-	// stock table the counted quantities are written to.
-	var oid, wid *string
-	if e := r.Pool.QueryRow(ctx,
-		`SELECT outlet_id, warehouse_id FROM stock_counts WHERE id=$1`, id).Scan(&oid, &wid); e != nil {
-		if errors.Is(e, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+	return retryBusy(ctx, func() error { return r.completeStockCount(ctx, id, outletID, items) })
+}
+
+func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, items []StockCountItem) error {
+	if e := validateCountItems(items); e != nil {
 		return e
 	}
-	// Authorize: outlet counts must match the caller's outlet; warehouse counts
-	// are permission-gated.
-	if wid == nil && (oid == nil || *oid != outletID) {
-		return ErrNotFound
+	t, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
 	}
-
-	work := func(t pgx.Tx) error {
-		if items != nil {
-			if _, e := t.Exec(ctx,
-				`DELETE FROM stock_count_items WHERE stock_count_id=$1`, id); e != nil {
-				return e
-			}
-			if e := insertStockItems(ctx, t, id, items); e != nil {
-				return e
-			}
-		}
-		rows, e := t.Query(ctx, `
-			SELECT product_id, variant_size, frozen_qty, actual_qty
-			  FROM stock_count_items WHERE stock_count_id=$1 AND actual_qty IS NOT NULL`,
-			id)
-		if e != nil {
+	defer t.Rollback(ctx)
+	c, e := lockCount(ctx, t, id, outletID)
+	if e != nil {
+		return e
+	}
+	if c.status == "completed" {
+		return nil // replay: the first completion already applied; zero writes
+	}
+	if c.status != "in_progress" {
+		return fmt.Errorf("%w (status: %s)", ErrCountState, c.status)
+	}
+	if items != nil {
+		if e := saveCountLines(ctx, t, id, c.loc, items, false); e != nil {
 			return e
 		}
-		type adj struct {
-			pid, size      string
-			frozen, actual int
-		}
-		var adjs []adj
-		for rows.Next() {
-			var a adj
-			if e := rows.Scan(&a.pid, &a.size, &a.frozen, &a.actual); e != nil {
-				rows.Close()
-				return e
-			}
-			adjs = append(adjs, a)
-		}
-		rows.Close()
-		for _, a := range adjs {
-			if wid != nil {
-				// warehouse count → write the counted qty to warehouse stock
-				if _, e := t.Exec(ctx,
-					`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
-					   VALUES ($1,$2,$3,$4)
-					 ON CONFLICT (warehouse_id, product_id, variant_size)
-					   DO UPDATE SET stock = EXCLUDED.stock`,
-					*wid, a.pid, a.size, a.actual); e != nil {
-					return e
-				}
-			} else {
-				// outlet count → write to this outlet's stock row
-				if _, e := t.Exec(ctx,
-					`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
-					   VALUES ($1,$2,$3,$4)
-					 ON CONFLICT (outlet_id, product_id, variant_size)
-					   DO UPDATE SET stock = EXCLUDED.stock`,
-					outletID, a.pid, a.size, a.actual); e != nil {
-					return e
-				}
-			}
-			if _, e := t.Exec(ctx,
-				`UPDATE stock_count_items SET difference=$1
-				   WHERE stock_count_id=$2 AND product_id=$3 AND variant_size=$4`,
-				a.actual-a.frozen, id, a.pid, a.size); e != nil {
-				return e
-			}
-		}
-		_, e = t.Exec(ctx,
-			`UPDATE stock_counts SET status='completed', completed_at=now() WHERE id=$1`,
-			id)
+	}
+	if e := applyCountDeltas(ctx, t, id, c.loc); e != nil {
 		return e
 	}
-
-	if wid != nil {
-		return r.noBumpTx(ctx, work) // warehouse: no POS resync needed
+	if _, e := t.Exec(ctx,
+		`UPDATE stock_counts SET status='completed', completed_at=now() WHERE id=$1`, id); e != nil {
+		return e
 	}
-	return r.tx(ctx, "products", work) // outlet: bump content_version
+	if !c.loc.isWarehouse() { // warehouse: no POS resync needed
+		if e := bumpVersion(ctx, t, "products"); e != nil {
+			return fmt.Errorf("bump version: %w", e)
+		}
+	}
+	return t.Commit(ctx)
+}
+
+// applyCountDeltas adds each counted line's delta to live stock and records the
+// stock seen before/after. Lines are visited in (product_id, variant_size) order,
+// the same order transfers lock stock rows in. A negative result is kept.
+func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc) error {
+	type line struct {
+		pid, size      string
+		frozen, actual int
+		baseline       *int
+	}
+	rows, e := t.Query(ctx, `
+		SELECT product_id, variant_size, frozen_qty, actual_qty, baseline_qty
+		  FROM stock_count_items WHERE stock_count_id=$1 AND actual_qty IS NOT NULL
+		 ORDER BY product_id, variant_size`, id)
+	if e != nil {
+		return e
+	}
+	var lines []line
+	for rows.Next() {
+		var l line
+		if e := rows.Scan(&l.pid, &l.size, &l.frozen, &l.actual, &l.baseline); e != nil {
+			rows.Close()
+			return e
+		}
+		lines = append(lines, l)
+	}
+	rows.Close()
+	if e := rows.Err(); e != nil {
+		return e
+	}
+	tbl, col, lid := loc.stock()
+	apply := fmt.Sprintf(`INSERT INTO %s (%s, product_id, variant_size, stock) VALUES ($1,$2,$3,$4)
+		ON CONFLICT (%s, product_id, variant_size) DO UPDATE SET stock = %s.stock + $4
+		RETURNING stock`, tbl, col, col, tbl)
+	for _, l := range lines {
+		delta := countDelta(l.actual, l.baseline, l.frozen)
+		var after int
+		if e := t.QueryRow(ctx, apply, lid, l.pid, l.size, delta).Scan(&after); e != nil {
+			return e
+		}
+		if _, e := t.Exec(ctx,
+			`UPDATE stock_count_items SET difference=$4, stock_before=$5, stock_after=$6
+			  WHERE stock_count_id=$1 AND product_id=$2 AND variant_size=$3`,
+			id, l.pid, l.size, delta, after-delta, after); e != nil {
+			return e
+		}
+	}
+	return nil
 }
