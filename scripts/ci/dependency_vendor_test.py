@@ -15,6 +15,9 @@ from dependency_capture import node_evidence, osv_capture
 from dependency_inventory import node_inventory, license_inventory, sbom
 from dependency_policy import HERE, ROOT, PolicyError, evaluate
 from dependency_vendor import changed_components, inspect_archive, local_path, source_inputs, validate_declared, vendor_evidence
+# Empty register: these tests prove unmodified policy blocks; the real register's entries
+# (which must each match a live finding) are irrelevant to synthetic inputs.
+NO_EXCEPTIONS = {'schema_version': 1, 'policy_id': 'DEPSEC-INITIAL-20260922', 'security': [], 'licenses': []}
 
 
 class VendorCoverage(unittest.TestCase):
@@ -147,7 +150,7 @@ class VendorCoverage(unittest.TestCase):
     def test_unknown_license_blocks_unchanged_policy(self):
         self.manifest['license'] = 'NOASSERTION'; self.publish()
         components = self.inventory()['components']
-        result = evaluate([], license_inventory(components), json.loads((HERE/'dependency-exceptions.json').read_text()), json.loads((HERE/'dependency-policy.json').read_text()), parser_root=ROOT)
+        result = evaluate([], license_inventory(components), NO_EXCEPTIONS, json.loads((HERE/'dependency-policy.json').read_text()), parser_root=ROOT)
         self.assertTrue(result['blocking'])
 
     def test_missing_component_or_edge_fails(self):
@@ -212,7 +215,7 @@ class VendorCoverage(unittest.TestCase):
         component = self.inventory()['components'][0]
         finding = {k:component[k] for k in ['ecosystem','package','version','scope','reachability']}
         finding.update(id='TEST-HIGH', severity='high')
-        result = evaluate([finding], [], json.loads((HERE/'dependency-exceptions.json').read_text()), json.loads((HERE/'dependency-policy.json').read_text()), parser_root=ROOT)
+        result = evaluate([finding], [], NO_EXCEPTIONS, json.loads((HERE/'dependency-policy.json').read_text()), parser_root=ROOT)
         self.assertTrue(result['blocking'])
         with patch('dependency_capture.request_json', side_effect=ConnectionError('synthetic unavailable')):
             with self.assertRaises(ConnectionError): osv_capture([component], self.root)

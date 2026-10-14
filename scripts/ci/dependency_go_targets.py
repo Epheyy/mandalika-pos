@@ -52,14 +52,14 @@ def source_identity(root):
 
 def validate_target(text, target, modules):
     config, findings = govuln_findings(text)
-    required = {"scanner_name": "govulncheck", "scanner_version": "v1.8.0", "go_version": "go1.26.8", "scan_level": "symbol", "scan_mode": "source"}
+    required = {"scanner_name": "govulncheck", "scanner_version": "v1.8.0", "go_version": "go1.26.9", "scan_level": "symbol", "scan_mode": "source"}
     if any(config.get(k) != v for k, v in required.items()):
         raise PolicyError("Go target scanner configuration mismatch")
     messages = json_stream(text)
     if any("error" in m for m in messages):
         raise PolicyError("Go target emitted an error")
     sboms = [m["SBOM"] for m in messages if "SBOM" in m]
-    if len(sboms) != 1 or sboms[0].get("go_version") != "go1.26.8" or not sboms[0].get("modules"):
+    if len(sboms) != 1 or sboms[0].get("go_version") != "go1.26.9" or not sboms[0].get("modules"):
         raise PolicyError("Go target SBOM missing/incomplete")
     if not any("progress" in m and "Checking the code against" in m["progress"].get("message", "") for m in messages):
         raise PolicyError("Go symbol analysis was not reached")
@@ -71,7 +71,7 @@ def validate_target(text, target, modules):
             raise PolicyError("Duplicate Go target SBOM module")
         observed[name] = version
         if name == "stdlib":
-            if version != "v1.26.8":
+            if version != "v1.26.9":
                 raise PolicyError("Wrong Go target standard library")
         elif name not in selected or selected[name] != version:
             raise PolicyError("Go target graph/version mismatch")

@@ -125,7 +125,7 @@
             "type": "string",
             "minLength": 1,
             "enum": [
-              "ChatGPT review CG-A34E3-SHEETJS-20260923-01-R1"
+              "reffyvee (repository owner), renewed 2026-10-15 after re-check; drafted by Claude Opus 5.5"
             ]
           },
           "osv_source": {
