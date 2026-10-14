@@ -16,14 +16,14 @@ from dependency_applicability import (EVIDENCE, REGISTER, SCHEMA, assess_matches
 from dependency_policy import HERE, ROOT, PolicyError
 from dependency_vendor import vendor_evidence
 
-REVIEW_TIME = dt.datetime(2026, 9, 23, 12, tzinfo=dt.timezone.utc)
+REVIEW_TIME = dt.datetime(2026, 10, 15, 12, tzinfo=dt.timezone.utc)
 
 
 def live_review_active():
     # CLI uses the real clock. After expiry it must report retained blockers;
     # fixture tests must not stop the hosted job before that fresh scan runs.
     now = dt.datetime.now(dt.timezone.utc)
-    return dt.datetime(2026, 9, 23, tzinfo=dt.timezone.utc) <= now < dt.datetime(2026, 10, 23, tzinfo=dt.timezone.utc)
+    return dt.datetime(2026, 10, 15, tzinfo=dt.timezone.utc) <= now < dt.datetime(2027, 1, 13, tzinfo=dt.timezone.utc)
 
 
 def write(path, value):
@@ -159,7 +159,7 @@ class Applicability(unittest.TestCase):
         self.assertEqual([x["id"] for x in result["policy-result.json"]["blocking"]], expected)
 
     def test_AP09_expiry_and_not_yet_valid_keep_raw_blockers(self):
-        for when in (dt.datetime(2026, 9, 22, tzinfo=dt.timezone.utc), dt.datetime(2026, 10, 23, tzinfo=dt.timezone.utc)):
+        for when in (dt.datetime(2026, 10, 14, tzinfo=dt.timezone.utc), dt.datetime(2027, 1, 13, tzinfo=dt.timezone.utc)):
             eligible, report = self.match(now=when)
             self.assertFalse(eligible)
             self.assertEqual([x["status"] for x in report["decisions"]], ["review-required"] * 2)
