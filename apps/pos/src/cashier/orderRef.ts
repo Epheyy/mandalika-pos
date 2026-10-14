@@ -2,15 +2,19 @@
 // receipt AND sent to the server as the canonical order_number, so the receipt
 // and the transaction history always match.
 //
-// Format: {OUTLET}-{DEV}{SEQ}  e.g.  JKT-A0042
+// Format: {OUTLET}-{DEV}{SEQ}  e.g.  JKT-AA0042
 //   OUTLET — assigned outlet code (from the sync snapshot); 'OUT' if unknown.
-//   DEV    — 1 base36 char derived from the deviceId; disambiguates multiple
-//            tablets in one outlet so their numbers never collide offline.
-//   SEQ    — per-device monotonic counter in durable storage (survives reload).
+//   DEV    — the server-assigned device code at this outlet (2+ letters, never
+//            reused; see deviceCode.ts). Until the tablet has one it falls back to
+//            the legacy 1 base36 char hashed from the deviceId (e.g. JKT-A0042),
+//            which can never equal a coded number.
+//   SEQ    — monotonic counter in durable storage (survives reload), one per
+//            device code; the legacy counter is used only in the fallback.
 // The hard uniqueness key remains order_uuid (idempotency = deviceId:orderUuid),
 // so even a cosmetic number clash can never corrupt data or fail a flush.
 
-import { getKV } from '@mandalika/sync'
+import { getKV, type KV } from '@mandalika/sync'
+import { readDeviceCode } from './deviceCode'
 
 const SEQ_KEY = 'mandalika.pos.orderSeq'
 
@@ -27,15 +31,28 @@ function outletPart(code: string | null | undefined): string {
   return c || 'OUT'
 }
 
+/** Advance and return the durable counter stored under `key`. */
+function bump(kv: KV, key: string): number {
+  const next = (parseInt(kv.get(key) ?? '0', 10) || 0) + 1
+  kv.set(key, String(next))
+  return next
+}
+
 /**
  * Generate the next client-authoritative order number and advance the durable
- * per-device counter. Call exactly once per completed sale.
+ * counter. Call exactly once per completed sale. `boundOutletId` is the terminal's
+ * bound outlet: a device code registered for another outlet is ignored.
  */
-export function nextOrderNo(outletCode: string | null | undefined, deviceId: string): string {
-  const kv = getKV()
-  const next = (parseInt(kv.get(SEQ_KEY) ?? '0', 10) || 0) + 1
-  kv.set(SEQ_KEY, String(next))
-  return `${outletPart(outletCode)}-${deviceTag(deviceId)}${String(next).padStart(4, '0')}`
+export function nextOrderNo(
+  outletCode: string | null | undefined,
+  deviceId: string,
+  boundOutletId: string | null = null,
+  kv: KV = getKV(),
+): string {
+  const code = readDeviceCode(kv, boundOutletId)
+  const dev = code ?? deviceTag(deviceId)
+  const next = bump(kv, code ? `${SEQ_KEY}.${code}` : SEQ_KEY)
+  return `${outletPart(outletCode)}-${dev}${String(next).padStart(4, '0')}`
 }
 
 /**

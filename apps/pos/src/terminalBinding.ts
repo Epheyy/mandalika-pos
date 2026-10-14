@@ -1,6 +1,7 @@
 import type { User } from '@mandalika/api'
 import { OUTBOX_KEY, isOutboxStore, summarizeQueue, type KV, type OutboxStore, type QueueSummary } from '@mandalika/sync'
 import { readCachedUser } from './authBoot'
+import { DEVICE_CODE_KEY } from './cashier/deviceCode'
 
 // A04: a tablet is one fixed terminal at one outlet. The outlet it sells for is a
 // durable property of the TERMINAL, not of whichever account happens to be signed in
@@ -53,7 +54,8 @@ export function clearBinding(kv: KV): Promise<void> {
 }
 
 /** Outlet-specific reference data cached on the device (snapshot incl. outletCode, prices,
- *  stock, promos; inbound transfers; optimistic credits). Cleared when the terminal is bound
+ *  stock, promos; inbound transfers; optimistic credits; the receipt-number device code, which
+ *  is per outlet and is registered again by the next outlet). Cleared when the terminal is bound
  *  to a (new) outlet or released, so an outlet can never sell from another outlet's data if
  *  its first pull fails. */
 export const OUTLET_CACHE_KEYS: readonly string[] = [
@@ -61,6 +63,7 @@ export const OUTLET_CACHE_KEYS: readonly string[] = [
   'mandalika.pos.contentVersion',
   'mandalika.pos.inboundTransfers',
   'mandalika.pos.pendingCredits',
+  DEVICE_CODE_KEY,
 ]
 
 /** Per-outlet last-known shift (see hooks/shiftView.ts). */

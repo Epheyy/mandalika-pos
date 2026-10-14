@@ -140,6 +140,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/pull", h.SyncPull)
 			r.Post("/sync/batch", h.SyncBatch)
 			r.Post("/sync/review-items", h.ReportSyncReviewItems)
+			// Receipt-number device code (one per install per outlet; see write/device.go).
+			r.Post("/pos/devices/register", h.RegisterPOSDevice)
 			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
 			r.Get("/sync/customers/lookup", h.CustomersLookup)

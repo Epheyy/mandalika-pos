@@ -1845,6 +1845,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pos/devices/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign (or return) this install's receipt-number code at the caller's outlet */
+        post: operations["registerPosDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/inbound-transfers": {
         parameters: {
             query?: never;
@@ -3391,6 +3408,16 @@ export interface components {
         };
         SyncReviewReportRequest: {
             items: components["schemas"]["SyncReviewReport"][];
+        };
+        PosDeviceRegisterRequest: {
+            /** Format: uuid */
+            deviceId: string;
+        };
+        PosDeviceRegisterResponse: {
+            data: {
+                /** @description Receipt-number device tag at the caller outlet: AA, AB ... ZZ, AAA ... */
+                code: string;
+            };
         };
         SyncReviewResolution: {
             idempotencyKey: string;
@@ -7446,6 +7473,42 @@ export interface operations {
                     "application/json": components["schemas"]["SyncReviewReportResponse"];
                 };
             };
+        };
+    };
+    registerPosDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosDeviceRegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description the install's code at this outlet (idempotent per device and outlet) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosDeviceRegisterResponse"];
+                };
+            };
+            /** @description deviceId missing or not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getInboundTransfers: {

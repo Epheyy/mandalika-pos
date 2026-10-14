@@ -642,7 +642,7 @@ export default function CashierScreen() {
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
       // Client-authoritative number: receipt == history, generated on-device.
-      const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId)
+      const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId)
       const promotionMetadata = buildPromotionMetadata(state, derived)
       // The sale only counts once it is durably queued: await the outbox write
       // BEFORE any success state, cart reset or receipt print.
