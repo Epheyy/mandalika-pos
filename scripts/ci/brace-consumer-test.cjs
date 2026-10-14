@@ -9,7 +9,7 @@ const { spawnSync } = require('node:child_process');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? undefined : process.argv[i + 1]; };
 const root = path.resolve(option('--root') || process.cwd());
 const rootRequire = createRequire(path.join(root, 'package.json'));
-const versions = { '3.1.5': '1.1.18', '5.1.9': '2.1.4', '10.2.5': '5.0.9' };
+const versions = { '3.1.5': '1.1.20', '5.1.9': '2.1.6', '10.2.5': '5.0.11' };
 const oldVersions = { '3.1.5': '1.1.14', '5.1.9': '2.1.0', '10.2.5': '5.0.6' };
 const limits = { timeoutMs: 5000, heapMiB: 96, stackKiB: 512, outputBytes: 65536, fixtureBytes: 65536 };
 const kinds = ['benign', 'matching', 'count-budget', 'length-budget', 'intermediate-budget', 'repeated-literal'];
