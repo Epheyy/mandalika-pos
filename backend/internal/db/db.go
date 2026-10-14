@@ -34,7 +34,8 @@ func poolConfig(url string, maxConns int) (*pgxpool.Config, error) {
 	}
 	// Explicit budget (A32): instances x MaxConns must fit the Neon pooled endpoint;
 	// pgx's default (max(4, NumCPU)) is neither bounded by us nor visible in config.
-	// MinConns 0 so an idle instance holds no connection open.
+	// MinConns 0 so an idle instance holds no connection open. This explicit value
+	// overrides any pool_max_conns in the DATABASE_URL query string.
 	cfg.MaxConns = int32(maxConns)
 	cfg.MinConns = 0
 	// Neon (serverless Postgres) silently drops idle connections, so a stale

@@ -43,6 +43,11 @@ func shiftOrReceipt(v api.Shift, err error, receipt api.Shift) api.Shift {
 	return v
 }
 
+// openShiftReceipt / closedShiftReceipt build the response used ONLY when the
+// post-commit read-back failed. The id and outcome (status) are authoritative; the
+// remaining fields are placeholders from the request (OpenedAt/ClosedAt = now,
+// CashierId/Name and cash figures echo the request, totals are zero). No client
+// parses this response beyond the committed result (the POS reads GET /shifts/current).
 func openShiftReceipt(id, outletID, cashierID, cashierName, outletName string, startingCash float64, openedAt time.Time) api.Shift {
 	s := api.Shift{
 		Id: parseUUIDLoose(id), OutletId: parseUUIDLoose(outletID),

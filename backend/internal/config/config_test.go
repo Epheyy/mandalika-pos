@@ -128,8 +128,8 @@ func TestParseDBMaxConnsAndValidate(t *testing.T) {
 		ok   bool
 	}{
 		{"", DefaultDBMaxConns, true}, {"  ", DefaultDBMaxConns, true},
-		{"1", 1, true}, {" 7 ", 7, true}, {"25", 25, true},
-		{"0", 0, false}, {"-3", 0, false}, {"abc", 0, false}, {"2.5", 0, false},
+		{"1", 1, true}, {" 7 ", 7, true}, {"25", 25, true}, {"100", 100, true},
+		{"101", 0, false}, {"4294967306", 0, false}, {"0", 0, false}, {"-3", 0, false}, {"abc", 0, false}, {"2.5", 0, false},
 	} {
 		got, ok := parseDBMaxConns(tc.in)
 		if ok != tc.ok || (ok && got != tc.want) {

@@ -60,6 +60,10 @@ type Config struct {
 // DefaultDBMaxConns is the per-instance pool size when DB_MAX_CONNS is unset.
 const DefaultDBMaxConns = 10
 
+// MaxDBMaxConns caps DB_MAX_CONNS; anything larger is a misconfiguration (and the
+// pool size is an int32, so an absurd value must never wrap).
+const MaxDBMaxConns = 100
+
 func getenv(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
@@ -102,14 +106,15 @@ func parseHops(v string) int {
 }
 
 // parseDBMaxConns parses DB_MAX_CONNS: blank defaults to DefaultDBMaxConns; anything
-// that is not an integer >= 1 is rejected (ok=false) so Validate fails fast.
+// that is not an integer in [1, MaxDBMaxConns] is rejected (ok=false) so Validate
+// fails fast.
 func parseDBMaxConns(v string) (n int, ok bool) {
 	v = strings.TrimSpace(v)
 	if v == "" {
 		return DefaultDBMaxConns, true
 	}
 	n, err := strconv.Atoi(v)
-	if err != nil || n < 1 {
+	if err != nil || n < 1 || n > MaxDBMaxConns {
 		return 0, false
 	}
 	return n, true
@@ -197,7 +202,7 @@ func (c *Config) Validate() error {
 		return errors.New("invalid config: SYNC_LEGACY_ENVELOPE_UNTIL must be RFC 3339 or YYYY-MM-DD")
 	}
 	if c.dbMaxConnsBad {
-		return errors.New("invalid config: DB_MAX_CONNS must be an integer >= 1")
+		return errors.New("invalid config: DB_MAX_CONNS must be an integer between 1 and 100")
 	}
 	if !c.IsProd() {
 		return nil
