@@ -48,7 +48,17 @@ type Config struct {
 	// syncLegacyUntilBad is set when SYNC_LEGACY_ENVELOPE_UNTIL did not parse;
 	// Validate fails fast so a typo can never silently mean "no cutoff".
 	syncLegacyUntilBad bool
+	// DBMaxConns is the pgxpool size PER INSTANCE (env DB_MAX_CONNS, default
+	// DefaultDBMaxConns). Budget: Cloud Run max-instances x DBMaxConns client
+	// connections must fit the Neon pooled endpoint (deploy-backend.sh: 4 x 10 = 40).
+	DBMaxConns int
+	// dbMaxConnsBad is set when DB_MAX_CONNS is not an integer >= 1; Validate fails
+	// fast so a typo never silently means "pgx default".
+	dbMaxConnsBad bool
 }
+
+// DefaultDBMaxConns is the per-instance pool size when DB_MAX_CONNS is unset.
+const DefaultDBMaxConns = 10
 
 func getenv(k, def string) string {
 	if v := os.Getenv(k); v != "" {
@@ -91,6 +101,20 @@ func parseHops(v string) int {
 	return n
 }
 
+// parseDBMaxConns parses DB_MAX_CONNS: blank defaults to DefaultDBMaxConns; anything
+// that is not an integer >= 1 is rejected (ok=false) so Validate fails fast.
+func parseDBMaxConns(v string) (n int, ok bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return DefaultDBMaxConns, true
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
 // parseLegacyUntil parses SYNC_LEGACY_ENVELOPE_UNTIL: blank = unset (zero time),
 // otherwise RFC 3339 or a bare YYYY-MM-DD, which means 00:00 UTC of that day, i.e.
 // 07:00 WIB: write an explicit offset (e.g. 2026-11-01T00:00:00+07:00) for a WIB midnight.
@@ -112,7 +136,10 @@ func parseLegacyUntil(v string) (t time.Time, ok bool) {
 func Load() *Config {
 	_ = godotenv.Load()
 	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
+	dbMaxConns, dbMaxConnsOK := parseDBMaxConns(os.Getenv("DB_MAX_CONNS"))
 	return &Config{
+		DBMaxConns:       dbMaxConns,
+		dbMaxConnsBad:    !dbMaxConnsOK,
 		Port:             getenv("PORT", "8080"),
 		Env:              getenv("ENV", "development"),
 		CORSOrigins:      splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
@@ -168,6 +195,9 @@ func (c *Config) Validate() error {
 	}
 	if c.syncLegacyUntilBad {
 		return errors.New("invalid config: SYNC_LEGACY_ENVELOPE_UNTIL must be RFC 3339 or YYYY-MM-DD")
+	}
+	if c.dbMaxConnsBad {
+		return errors.New("invalid config: DB_MAX_CONNS must be an integer >= 1")
 	}
 	if !c.IsProd() {
 		return nil

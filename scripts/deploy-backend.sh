@@ -51,7 +51,14 @@ PREV=$(cr_field revisionName)
 [ -n "$PREV" ] || { echo "could not determine the current 100% revision (rollback target)" >&2; exit 1; }
 echo "current 100% revision (rollback target): $PREV"
 
-ARGS=(--source "$TMP/backend" --labels "commit-sha=$RELEASE_SHA,deploy-tag=$TAG" --region "$REGION" --project "$PROJECT" --no-traffic --tag "$TAG" --quiet)
+# Connection budget (A32): every instance holds up to DB_MAX_CONNS (backend default 10)
+# pooled connections to Neon, so MAX_INSTANCES x DB_MAX_CONNS must fit the Neon pooled
+# endpoint's client limit. Default 4 x 10 = 40. Raise MAX_INSTANCES (env) only together
+# with a matching DB_MAX_CONNS (--env DB_MAX_CONNS=n) that keeps the product within it.
+MAX_INSTANCES="${MAX_INSTANCES:-4}"
+[[ "$MAX_INSTANCES" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_INSTANCES must be an integer >= 1 (got '$MAX_INSTANCES')" >&2; exit 1; }
+
+ARGS=(--source "$TMP/backend" --labels "commit-sha=$RELEASE_SHA,deploy-tag=$TAG" --region "$REGION" --project "$PROJECT" --no-traffic --tag "$TAG" --max-instances "$MAX_INSTANCES" --quiet)
 if [ ${#ENV_VARS[@]} -gt 0 ]; then
   JOINED=$(IFS=,; echo "${ENV_VARS[*]}")
   ARGS+=(--update-env-vars "$JOINED")
