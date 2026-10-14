@@ -8,7 +8,6 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"log/slog"
 	"math"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -106,17 +105,19 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 	return cur, nil // hop cap reached (defensive); use the furthest resolved id
 }
 
-// Global row-lock order (A42), the same in every command that takes more than one:
+// Row-lock order for the sale and refund commands (A42):
 //
 //	discount codes by code -> customer -> stock rows by (product_id, variant_size)
 //	  -> new order row (create) / existing order row (refund, which reads the
 //	     order, codes and customer UNLOCKED first so it can enter the same order)
 //
-// Merge locks both customers by id and then re-points orders, i.e. customer ->
-// order rows, which is the refund order too. Transfers lock the transfer row, then
-// stock rows (A13); they never take codes or customers. Always acquire in this
-// order; sorted locks use "SELECT ... ORDER BY ... FOR UPDATE" (PostgreSQL sorts
-// before it locks) so the order is the database's, not the client's.
+// Merge locks both customers by id and then re-points orders (customer -> order
+// rows, the refund order too). Transfers lock the transfer row, then stock rows
+// (A13), and goods receipt (write/warehouse.go) upserts stock rows in sorted order;
+// neither takes codes or customers. Not covered: variant rename/delete in write/repo.go
+// touch stock rows unsorted (admin catalog edits, not on the sale path). Sorted
+// locks use "ORDER BY ... FOR UPDATE" in SQL (PostgreSQL sorts before it locks) so
+// the order is the database's, never a Go sort.
 
 // CreateOrder runs the whole checkout in ONE transaction and is idempotent on
 // IdempotencyKey: a replay (offline retry, two devices/outlets posting the same
@@ -156,6 +157,14 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// command before any business write, irrespective of transport/offline flags.
 	if err := ValidateSaleInput(in); err != nil {
 		return "", false, false, err
+	}
+	// A12: a direct (online) sale may only name a shift of its own outlet. Checked for
+	// NEW commands only, after the replay guard above, so a replay of a known key still
+	// returns the canonical order. The batch path binds its shift in sync/attribute.go.
+	if !in.Offline {
+		if err := validateShiftOutlet(ctx, tx, in.OutletID, in.ShiftID); err != nil {
+			return "", false, false, err
+		}
 	}
 	// Reward resolution compacts/reprices in place; retain the caller's capture.
 	in.Items = append([]OrderItem(nil), in.Items...)
@@ -279,7 +288,10 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// offline POS cache that synced late) to the terminal keeper id. All downstream
 	// writes (order row, points, aggregates) then land on the live keeper.
 	if in.CustomerID != "" {
-		keeperID, e := resolveMergedCustomer(ctx, tx, in.CustomerID)
+		// Resolve, lock (on EVERY customer sale, ahead of stock: the later UPDATE
+		// customers and the order insert's FK key-share would otherwise lock the
+		// customer after stock, the reverse of refund), then re-resolve under the lock.
+		keeperID, e := lockResolvedCustomer(ctx, tx, in.CustomerID)
 		if e != nil {
 			return "", false, false, e
 		}
@@ -287,15 +299,6 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	}
 
 	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
-	if in.CustomerID != "" && !hasLoyaltyCustomer {
-		// Take the customer lock here, ahead of stock, on EVERY customer sale. Without
-		// it the later UPDATE customers (and the FK key-share of the order insert) would
-		// lock the customer after stock, the reverse of refund. A missing row (customer
-		// created on-device, not synced yet) is not an error here; behavior is unchanged.
-		if _, e := tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, in.CustomerID); e != nil {
-			return "", false, false, fmt.Errorf("lock customer: %w", e)
-		}
-	}
 	balanceBefore := 0
 	var evalCust EvalCustomer
 	if hasLoyaltyCustomer {
@@ -700,7 +703,8 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	if len(preRestore) == 0 && preDiscountCode != nil && *preDiscountCode != "" {
 		preRestore = []string{*preDiscountCode}
 	}
-	if err := lockCodesSorted(ctx, tx, preRestore); err != nil {
+	lockedCodes, err := lockCodes(ctx, tx, preRestore, false)
+	if err != nil {
 		return err
 	}
 	if preCust != nil && *preCust != "" {
@@ -745,16 +749,21 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	if len(restore) == 0 && discountCode != nil && *discountCode != "" {
 		restore = []string{*discountCode}
 	}
-	sortedRestore := append([]string(nil), restore...)
-	sort.Strings(sortedRestore)
-	for _, code := range sortedRestore {
-		if code == "" {
-			continue
+	// Restore in the order the rows were locked (the database's code order, not Go's
+	// byte order); a code applied twice is restored twice, as before.
+	restoreCount := make(map[string]int, len(restore))
+	for _, code := range restore {
+		if code != "" {
+			restoreCount[code]++
 		}
-		if _, err = tx.Exec(ctx,
-			`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
-			code); err != nil {
-			return fmt.Errorf("restore discount usage: %w", err)
+	}
+	for _, code := range lockedCodes {
+		for i := 0; i < restoreCount[code]; i++ {
+			if _, err = tx.Exec(ctx,
+				`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
+				code); err != nil {
+				return fmt.Errorf("restore discount usage: %w", err)
+			}
 		}
 	}
 	rows, err := tx.Query(ctx,
@@ -1049,7 +1058,7 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	// ── discount codes ───────────────────────────────────────
 	// A42: lock every applied code up front in sorted order; the per-code FOR UPDATE
 	// below (request order) then only re-acquires locks this tx already holds.
-	if err := lockCodesSorted(ctx, tx, codes); err != nil {
+	if _, err := lockCodes(ctx, tx, codes, true); err != nil {
 		return nil, nil, nil, "", err
 	}
 	for _, code := range codes {

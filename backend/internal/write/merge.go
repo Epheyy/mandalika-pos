@@ -207,7 +207,8 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 	if err != nil {
 		return fmt.Errorf("repoint orders: %w", err)
 	}
-	var movedOrderIDs []string
+	// non-nil: a dup with no orders must insert an empty array, not NULL (NOT NULL column)
+	movedOrderIDs := []string{}
 	for orderRows.Next() {
 		var oid string
 		if err := orderRows.Scan(&oid); err != nil {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,10 +12,12 @@ import (
 // ACQUIRE locks (and create missing stock rows); every stock/code/customer
 // mutation stays in its original place.
 
-// lockCodesSorted locks the active discount_codes rows named by codes, in code
-// order. Unknown or inactive codes simply match no row (the caller's per-code
-// load reports them exactly as before). codes is never modified.
-func lockCodesSorted(ctx context.Context, tx pgx.Tx, codes []string) error {
+// lockCodes locks the discount_codes rows named by codes in the database's code
+// order and returns the locked codes in that order. activeOnly restricts to active
+// rows (the sale path loads only active codes); refund passes false because it
+// restores usage on a code even after it was deactivated. Unknown codes match no
+// row. codes is never modified.
+func lockCodes(ctx context.Context, tx pgx.Tx, codes []string, activeOnly bool) ([]string, error) {
 	distinct := make([]string, 0, len(codes))
 	seen := make(map[string]bool, len(codes))
 	for _, c := range codes {
@@ -26,15 +27,57 @@ func lockCodesSorted(ctx context.Context, tx pgx.Tx, codes []string) error {
 		}
 	}
 	if len(distinct) == 0 {
-		return nil
+		return nil, nil
 	}
-	sort.Strings(distinct)
-	if _, err := tx.Exec(ctx,
-		`SELECT id FROM discount_codes WHERE code = ANY($1) AND is_active=true ORDER BY code FOR UPDATE`,
-		distinct); err != nil {
-		return fmt.Errorf("lock discount codes: %w", err)
+	q := `SELECT code FROM discount_codes WHERE code = ANY($1)`
+	if activeOnly {
+		q += ` AND is_active=true`
 	}
-	return nil
+	rows, err := tx.Query(ctx, q+` ORDER BY code FOR UPDATE`, distinct)
+	if err != nil {
+		return nil, fmt.Errorf("lock discount codes: %w", err)
+	}
+	defer rows.Close()
+	var locked []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("lock discount codes: %w", err)
+		}
+		locked = append(locked, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("lock discount codes: %w", err)
+	}
+	return locked, nil
+}
+
+// lockResolvedCustomer resolves a (possibly merged-away) customer id to its keeper,
+// locks that row, and re-resolves under the lock: a merge that committed between
+// the first resolve and the lock would otherwise leave the sale's aggregates on a
+// tombstone. If the keeper moved, the new keeper is locked too (the merge that
+// moved it has committed, so this cannot extend a live cycle beyond a retryable
+// deadlock). A missing row is not an error (a customer created on-device may not
+// be synced yet; downstream behavior is unchanged).
+func lockResolvedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, error) {
+	cur, err := resolveMergedCustomer(ctx, tx, id)
+	if err != nil {
+		return "", err
+	}
+	for attempt := 0; attempt < 3; attempt++ {
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, cur); err != nil {
+			return "", fmt.Errorf("lock customer: %w", err)
+		}
+		next, err := resolveMergedCustomer(ctx, tx, cur)
+		if err != nil {
+			return "", err
+		}
+		if next == cur {
+			return cur, nil
+		}
+		cur = next
+	}
+	return cur, nil
 }
 
 // lockStockRowsSorted creates any missing stock rows and then locks every row the

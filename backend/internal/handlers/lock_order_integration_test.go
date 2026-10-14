@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/service"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // TestLockOrderPostgres (A42): sales with reversed carts, and a sale racing a
@@ -113,6 +116,125 @@ func TestLockOrderPostgres(t *testing.T) {
 			x, y := newProduct(false), newProduct(false)
 			race("new rows",
 				noID(func() (string, error) { return sale("", x, y) }), noID(func() (string, error) { return sale("", y, x) }))
+			// Rows were created lazily at 0 and the online sale floors at 0: both exist
+			// (stockOf fails on a missing row) and are exactly 0.
+			if sx, sy := stockOf(x), stockOf(y); sx != 0 || sy != 0 {
+				t.Fatalf("new rows: stock x=%d y=%d, want 0/0", sx, sy)
+			}
+		}
+	})
+
+	t.Run("goods_receipt_vs_sale_reversed", func(t *testing.T) {
+		a, b := newProduct(true), newProduct(true)
+		wr := write.New(pool)
+		receipt := func(first, second string) func() error {
+			return func() error {
+				return wr.CreateLocationGoodsReceipt(ctx, "outlet", outlet, user, write.GoodsReceipt{Items: []write.GoodsReceiptItem{
+					{ProductID: first, VariantSize: "110ml", Qty: 5}, {ProductID: second, VariantSize: "110ml", Qty: 5}}})
+			}
+		}
+		const iters = 30
+		for i := 0; i < iters; i++ {
+			race("receipt vs sale", receipt(a, b), receipt(b, a),
+				noID(func() (string, error) { return sale("", b, a) }), noID(func() (string, error) { return sale("", a, b) }))
+		}
+		want := 1000000 + iters*(2*5-2)
+		if sa, sb := stockOf(a), stockOf(b); sa != want || sb != want {
+			t.Fatalf("stock a=%d b=%d want %d", sa, sb, want)
+		}
+	})
+
+	newCustomer := func() string {
+		id := fmt.Sprintf("00000000-0000-4000-a000-%012d", seq.Add(1))
+		exec(`INSERT INTO customers(id,name,phone,points) VALUES($1,'Merge customer','merge-phone',100)`, id)
+		return id
+	}
+	mergePair := func() (cand, dup, keeper string) {
+		dup, keeper = newCustomer(), newCustomer()
+		if err := pool.QueryRow(ctx, `INSERT INTO customer_dup_candidates(new_customer_id,existing_customer_id,phone) VALUES($1,$2,'merge-phone') RETURNING id`, dup, keeper).Scan(&cand); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+
+	t.Run("sale_vs_merge", func(t *testing.T) {
+		exec(`UPDATE loyalty_settings SET enabled=true`)
+		a, b := newProduct(true), newProduct(true)
+		wr := write.New(pool)
+		for i := 0; i < 20; i++ {
+			cand, dup, keeper := mergePair()
+			race("sale vs merge",
+				func() error { return wr.MergeCustomers(ctx, cand, keeper, nil, user, "c") },
+				noID(func() (string, error) { return sale(dup, a, b) }),
+				noID(func() (string, error) { return sale(dup, b, a) }))
+			var orders, onDup int
+			var spent float64
+			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM orders WHERE customer_id=$1), (SELECT count(*) FROM orders WHERE customer_id=$2), (SELECT total_spent FROM customers WHERE id=$1)`, keeper, dup).Scan(&orders, &onDup, &spent); err != nil {
+				t.Fatal(err)
+			}
+			// Every sale ends on the live keeper: none left on the tombstone, and the
+			// keeper's aggregate carries both 200000 sales.
+			if orders != 2 || onDup != 0 || spent != 400000 {
+				t.Fatalf("iteration %d: keeper orders=%d dup orders=%d keeper total_spent=%v", i, orders, onDup, spent)
+			}
+		}
+	})
+
+	t.Run("refund_retries_after_merge_moves_customer", func(t *testing.T) {
+		exec(`UPDATE loyalty_settings SET enabled=true`)
+		a := newProduct(true)
+		_, dup, keeper := mergePair()
+		order, err := sale(dup, a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Hold the dup customer lock (as a merge does) and let the refund read the
+		// order unlocked and queue on that lock.
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		if _, err = tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, dup); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() {
+			done <- svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: order, Reason: "merge race", UserID: user, UserName: "c"})
+		}()
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			var waiting int
+			if err = pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%SELECT 1 FROM customers%'`).Scan(&waiting); err != nil {
+				t.Fatal(err)
+			}
+			if waiting > 0 {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("refund never queued on the customer lock")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		// The "merge" moves the order to the keeper and commits.
+		if _, err = tx.Exec(ctx, `UPDATE orders SET customer_id=$1 WHERE id=$2`, keeper, order); err != nil {
+			t.Fatal(err)
+		}
+		if err = tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err = <-done; !errors.Is(err, write.ErrBusy) {
+			t.Fatalf("refund must abort as retryable busy with nothing applied, got %v", err)
+		}
+		var status string
+		if err = pool.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1`, order).Scan(&status); err != nil || status != "completed" {
+			t.Fatalf("busy refund must apply nothing: status=%q err=%v", status, err)
+		}
+		// The retry runs against the keeper and succeeds.
+		if err = write.RetryBusy(ctx, func() error {
+			return svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: order, Reason: "merge race", UserID: user, UserName: "c"})
+		}); err != nil {
+			t.Fatalf("retry after the merge: %v", err)
 		}
 	})
 
