@@ -24,19 +24,30 @@ var ErrShiftNotInOutlet = apperr.New(apperr.Rejected, "shift tidak ditemukan di 
 // shift need not be open (late sales keep their original, closed shift). An empty
 // shiftId is allowed and always valid.
 func (s *OrderService) ValidateShiftOutlet(ctx context.Context, outletID, shiftID string) error {
+	return validateShiftOutlet(ctx, s.Pool, outletID, shiftID)
+}
+
+// isCanonicalUUID accepts only the 36-char hyphenated form. uuid.Parse alone also
+// takes urn:uuid:/braced/bare-hex forms that PostgreSQL rejects (a 500, not a 400).
+func isCanonicalUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	_, err := uuid.Parse(s)
+	return err == nil
+}
+
+func validateShiftOutlet(ctx context.Context, q rowQueryRower, outletID, shiftID string) error {
 	if shiftID == "" {
 		return nil
 	}
 	// An empty/non-uuid outlet (e.g. an admin on "all outlets" with no active outlet)
 	// can own no shift; answer the same refusal instead of a uuid cast error.
-	if _, err := uuid.Parse(outletID); err != nil {
-		return ErrShiftNotInOutlet
-	}
-	if _, err := uuid.Parse(shiftID); err != nil {
+	if !isCanonicalUUID(outletID) || !isCanonicalUUID(shiftID) {
 		return ErrShiftNotInOutlet
 	}
 	var one int
-	err := s.Pool.QueryRow(ctx, `SELECT 1 FROM shifts WHERE id=$1 AND outlet_id=$2`, shiftID, outletID).Scan(&one)
+	err := q.QueryRow(ctx, `SELECT 1 FROM shifts WHERE id=$1 AND outlet_id=$2`, shiftID, outletID).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrShiftNotInOutlet
 	}

@@ -104,7 +104,22 @@ func TestShiftOwnershipPostgres(t *testing.T) {
 			_, err := svc.OpenShift(ctx, service.OpenShiftInput{OutletID: outlet, CashierID: user, CashierName: "c"})
 			done <- err
 		}()
-		time.Sleep(500 * time.Millisecond)
+		// Deterministic coordination: wait until OpenShift's INSERT is actually blocked on
+		// the competing uncommitted row (visible as a lock wait), then commit it.
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			var waiting int
+			if err = pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%INSERT INTO shifts%'`).Scan(&waiting); err != nil {
+				t.Fatal(err)
+			}
+			if waiting > 0 {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("OpenShift never blocked on the competing insert")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 		if err = tx.Commit(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -189,6 +204,44 @@ func TestShiftOwnershipPostgres(t *testing.T) {
 			if w := cashFlow(s); w.Code != http.StatusCreated {
 				t.Fatalf("cash flow shift=%q: %d %s", s, w.Code, w.Body.String())
 			}
+		}
+	})
+	t.Run("replay_returns_stored_order_even_if_shift_no_longer_valid", func(t *testing.T) {
+		var shift string
+		if err := pool.QueryRow(ctx, `INSERT INTO shifts(outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,'c','closed',now(),now(),0) RETURNING id`, outlet, user).Scan(&shift); err != nil {
+			t.Fatal(err)
+		}
+		seq++
+		b := map[string]any{
+			"orderUuid": fmt.Sprintf("00000000-0000-4000-8002-%012d", seq), "paymentMethod": "cash", "amountPaid": 100000, "shiftId": shift,
+			"items": []map[string]any{{"productId": product, "productName": "p", "variantSize": "110ml", "price": 100000, "quantity": 1, "subtotal": 100000}},
+		}
+		key := fmt.Sprintf("so-replay-%d", seq)
+		first := post("/orders", key, b)
+		if first.Code != http.StatusCreated {
+			t.Fatalf("first: %d %s", first.Code, first.Body.String())
+		}
+		// The stored order's shift is now foreign to the caller's outlet.
+		exec(`UPDATE shifts SET outlet_id=$1 WHERE id=$2`, other, shift)
+		again := post("/orders", key, b)
+		if again.Code != http.StatusCreated {
+			t.Fatalf("replay must return the stored order, got %d %s", again.Code, again.Body.String())
+		}
+		var f, g struct {
+			Data struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(first.Body.Bytes(), &f)
+		_ = json.Unmarshal(again.Body.Bytes(), &g)
+		if f.Data.ID == "" || f.Data.ID != g.Data.ID {
+			t.Fatalf("replay id %q != original %q", g.Data.ID, f.Data.ID)
+		}
+		// A NEW command naming that now-foreign shift is still refused.
+		seq++
+		b["orderUuid"] = fmt.Sprintf("00000000-0000-4000-8002-%012d", seq)
+		if w := post("/orders", fmt.Sprintf("so-replay-%d", seq), b); w.Code != http.StatusBadRequest {
+			t.Fatalf("new command with foreign shift: %d %s", w.Code, w.Body.String())
 		}
 	})
 }

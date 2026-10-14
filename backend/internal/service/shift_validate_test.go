@@ -11,7 +11,8 @@ import (
 func TestValidateShiftOutletLocalChecks(t *testing.T) {
 	s := &OrderService{} // nil pool: any query would panic
 	const id = "11111111-1111-4111-8111-111111111111"
-	for _, c := range []struct{ outlet, shift string }{{"", id}, {"not-a-uuid", id}, {id, "not-a-uuid"}} {
+	for _, c := range []struct{ outlet, shift string }{{"", id}, {"not-a-uuid", id}, {id, "not-a-uuid"},
+		{id, "urn:uuid:" + id}, {id, "{" + id + "}"}, {id, "11111111111141118111111111111111"}} {
 		if err := s.ValidateShiftOutlet(context.Background(), c.outlet, c.shift); !errors.Is(err, ErrShiftNotInOutlet) {
 			t.Fatalf("outlet=%q shift=%q: %v", c.outlet, c.shift, err)
 		}

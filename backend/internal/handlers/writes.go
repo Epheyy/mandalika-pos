@@ -970,15 +970,6 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		httpx.Err(w, http.StatusBadRequest, "Idempotency-Key header required")
 		return
 	}
-	if err := h.OrderSvc.ValidateShiftOutlet(r.Context(), c.outletID, body.ShiftID); err != nil {
-		if errors.Is(err, service.ErrShiftNotInOutlet) {
-			httpx.Err(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		slog.Error("shift ownership check failed", "err", err)
-		httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
-		return
-	}
 	// Redis fast-path: a known key returns the canonical order immediately.
 	if h.Cache != nil {
 		if oid, hit := h.Cache.Get(r.Context(), "idem:"+idem); hit {
