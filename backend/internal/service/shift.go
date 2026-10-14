@@ -27,6 +27,11 @@ func (s *OrderService) ValidateShiftOutlet(ctx context.Context, outletID, shiftI
 	if shiftID == "" {
 		return nil
 	}
+	// An empty/non-uuid outlet (e.g. an admin on "all outlets" with no active outlet)
+	// can own no shift; answer the same refusal instead of a uuid cast error.
+	if _, err := uuid.Parse(outletID); err != nil {
+		return ErrShiftNotInOutlet
+	}
 	if _, err := uuid.Parse(shiftID); err != nil {
 		return ErrShiftNotInOutlet
 	}
