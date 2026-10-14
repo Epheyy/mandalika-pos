@@ -1,6 +1,37 @@
 {
   "schema_version": 1,
   "policy_id": "DEPSEC-INITIAL-20260922",
-  "security": [],
-  "licenses": []
+  "security": [
+    {
+      "id": "GO-2026-5932",
+      "ecosystem": "Go",
+      "package": "golang.org/x/crypto",
+      "version_range": ">=0.56.0 <0.56.1",
+      "scope": "runtime",
+      "reachability": "runtime_present_unproven",
+      "reason": "Advisory is that the golang.org/x/crypto/openpgp package is unmaintained; the advisory has no fixed version. Only golang.org/x/crypto/argon2 is imported (backend/internal/auth). govulncheck v1.8.0 symbol-level source scan of go1.26.9 reports called=false and imported=false for this advisory, and grep finds no x/crypto/openpgp import anywhere under backend/.",
+      "compensating_control": "Reachability evidence re-checked on every dependency-security run (called=false is still a blocker if it ever becomes true); no OpenPGP functionality exists in the product.",
+      "owner": "Mandalika POS owner (repository owner)",
+      "reviewer": "Claude Opus 5.5 (A38 remediation, pending owner sign-off)",
+      "created": "2026-10-14",
+      "expires": "2027-01-12",
+      "remediation": "Re-check at expiry for a fixed x/crypto release or a vulndb withdrawal; the exception cannot outlive the 90-day window without a new review.",
+      "review_reference": "A38 dependency-security blockers, CI run 38591378373"
+    }
+  ],
+  "licenses": [
+    {
+      "ecosystem": "npm",
+      "package": "rgbcolor",
+      "version": "1.0.1",
+      "expression": "MIT OR SEE LICENSE IN FEEL-FREE.md",
+      "scope": "runtime",
+      "distribution_context": "Transitive runtime dependency bundled into the web builds. Both shipped license files (package/LICENSE.md and package/FEEL-FREE.md) were read: LICENSE.md carries the standard MIT permission text (Copyright 2016 Stoyan Stefanov) and FEEL-FREE.md is a permissive free-use note by the same author. No copyleft or restrictive terms.",
+      "reviewer": "Claude Opus 5.5 (A38 remediation, pending owner sign-off)",
+      "decision": "approved",
+      "review_date": "2026-10-14",
+      "review_by": "2027-01-12",
+      "review_reference": "A38 dependency-security blockers, CI run 38591378373"
+    }
+  ]
 }
