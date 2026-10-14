@@ -887,7 +887,12 @@ func (h *Handlers) SaveVariantRecipe(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RestoreRecipeVersion(w http.ResponseWriter, r *http.Request) {
 	// Body is optional; default to an empty struct when absent.
 	var in write.RecipeRestore
-	_ = httpx.DecodeLoose(r, &in) // tolerate empty body
+	// An empty body is tolerated; a present-but-malformed one must not silently drop
+	// expectedCurrentVersionId (that would bypass the version guard).
+	if err := decodeOptionalBody(r, &in); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
 	c, _ := h.caller(r)
 	id, err := h.Write.RestoreRecipeVersion(r.Context(), c.userID,
 		chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"), in.ExpectedCurrentVersionID)
@@ -1174,7 +1179,8 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.invalidate(r)
-	v, _ := h.Repo.Shift(r.Context(), scope(r), id)
+	v, rerr := h.Repo.Shift(r.Context(), scope(r), id)
+	v = shiftOrReceipt(v, rerr, openShiftReceipt(id, c.outletID, c.userID, c.name, body.OutletName, body.StartingCash, time.Now()))
 	writeJSON(w, http.StatusCreated, map[string]any{"data": nullableShift(v)})
 }
 
@@ -1197,7 +1203,9 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.invalidate(r)
-	v, _ := h.Repo.Shift(r.Context(), scope(r), chi.URLParam(r, "id"))
+	shiftID := chi.URLParam(r, "id")
+	v, rerr := h.Repo.Shift(r.Context(), scope(r), shiftID)
+	v = shiftOrReceipt(v, rerr, closedShiftReceipt(shiftID, c.outletID, body.ClosingCash, time.Now()))
 	writeJSON(w, http.StatusOK, map[string]any{"data": nullableShift(v)})
 }
 
@@ -1344,7 +1352,12 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Items []write.StockCountItem `json:"items"`
 	}
-	_ = httpx.DecodeLoose(r, &body)
+	// Empty body = finalize from the stored draft items; a malformed one is a 400
+	// with nothing applied.
+	if err := decodeOptionalBody(r, &body); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
 	c, _ := h.caller(r)
 	// No outlet guard — repo authorizes (see UpdateStockCount).
 	id := chi.URLParam(r, "id")
