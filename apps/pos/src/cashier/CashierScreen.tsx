@@ -39,7 +39,7 @@ import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
-import { nextOrderNo } from './orderRef'
+import { reserveOrderNo } from './orderRef'
 import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
 import { applyPendingStock, stockFor } from './stock'
@@ -642,11 +642,18 @@ export default function CashierScreen() {
     dispatch({ type: 'SET_PROCESSING', processing: true })
     try {
       // Client-authoritative number: receipt == history, generated on-device.
-      const orderNo = nextOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId)
+      // The number is reserved durably inside the sale gate, right before the enqueue.
+      let orderNo = ''
       const promotionMetadata = buildPromotionMetadata(state, derived)
       // The sale only counts once it is durably queued: await the outbox write
       // BEFORE any success state, cart reset or receipt print.
-      const outcome = await saleGate.current.run(() => engine.enqueue('order', {
+      const outcome = await saleGate.current.run(async () => {
+        const reserved = await reserveOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId)
+        orderNo = reserved.orderNo
+        if (reserved.error !== undefined) {
+          void reportErrors([{ source: 'runtime', kind: 'order_seq_write', action: `Simpan nomor struk ${orderNo}`, message: reserved.error instanceof Error ? reserved.error.message : 'penyimpanan nomor struk gagal', outletName: snapshot.outletName }])
+        }
+        return engine.enqueue('order', {
         orderNumber: orderNo,
         items: state.cart,
         paymentMethod: state.paymentMethod,
@@ -663,7 +670,8 @@ export default function CashierScreen() {
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id || null, // '' = open not yet synced
-      }))
+      })
+      })
       if (outcome.status === 'busy') return
       if (outcome.status === 'failed') {
         // Nothing was queued or sent. Keep the cart/checkout open, show a

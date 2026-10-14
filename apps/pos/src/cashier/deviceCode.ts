@@ -31,6 +31,22 @@ interface DeviceRegistrar {
 }
 
 const inFlight = new Map<string, Promise<string | null>>()
+// Registrations the server refused for good (4xx): not retried until reset (next mount / sign-in).
+const gaveUp = new Set<string>()
+
+/** A client error that retrying cannot fix. 401 (session renewal), 408 and 429 stay retryable. */
+function isPermanent(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status
+  return typeof status === 'number' && status >= 400 && status < 500 && ![401, 408, 429].includes(status)
+}
+
+export function registrationGaveUp(outletId: string, deviceId: string): boolean {
+  return gaveUp.has(`${outletId}:${deviceId}`)
+}
+
+export function resetRegistrationBackoff(): void {
+  gaveUp.clear()
+}
 
 /**
  * Make sure a code is stored for `outletId`, registering with the server when it is not.
@@ -46,6 +62,7 @@ export function ensureDeviceCode(
   const known = readDeviceCode(kv, outletId)
   if (known) return Promise.resolve(known)
   const key = `${outletId}:${deviceId}`
+  if (gaveUp.has(key)) return Promise.resolve(null)
   const running = inFlight.get(key)
   if (running) return running
   const p = (async (): Promise<string | null> => {
@@ -54,8 +71,9 @@ export function ensureDeviceCode(
       if (typeof code !== 'string' || !CODE_RE.test(code)) return null
       await kv.setDurable(DEVICE_CODE_KEY, JSON.stringify({ outletId, code }))
       return code
-    } catch {
-      return null // retried on the next tick
+    } catch (err) {
+      if (isPermanent(err)) gaveUp.add(key)
+      return null // network / 5xx: retried on the next tick
     }
   })().finally(() => inFlight.delete(key))
   inFlight.set(key, p)

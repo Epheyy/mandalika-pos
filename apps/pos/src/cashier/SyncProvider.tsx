@@ -16,7 +16,7 @@ import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV, getOutboxStore, getJournalBo
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api, authStore } from '../api'
-import { ensureDeviceCode } from './deviceCode'
+import { ensureDeviceCode, registrationGaveUp, resetRegistrationBackoff } from './deviceCode'
 import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
@@ -211,19 +211,23 @@ export function SyncProvider({
     if (flushOnly) return
     let live = true
     let timer: ReturnType<typeof setInterval> | null = null
+    const stopTicking = () => {
+      if (timer) clearInterval(timer)
+      timer = null
+    }
     const attempt = async () => {
       const outletId = authStore.outletId
       if (!outletId) return
-      if ((await ensureDeviceCode(getKV(), api, outletId, engine.deviceId)) && live && timer) {
-        clearInterval(timer)
-        timer = null
-      }
+      const code = await ensureDeviceCode(getKV(), api, outletId, engine.deviceId)
+      // Stored, or refused for good (4xx): stop until the next mount / sign-in. Network/5xx keep retrying.
+      if (live && (code || registrationGaveUp(outletId, engine.deviceId))) stopTicking()
     }
+    resetRegistrationBackoff()
     void attempt()
     timer = setInterval(() => void attempt(), 12_000)
     return () => {
       live = false
-      if (timer) clearInterval(timer)
+      stopTicking()
     }
   }, [engine, flushOnly])
 

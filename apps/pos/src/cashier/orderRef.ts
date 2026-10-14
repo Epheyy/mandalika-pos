@@ -31,17 +31,57 @@ function outletPart(code: string | null | undefined): string {
   return c || 'OUT'
 }
 
-/** Advance and return the durable counter stored under `key`. */
-function bump(kv: KV, key: string): number {
-  const next = (parseInt(kv.get(key) ?? '0', 10) || 0) + 1
-  kv.set(key, String(next))
-  return next
+export interface PeekedOrderNo {
+  orderNo: string
+  /** KV key of the counter this number draws from. */
+  seqKey: string
+  /** The counter value this number uses (the value to store). */
+  next: number
 }
 
 /**
- * Generate the next client-authoritative order number and advance the durable
- * counter. Call exactly once per completed sale. `boundOutletId` is the terminal's
- * bound outlet: a device code registered for another outlet is ignored.
+ * Format the next order number from the stored counter WITHOUT advancing it.
+ * `boundOutletId` is the terminal's bound outlet: a device code registered for
+ * another outlet is ignored.
+ */
+export function peekOrderNo(
+  outletCode: string | null | undefined,
+  deviceId: string,
+  boundOutletId: string | null = null,
+  kv: KV = getKV(),
+): PeekedOrderNo {
+  const code = readDeviceCode(kv, boundOutletId)
+  const seqKey = code ? `${SEQ_KEY}.${code}` : SEQ_KEY
+  const next = (parseInt(kv.get(seqKey) ?? '0', 10) || 0) + 1
+  const dev = code ?? deviceTag(deviceId)
+  return { orderNo: `${outletPart(outletCode)}-${dev}${String(next).padStart(4, '0')}`, seqKey, next }
+}
+
+/**
+ * Take the next order number and make the counter durable BEFORE the sale is queued, so a
+ * kill right after a journaled sale cannot hand the same number out again. Never rejects and
+ * never blocks a sale: if the durable write fails the in-memory mirror is still advanced and
+ * the error is returned for reporting.
+ */
+export async function reserveOrderNo(
+  outletCode: string | null | undefined,
+  deviceId: string,
+  boundOutletId: string | null = null,
+  kv: KV = getKV(),
+): Promise<{ orderNo: string; error?: unknown }> {
+  const { orderNo, seqKey, next } = peekOrderNo(outletCode, deviceId, boundOutletId, kv)
+  try {
+    await kv.setDurable(seqKey, String(next))
+    return { orderNo }
+  } catch (error) {
+    kv.set(seqKey, String(next))
+    return { orderNo, error }
+  }
+}
+
+/**
+ * Synchronous variant: advance the (non-durable) counter and return the number.
+ * The cashier uses {@link reserveOrderNo}; this stays for callers that cannot await.
  */
 export function nextOrderNo(
   outletCode: string | null | undefined,
@@ -49,10 +89,9 @@ export function nextOrderNo(
   boundOutletId: string | null = null,
   kv: KV = getKV(),
 ): string {
-  const code = readDeviceCode(kv, boundOutletId)
-  const dev = code ?? deviceTag(deviceId)
-  const next = bump(kv, code ? `${SEQ_KEY}.${code}` : SEQ_KEY)
-  return `${outletPart(outletCode)}-${dev}${String(next).padStart(4, '0')}`
+  const { orderNo, seqKey, next } = peekOrderNo(outletCode, deviceId, boundOutletId, kv)
+  kv.set(seqKey, String(next))
+  return orderNo
 }
 
 /**

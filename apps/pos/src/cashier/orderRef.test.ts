@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { KV } from '@mandalika/sync'
 import { OUTLET_CACHE_KEYS, clearOutletCaches } from '../terminalBinding'
-import { DEVICE_CODE_KEY, ensureDeviceCode, readDeviceCode } from './deviceCode'
-import { nextOrderNo } from './orderRef'
+import { ApiError } from '@mandalika/api'
+import { DEVICE_CODE_KEY, ensureDeviceCode, readDeviceCode, registrationGaveUp, resetRegistrationBackoff } from './deviceCode'
+import { nextOrderNo, peekOrderNo, reserveOrderNo } from './orderRef'
 
 function memKV(seed: Record<string, string> = {}): KV {
   const m = new Map(Object.entries(seed))
@@ -117,5 +118,69 @@ describe('releasing the terminal', () => {
     const kv = memKV(stored('AA'))
     clearOutletCaches(kv, OUTLET)
     expect(readDeviceCode(kv, OUTLET)).toBeNull()
+  })
+})
+
+describe('reserveOrderNo (durable counter before the sale is queued)', () => {
+  it('peek formats the next number without advancing the counter', () => {
+    const kv = memKV(stored('AA'))
+    expect(peekOrderNo('BSD', 'device-1', OUTLET, kv)).toMatchObject({ orderNo: 'BSD-AA0001', seqKey: 'mandalika.pos.orderSeq.AA', next: 1 })
+    expect(peekOrderNo('BSD', 'device-1', OUTLET, kv).orderNo).toBe('BSD-AA0001')
+    expect(kv.get('mandalika.pos.orderSeq.AA')).toBeNull()
+  })
+
+  it('writes the counter durably before it resolves', async () => {
+    const kv = memKV(stored('AA'))
+    const order: string[] = []
+    const setDurable = vi.fn(async (k: string, v: string) => { order.push(`durable:${k}=${v}`) })
+    const r = await reserveOrderNo('BSD', 'device-1', OUTLET, { ...kv, setDurable })
+    order.push('resolved')
+    expect(r.orderNo).toBe('BSD-AA0001')
+    expect(r.error).toBeUndefined()
+    expect(order).toEqual(['durable:mandalika.pos.orderSeq.AA=1', 'resolved'])
+  })
+
+  it('still returns a number, updates the mirror and reports the error when the durable write fails', async () => {
+    const kv = memKV(stored('AA'))
+    const boom = new Error('disk full')
+    const failing: KV = { ...kv, setDurable: async () => { throw boom } }
+    const r = await reserveOrderNo('BSD', 'device-1', OUTLET, failing)
+    expect(r.orderNo).toBe('BSD-AA0001')
+    expect(r.error).toBe(boom)
+    expect(kv.get('mandalika.pos.orderSeq.AA')).toBe('1')
+    expect((await reserveOrderNo('BSD', 'device-1', OUTLET, failing)).orderNo).toBe('BSD-AA0002')
+  })
+
+  it('uses the legacy counter and format without a code', async () => {
+    const kv = memKV({ 'mandalika.pos.orderSeq': '4' })
+    const r = await reserveOrderNo('BSD', 'device-1', OUTLET, kv)
+    expect(r.orderNo).toMatch(/^BSD-[0-9A-Z]0005$/)
+    expect(kv.get('mandalika.pos.orderSeq')).toBe('5')
+  })
+})
+
+describe('ensureDeviceCode back-off', () => {
+  const gaveUp = () => registrationGaveUp(OUTLET, 'device-bo')
+
+  it.each([403, 404, 400])('gives up on a %i until reset, and does not call the server again', async (status) => {
+    resetRegistrationBackoff()
+    const kv = memKV()
+    const registerDevice = vi.fn().mockRejectedValue(new ApiError(status, 'nope'))
+    expect(await ensureDeviceCode(kv, { registerDevice }, OUTLET, 'device-bo')).toBeNull()
+    expect(gaveUp()).toBe(true)
+    expect(await ensureDeviceCode(kv, { registerDevice }, OUTLET, 'device-bo')).toBeNull()
+    expect(registerDevice).toHaveBeenCalledTimes(1)
+    resetRegistrationBackoff()
+    expect(gaveUp()).toBe(false)
+  })
+
+  it.each([0, 500, 503, 401, 408, 429])('keeps retrying after a %i', async (status) => {
+    resetRegistrationBackoff()
+    const kv = memKV()
+    const registerDevice = vi.fn().mockRejectedValue(new ApiError(status, 'later'))
+    await ensureDeviceCode(kv, { registerDevice }, OUTLET, 'device-bo')
+    expect(gaveUp()).toBe(false)
+    await ensureDeviceCode(kv, { registerDevice }, OUTLET, 'device-bo')
+    expect(registerDevice).toHaveBeenCalledTimes(2)
   })
 })

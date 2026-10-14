@@ -4374,9 +4374,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PosDeviceRegisterResponse' }
-        '400': { description: deviceId missing or not a UUID }
+        '400': { description: "deviceId missing or not a UUID, or the caller outlet id is not a UUID" }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
+        '403': { description: the caller has no outlet }
+        '404': { description: the caller outlet does not exist }
+        '409': { description: "busy (lock conflict), nothing applied, retry later" }
   /api/v1/sync/inbound-transfers:
     get:
       operationId: getInboundTransfers

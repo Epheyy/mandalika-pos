@@ -29,6 +29,10 @@ func (h *Handlers) RegisterPOSDevice(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusForbidden, "outlet terminal tidak diketahui")
 		return
 	}
+	if _, err := uuid.Parse(c.outletID); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "outlet tidak valid")
+		return
+	}
 	code, err := h.Write.RegisterPOSDevice(r.Context(), id.String(), c.outletID, c.userID)
 	if err != nil {
 		kind, _ := apperr.CodeOf(err)
@@ -36,7 +40,7 @@ func (h *Handlers) RegisterPOSDevice(w http.ResponseWriter, r *http.Request) {
 		case apperr.NotFound:
 			httpx.Err(w, http.StatusNotFound, err.Error())
 		case apperr.Busy:
-			httpx.Err(w, http.StatusServiceUnavailable, err.Error())
+			httpx.Err(w, http.StatusConflict, err.Error())
 		default:
 			slog.Error("pos device register failed", "outletId", c.outletID, "err", err)
 			httpx.Err(w, http.StatusInternalServerError, "gagal mendaftarkan perangkat")

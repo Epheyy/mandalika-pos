@@ -8,6 +8,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 )
 
+// posDeviceCodeLock serializes device-code allocation (pg_advisory_xact_lock key).
+const posDeviceCodeLock int64 = 0x706f734445564331 // "posDEVC1"
+
 // nextDeviceCode returns the code after prev: AA, AB, ... AZ, BA, ... ZZ, AAA, ...
 // An empty prev starts the sequence at AA. Codes always have at least two letters, so
 // they can never equal a legacy one-character device tag.
@@ -27,7 +30,7 @@ func nextDeviceCode(prev string) string {
 }
 
 // RegisterPOSDevice returns the receipt code of deviceID at outletID, assigning the next
-// free code on first sight. Idempotent: a known (device, outlet) pair returns its code.
+// free fleet-wide code on first sight. Idempotent: a known (device, outlet) pair returns its code.
 func (r *Repo) RegisterPOSDevice(ctx context.Context, deviceID, outletID, userID string) (string, error) {
 	var code string
 	err := retryBusy(ctx, func() error {
@@ -44,9 +47,13 @@ func (r *Repo) registerPOSDevice(ctx context.Context, deviceID, outletID, userID
 		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	// Serialize code assignment per outlet (same lock as shift open; it does not block sales).
+	// Codes are unique fleet-wide (the printed outlet prefix is not), so allocation is serialized
+	// by one global advisory lock; registrations are rare and never block sales.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, posDeviceCodeLock); err != nil {
+		return "", err
+	}
 	var locked int
-	switch err := tx.QueryRow(ctx, `SELECT 1 FROM outlets WHERE id=$1 FOR NO KEY UPDATE`, outletID).Scan(&locked); {
+	switch err := tx.QueryRow(ctx, `SELECT 1 FROM outlets WHERE id=$1`, outletID).Scan(&locked); {
 	case errors.Is(err, pgx.ErrNoRows):
 		return "", apperr.New(apperr.NotFound, "outlet tidak ditemukan")
 	case err != nil:
@@ -62,8 +69,8 @@ func (r *Repo) registerPOSDevice(ctx context.Context, deviceID, outletID, userID
 		return "", err
 	}
 	var prev string
-	switch err := tx.QueryRow(ctx, `SELECT code FROM pos_devices WHERE outlet_id=$1
-		ORDER BY length(code) DESC, code DESC LIMIT 1`, outletID).Scan(&prev); {
+	switch err := tx.QueryRow(ctx, `SELECT code FROM pos_devices
+		ORDER BY length(code) DESC, code DESC LIMIT 1`).Scan(&prev); {
 	case errors.Is(err, pgx.ErrNoRows):
 		prev = ""
 	case err != nil:

@@ -7500,7 +7500,7 @@ export interface operations {
                     "application/json": components["schemas"]["PosDeviceRegisterResponse"];
                 };
             };
-            /** @description deviceId missing or not a UUID */
+            /** @description deviceId missing or not a UUID, or the caller outlet id is not a UUID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7508,7 +7508,27 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+            /** @description the caller has no outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the caller outlet does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description busy (lock conflict), nothing applied, retry later */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getInboundTransfers: {

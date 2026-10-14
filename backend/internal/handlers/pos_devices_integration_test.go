@@ -129,22 +129,30 @@ func TestDeviceRegisterPostgres(t *testing.T) {
 			t.Fatalf("code = %s, want AB", got)
 		}
 	})
-	t.Run("the same device at another outlet has its own code there", func(t *testing.T) {
-		if got := codeOf(tokHOatB, dev(1)); got != "AA" {
-			t.Fatalf("code at outlet B = %s, want AA", got)
+	t.Run("the same device at another outlet gets a different code, stable per outlet", func(t *testing.T) {
+		atB := codeOf(tokHOatB, dev(1))
+		if atB != "AC" {
+			t.Fatalf("code at outlet B = %s, want AC (codes are unique fleet-wide)", atB)
+		}
+		if got := codeOf(tokHOatB, dev(1)); got != atB {
+			t.Fatalf("code at outlet B changed to %s", got)
 		}
 		if got := codeOf(tokA, dev(1)); got != "AA" {
 			t.Fatalf("code at outlet A changed to %s", got)
 		}
 	})
-	t.Run("concurrent registrations get distinct codes", func(t *testing.T) {
+	t.Run("concurrent registrations across two outlets get distinct codes", func(t *testing.T) {
 		var wg sync.WaitGroup
 		codes := make([]string, 10)
 		for i := range codes {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				code, body := register(tokA, fmt.Sprintf(`{"deviceId":%q}`, dev(10+i)))
+				tok := tokA
+				if i%2 == 1 {
+					tok = tokHOatB
+				}
+				code, body := register(tok, fmt.Sprintf(`{"deviceId":%q}`, dev(10+i)))
 				var out struct {
 					Data struct {
 						Code string `json:"code"`
@@ -163,12 +171,27 @@ func TestDeviceRegisterPostgres(t *testing.T) {
 			}
 		}
 		var n int
-		if err := pool.QueryRow(ctx, `SELECT count(DISTINCT code) FROM pos_devices WHERE outlet_id=$1`, outletA).Scan(&n); err != nil || n != 12 {
-			t.Fatalf("distinct codes at A = %d err=%v, want 12", n, err)
+		if err := pool.QueryRow(ctx, `SELECT count(DISTINCT code) FROM pos_devices`).Scan(&n); err != nil || n != 13 {
+			t.Fatalf("distinct codes fleet-wide = %d err=%v, want 13", n, err)
+		}
+	})
+	t.Run("the sequence rolls from ZZ to AAA to AAB", func(t *testing.T) {
+		exec(`INSERT INTO pos_devices(device_id,outlet_id,code) VALUES($1,$2,'ZZ')`, dev(50), outletA)
+		if got := codeOf(tokA, dev(51)); got != "AAA" {
+			t.Fatalf("after ZZ = %s, want AAA", got)
+		}
+		if got := codeOf(tokHOatB, dev(52)); got != "AAB" {
+			t.Fatalf("after AAA = %s, want AAB", got)
 		}
 	})
 	t.Run("no outlet is refused", func(t *testing.T) {
 		if code, body := register(tokHONone, fmt.Sprintf(`{"deviceId":%q}`, dev(1))); code != 403 {
+			t.Fatalf("got %d %s", code, body)
+		}
+	})
+	t.Run("a non-UUID caller outlet is a 400, not a database error", func(t *testing.T) {
+		tok := issue(headOffice, "admin", "not-a-uuid")
+		if code, body := register(tok, fmt.Sprintf(`{"deviceId":%q}`, dev(1))); code != 400 {
 			t.Fatalf("got %d %s", code, body)
 		}
 	})
