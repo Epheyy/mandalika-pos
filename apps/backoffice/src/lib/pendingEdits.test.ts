@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createKeyedQueue, settleEdit, type PendingEdits } from './pendingEdits'
+import { completeAfterFlush, createKeyedQueue, createLineSaver, settleEdit, type PendingEdits } from './pendingEdits'
 
 describe('settleEdit', () => {
   it('drops a pending value that is still the one that was saved', () => {
@@ -74,5 +74,75 @@ describe('createKeyedQueue', () => {
     const failed = q.run('a', async () => { throw new Error('boom') })
     await expect(failed).rejects.toThrow('boom')
     await expect(q.run('a', async () => 'ok')).resolves.toBe('ok')
+  })
+})
+
+describe('createLineSaver', () => {
+  const setup = (opts: { failSend?: boolean; hold?: Promise<void> } = {}) => {
+    let edits: PendingEdits = { sc1: { a: 11 } }
+    const log: string[] = []
+    const saver = createLineSaver({
+      getEdits: () => edits,
+      setEdits: (fn) => { edits = fn(edits) },
+      send: async (_sc, key, value) => {
+        log.push(`send:${key}=${value}`)
+        if (opts.hold) await opts.hold
+        if (opts.failSend) throw new Error('down')
+      },
+      refresh: async () => { log.push(`refresh(pending=${JSON.stringify(edits.sc1 ?? {})})`) },
+    })
+    return { saver, log, get: () => edits, set: (e: PendingEdits) => { edits = e } }
+  }
+
+  it('refreshes before it clears the edit, so the input never reverts to stale data', async () => {
+    const s = setup()
+    await s.saver.save('sc1', 'a')
+    expect(s.log).toEqual(['send:a=11', 'refresh(pending={"a":11})'])
+    expect(s.get().sc1).toEqual({})
+  })
+
+  it('keeps a value typed while the save was in flight and sends it next', async () => {
+    let release!: () => void
+    const hold = new Promise<void>((r) => { release = r })
+    const s = setup({ hold })
+    const first = s.saver.save('sc1', 'a')
+    await new Promise((r) => setTimeout(r, 0))
+    s.set({ sc1: { a: 12 } })
+    const second = s.saver.save('sc1', 'a')
+    release()
+    await Promise.all([first, second])
+    expect(s.log.filter((l) => l.startsWith('send'))).toEqual(['send:a=11', 'send:a=12'])
+    expect(s.get().sc1).toEqual({})
+  })
+
+  it('leaves the edit pending and rejects when the send fails', async () => {
+    const s = setup({ failSend: true })
+    await expect(s.saver.save('sc1', 'a')).rejects.toThrow('down')
+    expect(s.get().sc1).toEqual({ a: 11 })
+  })
+
+  it('does nothing for a line with no pending edit', async () => {
+    const s = setup()
+    await s.saver.save('sc1', 'zzz')
+    expect(s.log).toEqual([])
+  })
+})
+
+describe('completeAfterFlush', () => {
+  it('flushes first, then completes', async () => {
+    const order: string[] = []
+    const done = await completeAfterFlush(
+      async () => { order.push('flush'); return true },
+      async () => { order.push('complete') },
+    )
+    expect(done).toBe(true)
+    expect(order).toEqual(['flush', 'complete'])
+  })
+
+  it('stops without completing when something could not be saved', async () => {
+    let completed = false
+    const done = await completeAfterFlush(async () => false, async () => { completed = true })
+    expect(done).toBe(false)
+    expect(completed).toBe(false)
   })
 })

@@ -155,6 +155,8 @@ export interface ListResult<T> {
 const API = '/api/v1'
 /** The silent token refresh gets its own deadline, independent of the caller's. */
 const REFRESH_TIMEOUT_MS = 15_000
+/** A hung per-line stock count save would stall that line's queue and Complete. */
+const STOCK_COUNT_SAVE_TIMEOUT_MS = 20_000
 
 export interface Api {
   request: <T>(method: string, path: string, body?: unknown, opts?: RequestOptions) => Promise<T>
@@ -666,7 +668,7 @@ export function createClient(opts: ClientOptions): Api {
     getStockCount: (id) => data<StockCount>('GET', `${API}/stock-counts/${id}`),
     createStockCount: (input) => data<StockCount>('POST', `${API}/stock-counts`, input),
     updateStockCount: (id, input) =>
-      data<StockCount>('PUT', `${API}/stock-counts/${id}`, input),
+      data<StockCount>('PUT', `${API}/stock-counts/${id}`, input, { timeoutMs: STOCK_COUNT_SAVE_TIMEOUT_MS }),
     completeStockCount: (id, items) =>
       data<StockCount>('POST', `${API}/stock-counts/${id}/complete`, { items }),
 
