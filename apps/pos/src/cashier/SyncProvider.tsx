@@ -15,7 +15,8 @@ import {
 import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV, getOutboxStore, getJournalBootNotice } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
-import { api } from '../api'
+import { api, authStore } from '../api'
+import { ensureDeviceCode, resetRegistrationBackoff } from './deviceCode'
 import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
@@ -201,6 +202,32 @@ export function SyncProvider({
       // Logout/unmount: this engine must never write the outbox again (the next
       // login builds a new one). start() revives it for StrictMode's dev re-run.
       engine.dispose()
+    }
+  }, [engine, flushOnly])
+
+  // Receipt-number device code: ask the server once (online, bound outlet) and keep trying every
+  // tick until it is stored. Fire-and-forget: selling continues on the legacy number meanwhile.
+  useEffect(() => {
+    if (flushOnly) return
+    let live = true
+    let timer: ReturnType<typeof setInterval> | null = null
+    const stopTicking = () => {
+      if (timer) clearInterval(timer)
+      timer = null
+    }
+    const attempt = async () => {
+      const outletId = authStore.outletId
+      if (!outletId) return
+      const code = await ensureDeviceCode(getKV(), api, outletId, engine.deviceId)
+      // Stored: done. Otherwise keep ticking; a refused (4xx) registration waits out its own back-off.
+      if (live && code) stopTicking()
+    }
+    resetRegistrationBackoff()
+    void attempt()
+    timer = setInterval(() => void attempt(), 12_000)
+    return () => {
+      live = false
+      stopTicking()
     }
   }, [engine, flushOnly])
 

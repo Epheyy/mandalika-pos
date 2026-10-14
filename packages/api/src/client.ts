@@ -233,6 +233,9 @@ export interface Api {
     clientCreatedAt?: string,
   ) => Promise<LoyaltyPreviewReward[]>
 
+  /** Receipt-number device code of this install at the caller's outlet (idempotent per device and outlet). */
+  registerDevice: (deviceId: string) => Promise<{ code: string }>
+
   // loyalty
   listLoyaltyConditions: () => Promise<LoyaltyCondition[]>
   createLoyaltyCondition: (input: Partial<LoyaltyCondition>) => Promise<LoyaltyCondition>
@@ -618,6 +621,9 @@ export function createClient(opts: ClientOptions): Api {
         total,
         ...(clientCreatedAt ? { clientCreatedAt } : {}),
       }),
+
+    registerDevice: (deviceId) =>
+      data<{ code: string }>('POST', `${API}/pos/devices/register`, { deviceId }),
 
     listLoyaltyConditions: () => data<LoyaltyCondition[]>('GET', `${API}/loyalty-conditions`),
     createLoyaltyCondition: (input) =>

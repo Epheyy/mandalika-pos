@@ -1728,6 +1728,20 @@ components:
           minItems: 1
           maxItems: 200
           items: { $ref: '#/components/schemas/SyncReviewReport' }
+    PosDeviceRegisterRequest:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string, format: uuid }
+    PosDeviceRegisterResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [code]
+          properties:
+            code: { type: string, description: 'Receipt-number device tag at the caller outlet: AA, AB ... ZZ, AAA ...' }
     SyncReviewResolution:
       type: object
       required: [idempotencyKey, resolvedAt, resolvedByName, note]
@@ -4342,6 +4356,29 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SyncReviewReportResponse' }
+  /api/v1/pos/devices/register:
+    post:
+      operationId: registerPosDevice
+      tags: [sales]
+      summary: Assign (or return) this install's receipt-number code at the caller's outlet
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PosDeviceRegisterRequest' }
+      responses:
+        '200':
+          description: the install's code at this outlet (idempotent per device and outlet)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PosDeviceRegisterResponse' }
+        '400': { description: "deviceId missing or not a UUID, or the caller outlet id is not a UUID" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: the caller has no outlet }
+        '404': { description: the caller outlet does not exist }
+        '409': { description: "busy (lock conflict), nothing applied, retry later" }
   /api/v1/sync/inbound-transfers:
     get:
       operationId: getInboundTransfers
