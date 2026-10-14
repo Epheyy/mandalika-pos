@@ -19,11 +19,25 @@ type DB struct {
 	Pool *pgxpool.Pool
 }
 
-func Connect(ctx context.Context, url string) (*DB, error) {
+// DefaultMaxConns is the pool size used when the caller passes no valid budget.
+const DefaultMaxConns = 10
+
+// poolConfig parses the URL and applies the connection budget and retirement
+// policy. maxConns < 1 means "unset" and falls back to DefaultMaxConns.
+func poolConfig(url string, maxConns int) (*pgxpool.Config, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("parse db url: %w", err)
 	}
+	if maxConns < 1 {
+		maxConns = DefaultMaxConns
+	}
+	// Explicit budget (A32): instances x MaxConns must fit the Neon pooled endpoint;
+	// pgx's default (max(4, NumCPU)) is neither bounded by us nor visible in config.
+	// MinConns 0 so an idle instance holds no connection open. This explicit value
+	// overrides any pool_max_conns in the DATABASE_URL query string.
+	cfg.MaxConns = int32(maxConns)
+	cfg.MinConns = 0
 	// Neon (serverless Postgres) silently drops idle connections, so a stale
 	// pooled connection makes the FIRST query after an idle period fail (it
 	// surfaced as intermittent 400s on the first write after the app sat idle).
@@ -35,7 +49,15 @@ func Connect(ctx context.Context, url string) (*DB, error) {
 	cfg.MaxConnLifetime = 30 * time.Minute
 	cfg.MaxConnLifetimeJitter = 5 * time.Minute
 	cfg.HealthCheckPeriod = 30 * time.Second
+	return cfg, nil
+}
 
+// Connect opens the pool with at most maxConns connections (maxConns < 1 = default).
+func Connect(ctx context.Context, url string, maxConns int) (*DB, error) {
+	cfg, err := poolConfig(url, maxConns)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("pgx pool: %w", err)

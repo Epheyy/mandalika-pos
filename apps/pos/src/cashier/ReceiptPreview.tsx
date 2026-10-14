@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
-import { localOrderRef } from './orderRef'
+import { receiptRefLabel } from './orderRef'
 import logoGold from '../assets/logo-gold.png'
 import { variantLabel } from '@mandalika/types'
 
@@ -11,6 +11,8 @@ type CartItem = components['schemas']['CartItem']
 interface ReceiptPreviewProps {
   isOpen: boolean
   orderId: string | null
+  /** Reserved order number (printed on the receipt); falls back to a hash of orderId. */
+  orderNumber?: string | null
   items: CartItem[]
   total: number
   discountAmount: number
@@ -40,6 +42,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 export const ReceiptPreview = memo(function ReceiptPreview({
   isOpen,
   orderId,
+  orderNumber,
   items,
   total,
   discountAmount,
@@ -85,7 +88,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             </p>
           ) : (
             <p className="text-xs text-gray-500 mt-1">
-              {orderId ? localOrderRef(orderId) : 'Disinkronisasi'}
+              {receiptRefLabel(orderNumber, orderId)}
             </p>
           )}
         </div>

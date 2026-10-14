@@ -21,7 +21,7 @@ func main() {
 		log.Fatal("SEED_ADMIN_PASSWORD not set")
 	}
 
-	database, err := db.Connect(ctx, cfg.DatabaseURL)
+	database, err := db.Connect(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
 	if err != nil {
 		log.Fatalf("db connect: %v", err)
 	}

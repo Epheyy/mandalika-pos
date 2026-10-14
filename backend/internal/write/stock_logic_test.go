@@ -15,6 +15,9 @@ func TestValidateGoodsReceipt(t *testing.T) {
 		{"no items", "outlet", nil, true},
 		{"zero qty", "outlet", []GoodsReceiptItem{{Qty: 0}}, true},
 		{"negative qty", "outlet", []GoodsReceiptItem{{Qty: -3}}, true},
+		{"max qty ok", "outlet", []GoodsReceiptItem{{Qty: MaxReceiptQty}}, false},
+		{"qty over cap", "outlet", []GoodsReceiptItem{{Qty: MaxReceiptQty + 1}}, true},
+		{"qty would wrap int32", "warehouse", []GoodsReceiptItem{{Qty: 1 << 33}}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

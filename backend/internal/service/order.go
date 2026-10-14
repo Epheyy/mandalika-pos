@@ -105,6 +105,21 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 	return cur, nil // hop cap reached (defensive); use the furthest resolved id
 }
 
+// Row-lock order for the sale and refund commands (A42):
+//
+//	discount codes by code -> customer -> stock rows by (product_id, variant_size)
+//	  -> new order row (create) / existing order row (refund, which reads the
+//	     order, codes and customer UNLOCKED first so it can enter the same order)
+//
+// Merge locks both customers by id and then re-points orders (customer -> order
+// rows, the refund order too). Transfers lock the transfer row, then stock rows
+// (A13), and goods receipt (write/warehouse.go, outlet and warehouse) upserts stock rows
+// in one statement ordered by (product_id, variant_size); neither takes codes or
+// customers. Not covered: variant rename/delete in write/repo.go
+// touch stock rows unsorted (admin catalog edits, not on the sale path). Sorted
+// locks use "ORDER BY ... FOR UPDATE" in SQL (PostgreSQL sorts before it locks) so
+// the order is the database's, never a Go sort.
+
 // CreateOrder runs the whole checkout in ONE transaction and is idempotent on
 // IdempotencyKey: a replay (offline retry, two devices/outlets posting the same
 // data) returns the canonical stored order and never double-inserts (plan §5).
@@ -143,6 +158,14 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// command before any business write, irrespective of transport/offline flags.
 	if err := ValidateSaleInput(in); err != nil {
 		return "", false, false, err
+	}
+	// A12: a direct (online) sale may only name a shift of its own outlet. Checked for
+	// NEW commands only, after the replay guard above, so a replay of a known key still
+	// returns the canonical order. The batch path binds its shift in sync/attribute.go.
+	if !in.Offline {
+		if err := validateShiftOutlet(ctx, tx, in.OutletID, in.ShiftID); err != nil {
+			return "", false, false, err
+		}
 	}
 	// Reward resolution compacts/reprices in place; retain the caller's capture.
 	in.Items = append([]OrderItem(nil), in.Items...)
@@ -266,7 +289,10 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// offline POS cache that synced late) to the terminal keeper id. All downstream
 	// writes (order row, points, aggregates) then land on the live keeper.
 	if in.CustomerID != "" {
-		keeperID, e := resolveMergedCustomer(ctx, tx, in.CustomerID)
+		// Resolve, lock (on EVERY customer sale, ahead of stock: the later UPDATE
+		// customers and the order insert's FK key-share would otherwise lock the
+		// customer after stock, the reverse of refund), then re-resolve under the lock.
+		keeperID, e := lockResolvedCustomer(ctx, tx, in.CustomerID)
 		if e != nil {
 			return "", false, false, e
 		}
@@ -364,6 +390,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// un-stocked outlet starts empty; the backfilled primary outlet keeps its
 	// number). Bundle components / deleted variants have no product_variants row
 	// and are skipped, matching legacy behavior.
+	if e := lockStockRowsSorted(ctx, tx, in.OutletID, in.Items); e != nil {
+		return "", false, false, e
+	}
 	for _, it := range in.Items {
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
@@ -653,6 +682,37 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	var discountCode *string
 	var appliedCodes []string
 	var oEarned, oRedeemed int
+	// A42: enter the global lock order (codes -> customer -> stock) BEFORE locking the
+	// order row. The order's codes are immutable and its customer only changes by a
+	// merge, so read them unlocked, lock codes then customer, then lock the order and
+	// verify the customer did not move (a concurrent merge): if it did, nothing has
+	// been applied and the caller's retry re-runs the whole refund.
+	var preCust *string
+	var preDiscountCode *string
+	var preCodes []string
+	err = tx.QueryRow(ctx,
+		`SELECT customer_id, discount_code, COALESCE(applied_discount_codes,'[]'::jsonb)
+		   FROM orders WHERE id=$1 AND outlet_id=$2`,
+		orderID, outletID).Scan(&preCust, &preDiscountCode, &preCodes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrRefundOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	preRestore := preCodes
+	if len(preRestore) == 0 && preDiscountCode != nil && *preDiscountCode != "" {
+		preRestore = []string{*preDiscountCode}
+	}
+	lockedCodes, err := lockCodes(ctx, tx, preRestore, false)
+	if err != nil {
+		return err
+	}
+	if preCust != nil && *preCust != "" {
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, *preCust); err != nil {
+			return fmt.Errorf("lock customer for refund: %w", err)
+		}
+	}
 	err = tx.QueryRow(ctx,
 		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code,
 		        COALESCE(applied_discount_codes,'[]'::jsonb)
@@ -663,6 +723,9 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	}
 	if err != nil {
 		return err
+	}
+	if (custID == nil) != (preCust == nil) || (custID != nil && *custID != *preCust) {
+		return apperr.Wrap(apperr.Busy, write.ErrBusy) // customer moved by a merge mid-refund
 	}
 	// A06/Q1: a second refund is a second payout. Refuse it (the batch path turns
 	// this into a review item); same-key replays never get here (receipt replay).
@@ -687,18 +750,26 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	if len(restore) == 0 && discountCode != nil && *discountCode != "" {
 		restore = []string{*discountCode}
 	}
+	// Restore in the order the rows were locked (the database's code order, not Go's
+	// byte order); a code applied twice is restored twice, as before.
+	restoreCount := make(map[string]int, len(restore))
 	for _, code := range restore {
-		if code == "" {
-			continue
+		if code != "" {
+			restoreCount[code]++
 		}
-		if _, err = tx.Exec(ctx,
-			`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
-			code); err != nil {
-			return fmt.Errorf("restore discount usage: %w", err)
+	}
+	for _, code := range lockedCodes {
+		for i := 0; i < restoreCount[code]; i++ {
+			if _, err = tx.Exec(ctx,
+				`UPDATE discount_codes SET usage_count = GREATEST(usage_count - 1, 0) WHERE code=$1`,
+				code); err != nil {
+				return fmt.Errorf("restore discount usage: %w", err)
+			}
 		}
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1`,
+		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1
+		  ORDER BY product_id, variant_size`,
 		orderID)
 	if err != nil {
 		return err
@@ -734,9 +805,8 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	// bonuses), so this clawback reverses bonuses too with no change here. Condition
 	// application rows are immutable order-time facts and are intentionally not reversed.
 	if custID != nil && *custID != "" {
-		// Safe lock order: this tx already holds the orders row lock; acquiring the
-		// customers row lock here can't cycle with CreateOrder (which locks customers
-		// then inserts a NEW orders row — different rows, no shared cycle).
+		// The customer row was locked above (global lock order); this re-lock is a no-op
+		// that reads the balance the clawback below is computed from.
 		var bal int
 		if e := tx.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1 FOR UPDATE`, *custID).Scan(&bal); e != nil {
 			return fmt.Errorf("load points for refund: %w", e)
@@ -987,6 +1057,11 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	}
 
 	// ── discount codes ───────────────────────────────────────
+	// A42: lock every applied code up front in sorted order; the per-code FOR UPDATE
+	// below (request order) then only re-acquires locks this tx already holds.
+	if _, err := lockCodes(ctx, tx, codes, true); err != nil {
+		return nil, nil, nil, "", err
+	}
 	for _, code := range codes {
 		if code == "" {
 			continue

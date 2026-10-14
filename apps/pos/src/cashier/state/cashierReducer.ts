@@ -64,6 +64,8 @@ export interface CashierState {
   amountPaid: string
   isProcessing: boolean
   lastOrderId: string | null
+  /** The reserved order number of the sale just completed (what is printed). */
+  lastOrderNumber: string | null
   isSuccessOpen: boolean
   // UI prefs
   activeTab: 'products' | 'cart'
@@ -102,7 +104,7 @@ export type CashierAction =
   | { type: 'SET_PAYMENT_METHOD'; method: PaymentMethod }
   | { type: 'SET_AMOUNT_PAID'; amount: string }
   | { type: 'SET_PROCESSING'; processing: boolean }
-  | { type: 'ORDER_SUCCESS'; orderId: string }
+  | { type: 'ORDER_SUCCESS'; orderId: string; orderNumber?: string }
   | { type: 'CLOSE_SUCCESS' }
   | { type: 'SET_ACTIVE_TAB'; tab: 'products' | 'cart' }
   | { type: 'RESET_SALE' }
@@ -131,6 +133,7 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   amountPaid: '',
   isProcessing: false,
   lastOrderId: null,
+  lastOrderNumber: null,
   isSuccessOpen: false,
   activeTab: 'products',
 }
@@ -575,6 +578,7 @@ export function cashierReducer(
       return {
         ...state,
         lastOrderId: action.orderId,
+        lastOrderNumber: action.orderNumber || null,
         isCheckoutOpen: false,
         isSuccessOpen: true,
         isProcessing: false,

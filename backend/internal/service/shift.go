@@ -7,8 +7,55 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// openShiftIndex is the partial unique index (migration 0053) holding one open
+// shift per outlet.
+const openShiftIndex = "shifts_one_open_per_outlet_idx"
+
+// ErrShiftNotInOutlet is returned when a client-supplied shiftId is malformed,
+// unknown, or belongs to another outlet.
+var ErrShiftNotInOutlet = apperr.New(apperr.Rejected, "shift tidak ditemukan di outlet ini")
+
+// ValidateShiftOutlet checks a non-empty client shiftId belongs to outletID. The
+// shift need not be open (late sales keep their original, closed shift). An empty
+// shiftId is allowed and always valid.
+func (s *OrderService) ValidateShiftOutlet(ctx context.Context, outletID, shiftID string) error {
+	return validateShiftOutlet(ctx, s.Pool, outletID, shiftID)
+}
+
+// isCanonicalUUID accepts only the 36-char hyphenated form. Verified against
+// PostgreSQL 18: its uuid input accepts the braced and bare-hex forms (which it
+// normalizes) but rejects urn:uuid:, odd hyphenation and surrounding whitespace, and
+// Go's uuid.Parse accepts urn:uuid: too, so a Parse-only check would turn that into a
+// 500. Canonical-only is the strictest form both sides agree on.
+func isCanonicalUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	_, err := uuid.Parse(s)
+	return err == nil
+}
+
+func validateShiftOutlet(ctx context.Context, q rowQueryRower, outletID, shiftID string) error {
+	if shiftID == "" {
+		return nil
+	}
+	// An empty/non-uuid outlet (e.g. an admin on "all outlets" with no active outlet)
+	// can own no shift; answer the same refusal instead of a uuid cast error.
+	if !isCanonicalUUID(outletID) || !isCanonicalUUID(shiftID) {
+		return ErrShiftNotInOutlet
+	}
+	var one int
+	err := q.QueryRow(ctx, `SELECT 1 FROM shifts WHERE id=$1 AND outlet_id=$2`, shiftID, outletID).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrShiftNotInOutlet
+	}
+	return err
+}
 
 var ErrShiftOpen = apperr.New(apperr.Conflict, "a shift is already open for this outlet")
 
@@ -66,6 +113,10 @@ func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftI
 		in.OutletID, nullStr(in.OutletName), in.CashierID, in.CashierName,
 		in.StartingCash).Scan(&id)
 	if err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == openShiftIndex {
+			return "", ErrShiftOpen
+		}
 		return "", err
 	}
 	return id, nil

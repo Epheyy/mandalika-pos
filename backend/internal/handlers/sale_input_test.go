@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
@@ -50,7 +51,7 @@ func TestDirectSaleDecodeAndSharedBoundary(t *testing.T) {
 					}
 					accepted++
 					// Stop before DB/readback. This is command mapping, not HTTP success evidence.
-					return "", false, false, errors.New("synthetic valid boundary reached")
+					return "", false, false, apperr.Wrap(apperr.Rejected, errors.New("synthetic valid boundary reached"))
 				})
 			})))
 			r := httptest.NewRequest("POST", "/orders", strings.NewReader(`{"paymentMethod":"cash","outletId":"forged","cashierId":"forged","items":[`+tc.line+`],`+tc.extra+`}`))

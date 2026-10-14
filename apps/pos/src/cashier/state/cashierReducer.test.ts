@@ -5,6 +5,20 @@ import type { components } from '@mandalika/api'
 const promo = (id: string, combinable: boolean) =>
   ({ id, name: id, type: 'percentage', value: 10, combinable }) as any
 
+describe('ORDER_SUCCESS keeps the reserved order number for the success screen', () => {
+  it('stores the number and clears it on a new sale', () => {
+    let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'ORDER_SUCCESS', orderId: 'uuid-1', orderNumber: 'BSD-AB0001' })
+    expect(s.lastOrderId).toBe('uuid-1')
+    expect(s.lastOrderNumber).toBe('BSD-AB0001')
+    s = cashierReducer(s, { type: 'RESET_SALE' })
+    expect(s.lastOrderNumber).toBeNull()
+  })
+  it('a missing number stays null (falls back to the legacy ref in the preview)', () => {
+    const s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'ORDER_SUCCESS', orderId: 'uuid-2' })
+    expect(s.lastOrderNumber).toBeNull()
+  })
+})
+
 describe('promo stacking reducer', () => {
   it('appends combinable promotions', () => {
     let s = cashierReducer(CASHIER_INITIAL_STATE, { type: 'APPLY_PROMOTION', promotion: promo('a', true) })

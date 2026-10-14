@@ -887,7 +887,12 @@ func (h *Handlers) SaveVariantRecipe(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RestoreRecipeVersion(w http.ResponseWriter, r *http.Request) {
 	// Body is optional; default to an empty struct when absent.
 	var in write.RecipeRestore
-	_ = httpx.DecodeLoose(r, &in) // tolerate empty body
+	// An empty body is tolerated; a present-but-malformed one must not silently drop
+	// expectedCurrentVersionId (that would bypass the version guard).
+	if err := decodeOptionalBody(r, &in); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
 	c, _ := h.caller(r)
 	id, err := h.Write.RestoreRecipeVersion(r.Context(), c.userID,
 		chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"), in.ExpectedCurrentVersionID)
@@ -988,8 +993,19 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		PointsRedeemed:    body.PointsRedeemed,
 		Notes:             body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
-	id, _, _, err := create(r.Context(), in)
+	// A42: a deadlock/serialization victim is re-run as a whole fresh transaction (the
+	// processed_keys receipt makes a re-run after an applied commit a replay).
+	var id string
+	err := write.RetryBusy(r.Context(), func() error {
+		var e error
+		id, _, _, e = create(r.Context(), in)
+		return e
+	})
 	if err != nil {
+		if errors.Is(err, write.ErrBusy) {
+			httpx.Err(w, http.StatusConflict, write.ErrBusy.Error()) // nothing applied, safe to retry
+			return
+		}
 		var rej *service.ErrDiscountRejected
 		if errors.As(err, &rej) {
 			httpx.Err(w, http.StatusUnprocessableEntity, discountRejectMessage(rej.Violations))
@@ -998,6 +1014,12 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		if errors.Is(err, service.ErrTenderRejected) {
 			// The message carries only the cashier's own captured/due amounts.
 			httpx.Err(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		if _, coded := apperr.CodeOf(err); !coded {
+			// Unclassified (e.g. a database error): never echo its text to the client.
+			slog.Error("create order failed", "idempotencyKey", idem, "err", err)
+			httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
 			return
 		}
 		writeErr(w, http.StatusBadRequest, err)
@@ -1123,9 +1145,11 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		outlet = o
 	}
 	// Direct (backoffice/API) refunds are paid from no shift's drawer (owner B2).
-	if err := h.OrderSvc.Refund(r.Context(), service.RefundInput{
-		OutletID: outlet, OrderID: id, Reason: body.Reason,
-		UserID: c.userID, UserName: c.name,
+	if err := write.RetryBusy(r.Context(), func() error {
+		return h.OrderSvc.Refund(r.Context(), service.RefundInput{
+			OutletID: outlet, OrderID: id, Reason: body.Reason,
+			UserID: c.userID, UserName: c.name,
+		})
 	}); err != nil {
 		fail(err)
 		return
@@ -1165,7 +1189,8 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.invalidate(r)
-	v, _ := h.Repo.Shift(r.Context(), scope(r), id)
+	v, rerr := h.Repo.Shift(r.Context(), scope(r), id)
+	v = shiftOrReceipt(v, rerr, openShiftReceipt(id, c.outletID, c.userID, c.name, body.OutletName, body.StartingCash, time.Now()))
 	writeJSON(w, http.StatusCreated, map[string]any{"data": nullableShift(v)})
 }
 
@@ -1188,7 +1213,9 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.invalidate(r)
-	v, _ := h.Repo.Shift(r.Context(), scope(r), chi.URLParam(r, "id"))
+	shiftID := chi.URLParam(r, "id")
+	v, rerr := h.Repo.Shift(r.Context(), scope(r), shiftID)
+	v = shiftOrReceipt(v, rerr, closedShiftReceipt(shiftID, c.outletID, body.ClosingCash, time.Now()))
 	writeJSON(w, http.StatusOK, map[string]any{"data": nullableShift(v)})
 }
 
@@ -1247,6 +1274,15 @@ func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := h.caller(r)
+	if err := h.OrderSvc.ValidateShiftOutlet(r.Context(), c.outletID, body.ShiftID); err != nil {
+		if errors.Is(err, service.ErrShiftNotInOutlet) {
+			httpx.Err(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		slog.Error("shift ownership check failed", "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
+		return
+	}
 	id, err := h.OrderSvc.AddCashFlow(r.Context(), service.CashFlowInput{
 		OutletID: c.outletID, ShiftID: body.ShiftID, Type: body.Type,
 		Amount: body.Amount, Description: body.Description,
@@ -1326,7 +1362,12 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Items []write.StockCountItem `json:"items"`
 	}
-	_ = httpx.DecodeLoose(r, &body)
+	// Empty body = finalize from the stored draft items; a malformed one is a 400
+	// with nothing applied.
+	if err := decodeOptionalBody(r, &body); err != nil {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
 	c, _ := h.caller(r)
 	// No outlet guard — repo authorizes (see UpdateStockCount).
 	id := chi.URLParam(r, "id")

@@ -120,3 +120,25 @@ func TestParseLegacyUntilAndValidate(t *testing.T) {
 		t.Errorf("a malformed cutoff must fail fast even in development, got %v", err)
 	}
 }
+
+func TestParseDBMaxConnsAndValidate(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want int
+		ok   bool
+	}{
+		{"", DefaultDBMaxConns, true}, {"  ", DefaultDBMaxConns, true},
+		{"1", 1, true}, {" 7 ", 7, true}, {"25", 25, true}, {"100", 100, true},
+		{"101", 0, false}, {"4294967306", 0, false}, {"0", 0, false}, {"-3", 0, false}, {"abc", 0, false}, {"2.5", 0, false},
+	} {
+		got, ok := parseDBMaxConns(tc.in)
+		if ok != tc.ok || (ok && got != tc.want) {
+			t.Errorf("parseDBMaxConns(%q) = %d, %v; want %d, %v", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+	c := base("development")
+	c.dbMaxConnsBad = true
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "DB_MAX_CONNS") {
+		t.Errorf("a malformed DB_MAX_CONNS must fail fast even in development, got %v", err)
+	}
+}

@@ -34,6 +34,10 @@ const (
 	busyBackoffMax = 80 * time.Millisecond
 )
 
+// RetryBusy is retryBusy for callers outside this package (the direct sale and
+// refund routes). fn must run one complete, fresh transaction per call.
+func RetryBusy(ctx context.Context, fn func() error) error { return retryBusy(ctx, fn) }
+
 // retryBusy runs fn (one complete, fresh transaction per call) and re-runs it
 // when PostgreSQL aborted it on a lock conflict, with a short jittered backoff.
 // After the last attempt the clean ErrBusy is returned. Other errors are never

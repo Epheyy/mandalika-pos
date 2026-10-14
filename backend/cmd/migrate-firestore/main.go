@@ -39,7 +39,7 @@ func main() {
 		log.Fatalf("load: %v", err)
 	}
 
-	database, err := db.Connect(ctx, cfg.DatabaseURL)
+	database, err := db.Connect(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
 	if err != nil {
 		log.Fatalf("db connect: %v", err)
 	}
