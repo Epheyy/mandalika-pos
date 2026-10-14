@@ -3,7 +3,23 @@ import type { KV } from '@mandalika/sync'
 import { OUTLET_CACHE_KEYS, clearOutletCaches } from '../terminalBinding'
 import { ApiError } from '@mandalika/api'
 import { DEVICE_CODE_KEY, ensureDeviceCode, readDeviceCode, registrationGaveUp, resetRegistrationBackoff } from './deviceCode'
-import { highestQueuedSeq, peekOrderNo, reserveOrderNo } from './orderRef'
+import { highestQueuedSeq, localOrderRef, peekOrderNo, receiptRefLabel, reserveOrderNo } from './orderRef'
+
+describe('receiptRefLabel', () => {
+  const uuid = '11111111-2222-4333-8444-555555555555'
+  it('shows the reserved order number, never the hashed local ref, when one exists', () => {
+    expect(receiptRefLabel('BSD-AB0001', uuid)).toBe('BSD-AB0001')
+    expect(receiptRefLabel('BSD-AB0001', null)).toBe('BSD-AB0001')
+  })
+  it('falls back to the hashed ref only when there is no number (old history entries)', () => {
+    expect(receiptRefLabel(null, uuid)).toBe(localOrderRef(uuid))
+    expect(receiptRefLabel('', uuid)).toBe(localOrderRef(uuid))
+    expect(receiptRefLabel(undefined, uuid)).toMatch(/^MND-\d{6}$/)
+  })
+  it('shows Disinkronisasi when there is neither', () => {
+    expect(receiptRefLabel(null, null)).toBe('Disinkronisasi')
+  })
+})
 
 function memKV(seed: Record<string, string> = {}): KV {
   const m = new Map(Object.entries(seed))

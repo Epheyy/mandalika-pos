@@ -707,7 +707,7 @@ export default function CashierScreen() {
       }
       lastReceipt.current = receipt
       setPrintError(null)
-      dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid })
+      dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid, orderNumber: orderNo })
       // Local BLE print — works offline, independent of sync (§6).
       // Auto-print on every successful sale when a printer is paired.
       if (printer.isPaired) {
@@ -1057,7 +1057,7 @@ export default function CashierScreen() {
       />
 
       <ReceiptPreview
-        isOpen={state.isSuccessOpen} orderId={state.lastOrderId} items={state.cart}
+        isOpen={state.isSuccessOpen} orderId={state.lastOrderId} orderNumber={state.lastOrderNumber} items={state.cart}
         total={derived.total} discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         paymentMethod={state.paymentMethod}
         amountPaid={tender.amountPaid}

@@ -102,6 +102,18 @@ export async function reserveOrderNo(
 }
 
 /**
+ * The reference shown on the "Pembayaran Berhasil" screen: the reserved order number
+ * (the same value sent as `orderNumber` and printed as the receipt's `orderRef`), so
+ * the screen, the printout and the history agree. The hashed {@link localOrderRef} is
+ * only a fallback when no number exists (e.g. an old history entry); 'Disinkronisasi'
+ * when there is neither.
+ */
+export function receiptRefLabel(orderNumber: string | null | undefined, orderUuid: string | null | undefined): string {
+  if (orderNumber) return orderNumber
+  return orderUuid ? localOrderRef(orderUuid) : 'Disinkronisasi'
+}
+
+/**
  * Legacy fallback — a stable 6-digit code hashed from the order uuid. Retained
  * for older receipts; new sales use {@link reserveOrderNo}.
  */
