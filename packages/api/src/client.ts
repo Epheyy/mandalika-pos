@@ -271,7 +271,7 @@ export interface Api {
     items: StockCountItem[]
   }) => Promise<StockCount>
   updateStockCount: (id: string, input: Partial<StockCount>) => Promise<StockCount>
-  completeStockCount: (id: string, items: StockCountItem[]) => Promise<StockCount>
+  completeStockCount: (id: string, items?: StockCountItem[]) => Promise<StockCount>
 
   // warehouses / inventory
   listWarehouses: () => Promise<Warehouse[]>

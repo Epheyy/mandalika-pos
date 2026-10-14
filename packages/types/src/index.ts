@@ -325,6 +325,10 @@ export interface StockCountItem {
   frozenQty: number
   actualQty?: number
   difference?: number
+  baselineQty?: number
+  countedAt?: string
+  stockBefore?: number
+  stockAfter?: number
 }
 
 export interface StockCount {
