@@ -32,3 +32,47 @@ export function createKeyedQueue() {
     },
   }
 }
+
+export interface LineSaverDeps {
+  /** Latest pending edits (a ref mirror, never a stale render closure). */
+  getEdits: () => PendingEdits
+  setEdits: (fn: (d: PendingEdits) => PendingEdits) => void
+  send: (scId: string, key: string, value: number | null) => Promise<void>
+  /** Re-read the list so the saved value is in the fresh data. */
+  refresh: () => Promise<void>
+}
+
+/**
+ * Saves one count line at a time per line. Its turn sends the latest pending value;
+ * after the server accepted it the list is refreshed and only then is the edit
+ * cleared (and only if it still holds the sent value), so the input never reverts
+ * to stale data and a newer keystroke is never lost. A failed send rejects and
+ * leaves the edit pending.
+ */
+export function createLineSaver(deps: LineSaverDeps) {
+  const queue = createKeyedQueue()
+  return {
+    save: (scId: string, key: string): Promise<void> =>
+      queue.run(`${scId}|${key}`, async () => {
+        const sent = deps.getEdits()[scId]?.[key]
+        if (sent === undefined) return
+        await deps.send(scId, key, sent)
+        try {
+          await deps.refresh()
+        } catch {
+          // Saved on the server; the next poll catches the list up.
+        }
+        deps.setEdits((d) => settleEdit(d, scId, key, sent))
+      }),
+  }
+}
+
+/** Complete only after everything pending was saved; false = stopped, nothing completed. */
+export async function completeAfterFlush(
+  flush: () => Promise<boolean>,
+  complete: () => Promise<void>,
+): Promise<boolean> {
+  if (!(await flush())) return false
+  await complete()
+  return true
+}

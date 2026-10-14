@@ -26,8 +26,8 @@ def main():
     root = HERE.parents[1] / "backend"
     env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="-mod=readonly")
     version = subprocess.check_output(["go", "version"], cwd=root, env=env, text=True, timeout=30).strip()
-    if not version.startswith("go version go1.26.8 "):
-        raise RuntimeError("select the qualified Go1.26.8 executable per process")
+    if not version.startswith("go version go1.26.9 "):
+        raise RuntimeError("select the qualified Go1.26.9 executable per process")
     temp = Path(tempfile.mkdtemp(prefix="mandalika-codegen-gate-")).resolve()
     report = {"status": "fail", "go": version, "commands": [], "tests": {}, "network": "owned local specs only; no reference HTTP client", "bounds": "60s worker deadline; 16MiB output; 256MiB Go soft heap/2MiB stack; fixture CLI Windows512MiB commit/Linux4GiB AS+15s CPU"}
 

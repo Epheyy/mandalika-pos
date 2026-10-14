@@ -90,8 +90,8 @@ def load_register(root):
         if (decision["publisher_fixed_from"] != fixed
                 or decision["publisher_source"] != "https://cdn.sheetjs.com/advisories/" + alias
                 or decision["osv_source"] != "https://api.osv.dev/v1/vulns/" + advisory
-                or decision["reviewed_at"] != "2026-09-23" or decision["captured_at"] != "2026-09-23"
-                or decision["review_by"] != "2026-10-23T00:00:00Z"):
+                or decision["reviewed_at"] != "2026-10-14" or decision["captured_at"] != "2026-09-23"
+                or decision["review_by"] != "2027-01-13T00:00:00Z"):
             raise PolicyError("Applicability review differs from approved evidence/deadline")
         for name, digest in decision["evidence_sha256"].items():
             path = root / EVIDENCE / name  # Names are fixed by the strict schema.

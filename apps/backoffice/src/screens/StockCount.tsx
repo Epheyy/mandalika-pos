@@ -7,7 +7,7 @@ import { api, authStore } from '../api'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { createKeyedQueue, settleEdit, type PendingEdits } from '../lib/pendingEdits'
+import { completeAfterFlush, createLineSaver, type PendingEdits } from '../lib/pendingEdits'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button } from '../ui/Button'
@@ -26,6 +26,8 @@ const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
 const label = (s: string) =>
   s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
 const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
+
+const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
 
 export default function StockCount() {
   const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
@@ -51,11 +53,27 @@ export default function StockCount() {
   // Unsaved local edits. The ref mirrors the state so async saves read the latest value.
   const [edits, setEdits] = useState<PendingEdits>({})
   const editsRef = useRef<PendingEdits>({})
-  const saveQueue = useRef(createKeyedQueue()).current
   const updateEdits = (fn: (d: PendingEdits) => PendingEdits) => {
     editsRef.current = fn(editsRef.current)
     setEdits(editsRef.current)
   }
+  // Latest list + refetch for the saver, which outlives any single render.
+  const countsRef = useRef<StockCount[]>([])
+  countsRef.current = stockCounts
+  const refetchRef = useRef(scq.refetch)
+  refetchRef.current = scq.refetch
+  const lineSaver = useRef(
+    createLineSaver({
+      getEdits: () => editsRef.current,
+      setEdits: updateEdits,
+      send: async (scId, key, value) => {
+        const line = countsRef.current.find((c) => c.id === scId)?.items.find((i) => lineKey(i) === key)
+        if (!line) throw new Error('Baris tidak ditemukan. Muat ulang halaman.')
+        await api.updateStockCount(scId, { items: [{ ...line, actualQty: value }] })
+      },
+      refresh: () => refetchRef.current(),
+    }),
+  ).current
   const [form, setForm] = useState({
     name: '',
     locationKey: '',
@@ -63,11 +81,20 @@ export default function StockCount() {
     notes: '',
   })
 
-  const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
+  // Local edits only apply to a running count; finished counts show stored values.
   const itemsFor = (sc: StockCount) =>
-    sc.items.map((it) => {
-      const e = edits[sc.id]?.[lineKey(it)]
-      return e === undefined ? it : { ...it, actualQty: e }
+    sc.status !== 'in_progress'
+      ? sc.items
+      : sc.items.map((it) => {
+          const e = edits[sc.id]?.[lineKey(it)]
+          return e === undefined ? it : { ...it, actualQty: e }
+        })
+  const dropEdits = (scId: string) =>
+    updateEdits((d) => {
+      if (!(scId in d)) return d
+      const rest = { ...d }
+      delete rest[scId]
+      return rest
     })
   // Lines with an unsaved edit (read from the ref: never stale inside async work).
   const pendingLines = (sc: StockCount) =>
@@ -144,6 +171,7 @@ export default function StockCount() {
     setPageErr(null)
     try {
       await api.updateStockCount(sc.id, { status: 'cancelled' })
+      dropEdits(sc.id)
     } catch (e) {
       fail(e, 'Gagal membatalkan stock count.')
     }
@@ -154,17 +182,11 @@ export default function StockCount() {
     updateEdits((d) => ({ ...d, [sc.id]: { ...(d[sc.id] ?? {}), [lineKey(it)]: qty } }))
   }
   // Save one line on blur/Enter so the server captures the stock at count time. One
-  // request per line at a time; when its turn comes it sends the latest typed value,
-  // and a value typed while a save was in flight stays pending. Resolves true if saved.
+  // request per line at a time (see createLineSaver); resolves true if saved.
   const saveLine = async (sc: StockCount, it: StockCountItem): Promise<boolean> => {
-    const key = lineKey(it)
     try {
-      await saveQueue.run(`${sc.id}|${key}`, async () => {
-        const sent = editsRef.current[sc.id]?.[key]
-        if (sent === undefined) return
-        await api.updateStockCount(sc.id, { items: [{ ...it, actualQty: sent }] })
-        updateEdits((d) => settleEdit(d, sc.id, key, sent))
-      })
+      await lineSaver.save(sc.id, lineKey(it))
+      setPageErr(null)
       return true
     } catch (e) {
       fail(e, 'Gagal menyimpan hitungan.')
@@ -195,12 +217,15 @@ export default function StockCount() {
     setPageErr(null)
     try {
       // Save pending lines first so each one gets a server baseline; stop on any failure.
-      if (!(await flushPending(sc))) {
-        setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
-        return
-      }
-      await api.completeStockCount(sc.id)
-      await Promise.all([scq.refetch(), pq.refetch()])
+      const done = await completeAfterFlush(
+        () => flushPending(sc),
+        async () => {
+          await api.completeStockCount(sc.id)
+          dropEdits(sc.id)
+          await Promise.all([scq.refetch(), pq.refetch()])
+        },
+      )
+      if (!done) setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
     } catch (e) {
       fail(e, 'Gagal menyelesaikan stock count.')
       await scq.refetch()
