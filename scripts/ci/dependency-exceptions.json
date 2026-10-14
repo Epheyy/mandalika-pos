@@ -10,7 +10,7 @@
       "scope": "runtime",
       "reachability": "runtime_present_unproven",
       "reason": "Advisory is that the golang.org/x/crypto/openpgp package is unmaintained; the advisory has no fixed version. Only golang.org/x/crypto/argon2 is imported (backend/internal/auth). govulncheck v1.8.0 symbol-level source scan of go1.26.9 reports called=false and imported=false for this advisory, and grep finds no x/crypto/openpgp import anywhere under backend/.",
-      "compensating_control": "Reachability evidence re-checked on every dependency-security run (called=false is still a blocker if it ever becomes true); no OpenPGP functionality exists in the product.",
+      "compensating_control": "No OpenPGP functionality exists in the product. NOTE: while this exception is active the gate does NOT re-block if govulncheck later reports called=true (matching ignores 'called'); any change that imports golang.org/x/crypto/openpgp must remove this exception in the same commit. Bumping x/crypto past v0.56.0 also requires deleting this entry (an unmatched exception fails the gate).",
       "owner": "Mandalika POS owner (repository owner)",
       "reviewer": "Claude Opus 5.5 (A38 remediation, pending owner sign-off)",
       "created": "2026-10-14",
