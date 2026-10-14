@@ -3,6 +3,10 @@ package write
 import "fmt"
 
 // validateGoodsReceipt checks a location goods-in request before any DB work.
+// MaxReceiptQty bounds one goods-receipt line so the int32 stock arithmetic can
+// never wrap.
+const MaxReceiptQty = 1_000_000
+
 func validateGoodsReceipt(kind string, items []GoodsReceiptItem) error {
 	if !validLocKind(kind) {
 		return fmt.Errorf("lokasi tidak valid")
@@ -13,6 +17,9 @@ func validateGoodsReceipt(kind string, items []GoodsReceiptItem) error {
 	for _, it := range items {
 		if it.Qty <= 0 {
 			return fmt.Errorf("qty harus lebih dari 0")
+		}
+		if it.Qty > MaxReceiptQty {
+			return fmt.Errorf("qty tidak boleh lebih dari %d", MaxReceiptQty)
 		}
 	}
 	return nil

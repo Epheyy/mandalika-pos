@@ -135,36 +135,32 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 				rid, it.ProductID, it.VariantSize, it.Qty, it.UnitCost); e != nil {
 				return e
 			}
-			if kind == "warehouse" {
-				if _, e := t.Exec(ctx,
-					`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
-					 VALUES ($1,$2,$3,$4)
-					 ON CONFLICT (warehouse_id, product_id, variant_size)
-					   DO UPDATE SET stock = warehouse_variant_stock.stock + EXCLUDED.stock`,
-					locID, it.ProductID, it.VariantSize, it.Qty); e != nil {
-					return e
-				}
-			}
 		}
-		if kind != "warehouse" {
-			// outlet: touch ONLY stock — preserve available + par_level. One statement
-			// whose rows are inserted/locked in (product_id, variant_size) order, the
-			// same order sales and refunds use (A42); duplicate lines add up.
+		{
+			// One statement per location kind whose rows are inserted/locked in
+			// (product_id, variant_size) order, the same order sales and refunds use
+			// (A42); duplicate lines add up. Outlet: touch ONLY stock, preserving
+			// available + par_level.
 			pids := make([]string, len(g.Items))
 			sizes := make([]string, len(g.Items))
 			qtys := make([]int32, len(g.Items))
 			for i, it := range g.Items {
 				pids[i], sizes[i], qtys[i] = it.ProductID, it.VariantSize, int32(it.Qty)
 			}
+			table, locCol := "outlet_variant_stock", "outlet_id"
+			if kind == "warehouse" {
+				table, locCol = "warehouse_variant_stock", "warehouse_id"
+			}
+			// table/locCol come from the two constants above, never from input.
 			if _, e := t.Exec(ctx,
-				`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+				`INSERT INTO `+table+` (`+locCol+`, product_id, variant_size, stock)
 				 SELECT $1::uuid, k.pid, k.size, k.qty
 				   FROM (SELECT u.pid, u.size, SUM(u.qty)::int AS qty
 				           FROM unnest($2::uuid[], $3::text[], $4::int[]) AS u(pid, size, qty)
 				          GROUP BY u.pid, u.size) k
 				  ORDER BY k.pid, k.size
-				 ON CONFLICT (outlet_id, product_id, variant_size)
-				   DO UPDATE SET stock = outlet_variant_stock.stock + EXCLUDED.stock`,
+				 ON CONFLICT (`+locCol+`, product_id, variant_size)
+				   DO UPDATE SET stock = `+table+`.stock + EXCLUDED.stock`,
 				locID, pids, sizes, qtys); e != nil {
 				return e
 			}

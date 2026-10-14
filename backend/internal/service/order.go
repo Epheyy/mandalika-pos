@@ -113,8 +113,9 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 //
 // Merge locks both customers by id and then re-points orders (customer -> order
 // rows, the refund order too). Transfers lock the transfer row, then stock rows
-// (A13), and goods receipt (write/warehouse.go) upserts stock rows in sorted order;
-// neither takes codes or customers. Not covered: variant rename/delete in write/repo.go
+// (A13), and goods receipt (write/warehouse.go, outlet and warehouse) upserts stock rows
+// in one statement ordered by (product_id, variant_size); neither takes codes or
+// customers. Not covered: variant rename/delete in write/repo.go
 // touch stock rows unsorted (admin catalog edits, not on the sale path). Sorted
 // locks use "ORDER BY ... FOR UPDATE" in SQL (PostgreSQL sorts before it locks) so
 // the order is the database's, never a Go sort.

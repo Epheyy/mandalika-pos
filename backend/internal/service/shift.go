@@ -27,8 +27,11 @@ func (s *OrderService) ValidateShiftOutlet(ctx context.Context, outletID, shiftI
 	return validateShiftOutlet(ctx, s.Pool, outletID, shiftID)
 }
 
-// isCanonicalUUID accepts only the 36-char hyphenated form. uuid.Parse alone also
-// takes urn:uuid:/braced/bare-hex forms that PostgreSQL rejects (a 500, not a 400).
+// isCanonicalUUID accepts only the 36-char hyphenated form. Verified against
+// PostgreSQL 18: its uuid input accepts the braced and bare-hex forms (which it
+// normalizes) but rejects urn:uuid:, odd hyphenation and surrounding whitespace, and
+// Go's uuid.Parse accepts urn:uuid: too, so a Parse-only check would turn that into a
+// 500. Canonical-only is the strictest form both sides agree on.
 func isCanonicalUUID(s string) bool {
 	if len(s) != 36 {
 		return false

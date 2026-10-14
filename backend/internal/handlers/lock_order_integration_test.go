@@ -144,13 +144,50 @@ func TestLockOrderPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("warehouse_goods_receipt_reversed_and_duplicate_lines", func(t *testing.T) {
+		a, b := newProduct(true), newProduct(true)
+		const wh = "00000000-0000-4000-b000-000000000001"
+		exec(`INSERT INTO warehouses(id,name) VALUES($1,'LO warehouse')`, wh)
+		wr := write.New(pool)
+		receipt := func(lines ...string) func() error {
+			return func() error {
+				items := make([]write.GoodsReceiptItem, len(lines))
+				for i, p := range lines {
+					items[i] = write.GoodsReceiptItem{ProductID: p, VariantSize: "110ml", Qty: 3}
+				}
+				return wr.CreateLocationGoodsReceipt(ctx, "warehouse", wh, user, write.GoodsReceipt{Items: items})
+			}
+		}
+		const iters = 20
+		for i := 0; i < iters; i++ {
+			// a,b,a (duplicate line sums to 6 for a) racing b,a
+			race("warehouse receipts", receipt(a, b, a), receipt(b, a), receipt(a, b, a), receipt(b, a))
+		}
+		var sa, sb int
+		if err := pool.QueryRow(ctx, `SELECT (SELECT stock FROM warehouse_variant_stock WHERE warehouse_id=$1 AND product_id=$2), (SELECT stock FROM warehouse_variant_stock WHERE warehouse_id=$1 AND product_id=$3)`, wh, a, b).Scan(&sa, &sb); err != nil {
+			t.Fatal(err)
+		}
+		// per iteration: a = 2 receipts x 6 + 2 x 3 = 18, b = 2 x 3 + 2 x 3 = 12
+		if sa != iters*18 || sb != iters*12 {
+			t.Fatalf("warehouse stock a=%d b=%d want %d/%d", sa, sb, iters*18, iters*12)
+		}
+	})
+
 	newCustomer := func() string {
 		id := fmt.Sprintf("00000000-0000-4000-a000-%012d", seq.Add(1))
 		exec(`INSERT INTO customers(id,name,phone,points) VALUES($1,'Merge customer','merge-phone',100)`, id)
 		return id
 	}
-	mergePair := func() (cand, dup, keeper string) {
-		dup, keeper = newCustomer(), newCustomer()
+	// keeperFirst creates the keeper before the dup so keeper id < dup id (merge locks
+	// the pair in id order; both orientations must be exercised).
+	mergePair := func(keeperFirst bool) (cand, dup, keeper string) {
+		if keeperFirst {
+			keeper = newCustomer()
+			dup = newCustomer()
+		} else {
+			dup = newCustomer()
+			keeper = newCustomer()
+		}
 		if err := pool.QueryRow(ctx, `INSERT INTO customer_dup_candidates(new_customer_id,existing_customer_id,phone) VALUES($1,$2,'merge-phone') RETURNING id`, dup, keeper).Scan(&cand); err != nil {
 			t.Fatal(err)
 		}
@@ -162,20 +199,28 @@ func TestLockOrderPostgres(t *testing.T) {
 		a, b := newProduct(true), newProduct(true)
 		wr := write.New(pool)
 		for i := 0; i < 20; i++ {
-			cand, dup, keeper := mergePair()
+			cand, dup, keeper := mergePair(i%2 == 1) // alternate id orientation
 			race("sale vs merge",
 				func() error { return wr.MergeCustomers(ctx, cand, keeper, nil, user, "c") },
 				noID(func() (string, error) { return sale(dup, a, b) }),
 				noID(func() (string, error) { return sale(dup, b, a) }))
-			var orders, onDup int
+			var orders, onDup, keeperPts, dupPts, earned int
 			var spent float64
-			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM orders WHERE customer_id=$1), (SELECT count(*) FROM orders WHERE customer_id=$2), (SELECT total_spent FROM customers WHERE id=$1)`, keeper, dup).Scan(&orders, &onDup, &spent); err != nil {
+			var mergedInto *string
+			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM orders WHERE customer_id=$1), (SELECT count(*) FROM orders WHERE customer_id=$2),
+				(SELECT total_spent FROM customers WHERE id=$1), (SELECT points FROM customers WHERE id=$1), (SELECT points FROM customers WHERE id=$2),
+				(SELECT merged_into::text FROM customers WHERE id=$2), (SELECT COALESCE(sum(points_earned),0) FROM orders WHERE customer_id=$1)`,
+				keeper, dup).Scan(&orders, &onDup, &spent, &keeperPts, &dupPts, &mergedInto, &earned); err != nil {
 				t.Fatal(err)
 			}
-			// Every sale ends on the live keeper: none left on the tombstone, and the
-			// keeper's aggregate carries both 200000 sales.
+			// Every sale ends on the live keeper: none left on the tombstone, the keeper's
+			// aggregate carries both 200000 sales, the dup's 100 points moved over and the
+			// two sales' earned points landed on the keeper; the dup is a tombstone.
 			if orders != 2 || onDup != 0 || spent != 400000 {
 				t.Fatalf("iteration %d: keeper orders=%d dup orders=%d keeper total_spent=%v", i, orders, onDup, spent)
+			}
+			if keeperPts != 200+earned || dupPts != 0 || mergedInto == nil || *mergedInto != keeper {
+				t.Fatalf("iteration %d: keeper points=%d (want %d) dup points=%d merged_into=%v keeper=%s", i, keeperPts, 200+earned, dupPts, mergedInto, keeper)
 			}
 		}
 	})
@@ -183,8 +228,12 @@ func TestLockOrderPostgres(t *testing.T) {
 	t.Run("refund_retries_after_merge_moves_customer", func(t *testing.T) {
 		exec(`UPDATE loyalty_settings SET enabled=true`)
 		a := newProduct(true)
-		_, dup, keeper := mergePair()
+		_, dup, keeper := mergePair(true)
 		order, err := sale(dup, a)
+		var earned int
+		if err == nil {
+			err = pool.QueryRow(ctx, `SELECT points_earned FROM orders WHERE id=$1`, order).Scan(&earned)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,6 +284,21 @@ func TestLockOrderPostgres(t *testing.T) {
 			return svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: order, Reason: "merge race", UserID: user, UserName: "c"})
 		}); err != nil {
 			t.Fatalf("retry after the merge: %v", err)
+		}
+		var keeperPts int
+		if err = pool.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1`, order).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if err = pool.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1`, keeper).Scan(&keeperPts); err != nil {
+			t.Fatal(err)
+		}
+		// Refunded, exact restock, and the clawback hit the KEEPER (its own 100 points,
+		// floor 0), not the tombstone.
+		if status != "refunded" || stockOf(a) != 1000000 {
+			t.Fatalf("after retry: status=%q stock=%d (want refunded / 1000000)", status, stockOf(a))
+		}
+		if want := 100 - write.PointsClawback(100, earned); keeperPts != want {
+			t.Fatalf("keeper points=%d want %d (earned %d)", keeperPts, want, earned)
 		}
 	})
 

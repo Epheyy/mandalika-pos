@@ -1016,6 +1016,12 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 			httpx.Err(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
+		if _, coded := apperr.CodeOf(err); !coded {
+			// Unclassified (e.g. a database error): never echo its text to the client.
+			slog.Error("create order failed", "idempotencyKey", idem, "err", err)
+			httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}

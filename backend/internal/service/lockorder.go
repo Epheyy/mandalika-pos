@@ -6,6 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // Helpers for the global row-lock order documented on CreateOrder (A42). They only
@@ -77,7 +80,9 @@ func lockResolvedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, er
 		}
 		cur = next
 	}
-	return cur, nil
+	// The keeper kept moving (concurrent merges): nothing is locked for the final id,
+	// so never hand it back as if it were; the caller's retry starts over.
+	return "", apperr.Wrap(apperr.Busy, write.ErrBusy)
 }
 
 // lockStockRowsSorted creates any missing stock rows and then locks every row the
