@@ -1002,8 +1002,19 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		PointsRedeemed:    body.PointsRedeemed,
 		Notes:             body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}
-	id, _, _, err := create(r.Context(), in)
+	// A42: a deadlock/serialization victim is re-run as a whole fresh transaction (the
+	// processed_keys receipt makes a re-run after an applied commit a replay).
+	var id string
+	err := write.RetryBusy(r.Context(), func() error {
+		var e error
+		id, _, _, e = create(r.Context(), in)
+		return e
+	})
 	if err != nil {
+		if errors.Is(err, write.ErrBusy) {
+			httpx.Err(w, http.StatusConflict, write.ErrBusy.Error()) // nothing applied, safe to retry
+			return
+		}
 		var rej *service.ErrDiscountRejected
 		if errors.As(err, &rej) {
 			httpx.Err(w, http.StatusUnprocessableEntity, discountRejectMessage(rej.Violations))
@@ -1137,9 +1148,11 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		outlet = o
 	}
 	// Direct (backoffice/API) refunds are paid from no shift's drawer (owner B2).
-	if err := h.OrderSvc.Refund(r.Context(), service.RefundInput{
-		OutletID: outlet, OrderID: id, Reason: body.Reason,
-		UserID: c.userID, UserName: c.name,
+	if err := write.RetryBusy(r.Context(), func() error {
+		return h.OrderSvc.Refund(r.Context(), service.RefundInput{
+			OutletID: outlet, OrderID: id, Reason: body.Reason,
+			UserID: c.userID, UserName: c.name,
+		})
 	}); err != nil {
 		fail(err)
 		return

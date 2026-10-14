@@ -8,6 +8,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"log/slog"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -104,6 +105,18 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 	}
 	return cur, nil // hop cap reached (defensive); use the furthest resolved id
 }
+
+// Global row-lock order (A42), the same in every command that takes more than one:
+//
+//	discount codes by code -> customer -> stock rows by (product_id, variant_size)
+//	  -> new order row (create) / existing order row (refund, which reads the
+//	     order, codes and customer UNLOCKED first so it can enter the same order)
+//
+// Merge locks both customers by id and then re-points orders, i.e. customer ->
+// order rows, which is the refund order too. Transfers lock the transfer row, then
+// stock rows (A13); they never take codes or customers. Always acquire in this
+// order; sorted locks use "SELECT ... ORDER BY ... FOR UPDATE" (PostgreSQL sorts
+// before it locks) so the order is the database's, not the client's.
 
 // CreateOrder runs the whole checkout in ONE transaction and is idempotent on
 // IdempotencyKey: a replay (offline retry, two devices/outlets posting the same
@@ -274,6 +287,15 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	}
 
 	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
+	if in.CustomerID != "" && !hasLoyaltyCustomer {
+		// Take the customer lock here, ahead of stock, on EVERY customer sale. Without
+		// it the later UPDATE customers (and the FK key-share of the order insert) would
+		// lock the customer after stock, the reverse of refund. A missing row (customer
+		// created on-device, not synced yet) is not an error here; behavior is unchanged.
+		if _, e := tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, in.CustomerID); e != nil {
+			return "", false, false, fmt.Errorf("lock customer: %w", e)
+		}
+	}
 	balanceBefore := 0
 	var evalCust EvalCustomer
 	if hasLoyaltyCustomer {
@@ -364,6 +386,9 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	// un-stocked outlet starts empty; the backfilled primary outlet keeps its
 	// number). Bundle components / deleted variants have no product_variants row
 	// and are skipped, matching legacy behavior.
+	if e := lockStockRowsSorted(ctx, tx, in.OutletID, in.Items); e != nil {
+		return "", false, false, e
+	}
 	for _, it := range in.Items {
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
@@ -653,6 +678,36 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	var discountCode *string
 	var appliedCodes []string
 	var oEarned, oRedeemed int
+	// A42: enter the global lock order (codes -> customer -> stock) BEFORE locking the
+	// order row. The order's codes are immutable and its customer only changes by a
+	// merge, so read them unlocked, lock codes then customer, then lock the order and
+	// verify the customer did not move (a concurrent merge): if it did, nothing has
+	// been applied and the caller's retry re-runs the whole refund.
+	var preCust *string
+	var preDiscountCode *string
+	var preCodes []string
+	err = tx.QueryRow(ctx,
+		`SELECT customer_id, discount_code, COALESCE(applied_discount_codes,'[]'::jsonb)
+		   FROM orders WHERE id=$1 AND outlet_id=$2`,
+		orderID, outletID).Scan(&preCust, &preDiscountCode, &preCodes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrRefundOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	preRestore := preCodes
+	if len(preRestore) == 0 && preDiscountCode != nil && *preDiscountCode != "" {
+		preRestore = []string{*preDiscountCode}
+	}
+	if err := lockCodesSorted(ctx, tx, preRestore); err != nil {
+		return err
+	}
+	if preCust != nil && *preCust != "" {
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM customers WHERE id=$1 FOR UPDATE`, *preCust); err != nil {
+			return fmt.Errorf("lock customer for refund: %w", err)
+		}
+	}
 	err = tx.QueryRow(ctx,
 		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code,
 		        COALESCE(applied_discount_codes,'[]'::jsonb)
@@ -663,6 +718,9 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	}
 	if err != nil {
 		return err
+	}
+	if (custID == nil) != (preCust == nil) || (custID != nil && *custID != *preCust) {
+		return apperr.Wrap(apperr.Busy, write.ErrBusy) // customer moved by a merge mid-refund
 	}
 	// A06/Q1: a second refund is a second payout. Refuse it (the batch path turns
 	// this into a review item); same-key replays never get here (receipt replay).
@@ -687,7 +745,9 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	if len(restore) == 0 && discountCode != nil && *discountCode != "" {
 		restore = []string{*discountCode}
 	}
-	for _, code := range restore {
+	sortedRestore := append([]string(nil), restore...)
+	sort.Strings(sortedRestore)
+	for _, code := range sortedRestore {
 		if code == "" {
 			continue
 		}
@@ -698,7 +758,8 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 		}
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1`,
+		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1
+		  ORDER BY product_id, variant_size`,
 		orderID)
 	if err != nil {
 		return err
@@ -734,9 +795,8 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	// bonuses), so this clawback reverses bonuses too with no change here. Condition
 	// application rows are immutable order-time facts and are intentionally not reversed.
 	if custID != nil && *custID != "" {
-		// Safe lock order: this tx already holds the orders row lock; acquiring the
-		// customers row lock here can't cycle with CreateOrder (which locks customers
-		// then inserts a NEW orders row — different rows, no shared cycle).
+		// The customer row was locked above (global lock order); this re-lock is a no-op
+		// that reads the balance the clawback below is computed from.
 		var bal int
 		if e := tx.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1 FOR UPDATE`, *custID).Scan(&bal); e != nil {
 			return fmt.Errorf("load points for refund: %w", e)
@@ -987,6 +1047,11 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 	}
 
 	// ── discount codes ───────────────────────────────────────
+	// A42: lock every applied code up front in sorted order; the per-code FOR UPDATE
+	// below (request order) then only re-acquires locks this tx already holds.
+	if err := lockCodesSorted(ctx, tx, codes); err != nil {
+		return nil, nil, nil, "", err
+	}
 	for _, code := range codes {
 		if code == "" {
 			continue
