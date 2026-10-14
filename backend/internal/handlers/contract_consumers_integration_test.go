@@ -118,14 +118,15 @@ func qualifyContractConsumers(t *testing.T, ctx context.Context, pool *pgxpool.P
 	for _, route := range []struct {
 		name, path string
 		expected   int
-	}{{"stock", "/stock/" + missing, 404}, {"recipe", "/recipe/" + missing + "/" + missing, 400}, {"sign-unconfigured", "/sign", 503}} {
+		malformed  int // admin status for the malformed "{" body (A43: 400 before any lookup)
+	}{{"stock", "/stock/" + missing, 404, 400}, {"recipe", "/recipe/" + missing + "/" + missing, 400, 400}, {"sign-unconfigured", "/sign", 503, 503}} {
 		t.Run("KC06-"+route.name, func(t *testing.T) {
 			for _, body := range []string{"", " \n", "{}", "null", "{"} {
 				before := snapshot()
 				for _, access := range []struct {
 					token string
 					code  int
-				}{{"", 401}, {cashier, 403}, {admin, route.expected}} {
+				}{{"", 401}, {cashier, 403}, {admin, map[bool]int{false: route.expected, true: route.malformed}[body == "{"]}} {
 					r := httptest.NewRequest("POST", route.path, strings.NewReader(body))
 					if access.token != "" {
 						r.Header.Set("Authorization", "Bearer "+access.token)
