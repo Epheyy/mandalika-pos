@@ -572,4 +572,169 @@ func TestStockCountPostgres(t *testing.T) {
 		}
 		intp("stockAfter", only(id).StockAfter, -5)
 	})
+
+	sub("12 replay with a non-zero delta never re-applies; a differing replay payload is 409", func(t *testing.T) {
+		pid := newProduct(15)
+		id := create(line(pid, nil))
+		start(id)
+		sell(pid, 3) // stock 12
+		code, body := complete(id, line(pid, 14))
+		must("complete", code, body, 200)
+		if got := stockOf(pid); got != 11 {
+			t.Fatalf("stock = %d, want 11", got)
+		}
+		sell(pid, 1) // 10
+		for _, items := range [][]map[string]any{{line(pid, 14)}, {}, nil} {
+			code, body = complete(id, items...)
+			must("identical or empty replay", code, body, 200)
+		}
+		if got := stockOf(pid); got != 10 {
+			t.Fatalf("replay re-applied the delta: stock = %d, want 10", got)
+		}
+		// A replay carrying other values must not look like success.
+		code, body = complete(id, line(pid, 3))
+		must("replay with another value", code, body, 409)
+		if !strings.Contains(body, "selesai dengan nilai lain") {
+			t.Fatalf("message: %s", body)
+		}
+		code, body = complete(id, line(newProduct(1), 1))
+		must("replay with a line not in the count", code, body, 409)
+		code, body = complete(id, line(pid, nil))
+		must("replay clearing a counted line", code, body, 409)
+		if got := stockOf(pid); got != 10 {
+			t.Fatalf("rejected replay changed stock: %d", got)
+		}
+		intp("actualQty kept", only(id).ActualQty, 14)
+	})
+
+	sub("13 value changed in the Complete payload after a per-line save drops the baseline (frozen fallback)", func(t *testing.T) {
+		pid := newProduct(15)
+		id := create(line(pid, nil))
+		start(id)
+		sell(pid, 3) // stock 12
+		code, body := put(id, map[string]any{"items": []any{line(pid, 11)}})
+		must("save line", code, body, 200)
+		intp("baseline", only(id).BaselineQty, 12)
+		code, body = complete(id, line(pid, 10))
+		must("complete", code, body, 200)
+		it := only(id)
+		if it.BaselineQty != nil {
+			t.Fatalf("changed value must drop the baseline: %+v", it)
+		}
+		// Documented behaviour: no baseline, so delta = 10 - frozen 15.
+		if got := stockOf(pid); got != 7 {
+			t.Fatalf("stock = %d, want 7 (12 + (10-15))", got)
+		}
+		intp("difference", it.Difference, -5)
+	})
+
+	sub("14 concurrent starts at one location leave exactly one in_progress", func(t *testing.T) {
+		pid := newProduct(10)
+		const n = 6
+		ids := make([]string, n)
+		for i := range ids {
+			ids[i] = create(line(pid, nil))
+		}
+		codes := make([]int, n)
+		var wg sync.WaitGroup
+		for i := range ids {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				r := httptest.NewRequest("PUT", "/stock-counts/"+ids[i], strings.NewReader(`{"status":"in_progress"}`))
+				r.Header.Set("Authorization", "Bearer "+token)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, r)
+				codes[i] = w.Code
+			}(i)
+		}
+		wg.Wait()
+		ok, conflict := 0, 0
+		for _, c := range codes {
+			switch c {
+			case 200:
+				ok++
+			case 409:
+				conflict++
+			}
+		}
+		if ok != 1 || conflict != n-1 {
+			t.Fatalf("codes = %v, want one 200 and %d 409", codes, n-1)
+		}
+		if got := count(`SELECT count(*) FROM stock_counts WHERE outlet_id=$1 AND status='in_progress'`, outlet); got != 1 {
+			t.Fatalf("in_progress counts = %d, want 1", got)
+		}
+		for i, c := range codes { // leave the location free for later cases
+			if c == 200 {
+				code, body := put(ids[i], map[string]any{"status": "cancelled"})
+				must("cancel winner", code, body, 200)
+			}
+		}
+	})
+
+	sub("15 cancel racing complete: exactly one wins and stock stays consistent", func(t *testing.T) {
+		for round := 0; round < 4; round++ {
+			pid := newProduct(10)
+			id := create(line(pid, nil))
+			start(id)
+			code, body := put(id, map[string]any{"items": []any{line(pid, 7)}})
+			must("save line", code, body, 200)
+			var cCode, xCode int
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				r := httptest.NewRequest("POST", "/stock-counts/"+id+"/complete", strings.NewReader(`{}`))
+				r.Header.Set("Authorization", "Bearer "+token)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, r)
+				cCode = w.Code
+			}()
+			go func() {
+				defer wg.Done()
+				r := httptest.NewRequest("PUT", "/stock-counts/"+id, strings.NewReader(`{"status":"cancelled"}`))
+				r.Header.Set("Authorization", "Bearer "+token)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, r)
+				xCode = w.Code
+			}()
+			wg.Wait()
+			st, got := get(id).Status, stockOf(pid)
+			switch {
+			case cCode == 200 && xCode == 409 && st == "completed" && got == 7:
+			case cCode == 409 && xCode == 200 && st == "cancelled" && got == 10:
+			default:
+				t.Fatalf("round %d: complete=%d cancel=%d status=%s stock=%d", round, cCode, xCode, st, got)
+			}
+		}
+	})
+
+	sub("16 start and items in one PUT: start first, then the lines are saved against the fresh baseline", func(t *testing.T) {
+		pid := newProduct(10)
+		id := create(line(pid, nil))
+		sell(pid, 3) // planned, stock 7
+		code, body := put(id, map[string]any{"status": "in_progress", "items": []any{line(pid, 6)}})
+		must("start with items", code, body, 200)
+		v := get(id)
+		if v.Status != "in_progress" {
+			t.Fatalf("status = %s", v.Status)
+		}
+		it := only(id)
+		intp("frozen re-frozen", &it.FrozenQty, 7)
+		intp("actual", it.ActualQty, 6)
+		intp("baseline", it.BaselineQty, 7)
+		code, body = complete(id)
+		must("complete", code, body, 200)
+		if got := stockOf(pid); got != 6 {
+			t.Fatalf("stock = %d, want 6", got)
+		}
+		// On a planned count the items replace the list instead; no actual is stored.
+		pid2 := newProduct(4)
+		id2 := create(line(pid2, nil))
+		code, body = put(id2, map[string]any{"items": []any{line(pid2, 1)}})
+		must("planned replace", code, body, 200)
+		if only(id2).ActualQty != nil {
+			t.Fatal("a planned count must not store counted quantities")
+		}
+	})
 }

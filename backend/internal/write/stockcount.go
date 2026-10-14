@@ -72,6 +72,9 @@ func (r *Repo) DeleteCustomRole(ctx context.Context, id string) error {
 // ErrCountState: the requested action is not allowed in the count's current status.
 var ErrCountState = apperr.New(apperr.Conflict, "status stock count tidak mengizinkan aksi ini")
 
+// ErrCountDone: a replayed completion carries values other than the stored ones.
+var ErrCountDone = apperr.New(apperr.Conflict, "stock count sudah selesai dengan nilai lain")
+
 // ErrCountRunning: another count at the same location is still in progress.
 var ErrCountRunning = apperr.New(apperr.Conflict, "stock count lain di lokasi ini masih berjalan")
 
@@ -424,7 +427,9 @@ func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, item
 		return e
 	}
 	if c.status == "completed" {
-		return nil // replay: the first completion already applied; zero writes
+		// Replay: the first completion already applied; zero writes. A payload that
+		// disagrees with what was stored is refused rather than silently dropped.
+		return checkReplayItems(ctx, t, id, items)
 	}
 	if c.status != "in_progress" {
 		return fmt.Errorf("%w (status: %s)", ErrCountState, c.status)
@@ -449,6 +454,45 @@ func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, item
 	return t.Commit(ctx)
 }
 
+// checkReplayItems accepts a replayed completion only if every payload line is on
+// the count with the same stored actual_qty (an empty or absent payload is fine).
+func checkReplayItems(ctx context.Context, t pgx.Tx, id string, items []StockCountItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	rows, e := t.Query(ctx,
+		`SELECT product_id, variant_size, actual_qty FROM stock_count_items WHERE stock_count_id=$1`, id)
+	if e != nil {
+		return e
+	}
+	stored := map[[2]string]*int{}
+	for rows.Next() {
+		var pid, size string
+		var actual *int
+		if e := rows.Scan(&pid, &size, &actual); e != nil {
+			rows.Close()
+			return e
+		}
+		stored[[2]string{pid, size}] = actual
+	}
+	rows.Close()
+	if e := rows.Err(); e != nil {
+		return e
+	}
+	for _, i := range items {
+		have, ok := stored[[2]string{i.ProductID, i.VariantSize}]
+		if !ok || (have == nil) != (i.ActualQty == nil) || (have != nil && *have != *i.ActualQty) {
+			return ErrCountDone
+		}
+	}
+	return nil
+}
+
+// Known limit (needs the A17 stock movement ledger): an offline sale made before an
+// item was counted but synced after its baseline was captured is subtracted twice,
+// and the baseline read is not locked, so a sale landing in the millisecond between
+// that read and the count's own write can do the same.
+//
 // applyCountDeltas adds each counted line's delta to live stock and records the
 // stock seen before/after. Lines are visited in (product_id, variant_size) order,
 // the same order transfers lock stock rows in. A negative result is kept.
