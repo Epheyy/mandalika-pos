@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-12 (afternoon) by Claude (Opus 5.5).
+Last updated: 2026-10-14 (night) by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -123,6 +123,19 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
    (c) A38 dependency blockers; (d) quick wins A43/A12 leftovers, A32 pool limits, A40 RUNBOOK, A42 lock order;
    (e) A36 research → plan; A33 Redis-optional auth; A39 CSV; A44 oversell flag/report; (f) medium: A05/A07, A10, A15, A41,
    A28, A30, A37, A23/A26/A27/A29/A35 leftovers. Then the Fable re-audit (new session).
+   **Status 2026-10-14 (nothing pushed/deployed):**
+   - (a) A14: plan `docs/plans/2026-10-14-a14-stock-count-delta.md`; commits 81efa55 + 42fd319 on prod-hardening (mig 0051,
+     PG gate SC). Opus review = ship-with-fixes (backoffice save race, complete must PUT pending lines first, replay-with-
+     different-actuals → 409, more SC subtests); fix round in progress in the main checkout.
+   - (b) receipt numbers: plan `docs/plans/2026-10-14-receipt-number-device-code.md`; commit 0d801ab on branch
+     `worktree-agent-ac068f1def4d42db0` (mig 0052 `pos_devices`, `POST /pos/devices/register`, PG gate DV, numbers
+     `{OUTLET}-{CODE≥2 letters}{SEQ}`); Opus review running.
+   - (c) A38: 6 commits on branch `worktree-agent-ab63d06de246a2821` (Go 1.26.9, chi v5.3.0, npm pins, exceptions for
+     x/crypto openpgp GO-2026-5932 + rgbcolor licence, expiry 2027-01-12 — **owner sign-off needed**); full scan not
+     runnable locally (network) → CI confirms on push; Opus review running. CI artifacts download only via PowerShell
+     `Invoke-WebRequest` (gh's TLS to the blob host times out here).
+   - Release order: merge both branches → push → CI green → deploy backend (0051+0052) BEFORE any backoffice deploy (new
+     StockCount screen against the old backend wipes count lines) → APK for receipt numbers (emulator check).
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
