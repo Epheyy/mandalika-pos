@@ -47,6 +47,10 @@ class Applicability(unittest.TestCase):
                 destination = self.root / "scripts/ci" / f.name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(f, destination)
+        # The real register's entries must each match a live finding, which these
+        # synthetic replays never produce; the disposable copy uses an empty register.
+        write(self.root / "scripts/ci/dependency-exceptions.json",
+              {"schema_version": 1, "policy_id": "DEPSEC-INITIAL-20260922", "security": [], "licenses": []})
         shutil.copyfile(HERE / "depsec_helper.cjs", self.root / "scripts/ci/depsec_helper.cjs")
         shutil.copytree(ROOT / EVIDENCE, self.root / EVIDENCE)
         shutil.copytree(ROOT / "vendor/sheetjs", self.root / "vendor/sheetjs")
