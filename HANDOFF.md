@@ -24,7 +24,8 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend:** Cloud Run `mandalika-pos` revision **`00100-wul`** (100%, tag `gates50`, labels commit-sha=`f08c94f`,
+- **Backend (2026-10-15):** revision **`00102-vas`** (100%, tag `a14rcpt`, commit cfd6917, migrations through **0052**;
+  rollback = 00100-wul). Previously: revision `00100-wul` (tag `gates50`, labels commit-sha=`f08c94f`,
   deploy-tag=gates50), deployed + promoted with the new gated scripts. = review resolve (0048) + OTA guard (0049) +
   OTA commit binding (**0050**); env `JWT_REFRESH_TTL_HOURS=720`. Migrations through **0050**.
   - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00098-yun=100`
@@ -123,23 +124,24 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
    (c) A38 dependency blockers; (d) quick wins A43/A12 leftovers, A32 pool limits, A40 RUNBOOK, A42 lock order;
    (e) A36 research → plan; A33 Redis-optional auth; A39 CSV; A44 oversell flag/report; (f) medium: A05/A07, A10, A15, A41,
    A28, A30, A37, A23/A26/A27/A29/A35 leftovers. Then the Fable re-audit (new session).
-   **Status 2026-10-14 (nothing pushed/deployed):**
-   - (a) A14: plan `docs/plans/2026-10-14-a14-stock-count-delta.md`; commits 81efa55 + 42fd319 on prod-hardening (mig 0051,
-     PG gate SC). Two Opus fix rounds → **done** on prod-hardening through 9a9e148 (520bc19 replay-disagree 409, e8d75c2
-     save race + flush-then-complete, 9a9e148 refresh-before-clear + 20 s PUT timeout). SC gate 16 subtests. Not yet
-     browser-checked. Neon read-only 2026-10-15: no outlet has 2 open shifts; all outlet codes match ^[A-Za-z0-9]{2,4}$.
-   - (d) A12/A43/A42/A32 quick wins: one worktree implementer (mig 0053 open-shift partial unique index, shiftId outlet
-     check on direct routes, strict bodies, sorted stock/code locks + retryBusy on direct routes, DB_MAX_CONNS=10 +
-     --max-instances 4). A40 RUNBOOK after merges. **xlsx applicability decisions expire 2026-10-23** (re-review due).
-   - (b) receipt numbers: plan `docs/plans/2026-10-14-receipt-number-device-code.md`; commit 0d801ab on branch
-     `worktree-agent-ac068f1def4d42db0` (mig 0052 `pos_devices`, `POST /pos/devices/register`, PG gate DV, numbers
-     `{OUTLET}-{CODE≥2 letters}{SEQ}`); Opus review running.
-   - (c) A38: 6 commits on branch `worktree-agent-ab63d06de246a2821` (Go 1.26.9, chi v5.3.0, npm pins, exceptions for
-     x/crypto openpgp GO-2026-5932 + rgbcolor licence, expiry 2027-01-12 — **owner sign-off needed**); full scan not
-     runnable locally (network) → CI confirms on push; Opus review running. CI artifacts download only via PowerShell
-     `Invoke-WebRequest` (gh's TLS to the blob host times out here).
-   - Release order: merge both branches → push → CI green → deploy backend (0051+0052) BEFORE any backoffice deploy (new
-     StockCount screen against the old backend wipes count lines) → APK for receipt numbers (emulator check).
+   **Status 2026-10-15:**
+   - **Released 2026-10-15** (backend rev `00102-vas`, tag `a14rcpt`, from cfd6917, migrations **0051 + 0052**, smoke 14/14;
+     rollback `--to-revisions mandalika-pos-00100-wul=100`; backoffice via the next non-skip push):
+     - (a) A14 stock counts: difference apply, server-owned baseline (freeze at create + start, per-line baseline on save),
+       lifecycle under FOR UPDATE, replay = zero writes / disagreeing replay 409, one running count per location; backoffice
+       saves per line on blur, flush-then-complete. Plan `docs/plans/2026-10-14-a14-stock-count-delta.md`. Not browser-checked.
+     - (b) receipt numbers: server-assigned device code unique fleet-wide (`pos_devices`, `POST /pos/devices/register`),
+       numbers `{OUTLET}-{CODE≥2 letters}{SEQ}`, counter reserved durably before enqueue + floor from the queued outbox,
+       legacy format until registered. POS change → needs the new APK. Plan `docs/plans/2026-10-14-receipt-number-device-code.md`.
+     - (c) A38: Go 1.26.9, chi v5.3.0, npm pins; owner-approved exceptions (x/crypto openpgp GO-2026-5932, rgbcolor licence,
+       expire 2027-01-12); xlsx applicability renewed to 2027-01-13 (reviewed_at 2026-10-14 UTC). CI scan on cfd6917:
+       22 of 24 cleared, the 2 xlsx rows were "not yet valid" (UTC date slip) → fixed in the following commit.
+       CI artifacts download only via PowerShell `Invoke-WebRequest` (gh's TLS to the blob host times out here).
+   - (d) A12/A43/A42/A32 quick wins: 6 commits on branch `worktree-agent-a11a0583006135bf5` (mig 0053 open-shift index,
+     shiftId outlet check, strict optional bodies, sorted stock/code locks + RetryBusy on direct routes, DB_MAX_CONNS=10,
+     --max-instances 4; PG gates SO 56453 + LO 56454); Opus review running; second release after it.
+   - Neon read-only 2026-10-15: no outlet has 2 open shifts (0053 safe); all outlet codes match ^[A-Za-z0-9]{2,4}$.
+   - Next: A40 RUNBOOK refresh (after the quick-win merge), then (e) A36 research → plan, A33, A39, A44.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
