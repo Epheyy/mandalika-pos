@@ -7,8 +7,36 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// openShiftIndex is the partial unique index (migration 0053) holding one open
+// shift per outlet.
+const openShiftIndex = "shifts_one_open_per_outlet_idx"
+
+// ErrShiftNotInOutlet is returned when a client-supplied shiftId is malformed,
+// unknown, or belongs to another outlet.
+var ErrShiftNotInOutlet = apperr.New(apperr.Rejected, "shift tidak ditemukan di outlet ini")
+
+// ValidateShiftOutlet checks a non-empty client shiftId belongs to outletID. The
+// shift need not be open (late sales keep their original, closed shift). An empty
+// shiftId is allowed and always valid.
+func (s *OrderService) ValidateShiftOutlet(ctx context.Context, outletID, shiftID string) error {
+	if shiftID == "" {
+		return nil
+	}
+	if _, err := uuid.Parse(shiftID); err != nil {
+		return ErrShiftNotInOutlet
+	}
+	var one int
+	err := s.Pool.QueryRow(ctx, `SELECT 1 FROM shifts WHERE id=$1 AND outlet_id=$2`, shiftID, outletID).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrShiftNotInOutlet
+	}
+	return err
+}
 
 var ErrShiftOpen = apperr.New(apperr.Conflict, "a shift is already open for this outlet")
 
@@ -66,6 +94,10 @@ func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftI
 		in.OutletID, nullStr(in.OutletName), in.CashierID, in.CashierName,
 		in.StartingCash).Scan(&id)
 	if err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == openShiftIndex {
+			return "", ErrShiftOpen
+		}
 		return "", err
 	}
 	return id, nil
