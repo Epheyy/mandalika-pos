@@ -141,7 +141,14 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      shiftId outlet check, strict optional bodies, sorted stock/code locks + RetryBusy on direct routes, DB_MAX_CONNS=10,
      --max-instances 4; PG gates SO 56453 + LO 56454); Opus review running; second release after it.
    - Neon read-only 2026-10-15: no outlet has 2 open shifts (0053 safe); all outlet codes match ^[A-Za-z0-9]{2,4}$.
-   - Next: A40 RUNBOOK refresh (after the quick-win merge), then (e) A36 research → plan, A33, A39, A44.
+   - (e) A36 research done: `docs/plans/2026-10-15-a36-backup-research.md`. **Owner decisions 2026-10-15:** Neon **Launch**
+     (7-day PITR, daily snapshots, snapshot before every migrating deploy) + own encrypted daily `pg_dump` to a locked GCS
+     bucket in Jakarta (dailies 35 d, monthlies **24-month retention lock**); "< 3%" = ≤ ~20 min of a trading day's server
+     writes for normal incidents, provider loss accepted at ≤ 24 h of server data (unsynced tablet sales always safe);
+     PDP limitation of locked backups accepted (document it). Owner must upgrade the Neon plan (payment) — Claude can't.
+     Build (~6 days) = backup Cloud Run Job + bucket script + pre-migration snapshot in deploy-backend.sh + restore script +
+     restore drill + backup-age alert + RUNBOOK; optional tablet keep-acked-sales item NOT chosen.
+   - Next: A40 RUNBOOK refresh (after the quick-win merge), A36 build plan, then A33, A39, A44.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
