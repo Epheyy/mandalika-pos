@@ -125,8 +125,12 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
    A28, A30, A37, A23/A26/A27/A29/A35 leftovers. Then the Fable re-audit (new session).
    **Status 2026-10-14 (nothing pushed/deployed):**
    - (a) A14: plan `docs/plans/2026-10-14-a14-stock-count-delta.md`; commits 81efa55 + 42fd319 on prod-hardening (mig 0051,
-     PG gate SC). Opus review = ship-with-fixes (backoffice save race, complete must PUT pending lines first, replay-with-
-     different-actuals → 409, more SC subtests); fix round in progress in the main checkout.
+     PG gate SC). Two Opus fix rounds → **done** on prod-hardening through 9a9e148 (520bc19 replay-disagree 409, e8d75c2
+     save race + flush-then-complete, 9a9e148 refresh-before-clear + 20 s PUT timeout). SC gate 16 subtests. Not yet
+     browser-checked. Neon read-only 2026-10-15: no outlet has 2 open shifts; all outlet codes match ^[A-Za-z0-9]{2,4}$.
+   - (d) A12/A43/A42/A32 quick wins: one worktree implementer (mig 0053 open-shift partial unique index, shiftId outlet
+     check on direct routes, strict bodies, sorted stock/code locks + retryBusy on direct routes, DB_MAX_CONNS=10 +
+     --max-instances 4). A40 RUNBOOK after merges. **xlsx applicability decisions expire 2026-10-23** (re-review due).
    - (b) receipt numbers: plan `docs/plans/2026-10-14-receipt-number-device-code.md`; commit 0d801ab on branch
      `worktree-agent-ac068f1def4d42db0` (mig 0052 `pos_devices`, `POST /pos/devices/register`, PG gate DV, numbers
      `{OUTLET}-{CODE≥2 letters}{SEQ}`); Opus review running.
