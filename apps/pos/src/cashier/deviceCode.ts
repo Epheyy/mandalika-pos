@@ -31,21 +31,26 @@ interface DeviceRegistrar {
 }
 
 const inFlight = new Map<string, Promise<string | null>>()
-// Registrations the server refused for good (4xx): not retried until reset (next mount / sign-in).
-const gaveUp = new Set<string>()
+// After a client error that retrying will not fix (4xx), wait before asking again: long enough
+// not to hammer the server, short enough that a tablet that registered before the backend was
+// deployed picks a code up without a restart. Also reset on mount / sign-in.
+export const REGISTRATION_BACKOFF_MS = 15 * 60_000
+const backoffUntil = new Map<string, number>()
 
-/** A client error that retrying cannot fix. 401 (session renewal), 408 and 429 stay retryable. */
+/** A client error that retrying right away cannot fix. 401 (session renewal), 408, 409 (busy)
+ *  and 429 stay retryable on the next tick. */
 function isPermanent(err: unknown): boolean {
   const status = (err as { status?: unknown } | null)?.status
-  return typeof status === 'number' && status >= 400 && status < 500 && ![401, 408, 429].includes(status)
+  return typeof status === 'number' && status >= 400 && status < 500 && ![401, 408, 409, 429].includes(status)
 }
 
+/** true while a refused registration is waiting out its back-off. */
 export function registrationGaveUp(outletId: string, deviceId: string): boolean {
-  return gaveUp.has(`${outletId}:${deviceId}`)
+  return Date.now() < (backoffUntil.get(`${outletId}:${deviceId}`) ?? 0)
 }
 
 export function resetRegistrationBackoff(): void {
-  gaveUp.clear()
+  backoffUntil.clear()
 }
 
 /**
@@ -62,7 +67,7 @@ export function ensureDeviceCode(
   const known = readDeviceCode(kv, outletId)
   if (known) return Promise.resolve(known)
   const key = `${outletId}:${deviceId}`
-  if (gaveUp.has(key)) return Promise.resolve(null)
+  if (registrationGaveUp(outletId, deviceId)) return Promise.resolve(null)
   const running = inFlight.get(key)
   if (running) return running
   const p = (async (): Promise<string | null> => {
@@ -72,8 +77,8 @@ export function ensureDeviceCode(
       await kv.setDurable(DEVICE_CODE_KEY, JSON.stringify({ outletId, code }))
       return code
     } catch (err) {
-      if (isPermanent(err)) gaveUp.add(key)
-      return null // network / 5xx: retried on the next tick
+      if (isPermanent(err)) backoffUntil.set(key, Date.now() + REGISTRATION_BACKOFF_MS)
+      return null // network / 5xx / 409: retried on the next tick
     }
   })().finally(() => inFlight.delete(key))
   inFlight.set(key, p)

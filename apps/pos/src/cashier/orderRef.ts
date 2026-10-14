@@ -39,37 +39,59 @@ export interface PeekedOrderNo {
   next: number
 }
 
+/** Highest SEQ among `orderNumbers` that carry device `code` ({OUTLET}-{CODE}{SEQ}); 0 if none.
+ *  Codes are unique fleet-wide, so any outlet prefix is accepted. */
+export function highestQueuedSeq(code: string, orderNumbers: readonly string[]): number {
+  const re = new RegExp('^[A-Z0-9]+-' + code + '([0-9]+)$')
+  let max = 0
+  for (const n of orderNumbers) {
+    const m = re.exec(n)
+    if (m) max = Math.max(max, parseInt(m[1], 10) || 0)
+  }
+  return max
+}
+
 /**
  * Format the next order number from the stored counter WITHOUT advancing it.
  * `boundOutletId` is the terminal's bound outlet: a device code registered for
- * another outlet is ignored.
+ * another outlet is ignored. `queuedOrderNumbers` (numbers still in the outbox) raise
+ * the counter floor, so a counter that was rolled back never re-issues a queued number.
  */
 export function peekOrderNo(
   outletCode: string | null | undefined,
   deviceId: string,
   boundOutletId: string | null = null,
   kv: KV = getKV(),
+  queuedOrderNumbers: readonly string[] = [],
 ): PeekedOrderNo {
   const code = readDeviceCode(kv, boundOutletId)
   const seqKey = code ? `${SEQ_KEY}.${code}` : SEQ_KEY
-  const next = (parseInt(kv.get(seqKey) ?? '0', 10) || 0) + 1
+  const stored = parseInt(kv.get(seqKey) ?? '0', 10) || 0
+  const next = (code ? Math.max(stored, highestQueuedSeq(code, queuedOrderNumbers)) : stored) + 1
   const dev = code ?? deviceTag(deviceId)
   return { orderNo: `${outletPart(outletCode)}-${dev}${String(next).padStart(4, '0')}`, seqKey, next }
 }
 
 /**
- * Take the next order number and make the counter durable BEFORE the sale is queued, so a
- * kill right after a journaled sale cannot hand the same number out again. Never rejects and
- * never blocks a sale: if the durable write fails the in-memory mirror is still advanced and
- * the error is returned for reporting.
+ * Take the next order number and write the counter before the sale is queued. Never
+ * rejects and never blocks a sale: if the write fails the in-memory mirror is still
+ * advanced and the error is returned for reporting.
+ *
+ * Guarantees: the counter write is awaited, and the number is above every number of this
+ * device code still in the outbox (`queuedOrderNumbers`). Not guaranteed: on Android the
+ * Preferences write resolves once it is handed to the OS (apply()), so a process kill right
+ * after can roll the counter back; the outbox floor then covers every sale not yet acked.
+ * A number whose sale was already acked and pruned is not covered; it stays safe only
+ * because the counter write normally lands long before that.
  */
 export async function reserveOrderNo(
   outletCode: string | null | undefined,
   deviceId: string,
   boundOutletId: string | null = null,
   kv: KV = getKV(),
+  queuedOrderNumbers: readonly string[] = [],
 ): Promise<{ orderNo: string; error?: unknown }> {
-  const { orderNo, seqKey, next } = peekOrderNo(outletCode, deviceId, boundOutletId, kv)
+  const { orderNo, seqKey, next } = peekOrderNo(outletCode, deviceId, boundOutletId, kv, queuedOrderNumbers)
   try {
     await kv.setDurable(seqKey, String(next))
     return { orderNo }
@@ -80,23 +102,8 @@ export async function reserveOrderNo(
 }
 
 /**
- * Synchronous variant: advance the (non-durable) counter and return the number.
- * The cashier uses {@link reserveOrderNo}; this stays for callers that cannot await.
- */
-export function nextOrderNo(
-  outletCode: string | null | undefined,
-  deviceId: string,
-  boundOutletId: string | null = null,
-  kv: KV = getKV(),
-): string {
-  const { orderNo, seqKey, next } = peekOrderNo(outletCode, deviceId, boundOutletId, kv)
-  kv.set(seqKey, String(next))
-  return orderNo
-}
-
-/**
  * Legacy fallback — a stable 6-digit code hashed from the order uuid. Retained
- * for older receipts; new sales use {@link nextOrderNo}.
+ * for older receipts; new sales use {@link reserveOrderNo}.
  */
 export function localOrderRef(orderUuid: string): string {
   let h = 0

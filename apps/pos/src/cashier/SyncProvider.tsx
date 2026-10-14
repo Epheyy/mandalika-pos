@@ -16,7 +16,7 @@ import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV, getOutboxStore, getJournalBo
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
 import { api, authStore } from '../api'
-import { ensureDeviceCode, registrationGaveUp, resetRegistrationBackoff } from './deviceCode'
+import { ensureDeviceCode, resetRegistrationBackoff } from './deviceCode'
 import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
@@ -219,8 +219,8 @@ export function SyncProvider({
       const outletId = authStore.outletId
       if (!outletId) return
       const code = await ensureDeviceCode(getKV(), api, outletId, engine.deviceId)
-      // Stored, or refused for good (4xx): stop until the next mount / sign-in. Network/5xx keep retrying.
-      if (live && (code || registrationGaveUp(outletId, engine.deviceId))) stopTicking()
+      // Stored: done. Otherwise keep ticking; a refused (4xx) registration waits out its own back-off.
+      if (live && code) stopTicking()
     }
     resetRegistrationBackoff()
     void attempt()

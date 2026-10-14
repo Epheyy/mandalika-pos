@@ -648,7 +648,8 @@ export default function CashierScreen() {
       // The sale only counts once it is durably queued: await the outbox write
       // BEFORE any success state, cart reset or receipt print.
       const outcome = await saleGate.current.run(async () => {
-        const reserved = await reserveOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId)
+        const queuedNumbers = engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderNumber === 'string' ? [i.payload.orderNumber] : []))
+        const reserved = await reserveOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId, undefined, queuedNumbers)
         orderNo = reserved.orderNo
         if (reserved.error !== undefined) {
           void reportErrors([{ source: 'runtime', kind: 'order_seq_write', action: `Simpan nomor struk ${orderNo}`, message: reserved.error instanceof Error ? reserved.error.message : 'penyimpanan nomor struk gagal', outletName: snapshot.outletName }])
