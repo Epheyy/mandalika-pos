@@ -24,8 +24,9 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-15):** revision **`00102-vas`** (100%, tag `a14rcpt`, commit cfd6917, migrations through **0052**;
-  rollback = 00100-wul). Previously: revision `00100-wul` (tag `gates50`, labels commit-sha=`f08c94f`,
+- **Backend (2026-10-15, release 2):** revision **`00104-den`** (100%, tag `rel2`, commit a2cffe3, migrations through
+  **0053**, Cloud Run max-instances 4, DB_MAX_CONNS default 10; rollback = `00102-vas`). Release 1 was `00102-vas` (tag
+  `a14rcpt`, cfd6917, migrations 0051+0052; its rollback = 00100-wul). Previously: revision `00100-wul` (tag `gates50`, labels commit-sha=`f08c94f`,
   deploy-tag=gates50), deployed + promoted with the new gated scripts. = review resolve (0048) + OTA guard (0049) +
   OTA commit binding (**0050**); env `JWT_REFRESH_TTL_HOURS=720`. Migrations through **0050**.
   - Rollback: `gcloud run services update-traffic mandalika-pos --region asia-southeast2 --project mandalika-pos --to-revisions mandalika-pos-00098-yun=100`
@@ -137,9 +138,15 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
        expire 2027-01-12); xlsx applicability renewed to 2027-01-13 (reviewed_at 2026-10-14 UTC). CI scan on cfd6917:
        22 of 24 cleared, the 2 xlsx rows were "not yet valid" (UTC date slip) → fixed in the following commit.
        CI artifacts download only via PowerShell `Invoke-WebRequest` (gh's TLS to the blob host times out here).
-   - (d) A12/A43/A42/A32 quick wins: 6 commits on branch `worktree-agent-a11a0583006135bf5` (mig 0053 open-shift index,
-     shiftId outlet check, strict optional bodies, sorted stock/code locks + RetryBusy on direct routes, DB_MAX_CONNS=10,
-     --max-instances 4; PG gates SO 56453 + LO 56454); Opus review running; second release after it.
+   - **Released 2026-10-15 (release 2, rev `00104-den`, smoke 18/18):** (d) A12/A43/A42/A32 — mig 0053 one open shift per
+     outlet; direct order/cash-flow shiftId must belong to the caller's outlet (checked after replay; /sync/batch unchanged,
+     all batch sales are Offline); strict optional bodies (malformed → 400); unclassified direct-sale errors → sanitized 500;
+     deterministic lock order (codes → customer (re-resolved after merge) → stock sorted → order) in sale/refund/goods
+     receipt + RetryBusy on direct routes; DB_MAX_CONNS (1..100, default 10) + --max-instances 4; merge.go nil-slice fix;
+     PG gates SO 56453 + LO 56454 (16 gates total). A40 RUNBOOK refreshed (d3bce8f). POS success pop-up now shows the
+     reserved receipt number (was the MND- hash) → APK 2.1 (versionCode 12).
+   - APK 2.0 (build 11, 374e14a) emulator-verified 2026-10-15: 1.9→2.0 `install -r` kept session/binding/shift; device
+     code `AB`; test sale synced as **BSD-AB0001** (codes AA and AC belong to smoke-test devices).
    - Neon read-only 2026-10-15: no outlet has 2 open shifts (0053 safe); all outlet codes match ^[A-Za-z0-9]{2,4}$.
    - (e) A36 research done: `docs/plans/2026-10-15-a36-backup-research.md`. **Owner decisions 2026-10-15:** Neon **Launch**
      (7-day PITR, daily snapshots, snapshot before every migrating deploy) + own encrypted daily `pg_dump` to a locked GCS
