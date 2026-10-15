@@ -92,7 +92,7 @@ func newRouteHarness(t *testing.T) (http.Handler, func(role, uid string) string)
 	t.Cleanup(pool.Close)
 
 	cfg := &config.Config{AccessSecret: secret, RateLimitRPS: 100}
-	router := New(cfg, &db.DB{Pool: pool}, &cache.Cache{R: rc}, nil)
+	router := New(cfg, &db.DB{Pool: pool}, cache.NewFromClient(rc), nil)
 	issue := func(role, uid string) string {
 		t.Helper()
 		tok, err := auth.IssueAccess(secret, time.Hour, uid, role, "", nil)

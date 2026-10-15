@@ -2,7 +2,10 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,7 +13,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
+	"github.com/google/uuid"
 
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/clientip"
@@ -18,19 +21,37 @@ import (
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
 
+// authBackend is the Postgres surface the handlers need (faked in tests).
+type authBackend interface {
+	Authenticate(ctx context.Context, email, password string) (*User, string, error)
+	ByID(ctx context.Context, id string) (*User, error)
+	IssueSession(ctx context.Context, u *User, verifiedHash string, s Session) error
+	RotateSession(ctx context.Context, in RotateInput) (*RotateResult, error)
+	RevokeFamily(ctx context.Context, in RevokeInput) ([]string, error)
+}
+
 type Handler struct {
 	Cfg   *config.Config
 	Store *Store
 	Cache *cache.Cache
 
+	// backend overrides Store for sessions/credentials (tests); nil uses Store.
+	backend authBackend
 	// reset overrides Store for admin password reset (tests); nil uses Store.
 	reset resetStore
-	// now overrides time.Now for the reset marker (tests); nil uses time.Now.
+	// now overrides time.Now for the reset marker and session times (tests).
 	now func() time.Time
 }
 
 func NewHandler(cfg *config.Config, store *Store, c *cache.Cache) *Handler {
 	return &Handler{Cfg: cfg, Store: store, Cache: c}
+}
+
+func (h *Handler) be() authBackend {
+	if h.backend != nil {
+		return h.backend
+	}
+	return h.Store
 }
 
 type loginReq struct {
@@ -44,30 +65,61 @@ type authResp struct {
 	User    *User  `json:"user"`
 }
 
-func (h *Handler) issue(ctx context.Context, u *User) (*authResp, error) {
+// newSession builds a session whose iat/exp are second-truncated so the row and
+// the signed JWT carry identical values.
+func (h *Handler) newSession() Session {
+	iat := h.clock().Truncate(time.Second)
+	return Session{JTI: uuid.NewString(), IssuedAt: iat, ExpiresAt: iat.Add(h.Cfg.RefreshTTL)}
+}
+
+// respond signs the token pair for a session that is already durable.
+func (h *Handler) respond(u *User, s Session) (*authResp, error) {
 	access, err := IssueAccess(h.Cfg.AccessSecret, h.Cfg.AccessTTL, u.ID, u.Role, u.OutletID, u.Permissions)
 	if err != nil {
 		return nil, err
 	}
-	refresh, jti, err := IssueRefresh(h.Cfg.RefreshSecret, h.Cfg.RefreshTTL, u.ID)
+	refresh, err := SignRefresh(h.Cfg.RefreshSecret, u.ID, s.JTI, s.IssuedAt, s.ExpiresAt)
 	if err != nil {
 		return nil, err
 	}
-	// Store refresh jti in Redis (fast revocation) + Postgres (durable).
-	h.Cache.Set(ctx, "refresh:"+jti, u.ID, h.Cfg.RefreshTTL)
-	_, _ = h.Store.Pool.Exec(ctx,
-		`INSERT INTO refresh_tokens (jti, user_id, expires_at) VALUES ($1,$2,$3)`,
-		jti, u.ID, time.Now().Add(h.Cfg.RefreshTTL))
 	return &authResp{Access: access, Refresh: refresh, User: u}, nil
+}
+
+// mirrorSession writes the legacy Redis key (rollback compatibility, D5): best
+// effort, after the Postgres commit, never read on the normal path. TTL is the
+// token's remaining life.
+//
+// Every miss is logged as `refresh_mirror_failed` (user id and err only, no token
+// values): the RUNBOOK rollback check greps for it, because a rollback to the
+// previous revision trusts these keys.
+func (h *Handler) mirrorSession(ctx context.Context, uid string, s Session, oldJTI string) {
+	if ttl := time.Until(s.ExpiresAt); ttl > 0 {
+		if err := h.Cache.SetE(ctx, "refresh:"+s.JTI, uid, ttl); err != nil {
+			slog.Warn("refresh_mirror_failed", "op", "set", "user", uid, "err", err)
+		}
+	}
+	if oldJTI != "" {
+		if err := h.Cache.DelE(ctx, "refresh:"+oldJTI); err != nil {
+			slog.Warn("refresh_mirror_failed", "op", "del", "user", uid, "err", err)
+		}
+	}
 }
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// emailDigest is a truncated sha256 of the normalized email. Limiter keys (Redis
+// and the in-memory fallback) use it so the raw email is never stored or logged,
+// and the key length stays bounded whatever the client sends.
+func emailDigest(email string) string {
+	sum := sha256.Sum256([]byte(normalizeEmail(email)))
+	return hex.EncodeToString(sum[:16])
+}
+
 // loginRateKey scopes login attempts to client-IP bucket + normalized email.
 func loginRateKey(ipBucket, email string) string {
-	return ipBucket + ":" + normalizeEmail(email)
+	return ipBucket + ":" + emailDigest(email)
 }
 
 // rate limit: 10 login attempts / 5 min per IP+email.
@@ -85,51 +137,72 @@ const (
 )
 
 func loginEmailKey(email string) string {
-	return "rl:login:email:" + normalizeEmail(email)
+	return "rl:login:email:" + emailDigest(email)
 }
 
-// emailCapReached reports whether a stored failure count has hit the cap.
-func emailCapReached(stored string, ok bool) bool {
-	if !ok {
-		return false
-	}
-	n, err := strconv.Atoi(stored)
-	return err == nil && n >= loginEmailFailLimit
-}
+// emailCapReached reports whether a failure count has hit the per-account cap.
+func emailCapReached(n int64) bool { return n >= loginEmailFailLimit }
+
+// Body caps. Login: 8 KiB, answered 413. Refresh and logout: 16 KiB (the client
+// sends a few hundred bytes), answered 400 -- NEVER 413 there, because the client
+// treats any non-5xx/429 non-OK refresh status as "rejected" and logs the tablet
+// out, and 400 is already in the refresh status contract.
+const (
+	maxLoginBody   = 8 << 10
+	maxRefreshBody = 16 << 10
+)
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
+	r.Body = http.MaxBytesReader(w, r.Body, maxLoginBody)
 	if err := httpx.Decode(r, &req); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			httpx.Err(w, http.StatusRequestEntityTooLarge, "request too large")
+			return
+		}
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if h.rateLimited(r.Context(), loginRateKey(clientip.ClientIPBucket(r), req.Email)) {
+	ctx := r.Context()
+	if h.rateLimited(ctx, loginRateKey(clientip.ClientIPBucket(r), req.Email)) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
 	emailKey := loginEmailKey(req.Email)
-	if emailCapReached(h.Cache.Get(r.Context(), emailKey)) {
+	if emailCapReached(h.Cache.Count(ctx, emailKey)) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
-	decisionAt := time.Now()
-	u, err := h.Store.Authenticate(r.Context(), normalizeEmail(req.Email), req.Password)
-	if err != nil {
-		h.Cache.Incr(r.Context(), emailKey, loginEmailFailWindow)
+	u, hash, err := h.be().Authenticate(ctx, normalizeEmail(req.Email), req.Password)
+	if errors.Is(err, ErrNotFound) {
+		h.Cache.Incr(ctx, emailKey, loginEmailFailWindow)
 		httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}
-	resp, err := h.issue(r.Context(), u)
+	if err != nil {
+		slog.Error("login_lookup_failed", "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "login failed")
+		return
+	}
+	// Durable first: tokens are signed only after the session row committed.
+	sess := h.newSession()
+	if err := h.be().IssueSession(ctx, u, hash, sess); err != nil {
+		if errors.Is(err, ErrCredentialsChanged) || errors.Is(err, ErrNotFound) {
+			// A concurrent admin reset replaced the password we just verified.
+			httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
+			return
+		}
+		slog.Error("session_issue_failed", "err", err, "user", u.ID)
+		httpx.Err(w, http.StatusInternalServerError, "token issue failed")
+		return
+	}
+	resp, err := h.respond(u, sess)
 	if err != nil {
 		httpx.Err(w, http.StatusInternalServerError, "token issue failed")
 		return
 	}
-	// Authenticated against a password that a concurrent admin reset replaced:
-	// treat as a bad login and kill the pair just issued.
-	if h.revokedSince(r.Context(), u.ID, jwt.NewNumericDate(decisionAt), resp.Refresh) {
-		httpx.Err(w, http.StatusUnauthorized, "invalid email or password")
-		return
-	}
+	h.mirrorSession(ctx, u.ID, sess, "")
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
@@ -137,8 +210,13 @@ type refreshReq struct {
 	Refresh string `json:"refresh"`
 }
 
+// Refresh answers only 200, 401 (a definitive no), 429 (limiter), or 5xx (no
+// verdict; the client keeps the session) -- plus 400 for a malformed body the
+// client never sends. The client treats any other non-OK status as "rejected"
+// and logs the tablet out.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
+	r.Body = http.MaxBytesReader(w, r.Body, maxRefreshBody)
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
@@ -148,42 +226,55 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-	// Reuse-detection: jti must still be present and not revoked, and the
-	// token must not predate an admin password reset for this user.
-	if !h.refreshUsable(r.Context(), rc) {
+	ctx := r.Context()
+	res, err := h.be().RotateSession(ctx, RotateInput{Claims: rc, New: h.newSession(), Adopt: h.adoptLegacy})
+	switch {
+	case errors.Is(err, ErrRefreshRejected):
 		httpx.Err(w, http.StatusUnauthorized, "refresh token expired or revoked")
 		return
-	}
-	// Rotate: revoke old jti, issue new pair.
-	h.Cache.Del(r.Context(), "refresh:"+rc.ID)
-	_, _ = h.Store.Pool.Exec(r.Context(),
-		`UPDATE refresh_tokens SET revoked=true WHERE jti=$1`, rc.ID)
-	u, err := h.Store.ByID(r.Context(), rc.UserID)
-	if err != nil {
+	case errors.Is(err, ErrNotFound):
 		httpx.Err(w, http.StatusUnauthorized, "user not found")
 		return
+	case err != nil:
+		slog.Error("refresh_unavailable", "err", err, "user", rc.UserID)
+		httpx.Err(w, http.StatusServiceUnavailable, "auth temporarily unavailable")
+		return
 	}
-	resp, err := h.issue(r.Context(), u)
+	resp, err := h.respond(res.User, res.Session)
 	if err != nil {
 		httpx.Err(w, http.StatusInternalServerError, "token issue failed")
 		return
 	}
-	// A reset may have landed after the usable-check above. Re-test the OLD
-	// token against the marker and, if revoked, kill the pair just issued.
-	if h.revokedDuringRotation(r.Context(), rc, resp.Refresh) {
-		httpx.Err(w, http.StatusUnauthorized, "refresh token expired or revoked")
-		return
-	}
+	h.mirrorSession(ctx, res.User.ID, res.Session, rc.ID)
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
+// Logout ends the whole session of the presented token (owner decision
+// 2026-10-16: any token of the family counts, however stale). Always 200 for a
+// well-formed body; an oversized body is 400.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
-	if err := httpx.Decode(r, &req); err == nil && req.Refresh != "" {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRefreshBody)
+	err := httpx.Decode(r, &req)
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if err == nil && req.Refresh != "" {
 		if rc, err := ParseRefresh(h.Cfg.RefreshSecret, req.Refresh); err == nil {
-			h.Cache.Del(r.Context(), "refresh:"+rc.ID)
-			_, _ = h.Store.Pool.Exec(r.Context(),
-				`UPDATE refresh_tokens SET revoked=true WHERE jti=$1`, rc.ID)
+			ctx := r.Context()
+			revoked, err := h.be().RevokeFamily(ctx, RevokeInput{Claims: rc, Legacy: h.adoptLegacy})
+			if err != nil {
+				slog.Error("logout_revoke_failed", "err", err, "user", rc.UserID)
+			}
+			keys := []string{"refresh:" + rc.ID}
+			for _, j := range revoked {
+				keys = append(keys, "refresh:"+j)
+			}
+			if err := h.Cache.DelE(ctx, keys...); err != nil {
+				slog.Warn("refresh_mirror_failed", "op", "del", "user", rc.UserID, "err", err)
+			}
 		}
 	}
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -195,7 +286,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
-	u, err := h.Store.ByID(r.Context(), uid)
+	u, err := h.be().ByID(r.Context(), uid)
 	if err != nil {
 		httpx.Err(w, http.StatusNotFound, "user not found")
 		return
@@ -203,60 +294,30 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, u)
 }
 
-// refreshUsable reports whether a parsed refresh token may still be exchanged:
-// its jti is live in Redis and it was not issued before the user's last admin
-// password reset (refresh_revoked_before marker).
-func (h *Handler) refreshUsable(ctx context.Context, rc *RefreshClaims) bool {
-	if _, ok := h.Cache.Get(ctx, "refresh:"+rc.ID); !ok {
-		return false
-	}
-	return !h.markerRevokes(ctx, rc)
-}
-
-// markerRevokes reads the per-user marker with the raw client so a Redis error
-// is distinguishable from "no marker": anything other than redis.Nil fails closed.
-func (h *Handler) markerRevokes(ctx context.Context, rc *RefreshClaims) bool {
-	return h.markerRevokesAt(ctx, rc.UserID, rc.IssuedAt)
-}
-
-func (h *Handler) markerRevokesAt(ctx context.Context, userID string, iat *jwt.NumericDate) bool {
-	marker, err := h.Cache.R.Get(ctx, refreshRevokedKey(userID)).Result()
-	if errors.Is(err, redis.Nil) {
-		return false
-	}
+// adoptLegacy is the D4 migration source: a refresh token with NO row whose
+// Redis key still exists is adopted, unless a Redis reset marker kills it.
+// Redis unreachable or disabled means no verdict (503), never a logout.
+func (h *Handler) adoptLegacy(ctx context.Context, rc *RefreshClaims) (bool, error) {
+	v, found, err := h.Cache.GetE(ctx, "refresh:"+rc.ID)
 	if err != nil {
-		return true
+		return false, fmt.Errorf("%w: %v", ErrAdoptionUnavailable, err)
 	}
-	return refreshRevoked(iat, marker, true)
+	if !found || v != rc.UserID {
+		return false, nil
+	}
+	marker, hasMarker, err := h.Cache.GetE(ctx, refreshRevokedKey(rc.UserID))
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", ErrAdoptionUnavailable, err)
+	}
+	if refreshRevoked(rc.IssuedAt, marker, hasMarker) {
+		return false, nil
+	}
+	return true, nil
 }
 
-// revokedDuringRotation re-checks the marker after a new pair was issued. When
-// the old token is now revoked it deletes the new jti (Redis + DB row) and
-// reports true; the caller must not hand the new tokens out.
-func (h *Handler) revokedDuringRotation(ctx context.Context, old *RefreshClaims, newRefresh string) bool {
-	return h.revokedSince(ctx, old.UserID, old.IssuedAt, newRefresh)
-}
-
-// revokedSince is the shared post-issue check: a credential decision made at
-// iat is stale if the user's marker is newer; the pair just issued is killed.
-func (h *Handler) revokedSince(ctx context.Context, userID string, iat *jwt.NumericDate, newRefresh string) bool {
-	if !h.markerRevokesAt(ctx, userID, iat) {
-		return false
-	}
-	if nc, err := ParseRefresh(h.Cfg.RefreshSecret, newRefresh); err == nil {
-		if err := h.Cache.R.Del(ctx, "refresh:"+nc.ID).Err(); err != nil {
-			slog.Error("refresh_rotation_cleanup_failed", "err", err, "user", userID)
-		}
-		if h.Store != nil && h.Store.Pool != nil {
-			_, _ = h.Store.Pool.Exec(ctx, `UPDATE refresh_tokens SET revoked=true WHERE jti=$1`, nc.ID)
-		}
-	}
-	return true
-}
-
-// refreshRevoked reports whether a token with the given iat predates the
-// per-user marker (unix seconds). A marker that exists but cannot be parsed,
-// or a token without iat, is treated as revoked (fail closed).
+// refreshRevoked reports whether a legacy token with the given iat is killed by
+// the Redis reset marker (unix seconds): iat <= marker. A marker that exists but
+// cannot be parsed, or a token without iat, is treated as revoked (fail closed).
 func refreshRevoked(iat *jwt.NumericDate, marker string, hasMarker bool) bool {
 	if !hasMarker {
 		return false
@@ -265,5 +326,5 @@ func refreshRevoked(iat *jwt.NumericDate, marker string, hasMarker bool) bool {
 	if err != nil || iat == nil {
 		return true
 	}
-	return iat.Unix() < before
+	return iat.Unix() <= before
 }

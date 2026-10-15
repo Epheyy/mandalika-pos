@@ -4263,7 +4263,7 @@ type ServerInterface interface {
 	// Warehouse stock rows (Backoffice)
 	// (GET /api/v1/warehouses/{id}/stock)
 	GetWarehouseStock(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// Liveness/readiness (DB + Redis)
+	// Deep health (DB required; Redis reported, optional)
 	// (GET /healthz)
 	Health(w http.ResponseWriter, r *http.Request)
 }
@@ -5180,7 +5180,7 @@ func (_ Unimplemented) GetWarehouseStock(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Liveness/readiness (DB + Redis)
+// Deep health (DB required; Redis reported, optional)
 // (GET /healthz)
 func (_ Unimplemented) Health(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -16802,7 +16802,7 @@ type StrictServerInterface interface {
 	// Warehouse stock rows (Backoffice)
 	// (GET /api/v1/warehouses/{id}/stock)
 	GetWarehouseStock(ctx context.Context, request GetWarehouseStockRequestObject) (GetWarehouseStockResponseObject, error)
-	// Liveness/readiness (DB + Redis)
+	// Deep health (DB required; Redis reported, optional)
 	// (GET /healthz)
 	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
 }
@@ -21672,10 +21672,10 @@ var swaggerSpec = []string{
 	"Kl3E5EicpJDze8ri1vhyTdIrO/TpErSxl15EdZw/Fn1AYVPlz3DEVfV7wNCa3lmBHU9PfMUYZS7q3yN4",
 	"B3KA/jewfddnNN6U/qkkH8fb9nrdU9T6hdRQgCNha8nnG9TuXrUbqBqsS2yruA3MciK0q7bcrd5unP9Q",
 	"DNuHU7zLjC5B7bCM78vA9n1iymHY0SGbz//UnpdyrPa6xBe0CLR7q/h/2vWxe6Ds0e3KQ+T7J1ccexQZ",
-	"Oet8eK0+Hk4O4pmy2LoGf0uE/lCdTj9vHoQUScItEUzE8lcvjf6ufp+ExgF5HHgxShGJEYk2IKb3xvuA",
-	"ooxhsZk8+/F99eBbI4K4xCyMsfwvcPTyBfgzuEYxrvTfkKaM5L/qZL9NZggyxC7kr89+fC+1hXb1aURm",
-	"LJk8myyFSJ+dqRCBZEm5ePaX87+cK6+amf03i2W1ysdp/m9Lo/Kfipyf4o/lhhjFX3VIY/kPeVHM4m/W",
-	"t/Zbkbur64V/fP/x/wUAAP//",
+	"Oet8eK0+Hk4O4pmy2LoGf0uE/lCdTj9vHoQUScItEUzE8lcvjf6ufp+ExQGptOkYLRiMUaxz5VRK8DWK",
+	"MQeYg5jeEzUGczhLtAni9PjFUMAZ5Eh9oRGKooxhsZk8+/F9VUGhFOhdgKOXL4DFx3Ozqi61jeIpoGpy",
+	"WMmzkNaQZOHqAr9NZggyxC7kr89+fC8VjvYWalpkLJk8myyFSJ+dqSiDZEm5ePaX87+cK8ecmf03Syi1",
+	"ysdp/m9L5vKfirSh4o/lnhrFX3VUZPkPeV3N4m/WPfdbkf6rS45/fP/x/wUAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -50,7 +50,7 @@ func newResetHarness(t *testing.T, st *fakeResetStore) (*Handler, *miniredis.Min
 	t.Cleanup(func() { _ = rc.Close() })
 	h := &Handler{
 		Cfg:   &config.Config{RefreshSecret: []byte(strings.Repeat("r", 48)), RefreshTTL: time.Hour},
-		Cache: &cache.Cache{R: rc},
+		Cache: cache.NewFromClient(rc),
 		reset: st,
 	}
 	r := chi.NewRouter()
@@ -83,8 +83,9 @@ func TestRefreshRevoked(t *testing.T) {
 	}{
 		{"no marker", at(100), "", false, false},
 		{"iat before marker", at(100), "101", true, true},
-		{"iat equals marker", at(101), "101", true, false},
+		{"iat equals marker", at(101), "101", true, true},
 		{"iat after marker", at(200), "101", true, false},
+		{"iat one before marker", at(100), "101", true, true},
 		{"garbage marker fails closed", at(200), "nope", true, true},
 		{"missing iat fails closed", nil, "101", true, true},
 	}
@@ -125,19 +126,6 @@ func TestAdminResetPasswordRejections(t *testing.T) {
 				t.Fatalf("raw error leaked: %s", rec.Body)
 			}
 		})
-	}
-}
-
-func TestAdminResetPasswordMarkerFailureChangesNothing(t *testing.T) {
-	st := &fakeResetStore{}
-	_, mr, router := newResetHarness(t, st)
-	mr.Close() // Redis unreachable: marker cannot be set
-	rec := doReset(router, targetID, pwBody(goodPW))
-	if rec.Code != 500 {
-		t.Fatalf("status %d want 500", rec.Code)
-	}
-	if st.resetHits != 0 {
-		t.Fatal("DB must not be touched when the marker cannot be set")
 	}
 }
 
@@ -182,45 +170,6 @@ func TestAdminResetPasswordSuccessEffects(t *testing.T) {
 	}
 	if !mr.Exists("rl:login:203.0.113.5:cashier@outlet.id") {
 		t.Fatal("per-IP bucket must NOT be cleared")
-	}
-}
-
-func TestRefreshUsableAroundReset(t *testing.T) {
-	h, mr, router := newResetHarness(t, &fakeResetStore{})
-	secret := h.Cfg.RefreshSecret
-	resetAt := time.Now().Add(-10 * time.Second).Truncate(time.Second)
-	h.now = func() time.Time { return resetAt }
-
-	n := 0
-	mk := func(iat time.Time) *RefreshClaims {
-		n++
-		jti := fmt.Sprintf("jti-%d", n)
-		c := RefreshClaims{UserID: targetID, RegisteredClaims: jwt.RegisteredClaims{
-			ID: jti, IssuedAt: jwt.NewNumericDate(iat), ExpiresAt: jwt.NewNumericDate(iat.Add(time.Hour))}}
-		tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
-		if err != nil {
-			t.Fatal(err)
-		}
-		parsed, err := ParseRefresh(secret, tok)
-		if err != nil {
-			t.Fatal(err)
-		}
-		mr.Set("refresh:"+jti, targetID)
-		return parsed
-	}
-	ctx := context.Background()
-	if !h.refreshUsable(ctx, mk(resetAt.Add(-5*time.Minute))) {
-		t.Fatal("token must be usable before any reset")
-	}
-	if rec := doReset(router, targetID, pwBody(goodPW)); rec.Code != 204 {
-		t.Fatalf("reset status %d", rec.Code)
-	}
-	// Even with its Redis key present, a pre-reset token is rejected by the marker.
-	if h.refreshUsable(ctx, mk(resetAt.Add(-5*time.Minute))) {
-		t.Fatal("pre-reset refresh token must be rejected")
-	}
-	if !h.refreshUsable(ctx, mk(time.Now().Truncate(time.Second))) {
-		t.Fatal("token issued after reset must stay usable")
 	}
 }
 
@@ -269,13 +218,6 @@ func TestAdminResetPasswordCanonicalizesTargetID(t *testing.T) {
 	}
 }
 
-func callRefresh(h *Handler, token string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(`{"refresh":"`+token+`"}`))
-	rec := httptest.NewRecorder()
-	h.Refresh(rec, req)
-	return rec
-}
-
 func signRefresh(t *testing.T, h *Handler, jti string, iat time.Time) string {
 	t.Helper()
 	c := RefreshClaims{UserID: targetID, RegisteredClaims: jwt.RegisteredClaims{
@@ -287,85 +229,72 @@ func signRefresh(t *testing.T, h *Handler, jti string, iat time.Time) string {
 	return tok
 }
 
-// Goes through Refresh itself: reverting the marker wiring makes this fail
-// (the request would proceed to the DB and panic on the nil store instead of 401).
-func TestRefreshHandlerRejectsPreResetToken(t *testing.T) {
-	h, mr, _ := newResetHarness(t, &fakeResetStore{})
-	now := time.Now().Truncate(time.Second)
-	tok := signRefresh(t, h, "old-jti", now.Add(-time.Minute))
-	mr.Set("refresh:old-jti", targetID)
-	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(now.Unix()+2))
-	if rec := callRefresh(h, tok); rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status %d want 401 body=%s", rec.Code, rec.Body)
-	}
-}
-
-func TestRefreshHandlerFailsClosedOnMarkerError(t *testing.T) {
-	h, mr, _ := newResetHarness(t, &fakeResetStore{})
-	tok := signRefresh(t, h, "j1", time.Now())
-	mr.Set("refresh:j1", targetID)
-	// Marker key holds the wrong type: GET fails with WRONGTYPE while the jti GET
-	// succeeds, so only a raw-client marker read (not Cache.Get) fails closed.
-	mr.HSet(refreshRevokedKey(targetID), "f", "v")
-	if rec := callRefresh(h, tok); rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status %d want 401", rec.Code)
-	}
-}
-
-func TestRevokedDuringRotationKillsNewPair(t *testing.T) {
-	h, mr, _ := newResetHarness(t, &fakeResetStore{})
-	iat := time.Now().Add(-time.Minute).Truncate(time.Second)
-	oldClaims := &RefreshClaims{UserID: targetID, RegisteredClaims: jwt.RegisteredClaims{IssuedAt: jwt.NewNumericDate(iat)}}
-	newTok := signRefresh(t, h, "new-jti", time.Now())
-	mr.Set("refresh:new-jti", targetID)
-
-	// No marker yet: rotation proceeds and the new key survives.
-	if h.revokedDuringRotation(context.Background(), oldClaims, newTok) {
-		t.Fatal("must not revoke without a marker")
-	}
-	if !mr.Exists("refresh:new-jti") {
-		t.Fatal("new key must survive")
-	}
-	// Reset lands between the usable-check and issue: marker appears now.
-	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(time.Now().Unix()+2))
-	if !h.revokedDuringRotation(context.Background(), oldClaims, newTok) {
-		t.Fatal("rotation after a reset must be rejected")
-	}
-	if mr.Exists("refresh:new-jti") {
-		t.Fatal("newly issued jti must be deleted")
-	}
-}
-
-func TestRevokedSinceLoginDecision(t *testing.T) {
-	h, mr, _ := newResetHarness(t, &fakeResetStore{})
-	ctx := context.Background()
-	newTok := signRefresh(t, h, "login-jti", time.Now())
-	mr.Set("refresh:login-jti", targetID)
-	decision := jwt.NewNumericDate(time.Now().Add(-time.Second))
-
-	if h.revokedSince(ctx, targetID, decision, newTok) || !mr.Exists("refresh:login-jti") {
-		t.Fatal("no marker: login must proceed")
-	}
-	// Reset landed after the password check: marker is newer than the decision.
-	mr.Set(refreshRevokedKey(targetID), fmt.Sprint(time.Now().Unix()+2))
-	if !h.revokedSince(ctx, targetID, decision, newTok) {
-		t.Fatal("login decided before the reset must be rejected")
-	}
-	if mr.Exists("refresh:login-jti") {
-		t.Fatal("new refresh key must be deleted")
-	}
-	// A decision made after the marker is fine.
-	later := jwt.NewNumericDate(time.Now().Add(5 * time.Second))
-	if h.revokedSince(ctx, targetID, later, newTok) {
-		t.Fatal("decision after the marker must pass")
-	}
-}
-
 func TestRevokeMarkerTTLNeverShorterThanLegacyRefresh(t *testing.T) {
 	if got := revokeMarkerTTL(720 * time.Hour); got != revokeMarkerMinTTL {
 		t.Fatalf("30-day refresh: marker ttl = %v", got)
 	}
 	if got := revokeMarkerTTL(2 * revokeMarkerMinTTL); got != 2*revokeMarkerMinTTL {
 		t.Fatalf("longer refresh: marker ttl = %v", got)
+	}
+}
+
+// Replaces the Redis-authority "marker failure changes nothing" guarantee: the
+// Postgres transaction is the authority, so a failed tx changes nothing and
+// touches no Redis state at all.
+func TestAdminResetPasswordFailedTxChangesNothing(t *testing.T) {
+	st := &fakeResetStore{resetErr: errors.New("tx failed")}
+	h, mr, router := newResetHarness(t, st)
+	mr.Set("refresh:live", targetID)
+	mr.Set(loginEmailKey("cashier@outlet.id"), "30")
+	rec := doReset(router, targetID, pwBody(goodPW))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d want 500", rec.Code)
+	}
+	if mr.Exists(refreshRevokedKey(targetID)) {
+		t.Fatal("no Redis marker may be written when the Postgres tx fails")
+	}
+	if !mr.Exists("refresh:live") || !mr.Exists(loginEmailKey("cashier@outlet.id")) {
+		t.Fatal("no Redis state may change when the Postgres tx fails")
+	}
+	_ = h
+}
+
+// Redis failing AFTER the commit is harmless: still 204, with a warning.
+func TestAdminResetPasswordRedisFailureAfterCommitIsHarmless(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	st := &fakeResetStore{jtis: []string{"j1", "j2"}}
+	_, mr, router := newResetHarness(t, st)
+	mr.Close() // Redis unreachable for the whole request
+	rec := doReset(router, targetID, pwBody(goodPW))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d want 204 body=%s", rec.Code, rec.Body)
+	}
+	if st.resetHits != 1 {
+		t.Fatalf("store hits %d", st.resetHits)
+	}
+	if !strings.Contains(buf.String(), "admin_password_reset_marker_failed") {
+		t.Fatalf("expected a warning, got %q", buf.String())
+	}
+}
+
+// Same, with Redis disabled entirely.
+func TestAdminResetPasswordWithRedisDisabled(t *testing.T) {
+	st := &fakeResetStore{}
+	c, _ := cache.Connect(context.Background(), "", cache.Options{})
+	h := &Handler{Cfg: &config.Config{RefreshSecret: []byte(strings.Repeat("r", 48)), RefreshTTL: time.Hour},
+		Cache: c, reset: st}
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), CtxUserID, actorID)))
+		})
+	})
+	r.Post("/users/{id}/reset-password", h.AdminResetPassword)
+	if rec := doReset(r, targetID, pwBody(goodPW)); rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d", rec.Code)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 type Claims struct {
@@ -39,21 +38,20 @@ func IssueAccess(secret []byte, ttl time.Duration, uid, role, outletID string, p
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
 }
 
-// IssueRefresh returns the signed token and its jti (for Redis/DB revocation store).
-func IssueRefresh(secret []byte, ttl time.Duration, uid string) (string, string, error) {
-	now := time.Now()
-	jti := uuid.NewString()
+// SignRefresh signs a refresh token with a caller-chosen jti, iat and exp. The
+// session row in Postgres stores the same second-truncated values, so a token
+// can be re-minted byte-for-byte from the row (HS256 is deterministic).
+func SignRefresh(secret []byte, uid, jti string, iat, exp time.Time) (string, error) {
 	c := RefreshClaims{
 		UserID: uid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        jti,
 			Subject:   uid,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(iat),
+			ExpiresAt: jwt.NewNumericDate(exp),
 		},
 	}
-	s, err := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
-	return s, jti, err
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
 }
 
 func ParseAccess(secret []byte, token string) (*Claims, error) {

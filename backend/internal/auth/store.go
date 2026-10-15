@@ -25,13 +25,17 @@ type Store struct{ Pool *pgxpool.Pool }
 
 func NewStore(p *pgxpool.Pool) *Store { return &Store{Pool: p} }
 
-func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
+// querier is the read surface shared by the pool and a transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User, error) {
 	u := &User{}
 	var outlet, photo *string
-	err := s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, password_hash
-		   FROM users WHERE email = $1`, email,
-	).Scan(&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.passwordHash)
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo}, extra...)
+	err := row.Scan(dest...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -44,60 +48,66 @@ func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 	if photo != nil {
 		u.PhotoURL = *photo
 	}
-	u.Permissions = s.permissions(ctx, u.ID)
+	perms, err := permissionsOf(ctx, q, u.ID)
+	if err != nil {
+		return nil, err
+	}
+	u.Permissions = perms
+	return u, nil
+}
+
+func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
+	var hash string
+	u, err := scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
+		`SELECT id, email, display_name, role, outlet_id, photo_url, password_hash
+		   FROM users WHERE email = $1`, email), &hash)
+	if err != nil {
+		return nil, err
+	}
+	u.passwordHash = hash
 	return u, nil
 }
 
 func (s *Store) ByID(ctx context.Context, id string) (*User, error) {
-	u := &User{}
-	var outlet, photo *string
-	err := s.Pool.QueryRow(ctx,
+	return scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
 		`SELECT id, email, display_name, role, outlet_id, photo_url
-		   FROM users WHERE id = $1`, id,
-	).Scan(&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	if outlet != nil {
-		u.OutletID = *outlet
-	}
-	if photo != nil {
-		u.PhotoURL = *photo
-	}
-	u.Permissions = s.permissions(ctx, u.ID)
-	return u, nil
+		   FROM users WHERE id = $1`, id))
 }
 
-func (s *Store) permissions(ctx context.Context, uid string) []string {
-	rows, err := s.Pool.Query(ctx,
-		`SELECT permission FROM user_permissions WHERE user_id = $1`, uid)
+// permissionsOf returns the user's permissions. A query error is returned, never
+// swallowed: a DB blip must not mint an access token with no permissions.
+func permissionsOf(ctx context.Context, q querier, uid string) ([]string, error) {
+	rows, err := q.Query(ctx, `SELECT permission FROM user_permissions WHERE user_id = $1`, uid)
 	if err != nil {
-		return []string{}
+		return nil, err
 	}
 	defer rows.Close()
 	perms := []string{}
 	for rows.Next() {
 		var p string
-		if rows.Scan(&p) == nil {
-			perms = append(perms, p)
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
 		}
+		perms = append(perms, p)
 	}
-	return perms
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return perms, nil
 }
 
-func (s *Store) Authenticate(ctx context.Context, email, password string) (*User, error) {
+// Authenticate verifies the credentials. It also returns the password hash it
+// verified against so IssueSession can detect a concurrent admin reset.
+func (s *Store) Authenticate(ctx context.Context, email, password string) (*User, string, error) {
 	u, err := s.byEmailRow(ctx, email)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	ok, err := VerifyPassword(password, u.passwordHash)
 	if err != nil || !ok {
-		return nil, ErrNotFound
+		return nil, "", ErrNotFound
 	}
-	return u, nil
+	return u, u.passwordHash, nil
 }
 
 // UpdateUser patches mutable fields; only non-nil args are applied. perms,
@@ -238,7 +248,8 @@ type ResetResult struct {
 }
 
 // ResetPassword sets a new password hash for the user and revokes every
-// refresh_tokens row in one transaction. ErrNotFound when the user is gone.
+// refresh_tokens row in one transaction (users row first: the same lock order
+// as login/rotation, which hold users FOR SHARE before touching token rows). ErrNotFound when the user is gone.
 func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -248,7 +259,7 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 
 	var res ResetResult
 	err = tx.QueryRow(ctx,
-		`UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING email, role`, hash, id,
+		`UPDATE users SET password_hash=$1, refresh_revoked_before=now() WHERE id=$2 RETURNING email, role`, hash, id,
 	).Scan(&res.Email, &res.Role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ResetResult{}, ErrNotFound
@@ -256,8 +267,11 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	if err != nil {
 		return ResetResult{}, err
 	}
+	// COALESCE keeps the revoke reason/time of rows already rotated or logged out.
 	rows, err := tx.Query(ctx,
-		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND expires_at>now()
+		`UPDATE refresh_tokens SET revoked=true,
+		        revoked_at=COALESCE(revoked_at, now()), revoke_reason=COALESCE(revoke_reason, 'reset')
+		  WHERE user_id=$1 AND expires_at>now()
 		    AND (NOT revoked OR created_at > now() - interval '1 hour') RETURNING jti`, id)
 	if err != nil {
 		return ResetResult{}, err
@@ -276,7 +290,9 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	}
 	// Rows already expired stay as they are; they cannot be exchanged anyway.
 	if _, err := tx.Exec(ctx,
-		`UPDATE refresh_tokens SET revoked=true WHERE user_id=$1 AND NOT revoked`, id); err != nil {
+		`UPDATE refresh_tokens SET revoked=true, revoked_at=COALESCE(revoked_at, now()),
+		        revoke_reason=COALESCE(revoke_reason, 'reset')
+		  WHERE user_id=$1 AND NOT revoked`, id); err != nil {
 		return ResetResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -9,7 +9,7 @@ Read `HANDOFF.md` ("Now") first for the live revision and open items.
 |-------------|-----------------------------------------|-------|
 | Backend API | Cloud Run `mandalika-pos`, `asia-southeast2` | Project `mandalika-pos`; `scripts/lib/cloudrun.sh` holds the names |
 | Postgres    | Neon, **pooled** endpoint (`-pooler`, `sslmode=require`) | `DATABASE_URL` in Secret Manager |
-| Redis       | Required at startup (`REDIS_URL`) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost) |
+| Redis       | **Optional cache** (`REDIS_URL`; set-but-empty = disabled) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost). A Redis outage never blocks startup or logs anyone out; Postgres is the auth authority |
 | Backoffice  | Cloudflare Pages `mandalika-pos.pages.dev` | Auto-deploys on push to `prod-hardening` |
 | POS         | Signed Android APK via `android-release.yml` | Capacitor shell; OTA web-layer updates via `make ota-release` |
 
@@ -115,7 +115,30 @@ new review.
 ## Monitoring
 
 - `GET /readyz` — liveness, no dependencies (used for promotion checks).
-- `GET /healthz` — deep check (DB and Redis).
+- `GET /healthz` — deep check. DB down: 503. DB up, Redis down or disabled: **200** with
+  `{"status":"degraded","db":"ok","redis":"down|disabled"}`. All up: `"status":"ok"`.
+- Redis tuning (optional): `REDIS_DIAL_TIMEOUT_MS` (default 1000), `REDIS_OP_TIMEOUT_MS`
+  (default 500). After 3 consecutive transport errors the in-process breaker skips Redis for
+  30 s (`redis_breaker_open` / `redis_breaker_closed` log lines). Rate limits fall back to a
+  per-instance in-memory window while Redis is unavailable (up to N x the limit with N instances).
+- Migration 0054 is additive, so the previous revision starts and its INSERT/UPDATE still work.
+  **But rollback is only safe if Redis stayed healthy since the deploy.** The previous revision
+  accepts a refresh only if `refresh:<jti>` is in Redis, and the new revision writes that mirror
+  (and the reset marker, and the DELs) best effort, after the Postgres commit. Before rolling
+  back, search the logs since the deploy for any of these keys:
+  `redis_breaker_open`, `redis_degraded_at_start`, `redis_disabled`, `refresh_mirror_failed`,
+  `admin_password_reset_marker_failed`, `admin_password_reset_key_delete_failed`.
+  If none appear, roll back (traffic switch to the previous revision at 100%).
+  If any appear, do NOT roll back without a manual reconcile of Redis from Postgres first:
+  1. Live sessions: for every `refresh_tokens` row with `NOT revoked AND expires_at > now()`,
+     `SET refresh:<jti> <user_id> EX <seconds until expires_at>`.
+  2. Revoked-but-unexpired rows (`revoked AND expires_at > now()`): `DEL refresh:<jti>`, so the old
+     revision cannot revive them.
+  3. Reset markers: for every user whose `users.refresh_revoked_before` is within the last 30 days,
+     `SET refresh_revoked_before:<user_id> <unix seconds of refresh_revoked_before + 2> EX 31536000`.
+  Use the Redis console you already have; no new tool is needed. Do not roll back past the
+  cleanup release that removes the mirror.
+- PostgreSQL gates: 17 (AU `TestAuthAuthorityPostgres` on port 56455 is the newest).
 - Logs: `gcloud run services logs read mandalika-pos --region asia-southeast2`.
 
 ---
