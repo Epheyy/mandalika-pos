@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,6 +173,63 @@ func TestLoginLimitsEnforcedFromMemoryWithoutRedis(t *testing.T) {
 			t.Fatalf("another email is unaffected: %d", code)
 		}
 	})
+}
+
+// A failed Redis mirror write must leave a log line the rollback runbook can grep.
+func TestMirrorFailureIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	c, mr := miniCache(t)
+	mr.Close() // transport errors, not a disabled cache
+	h := sessionHandler(t, newFake(), c)
+	if rec := post(h.Login, `{"email":"a@b.c","password":"x"}`); rec.Code != 200 {
+		t.Fatalf("login must still succeed: %d", rec.Code)
+	}
+	if !strings.Contains(buf.String(), "refresh_mirror_failed") {
+		t.Fatalf("expected refresh_mirror_failed, got %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "access") && strings.Contains(buf.String(), "eyJ") {
+		t.Fatal("no token values in logs")
+	}
+}
+
+// The limiter keys (Redis and memory) must never carry the raw email.
+func TestLoginKeysNeverContainRawEmail(t *testing.T) {
+	const raw = "Victim.Name@Example.COM"
+	for _, k := range []string{loginRateKey("203.0.113.9", raw), loginEmailKey(raw)} {
+		if strings.Contains(strings.ToLower(k), "victim") || strings.Contains(k, "@") {
+			t.Fatalf("key leaks the email: %q", k)
+		}
+	}
+	if loginEmailKey(raw) != loginEmailKey("  victim.name@example.com ") {
+		t.Fatal("keys must be built from the normalized email")
+	}
+	if loginEmailKey("a@b.c") == loginEmailKey("a@b.d") {
+		t.Fatal("distinct emails must get distinct keys")
+	}
+	if len(loginEmailKey(raw)) > len("rl:login:email:")+64 {
+		t.Fatalf("key not bounded: %d", len(loginEmailKey(raw)))
+	}
+}
+
+// Login caps its body; refresh must NOT (the client treats any non-5xx/429
+// non-OK refresh status as "rejected" and logs the tablet out).
+func TestLoginBodyCapButNotRefresh(t *testing.T) {
+	h := sessionHandler(t, newFake(), disabledCache(t))
+	big := strings.Repeat("a", 20<<10)
+	if rec := post(h.Login, `{"email":"`+big+`","password":"x"}`); rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized login: %d want 413", rec.Code)
+	}
+	if rec := post(h.Login, `{"email":"a@b.c","password":"x"}`); rec.Code != 200 {
+		t.Fatalf("normal login: %d", rec.Code)
+	}
+	rec := post(h.Refresh, `{"refresh":"`+big+`"}`)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("an oversized refresh body must stay a 401 (never 413): %d", rec.Code)
+	}
 }
 
 // The refresh status contract: the client logs out on any non-OK status that is

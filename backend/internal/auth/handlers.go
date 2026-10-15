@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -86,12 +88,20 @@ func (h *Handler) respond(u *User, s Session) (*authResp, error) {
 // mirrorSession writes the legacy Redis key (rollback compatibility, D5): best
 // effort, after the Postgres commit, never read on the normal path. TTL is the
 // token's remaining life.
+//
+// Every miss is logged as `refresh_mirror_failed` (user id and err only, no token
+// values): the RUNBOOK rollback check greps for it, because a rollback to the
+// previous revision trusts these keys.
 func (h *Handler) mirrorSession(ctx context.Context, uid string, s Session, oldJTI string) {
 	if ttl := time.Until(s.ExpiresAt); ttl > 0 {
-		h.Cache.Set(ctx, "refresh:"+s.JTI, uid, ttl)
+		if err := h.Cache.SetE(ctx, "refresh:"+s.JTI, uid, ttl); err != nil {
+			slog.Warn("refresh_mirror_failed", "op", "set", "user", uid, "err", err)
+		}
 	}
 	if oldJTI != "" {
-		h.Cache.Del(ctx, "refresh:"+oldJTI)
+		if err := h.Cache.DelE(ctx, "refresh:"+oldJTI); err != nil {
+			slog.Warn("refresh_mirror_failed", "op", "del", "user", uid, "err", err)
+		}
 	}
 }
 
@@ -99,9 +109,17 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// emailDigest is a truncated sha256 of the normalized email. Limiter keys (Redis
+// and the in-memory fallback) use it so the raw email is never stored or logged,
+// and the key length stays bounded whatever the client sends.
+func emailDigest(email string) string {
+	sum := sha256.Sum256([]byte(normalizeEmail(email)))
+	return hex.EncodeToString(sum[:16])
+}
+
 // loginRateKey scopes login attempts to client-IP bucket + normalized email.
 func loginRateKey(ipBucket, email string) string {
-	return ipBucket + ":" + normalizeEmail(email)
+	return ipBucket + ":" + emailDigest(email)
 }
 
 // rate limit: 10 login attempts / 5 min per IP+email.
@@ -119,15 +137,26 @@ const (
 )
 
 func loginEmailKey(email string) string {
-	return "rl:login:email:" + normalizeEmail(email)
+	return "rl:login:email:" + emailDigest(email)
 }
 
 // emailCapReached reports whether a failure count has hit the per-account cap.
 func emailCapReached(n int64) bool { return n >= loginEmailFailLimit }
 
+// maxLoginBody caps the login body. Login ONLY: /auth/refresh must never answer
+// 413, because the client treats any non-5xx/429 non-OK refresh status as
+// "rejected" and logs the tablet out.
+const maxLoginBody = 8 << 10
+
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
+	r.Body = http.MaxBytesReader(w, r.Body, maxLoginBody)
 	if err := httpx.Decode(r, &req); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			httpx.Err(w, http.StatusRequestEntityTooLarge, "request too large")
+			return
+		}
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
@@ -228,7 +257,9 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 			for _, j := range revoked {
 				keys = append(keys, "refresh:"+j)
 			}
-			h.Cache.Del(ctx, keys...)
+			if err := h.Cache.DelE(ctx, keys...); err != nil {
+				slog.Warn("refresh_mirror_failed", "op", "del", "user", rc.UserID, "err", err)
+			}
 		}
 	}
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})

@@ -48,7 +48,11 @@ func main() {
 
 	// Expired refresh-token rows: bounded, non-fatal. No ticker (Cloud Run
 	// throttles idle CPU); logins also clean their own user's rows.
-	if n, err := auth.NewStore(database.Pool).SweepExpiredRefresh(ctx, 5000); err != nil {
+	// A stuck database must not hold the instance up: the sweep gets 30 s.
+	sweepCtx, cancelSweep := context.WithTimeout(ctx, 30*time.Second)
+	n, err := auth.NewStore(database.Pool).SweepExpiredRefresh(sweepCtx, 5000)
+	cancelSweep()
+	if err != nil {
 		slog.Warn("refresh_sweep_failed", "err", err)
 	} else if n > 0 {
 		slog.Info("refresh_sweep", "deleted", n)

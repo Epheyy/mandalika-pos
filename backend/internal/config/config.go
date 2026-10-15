@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -22,7 +23,10 @@ type Config struct {
 	DatabaseURL string
 	// RedisURL: unset = local dev default; set-but-empty = Redis disabled (the
 	// cache is optional; Postgres is the auth authority).
-	RedisURL         string
+	RedisURL string
+	// redisURLUnset is true when REDIS_URL is absent from the environment (as
+	// opposed to set-but-empty); Validate warns about it in production.
+	redisURLUnset    bool
 	RedisDialTimeout time.Duration
 	RedisOpTimeout   time.Duration
 	AccessSecret     []byte
@@ -73,6 +77,11 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func redisURLUnset() bool {
+	_, ok := os.LookupEnv("REDIS_URL")
+	return !ok
 }
 
 // redisURL distinguishes unset (dev default) from explicitly empty (disabled).
@@ -162,6 +171,7 @@ func Load() *Config {
 		CORSOrigins:      splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
 		DatabaseURL:      getenv("DATABASE_URL", "postgres://mandalika:mandalika@localhost:5432/mandalika_pos?sslmode=disable"),
 		RedisURL:         redisURL(),
+		redisURLUnset:    redisURLUnset(),
 		RedisDialTimeout: time.Duration(atoi("REDIS_DIAL_TIMEOUT_MS", 1000)) * time.Millisecond,
 		RedisOpTimeout:   time.Duration(atoi("REDIS_OP_TIMEOUT_MS", 500)) * time.Millisecond,
 		AccessSecret:     []byte(getenv("JWT_ACCESS_SECRET", "dev-access")),
@@ -217,6 +227,11 @@ func (c *Config) Validate() error {
 	}
 	if c.dbMaxConnsBad {
 		return errors.New("invalid config: DB_MAX_CONNS must be an integer between 1 and 100")
+	}
+	if c.IsProd() && c.redisURLUnset {
+		slog.Warn("REDIS_URL is unset in production: using the localhost default, which has no Redis; " +
+			"the server runs degraded (in-memory rate limits, no read cache). Set REDIS_URL, or set it " +
+			"to an empty string to disable Redis explicitly")
 	}
 	if !c.IsProd() {
 		return nil

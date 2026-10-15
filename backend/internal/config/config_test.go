@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -140,5 +142,36 @@ func TestParseDBMaxConnsAndValidate(t *testing.T) {
 	c.dbMaxConnsBad = true
 	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "DB_MAX_CONNS") {
 		t.Errorf("a malformed DB_MAX_CONNS must fail fast even in development, got %v", err)
+	}
+}
+
+// Production with REDIS_URL unset gets a clear warning but still starts: Redis is
+// optional, and unset silently means the localhost default (no Redis in prod).
+func TestValidateWarnsWhenProdRedisURLUnset(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	c := base("production")
+	c.redisURLUnset = true
+	if err := c.Validate(); err != nil {
+		t.Fatalf("an unset REDIS_URL must not fail startup: %v", err)
+	}
+	if !strings.Contains(buf.String(), "REDIS_URL is unset") {
+		t.Fatalf("expected a warning, got %q", buf.String())
+	}
+
+	buf.Reset()
+	c.redisURLUnset = false // set (even set-but-empty = disabled): no warning
+	if err := c.Validate(); err != nil || strings.Contains(buf.String(), "REDIS_URL") {
+		t.Fatalf("no warning expected: err=%v log=%q", err, buf.String())
+	}
+	buf.Reset()
+	dev := base("development")
+	dev.redisURLUnset = true
+	_ = dev.Validate()
+	if strings.Contains(buf.String(), "REDIS_URL") {
+		t.Fatal("development must not warn")
 	}
 }

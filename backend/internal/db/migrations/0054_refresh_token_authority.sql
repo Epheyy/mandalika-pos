@@ -2,6 +2,12 @@
 -- Additive only: every new column is nullable and reads use COALESCE(family_id, jti),
 -- so existing live rows stay valid and the previous revision's 3-column INSERT and
 -- `UPDATE ... SET revoked=true` keep working (rollback safe). No backfill.
+-- Statement order matches the app's lock order: users first, then refresh_tokens.
+
+-- Set by an admin password reset. Only consulted when adopting a legacy
+-- (Redis-only) token; the primary effect of a reset is row revocation.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_revoked_before timestamptz;
+
 ALTER TABLE refresh_tokens
   ADD COLUMN IF NOT EXISTS family_id     uuid,
   ADD COLUMN IF NOT EXISTS replaced_by   uuid,
@@ -16,7 +22,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS refresh_tokens_replaced_by_uidx
 CREATE UNIQUE INDEX IF NOT EXISTS refresh_tokens_live_head_uidx
   ON refresh_tokens (family_id) WHERE NOT revoked AND family_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS refresh_tokens_expires_at_idx ON refresh_tokens (expires_at);
-
--- Set by an admin password reset. Only consulted when adopting a legacy
--- (Redis-only) token; the primary effect of a reset is row revocation.
-ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_revoked_before timestamptz;
