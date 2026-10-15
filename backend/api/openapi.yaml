@@ -2134,10 +2134,10 @@ paths:
       operationId: health
       tags: [auth]
       security: []
-      summary: Liveness/readiness (DB + Redis)
+      summary: Deep health (DB required; Redis reported, optional)
       responses:
-        '200': { description: ok }
-        '503': { description: dependency down }
+        '200': { description: 'ok, or degraded when only Redis is down or disabled' }
+        '503': { description: database down }
   /api/v1/auth/login:
     post:
       operationId: login

@@ -28,6 +28,26 @@ import (
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
+type pinger interface{ Ping(ctx context.Context) error }
+
+// healthHandler is the deep check: the database is required (503 when down);
+// Redis is an optional cache, so a down or disabled Redis is reported as
+// "degraded" with HTTP 200.
+func healthHandler(database pinger, c *cache.Cache) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if err := database.Ping(req.Context()); err != nil {
+			httpx.Err(w, http.StatusServiceUnavailable, "db down")
+			return
+		}
+		redis := c.Status()
+		status := "ok"
+		if redis != "ok" {
+			status = "degraded"
+		}
+		httpx.JSON(w, http.StatusOK, map[string]string{"status": status, "db": "ok", "redis": redis})
+	}
+}
+
 func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
 	// Built early: the panic recoverer persists backend errors to error_logs.
@@ -59,17 +79,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	syncEngine.LegacyEnvelopeUntil = cfg.SyncLegacyEnvelopeUntil
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 
-	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		if err := database.Pool.Ping(req.Context()); err != nil {
-			httpx.Err(w, http.StatusServiceUnavailable, "db down")
-			return
-		}
-		if err := c.R.Ping(req.Context()).Err(); err != nil {
-			httpx.Err(w, http.StatusServiceUnavailable, "redis down")
-			return
-		}
-		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	r.Get("/healthz", healthHandler(database.Pool, c))
 
 	// Liveness: process is up. Used by the platform health check; must not
 	// touch dependencies so a transient DB blip doesn't kill the instance.

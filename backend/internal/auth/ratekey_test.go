@@ -24,20 +24,9 @@ func TestLoginEmailKeyIgnoresIPAndCase(t *testing.T) {
 }
 
 func TestEmailCapReached(t *testing.T) {
-	cases := []struct {
-		stored string
-		ok     bool
-		want   bool
-	}{
-		{"", false, false}, // no failures recorded / cache miss
-		{"29", true, false},
-		{"30", true, true},
-		{"31", true, true},
-		{"garbage", true, false},
-	}
-	for _, c := range cases {
-		if got := emailCapReached(c.stored, c.ok); got != c.want {
-			t.Errorf("emailCapReached(%q,%v) = %v, want %v", c.stored, c.ok, got, c.want)
+	for n, want := range map[int64]bool{0: false, 29: false, 30: true, 31: true} {
+		if got := emailCapReached(n); got != want {
+			t.Errorf("emailCapReached(%d) = %v, want %v", n, got, want)
 		}
 	}
 }

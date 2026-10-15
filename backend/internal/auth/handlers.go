@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/clientip"
@@ -88,14 +86,8 @@ func loginEmailKey(email string) string {
 	return "rl:login:email:" + normalizeEmail(email)
 }
 
-// emailCapReached reports whether a stored failure count has hit the cap.
-func emailCapReached(stored string, ok bool) bool {
-	if !ok {
-		return false
-	}
-	n, err := strconv.Atoi(stored)
-	return err == nil && n >= loginEmailFailLimit
-}
+// emailCapReached reports whether a failure count has hit the per-account cap.
+func emailCapReached(n int64) bool { return n >= loginEmailFailLimit }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
@@ -108,7 +100,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	emailKey := loginEmailKey(req.Email)
-	if emailCapReached(h.Cache.Get(r.Context(), emailKey)) {
+	if emailCapReached(h.Cache.Count(r.Context(), emailKey)) {
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
@@ -220,12 +212,12 @@ func (h *Handler) markerRevokes(ctx context.Context, rc *RefreshClaims) bool {
 }
 
 func (h *Handler) markerRevokesAt(ctx context.Context, userID string, iat *jwt.NumericDate) bool {
-	marker, err := h.Cache.R.Get(ctx, refreshRevokedKey(userID)).Result()
-	if errors.Is(err, redis.Nil) {
-		return false
-	}
+	marker, found, err := h.Cache.GetE(ctx, refreshRevokedKey(userID))
 	if err != nil {
 		return true
+	}
+	if !found {
+		return false
 	}
 	return refreshRevoked(iat, marker, true)
 }
@@ -244,7 +236,7 @@ func (h *Handler) revokedSince(ctx context.Context, userID string, iat *jwt.Nume
 		return false
 	}
 	if nc, err := ParseRefresh(h.Cfg.RefreshSecret, newRefresh); err == nil {
-		if err := h.Cache.R.Del(ctx, "refresh:"+nc.ID).Err(); err != nil {
+		if err := h.Cache.DelE(ctx, "refresh:"+nc.ID); err != nil {
 			slog.Error("refresh_rotation_cleanup_failed", "err", err, "user", userID)
 		}
 		if h.Store != nil && h.Store.Pool != nil {

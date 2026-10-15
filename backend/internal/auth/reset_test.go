@@ -50,7 +50,7 @@ func newResetHarness(t *testing.T, st *fakeResetStore) (*Handler, *miniredis.Min
 	t.Cleanup(func() { _ = rc.Close() })
 	h := &Handler{
 		Cfg:   &config.Config{RefreshSecret: []byte(strings.Repeat("r", 48)), RefreshTTL: time.Hour},
-		Cache: &cache.Cache{R: rc},
+		Cache: cache.NewFromClient(rc),
 		reset: st,
 	}
 	r := chi.NewRouter()

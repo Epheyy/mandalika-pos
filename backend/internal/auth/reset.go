@@ -94,7 +94,7 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	// Marker first: refresh tokens issued before it are dead from here. +2 (not
 	// +1) absorbs the gap between reading the clock and the SET landing.
 	marker := strconv.FormatInt(h.clock().Unix()+2, 10)
-	if err := h.Cache.R.Set(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL)).Err(); err != nil {
+	if err := h.Cache.SetE(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL)); err != nil {
 		slog.Error("admin_password_reset_failed", "stage", "marker", "err", err, "actor", actorID, "target", targetID)
 		httpx.Err(w, http.StatusInternalServerError, "reset failed")
 		return
@@ -120,14 +120,12 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 			keys = append(keys, "refresh:"+j)
 		}
 		// Best effort: the marker already invalidates these tokens.
-		if err := h.Cache.R.Del(ctx, keys...).Err(); err != nil {
+		if err := h.Cache.DelE(ctx, keys...); err != nil {
 			slog.Warn("admin_password_reset_key_delete_failed", "err", err, "target", targetID, "keys", len(keys))
 		}
 	}
 	// Per-account lockout only; the per-IP bucket is deliberately left alone.
-	if err := h.Cache.R.Del(ctx, loginEmailKey(res.Email)).Err(); err != nil {
-		slog.Warn("admin_password_reset_lockout_clear_failed", "err", err, "target", targetID)
-	}
+	h.Cache.ResetCounter(ctx, loginEmailKey(res.Email))
 
 	slog.Info("admin_password_reset",
 		"actor", actorID, "target", targetID, "target_role", res.Role,

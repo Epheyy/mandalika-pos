@@ -45,9 +45,11 @@ func main() {
 	}
 	log.Println("migrations applied")
 
-	c, err := cache.Connect(ctx, cfg.RedisURL)
+	// Redis is an optional cache: never fatal. An unparseable URL runs disabled.
+	c, err := cache.Connect(ctx, cfg.RedisURL, cache.Options{
+		DialTimeout: cfg.RedisDialTimeout, OpTimeout: cfg.RedisOpTimeout})
 	if err != nil {
-		log.Fatalf("redis connect: %v", err)
+		slog.Error("redis_url_invalid_running_without_cache", "err", err)
 	}
 	defer c.Close()
 

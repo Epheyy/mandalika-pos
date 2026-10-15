@@ -20,7 +20,11 @@ type Config struct {
 	Env              string
 	CORSOrigins      []string
 	DatabaseURL      string
+	// RedisURL: unset = local dev default; set-but-empty = Redis disabled (the
+	// cache is optional; Postgres is the auth authority).
 	RedisURL         string
+	RedisDialTimeout time.Duration
+	RedisOpTimeout   time.Duration
 	AccessSecret     []byte
 	RefreshSecret    []byte
 	AccessTTL        time.Duration
@@ -69,6 +73,14 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// redisURL distinguishes unset (dev default) from explicitly empty (disabled).
+func redisURL() string {
+	if v, ok := os.LookupEnv("REDIS_URL"); ok {
+		return strings.TrimSpace(v)
+	}
+	return "redis://localhost:6379/0"
 }
 
 func atoi(k string, def int) int {
@@ -149,7 +161,9 @@ func Load() *Config {
 		Env:              getenv("ENV", "development"),
 		CORSOrigins:      splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
 		DatabaseURL:      getenv("DATABASE_URL", "postgres://mandalika:mandalika@localhost:5432/mandalika_pos?sslmode=disable"),
-		RedisURL:         getenv("REDIS_URL", "redis://localhost:6379/0"),
+		RedisURL:         redisURL(),
+		RedisDialTimeout: time.Duration(atoi("REDIS_DIAL_TIMEOUT_MS", 1000)) * time.Millisecond,
+		RedisOpTimeout:   time.Duration(atoi("REDIS_OP_TIMEOUT_MS", 500)) * time.Millisecond,
 		AccessSecret:     []byte(getenv("JWT_ACCESS_SECRET", "dev-access")),
 		RefreshSecret:    []byte(getenv("JWT_REFRESH_SECRET", "dev-refresh")),
 		AccessTTL:        time.Duration(atoi("JWT_ACCESS_TTL_MIN", 15)) * time.Minute,
