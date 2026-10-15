@@ -187,9 +187,12 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 	var owner string
 	var revoked bool
 	var replacedBy *string
+	var revokedAgeSec *float64
 	err = tx.QueryRow(ctx,
-		`SELECT user_id, revoked, replaced_by FROM refresh_tokens WHERE jti=$1`, rc.ID,
-	).Scan(&owner, &revoked, &replacedBy)
+		`SELECT user_id, revoked, replaced_by,
+		        CASE WHEN revoked_at IS NULL THEN NULL ELSE extract(epoch FROM now() - revoked_at)::float8 END
+		   FROM refresh_tokens WHERE jti=$1`, rc.ID,
+	).Scan(&owner, &revoked, &replacedBy, &revokedAgeSec)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errNoSessionRow
 	}
@@ -207,7 +210,14 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 			*replacedBy, rc.UserID).Scan(&succ.JTI, &succ.IssuedAt, &succ.ExpiresAt)
 		if err == nil {
 			// Immediate predecessor replay (lost response, lost write, or the
-			// loser of a concurrent refresh): hand out the SAME successor.
+			// loser of a concurrent refresh): hand out the SAME successor. The
+			// age since the predecessor was revoked shows how stale replays are
+			// (no token values are logged).
+			age := "unknown"
+			if revokedAgeSec != nil {
+				age = (time.Duration(*revokedAgeSec * float64(time.Second))).Round(time.Millisecond).String()
+			}
+			slog.Info("refresh_remint", "user", rc.UserID, "age", age)
 			return &RotateResult{User: u, Session: succ, Remint: true}, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -221,7 +231,8 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 }
 
 // RevokeFamily revokes every live token of the family of jti (a logged-out
-// device's predecessor must not be able to re-mint a live successor). It returns
+// device's predecessor must not be able to re-mint a live successor), but only
+// when the presented token is live or its direct successor is. It returns
 // the jtis it revoked. A token with no row revokes nothing.
 func (s *Store) RevokeFamily(ctx context.Context, uid, jti string) ([]string, error) {
 	tx, err := s.Pool.Begin(ctx)
@@ -239,13 +250,34 @@ func (s *Store) RevokeFamily(ctx context.Context, uid, jti string) ([]string, er
 		return nil, err
 	}
 	var family string
+	var tokRevoked, unexpired bool
+	var replacedBy *string
 	err = tx.QueryRow(ctx,
-		`SELECT COALESCE(family_id, jti) FROM refresh_tokens WHERE jti=$1 AND user_id=$2`, jti, uid).Scan(&family)
+		`SELECT COALESCE(family_id, jti), revoked, expires_at > now(), replaced_by
+		   FROM refresh_tokens WHERE jti=$1 AND user_id=$2`, jti, uid).Scan(&family, &tokRevoked, &unexpired, &replacedBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	// Only a token that could still mint a session may end the family: itself live,
+	// or its DIRECT successor live (a re-mint would hand that successor out). A
+	// stale token (its successor already revoked, or it was revoked by logout or
+	// reset) must not kill the live session of the same family.
+	canMint := !tokRevoked && unexpired
+	if !canMint && replacedBy != nil {
+		err = tx.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM refresh_tokens
+			                WHERE jti=$1 AND user_id=$2 AND NOT revoked AND expires_at > now())`,
+			*replacedBy, uid).Scan(&canMint)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !canMint {
+		slog.Info("logout_stale_token_ignored", "user", uid)
+		return nil, nil
 	}
 	rows, err := tx.Query(ctx,
 		`UPDATE refresh_tokens SET revoked=true, revoked_at=now(), revoke_reason='logout'

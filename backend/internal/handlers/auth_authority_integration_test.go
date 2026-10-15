@@ -1,10 +1,12 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -452,7 +454,15 @@ func (g *auGate) lostResponse(t *testing.T) {
 	yJTI := g.jti(y.Refresh)
 	yBefore := g.rowJSON(yJTI)
 
+	logs := captureLogs(t)
 	again, code := g.refresh(srv, x.Refresh)
+	out := logs()
+	if !strings.Contains(out, "refresh_remint") || !strings.Contains(out, "age=") {
+		t.Fatalf("a re-mint must log refresh_remint with the predecessor's age, got %q", out)
+	}
+	if strings.Contains(out, x.Refresh) || strings.Contains(out, y.Refresh) || strings.Contains(out, xJTIOf(g, x)) {
+		t.Fatal("refresh_remint must not log token values")
+	}
 	if code != 200 || g.jti(again.Refresh) != yJTI {
 		t.Fatalf("replay of X must re-mint Y: %d", code)
 	}
@@ -483,6 +493,43 @@ func (g *auGate) lostResponse(t *testing.T) {
 	}
 }
 
+// captureLogs routes slog to a buffer until the returned func is called, which
+// restores the previous logger and returns what was logged.
+func captureLogs(t *testing.T) func() string {
+	t.Helper()
+	var mu sync.Mutex
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&lockedWriter{mu: &mu, w: &buf}, nil)))
+	restored := false
+	restore := func() {
+		if !restored {
+			restored = true
+			slog.SetDefault(prev)
+		}
+	}
+	t.Cleanup(restore)
+	return func() string {
+		restore()
+		mu.Lock()
+		defer mu.Unlock()
+		return buf.String()
+	}
+}
+
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  *bytes.Buffer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+func xJTIOf(g *auGate, p tokenPair) string { return g.jti(p.Refresh) }
+
 // ---- case 4: logout -------------------------------------------------------
 
 func (g *auGate) logout(t *testing.T) {
@@ -503,6 +550,42 @@ func (g *auGate) logout(t *testing.T) {
 	for name, tok := range map[string]string{"X": x.Refresh, "Y": y.Refresh} {
 		if _, code := g.refresh(srv, tok); code != 401 {
 			t.Fatalf("replay of %s after logout: %d want 401", name, code)
+		}
+	}
+
+	// L1: a STALE token (its successor is already revoked) can no longer mint, so
+	// presenting it at logout must not kill the live session of the same family.
+	{
+		uid, mail := g.newUser("cashier")
+		a := g.mustLogin(srv, mail)
+		b, _ := g.refresh(srv, a.Refresh)
+		cTok, code := g.refresh(srv, b.Refresh)
+		if code != 200 {
+			t.Fatalf("B->C %d", code)
+		}
+		if g.logoutReq(srv, a.Refresh) != 200 {
+			t.Fatal("logout with a stale token must still answer 200")
+		}
+		if g.live(uid) != 1 {
+			t.Fatalf("a stale-token logout must leave the live session alone, live=%d", g.live(uid))
+		}
+		if _, code := g.refresh(srv, cTok.Refresh); code != 200 {
+			t.Fatalf("the live head must still refresh after a stale logout: %d", code)
+		}
+	}
+	// ...but the direct predecessor of a live head could still re-mint it, so
+	// logging out with it revokes the whole family.
+	{
+		uid, mail := g.newUser("cashier")
+		a := g.mustLogin(srv, mail)
+		if _, code := g.refresh(srv, a.Refresh); code != 200 {
+			t.Fatalf("A->B %d", code)
+		}
+		if g.logoutReq(srv, a.Refresh) != 200 {
+			t.Fatal("logout must answer 200")
+		}
+		if g.live(uid) != 0 {
+			t.Fatalf("logout with the direct predecessor must revoke the family, live=%d", g.live(uid))
 		}
 	}
 
