@@ -486,3 +486,12 @@ State this in the commit message: the guard moved, it was not weakened (AGENTS.m
 - Old-token replay: refuse that request only (logged); the rest of the session chain keeps working.
 - Role/permission change: no forced re-login; takes effect within the 15-minute access-token lifetime.
 - Neon: read-only token count approved; the pre-deploy revoke of rows the current server already refuses is approved (show the count first, run once right before the deploy).
+
+## Owner decisions (2026-10-16)
+
+- Logout with ANY token of the session ends the whole session: presenting any token whose row exists and belongs to
+  the token's user (revoked or not, expired-but-unswept or not) revokes the whole family. This reverses the earlier
+  "only if the token is live or its direct successor is live" rule. A rowless token whose Redis legacy key is valid
+  gets a revoked tombstone row, so a concurrent or later adoption cannot produce a live successor.
+- Body caps: `/auth/login` 8 KiB (413); `/auth/refresh` and `/auth/logout` 16 KiB, answered 400 and never 413 (the
+  client logs out on any non-5xx/429 non-OK refresh status).
