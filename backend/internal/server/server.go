@@ -28,7 +28,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
-type pinger interface{ Ping(ctx context.Context) error }
+type pinger interface {
+	Ping(ctx context.Context) error
+}
 
 // healthHandler is the deep check: the database is required (503 when down);
 // Redis is an optional cache, so a down or disabled Redis is reported as

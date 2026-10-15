@@ -16,10 +16,10 @@ import (
 const MaxTrustedProxyHops = 10
 
 type Config struct {
-	Port             string
-	Env              string
-	CORSOrigins      []string
-	DatabaseURL      string
+	Port        string
+	Env         string
+	CORSOrigins []string
+	DatabaseURL string
 	// RedisURL: unset = local dev default; set-but-empty = Redis disabled (the
 	// cache is optional; Postgres is the auth authority).
 	RedisURL         string
