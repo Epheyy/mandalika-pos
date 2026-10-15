@@ -105,7 +105,14 @@ func (s *Store) RotateSession(ctx context.Context, in RotateInput) (*RotateResul
 		return nil, err
 	}
 	if !ok {
-		return nil, ErrRefreshRejected
+		// A concurrent adoption of the same token may have committed (and its
+		// Redis mirror deleted the legacy key) between our first look and the
+		// Redis read: look at Postgres again before concluding "no".
+		res, err = s.rotateTx(ctx, in, false)
+		if errors.Is(err, errNoSessionRow) {
+			return nil, ErrRefreshRejected
+		}
+		return res, err
 	}
 	res, err = s.rotateTx(ctx, in, true)
 	if errors.Is(err, errNoSessionRow) {
@@ -140,9 +147,13 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 		if rc.ExpiresAt != nil {
 			exp = rc.ExpiresAt.Time
 		}
+		// Bare ON CONFLICT DO NOTHING (every unique index arbitrates): a concurrent
+		// adoption of the same token also collides on refresh_tokens_live_head_uidx,
+		// and naming only (jti) would surface that as a 23505 instead of a no-op.
+		// The normal claim / re-mint logic below then decides from the committed state.
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO refresh_tokens (jti, user_id, family_id, created_at, expires_at)
-			 VALUES ($1,$2,$1,$3,$4) ON CONFLICT (jti) DO NOTHING`,
+			 VALUES ($1,$2,$1,$3,$4) ON CONFLICT DO NOTHING`,
 			rc.ID, rc.UserID, rc.IssuedAt.Time, exp); err != nil {
 			return nil, err
 		}

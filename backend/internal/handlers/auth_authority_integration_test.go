@@ -716,27 +716,34 @@ func (g *auGate) adoption(t *testing.T) {
 			t.Fatalf("%d want 401", code)
 		}
 	})
+	// Repeated: the failure mode is an interleaving (two inserts of the same
+	// legacy row racing on a non-arbiter unique index), so one round can pass by luck.
 	t.Run("concurrent adoption of one legacy token", func(t *testing.T) {
-		userID, _ := g.newUser("cashier")
-		const j = "00000000-0000-4000-8f04-000000000008"
-		mr.Set("refresh:"+j, userID)
-		tok := g.legacyToken(userID, j, iat)
-		const n = 20
-		codes, jtis := make([]int, n), make([]string, n)
-		g.parallel(n, func(i int) {
-			p, code := g.refresh(srv, tok)
-			codes[i] = code
-			if code == 200 {
-				jtis[i] = g.jti(p.Refresh)
+		for round := 0; round < 15; round++ {
+			userID, _ := g.newUser("cashier")
+			j := fmt.Sprintf("00000000-0000-4000-8f09-%012d", round)
+			mr.Set("refresh:"+j, userID)
+			tok := g.legacyToken(userID, j, iat)
+			const n = 20
+			codes, jtis := make([]int, n), make([]string, n)
+			g.parallel(n, func(i int) {
+				p, code := g.refresh(srv, tok)
+				codes[i] = code
+				if code == 200 {
+					jtis[i] = g.jti(p.Refresh)
+				}
+			})
+			for i := range codes {
+				if codes[i] != 200 || jtis[i] != jtis[0] {
+					t.Fatalf("round %d goroutine %d: %d jti %s (want 200 and one shared jti %s)", round, i, codes[i], jtis[i], jtis[0])
+				}
 			}
-		})
-		for i := range codes {
-			if codes[i] != 200 || jtis[i] != jtis[0] {
-				t.Fatalf("goroutine %d: %d jti %s (want 200 and one shared jti %s)", i, codes[i], jtis[i], jtis[0])
+			if rows := g.count(`SELECT count(*) FROM refresh_tokens WHERE family_id=$1`, j); rows != 2 {
+				t.Fatalf("round %d: family has %d rows, want 2", round, rows)
 			}
-		}
-		if rows := g.count(`SELECT count(*) FROM refresh_tokens WHERE family_id=$1`, j); rows != 2 {
-			t.Fatalf("family has %d rows, want 2", rows)
+			if live := g.live(userID); live != 1 {
+				t.Fatalf("round %d: %d live rows, want 1", round, live)
+			}
 		}
 	})
 }
