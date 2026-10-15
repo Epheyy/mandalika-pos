@@ -8,6 +8,10 @@ Last updated: 2026-10-14 (night) by Claude (Opus 5.5).
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-15: A33/A07 (Postgres auth authority, Redis optional; mig 0054, AU gate 56455) is code-complete and
+> locally verified on a worktree branch, NOT yet pushed or deployed. Pending owner steps: Neon pre-deploy revoke of
+> rows the current server already refuses (show count first), Neon snapshot, deploy-backend.sh smoke, promote.
+
 Goal: production-ready POS = 8 P0 audit findings closed + release gates. **8 of 8 P0s done.**
 Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 leftovers (see Known gaps), follow-ups below.
 

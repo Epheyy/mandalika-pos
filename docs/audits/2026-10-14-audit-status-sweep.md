@@ -31,6 +31,7 @@ Repo HEAD 33557cb (prod-hardening). Read-only; status judged from code, not trac
 - **Go-live blocker?**: no. Boot and offline resume work, and the residual risk is a bounded one: a revoked cashier on a shared terminal account continues until the next online contact.
 
 ### A07 — Refresh rotation and revocation lack a durable, atomic authority model
+- **Update 2026-10-15**: code complete on branch (mig 0054, `auth/sessions.go`, AU gate); not yet deployed. Evidence below is the pre-fix state. A33 (Redis-optional auth) is delivered by the same change.
 - **Status**: Partial
 - **Evidence**:
   - Added since September: the admin reset-password marker (`auth/reset.go:26-38,94-101`) and its fail-closed read (`handlers.go:222-232`). The post-issue re-check (`handlers.go:171-176,240-253`) covers password reset only. Refresh TTL is 30 days via env; the marker TTL outlives legacy tokens.

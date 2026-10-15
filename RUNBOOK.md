@@ -9,7 +9,7 @@ Read `HANDOFF.md` ("Now") first for the live revision and open items.
 |-------------|-----------------------------------------|-------|
 | Backend API | Cloud Run `mandalika-pos`, `asia-southeast2` | Project `mandalika-pos`; `scripts/lib/cloudrun.sh` holds the names |
 | Postgres    | Neon, **pooled** endpoint (`-pooler`, `sslmode=require`) | `DATABASE_URL` in Secret Manager |
-| Redis       | Required at startup (`REDIS_URL`) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost) |
+| Redis       | **Optional cache** (`REDIS_URL`; set-but-empty = disabled) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost). A Redis outage never blocks startup or logs anyone out; Postgres is the auth authority |
 | Backoffice  | Cloudflare Pages `mandalika-pos.pages.dev` | Auto-deploys on push to `prod-hardening` |
 | POS         | Signed Android APK via `android-release.yml` | Capacitor shell; OTA web-layer updates via `make ota-release` |
 
@@ -115,7 +115,16 @@ new review.
 ## Monitoring
 
 - `GET /readyz` — liveness, no dependencies (used for promotion checks).
-- `GET /healthz` — deep check (DB and Redis).
+- `GET /healthz` — deep check. DB down: 503. DB up, Redis down or disabled: **200** with
+  `{"status":"degraded","db":"ok","redis":"down|disabled"}`. All up: `status":"ok"`.
+- Redis tuning (optional): `REDIS_DIAL_TIMEOUT_MS` (default 1000), `REDIS_OP_TIMEOUT_MS`
+  (default 500). After 3 consecutive transport errors the in-process breaker skips Redis for
+  30 s (`redis_breaker_open` / `redis_breaker_closed` log lines). Rate limits fall back to a
+  per-instance in-memory window while Redis is unavailable (up to N x the limit with N instances).
+- Migration 0054 is additive. **Rollback** to the previous revision is safe: its INSERT/UPDATE
+  still work and the new revision keeps mirroring `refresh:<jti>` keys in Redis (best effort)
+  for one release. Do not roll back past the cleanup release that removes the mirror.
+- PostgreSQL gates: 17 (AU `TestAuthAuthorityPostgres` on port 56455 is the newest).
 - Logs: `gcloud run services logs read mandalika-pos --region asia-southeast2`.
 
 ---
