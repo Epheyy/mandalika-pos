@@ -147,6 +147,9 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      reserved receipt number (was the MND- hash) → APK 2.1 (versionCode 12).
    - APK 2.0 (build 11, 374e14a) emulator-verified 2026-10-15: 1.9→2.0 `install -r` kept session/binding/shift; device
      code `AB`; test sale synced as **BSD-AB0001** (codes AA and AC belong to smoke-test devices).
+   - APK **2.1** (build 12, a2cffe3, run 38750599071, sha256 `db1deae1…8e0d`, stored in Downloads/mandalika-apk) emulator-verified
+     2026-10-15: 2.0→2.1 `install -r` kept everything; success pop-up shows **BSD-AB0002**, server has the same number.
+     **2.1 is now the fleet candidate** (supersedes 1.9); fleet still not rolled out.
    - Neon read-only 2026-10-15: no outlet has 2 open shifts (0053 safe); all outlet codes match ^[A-Za-z0-9]{2,4}$.
    - (e) A36 research done: `docs/plans/2026-10-15-a36-backup-research.md`. **Owner decisions 2026-10-15:** Neon **Launch**
      (7-day PITR, daily snapshots, snapshot before every migrating deploy) + own encrypted daily `pg_dump` to a locked GCS
