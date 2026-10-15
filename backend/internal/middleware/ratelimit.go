@@ -23,7 +23,7 @@ func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) fun
 			bucket := time.Now().Unix() / int64(window.Seconds())
 			key := "rl:" + prefix + ":" + ip + ":" + strconv.FormatInt(bucket, 10)
 
-			if c.Incr(r.Context(), key, window) > int64(max) {
+			if c.IncrWindow(r.Context(), key, window) > int64(max) {
 				w.Header().Set("Retry-After", strconv.Itoa(int(window.Seconds())))
 				httpx.Err(w, http.StatusTooManyRequests, "rate limit exceeded")
 				return

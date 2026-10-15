@@ -76,3 +76,22 @@ func TestRateLimitWithRedisUnchanged(t *testing.T) {
 		t.Fatalf("expected the counter in redis, keys=%v", mr.Keys())
 	}
 }
+
+// Redis command volume (Upstash bills per command): the first hit of a window is
+// INCR + EXPIRE, every later hit is a single INCR (no MULTI/EXEC transaction).
+func TestRateLimitRedisCommandVolume(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rc.Close() })
+	h := limited(cache.NewFromClient(rc))
+	if code := hit(h, "198.51.100.9"); code != 200 { // warm the connection handshake
+		t.Fatal(code)
+	}
+	before := mr.CommandCount()
+	for i := 0; i < 5; i++ {
+		hit(h, "198.51.100.9")
+	}
+	if got := mr.CommandCount() - before; got != 5 {
+		t.Fatalf("5 later hits in one window used %d redis commands, want 5 (one INCR each)", got)
+	}
+}

@@ -116,7 +116,7 @@ new review.
 
 - `GET /readyz` — liveness, no dependencies (used for promotion checks).
 - `GET /healthz` — deep check. DB down: 503. DB up, Redis down or disabled: **200** with
-  `{"status":"degraded","db":"ok","redis":"down|disabled"}`. All up: `status":"ok"`.
+  `{"status":"degraded","db":"ok","redis":"down|disabled"}`. All up: `"status":"ok"`.
 - Redis tuning (optional): `REDIS_DIAL_TIMEOUT_MS` (default 1000), `REDIS_OP_TIMEOUT_MS`
   (default 500). After 3 consecutive transport errors the in-process breaker skips Redis for
   30 s (`redis_breaker_open` / `redis_breaker_closed` log lines). Rate limits fall back to a

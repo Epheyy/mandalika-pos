@@ -345,6 +345,7 @@ Verified against HEAD 33557cb (prod-hardening), 2026-10-14. Read-only. CI state 
 - **Go-live blocker?**: No. The data-corruption half is closed. An unbounded pool on a small Neon tier degrades under load but fails visibly. Set MaxConns before multi-outlet load.
 
 ### A33 — Redis remains a required startup/auth dependency and routine traffic amplifier
+- **Update 2026-10-15**: code complete on branch, not yet deployed: Redis is an optional cache (disabled/degraded modes, 1s/500ms timeouts, circuit breaker, in-memory limiter fallback, `/healthz` degraded 200), Postgres is the auth authority (mig 0054, AU gate). Usage measurement and the `DelByPrefix` SCAN amplification remain open follow-ups. Evidence below is the pre-fix state.
 - **Status**: Open (the Redis dependency has deepened, not shrunk)
 - **Evidence**:
   - `cmd/server/main.go:48-51` still `log.Fatalf`s when Redis cannot be reached, so a Redis outage prevents any instance from starting.

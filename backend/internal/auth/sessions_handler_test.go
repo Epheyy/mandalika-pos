@@ -129,6 +129,50 @@ func TestLoginMapping(t *testing.T) {
 	}
 }
 
+func loginFrom(h *Handler, remote, email string) int {
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"`+email+`","password":"x"}`))
+	req.RemoteAddr = remote + ":1000"
+	rec := httptest.NewRecorder()
+	h.Login(rec, req)
+	return rec.Code
+}
+
+// With Redis disabled the login limits are still enforced, from memory.
+func TestLoginLimitsEnforcedFromMemoryWithoutRedis(t *testing.T) {
+	t.Run("ip+email limit", func(t *testing.T) {
+		fb := newFake()
+		fb.authErr = ErrNotFound
+		h := sessionHandler(t, fb, disabledCache(t))
+		for i := 1; i <= 10; i++ {
+			if code := loginFrom(h, "198.51.100.1", "a@b.c"); code != 401 {
+				t.Fatalf("attempt %d: %d want 401", i, code)
+			}
+		}
+		if code := loginFrom(h, "198.51.100.1", "a@b.c"); code != 429 {
+			t.Fatalf("attempt 11: %d want 429", code)
+		}
+		if code := loginFrom(h, "198.51.100.2", "a@b.c"); code != 401 {
+			t.Fatalf("a different IP has its own ip+email bucket: %d", code)
+		}
+	})
+	t.Run("per-email failure cap across IPs", func(t *testing.T) {
+		fb := newFake()
+		fb.authErr = ErrNotFound
+		h := sessionHandler(t, fb, disabledCache(t))
+		for i := 0; i < loginEmailFailLimit; i++ {
+			if code := loginFrom(h, fmt.Sprintf("203.0.113.%d", i+1), "victim@b.c"); code != 401 {
+				t.Fatalf("failure %d: %d want 401", i, code)
+			}
+		}
+		if code := loginFrom(h, "203.0.113.200", "victim@b.c"); code != 429 {
+			t.Fatalf("after %d failures the email must be capped: %d want 429", loginEmailFailLimit, code)
+		}
+		if code := loginFrom(h, "203.0.113.201", "other@b.c"); code != 401 {
+			t.Fatalf("another email is unaffected: %d", code)
+		}
+	})
+}
+
 // The refresh status contract: the client logs out on any non-OK status that is
 // not 429 or >=500, so refresh may only answer 200, 400 (bad body), 401, 429, 5xx.
 func TestRefreshStatusContract(t *testing.T) {

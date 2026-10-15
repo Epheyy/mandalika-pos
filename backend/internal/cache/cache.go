@@ -301,7 +301,27 @@ func (c *Cache) IncrE(ctx context.Context, key string, ttl time.Duration) (int64
 	return n, err
 }
 
-// Incr is the rate-limit counter: Redis first, and on ANY failure a bounded
+// IncrWindow is the per-request fixed-window counter (the key carries the time
+// bucket): a plain INCR, plus EXPIRE only on the first hit, so a busy window costs
+// one Redis command per request (Upstash bills per command). On any Redis
+// failure it falls back to the in-memory window like Incr.
+func (c *Cache) IncrWindow(ctx context.Context, key string, ttl time.Duration) int64 {
+	var n int64
+	err := c.do(ctx, func(ctx context.Context) (e error) { n, e = c.r.Incr(ctx, key).Result(); return })
+	if err != nil {
+		if c == nil {
+			return newMemCounter(1).incr(key, ttl)
+		}
+		return c.mem.incr(key, ttl)
+	}
+	if n == 1 {
+		_ = c.do(ctx, func(ctx context.Context) error { return c.r.Expire(ctx, key, ttl).Err() })
+	}
+	return n
+}
+
+// Incr is the login counter (the window slides: every hit refreshes the TTL
+// in one transaction): Redis first, and on ANY failure a bounded
 // per-instance in-memory fixed window, so limits survive a Redis outage
 // (fail-open would remove login brute-force protection). With several
 // instances the effective limit can be up to N times higher; accepted.

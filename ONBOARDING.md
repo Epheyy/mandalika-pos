@@ -336,7 +336,9 @@ Full variable reference:
 | `ENV` | `development` / `production` | no | `development` |
 | `CORS_ORIGINS` | comma-separated allowed browser origins | no | `http://localhost:5173` |
 | `DATABASE_URL` | Postgres connection string | yes (`.env.example` is correct) | — |
-| `REDIS_URL` | Redis connection string | yes (`.env.example` is correct) | — |
+| `REDIS_URL` | Redis connection string. Optional cache: set but empty = Redis disabled; Redis down never blocks startup or logs anyone out | no | `redis://localhost:6379/0` when unset |
+| `REDIS_DIAL_TIMEOUT_MS` | Redis dial timeout | no | `1000` |
+| `REDIS_OP_TIMEOUT_MS` | Redis per-operation timeout (also the read/write timeout) | no | `500` |
 | `JWT_ACCESS_SECRET` | signs access tokens | no locally | `dev-access` |
 | `JWT_REFRESH_SECRET` | signs refresh tokens; must differ from access | no locally | `dev-refresh` |
 | `JWT_ACCESS_TTL_MIN` | access token lifetime | no | `15` |
