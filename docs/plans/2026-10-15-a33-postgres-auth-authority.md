@@ -480,3 +480,9 @@ State this in the commit message: the guard moved, it was not weakened (AGENTS.m
      0 live rows in the family afterwards).
 6. **Dual-write TTL (D5):** set `refresh:<jti>` with the token's **remaining** lifetime (`expires_at - now`),
    not the full `RefreshTTL`.
+
+## Owner decisions (2026-10-15)
+
+- Old-token replay: refuse that request only (logged); the rest of the session chain keeps working.
+- Role/permission change: no forced re-login; takes effect within the 15-minute access-token lifetime.
+- Neon: read-only token count approved; the pre-deploy revoke of rows the current server already refuses is approved (show the count first, run once right before the deploy).
