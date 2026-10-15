@@ -158,7 +158,12 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      PDP limitation of locked backups accepted (document it). Owner must upgrade the Neon plan (payment) — Claude can't.
      Build (~6 days) = backup Cloud Run Job + bucket script + pre-migration snapshot in deploy-backend.sh + restore script +
      restore drill + backup-age alert + RUNBOOK; optional tablet keep-acked-sales item NOT chosen.
-   - Next: A40 RUNBOOK refresh (after the quick-win merge), A36 build plan, then A33, A39, A44.
+   - A33/A07 (Postgres auth authority, Redis optional): plan `docs/plans/2026-10-15-a33-postgres-auth-authority.md` + owner
+     decisions (old-token replay → refuse that request only; role change within 15 min; Neon read + pre-deploy revoke OK).
+     Task 0 read-only audit 2026-10-15: refresh_tokens 725 (514 revoked, 35 expired, 189 live); Upstash refresh:* keys 193;
+     all 189 live rows have a key; 4 Redis keys without a live row (adopt only when NO pg row exists); live rows without a
+     key = 0. Implementation running in a worktree (mig 0054, PG gate AU 56455).
+   - Next: A33 review/release, then A39 (CSV), A44 (oversell flag/report); A36 build waits on owner O1–O4.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
