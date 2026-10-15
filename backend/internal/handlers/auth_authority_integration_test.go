@@ -553,8 +553,8 @@ func (g *auGate) logout(t *testing.T) {
 		}
 	}
 
-	// L1: a STALE token (its successor is already revoked) can no longer mint, so
-	// presenting it at logout must not kill the live session of the same family.
+	// Owner decision 2026-10-16: logout with ANY token of the session ends the
+	// whole session, including a stale token whose successors are long revoked.
 	{
 		uid, mail := g.newUser("cashier")
 		a := g.mustLogin(srv, mail)
@@ -564,13 +564,46 @@ func (g *auGate) logout(t *testing.T) {
 			t.Fatalf("B->C %d", code)
 		}
 		if g.logoutReq(srv, a.Refresh) != 200 {
-			t.Fatal("logout with a stale token must still answer 200")
+			t.Fatal("logout with a stale token must answer 200")
 		}
-		if g.live(uid) != 1 {
-			t.Fatalf("a stale-token logout must leave the live session alone, live=%d", g.live(uid))
+		if g.live(uid) != 0 {
+			t.Fatalf("a stale-token logout must end the whole session, live=%d", g.live(uid))
 		}
-		if _, code := g.refresh(srv, cTok.Refresh); code != 200 {
-			t.Fatalf("the live head must still refresh after a stale logout: %d", code)
+		if _, code := g.refresh(srv, cTok.Refresh); code != 401 {
+			t.Fatalf("the former live head must be refused after a stale-token logout: %d", code)
+		}
+	}
+	// A token whose row is revoked AND already expired (not yet swept) still
+	// belongs to the family: logging out with it ends the session.
+	{
+		uid, mail := g.newUser("cashier")
+		a := g.mustLogin(srv, mail)
+		b, _ := g.refresh(srv, a.Refresh)
+		g.exec(`UPDATE refresh_tokens SET expires_at = now() - interval '1 minute' WHERE jti=$1`, g.jti(a.Refresh))
+		if g.logoutReq(srv, a.Refresh) != 200 {
+			t.Fatal("logout must answer 200")
+		}
+		if g.live(uid) != 0 {
+			t.Fatalf("an expired-but-unswept family token must still end the session, live=%d", g.live(uid))
+		}
+		if _, code := g.refresh(srv, b.Refresh); code != 401 {
+			t.Fatalf("refresh after that logout: %d", code)
+		}
+	}
+	// A token that belongs to a different user's row must not touch that family.
+	{
+		victim, vmail := g.newUser("cashier")
+		v := g.mustLogin(srv, vmail)
+		attacker, _ := g.newUser("cashier")
+		forged, err := auth.SignRefresh(g.cfg.RefreshSecret, attacker, g.jti(v.Refresh), time.Now().Truncate(time.Second), time.Now().Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if g.logoutReq(srv, forged) != 200 {
+			t.Fatal("logout must answer 200")
+		}
+		if g.live(victim) != 1 {
+			t.Fatal("a token claiming another user must not revoke that user's family")
 		}
 	}
 	// ...but the direct predecessor of a live head could still re-mint it, so
@@ -799,10 +832,59 @@ func (g *auGate) adoption(t *testing.T) {
 			t.Fatalf("%d want 401", code)
 		}
 	})
+	// Logout racing the adoption of a rowless legacy token: the end state must be
+	// "no live row", whichever wins (logout inserts a revoked tombstone).
+	t.Run("logout racing adoption of a legacy token", func(t *testing.T) {
+		for round := 0; round < 25; round++ {
+			userID, _ := g.newUser("cashier")
+			j := fmt.Sprintf("00000000-0000-4000-8f0a-%012d", round)
+			mr.Set("refresh:"+j, userID)
+			tok := g.legacyToken(userID, j, iat)
+			var rcode, lcode int
+			g.parallel(2, func(k int) {
+				if k == 0 {
+					_, rcode = g.refresh(srv, tok)
+				} else {
+					lcode = g.logoutReq(srv, tok)
+				}
+			})
+			if lcode != 200 || (rcode != 200 && rcode != 401) {
+				t.Fatalf("round %d: logout %d refresh %d", round, lcode, rcode)
+			}
+			if live := g.live(userID); live != 0 {
+				t.Fatalf("round %d: %d live rows after logout raced an adoption (refresh=%d)", round, live, rcode)
+			}
+		}
+	})
+	t.Run("logout of a rowless legacy token leaves a revoked tombstone", func(t *testing.T) {
+		userID, _ := g.newUser("cashier")
+		const j = "00000000-0000-4000-8f0b-000000000001"
+		mr.Set("refresh:"+j, userID)
+		tok := g.legacyToken(userID, j, iat)
+		if g.logoutReq(srv, tok) != 200 {
+			t.Fatal("logout must answer 200")
+		}
+		if g.count(`SELECT count(*) FROM refresh_tokens WHERE jti=$1 AND revoked AND revoke_reason='logout'`, j) != 1 {
+			t.Fatal("expected one revoked tombstone row")
+		}
+		if _, code := g.refresh(srv, tok); code != 401 {
+			t.Fatalf("a logged-out legacy token must be refused: %d", code)
+		}
+	})
+	t.Run("logout of a rowless token without a redis key writes nothing", func(t *testing.T) {
+		userID, _ := g.newUser("cashier")
+		const j = "00000000-0000-4000-8f0b-000000000002"
+		if g.logoutReq(srv, g.legacyToken(userID, j, iat)) != 200 {
+			t.Fatal("logout must answer 200")
+		}
+		if g.count(`SELECT count(*) FROM refresh_tokens WHERE jti=$1`, j) != 0 {
+			t.Fatal("no row may be created for a token Redis does not know")
+		}
+	})
 	// Repeated: the failure mode is an interleaving (two inserts of the same
 	// legacy row racing on a non-arbiter unique index), so one round can pass by luck.
 	t.Run("concurrent adoption of one legacy token", func(t *testing.T) {
-		for round := 0; round < 15; round++ {
+		for round := 0; round < 80; round++ {
 			userID, _ := g.newUser("cashier")
 			j := fmt.Sprintf("00000000-0000-4000-8f09-%012d", round)
 			mr.Set("refresh:"+j, userID)

@@ -34,6 +34,7 @@ type fakeBackend struct {
 
 	revoked   []string
 	revokeErr error
+	gotRevoke RevokeInput
 }
 
 func (f *fakeBackend) Authenticate(context.Context, string, string) (*User, string, error) {
@@ -51,7 +52,8 @@ func (f *fakeBackend) RotateSession(_ context.Context, in RotateInput) (*RotateR
 	f.gotRotate = in
 	return f.rotateRes, f.rotateErr
 }
-func (f *fakeBackend) RevokeFamily(context.Context, string, string) ([]string, error) {
+func (f *fakeBackend) RevokeFamily(_ context.Context, in RevokeInput) ([]string, error) {
+	f.gotRevoke = in
 	return f.revoked, f.revokeErr
 }
 
@@ -215,20 +217,55 @@ func TestLoginKeysNeverContainRawEmail(t *testing.T) {
 	}
 }
 
-// Login caps its body; refresh must NOT (the client treats any non-5xx/429
-// non-OK refresh status as "rejected" and logs the tablet out).
-func TestLoginBodyCapButNotRefresh(t *testing.T) {
-	h := sessionHandler(t, newFake(), disabledCache(t))
+// Body caps: login 8 KiB (413), refresh and logout 16 KiB (400, never 413: the
+// client treats any non-5xx/429 non-OK refresh status as "rejected").
+func TestBodyCaps(t *testing.T) {
+	fb := newFake()
+	fb.rotateErr = ErrRefreshRejected
+	h := sessionHandler(t, fb, disabledCache(t))
 	big := strings.Repeat("a", 20<<10)
+
 	if rec := post(h.Login, `{"email":"`+big+`","password":"x"}`); rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized login: %d want 413", rec.Code)
 	}
 	if rec := post(h.Login, `{"email":"a@b.c","password":"x"}`); rec.Code != 200 {
 		t.Fatalf("normal login: %d", rec.Code)
 	}
-	rec := post(h.Refresh, `{"refresh":"`+big+`"}`)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("an oversized refresh body must stay a 401 (never 413): %d", rec.Code)
+	// 8 KiB boundary: just over the login cap, still fine for refresh/logout.
+	over := strings.Repeat("b", 9<<10)
+	if rec := post(h.Login, `{"email":"`+over+`","password":"x"}`); rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("9 KiB login: %d want 413", rec.Code)
+	}
+
+	tok := validRefresh(t, h) // a few hundred bytes, like the real client
+	if rec := post(h.Refresh, `{"refresh":"`+tok+`"}`); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("normal refresh must reach the store (rejected->401): %d", rec.Code)
+	}
+	if rec := post(h.Refresh, `{"refresh":"`+over+`"}`); rec.Code == http.StatusRequestEntityTooLarge {
+		t.Fatal("refresh must never answer 413")
+	}
+	if rec := post(h.Refresh, `{"refresh":"`+big+`"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversized refresh: %d want 400", rec.Code)
+	}
+	if rec := post(h.Logout, `{"refresh":"`+tok+`"}`); rec.Code != 200 {
+		t.Fatalf("normal logout: %d", rec.Code)
+	}
+	if rec := post(h.Logout, `{"refresh":"`+big+`"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversized logout: %d want 400", rec.Code)
+	}
+}
+
+// Logout hands the legacy-adoption verdict to the store (tombstone for a rowless
+// token whose Redis key is valid).
+func TestLogoutPassesClaimsAndLegacyVerdict(t *testing.T) {
+	fb := newFake()
+	h := sessionHandler(t, fb, disabledCache(t))
+	tok := validRefresh(t, h)
+	if rec := post(h.Logout, `{"refresh":"`+tok+`"}`); rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if fb.gotRevoke.Claims == nil || fb.gotRevoke.Claims.ID != "old-jti" || fb.gotRevoke.Legacy == nil {
+		t.Fatalf("store did not receive claims and the legacy verdict: %+v", fb.gotRevoke)
 	}
 }
 

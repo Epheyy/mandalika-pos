@@ -27,7 +27,7 @@ type authBackend interface {
 	ByID(ctx context.Context, id string) (*User, error)
 	IssueSession(ctx context.Context, u *User, verifiedHash string, s Session) error
 	RotateSession(ctx context.Context, in RotateInput) (*RotateResult, error)
-	RevokeFamily(ctx context.Context, uid, jti string) ([]string, error)
+	RevokeFamily(ctx context.Context, in RevokeInput) ([]string, error)
 }
 
 type Handler struct {
@@ -143,10 +143,14 @@ func loginEmailKey(email string) string {
 // emailCapReached reports whether a failure count has hit the per-account cap.
 func emailCapReached(n int64) bool { return n >= loginEmailFailLimit }
 
-// maxLoginBody caps the login body. Login ONLY: /auth/refresh must never answer
-// 413, because the client treats any non-5xx/429 non-OK refresh status as
-// "rejected" and logs the tablet out.
-const maxLoginBody = 8 << 10
+// Body caps. Login: 8 KiB, answered 413. Refresh and logout: 16 KiB (the client
+// sends a few hundred bytes), answered 400 -- NEVER 413 there, because the client
+// treats any non-5xx/429 non-OK refresh status as "rejected" and logs the tablet
+// out, and 400 is already in the refresh status contract.
+const (
+	maxLoginBody   = 8 << 10
+	maxRefreshBody = 16 << 10
+)
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
@@ -212,6 +216,7 @@ type refreshReq struct {
 // and logs the tablet out.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
+	r.Body = http.MaxBytesReader(w, r.Body, maxRefreshBody)
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
@@ -244,12 +249,22 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
+// Logout ends the whole session of the presented token (owner decision
+// 2026-10-16: any token of the family counts, however stale). Always 200 for a
+// well-formed body; an oversized body is 400.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
-	if err := httpx.Decode(r, &req); err == nil && req.Refresh != "" {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRefreshBody)
+	err := httpx.Decode(r, &req)
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if err == nil && req.Refresh != "" {
 		if rc, err := ParseRefresh(h.Cfg.RefreshSecret, req.Refresh); err == nil {
 			ctx := r.Context()
-			revoked, err := h.be().RevokeFamily(ctx, rc.UserID, rc.ID)
+			revoked, err := h.be().RevokeFamily(ctx, RevokeInput{Claims: rc, Legacy: h.adoptLegacy})
 			if err != nil {
 				slog.Error("logout_revoke_failed", "err", err, "user", rc.UserID)
 			}

@@ -230,78 +230,106 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 	return nil, ErrRefreshRejected
 }
 
-// RevokeFamily revokes every live token of the family of jti (a logged-out
-// device's predecessor must not be able to re-mint a live successor), but only
-// when the presented token is live or its direct successor is. It returns
-// the jtis it revoked. A token with no row revokes nothing.
-func (s *Store) RevokeFamily(ctx context.Context, uid, jti string) ([]string, error) {
-	tx, err := s.Pool.Begin(ctx)
+// RevokeInput describes a logout. Legacy is the same Redis verdict used for
+// adoption: it decides whether a token with NO row at all is a genuine legacy
+// session that must be tombstoned.
+type RevokeInput struct {
+	Claims *RefreshClaims
+	Legacy AdoptFunc
+}
+
+// RevokeFamily ends the whole session of the presented token. Owner decision
+// 2026-10-16: ANY token of the family (its row exists and belongs to the token's
+// user, revoked or not, expired-but-unswept or not) revokes every live row of
+// that family. It returns the jtis it revoked.
+//
+// A token with no row: when the Redis verdict says it is a genuine legacy
+// session, a revoked tombstone row is inserted, so a concurrent or later
+// adoption of that jti can never produce a live successor. Otherwise nothing is
+// written. The users row is locked FOR NO KEY UPDATE first (serializes with
+// rotation's FOR SHARE, keeping the users -> refresh_tokens lock order).
+func (s *Store) RevokeFamily(ctx context.Context, in RevokeInput) ([]string, error) {
+	revoked, found, err := s.revokeTx(ctx, in.Claims, false)
+	if err != nil || found {
+		return revoked, err
+	}
+	if in.Legacy == nil {
+		return nil, nil
+	}
+	// Redis is read outside any transaction.
+	ok, err := in.Legacy(ctx, in.Claims)
 	if err != nil {
 		return nil, err
+	}
+	if ok {
+		revoked, _, err = s.revokeTx(ctx, in.Claims, true)
+		return revoked, err
+	}
+	// A concurrent adoption may have committed (and its mirror deleted the legacy
+	// key) between our first look and the Redis read: look at Postgres again.
+	revoked, _, err = s.revokeTx(ctx, in.Claims, false)
+	return revoked, err
+}
+
+// revokeTx revokes the family of rc's row. found reports whether the row exists
+// (and is the user's); with tombstone set, a missing row is first inserted as a
+// revoked tombstone.
+func (s *Store) revokeTx(ctx context.Context, rc *RefreshClaims, tombstone bool) (revoked []string, found bool, err error) {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, false, err
 	}
 	defer tx.Rollback(ctx)
 
 	var one int
-	err = tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`, uid).Scan(&one)
+	err = tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`, rc.UserID).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, true, nil // user gone: nothing to revoke, nothing to retry
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	var family string
-	var tokRevoked, unexpired bool
-	var replacedBy *string
-	err = tx.QueryRow(ctx,
-		`SELECT COALESCE(family_id, jti), revoked, expires_at > now(), replaced_by
-		   FROM refresh_tokens WHERE jti=$1 AND user_id=$2`, jti, uid).Scan(&family, &tokRevoked, &unexpired, &replacedBy)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	// Only a token that could still mint a session may end the family: itself live,
-	// or its DIRECT successor live (a re-mint would hand that successor out). A
-	// stale token (its successor already revoked, or it was revoked by logout or
-	// reset) must not kill the live session of the same family.
-	canMint := !tokRevoked && unexpired
-	if !canMint && replacedBy != nil {
-		err = tx.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM refresh_tokens
-			                WHERE jti=$1 AND user_id=$2 AND NOT revoked AND expires_at > now())`,
-			*replacedBy, uid).Scan(&canMint)
-		if err != nil {
-			return nil, err
+	if tombstone && rc.IssuedAt != nil && rc.ExpiresAt != nil {
+		// Bare ON CONFLICT DO NOTHING: a concurrent adoption that committed first
+		// simply wins the insert and the family revoke below ends its successor.
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO refresh_tokens (jti, user_id, family_id, created_at, expires_at, revoked, revoked_at, revoke_reason)
+			 VALUES ($1,$2,$1,$3,$4,true,now(),'logout') ON CONFLICT DO NOTHING`,
+			rc.ID, rc.UserID, rc.IssuedAt.Time, rc.ExpiresAt.Time); err != nil {
+			return nil, false, err
 		}
 	}
-	if !canMint {
-		slog.Info("logout_stale_token_ignored", "user", uid)
-		return nil, nil
+	var family string
+	err = tx.QueryRow(ctx,
+		`SELECT COALESCE(family_id, jti) FROM refresh_tokens WHERE jti=$1 AND user_id=$2`, rc.ID, rc.UserID).Scan(&family)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil // no row (or another user's row): nothing to revoke
+	}
+	if err != nil {
+		return nil, false, err
 	}
 	rows, err := tx.Query(ctx,
 		`UPDATE refresh_tokens SET revoked=true, revoked_at=now(), revoke_reason='logout'
-		  WHERE user_id=$1 AND COALESCE(family_id, jti)=$2 AND NOT revoked RETURNING jti`, uid, family)
+		  WHERE user_id=$1 AND COALESCE(family_id, jti)=$2 AND NOT revoked RETURNING jti`, rc.UserID, family)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	var revoked []string
 	for rows.Next() {
 		var j string
 		if err := rows.Scan(&j); err != nil {
 			rows.Close()
-			return nil, err
+			return nil, false, err
 		}
 		revoked = append(revoked, j)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return revoked, nil
+	return revoked, true, nil
 }
 
 // SweepExpiredRefresh deletes at most limit rows that expired more than a day
