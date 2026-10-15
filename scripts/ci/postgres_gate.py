@@ -22,7 +22,12 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-IMAGE = "public.ecr.aws/docker/library/postgres:18.3"  # official image via AWS mirror (no Docker Hub anonymous pull limits)
+# Official postgres:18.3 pinned by content digest, so every mirror must serve identical bytes.
+# Mirrors are tried in order; a quota error ("toomanyrequests") or a hung pull falls through to the next.
+# Bump procedure when 18.3 is rebuilt and mirrors drop this digest: pull postgres:18.3, read its
+# RepoDigests (`docker image inspect --format '{{json .RepoDigests}}'`), update IMAGE_DIGEST.
+IMAGE_DIGEST = "sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db"
+IMAGE_MIRRORS = ("mirror.gcr.io/library/postgres", "public.ecr.aws/docker/library/postgres")
 PACKAGE = "github.com/mandalika/pos-backend/internal/handlers"
 GATES = (
     ("S0C", "TestSaleInputPostgres", 56439, "s0c"),
@@ -99,6 +104,24 @@ def checked(args: list[str], **kwargs) -> str:
     if result.returncode:
         raise GateError(f"{Path(args[0]).name} exit {result.returncode}: {result.stdout[-6000:]}")
     return result.stdout.strip()
+
+
+def pull_image() -> dict:
+    """Pull the digest-pinned image from the first mirror that serves it; refuse any other digest."""
+    failures = []
+    for mirror in IMAGE_MIRRORS:
+        ref = f"{mirror}@{IMAGE_DIGEST}"
+        try:
+            checked(["docker", "pull", ref], timeout=180)
+        except (GateError, subprocess.TimeoutExpired) as e:
+            failures.append(f"{mirror}: {str(e)[-300:]}")
+            continue
+        image = json.loads(checked(["docker", "image", "inspect", "--format",
+            '{"id":{{json .Id}},"digests":{{json .RepoDigests}}}', ref]))
+        if not any(d.endswith("@" + IMAGE_DIGEST) for d in image.get("digests") or []):
+            raise GateError(f"pulled image digest mismatch from {mirror}")
+        return image | {"source": ref}
+    raise GateError("image pull failed on every mirror: " + " | ".join(failures))
 
 
 def port_open(port: int) -> bool:
@@ -280,9 +303,7 @@ def run(args) -> int:
         report["go_version"] = checked(["go", "version"])
         if args.runtime == "docker":
             report["docker_version"] = checked(["docker", "version", "--format", "{{.Server.Version}}"])
-            checked(["docker", "pull", IMAGE], timeout=180)
-            report["image"] = json.loads(checked(["docker", "image", "inspect", "--format",
-                '{"id":{{json .Id}},"digests":{{json .RepoDigests}}}', IMAGE]))
+            report["image"] = pull_image()
             args.image_id = report["image"]["id"]
         else:
             if not args.pg_bin:

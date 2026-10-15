@@ -63,6 +63,58 @@ class RunnerContract(unittest.TestCase):
             self.assertEqual(result["gates"][0]["result"]["status"], "pass")
             self.assertEqual(result["status"], "fail")
 
+    def test_image_pull_is_digest_pinned_and_falls_back_across_mirrors(self):
+        first, second = (f"{m}@{gate.IMAGE_DIGEST}" for m in gate.IMAGE_MIRRORS[:2])
+        inspect = json.dumps({"id": "sha256:local", "digests": [second]})
+        calls = []
+
+        def fake(args, **kwargs):
+            calls.append(args)
+            if args[:2] == ["docker", "pull"] and args[2] == first:
+                raise gate.GateError("docker exit 1: toomanyrequests: Data limit exceeded")
+            return inspect if args[:3] == ["docker", "image", "inspect"] else "ok"
+
+        with patch.object(gate, "checked", side_effect=fake):
+            image = gate.pull_image()
+        self.assertEqual([c[2] for c in calls if c[:2] == ["docker", "pull"]], [first, second])
+        self.assertEqual(image["source"], second)
+        self.assertEqual(image["id"], "sha256:local")
+        self.assertTrue(all("@sha256:" in c[2] for c in calls if c[:2] == ["docker", "pull"]))
+
+    def test_image_pull_fails_when_every_mirror_fails(self):
+        with patch.object(gate, "checked", side_effect=gate.GateError("toomanyrequests")):
+            with self.assertRaises(gate.GateError):
+                gate.pull_image()
+
+    def test_image_pull_refuses_a_digest_mismatch(self):
+        wrong = json.dumps({"id": "sha256:local", "digests": ["x/postgres@sha256:" + "0" * 64]})
+
+        def fake(args, **kwargs):
+            return wrong if args[:3] == ["docker", "image", "inspect"] else "ok"
+
+        calls = []
+
+        def counting(args, **kwargs):
+            calls.append(args)
+            return fake(args, **kwargs)
+
+        with patch.object(gate, "checked", side_effect=counting):
+            with self.assertRaises(gate.GateError):
+                gate.pull_image()
+        self.assertEqual(len([c for c in calls if c[:2] == ["docker", "pull"]]), 1)  # no fallback after a mismatch
+
+    def test_hung_pull_falls_back_to_next_mirror(self):
+        first = f"{gate.IMAGE_MIRRORS[0]}@{gate.IMAGE_DIGEST}"
+        second = f"{gate.IMAGE_MIRRORS[1]}@{gate.IMAGE_DIGEST}"
+
+        def fake(args, **kwargs):
+            if args[:2] == ["docker", "pull"] and args[2] == first:
+                raise gate.subprocess.TimeoutExpired(args, 180)
+            return json.dumps({"id": "sha256:local", "digests": [second]}) if args[:3] == ["docker", "image", "inspect"] else "ok"
+
+        with patch.object(gate, "checked", side_effect=fake):
+            self.assertEqual(gate.pull_image()["source"], second)
+
     def test_docker_creation_is_loopback_tmpfs_and_uses_resolved_image(self):
         args = argparse.Namespace(runtime="docker", image_id="sha256:synthetic-image")
         f = gate.Fixture(args, gate.GATES[0], {})
