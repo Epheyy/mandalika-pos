@@ -28,7 +28,9 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-15, release 2):** revision **`00104-den`** (100%, tag `rel2`, commit a2cffe3, migrations through
+- **Backend (2026-10-16, release 3):** revision **`00106-riq`** (100%, tag `rel3`, commit 1e8309e, migrations through
+  **0054**; rollback = `00104-den` — check the RUNBOOK rollback log keys first). Release 2 was:
+  revision **`00104-den`** (100%, tag `rel2`, commit a2cffe3, migrations through
   **0053**, Cloud Run max-instances 4, DB_MAX_CONNS default 10; rollback = `00102-vas`). Release 1 was `00102-vas` (tag
   `a14rcpt`, cfd6917, migrations 0051+0052; its rollback = 00100-wul). Previously: revision `00100-wul` (tag `gates50`, labels commit-sha=`f08c94f`,
   deploy-tag=gates50), deployed + promoted with the new gated scripts. = review resolve (0048) + OTA guard (0049) +
@@ -167,7 +169,19 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      Task 0 read-only audit 2026-10-15: refresh_tokens 725 (514 revoked, 35 expired, 189 live); Upstash refresh:* keys 193;
      all 189 live rows have a key; 4 Redis keys without a live row (adopt only when NO pg row exists); live rows without a
      key = 0. Implementation running in a worktree (mig 0054, PG gate AU 56455).
-   - Next: A33 review/release, then A39 (CSV), A44 (oversell flag/report); A36 build waits on owner O1–O4.
+   - **Released 2026-10-16 (release 3, rev `00106-riq`, mig 0054):** A33/A07 — Postgres is the login authority (atomic
+     rotation, lost-response re-mint, old-token replay → 401 for that request only, logout with any session token ends the
+     session (owner 2026-10-16), reset revokes under the user lock); Redis optional (disabled/degraded modes, breaker,
+     in-memory login limits, hashed email keys, 8 KiB login / 16 KiB refresh+logout body caps); PG gate AU (17 gates).
+     Pre-deploy (read-only): 189 live tokens all mirrored, 4 Redis-only keys have NO pg row (adopted), nothing to revoke.
+     Smoke on tag: login/refresh/re-mint/deep-replay 401/logout/oversize 400 all pass + release-1/2 smoke 18/18; startup
+     log: migrations applied, refresh_sweep deleted 35, no redis_degraded/disabled. CI gate now pulls postgres:18.3 by
+     pinned digest with mirror fallback (mirror.gcr.io → ECR; ECR hit "Data limit exceeded" 3×).
+   - Follow-ups: (1) `/healthz` is reserved by Cloud Run (Google 404 on live too) → serve health at an unreserved path and
+     fix the RUNBOOK step; (2) postgres.yml reports go1.26.0 (go-version-file ignores the toolchain line?) → pin 1.26.9;
+     (3) OpenAPI: document 400 on logout/refresh, 413 on login; (4) A33 Task 9 cleanup (drop Redis mirror + adoption) on or
+     after 2026-10-30 after a Task 0 re-run shows 0 Redis-only live tokens.
+   - Next: A39 (CSV), A44 (oversell flag/report); A36 build waits on owner O1–O4.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
