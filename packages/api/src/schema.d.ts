@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness/readiness (DB + Redis) */
+        /** Deep health (DB required; Redis reported, optional) */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -3764,14 +3764,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description ok */
+            /** @description ok, or degraded when only Redis is down or disabled */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description dependency down */
+            /** @description database down */
             503: {
                 headers: {
                     [name: string]: unknown;
