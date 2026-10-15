@@ -57,9 +57,9 @@ func (h *Handler) clock() time.Time {
 
 // AdminResetPassword handles POST /users/{id}/reset-password (admin only).
 //
-// Fail-safe order: validate -> block self -> hash -> Redis marker (sessions
-// die first; failure aborts with nothing changed) -> DB tx (hash + revoke
-// rows) -> delete live refresh keys -> clear the per-account login lockout.
+// Order: validate -> block self -> hash -> Postgres tx (hash + revoke every
+// session row + users.refresh_revoked_before; atomic, a failure changes nothing)
+// -> best-effort Redis (marker, live refresh keys, per-account login lockout).
 func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req resetPasswordReq
@@ -91,15 +91,6 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Marker first: refresh tokens issued before it are dead from here. +2 (not
-	// +1) absorbs the gap between reading the clock and the SET landing.
-	marker := strconv.FormatInt(h.clock().Unix()+2, 10)
-	if err := h.Cache.SetE(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL)); err != nil {
-		slog.Error("admin_password_reset_failed", "stage", "marker", "err", err, "actor", actorID, "target", targetID)
-		httpx.Err(w, http.StatusInternalServerError, "reset failed")
-		return
-	}
-
 	st := h.resetStore()
 	res, err := st.ResetPassword(ctx, targetID, hash)
 	if errors.Is(err, ErrNotFound) {
@@ -112,6 +103,14 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The Postgres transaction above is the authority: every session is revoked.
+	// Everything below is best-effort Redis housekeeping (rollback compatibility
+	// with the previous revision, and legacy-token adoption): a Redis failure is
+	// logged and never changes the outcome.
+	marker := strconv.FormatInt(h.clock().Unix()+2, 10)
+	if err := h.Cache.SetE(ctx, refreshRevokedKey(targetID), marker, revokeMarkerTTL(h.Cfg.RefreshTTL)); err != nil {
+		slog.Warn("admin_password_reset_marker_failed", "err", err, "target", targetID)
+	}
 	jtis := res.JTIs
 	for start := 0; start < len(jtis); start += jtiDeleteBatch {
 		end := min(start+jtiDeleteBatch, len(jtis))
@@ -119,7 +118,6 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		for _, j := range jtis[start:end] {
 			keys = append(keys, "refresh:"+j)
 		}
-		// Best effort: the marker already invalidates these tokens.
 		if err := h.Cache.DelE(ctx, keys...); err != nil {
 			slog.Warn("admin_password_reset_key_delete_failed", "err", err, "target", targetID, "keys", len(keys))
 		}

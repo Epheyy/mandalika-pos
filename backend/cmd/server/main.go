@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
@@ -44,6 +45,14 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 	log.Println("migrations applied")
+
+	// Expired refresh-token rows: bounded, non-fatal. No ticker (Cloud Run
+	// throttles idle CPU); logins also clean their own user's rows.
+	if n, err := auth.NewStore(database.Pool).SweepExpiredRefresh(ctx, 5000); err != nil {
+		slog.Warn("refresh_sweep_failed", "err", err)
+	} else if n > 0 {
+		slog.Info("refresh_sweep", "deleted", n)
+	}
 
 	// Redis is an optional cache: never fatal. An unparseable URL runs disabled.
 	c, err := cache.Connect(ctx, cfg.RedisURL, cache.Options{
