@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/auth"
@@ -34,7 +35,29 @@ func (h *Handlers) ImportIngredients(w http.ResponseWriter, r *http.Request) {
 	h.runImport(w, r, csvimport.KindIngredients)
 }
 
+// maxConcurrentImports caps import requests (preview or commit) running at once in this
+// process; Cloud Run gives 512 MiB and one 50k-row preview holds several copies of the file.
+const maxConcurrentImports = 2
+
+// The server's global timeouts (ReadTimeout 15s, WriteTimeout 30s) are far too short for a
+// 16 MiB upload plus a 50k-row plan, so these routes alone extend their own deadlines.
+const (
+	importReadWindow  = 60 * time.Second
+	importWriteWindow = 150 * time.Second
+)
+
 func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
+	select {
+	case h.importSlots <- struct{}{}:
+		defer func() { <-h.importSlots }()
+	default:
+		httpx.Err(w, http.StatusTooManyRequests, "sibuk, coba lagi sebentar (impor lain sedang berjalan)")
+		return
+	}
+	rc := http.NewResponseController(w)
+	// Unsupported writers (tests) return an error that is fine to ignore.
+	_ = rc.SetReadDeadline(time.Now().Add(importReadWindow))
+	_ = rc.SetWriteDeadline(time.Now().Add(importWriteWindow))
 	r.Body = http.MaxBytesReader(w, r.Body, importBodyCap)
 	var body api.CsvImportRequest
 	if err := httpx.Decode(r, &body); err != nil {
@@ -70,6 +93,10 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 	req.UserID, _ = r.Context().Value(auth.CtxUserID).(string)
 
 	res, err := h.Write.RunImport(r.Context(), req)
+	if errors.Is(err, write.ErrBusy) {
+		httpx.Err(w, http.StatusServiceUnavailable, "sibuk, coba lagi (proses lain sedang memakai data yang sama); tidak ada data yang diubah")
+		return
+	}
 	if err != nil {
 		slog.Error("csv import failed", "kind", kind, "err", err)
 		httpx.Err(w, http.StatusInternalServerError, "impor gagal; tidak ada data yang diubah")

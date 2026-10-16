@@ -89,8 +89,20 @@ func (r *Repo) RunImport(ctx context.Context, req ImportRequest) (ImportResult, 
 	if req.DryRun {
 		return r.previewImport(ctx, req.Kind, table)
 	}
-	return r.commitImport(ctx, req, table)
+	// A deadlock or lock timeout aborts the whole transaction before anything is applied;
+	// retry it fresh a couple of times, then surface ErrBusy (the handler answers "sibuk").
+	var res ImportResult
+	err = retryBusy(ctx, func() error {
+		var e error
+		res, e = r.commitImport(ctx, req, table)
+		return e
+	})
+	return res, err
 }
+
+// errImportStale marks an apply that found the data different from what the plan saw
+// (a concurrent edit between plan and apply); the transaction rolls back.
+var errImportStale = errors.New("import: data changed since the plan")
 
 func (r *Repo) previewImport(ctx context.Context, kind string, table *csvimport.Table) (ImportResult, error) {
 	tx, err := r.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -133,6 +145,9 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 		return ImportResult{Outcome: ImportRejected, Report: p.report}, nil
 	}
 	if err = p.apply(ctx, tx); err != nil {
+		if errors.Is(err, errImportStale) {
+			return ImportResult{Outcome: ImportStale, Report: p.report}, nil
+		}
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && (pg.Code == "23505" || pg.Code == "23503") {
 			// Something outside imports changed the same rows between plan and apply.
@@ -155,6 +170,12 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 		INSERT INTO import_runs (kind, idempotency_key, user_id, file_name, file_sha256, delimiter, total_rows, summary, result)
 		VALUES ($1,$2,NULLIF($3,'')::uuid,NULLIF($4,''),$5,$6,$7,$8,$9) RETURNING id::text`,
 		req.Kind, req.Key, req.UserID, req.FileName, table.SHA256, report.Delimiter, report.TotalRows, summary, stored).Scan(&runID); err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" {
+			// The same key was recorded by another kind's import that raced past the
+			// per-kind advisory lock: this one rolls back and reports the key conflict.
+			return ImportResult{Outcome: ImportKeyConflict}, nil
+		}
 		return ImportResult{}, fmt.Errorf("record import run: %w", err)
 	}
 	if err = tx.Commit(ctx); err != nil {

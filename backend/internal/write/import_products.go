@@ -63,10 +63,13 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 		return cat, err
 	}
 
-	rows, err = q.Query(ctx, `SELECT id::text, name FROM categories`)
+	// ORDER BY id: among case-duplicate categories the planner and ensureCategories must pick
+	// the same one (first wins in both).
+	rows, err = q.Query(ctx, `SELECT id::text, name FROM categories ORDER BY id`)
 	if err != nil {
 		return cat, err
 	}
+	cat.CategoryNames = map[string]string{}
 	for rows.Next() {
 		var c csvimport.CatalogCategory
 		if err = rows.Scan(&c.ID, &c.Name); err != nil {
@@ -74,6 +77,7 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 			return cat, err
 		}
 		cat.Categories = append(cat.Categories, c)
+		cat.CategoryNames[c.ID] = c.Name
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil {
@@ -103,6 +107,36 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 		cat.StockSizes[pid][size] = true
 	}
 	rows.Close()
+	if err = rows.Err(); err != nil {
+		return cat, err
+	}
+
+	// Sizes referenced by open documents. Transfer receive/cancel and stock count completion
+	// key stock by the stored size text, so a rename away from one of these sizes would let
+	// them write stock under a size no variant has any more.
+	rows, err = q.Query(ctx, `
+		SELECT DISTINCT product_id::text, variant_size FROM (
+		  SELECT ti.product_id, ti.variant_size FROM transfer_items ti
+		    JOIN transfers t ON t.id = ti.transfer_id WHERE t.status IN ('draft','in_transit')
+		  UNION ALL
+		  SELECT si.product_id, si.variant_size FROM stock_count_items si
+		    JOIN stock_counts c ON c.id = si.stock_count_id WHERE c.status IN ('planned','in_progress')) d`)
+	if err != nil {
+		return cat, err
+	}
+	cat.InFlightSizes = map[string]map[string]bool{}
+	for rows.Next() {
+		var pid, size string
+		if err = rows.Scan(&pid, &size); err != nil {
+			rows.Close()
+			return cat, err
+		}
+		if cat.InFlightSizes[pid] == nil {
+			cat.InFlightSizes[pid] = map[string]bool{}
+		}
+		cat.InFlightSizes[pid][size] = true
+	}
+	rows.Close()
 	return cat, rows.Err()
 }
 
@@ -120,12 +154,9 @@ func applyProductPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.ProductsPl
 	if err != nil {
 		return err
 	}
-	if len(plan.NewCategories) > 0 {
-		if err = bumpVersion(ctx, tx, "categories"); err != nil {
-			return err
-		}
-	}
-
+	// The content-version bumps hit one row per outlet; do them LAST (as UpdateProduct and
+	// stock count completion do) so this transaction holds those locks for the shortest time
+	// and cannot deadlock against them.
 	var (
 		newIdx    []int
 		updIdx    []int
@@ -147,6 +178,11 @@ func applyProductPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.ProductsPl
 	}
 	if err = writeImportedVariants(ctx, tx, plan.Products, productID); err != nil {
 		return err
+	}
+	if len(plan.NewCategories) > 0 {
+		if err = bumpVersion(ctx, tx, "categories"); err != nil {
+			return err
+		}
 	}
 	return bumpVersion(ctx, tx, "products")
 }
@@ -221,14 +257,14 @@ func insertImportedProducts(ctx context.Context, tx pgx.Tx, ps []csvimport.Plann
 		if err := rows.Scan(&id, &name, &brand); err != nil {
 			return err
 		}
-		created[name+"|"+brand] = id
+		created[csvimport.ProductKey(name, brand)] = id
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	rows.Close()
 	for _, i := range idx {
-		productID[i] = created[ps[i].Name+"|"+ps[i].Brand]
+		productID[i] = created[csvimport.ProductKey(ps[i].Name, ps[i].Brand)]
 	}
 	return nil
 }
@@ -272,6 +308,7 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 		cPrice                  []float64
 		uID, uSize, uBar        []string
 		uPrice                  []float64
+		uOld                    []string
 		rPID, rFrom, rTo        []string
 	)
 	for i, p := range ps {
@@ -282,7 +319,7 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 				cPrice = append(cPrice, v.Price)
 			case v.Update:
 				uID, uSize, uBar = append(uID, v.ExistingID), append(uSize, v.Size), append(uBar, v.Barcode)
-				uPrice = append(uPrice, v.Price)
+				uPrice, uOld = append(uPrice, v.Price), append(uOld, v.CurrentSize)
 				if v.RenameFrom != "" {
 					rPID, rFrom, rTo = append(rPID, productID[i]), append(rFrom, v.RenameFrom), append(rTo, v.Size)
 				}
@@ -299,23 +336,46 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 		}
 	}
 	if len(uID) > 0 {
-		if _, err := tx.Exec(ctx, `
+		// Concurrent-edit guard: a variant only updates while it still has the size the plan
+		// saw. If the product form renamed it in the meantime, the import is stale and the
+		// whole transaction rolls back.
+		ct, err := tx.Exec(ctx, `
 			UPDATE product_variants v SET size = u.s, price = u.pr,
 			       barcode = COALESCE(NULLIF(u.b,''), v.barcode)
-			  FROM unnest($1::uuid[],$2::text[],$3::numeric[],$4::text[]) AS u(id,s,pr,b)
-			 WHERE v.id = u.id`,
-			uID, uSize, uPrice, uBar); err != nil {
+			  FROM unnest($1::uuid[],$2::text[],$3::numeric[],$4::text[],$5::text[]) AS u(id,s,pr,b,old)
+			 WHERE v.id = u.id AND v.size = u.old`,
+			uID, uSize, uPrice, uBar, uOld)
+		if err != nil {
 			return err
+		}
+		if int(ct.RowsAffected()) != len(uID) {
+			return errImportStale
 		}
 	}
 	if len(rPID) > 0 {
+		// Lock the stock/price rows in (product, size) order first, then move exactly the
+		// rows that were locked; any difference means something changed under us.
 		for _, table := range []string{"outlet_variant_stock", "outlet_variant_price", "warehouse_variant_stock"} {
-			if _, err := tx.Exec(ctx, `
+			var locked int
+			if err := tx.QueryRow(ctx, `
+				SELECT count(*) FROM (
+				  SELECT 1 FROM `+table+` s
+				    JOIN unnest($1::uuid[],$2::text[]) AS r(pid,from_size)
+				      ON s.product_id = r.pid AND s.variant_size = r.from_size
+				   ORDER BY s.product_id, s.variant_size
+				     FOR UPDATE OF s) l`, rPID, rFrom).Scan(&locked); err != nil {
+				return err
+			}
+			ct, err := tx.Exec(ctx, `
 				UPDATE `+table+` s SET variant_size = r.to_size
 				  FROM unnest($1::uuid[],$2::text[],$3::text[]) AS r(pid,from_size,to_size)
 				 WHERE s.product_id = r.pid AND s.variant_size = r.from_size`,
-				rPID, rFrom, rTo); err != nil {
+				rPID, rFrom, rTo)
+			if err != nil {
 				return err
+			}
+			if int(ct.RowsAffected()) != locked {
+				return errImportStale
 			}
 		}
 	}

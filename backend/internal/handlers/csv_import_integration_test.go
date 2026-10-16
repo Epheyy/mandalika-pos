@@ -72,6 +72,7 @@ func TestCsvImportPostgres(t *testing.T) {
 
 	rd, wr, svc := read.New(pool), write.New(pool), service.NewOrderService(pool)
 	h := New(rd, nil, auth.NewStore(pool), wr, svc, syncpkg.New(pool, rd, svc, wr), nil)
+	h.importSlots = make(chan struct{}, 16) // the concurrency tests fire 6 at once; the 429 limit has its own unit test
 	secret := []byte("IM-INTEGRATION-SYNTHETIC-KEY")
 	issue := func(uid, role string, perms ...string) string {
 		tk, err := auth.IssueAccess(secret, time.Hour, uid, role, "", perms)
@@ -535,6 +536,96 @@ func TestCsvImportPostgres(t *testing.T) {
 		mustApply("/products/import", prodHeader+"Dahlia,Mandalika,,'- bahan alami,30 ml,50000,DAH-30,,,,\n", "p-dash")
 		if got := text(`SELECT description FROM products WHERE name='Dahlia'`); got != "- bahan alami" {
 			t.Errorf("stored %q, want the text without the apostrophe", got)
+		}
+	})
+
+	hasCode := func(rep csvimport.Report, code string) bool {
+		for _, i := range rep.Issues {
+			if i.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+	sub("products: a rename is blocked while an open transfer or stock count still uses the size, and allowed otherwise", func(t *testing.T) {
+		rename := prodHeader + "Melati,Mandalika,,,120 ml,180000,MEL-100,,,,\n"
+		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
+			t.Fatalf("no open document yet, the rename must be allowed: %+v", rep.Issues)
+		}
+		trf := text(`INSERT INTO transfers(status,source_outlet_id,dest_warehouse_id) VALUES('in_transit',$1,$2) RETURNING id::text`, outlet, wh)
+		exec(`INSERT INTO transfer_items(transfer_id,product_id,variant_size,sent_qty) VALUES ($1,$2,'100 ml',2)`, trf, melatiID)
+		rep := preview("/products/import", rename)
+		if !hasCode(rep, "size_in_flight") || !rep.HasErrors() {
+			t.Fatalf("in-transit transfer must block the rename: %+v", rep.Issues)
+		}
+		if code, _ := commit("/products/import", rename, rep, "p-trf"); code != http.StatusUnprocessableEntity {
+			t.Errorf("commit -> %d, want 422", code)
+		}
+		// a price-only change on the same variant is still fine
+		if rep := preview("/products/import", prodHeader+"Melati,Mandalika,,,100 ml,181000,MEL-100,,,,\n"); rep.HasErrors() {
+			t.Errorf("price-only change must not be blocked: %+v", rep.Issues)
+		}
+		exec(`UPDATE transfers SET status='completed' WHERE id=$1`, trf)
+		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") {
+			t.Fatalf("a completed transfer must not block: %+v", rep.Issues)
+		}
+		sc := text(`INSERT INTO stock_counts(name,status,outlet_id) VALUES('open count','in_progress',$1) RETURNING id::text`, outlet)
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size) VALUES ($1,$2,'Melati','100 ml')`, sc, melatiID)
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
+			t.Fatalf("an open stock count must block the rename: %+v", rep.Issues)
+		}
+		exec(`UPDATE stock_counts SET status='completed' WHERE id=$1`, sc)
+		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
+			t.Fatalf("a completed count must not block: %+v", rep.Issues)
+		}
+	})
+
+	sub("products: a variant renamed by the form between plan and apply makes the commit stale (409), nothing written", func(t *testing.T) {
+		csv := prodHeader + "Melati,Mandalika,,,100 ml,182000,MEL-100,,,,\n"
+		rep := preview("/products/import", csv)
+		if rep.HasErrors() || rep.Summary.Update != 1 {
+			t.Fatalf("%+v", rep.Issues)
+		}
+		before := stockSnapshot()
+		// The "form" holds the variant row (renamed, uncommitted) while the import plans on
+		// the old size and then blocks in apply; when the form commits, apply must notice.
+		form, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer form.Rollback(ctx)
+		if _, err = form.Exec(ctx, `UPDATE product_variants SET size='101 ml' WHERE sku='MEL-100'`); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan int, 1)
+		go func() { c, _ := commit("/products/import", csv, rep, "p-form"); done <- c }()
+		time.Sleep(700 * time.Millisecond)
+		if err = form.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if code := <-done; code != http.StatusConflict {
+			t.Errorf("commit status %d, want 409 import_stale", code)
+		}
+		if got := text(`SELECT price::text FROM product_variants WHERE sku='MEL-100'`); got != "180000.00" {
+			t.Errorf("stale commit changed the price to %s", got)
+		}
+		if stockSnapshot() != before {
+			t.Error("stale commit changed stock rows")
+		}
+		if count(`SELECT count(*) FROM import_runs WHERE idempotency_key='p-form'`) != 0 {
+			t.Error("stale commit recorded a run")
+		}
+		exec(`UPDATE product_variants SET size='100 ml' WHERE sku='MEL-100'`)
+	})
+
+	sub("customers: a stored phone with formatting still matches the cleaned file phone (skipped, not duplicated)", func(t *testing.T) {
+		exec(`INSERT INTO customers(name,phone) VALUES('Formatted','0811-222-333')`)
+		rep := mustApply("/customers/import", custHeader+"Formatted Lagi,0811222333,,,,\nFresh,081100000888,,,,\n", "key-fmt")
+		if rep.Summary.Skip != 1 || rep.Summary.Create != 1 {
+			t.Fatalf("%+v", rep.Summary)
+		}
+		if count(`SELECT count(*) FROM customers WHERE name='Formatted Lagi'`) != 0 {
+			t.Error("formatted phone was duplicated")
 		}
 	})
 

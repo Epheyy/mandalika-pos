@@ -15,7 +15,7 @@ import (
 func postImport(t *testing.T, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	// Write is nil on purpose: every case here must be refused before the repository.
-	h := &Handlers{}
+	h := &Handlers{importSlots: make(chan struct{}, maxConcurrentImports)}
 	r := httptest.NewRequest(http.MethodPost, "/customers/import", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
@@ -48,6 +48,25 @@ func TestImportRefusesBadRequestsBeforeTheRepository(t *testing.T) {
 				t.Fatalf("status %d want %d body %s", w.Code, c.want, w.Body.String()[:min(200, w.Body.Len())])
 			}
 		})
+	}
+}
+
+func TestImportBeyondTheConcurrencyLimitIs429(t *testing.T) {
+	h := &Handlers{importSlots: make(chan struct{}, maxConcurrentImports)}
+	for i := 0; i < maxConcurrentImports; i++ {
+		h.importSlots <- struct{}{} // every slot busy
+	}
+	r := httptest.NewRequest(http.MethodPost, "/customers/import", strings.NewReader(`{"csv":"x","dryRun":true}`))
+	w := httptest.NewRecorder()
+	h.ImportCustomers(w, r)
+	if w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), "sibuk") {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	<-h.importSlots // a freed slot admits the request again (it then fails on the nil repo only if it got that far)
+	w = httptest.NewRecorder()
+	h.ImportCustomers(w, httptest.NewRequest(http.MethodPost, "/customers/import", strings.NewReader(`{`)))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("freed slot: %d", w.Code)
 	}
 }
 

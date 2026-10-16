@@ -8,13 +8,22 @@ import (
 	"github.com/mandalika/pos-backend/internal/csvimport"
 )
 
+// Stored phones may carry formatting (the backoffice form saves what was typed, e.g.
+// "0811-222-333"); the import compares them with the format-cleaned file phone after
+// stripping the same noise (space, hyphen, dot, parentheses) from the stored value.
+// +62 versus 0 is deliberately NOT unified (plan D5).
+const (
+	normPhoneSQL  = `regexp_replace(phone, '[\s().-]', '', 'g')`
+	normPhoneSQL2 = `regexp_replace(c.phone, '[\s().-]', '', 'g')`
+)
+
 // planCustomerImport plans a customer file against live customers (merged_into IS NULL),
 // matching by exact phone in ONE grouped query. Existing phones are skipped, never merged.
 func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*importPlan, error) {
 	plan, err := csvimport.PlanCustomers(t, func(phones []string) (map[string]int, error) {
 		rows, err := q.Query(ctx,
-			`SELECT phone, count(*)::int FROM customers
-			  WHERE merged_into IS NULL AND phone = ANY($1) GROUP BY phone`, phones)
+			`SELECT `+normPhoneSQL+` AS np, count(*)::int FROM customers
+			  WHERE merged_into IS NULL AND `+normPhoneSQL+` = ANY($1) GROUP BY np`, phones)
 		if err != nil {
 			return nil, err
 		}
@@ -67,11 +76,11 @@ func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimp
 		INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
 		SELECT ins.id,
 		       (SELECT c.id FROM customers c
-		         WHERE c.phone = ins.phone AND c.merged_into IS NULL
+		         WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL
 		         ORDER BY c.created_at ASC, c.id ASC LIMIT 1),
 		       ins.phone
 		  FROM ins
-		 WHERE EXISTS (SELECT 1 FROM customers c WHERE c.phone = ins.phone AND c.merged_into IS NULL)
+		 WHERE EXISTS (SELECT 1 FROM customers c WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL)
 		ON CONFLICT DO NOTHING`,
 		names, phones, emails, births, annis, notes); err != nil {
 		return err

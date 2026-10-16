@@ -34,12 +34,15 @@ type Handlers struct {
 	OrderSvc *service.OrderService
 	Sync     *syncpkg.Engine
 	Signer   *uploads.Signer
+	// importSlots bounds concurrent CSV imports per process (a 50k-row preview holds several copies in memory).
+	importSlots chan struct{}
 }
 
 func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
 	os *service.OrderService, sy *syncpkg.Engine, signer *uploads.Signer) *Handlers {
 	return &Handlers{Repo: repo, Cache: c, Store: store, Write: wr,
-		OrderSvc: os, Sync: sy, Signer: signer}
+		OrderSvc: os, Sync: sy, Signer: signer,
+		importSlots: make(chan struct{}, maxConcurrentImports)}
 }
 
 // invalidate drops the whole read cache (degradable, coarse). Called after any

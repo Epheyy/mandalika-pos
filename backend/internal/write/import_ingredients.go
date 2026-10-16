@@ -33,7 +33,7 @@ func planIngredientImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*i
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	rows, err = q.Query(ctx, `SELECT id::text, name FROM ingredient_categories`)
+	rows, err = q.Query(ctx, `SELECT id::text, name FROM ingredient_categories ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func applyIngredientPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.Ingredi
 		}
 	}
 	catIDs := map[string]string{}
-	rows, err := tx.Query(ctx, `SELECT name, id::text FROM ingredient_categories`)
+	rows, err := tx.Query(ctx, `SELECT name, id::text FROM ingredient_categories ORDER BY id`)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,10 @@ func applyIngredientPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.Ingredi
 			rows.Close()
 			return err
 		}
-		catIDs[strings.ToLower(strings.TrimSpace(name))] = id // planner's folding, not the database locale
+		key := strings.ToLower(strings.TrimSpace(name)) // planner's folding, not the database locale
+		if _, ok := catIDs[key]; !ok {                  // first (lowest id) wins, as in the planner
+			catIDs[key] = id
+		}
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil {
