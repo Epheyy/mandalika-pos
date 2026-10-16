@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const h = vi.hoisted(() => ({ calls: [] as string[], journal: null as null | (() => Promise<unknown>) }))
@@ -46,14 +46,19 @@ describe('storage boot (A01b)', () => {
     expect(appAt).toBeGreaterThan(returnAt) // the catch returns before App can render
     expect(main.slice(catchAt, returnAt)).not.toMatch(/<App/)
   })
-  it('the OTA confirm lives only in App.tsx, never in boot-error, main, sync or auth paths (A35)', () => {
-    expect(src('./BootError.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
-    expect(src('./main.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
-    expect(src('./cashier/SyncProvider.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
-    expect(src('./auth.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
+  it('the OTA confirm is called from App.tsx only; native.ts merely defines it (A35)', () => {
+    const root = fileURLToPath(new URL('.', import.meta.url))
+    const files = (readdirSync(root, { recursive: true }) as string[])
+      .map((f) => f.replaceAll('\\', '/'))
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.endsWith('.d.ts'))
+    expect(files.length).toBeGreaterThan(20) // the scan really walked the tree
+    const callers = files.filter((f) => /otaNotifyReady\s*\(|notifyAppReady\s*\(/.test(src('./' + f)))
+    expect(callers.sort()).toEqual(['App.tsx', 'native.ts'])
+    // native.ts only defines it; App.tsx has exactly one call, inside the empty-deps mount effect
+    expect(src('./native.ts').match(/otaNotifyReady\s*\(/g)).toHaveLength(1) // the definition
+    expect(src('./native.ts').match(/notifyAppReady\s*\(/g)).toHaveLength(1)
     const app = src('./App.tsx')
-    expect(app.match(/otaNotifyReady\(\)/g)).toHaveLength(1)
-    // inside the mount effect (empty deps), not behind a network/auth promise
+    expect(app.match(/otaNotifyReady\s*\(/g)).toHaveLength(1)
     expect(app).toMatch(/useEffect\(\(\) => \{[^}]*otaNotifyReady\(\)[^}]*\}, \[\]\)/)
   })
 })
