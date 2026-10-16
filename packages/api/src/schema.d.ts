@@ -519,6 +519,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CSV customer import, dry run or commit (manage_customers)
+         * @description dryRun=true parses, validates and plans against current data inside a read-only transaction and returns the report. dryRun=false needs the Idempotency-Key header plus the preview's fileSha256 and expectedSummary, re-plans under an advisory lock and applies all-or-nothing (422 with the report and nothing written when any row has an error; 409 when the data changed since the preview). Duplicate phones are skipped, never merged.
+         */
+        post: operations["importCustomers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CSV product import, dry run or commit (manage_products)
+         * @description Merge-only: never deletes a product or variant and never writes stock, images, favourites or per-outlet price. Same dry run and commit contract as the customer import.
+         */
+        post: operations["importProducts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CSV ingredient import, dry run or commit (manage_inventory, recipes module)
+         * @description Same dry run and commit contract as the customer import. Ingredient stock is never touched.
+         */
+        post: operations["importIngredients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promo-reward-grants": {
         parameters: {
             query?: never;
@@ -3749,6 +3809,77 @@ export interface components {
             endDate?: string;
             combinable?: boolean | null;
         };
+        ImportSummary: {
+            create: number;
+            update: number;
+            skip: number;
+            error: number;
+            warning: number;
+            newCategories: number;
+        };
+        CsvImportRequest: {
+            /** @description raw CSV text (UTF-8) */
+            csv: string;
+            fileName?: string;
+            dryRun: boolean;
+            /** @description the preview hash; required when dryRun=false */
+            fileSha256?: string;
+            expectedSummary?: components["schemas"]["ImportSummary"];
+        };
+        ImportFileIssue: {
+            /** @enum {string} */
+            severity: "error" | "warning";
+            code: string;
+            message: string;
+            column?: string;
+        };
+        ImportIssue: {
+            row: number;
+            line: number;
+            column?: string;
+            /** @enum {string} */
+            severity: "error" | "warning";
+            code: string;
+            message: string;
+            value?: string;
+        };
+        ImportRowResult: {
+            row: number;
+            line: number;
+            /** @enum {string} */
+            action: "create" | "update" | "skip" | "error";
+            key: string;
+            reason?: string;
+        };
+        ImportReport: {
+            /** @enum {string} */
+            kind: "customers" | "products" | "ingredients";
+            delimiter: string;
+            fileSha256: string;
+            totalRows: number;
+            summary: components["schemas"]["ImportSummary"];
+            fileIssues: components["schemas"]["ImportFileIssue"][];
+            /** @description every error and warning, capped at 5000 */
+            issues: components["schemas"]["ImportIssue"][];
+            /** @description first 500 rows only (counts are exact) */
+            rows: components["schemas"]["ImportRowResult"][];
+            runId?: string;
+            appliedAt?: string;
+        };
+        ImportReportResponse: {
+            data: components["schemas"]["ImportReport"];
+        };
+        ImportRejectedResponse: {
+            data: components["schemas"]["ImportReport"];
+            error: string;
+        };
+        ImportConflictResponse: {
+            error: string;
+            data: {
+                /** @enum {string} */
+                code: "import_stale" | "idempotency_conflict";
+            };
+        };
         OutletInput: {
             name: string;
             code?: string;
@@ -3860,6 +3991,33 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description preview, applied result, or replay of an earlier commit */
+        ImportReportOK: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ImportReportResponse"];
+            };
+        };
+        /** @description file or row errors; nothing was applied (the report says why) */
+        ImportRejected: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ImportRejectedResponse"];
+            };
+        };
+        /** @description import_stale (data changed since the preview) or idempotency_conflict (same key, different file) */
+        ImportConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ImportConflictResponse"];
+            };
+        };
         /** @description not found */
         NotFound: {
             headers: {
@@ -3873,6 +4031,8 @@ export interface components {
     parameters: {
         /** @description Active outlet override (admin only, or must match token outlet). */
         OutletHeader: string;
+        /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+        ImportIdempotencyKey: string;
         Page: number;
         Limit: number;
         /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
@@ -4926,6 +5086,114 @@ export interface operations {
                     "application/json": components["schemas"]["DiscountCodeListResponse"];
                 };
             };
+        };
+    };
+    importCustomers: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+                "Idempotency-Key"?: components["parameters"]["ImportIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ImportReportOK"];
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["ImportConflict"];
+            /** @description request body over the 20 MiB cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ImportRejected"];
+        };
+    };
+    importProducts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+                "Idempotency-Key"?: components["parameters"]["ImportIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ImportReportOK"];
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["ImportConflict"];
+            /** @description request body over the 20 MiB cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ImportRejected"];
+        };
+    };
+    importIngredients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+                "Idempotency-Key"?: components["parameters"]["ImportIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ImportReportOK"];
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["ImportConflict"];
+            /** @description request body over the 20 MiB cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ImportRejected"];
         };
     };
     listPromoRewardGrants: {

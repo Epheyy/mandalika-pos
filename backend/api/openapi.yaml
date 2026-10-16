@@ -16,6 +16,7 @@ tags:
   - name: catalog
   - name: customers
   - name: promotions
+  - name: imports
   - name: sales
   - name: settings
   - name: users
@@ -34,6 +35,12 @@ components:
       required: false
       description: Active outlet override (admin only, or must match token outlet).
       schema: { type: string, format: uuid }
+    ImportIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Required when dryRun=false (generated once per preview, reused on retry).
+      schema: { type: string }
     Page:
       name: page
       in: query
@@ -2084,6 +2091,88 @@ components:
         startDate: { type: string }
         endDate: { type: string }
         combinable: { type: boolean, nullable: true }
+    ImportSummary:
+      type: object
+      required: [create, update, skip, error, warning, newCategories]
+      properties:
+        create: { type: integer }
+        update: { type: integer }
+        skip: { type: integer }
+        error: { type: integer }
+        warning: { type: integer }
+        newCategories: { type: integer }
+    CsvImportRequest:
+      type: object
+      required: [csv, dryRun]
+      properties:
+        csv: { type: string, description: 'raw CSV text (UTF-8)' }
+        fileName: { type: string }
+        dryRun: { type: boolean }
+        fileSha256: { type: string, description: 'the preview hash; required when dryRun=false' }
+        expectedSummary: { $ref: '#/components/schemas/ImportSummary' }
+    ImportFileIssue:
+      type: object
+      required: [severity, code, message]
+      properties:
+        severity: { type: string, enum: [error, warning] }
+        code: { type: string }
+        message: { type: string }
+        column: { type: string }
+    ImportIssue:
+      type: object
+      required: [row, line, severity, code, message]
+      properties:
+        row: { type: integer }
+        line: { type: integer }
+        column: { type: string }
+        severity: { type: string, enum: [error, warning] }
+        code: { type: string }
+        message: { type: string }
+        value: { type: string }
+    ImportRowResult:
+      type: object
+      required: [row, line, action, key]
+      properties:
+        row: { type: integer }
+        line: { type: integer }
+        action: { type: string, enum: [create, update, skip, error] }
+        key: { type: string }
+        reason: { type: string }
+    ImportReport:
+      type: object
+      required: [kind, delimiter, fileSha256, totalRows, summary, fileIssues, issues, rows]
+      properties:
+        kind: { type: string, enum: [customers, products, ingredients] }
+        delimiter: { type: string }
+        fileSha256: { type: string }
+        totalRows: { type: integer }
+        summary: { $ref: '#/components/schemas/ImportSummary' }
+        fileIssues: { type: array, items: { $ref: '#/components/schemas/ImportFileIssue' } }
+        issues: { type: array, description: 'every error and warning, capped at 5000', items: { $ref: '#/components/schemas/ImportIssue' } }
+        rows: { type: array, description: 'first 500 rows only (counts are exact)', items: { $ref: '#/components/schemas/ImportRowResult' } }
+        runId: { type: string }
+        appliedAt: { type: string }
+    ImportReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ImportReport' }
+    ImportRejectedResponse:
+      type: object
+      required: [data, error]
+      properties:
+        data: { $ref: '#/components/schemas/ImportReport' }
+        error: { type: string }
+    ImportConflictResponse:
+      type: object
+      required: [error, data]
+      properties:
+        error: { type: string }
+        data:
+          type: object
+          required: [code]
+          properties:
+            code: { type: string, enum: [import_stale, idempotency_conflict] }
     OutletInput:
       type: object
       required: [name, isActive]
@@ -2209,6 +2298,21 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    ImportReportOK:
+      description: preview, applied result, or replay of an earlier commit
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ImportReportResponse' }
+    ImportRejected:
+      description: file or row errors; nothing was applied (the report says why)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ImportRejectedResponse' }
+    ImportConflict:
+      description: import_stale (data changed since the preview) or idempotency_conflict (same key, different file)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ImportConflictResponse' }
     NotFound:
       description: not found
       content:
@@ -2858,6 +2962,75 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
+  /api/v1/customers/import:
+    post:
+      operationId: importCustomers
+      tags: [imports]
+      summary: CSV customer import, dry run or commit (manage_customers)
+      description: >
+        dryRun=true parses, validates and plans against current data inside a read-only
+        transaction and returns the report. dryRun=false needs the Idempotency-Key header
+        plus the preview's fileSha256 and expectedSummary, re-plans under an advisory lock
+        and applies all-or-nothing (422 with the report and nothing written when any row
+        has an error; 409 when the data changed since the preview). Duplicate phones are
+        skipped, never merged.
+      parameters:
+        - $ref: '#/components/parameters/ImportIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ImportReportOK' }
+        '400': { description: invalid request }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ImportConflict' }
+        '413': { description: request body over the 20 MiB cap }
+        '422': { $ref: '#/components/responses/ImportRejected' }
+  /api/v1/products/import:
+    post:
+      operationId: importProducts
+      tags: [imports]
+      summary: CSV product import, dry run or commit (manage_products)
+      description: >
+        Merge-only: never deletes a product or variant and never writes stock, images,
+        favourites or per-outlet price. Same dry run and commit contract as the customer
+        import.
+      parameters:
+        - $ref: '#/components/parameters/ImportIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ImportReportOK' }
+        '400': { description: invalid request }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ImportConflict' }
+        '413': { description: request body over the 20 MiB cap }
+        '422': { $ref: '#/components/responses/ImportRejected' }
+  /api/v1/ingredients/import:
+    post:
+      operationId: importIngredients
+      tags: [imports]
+      summary: CSV ingredient import, dry run or commit (manage_inventory, recipes module)
+      description: Same dry run and commit contract as the customer import. Ingredient stock is never touched.
+      parameters:
+        - $ref: '#/components/parameters/ImportIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ImportReportOK' }
+        '400': { description: invalid request }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ImportConflict' }
+        '413': { description: request body over the 20 MiB cap }
+        '422': { $ref: '#/components/responses/ImportRejected' }
   /api/v1/promo-reward-grants:
     get:
       operationId: listPromoRewardGrants
