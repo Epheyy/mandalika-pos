@@ -556,7 +556,7 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 			if holder := sizeHolder(existing, r.size, matched.ID); holder != "" {
 				fail("Ukuran", "size_collision", fmt.Sprintf("ukuran \"%s\" sudah dipakai varian lain (SKU %s); tukar atau ganti nama ukuran lewat form produk", r.size, holder), r.size)
 			} else if ix.stockSizes[matched.ProductID][r.size] {
-				fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok/harga dari varian lama; rapikan lewat form produk dulu", r.size), r.size)
+				fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok atau harga (di outlet atau gudang) dari varian lama; kosongkan lewat penyesuaian stok atau pilih ukuran lain", r.size), r.size)
 			} else if ix.inFlight[matched.ProductID][matched.Size] {
 				fail("Ukuran", "size_in_flight", fmt.Sprintf("ukuran \"%s\" masih dipakai transfer atau stock count yang belum selesai; selesaikan atau batalkan dulu sebelum mengganti ukuran", matched.Size), r.size)
 			} else {
@@ -587,7 +587,7 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 		if holder := sizeHolder(existing, r.size, ""); holder != "" {
 			fail("Ukuran", "size_exists", fmt.Sprintf("ukuran \"%s\" sudah ada pada varian lain (SKU %s)", r.size, holder), r.size)
 		} else if g.existing != nil && ix.stockSizes[g.existing.ID][r.size] {
-			fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok/harga dari varian lama; rapikan lewat form produk dulu", r.size), r.size)
+			fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok atau harga (di outlet atau gudang) dari varian lama; kosongkan lewat penyesuaian stok atau pilih ukuran lain", r.size), r.size)
 		}
 		if owner := ix.barcodeOf[effBarcode]; owner != "" {
 			fail("Barcode", "barcode_in_use", "barcode (atau SKU yang dipakai sebagai barcode) sudah dipakai varian lain", effBarcode)

@@ -116,12 +116,12 @@ func TestCleanPhoneAndProblems(t *testing.T) {
 	if got := CleanPhone("+62 812 3456 789"); got != "+628123456789" {
 		t.Errorf("CleanPhone keeps leading +, got %q", got)
 	}
-	for _, s := range []string{"6.28E+11", "6.28e11", "8.12345E+10"} {
+	for _, s := range []string{"6.28E+11", "6.28e+11", "8.12345E+10", "8.99123E+12", "1E-5"} {
 		if !LooksScientific(s) {
 			t.Errorf("LooksScientific(%q) should be true", s)
 		}
 	}
-	for _, s := range []string{"0812345678", "+62812345", "081234E", "12e"} {
+	for _, s := range []string{"0812345678", "+62812345", "081234E", "12e", "12E3", "1E5-A", "6.28e11"} {
 		if LooksScientific(s) {
 			t.Errorf("LooksScientific(%q) should be false", s)
 		}

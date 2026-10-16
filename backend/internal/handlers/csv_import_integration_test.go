@@ -580,6 +580,56 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	// waitForLockWait polls until some backend is blocked on a heavyweight lock (the import's
+	// guarded UPDATE waiting for the held row), bounded so a regression fails instead of hanging.
+	waitForLockWait := func(t *testing.T) {
+		t.Helper()
+		deadline := time.Now().Add(15 * time.Second)
+		for time.Now().Before(deadline) {
+			if count(`SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'`) > 0 {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatal("the import never blocked on the held row")
+	}
+
+	sub("products: an open document created between plan and apply makes the rename stale (409)", func(t *testing.T) {
+		csv := prodHeader + "Melati,Mandalika,,,130 ml,180000,MEL-100,,,,\n"
+		rep := preview("/products/import", csv)
+		if rep.HasErrors() || hasCode(rep, "size_in_flight") {
+			t.Fatalf("%+v", rep.Issues)
+		}
+		before := stockSnapshot()
+		holder, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer holder.Rollback(ctx)
+		if _, err = holder.Exec(ctx, `UPDATE product_variants SET price=price WHERE sku='MEL-100'`); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan int, 1)
+		go func() { c, _ := commit("/products/import", csv, rep, "p-late-doc"); done <- c }()
+		waitForLockWait(t)
+		// a stock count for the OLD size appears after the import planned, before it applies
+		sc := text(`INSERT INTO stock_counts(name,status,outlet_id) VALUES('late count','planned',$1) RETURNING id::text`, outlet)
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size) VALUES ($1,$2,'Melati','100 ml')`, sc, melatiID)
+		if err = holder.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if code := <-done; code != http.StatusConflict {
+			t.Errorf("commit status %d, want 409 import_stale", code)
+		}
+		if got := text(`SELECT size FROM product_variants WHERE sku='MEL-100'`); got != "100 ml" {
+			t.Errorf("rename was applied despite the open count: %s", got)
+		}
+		if stockSnapshot() != before {
+			t.Error("stale commit moved stock rows")
+		}
+		exec(`DELETE FROM stock_counts WHERE id=$1`, sc)
+	})
+
 	sub("products: a variant renamed by the form between plan and apply makes the commit stale (409), nothing written", func(t *testing.T) {
 		csv := prodHeader + "Melati,Mandalika,,,100 ml,182000,MEL-100,,,,\n"
 		rep := preview("/products/import", csv)
@@ -599,7 +649,7 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 		done := make(chan int, 1)
 		go func() { c, _ := commit("/products/import", csv, rep, "p-form"); done <- c }()
-		time.Sleep(700 * time.Millisecond)
+		waitForLockWait(t)
 		if err = form.Commit(ctx); err != nil {
 			t.Fatal(err)
 		}

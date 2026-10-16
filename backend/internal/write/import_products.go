@@ -362,7 +362,7 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 				  SELECT 1 FROM `+table+` s
 				    JOIN unnest($1::uuid[],$2::text[]) AS r(pid,from_size)
 				      ON s.product_id = r.pid AND s.variant_size = r.from_size
-				   ORDER BY s.product_id, s.variant_size
+				   ORDER BY `+lockOrder(table)+`
 				     FOR UPDATE OF s) l`, rPID, rFrom).Scan(&locked); err != nil {
 				return err
 			}
@@ -378,6 +378,33 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 				return errImportStale
 			}
 		}
+		// The planner refused renames away from sizes used by open documents, but a transfer
+		// or stock count can be created between plan and now. Re-check just the renamed
+		// pairs inside this transaction, as late as possible, and go stale if one appeared.
+		var open int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM (
+			  SELECT ti.product_id, ti.variant_size FROM transfer_items ti
+			    JOIN transfers t ON t.id = ti.transfer_id WHERE t.status IN ('draft','in_transit')
+			  UNION ALL
+			  SELECT si.product_id, si.variant_size FROM stock_count_items si
+			    JOIN stock_counts c ON c.id = si.stock_count_id WHERE c.status IN ('planned','in_progress')) d
+			  JOIN unnest($1::uuid[],$2::text[]) AS r(pid,from_size)
+			    ON d.product_id = r.pid AND d.variant_size = r.from_size`, rPID, rFrom).Scan(&open); err != nil {
+			return err
+		}
+		if open > 0 {
+			return errImportStale
+		}
 	}
 	return nil
+}
+
+// lockOrder is the total order the rename locks stock/price rows in (location first, then
+// product and size), the same order SetProductOutletConfig upserts them in.
+func lockOrder(table string) string {
+	if table == "warehouse_variant_stock" {
+		return "s.warehouse_id, s.product_id, s.variant_size"
+	}
+	return "s.outlet_id, s.product_id, s.variant_size"
 }

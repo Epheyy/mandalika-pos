@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -337,6 +338,16 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 		return err
 	}
 	defer t.Rollback(ctx)
+
+	// Upsert in (outlet, size) order so concurrent writers (and the CSV import's rename)
+	// take the per-outlet rows in one consistent order.
+	items = append([]api.OutletConfigItemInput(nil), items...)
+	sort.SliceStable(items, func(i, j int) bool {
+		if a, b := items[i].OutletId.String(), items[j].OutletId.String(); a != b {
+			return a < b
+		}
+		return items[i].VariantSize < items[j].VariantSize
+	})
 
 	seen := map[string]bool{}
 	var outletIDs []string

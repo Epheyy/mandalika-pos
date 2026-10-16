@@ -23,7 +23,7 @@ var (
 	errBlank = errors.New("kosong")
 
 	digitsOnly       = regexp.MustCompile(`^\d+$`)
-	scientific       = regexp.MustCompile(`^\d+([.,]\d+)?[eE][+-]?\d+$`)
+	scientific       = regexp.MustCompile(`^\d+([.,]\d+)?[eE][+-]\d+$`) // Excel always writes the sign (8.99E+12); "12E3" can be a real SKU
 	phoneShape       = regexp.MustCompile(`^\+?\d{6,20}$`)
 	emailShape       = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 	dateISO          = regexp.MustCompile(`^(\d{4})-(\d{1,2})-(\d{1,2})$`)

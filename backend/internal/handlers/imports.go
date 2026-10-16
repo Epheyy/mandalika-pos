@@ -39,6 +39,9 @@ func (h *Handlers) ImportIngredients(w http.ResponseWriter, r *http.Request) {
 // process; Cloud Run gives 512 MiB and one 50k-row preview holds several copies of the file.
 const maxConcurrentImports = 2
 
+// defaultImportSlots serves a Handlers value built without New (nil importSlots).
+var defaultImportSlots = make(chan struct{}, maxConcurrentImports)
+
 // The server's global timeouts (ReadTimeout 15s, WriteTimeout 30s) are far too short for a
 // 16 MiB upload plus a 50k-row plan, so these routes alone extend their own deadlines.
 const (
@@ -47,17 +50,28 @@ const (
 )
 
 func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
+	slots := h.importSlots
+	if slots == nil { // a Handlers built without New still gets the default limit
+		slots = defaultImportSlots
+	}
 	select {
-	case h.importSlots <- struct{}{}:
-		defer func() { <-h.importSlots }()
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
 	default:
 		httpx.Err(w, http.StatusTooManyRequests, "sibuk, coba lagi sebentar (impor lain sedang berjalan)")
 		return
 	}
 	rc := http.NewResponseController(w)
-	// Unsupported writers (tests) return an error that is fine to ignore.
-	_ = rc.SetReadDeadline(time.Now().Add(importReadWindow))
-	_ = rc.SetWriteDeadline(time.Now().Add(importWriteWindow))
+	for name, set := range map[string]func(time.Time) error{"read": rc.SetReadDeadline, "write": rc.SetWriteDeadline} {
+		window := importReadWindow
+		if name == "write" {
+			window = importWriteWindow
+		}
+		// A writer without deadline support (httptest) is expected; anything else is worth a log.
+		if err := set(time.Now().Add(window)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			slog.Warn("csv import: could not extend deadline", "which", name, "err", err)
+		}
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, importBodyCap)
 	var body api.CsvImportRequest
 	if err := httpx.Decode(r, &body); err != nil {
