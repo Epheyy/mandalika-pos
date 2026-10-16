@@ -1,6 +1,9 @@
 package csvimport
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const ingredientHeader = "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\n"
 
@@ -12,6 +15,7 @@ func ingCatalog() IngredientCatalog {
 			{ID: "i2", Name: "Alkohol", Unit: "ml", Active: true},
 			{ID: "i3", Name: "Dup", Unit: "ml", Active: true},
 			{ID: "i4", Name: "dup", Unit: "ml", Active: true},
+			{ID: "i5", Name: "Dormant", Unit: "g", Active: false},
 		},
 		Categories: []CatalogCategory{{ID: "k1", Name: "Fragrance Oil"}},
 	}
@@ -104,5 +108,93 @@ func TestPlanIngredientsNameExistsWithOtherSKUWarns(t *testing.T) {
 	p := planIngredients(t, ingredientHeader+"Rose Oil,RO-002,g,,,,\n")
 	if p.Report.HasErrors() || p.Report.Summary.Create != 1 || !hasIssue(p.Report, "name_exists", SevWarning) {
 		t.Fatalf("%+v", p.Report)
+	}
+}
+
+func TestPlanIngredientsAssignsSKUToUniqueBlankSKUNameMatch(t *testing.T) {
+	p := planIngredients(t, ingredientHeader+" ALKOHOL ,AL-1,ml,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Update != 1 || r.Summary.Create != 0 || r.Summary.Warning != 0 {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	if len(p.Ingredients) != 1 || p.Ingredients[0].ExistingID != "i2" || p.Ingredients[0].SKU != "AL-1" {
+		t.Fatalf("must update the existing blank-SKU ingredient: %+v", p.Ingredients)
+	}
+	if r.Rows[0].Action != ActionUpdate || !strings.Contains(r.Rows[0].Reason, "AL-1") || !strings.Contains(r.Rows[0].Reason, "ditetapkan") {
+		t.Errorf("reason must note the SKU assignment: %+v", r.Rows[0])
+	}
+}
+
+func TestPlanIngredientsSKUAssignNegativesKeepCreateWithWarning(t *testing.T) {
+	// "Dup" matches two ingredients; "Rose Oil" matches one that already has another SKU.
+	p := planIngredients(t, ingredientHeader+"Dup,DU-1,ml,,,,\nRose Oil,RO-NEW,g,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Create != 2 || r.Summary.Update != 0 || r.Summary.Warning != 2 {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	for _, i := range p.Ingredients {
+		if i.ExistingID != "" {
+			t.Errorf("must stay a create: %+v", i)
+		}
+	}
+	if got := issueCodes(r, SevWarning); len(got) != 2 || got[0] != "name_exists" || got[1] != "name_exists" {
+		t.Errorf("warnings %v", got)
+	}
+}
+
+func TestPlanIngredientsSKUAssignCannotRepeat(t *testing.T) {
+	// the same SKU twice stays a duplicate_in_file error
+	p := planIngredients(t, ingredientHeader+"Alkohol,AL-1,ml,,,,\nAlkohol,al-1,ml,,,,\n")
+	if !hasIssue(p.Report, "duplicate_in_file", SevError) {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+	// two different SKUs for the same ingredient: the second row targets it again -> error
+	p = planIngredients(t, ingredientHeader+"Alkohol,AL-1,ml,,,,\nAlkohol,AL-2,ml,,,,\n")
+	if rowIssue(p.Report, 2, "duplicate_in_file") == nil || p.Report.Summary.Error != 1 {
+		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+}
+
+func rowIssue(r Report, row int, code string) *Issue {
+	for i := range r.Issues {
+		if r.Issues[i].Row == row && r.Issues[i].Code == code {
+			return &r.Issues[i]
+		}
+	}
+	return nil
+}
+
+func TestPlanIngredientsOneIngredientTargetedByTwoRowsIsDuplicate(t *testing.T) {
+	cases := map[string]string{
+		"assign then name-only":    "Alkohol,AL-1,ml,,,,\nAlkohol,,kg,,,,\n",
+		"name-only then assign":    "Alkohol,,kg,,,,\nAlkohol,AL-1,ml,,,,\n",
+		"sku match then name-only": "Rose Oil,RO-001,g,,20.000,,\nRose Oil,,g,,30.000,,\n",
+		"name-only then sku match": "Rose Oil,,g,,30.000,,\nRose Oil,RO-001,g,,20.000,,\n",
+	}
+	for name, body := range cases {
+		p := planIngredients(t, ingredientHeader+body)
+		if rowIssue(p.Report, 2, "duplicate_in_file") == nil || p.Report.Summary.Error != 1 {
+			t.Errorf("%s: %+v %+v", name, p.Report.Summary, p.Report.Issues)
+		}
+	}
+}
+
+func TestPlanIngredientsErroredRowDoesNotClaimTheIngredient(t *testing.T) {
+	// row 1 has a bad cost (error); it must not make row 2 a duplicate of it
+	p := planIngredients(t, ingredientHeader+"Alkohol,AL-1,ml,,abc,,\nAlkohol,,ml,,5.000,,\n")
+	if rowIssue(p.Report, 1, "invalid_number") == nil || rowIssue(p.Report, 2, "duplicate_in_file") != nil {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+}
+
+func TestPlanIngredientsSKUAssignUnitMismatchAndInactive(t *testing.T) {
+	p := planIngredients(t, ingredientHeader+"Alkohol,AL-1,kg,,,,\n")
+	if rowIssue(p.Report, 1, "unit_mismatch") == nil || p.Report.Summary.Error != 1 || p.Report.Summary.Update != 0 {
+		t.Fatalf("a different unit on the assign path is a row error: %+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+	p = planIngredients(t, ingredientHeader+"Dormant,DO-1,g,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Update != 1 || r.Summary.Warning != 1 || !hasIssue(r, "ingredient_inactive", SevWarning) {
+		t.Fatalf("assigning to an inactive ingredient warns: %+v %+v", r.Summary, r.Issues)
 	}
 }

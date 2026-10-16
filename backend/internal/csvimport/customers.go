@@ -31,9 +31,26 @@ type CustomerCreate struct {
 	Name, Phone, Email, Birthday, Anniversary, Notes string
 }
 
-// CustomerPhoneLookup returns, for the given cleaned phones, how many LIVE customers
-// (merged_into IS NULL) already have each phone exactly. Phones with none are absent.
-type CustomerPhoneLookup func(phones []string) (map[string]int, error)
+// MergedKeeper is the terminal live customer a merged-away (tombstoned) customer ended
+// up in; the planner only quotes its name and the last four digits of its phone.
+type MergedKeeper struct {
+	Name, Phone string
+	// ChainTooLong is set when the merge chain was cut at the depth cap, so Name/Phone
+	// are an intermediate record and must not be quoted as the keeper.
+	ChainTooLong bool
+}
+
+// PhoneMatch is what the database knows about one cleaned phone: how many LIVE customers
+// (merged_into IS NULL) have it exactly, and, when none do but a tombstoned customer
+// had it, the keeper that customer was merged into (nil otherwise).
+type PhoneMatch struct {
+	Live   int
+	Keeper *MergedKeeper
+}
+
+// CustomerPhoneLookup returns a PhoneMatch for each cleaned phone that has a live or a
+// tombstoned customer. Phones with neither are absent.
+type CustomerPhoneLookup func(phones []string) (map[string]PhoneMatch, error)
 
 // CustomersPlan is the outcome of planning a customer file.
 type CustomersPlan struct {
@@ -48,6 +65,8 @@ type customerCandidate struct {
 
 // PlanCustomers validates every row and decides create or skip against live customers.
 // A phone that already exists is skipped and reported; nothing is ever merged or filled.
+// A phone that only a merged-away (tombstoned) customer had is skipped with a warning
+// naming the keeper: an import never re-creates a merged customer.
 func PlanCustomers(t *Table, lookup CustomerPhoneLookup) (*CustomersPlan, error) {
 	b := NewBuilder(KindCustomers, t)
 	if t.HasFileError() {
@@ -69,7 +88,7 @@ func PlanCustomers(t *Table, lookup CustomerPhoneLookup) (*CustomersPlan, error)
 	for _, c := range cands {
 		phones = append(phones, c.c.Phone)
 	}
-	existing := map[string]int{}
+	existing := map[string]PhoneMatch{}
 	if len(phones) > 0 {
 		var err error
 		if existing, err = lookup(phones); err != nil {
@@ -78,7 +97,11 @@ func PlanCustomers(t *Table, lookup CustomerPhoneLookup) (*CustomersPlan, error)
 	}
 	plan := &CustomersPlan{}
 	for _, cand := range cands {
-		switch n := existing[cand.c.Phone]; {
+		m := existing[cand.c.Phone]
+		switch n := m.Live; {
+		case n == 0 && m.Keeper != nil:
+			b.Issue(cand.row, "Telepon", SevWarning, "merged_away", mergedAwayMessage(m.Keeper), cand.c.Phone)
+			b.Row(cand.row, ActionSkip, cand.c.Phone, mergedAwayReason)
 		case n == 0:
 			plan.Creates = append(plan.Creates, cand.c)
 			b.Row(cand.row, ActionCreate, cand.c.Phone, "")
@@ -92,6 +115,34 @@ func PlanCustomers(t *Table, lookup CustomerPhoneLookup) (*CustomersPlan, error)
 	}
 	plan.Report = b.Report()
 	return plan, nil
+}
+
+const (
+	mergedAwayReason = "pelanggan ini sudah digabung ke pelanggan lain; tidak dibuat ulang"
+	// mergedAwayStored replaces the issue message in the audit copy (it names the keeper).
+	mergedAwayStored = "pelanggan dengan nomor ini sudah digabung ke pelanggan lain; baris dilewati"
+)
+
+// mergedAwayMessage points at the keeper by name and masked phone only.
+func mergedAwayMessage(k *MergedKeeper) string {
+	if k.ChainTooLong {
+		return "pelanggan dengan nomor ini sudah digabung, tetapi rantai penggabungan terlalu panjang untuk ditelusuri; baris dilewati, tidak dibuat ulang"
+	}
+	return fmt.Sprintf("pelanggan dengan nomor ini sudah digabung ke %q (telepon ****%s); baris dilewati, tidak dibuat ulang",
+		k.Name, lastDigits(k.Phone, 4))
+}
+
+func lastDigits(s string, n int) string {
+	var d []rune
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			d = append(d, r)
+		}
+	}
+	if len(d) > n {
+		d = d[len(d)-n:]
+	}
+	return string(d)
 }
 
 func validateCustomerRow(b *Builder, row Row, seen map[string]int) (CustomerCreate, bool) {

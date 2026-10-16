@@ -74,7 +74,7 @@ func TestImportBeyondTheConcurrencyLimitIs429(t *testing.T) {
 // the generated OpenAPI type so the wire contract cannot drift unnoticed.
 func TestImportReportMatchesGeneratedContract(t *testing.T) {
 	table := csvimport.Read([]byte("Nama,Telepon\nA,0811111111\nB,\n"), csvimport.CustomerSpec)
-	plan, err := csvimport.PlanCustomers(table, func([]string) (map[string]int, error) { return nil, nil })
+	plan, err := csvimport.PlanCustomers(table, func([]string) (map[string]csvimport.PhoneMatch, error) { return nil, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

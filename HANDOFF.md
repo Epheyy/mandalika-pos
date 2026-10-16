@@ -148,9 +148,9 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
   6. **A08 transfer-receive PIN:** NOT approvable offline → online step-up; stop shipping PIN hashes in the sync bundle; remove
      the raw PIN from the queued payload; server-side lockout.
   7. **A37 error_logs:** retention 60 days, admin-only read.
-  8. **Import vs merged-away customer:** never re-create one; skip the row with a warning pointing to the keeper (A39 follow-up).
+  8. **Import vs merged-away customer:** never re-create one; skip the row with a warning pointing to the keeper (A39 follow-up). **IMPLEMENTED on branch import-followups (not pushed/deployed).**
   9. **Ingredient import:** a row with a new SKU whose exact name matches exactly one ingredient with a blank SKU ASSIGNS the SKU to
-     it (no duplicate) (A39 follow-up).
+     it (no duplicate) (A39 follow-up). **IMPLEMENTED on branch import-followups (not pushed/deployed).**
   10. **OTA rollout (A35):** pilot outlet first, once more than one outlet's tablets are on APK 2.1 (staged-rollout mechanism
       to be built when that is true; until then all-at-once on the single pilot set).
 
