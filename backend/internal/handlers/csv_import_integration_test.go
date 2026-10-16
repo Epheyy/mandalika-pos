@@ -822,6 +822,31 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	sub("ingredients: a new SKU on a unique blank-SKU same-name ingredient assigns it; ambiguous and non-blank matches still create", func(t *testing.T) {
+		const ingHeader = "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\n"
+		blank := text(`INSERT INTO ingredients(name,unit,sku) VALUES('Sku Blank','g','') RETURNING id::text`)
+		exec(`INSERT INTO ingredients(name,unit,sku) VALUES('Sku Twin','g',''),('sku twin','g','')`)
+		exec(`INSERT INTO ingredients(name,unit,sku) VALUES('Sku Owned','g','OWN-1')`)
+		before := count(`SELECT count(*) FROM ingredients`)
+		csv := ingHeader + "sku blank,SB-1,g,,,,\nSku Twin,ST-1,g,,,,\nSku Owned,OWN-2,g,,,,\nSku Blank,SB-2,g,,,,\n"
+		rep := mustApply("/ingredients/import", csv, "i-assign")
+		if rep.Summary.Update != 1 || rep.Summary.Create != 3 || rep.Summary.Warning != 3 {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		if got := text(`SELECT sku FROM ingredients WHERE id=$1`, blank); got != "SB-1" {
+			t.Errorf("the blank-SKU ingredient got SKU %q, want SB-1", got)
+		}
+		if got := text(`SELECT name FROM ingredients WHERE id=$1`, blank); got != "Sku Blank" {
+			t.Errorf("stored name changed to %q", got)
+		}
+		if count(`SELECT count(*) FROM ingredients`) != before+3 {
+			t.Error("expected three new ingredients (twin, owned, and the second SKU for the already-assigned name)")
+		}
+		if count(`SELECT count(*) FROM ingredients WHERE sku IN ('SB-1','SB-2','ST-1','OWN-2')`) != 4 {
+			t.Error("each SKU must exist exactly once")
+		}
+	})
+
 	// ── scale ───────────────────────────────────────────────────
 	sub("scale: a 30,000-row customer commit completes in under 60 seconds", func(t *testing.T) {
 		var sb strings.Builder

@@ -1,6 +1,9 @@
 package csvimport
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const ingredientHeader = "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\n"
 
@@ -104,5 +107,59 @@ func TestPlanIngredientsNameExistsWithOtherSKUWarns(t *testing.T) {
 	p := planIngredients(t, ingredientHeader+"Rose Oil,RO-002,g,,,,\n")
 	if p.Report.HasErrors() || p.Report.Summary.Create != 1 || !hasIssue(p.Report, "name_exists", SevWarning) {
 		t.Fatalf("%+v", p.Report)
+	}
+}
+
+func TestPlanIngredientsAssignsSKUToUniqueBlankSKUNameMatch(t *testing.T) {
+	p := planIngredients(t, ingredientHeader+" ALKOHOL ,AL-1,ml,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Update != 1 || r.Summary.Create != 0 || r.Summary.Warning != 0 {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	if len(p.Ingredients) != 1 || p.Ingredients[0].ExistingID != "i2" || p.Ingredients[0].SKU != "AL-1" {
+		t.Fatalf("must update the existing blank-SKU ingredient: %+v", p.Ingredients)
+	}
+	if r.Rows[0].Action != ActionUpdate || !strings.Contains(r.Rows[0].Reason, "AL-1") || !strings.Contains(r.Rows[0].Reason, "ditetapkan") {
+		t.Errorf("reason must note the SKU assignment: %+v", r.Rows[0])
+	}
+}
+
+func TestPlanIngredientsSKUAssignNegativesKeepCreateWithWarning(t *testing.T) {
+	// "Dup" matches two ingredients; "Rose Oil" matches one that already has another SKU.
+	p := planIngredients(t, ingredientHeader+"Dup,DU-1,ml,,,,\nRose Oil,RO-NEW,g,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Create != 2 || r.Summary.Update != 0 || r.Summary.Warning != 2 {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	for _, i := range p.Ingredients {
+		if i.ExistingID != "" {
+			t.Errorf("must stay a create: %+v", i)
+		}
+	}
+	if got := issueCodes(r, SevWarning); len(got) != 2 || got[0] != "name_exists" || got[1] != "name_exists" {
+		t.Errorf("warnings %v", got)
+	}
+}
+
+func TestPlanIngredientsSKUAssignCannotRepeat(t *testing.T) {
+	// the same SKU twice stays a duplicate_in_file error
+	p := planIngredients(t, ingredientHeader+"Alkohol,AL-1,ml,,,,\nAlkohol,al-1,ml,,,,\n")
+	if !hasIssue(p.Report, "duplicate_in_file", SevError) {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+	// two different SKUs for the same ingredient: only the first assigns, the second is a new ingredient
+	p = planIngredients(t, ingredientHeader+"Alkohol,AL-1,ml,,,,\nAlkohol,AL-2,ml,,,,\n")
+	r := p.Report
+	if r.HasErrors() || r.Summary.Update != 1 || r.Summary.Create != 1 || r.Summary.Warning != 1 {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	updates := 0
+	for _, i := range p.Ingredients {
+		if i.ExistingID == "i2" {
+			updates++
+		}
+	}
+	if updates != 1 {
+		t.Errorf("ingredient i2 must be written once, got %d", updates)
 	}
 }
