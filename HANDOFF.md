@@ -181,7 +181,11 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      fix the RUNBOOK step; (2) postgres.yml reports go1.26.0 (go-version-file ignores the toolchain line?) → pin 1.26.9;
      (3) OpenAPI: document 400 on logout/refresh, 413 on login; (4) A33 Task 9 cleanup (drop Redis mirror + adoption) on or
      after 2026-10-30 after a Task 0 re-run shows 0 Redis-only live tokens.
-   - Next: A39 (CSV), A44 (oversell flag/report); A36 build waits on owner O1–O4.
+   - A44 plan `docs/plans/2026-10-16-a44-oversell-flag.md` + owner decisions 2026-10-16 (badge = unchecked lines with an
+     auditor 'sudah dicek' step; POS stops blocking out-of-stock items, warns instead, via OTA). A39 plan
+     `docs/plans/2026-10-16-a39-csv-import.md` + owner decisions (stopgap c7d0d71 hides product import / retires users import;
+     no stock column; phone dupes skipped; users import retired). Order: A44 (mig 0055, port 56457), then A39 (mig 0056, 56456).
+   - Next: build A44, then A39; A36 build waits on owner O1–O4.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
