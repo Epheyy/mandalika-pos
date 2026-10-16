@@ -15,17 +15,6 @@ import { DeleteConfirmModal } from './products/DeleteConfirmModal'
 import { useProductsData } from './products/useProductsData'
 import { EMPTY, EMPTY_VARIANT } from './products/types'
 
-// Downloadable CSV template: the exact importer columns + two example rows
-// (one product, two variants → same Nama+Brand) so the grouping is self-evident.
-// First row leaves Barcode blank to show it defaults to the SKU.
-const downloadTemplate = () => {
-  const example = [
-    { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: 'Deskripsi singkat', Ukuran: '30ml', Harga: 150000, SKU: 'CP-30', Barcode: '', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
-    { Nama: 'Contoh Parfum', Brand: 'Mandalika', Kategori: 'Parfum', Deskripsi: '', Ukuran: '50ml', Harga: 220000, SKU: 'CP-50', Barcode: '8991234567890', Jual: 'Ya', Aktif: 'Ya', Unggulan: 'Tidak' },
-  ]
-  exportToCSV(example, 'template_produk_mandalika')
-}
-
 export default function Products() {
   const d = useProductsData()
 
@@ -50,8 +39,7 @@ export default function Products() {
                 <ImportExportBar
                   onExport={d.exportProducts}
                   exportDisabled={d.products.length === 0}
-                  onImport={d.importProductRows}
-                  onTemplate={downloadTemplate}
+                  // A39: import hidden until the server-side import ships (the old path can delete variants' stock).
                   importMessage={d.importMessage}
                 />
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { d.setEditing(null); d.setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); d.setErr(null); d.setOcfgOutlets([]); d.setOcfgMap({}); d.setOpen(true) }}>

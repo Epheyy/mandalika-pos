@@ -1,11 +1,11 @@
-import { useReducer, useRef, useState } from 'react'
+import { useReducer, useState } from 'react'
 import type { User, CustomRole, Outlet } from '@mandalika/api'
-import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Upload, Store, KeyRound, X } from 'lucide-react'
+import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Store, KeyRound, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { exportToCSV, parseCSV } from '../lib/csvUtils'
+import { exportToCSV } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
 import { Select, Field } from '../ui/Field'
 import { Modal } from '../ui/Modal'
@@ -101,7 +101,6 @@ export default function Users() {
   const outlets = oq.data ?? []
   const outletNameOf = (id?: string | null) => outlets.find((o) => o.id === id)?.name
   const [tab, setTab] = useState<'users' | 'roles'>('users')
-  const csvRef = useRef<HTMLInputElement>(null)
 
   const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
   const { editingUser, editRole, editPerms, editOutletId, pin, clearPin } = editUser
@@ -154,26 +153,6 @@ export default function Users() {
     }
   }
 
-  const importUsers = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const outletIdByName = new Map<string, string>()
-    for (const o of outlets) if (!outletIdByName.has(o.name)) outletIdByName.set(o.name, o.id)
-    for (const row of parseCSV(await file.text())) {
-      if (!row['Email']?.trim()) continue
-      await api.createUser({
-        email: row['Email'].trim(),
-        password: row['Password'] || 'changeme123',
-        displayName: row['Nama'] || row['Email'],
-        role: (row['Role'] as Role) || 'cashier',
-        outletId: row['Outlet'] ? (outletIdByName.get(row['Outlet'].trim()) ?? null) : null,
-        permissions: row['Permissions'] ? row['Permissions'].split(';').filter(Boolean) : [],
-      })
-    }
-    e.target.value = ''
-    await uq.refetch()
-  }
-
   const saveRole = async () => {
     if (!roleForm.name.trim()) return
     setBusy(true)
@@ -212,10 +191,6 @@ export default function Users() {
                 >
                   Export
                 </Button>
-                <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => csvRef.current?.click()}>
-                  Import
-                </Button>
-                <input ref={csvRef} type="file" accept=".csv" onChange={importUsers} aria-label="Impor pengguna dari CSV" className="hidden" />
                 <Button icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
                   Tambah
                 </Button>
