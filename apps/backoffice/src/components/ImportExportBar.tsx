@@ -1,30 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Download, Upload, FileText } from 'lucide-react'
+import type { ImportKind } from '@mandalika/api'
 import { Button } from '../ui/Button'
-import { parseCSV } from '../lib/csvUtils'
+import { ImportDialog, type ImportFile } from './ImportDialog'
+import { ENCODING_MESSAGE, checkPickedFile, decodeUtf8 } from './importDialogState'
 
 export interface ImportExportBarProps {
   /** Build + trigger the export. Caller maps its data to rows then calls exportToCSV/exportToXLSX. */
   onExport: (fmt: 'csv' | 'xlsx') => void
   exportDisabled?: boolean
-  /** Provide all three to enable import; omit to render export-only. */
-  onImport?: (rows: Record<string, string>[]) => Promise<void> | void
+  /** Which server-side CSV import this bar drives (A39). Omit to render export-only. */
+  importKind?: ImportKind
+  /** Called after a successful import so the screen can refetch its lists. */
+  onImported?: () => void
   onTemplate?: () => void
-  /** Optional: shown as a small result/error line under the bar after import. */
-  importMessage?: string | null
 }
 
 export function ImportExportBar({
   onExport,
   exportDisabled,
-  onImport,
+  importKind,
+  onImported,
   onTemplate,
-  importMessage,
 }: ImportExportBarProps) {
   const [exportMenu, setExportMenu] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const [picked, setPicked] = useState<(ImportFile & { id: number }) | null>(null)
+  const [pickError, setPickError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const nextId = useRef(0)
 
   // Close the export dropdown when clicking outside
   useEffect(() => {
@@ -45,19 +49,24 @@ export function ImportExportBar({
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !onImport) return
-    setImporting(true)
-    try {
-      const text = await file.text()
-      const rows = parseCSV(text)
-      await onImport(rows)
-    } finally {
-      setImporting(false)
-      e.target.value = ''
+    e.target.value = ''
+    if (!file) return
+    setPickError(null)
+    const problem = checkPickedFile(file.name, file.size)
+    if (problem) {
+      setPickError(problem)
+      return
     }
+    // Strict UTF-8: an ANSI "CSV" must be refused, not silently mangled (the server checks again).
+    const csv = decodeUtf8(await file.arrayBuffer())
+    if (csv === null) {
+      setPickError(ENCODING_MESSAGE)
+      return
+    }
+    setPicked({ id: ++nextId.current, name: file.name, csv })
   }
 
-  const hasImport = typeof onImport === 'function'
+  const hasImport = importKind !== undefined
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -91,31 +100,32 @@ export function ImportExportBar({
           )}
         </div>
 
-        {/* Template + Import (only when onImport is provided) */}
+        {/* Template + Import (only when an import kind is provided) */}
         {hasImport && (
           <>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<FileText className="w-3.5 h-3.5" />}
-              onClick={onTemplate}
-            >
-              Template
-            </Button>
+            {onTemplate && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<FileText className="w-3.5 h-3.5" />}
+                onClick={onTemplate}
+              >
+                Template
+              </Button>
+            )}
             <Button
               variant="secondary"
               size="sm"
               icon={<Upload className="w-3.5 h-3.5" />}
-              disabled={importing}
               onClick={() => fileRef.current?.click()}
             >
-              {importing ? 'Mengimpor…' : 'Import'}
+              Import
             </Button>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv"
-              onChange={handleFile}
+              accept=".csv,text/csv"
+              onChange={(e) => void handleFile(e)}
               aria-label="Impor dari file CSV"
               className="hidden"
             />
@@ -123,9 +133,22 @@ export function ImportExportBar({
         )}
       </div>
 
-      {/* Import result / error message */}
-      {importMessage && (
-        <p className="text-xs text-gray-500 mt-0.5">{importMessage}</p>
+      {pickError && (
+        <p role="alert" className="text-xs text-red-600 mt-0.5 max-w-xs text-right">{pickError}</p>
+      )}
+
+      {hasImport && picked && (
+        <ImportDialog
+          key={picked.id}
+          kind={importKind}
+          file={picked}
+          onClose={() => setPicked(null)}
+          onApplied={() => onImported?.()}
+          onRepick={() => {
+            setPicked(null)
+            fileRef.current?.click()
+          }}
+        />
       )}
     </div>
   )

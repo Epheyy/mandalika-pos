@@ -19,6 +19,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { CUSTOMER_TEMPLATE_ROWS } from '../lib/importTemplates'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button } from '../ui/Button'
 import { Input, Select, Field } from '../ui/Field'
@@ -301,6 +302,9 @@ export default function Customers() {
                 <ImportExportBar
                   onExport={(fmt) => void exportCustomers(fmt)}
                   exportDisabled={customers.length === 0}
+                  importKind="customers"
+                  onImported={() => void cq.refetch()}
+                  onTemplate={() => exportToCSV(CUSTOMER_TEMPLATE_ROWS, 'template_pelanggan_mandalika')}
                 />
                 <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
                   Tambah

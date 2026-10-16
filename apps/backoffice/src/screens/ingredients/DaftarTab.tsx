@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Ingredient, IngredientCategory, IngredientInput, ListResult } from '@mandalika/api'
+import type { Ingredient, IngredientCategory, ListResult } from '@mandalika/api'
 import { Edit2, Search, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -54,7 +54,6 @@ export default function DaftarTab() {
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [deleting, setDeleting] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
-  const [importMessage, setImportMessage] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<Ingredient>>(
     () => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) }),
@@ -101,118 +100,8 @@ export default function DaftarTab() {
     setPage(1)
   }
 
-  const importIngredientRows = async (rows: Record<string, string>[]) => {
-    // Auto-creates missing ingredient categories (deduplicated per import run).
-    // Upsert: match by SKU (if present) or by exact name (case-insensitive).
-    // Keep a name→category map in sync with the category list for O(1) lookups
-    // (first match wins like .find); rebuilt whenever the list is refetched.
-    const buildCatMap = (cats: typeof categories) => {
-      const m = new Map<string, (typeof cats)[number]>()
-      for (const c of cats) {
-        const k = c.name.toLowerCase()
-        if (!m.has(k)) m.set(k, c)
-      }
-      return m
-    }
-    let catByLower = buildCatMap(categories)
-    const createdCatNames = new Set<string>()
-    const resolvedCatIds: Record<string, string> = {}
-
-    // Pre-resolve all distinct category names in this import
-    for (const row of rows) {
-      const catName = (row['Kategori'] || '').trim()
-      if (!catName) continue
-      const lower = catName.toLowerCase()
-      if (resolvedCatIds[lower]) continue
-      const existing = catByLower.get(lower)
-      if (existing) {
-        resolvedCatIds[lower] = existing.id
-      } else if (!createdCatNames.has(lower)) {
-        createdCatNames.add(lower)
-        await api.createIngredientCategory({ name: catName })
-        // Refetch so we can get the new id
-        const updated = await api.listIngredientCategories()
-        catByLower = buildCatMap(updated)
-        setCategories(updated)
-        const found = catByLower.get(lower)
-        if (found) resolvedCatIds[lower] = found.id
-      }
-    }
-
-    let created = 0
-    let updated = 0
-    let skipped = 0
-    let errors = 0
-
-    // Fetch the catalog ONCE for upsert matching (avoid a per-row N+1).
-    const known = (await api.listIngredients({ page: 1, limit: 10000 })).data
-    // Index by sku/name (lowercased) for O(1) match lookups (first match wins
-    // like .find), avoiding a per-row linear scan of the catalog.
-    const knownBySku = new Map<string, (typeof known)[number]>()
-    const knownByName = new Map<string, (typeof known)[number]>()
-    for (const i of known) {
-      if (i.sku) {
-        const sk = i.sku.toLowerCase()
-        if (!knownBySku.has(sk)) knownBySku.set(sk, i)
-      }
-      const nk = i.name.toLowerCase()
-      if (!knownByName.has(nk)) knownByName.set(nk, i)
-    }
-    const seen = new Set<string>() // dedupe rows within a single import file
-
-    for (const row of rows) {
-      const name = (row['Nama'] || '').trim()
-      const unit = (row['Satuan'] || '').trim()
-      if (!name || !unit) {
-        skipped++
-        continue
-      }
-      const sku = (row['SKU'] || '').trim() || null
-      const dedupeKey = (sku ?? name).toLowerCase()
-      if (seen.has(dedupeKey)) {
-        skipped++ // same SKU/name appears twice in this file
-        continue
-      }
-      seen.add(dedupeKey)
-
-      const catLower = (row['Kategori'] || '').trim().toLowerCase()
-      const categoryId = catLower ? (resolvedCatIds[catLower] ?? null) : null
-      const body: IngredientInput = {
-        name,
-        unit,
-        sku,
-        categoryId,
-        defaultUnitCost: row['Biaya Default'] ? Number(row['Biaya Default']) : null,
-        notes: (row['Catatan'] || '').trim() || null,
-        isActive: row['Status'] !== 'Nonaktif',
-      }
-
-      // Upsert: match by SKU first, then by exact name (case-insensitive).
-      const match = sku
-        ? knownBySku.get(sku.toLowerCase())
-        : knownByName.get(name.toLowerCase())
-
-      try {
-        if (match) {
-          await api.updateIngredient(match.id, body)
-          updated++
-        } else {
-          await api.createIngredient(body)
-          created++
-        }
-      } catch {
-        errors++ // keep going — report the total at the end
-      }
-    }
-
-    // Refetch list + categories
-    await Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
-    setImportMessage(
-      `${created} bahan dibuat, ${updated} diperbarui` +
-        (skipped ? `, ${skipped} baris dilewati` : '') +
-        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru` : '') +
-        (errors ? `, ${errors} gagal` : ''),
-    )
+  const refetchAfterImport = () => {
+    void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
   }
 
   return (
@@ -251,9 +140,9 @@ export default function DaftarTab() {
         <div className="flex items-center gap-2">
           <ImportExportBar
             onExport={exportIngredients}
-            onImport={importIngredientRows}
+            importKind="ingredients"
+            onImported={refetchAfterImport}
             onTemplate={downloadIngredientTemplate}
-            importMessage={importMessage}
           />
           <Button onClick={openAdd}>+ Tambah Bahan</Button>
         </div>

@@ -49,66 +49,6 @@ export function exportToCSV(data: Row[], filename: string, opts: { appendDate?: 
 }
 
 /**
- * Pick the field delimiter by counting candidates in the header line (outside
- * quotes). Excel exports CSV with ';' in locales where ',' is the decimal
- * separator (Indonesia/Europe), and tab-separated files also turn up — so we
- * auto-detect instead of assuming ','.
- */
-function detectDelimiter(headerLine: string): string {
-  const candidates = [',', ';', '\t']
-  let best = ','
-  let bestCount = -1
-  for (const d of candidates) {
-    let count = 0
-    let inQuote = false
-    for (const ch of headerLine) {
-      if (ch === '"') inQuote = !inQuote
-      else if (ch === d && !inQuote) count++
-    }
-    if (count > bestCount) {
-      bestCount = count
-      best = d
-    }
-  }
-  return best
-}
-
-export function parseCSV(text: string): Record<string, string>[] {
-  const lines = text
-    .replace(/\r\n?/g, '\n')
-    .trim()
-    .split('\n')
-    .map((l) => l.trim())
-  if (lines.length < 2) return []
-  const delim = detectDelimiter(lines[0])
-  const splitLine = (line: string): string[] => {
-    const values: string[] = []
-    let cur = ''
-    let inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      if (line[i] === '"') inQuote = !inQuote
-      else if (line[i] === delim && !inQuote) {
-        values.push(cur.trim())
-        cur = ''
-      } else cur += line[i]
-    }
-    values.push(cur.trim())
-    return values
-  }
-  const headers = splitLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim())
-  return lines.slice(1).flatMap((line) => {
-    if (!line) return []
-    const values = splitLine(line)
-    return [
-      headers.reduce(
-        (obj, h, i) => ({ ...obj, [h]: values[i] || '' }),
-        {} as Record<string, string>,
-      ),
-    ]
-  })
-}
-
-/**
  * Build an export base filename from a module name + context parts (active
  * filters/scope). Empty/nullish parts are dropped; each part is slugified.
  * exportToCSV/exportToXLSX still append `_YYYY-MM-DD` (the generation date),
