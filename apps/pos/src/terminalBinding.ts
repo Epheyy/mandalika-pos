@@ -63,6 +63,7 @@ export const OUTLET_CACHE_KEYS: readonly string[] = [
   'mandalika.pos.contentVersion',
   'mandalika.pos.inboundTransfers',
   'mandalika.pos.pendingCredits',
+  'mandalika.pos.settlingDebits', // A15: acked-but-unpulled stock debits are per outlet too
   DEVICE_CODE_KEY,
 ]
 

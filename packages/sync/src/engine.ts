@@ -133,7 +133,7 @@ function toReviewReport(i: ReviewItem): ReviewReport {
   }
 }
 /** The stock lines of an order item (reward lines included: they decrement stock server-side too). */
-function orderDebitLines(item: OutboxItem): DebitLine[] {
+function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[] {
   const payload = item.payload as { items?: Array<{ productId?: string; variantSize?: string; quantity?: number }> }
   const lines: DebitLine[] = []
   for (const l of payload.items ?? []) {
@@ -255,6 +255,8 @@ export class SyncEngine {
   private nextFlushAt = 0
   private backoffStep = 0
   private disposed = false
+  /** Bumped by every dispose(); lets an in-flight pull tell it was retired even if start() revived the engine. */
+  private disposeEpoch = 0
   // Review check-in (head-office resolve). Key -> last time it was sent in a successful check-in.
   private reviewSentAt = new Map<string, number>()
   private reviewCheckInAt = 0
@@ -321,6 +323,7 @@ export class SyncEngine {
    *  engine and the store are idle (see {@link idle}); no-op on the KV store. */
   async rehydrate(): Promise<void> {
     await this.outbox.refresh()
+    this.settling.reload() // the predecessor's last writes landed after this engine's constructor read the key
     this.refundMemory = this.foldAckedRefunds()
     await this.refundMemory
   }
@@ -331,6 +334,8 @@ export class SyncEngine {
    *  because React StrictMode re-runs effects on the same instance in dev. */
   dispose(): void {
     this.disposed = true
+    this.disposeEpoch += 1
+    this.settling.dispose()
     this.stopTimers?.()
     this.stopTimers = null
     this.outbox.dispose()
@@ -367,8 +372,10 @@ export class SyncEngine {
   async resync(): Promise<void> {
     // A15: number the pull before it is sent. Debits acked before this number was taken are in what the
     // server answers; anything acked after (or while) it is in flight stays until a later pull.
+    const epoch = this.disposeEpoch
     const pullNo = await this.settling.beginPull()
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
+    if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
@@ -563,8 +570,8 @@ export class SyncEngine {
 
   /** SP-CRM-9c: sum unsynced order quantities per `${productId}|${variantSize}` so
    *  the POS can optimistically decrement displayed stock. Includes reward lines
-   *  because they decrement stock server-side too. Dead-lettered items are excluded
-   *  (outbox.pending() already filters them). */
+   *  because they decrement stock server-side too. Parked (needs-review) orders are included until head
+   *  office resolves them, and A15 adds acked orders until a pull sent after the ack. */
   pendingStockDeltas(): Record<string, number> {
     const deltas: Record<string, number> = {}
     // Queued and parked (needs review) sales never reached server stock, or are not yet in the snapshot.
@@ -749,6 +756,13 @@ export class SyncEngine {
         this.outbox.reviewItems().filter((i) => byKey.has(i.idempotencyKey)).map((i) => [i.idempotencyKey, i]),
       )
       if (parkedBefore.size === 0) return
+      // A15: a resolved sale may not be in the snapshot yet. Keep its debit (it can only err LOW) until a
+      // later pull; the entry is hidden while the item is still parked, so recording first never double counts.
+      await this.settling.recordMany(
+        [...parkedBefore.values()].filter((i) => i.type === 'order').map((i) => ({
+          key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i),
+        })),
+      ).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
       let removed: readonly Pick<OutboxItem, 'idempotencyKey' | 'type'>[]
       try {
         removed = await this.outbox.resolveReviewed([...parkedBefore.keys()])
@@ -980,10 +994,17 @@ export class SyncEngine {
     }
     // One serialized write for the whole batch (settle is best-effort: a
     // failed write leaves items pending and the server dedups the resend).
-    await this.settling.recordMany(ackedOrders).catch((err) => {
-      console.error('[sync] settling-debit write failed; stock may show high until the next pull', err)
-    })
-    await this.outbox.settle(updates)
+    // If the debit could not be stored, do not ack/prune those orders now: the debit would vanish with the
+    // row. They stay queued and the server dedups the resend (A11); the next batch records them again.
+    let toSettle = updates
+    try {
+      await this.settling.recordMany(ackedOrders)
+    } catch (err) {
+      console.error('[sync] settling-debit write failed; keeping the acked orders queued', err)
+      const held = new Set(ackedOrders.map((o) => o.key))
+      toSettle = updates.filter((u) => !(u.op === 'ack' && held.has(u.key)))
+    }
+    await this.outbox.settle(toSettle)
     this.recomputeCredited()
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
@@ -1063,6 +1084,7 @@ export class SyncEngine {
   /** Wire connectivity + periodic version polling. Returns a disposer. */
   start(pollMs = 20000, opts: { flushOnly?: boolean } = {}): () => void {
     this.disposed = false
+    this.settling.revive()
     this.outbox.revive()
     this.autoCheckIn = !opts.flushOnly
     // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability

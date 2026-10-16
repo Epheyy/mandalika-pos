@@ -212,6 +212,8 @@ describe('SyncEngine durable enqueue', () => {
     await engine.flush()
     // settle(ack x5) + prune = 2 whole-array outbox writes, not 5 + 1 (A15's settling-debit write is a separate key).
     expect(outboxWrites() - before).toBe(2)
+    // ...and the 5 acked orders produce ONE settling-debit write, not one each.
+    expect(ctl.attempts.filter((w) => w.key === 'mandalika.pos.settlingDebits').length).toBe(1)
     expect(engine.outbox.all()).toEqual([])
   })
 

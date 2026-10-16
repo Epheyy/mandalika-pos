@@ -17,7 +17,9 @@ export interface SettlingEntry {
 }
 
 export const SETTLING_DEBITS_KEY = 'mandalika.pos.settlingDebits'
-/** Safety net only (a pull normally retires entries within seconds of coming online). */
+/** Safety net only, applied when a pull is applied (never at load: an offline restart must keep
+ *  debits the old snapshot lacks). Entries are normally retired by the next pull (app start or
+ *  manual resync). */
 export const SETTLING_DEBITS_TTL_MS = 14 * 24 * 60 * 60 * 1000
 
 interface State { v: 1; gen: number; applied: number; entries: SettlingEntry[] }
@@ -33,6 +35,7 @@ function isEntry(e: unknown): e is SettlingEntry {
 export class SettlingDebits {
   private state: State
   private chain: Promise<unknown> = Promise.resolve()
+  private disposed = false
 
   constructor(private kv: KV) {
     this.state = this.load()
@@ -45,8 +48,7 @@ export class SettlingDebits {
     try {
       const p = JSON.parse(raw) as Partial<State> | null
       if (p && typeof p.gen === 'number' && typeof p.applied === 'number' && Array.isArray(p.entries)) {
-        const cutoff = Date.now() - SETTLING_DEBITS_TTL_MS
-        return { v: 1, gen: p.gen, applied: p.applied, entries: p.entries.filter(isEntry).filter((e) => e.at >= cutoff) }
+        return { v: 1, gen: p.gen, applied: p.applied, entries: p.entries.filter(isEntry) }
       }
     } catch {
       /* fall through to quarantine */
@@ -56,7 +58,17 @@ export class SettlingDebits {
     return empty
   }
 
+  /** Re-read the stored state. For an engine built before its predecessor finished writing (the
+   *  constructor ran too early): call after the predecessor is idle, like the outbox refresh. */
+  reload(): void { this.state = this.load() }
+
+  /** A retired engine must never write: the next engine owns the key. (Memory still works, so a dev
+   *  StrictMode re-run, which revives the same instance, loses nothing: the next write stores it all.) */
+  dispose(): void { this.disposed = true }
+  revive(): void { this.disposed = false }
+
   private persist(): Promise<void> {
+    if (this.disposed) return Promise.resolve()
     const body = JSON.stringify(this.state)
     const run = this.chain.then(() => this.kv.setDurable(SETTLING_DEBITS_KEY, body))
     this.chain = run.catch(() => {})
@@ -97,10 +109,11 @@ export class SettlingDebits {
   /** A pull numbered `g` came back. False (nothing changed) when a newer pull was already applied.
    *  Otherwise retires entries recorded before `g` was sent and drops lines whose variant the new
    *  snapshot no longer has (`known` = `productId|size` keys; null skips that check). */
-  applyPull(g: number, known: ReadonlySet<string> | null): boolean {
+  applyPull(g: number, known: ReadonlySet<string> | null, now: number = Date.now()): boolean {
     if (g < this.state.applied) return false
+    // Age is judged only forward: a clock that went backwards never expires anything.
     const entries = this.state.entries
-      .filter((e) => e.gen >= g)
+      .filter((e) => e.gen >= g && !(now - e.at > SETTLING_DEBITS_TTL_MS))
       .map((e) => (known ? { ...e, lines: e.lines.filter((l) => known.has(`${l.productId}|${l.variantSize}`)) } : e))
       .filter((e) => e.lines.length > 0)
     this.state = { ...this.state, applied: g, entries }

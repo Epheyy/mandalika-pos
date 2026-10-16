@@ -17,6 +17,7 @@ function makeServer() {
     pullPlans: [] as PullPlan[],
     batchMode: 'ok' as 'ok' | 'lost' | 'busy' | 'park' | 'rejectMulti',
     batches: [] as string[][],
+    resolved: [] as string[], // keys head office has resolved (answered by /sync/review-items)
   }
   const bundle = (stock: number, omit: boolean) => ({
     version: 1,
@@ -30,6 +31,9 @@ function makeServer() {
       return { data: bundle(plan.stock ?? s.stock, plan.omitProduct ?? false) }
     }
     if (method === 'GET' && path.includes('/sync/inbound')) return { data: [] }
+    if (method === 'POST' && path.includes('/sync/review-items')) {
+      return { data: { resolved: s.resolved.map((k) => ({ idempotencyKey: k, note: 'ok', resolvedByName: 'HO' })) } }
+    }
     if (method === 'POST' && path.includes('/sync/batch') && body) {
       s.batches.push(body.items.map((i) => i.idempotencyKey))
       if (s.batchMode === 'rejectMulti' && body.items.length > 1) throw Object.assign(new Error('bad request'), { status: 400, kind: 'http' })
@@ -158,14 +162,20 @@ describe('A15 settling debits', () => {
     expect(engine.pendingStockDeltas()).toEqual({ [SKU]: 2 })
   })
 
-  it('7: a parked sale keeps reducing stock until it is resolved or removed', async () => {
+  it('7: a parked sale keeps reducing stock; once head office resolves it the debit stays until a later pull', async () => {
     const { s, engine } = await setup()
     const item = await engine.enqueue('order', order())
     s.batchMode = 'park'
     await send(engine)
     expect(engine.outbox.deadLettered()).toHaveLength(1)
     expect(shown(engine)).toBe(3)
-    await engine.outbox.resolveReviewed([item.idempotencyKey])
+    s.resolved = [item.idempotencyKey]
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.checkInReviews()
+    vi.stubGlobal('navigator', { onLine: false })
+    expect(engine.outbox.all()).toHaveLength(0)
+    expect(shown(engine)).toBe(3) // never jumps back up (LOW at worst)
+    await engine.resync() // the resolved sale never reached the server
     expect(shown(engine)).toBe(5)
   })
 
@@ -249,5 +259,92 @@ describe('A15 settling debits', () => {
     await send(engine)
     await engine.idle()
     expect(k.store.get(SETTLING_DEBITS_KEY)).toContain('"qty":2')
+  })
+
+  it('14: a failed pull leaves debits alone and the next pull retires them', async () => {
+    const { s, engine } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    await send(engine)
+    s.pullPlans.push({ gate: Promise.reject(new TypeError('network')) })
+    await expect(engine.resync()).rejects.toThrow()
+    expect(shown(engine)).toBe(3)
+    await engine.resync()
+    expect(engine.pendingStockDeltas()).toEqual({})
+    expect(shown(engine)).toBe(3)
+  })
+
+  it('15: a failed counter write does not break the pull', async () => {
+    const { s, engine, k } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    await send(engine)
+    k.ctl.modeFor = (key) => (key === SETTLING_DEBITS_KEY ? 'reject' : undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await engine.resync()
+    expect(engine.pendingStockDeltas()).toEqual({})
+    expect(shown(engine)).toBe(3)
+  })
+
+  it('16: an order whose debit could not be stored is not acked or pruned in that batch', async () => {
+    const { s, engine, k } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    k.ctl.modeFor = (key) => (key === SETTLING_DEBITS_KEY ? 'reject' : undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await send(engine)
+    expect(engine.outbox.pending()).toHaveLength(1) // stays queued, still counted once
+    expect(shown(engine)).toBe(3)
+    k.ctl.modeFor = undefined
+    await send(engine) // the server dedups the resend
+    expect(engine.outbox.pending()).toHaveLength(0)
+    expect(shown(engine)).toBe(3)
+    expect(engine.pendingStockDeltas()).toEqual({ [SKU]: 2 })
+  })
+
+  it('17: an offline restart keeps an old debit', async () => {
+    const { s, engine, k } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    await send(engine)
+    await engine.idle()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + 20 * 24 * 60 * 60 * 1000)
+      const again = new SyncEngine(makeServer().api, {}, k.kv, { actor: null })
+      expect(shown(again)).toBe(3) // old snapshot (5) minus the kept debit
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('18: replacing the engine mid-pull: the old pull cannot overwrite the new engine entry', async () => {
+    const { s, engine: oldEngine, k } = await setup()
+    const g = gate()
+    s.pullPlans.push({ gate: g.p, stock: 5 })
+    const stalePull = oldEngine.resync() // in flight
+    await Promise.resolve()
+    oldEngine.dispose()
+    await oldEngine.idle()
+    const fresh = makeServer()
+    const next = new SyncEngine(fresh.api, {}, k.kv, { actor: null })
+    await next.rehydrate()
+    await next.enqueue('order', order())
+    fresh.s.stock = 3
+    await send(next)
+    await next.idle()
+    g.open()
+    await stalePull
+    await oldEngine.idle()
+    const restarted = new SyncEngine(makeServer().api, {}, k.kv, { actor: null })
+    expect(restarted.pendingStockDeltas()).toEqual({ [SKU]: 2 }) // the debit survived
+  })
+
+  it('19: a pull begun after dispose (dev StrictMode re-run, revived by start later) still applies', async () => {
+    const { s, engine } = await setup()
+    s.stock = 4
+    engine.dispose()
+    await engine.resync()
+    expect(engine.getSnapshot().products?.[0]?.variants[0].stock).toBe(4)
   })
 })

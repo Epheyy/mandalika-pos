@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { SettlingDebits, SETTLING_DEBITS_KEY, SETTLING_DEBITS_TTL_MS } from './settlingDebits'
 import type { KV } from './storage'
 
@@ -82,11 +82,45 @@ describe('SettlingDebits (A15)', () => {
     expect(s.list()[0].lines).toEqual([line])
   })
 
-  it('expires entries past the TTL', () => {
+  it('keeps entries past the TTL at load (offline restart) and expires them only when a pull is applied', async () => {
     const kv = memKV()
-    const old = { v: 1, gen: 0, applied: 0, entries: [{ key: 'old', lines: [line], gen: 0, at: Date.now() - SETTLING_DEBITS_TTL_MS - 1 }] }
+    const old = { v: 1, gen: 5, applied: 5, entries: [{ key: 'old', lines: [line], gen: 9, at: Date.now() - SETTLING_DEBITS_TTL_MS - 1000 }] }
     kv.store.set(SETTLING_DEBITS_KEY, JSON.stringify(old))
-    expect(new SettlingDebits(kv).list()).toEqual([])
+    const s = new SettlingDebits(kv)
+    expect(s.list()).toHaveLength(1) // an offline boot still shows the debit
+    const g = await s.beginPull()
+    s.applyPull(g, null) // gen 9 >= g: only the age rule can drop it
+    expect(s.list()).toEqual([])
+  })
+
+  it('never expires on a clock that went backwards', () => {
+    const s = new SettlingDebits(memKV())
+    void s.record({ key: 'k', lines: [line] })
+    s.applyPull(0, null, Date.now() - 10 * SETTLING_DEBITS_TTL_MS)
+    expect(s.list()).toHaveLength(1)
+  })
+
+  it('reload re-reads what another writer stored; a disposed store does not write', async () => {
+    const kv = memKV()
+    const a = new SettlingDebits(kv)
+    const b = new SettlingDebits(kv)
+    await a.record({ key: 'k', lines: [line] })
+    expect(b.list()).toEqual([])
+    b.reload()
+    expect(b.list()).toHaveLength(1)
+    a.dispose()
+    const before = kv.store.get(SETTLING_DEBITS_KEY)
+    await a.record({ key: 'z', lines: [line] })
+    expect(kv.store.get(SETTLING_DEBITS_KEY)).toBe(before)
+  })
+
+  it('a failed counter write still numbers the pull in memory', async () => {
+    const kv = memKV()
+    kv.setDurable = async () => { throw new Error('disk full') }
+    const s = new SettlingDebits(kv)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(await s.beginPull()).toBe(1)
+    expect(await s.beginPull()).toBe(2)
   })
 
   it('quarantines unreadable bytes instead of overwriting them', async () => {

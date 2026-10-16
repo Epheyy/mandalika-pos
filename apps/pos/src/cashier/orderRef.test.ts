@@ -138,6 +138,7 @@ describe('ensureDeviceCode', () => {
 describe('releasing the terminal', () => {
   it('clears the device code with the other outlet data', () => {
     expect(OUTLET_CACHE_KEYS).toContain(DEVICE_CODE_KEY)
+    expect(OUTLET_CACHE_KEYS).toContain('mandalika.pos.settlingDebits') // A15
     const kv = memKV(stored('AA'))
     clearOutletCaches(kv, OUTLET)
     expect(readDeviceCode(kv, OUTLET)).toBeNull()
