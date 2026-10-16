@@ -2948,7 +2948,7 @@ export interface components {
             lines: number;
             shortfall: number;
         };
-        /** @description lines/orders/openCount cover every kind. totalShortfall, activeShortfall and reversedShortfall sum only kind=shortage rows (an unresolved variant is not an extra shortfall). */
+        /** @description lines/orders/openCount cover every kind. totalShortfall, activeShortfall and reversedShortfall sum only kind=shortage rows (an unresolved variant is not an extra shortfall). byProduct/byCashier count every kind in lines but sum shortfall over kind=shortage only. */
         OversellSummary: {
             lines: number;
             orders: number;

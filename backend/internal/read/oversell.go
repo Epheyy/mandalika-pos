@@ -50,8 +50,9 @@ func (r *Repo) SaleStockExceptionReport(ctx context.Context, f OversellFilters, 
 
 	byProduct, _, err := listJSON[api.OversellBreakdown](ctx, r.Pool,
 		`SELECT json_build_object('key', x.product_id::text, 'name', MAX(x.product_name),
-		   'variantSize', x.variant_size, 'lines', COUNT(*), 'shortfall', SUM(x.shortfall)) `+oversellWhere+
-			` GROUP BY x.product_id, x.variant_size ORDER BY SUM(x.shortfall) DESC, x.product_id, x.variant_size LIMIT 50`, args...)
+		   'variantSize', x.variant_size, 'lines', COUNT(*),
+		   'shortfall', COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage'),0)) `+oversellWhere+
+			` GROUP BY x.product_id, x.variant_size ORDER BY COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage'),0) DESC, x.product_id, x.variant_size LIMIT 50`, args...)
 	if err != nil {
 		return sum, nil, 0, err
 	}
@@ -59,8 +60,9 @@ func (r *Repo) SaleStockExceptionReport(ctx context.Context, f OversellFilters, 
 
 	byCashier, _, err := listJSON[api.OversellBreakdown](ctx, r.Pool,
 		`SELECT json_build_object('key', x.cashier_id::text, 'name', MAX(x.cashier_name),
-		   'lines', COUNT(*), 'shortfall', SUM(x.shortfall)) `+oversellWhere+
-			` GROUP BY x.cashier_id ORDER BY SUM(x.shortfall) DESC, x.cashier_id LIMIT 50`, args...)
+		   'lines', COUNT(*),
+		   'shortfall', COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage'),0)) `+oversellWhere+
+			` GROUP BY x.cashier_id ORDER BY COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage'),0) DESC, x.cashier_id LIMIT 50`, args...)
 	if err != nil {
 		return sum, nil, 0, err
 	}

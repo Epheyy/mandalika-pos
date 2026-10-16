@@ -544,6 +544,15 @@ func TestOversellPostgres(t *testing.T) {
 		if _, rep := report(adminTok, "outletId=all&productId="+pid); rep.Summary.Lines != 1 || rep.Summary.TotalShortfall != 0 ||
 			rep.Summary.ActiveShortfall != 0 || rep.Summary.ReversedShortfall != 0 {
 			t.Fatalf("unresolved line leaked into shortfall totals: %+v", rep.Summary)
+		} else {
+			for _, b := range append(append([]breakdown{}, rep.Summary.ByProduct...), rep.Summary.ByCashier...) {
+				if b.Lines != 1 || b.Shortfall != 0 {
+					t.Fatalf("unresolved line leaked into breakdown shortfall: %+v", b)
+				}
+			}
+			if len(rep.Summary.ByProduct) != 1 || len(rep.Summary.ByCashier) != 1 {
+				t.Fatalf("expected one breakdown row each, got %+v", rep.Summary)
+			}
 		}
 		refundOK(id)
 		if count(`SELECT count(*) FROM orders WHERE id=$1 AND stock_warning`, id) != 1 {
