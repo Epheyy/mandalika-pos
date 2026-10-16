@@ -17,25 +17,70 @@ const (
 	normPhoneSQL2 = `regexp_replace(c.phone, '[\s().-]', '', 'g')`
 )
 
+func normPhoneSQL2Of(alias string) string {
+	return `regexp_replace(` + alias + `.phone, '[\s().-]', '', 'g')`
+}
+
+// ErrImportStale is the stale-plan error an apply returns (exported for the PostgreSQL gate).
+var ErrImportStale = errImportStale
+
 // planCustomerImport plans a customer file against live customers (merged_into IS NULL),
-// matching by exact phone in ONE grouped query. Existing phones are skipped, never merged.
+// matching by exact phone in grouped queries. Existing phones are skipped, never merged;
+// a phone held only by a tombstoned customer resolves to its terminal keeper and the row
+// is skipped with a warning (the import never re-creates a merged-away customer).
 func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*importPlan, error) {
-	plan, err := csvimport.PlanCustomers(t, func(phones []string) (map[string]int, error) {
+	plan, err := csvimport.PlanCustomers(t, func(phones []string) (map[string]csvimport.PhoneMatch, error) {
+		out := map[string]csvimport.PhoneMatch{}
 		rows, err := q.Query(ctx,
 			`SELECT `+normPhoneSQL+` AS np, count(*)::int FROM customers
 			  WHERE merged_into IS NULL AND `+normPhoneSQL+` = ANY($1) GROUP BY np`, phones)
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
-		out := map[string]int{}
 		for rows.Next() {
 			var phone string
 			var n int
 			if err := rows.Scan(&phone, &n); err != nil {
+				rows.Close()
 				return nil, err
 			}
-			out[phone] = n
+			out[phone] = csvimport.PhoneMatch{Live: n}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		// Tombstones only matter where no live customer has the phone. The oldest tombstone
+		// per phone is followed through merged_into to the terminal keeper (depth-capped).
+		rows, err = q.Query(ctx, `
+			WITH RECURSIVE t AS (
+			  SELECT DISTINCT ON (np) np, merged_into AS id FROM (
+			    SELECT `+normPhoneSQL+` AS np, merged_into, merged_at, id FROM customers
+			     WHERE merged_into IS NOT NULL AND `+normPhoneSQL+` = ANY($1)) x
+			   ORDER BY np, merged_at, id
+			), chain AS (
+			  SELECT np, id, 1 AS depth FROM t
+			  UNION ALL
+			  SELECT chain.np, c.merged_into, chain.depth + 1 FROM chain
+			    JOIN customers c ON c.id = chain.id
+			   WHERE c.merged_into IS NOT NULL AND chain.depth < 20
+			)
+			SELECT DISTINCT ON (ch.np) ch.np, k.name, k.phone FROM chain ch
+			  JOIN customers k ON k.id = ch.id
+			 ORDER BY ch.np, ch.depth DESC`, phones)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var phone string
+			var keeper csvimport.MergedKeeper
+			if err := rows.Scan(&phone, &keeper.Name, &keeper.Phone); err != nil {
+				return nil, err
+			}
+			if m := out[phone]; m.Live == 0 {
+				out[phone] = csvimport.PhoneMatch{Keeper: &keeper}
+			}
 		}
 		return out, rows.Err()
 	})
@@ -60,6 +105,23 @@ func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimp
 		return nil
 	}
 	n := len(creates)
+	phonesToCreate := make([]string, n)
+	for i, c := range creates {
+		phonesToCreate[i] = c.Phone
+	}
+	// A merge can land between plan and apply: a phone that only a tombstoned customer
+	// has must not be re-created, so the import is stale (409) instead.
+	var mergedAway int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*)::int FROM customers d
+		 WHERE d.merged_into IS NOT NULL AND `+normPhoneSQL2Of("d")+` = ANY($1)
+		   AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.merged_into IS NULL AND `+normPhoneSQL2+` = `+normPhoneSQL2Of("d")+`)`,
+		phonesToCreate).Scan(&mergedAway); err != nil {
+		return err
+	}
+	if mergedAway > 0 {
+		return errImportStale
+	}
 	names, phones, emails := make([]string, n), make([]string, n), make([]string, n)
 	births, annis, notes := make([]string, n), make([]string, n), make([]string, n)
 	for i, c := range creates {

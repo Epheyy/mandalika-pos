@@ -8,11 +8,19 @@ import (
 )
 
 func lookupFrom(m map[string]int) CustomerPhoneLookup {
-	return func(phones []string) (map[string]int, error) {
-		out := map[string]int{}
+	pm := map[string]PhoneMatch{}
+	for p, n := range m {
+		pm[p] = PhoneMatch{Live: n}
+	}
+	return lookupMatches(pm)
+}
+
+func lookupMatches(m map[string]PhoneMatch) CustomerPhoneLookup {
+	return func(phones []string) (map[string]PhoneMatch, error) {
+		out := map[string]PhoneMatch{}
 		for _, p := range phones {
-			if n, ok := m[p]; ok {
-				out[p] = n
+			if v, ok := m[p]; ok {
+				out[p] = v
 			}
 		}
 		return out, nil
@@ -121,7 +129,7 @@ func TestPlanCustomersFileErrorPlansNothing(t *testing.T) {
 
 func TestPlanCustomersLookupFailureIsReturned(t *testing.T) {
 	tb := Read([]byte("Nama,Telepon\nA,0811111111\n"), CustomerSpec)
-	_, err := PlanCustomers(tb, func([]string) (map[string]int, error) { return nil, errors.New("db down") })
+	_, err := PlanCustomers(tb, func([]string) (map[string]PhoneMatch, error) { return nil, errors.New("db down") })
 	if err == nil {
 		t.Fatal("lookup error must surface")
 	}
@@ -192,5 +200,59 @@ func TestIssuesAreCapped(t *testing.T) {
 	}
 	if !found {
 		t.Error("cap must be announced as a file issue")
+	}
+}
+
+func TestPlanCustomersMergedAwayIsSkippedWithWarning(t *testing.T) {
+	csv := "Nama,Telepon,Email\nAyu,0811999888,ayu@x.co\nBudi,081222222222,\nCici,081233333333,\n"
+	look := lookupMatches(map[string]PhoneMatch{
+		"0811999888":   {Keeper: &MergedKeeper{Name: "Ayu Keeper", Phone: "081355556789"}},
+		"081222222222": {Live: 1, Keeper: &MergedKeeper{Name: "Stale", Phone: "0813"}}, // a live match wins
+	})
+	p, err := PlanCustomers(Read([]byte(csv), CustomerSpec), look)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := p.Report
+	if r.Summary.Create != 1 || r.Summary.Skip != 2 || r.Summary.Warning != 1 || r.HasErrors() {
+		t.Fatalf("summary %+v", r.Summary)
+	}
+	if len(p.Creates) != 1 || p.Creates[0].Phone != "081233333333" {
+		t.Fatalf("creates %+v", p.Creates)
+	}
+	if got := issueCodes(r, SevWarning); len(got) != 1 || got[0] != "merged_away" {
+		t.Fatalf("warnings %v (a live match is a plain skip, no warning)", got)
+	}
+	msg := r.Issues[0].Message
+	if !strings.Contains(msg, "Ayu Keeper") || !strings.Contains(msg, "6789") {
+		t.Errorf("message must name the keeper and show the last 4: %q", msg)
+	}
+	for _, leak := range []string{"081355556789", "0811999888", "ayu@x.co"} {
+		if strings.Contains(msg, leak) {
+			t.Errorf("message leaks %q: %q", leak, msg)
+		}
+	}
+	if r.Rows[0].Action != ActionSkip || strings.Contains(r.Rows[0].Reason, "Keeper") {
+		t.Errorf("row reason must be a plain skip without PII: %+v", r.Rows[0])
+	}
+	if !strings.HasPrefix(r.Rows[1].Reason, "pelanggan sudah ada") {
+		t.Errorf("live phone stays the normal skip: %+v", r.Rows[1])
+	}
+}
+
+func TestRedactedReportDropsMergedAwayKeeperName(t *testing.T) {
+	look := lookupMatches(map[string]PhoneMatch{"0811999888": {Keeper: &MergedKeeper{Name: "Ayu Keeper", Phone: "081355556789"}}})
+	p, err := PlanCustomers(Read([]byte("Nama,Telepon\nAyu,0811999888\n"), CustomerSpec), look)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(p.Report.Redacted())
+	for _, secret := range []string{"Ayu Keeper", "6789", "0811999888"} {
+		if strings.Contains(string(raw), secret) {
+			t.Errorf("redacted report still contains %q: %s", secret, raw)
+		}
+	}
+	if red := p.Report.Redacted(); len(red.Issues) != 1 || red.Issues[0].Code != "merged_away" || red.Issues[0].Message == "" {
+		t.Errorf("redaction must keep the code and a generic message: %+v", red.Issues)
 	}
 }

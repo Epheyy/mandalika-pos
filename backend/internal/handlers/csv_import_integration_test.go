@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -262,16 +263,23 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
-	sub("customers: an existing phone is skipped, never created or merged; a tombstone is not matched", func(t *testing.T) {
+	sub("customers: an existing phone is skipped, never created or merged; a merged-away phone is skipped with a warning", func(t *testing.T) {
 		exec(`INSERT INTO customers(name,phone) VALUES('Gone','081100000050')`)
 		exec(`UPDATE customers SET merged_into=(SELECT id FROM customers WHERE name='Ayu'), merged_at=now() WHERE name='Gone'`)
 		before := count(`SELECT count(*) FROM customers`)
 		rep := mustApply("/customers/import", custHeader+"Ayu Lagi,081100000001,,,,\nBaru,081100000050,,,,\n", "key-skip")
-		if rep.Summary.Skip != 1 || rep.Summary.Create != 1 {
+		if rep.Summary.Skip != 2 || rep.Summary.Create != 0 || rep.Summary.Warning != 1 {
 			t.Fatalf("%+v", rep.Summary)
 		}
-		if count(`SELECT count(*) FROM customers`) != before+1 {
-			t.Error("exactly one customer should have been created")
+		if len(rep.Issues) != 1 || rep.Issues[0].Code != "merged_away" || !strings.Contains(rep.Issues[0].Message, "Ayu") ||
+			!strings.Contains(rep.Issues[0].Message, "0001") || strings.Contains(rep.Issues[0].Message, "081100000001") {
+			t.Errorf("warning must name the keeper and a masked phone only: %+v", rep.Issues)
+		}
+		if got := text(`SELECT result::text FROM import_runs WHERE idempotency_key='key-skip'`); strings.Contains(got, "Ayu") || strings.Contains(got, "0001") {
+			t.Errorf("the stored report must not carry the keeper's name or phone: %s", got)
+		}
+		if count(`SELECT count(*) FROM customers`) != before {
+			t.Error("a merged-away customer must not be re-created")
 		}
 		if count(`SELECT count(*) FROM customers WHERE name='Ayu Lagi'`) != 0 {
 			t.Error("a customer with an existing phone must not be created")
@@ -281,6 +289,76 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 		if count(`SELECT count(*) FROM customer_dup_candidates`) != 0 {
 			t.Error("no dup candidate expected for a clean import")
+		}
+	})
+
+	sub("customers: a merge chain A to B to C resolves to the terminal keeper C", func(t *testing.T) {
+		exec(`INSERT INTO customers(name,phone) VALUES('Chain C','081100000903')`)
+		exec(`INSERT INTO customers(name,phone,merged_into,merged_at) VALUES('Chain B','081100000902',(SELECT id FROM customers WHERE name='Chain C'),now())`)
+		exec(`INSERT INTO customers(name,phone,merged_into,merged_at) VALUES('Chain A','0811-0000-0901',(SELECT id FROM customers WHERE name='Chain B'),now())`)
+		before := count(`SELECT count(*) FROM customers`)
+		rep := preview("/customers/import", custHeader+"Chain A again,081100000901,,,,\nChain B again,081100000902,,,,\n")
+		if rep.Summary.Skip != 2 || rep.Summary.Create != 0 || rep.Summary.Warning != 2 {
+			t.Fatalf("%+v", rep.Summary)
+		}
+		for _, is := range rep.Issues {
+			if is.Code != "merged_away" || !strings.Contains(is.Message, "Chain C") || !strings.Contains(is.Message, "0903") ||
+				strings.Contains(is.Message, "Chain B") || strings.Contains(is.Message, "081100000903") {
+				t.Errorf("both rows must point at keeper C by name and masked phone only: %+v", is)
+			}
+		}
+		mustApply("/customers/import", custHeader+"Chain A again,081100000901,,,,\n", "key-chain")
+		if count(`SELECT count(*) FROM customers`) != before {
+			t.Error("a merged-away customer was re-created")
+		}
+	})
+
+	sub("customers: a live customer with the phone makes it a normal skip, not a merged-away warning", func(t *testing.T) {
+		exec(`INSERT INTO customers(name,phone) VALUES('Both live','081100000911')`)
+		exec(`INSERT INTO customers(name,phone,merged_into,merged_at) VALUES('Both tomb','081100000911',(SELECT id FROM customers WHERE name='Chain C'),now())`)
+		rep := preview("/customers/import", custHeader+"Both again,081100000911,,,,\n")
+		if rep.Summary.Skip != 1 || rep.Summary.Warning != 0 || len(rep.Issues) != 0 {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+	})
+
+	sub("customers: a merge between preview and commit is a 409 import_stale and writes nothing", func(t *testing.T) {
+		exec(`INSERT INTO customers(name,phone) VALUES('Mrg live','081100000921')`)
+		exec(`INSERT INTO customers(name,phone) VALUES('Mrg keeper','081100000922')`)
+		csv := custHeader + "Mrg again,081100000921,,,,\n"
+		rep := preview("/customers/import", csv)
+		if rep.Summary.Skip != 1 || rep.Summary.Warning != 0 {
+			t.Fatalf("%+v", rep.Summary)
+		}
+		exec(`UPDATE customers SET merged_into=(SELECT id FROM customers WHERE name='Mrg keeper'), merged_at=now() WHERE name='Mrg live'`)
+		before := count(`SELECT count(*) FROM customers`)
+		code, raw := commit("/customers/import", csv, rep, "key-merge-stale")
+		var e codeEnv
+		_ = json.Unmarshal(raw, &e)
+		if code != http.StatusConflict || e.Data.Code != "import_stale" {
+			t.Fatalf("%d %s", code, raw)
+		}
+		if count(`SELECT count(*) FROM customers`) != before || count(`SELECT count(*) FROM import_runs WHERE idempotency_key='key-merge-stale'`) != 0 {
+			t.Error("stale commit wrote data")
+		}
+	})
+
+	sub("customers: apply re-checks inside the transaction; a merged-away phone planned as create is stale", func(t *testing.T) {
+		// the plan saw no customer with this phone; a merge tombstoned it before apply ran
+		exec(`INSERT INTO customers(name,phone,merged_into,merged_at) VALUES('Late tomb','081100000931',(SELECT id FROM customers WHERE name='Chain C'),now())`)
+		before := count(`SELECT count(*) FROM customers`)
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		err = write.ApplyCustomerImportCreates(ctx, tx, []csvimport.CustomerCreate{{Name: "Recreated", Phone: "081100000931"}, {Name: "Fine", Phone: "081100000932"}})
+		if !errors.Is(err, write.ErrImportStale) {
+			t.Fatalf("want ErrImportStale, got %v", err)
+		}
+		_ = tx.Rollback(ctx)
+		if count(`SELECT count(*) FROM customers`) != before {
+			t.Error("the stale apply wrote rows")
 		}
 	})
 

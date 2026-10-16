@@ -92,14 +92,17 @@ func (r Report) HasErrors() bool {
 
 // Redacted returns a copy that is safe to keep in the audit table: no issue value (it can
 // be a phone, email or name taken from the file) and, for customer imports, no row key
-// (the phone). Counts, row numbers, codes, columns, messages (none embeds a customer
-// value) and per-row actions stay, so a replay still gives a coherent report. Product and
+// (the phone). Counts, row numbers, codes, columns, messages (the merged_away one, which
+// names the keeper, is replaced by a generic text) and per-row actions stay, so a replay still gives a coherent report. Product and
 // ingredient keys are catalog data (SKU/name) and are kept.
 func (r Report) Redacted() Report {
 	out := r
 	out.Issues = make([]Issue, len(r.Issues))
 	for i, is := range r.Issues {
 		is.Value = ""
+		if is.Code == "merged_away" {
+			is.Message = mergedAwayStored // the live message names the keeper
+		}
 		out.Issues[i] = is
 	}
 	out.Rows = make([]RowResult, len(r.Rows))
