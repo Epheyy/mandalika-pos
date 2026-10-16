@@ -207,10 +207,11 @@ describe('SyncEngine durable enqueue', () => {
     const { engine, request } = makeEngine(kv)
     for (let i = 0; i < 5; i++) await engine.outbox.add('order', `dev:${i}`, {})
     request.mockImplementation(echoOk)
-    const before = ctl.attempts.length
+    const outboxWrites = () => ctl.attempts.filter((w) => w.key === OUTBOX_KEY).length
+    const before = outboxWrites()
     await engine.flush()
-    // settle(ack x5) + prune = 2 whole-array writes, not 5 + 1.
-    expect(ctl.attempts.length - before).toBe(2)
+    // settle(ack x5) + prune = 2 whole-array outbox writes, not 5 + 1 (A15's settling-debit write is a separate key).
+    expect(outboxWrites() - before).toBe(2)
     expect(engine.outbox.all()).toEqual([])
   })
 

@@ -79,12 +79,19 @@ export class SettlingDebits {
     return g
   }
 
-  /** Remember an acked order's lines (replaces the same key). Rejects if the write failed; the entry is
-   *  still held in memory so this session's display stays right. */
-  record(entry: { key: string; outletId?: string; lines: DebitLine[] }): Promise<void> {
-    const e: SettlingEntry = { ...entry, gen: this.state.gen, at: Date.now() }
-    this.state = { ...this.state, entries: [...this.state.entries.filter((x) => x.key !== e.key), e] }
+  /** Remember acked orders' lines (replaces the same keys) in ONE write. Rejects if the write failed; the
+   *  entries are still held in memory so this session's display stays right. */
+  recordMany(entries: { key: string; outletId?: string; lines: DebitLine[] }[]): Promise<void> {
+    if (!entries.length) return Promise.resolve()
+    const at = Date.now()
+    const incoming = new Set(entries.map((e) => e.key))
+    const fresh = entries.map((e): SettlingEntry => ({ ...e, gen: this.state.gen, at }))
+    this.state = { ...this.state, entries: [...this.state.entries.filter((x) => !incoming.has(x.key)), ...fresh] }
     return this.persist()
+  }
+
+  record(entry: { key: string; outletId?: string; lines: DebitLine[] }): Promise<void> {
+    return this.recordMany([entry])
   }
 
   /** A pull numbered `g` came back. False (nothing changed) when a newer pull was already applied.
