@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-16 by Claude (Opus 5.5) — end of session; see Next item 0 "NEXT SESSION".
+Last updated: 2026-10-17 by Claude (Sonnet 5.5) — A44 merged locally, awaiting owner go-ahead to push/deploy; see Next item 0.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -185,8 +185,16 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      auditor 'sudah dicek' step; POS stops blocking out-of-stock items, warns instead, via OTA). A39 plan
      `docs/plans/2026-10-16-a39-csv-import.md` + owner decisions (stopgap c7d0d71 hides product import / retires users import;
      no stock column; phone dupes skipped; users import retired). Order: A44 (mig 0055, port 56457), then A39 (mig 0056, 56456).
-   - **A44 code-complete, NOT reviewed/merged/deployed (2026-10-16):** branch `worktree-agent-ae978051544692d45` (worktree
-     `.claude/worktrees/agent-ae978051544692d45`), commits 71f7f34 (P1 mig 0055 `sale_stock_exceptions`, no online clamp,
+   - **A44 REVIEWED + MERGED LOCALLY 2026-10-17 (merge 477fc8f on prod-hardening; NOT pushed/deployed):** Opus review found no
+     CRIT/HIGH; fix round 2031c75 (M1 non-live refund lines never restocked incl. bundles; Q6 unresolved_variant sale sets
+     orders.stock_warning; L1 report totals = kind shortage only; L2 qty<=0 skip) + 536603d (api.gen.go regen — `make gen-check`
+     in backend is separate from `pnpm gen:check`; breakdown sums shortage-only). Opus re-review: no runtime defect. Verified on
+     merged tree: OS ×3 + full PG gate 18/18 (no -race), go test ./..., both gen checks, quality:ci exit 0. NOT run locally:
+     browser:ci, EXPLAIN on 200k rows. Deferred LOWs: L3 renamed-variant label, L4 CSV `'` strip on re-import (A39), L6
+     `::text` filters not index-friendly, L7 variant popup ignores cart qty, L8 report handler untyped map. Awaiting owner
+     go-ahead: push → CI → Neon snapshot/read-only check → deploy-backend (mig 0055) → smoke → promote → backoffice (push
+     of a non-skip commit) → OTA for POS warning (versionCode 12) → emulator check.
+   - (history) A44 branch `worktree-agent-ae978051544692d45`, commits 71f7f34 (P1 mig 0055 `sale_stock_exceptions`, no online clamp,
      exception rows in the sale tx, PG gate OS 56457), 710c86f (P2 oversell-report / open-count / acknowledge API, OpenAPI +
      types, `Order.stockWarning`), 0f2befd (P3 backoffice Stok Minus tab + badges + formula-safe CSV), f2d6d0f + f94fc34 (P4
      unresolved variants; refund restocks only what the sale took), 5636ceb (P5 POS stops blocking out-of-stock, warns; OTA).
