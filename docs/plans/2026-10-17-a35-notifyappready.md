@@ -58,7 +58,7 @@ Current behavior is already the target. Remaining edge cases:
    on a new bundle, a *good* bundle is rolled back and marked error (it is never retried, see section 1). This is not data
    loss. Measure it on the emulator (E1). If it comes close, the remedy is an APK with an explicit `appReadyTimeout`, not
    an OTA.
-3. **Render crash.** The confirm fires on App's first commit (the "Memuat…" frame; `auth.tsx` starts `ready=false`),
+3. **Render crash.** The confirm fires on App's first commit (the "Memuatâ€¦" frame; `auth.tsx` starts `ready=false`),
    after the journal booted. A crash while App itself first renders stays unconfirmed and rolls back, which is why the
    confirm stays in the effect. A crash in a LATER screen (Login/Cashier) is not auto-reverted (no error boundary in
    `apps/pos/src`): roll forward.

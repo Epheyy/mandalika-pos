@@ -162,7 +162,7 @@ export default function App() {
   // effect already means the journal booted; a BootError never gets here and stays
   // unconfirmed (Capgo rolls it back). Never gate this on network, login or sync
   // (offline/logged-out tablets would be rolled back). It fires on App's FIRST commit
-  // (the "Memuat…" frame, auth starts ready=false), so a crash in a later screen
+  // (the "Memuatâ€¦" frame, auth starts ready=false), so a crash in a later screen
   // (Login/Cashier) is NOT auto-reverted: roll forward. Keep it in this effect, not
   // main.tsx, so a crash while App itself first renders stays unconfirmed. Locked by
   // App.otaReady.test.tsx + bootStorage.wiring.test.ts.

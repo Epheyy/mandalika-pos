@@ -118,7 +118,7 @@ APK's build commit unless acknowledged (rule 4 below).
 
 - A bundle confirms (`notifyAppReady`) from App's mount effect, i.e. after the
   journal booted (`main.tsx` mounts App only after `bootStorage()` succeeded) and
-  App first committed (the "Memuat…" frame). A BootError, or a crash while App
+  App first committed (the "Memuatâ€¦" frame). A BootError, or a crash while App
   itself first renders, leaves it unconfirmed. A crash in a LATER screen
   (Login/Cashier; there is no error boundary yet) is not auto-reverted: roll forward.
 - Capgo protects only a bundle's **first launch** (about 30 s for a not-yet
