@@ -383,3 +383,8 @@ is almost always false while the setting defaults to `true`.
   - (a) Remove these blocks and show a warning instead. Recommended: it is what lets the oversell report catch auditor
     errors. Ships by OTA, no APK.
   - (b) Keep them; only the cart "+", multi-tablet races and late syncs produce oversell records.
+
+## Owner decisions (2026-10-16)
+
+- Q1 badge: unchecked lines; an auditor marks each oversold line 'sudah dicek' with a note (Tinjauan Sinkron style), permission manage_stock_count.
+- Q2 POS: stop blocking out-of-stock items (grid tap, variant +, scan 'Stok habis'); warn instead and record the oversell. Ships by OTA (no APK).
