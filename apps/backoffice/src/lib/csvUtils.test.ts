@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
-import { csvCell, exportToXLSX } from './csvUtils'
+import { buildCSV, csvCell, exportToXLSX } from './csvUtils'
+import golden from '../../../../backend/internal/csvimport/testdata/export_golden.csv?raw'
 
 vi.mock('xlsx', async (original) => ({
   ...await original<typeof import('xlsx')>(), writeFile: vi.fn(),
@@ -41,9 +42,17 @@ describe('existing XLSX export contract', () => {
 
 describe('csvCell formula safety (A44/A39)', () => {
   it('prefixes text cells that start with a formula trigger', () => {
-    for (const t of ['=1+1', '+628123', '-123', '@SUM(A1)', '\tcmd', '\rcmd']) {
+    for (const t of ['=1+1', '@SUM(A1)', '\tcmd', '\rcmd', '-', '+', '-2+3', '+cmd|calc', '-A1', '+1+1']) {
       expect(csvCell(t).replace(/^"|"$/g, '').startsWith("'")).toBe(true)
     }
+  })
+
+  it('leaves signed plain numbers and phone numbers readable, prefixes lone signs and expressions', () => {
+    expect(csvCell('+628123')).toBe('+628123')
+    expect(csvCell('-5000')).toBe('-5000')
+    expect(csvCell('-1.500,5')).toBe('"-1.500,5"')
+    expect(csvCell('-')).toBe("'-")
+    expect(csvCell('-2+3')).toBe("'-2+3")
   })
 
   it('keeps numbers numeric, including negatives (negative stock)', () => {
@@ -63,5 +72,42 @@ describe('csvCell formula safety (A44/A39)', () => {
 
   it('escapes after prefixing so a quoted formula stays one safe cell', () => {
     expect(csvCell('=A1,B1')).toBe('"\'=A1,B1"')
+  })
+})
+
+describe('buildCSV (RFC 4180 writer, A39)', () => {
+  const rows = [
+    { Nama: 'Melati, Putih', Deskripsi: 'say "hi"', Catatan: 'a;b', Angka: 12345.5 },
+    { Nama: 'Mawar', Deskripsi: 'line1\nline2', Catatan: '', Angka: -3 },
+    { Nama: '=1+1', Deskripsi: '+6281234567', Catatan: '-5000', Angka: 0 },
+    { Nama: '-2+3', Deskripsi: '- bahan alami', Catatan: '-', Angka: '' },
+    { Nama: 'Ni Luh Äyu 香 🌺', Deskripsi: '@SUM(A1)', Catatan: 'x', Angka: 7 },
+  ]
+
+  it('is byte-for-byte equal to the checked-in golden file the Go importer also parses', () => {
+    expect(buildCSV(rows)).toBe(golden)
+  })
+
+  it('starts with a BOM and joins records with CRLF', () => {
+    const csv = buildCSV(rows)
+    expect(csv.charCodeAt(0)).toBe(0xfeff)
+    expect(csv.split('\r\n')).toHaveLength(rows.length + 1)
+  })
+
+  it('quotes semicolons and carriage returns too', () => {
+    expect(csvCell('a;b')).toBe('"a;b"')
+    expect(csvCell('a\rb')).toBe('"a\rb"')
+  })
+})
+
+describe('XLSX never writes formula cells (A39)', () => {
+  it('keeps a formula-looking string as a plain text cell with no f key', () => {
+    vi.mocked(XLSX.writeFile).mockClear()
+    exportToXLSX([{ A: '=SUM(A1)', B: '@x', C: '-2+3' }], 'f')
+    const [book] = vi.mocked(XLSX.writeFile).mock.calls[0]
+    for (const addr of ['A2', 'B2', 'C2']) {
+      expect(book.Sheets.Data[addr].t).toBe('s')
+      expect(book.Sheets.Data[addr].f).toBeUndefined()
+    }
   })
 })
