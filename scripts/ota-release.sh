@@ -106,12 +106,16 @@ VITE_API_URL="$BASE" corepack pnpm --filter @mandalika/pos build
 # --- 3. Capgo-format zip (checksum + zip file) ---------------------------
 # `bundle zip --json` prints progress lines then a JSON object with keys
 # {bundle, filename, checksum} (NO size, NO path). The zip is written into the
-# current directory (== repo root here) as <filename>; size is derived from it.
+# current directory (== apps/pos here) as <filename>; size is derived from it.
+# Run from apps/pos: the CLI reads capacitor.config.ts and resolves @capgo/capacitor-updater
+# from the cwd, and needs --package-json to find the plugin in a pnpm workspace. The CLI
+# version is pinned so a new release cannot change the zip format under a release.
+CAPGO_CLI_VERSION="${CAPGO_CLI_VERSION:-8.83.0}"
 ZIP_NAME="pos-$VERSION.zip"
-ZIPJSON=$(npx @capgo/cli bundle zip "$APP_ID" \
-  --path apps/pos/dist --bundle "$VERSION" --name "$ZIP_NAME" --json)
+ZIPJSON=$(cd "$ROOT/apps/pos" && npx "@capgo/cli@$CAPGO_CLI_VERSION" bundle zip "$APP_ID" \
+  --path dist --bundle "$VERSION" --name "$ZIP_NAME" --package-json package.json --json)
 CHECKSUM=$(printf '%s' "$ZIPJSON" | json_get checksum)
-ZIP="$ROOT/$(printf '%s' "$ZIPJSON" | json_get filename)"
+ZIP="$ROOT/apps/pos/$(printf '%s' "$ZIPJSON" | json_get filename)"
 [ -n "$CHECKSUM" ] || { echo "capgo zip: no checksum in --json output" >&2; exit 1; }
 [ -f "$ZIP" ] || { echo "capgo zip not found at '$ZIP' — check the CLI --json output keys" >&2; exit 1; }
 SIZE=$(wc -c < "$ZIP" | tr -d '[:space:]')
