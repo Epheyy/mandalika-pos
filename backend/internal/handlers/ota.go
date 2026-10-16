@@ -48,15 +48,23 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		Platform    string          `json:"platform"`
 		VersionName string          `json:"version_name"`
 		VersionCode json.RawMessage `json:"version_code"`
+		// Capgo's persisted random install id and the app-set custom id (the bound outlet id
+		// once the POS sets it). Opaque, client-asserted, logged only; never trusted or echoed.
+		DeviceID string `json:"device_id"`
+		CustomID string `json:"custom_id"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	platform := strings.ToLower(strings.TrimSpace(body.Platform))
 	if platform == "" {
 		platform = "android"
 	}
+	versionName := otaOpaqueID(body.VersionName)
+	deviceID := otaOpaqueID(body.DeviceID)
+	customID := otaOpaqueID(body.CustomID)
 	code, ok := ota.ParseVersionCode(body.VersionCode)
 	if !ok {
 		// No usable versionCode: fail safe, never offer a bundle (no DB hit).
+		logOtaCheck(platform, versionName, 0, deviceID, customID, false)
 		writeJSON(w, http.StatusOK, ota.Decide(nil, body.VersionName))
 		return
 	}
@@ -67,7 +75,32 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, errOtaUnavailable)
 		return
 	}
-	writeJSON(w, http.StatusOK, ota.Decide(latest, body.VersionName))
+	resp := ota.Decide(latest, body.VersionName)
+	logOtaCheck(platform, versionName, code, deviceID, customID, resp.URL != "")
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// otaMaxIDLen caps what a public caller can make us log per field.
+const otaMaxIDLen = 64
+
+var otaOpaqueIDRe = regexp.MustCompile(`^[A-Za-z0-9._:-]*$`)
+
+// otaOpaqueID returns v trimmed when it is a short token of [A-Za-z0-9._:-], else "". Public,
+// unauthenticated input: anything with spaces, control characters or an oversized value is
+// dropped so it cannot forge or flood log lines.
+func otaOpaqueID(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) > otaMaxIDLen || !otaOpaqueIDRe.MatchString(v) {
+		return ""
+	}
+	return v
+}
+
+// logOtaCheck is the OTA adoption trail: which install (device_id) / outlet (custom_id) asked
+// for what, and whether a bundle was offered. Opaque ids only: no IP, headers or customer data.
+func logOtaCheck(platform, versionName string, versionCode int, deviceID, customID string, offered bool) {
+	slog.Info("ota check", "platform", otaOpaqueID(platform), "version_name", versionName,
+		"version_code", versionCode, "device_id", deviceID, "custom_id", customID, "offered", offered)
 }
 
 // OtaPublish (authed, manage_settings) records a new bundle. Called by the
