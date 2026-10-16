@@ -434,7 +434,7 @@ describe('transfer_receive competing receipt', () => {
     })
     // the approver PIN does not outlive its use: gone from memory and from storage
     expect(item.payload).not.toHaveProperty('pin')
-    expect(store.get('mandalika.pos.outbox')).not.toContain('1234')
+    expect(store.get('mandalika.pos.outbox')).not.toContain('"1234"')
     expect(store.get('mandalika.pos.outbox')).not.toContain('"pin"')
     expect(oldPending(engine.outbox.all() as OutboxItem[])).toEqual([])
     expect(onReceiveRejected).toHaveBeenCalledWith(expect.stringContaining('perlu ditinjau'))

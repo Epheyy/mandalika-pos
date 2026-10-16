@@ -15,7 +15,11 @@
 # release is bound to that commit (commitSha). OTA_RELEASE_TYPE=test (default) |
 # production (production also runs scripts/ci/release_debug_gate_cli.mjs).
 #
-# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL, NATIVE_VERSION_CODE, OTA_RELEASE_TYPE.
+# Journal guard (A35): refuses journal-file changes since the APK's build commit unless
+# OTA_JOURNAL_CHANGE_ACK=1, and requires the commit to descend from it (APK_BUILD_SHA).
+#
+# Optional overrides: OTA_API_URL, OTA_ADMIN_EMAIL, NATIVE_VERSION_CODE, OTA_RELEASE_TYPE,
+# APK_BUILD_SHA, OTA_JOURNAL_CHANGE_ACK.
 set -euo pipefail
 
 # --- Inputs & validation -------------------------------------------------
@@ -37,6 +41,12 @@ cd "$ROOT"
 # shellcheck source=lib/require-green-ci.sh
 source "$REPO_ROOT/scripts/lib/require-green-ci.sh"
 require_green_ci || exit 1
+
+# --- Journal rollback-compatibility guard (A35, RUNBOOK): before anything is built ---
+# Env: APK_BUILD_SHA (required with NATIVE_VERSION_CODE), OTA_JOURNAL_CHANGE_ACK=1.
+# shellcheck source=lib/ota-journal-guard.sh
+source "$REPO_ROOT/scripts/lib/ota-journal-guard.sh"
+ota_journal_guard "$RELEASE_SHA" || exit 1
 
 # Build from a clean checkout of exactly the tested commit, never the working tree.
 WT="$(mktemp -d)"

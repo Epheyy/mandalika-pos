@@ -161,3 +161,50 @@ describe('SyncedRefunds.addMany', () => {
     expect(ctl.attempts).toHaveLength(0)
   })
 })
+
+// A35: a bundle published later may write items with fields or types this bundle has never heard of,
+// and an OTA rollback hands that journal to an older bundle. It must adopt it, keep the unknown
+// parts through a status rewrite, and send only the wire fields the server knows.
+describe('older bundle over a newer bundle journal (A35 rollback tolerance)', () => {
+  const futureRow = (key: string, seq: number, type: string) => ({
+    key,
+    seq,
+    json: JSON.stringify({
+      idempotencyKey: key,
+      type,
+      payload: { orderId: key, futurePayloadKey: 1 },
+      seq,
+      status: 'pending',
+      clientCreatedAt: '2026-10-17T00:00:00.000Z',
+      futureField: { v: 2 },
+    }),
+  })
+
+  it('adopts unknown additive fields and an unknown item type', async () => {
+    const fj = createFakeJournal()
+    fj.persisted.rows.set('d:a', { seq: 1, json: futureRow('d:a', 1, 'order').json })
+    fj.persisted.rows.set('d:b', { seq: 2, json: futureRow('d:b', 2, 'future_type').json })
+    const { engine } = await engineOver(fj)
+    expect(engine.pendingCount()).toBe(2)
+    expect(engine.outbox.all().map((i) => i.type)).toEqual(['order', 'future_type'])
+  })
+
+  it('keeps unknown fields through a status rewrite and sends only the known wire fields', async () => {
+    const fj = createFakeJournal()
+    fj.persisted.rows.set('d:a', { seq: 1, json: futureRow('d:a', 1, 'future_type').json })
+    const sent: unknown[] = []
+    const reject = vi.fn(async (_m: string, _p: string, body: { items: unknown[] }) => {
+      sent.push(...body.items)
+      return { data: { processed: 0, version: 0, results: [{ idempotencyKey: 'd:a', status: 'error', error: 'x', retryable: true }] } }
+    })
+    online()
+    const { engine } = await engineOver(fj, controllableKV().kv, reject)
+    await engine.flush()
+    expect(sent).toEqual([
+      { type: 'future_type', idempotencyKey: 'd:a', payload: { orderId: 'd:a', futurePayloadKey: 1 } },
+    ])
+    const stored = JSON.parse(fj.persisted.rows.get('d:a')!.json)
+    expect(stored.futureField).toEqual({ v: 2 })
+    expect(stored.lastError).toBe('x') // the rewrite really happened
+  })
+})

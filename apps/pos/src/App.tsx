@@ -157,9 +157,15 @@ export default function App() {
   // post-login, but the pre-login screen never mounts SyncProvider — so on a
   // fresh/logged-out app the splash covered the WebView forever (blank app).
   // Hide it as soon as React shows anything; SplashScreen.hide() is idempotent.
-  // Also confirm the OTA bundle booted HERE (first render), NOT gated behind the
-  // network sync — Capgo auto-rolls-back a good bundle if notifyAppReady() misses
-  // its ~10s window, so a slow tablet network must not delay the confirm.
+  // Also confirm the OTA bundle booted HERE (A35). main.tsx mounts App only after
+  // bootStorage() (secure KV + journal open/migration) succeeded, so reaching this
+  // effect already means the journal booted; a BootError never gets here and stays
+  // unconfirmed (Capgo rolls it back). Never gate this on network, login or sync
+  // (offline/logged-out tablets would be rolled back). It fires on App's FIRST commit
+  // (the "Memuat…" frame, auth starts ready=false), so a crash in a later screen
+  // (Login/Cashier) is NOT auto-reverted: roll forward. Keep it in this effect, not
+  // main.tsx, so a crash while App itself first renders stays unconfirmed. Locked by
+  // App.otaReady.test.tsx + bootStorage.wiring.test.ts.
   useEffect(() => {
     void hideSplash()
     void otaNotifyReady()
