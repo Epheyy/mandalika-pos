@@ -17,10 +17,6 @@ const (
 	normPhoneSQL2 = `regexp_replace(c.phone, '[\s().-]', '', 'g')`
 )
 
-func normPhoneSQL2Of(alias string) string {
-	return `regexp_replace(` + alias + `.phone, '[\s().-]', '', 'g')`
-}
-
 // ErrImportStale is the stale-plan error an apply returns (exported for the PostgreSQL gate).
 var ErrImportStale = errImportStale
 
@@ -51,7 +47,8 @@ func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*imp
 			return nil, err
 		}
 		// Tombstones only matter where no live customer has the phone. The oldest tombstone
-		// per phone is followed through merged_into to the terminal keeper (depth-capped).
+		// per phone is followed through merged_into to the terminal keeper (depth-capped: a chain still
+		// going at the cap, or a cycle, is flagged so no intermediate record is named keeper).
 		rows, err = q.Query(ctx, `
 			WITH RECURSIVE t AS (
 			  SELECT DISTINCT ON (np) np, merged_into AS id FROM (
@@ -65,7 +62,7 @@ func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*imp
 			    JOIN customers c ON c.id = chain.id
 			   WHERE c.merged_into IS NOT NULL AND chain.depth < 20
 			)
-			SELECT DISTINCT ON (ch.np) ch.np, k.name, k.phone FROM chain ch
+			SELECT DISTINCT ON (ch.np) ch.np, k.name, k.phone, k.merged_into IS NOT NULL FROM chain ch
 			  JOIN customers k ON k.id = ch.id
 			 ORDER BY ch.np, ch.depth DESC`, phones)
 		if err != nil {
@@ -75,7 +72,7 @@ func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*imp
 		for rows.Next() {
 			var phone string
 			var keeper csvimport.MergedKeeper
-			if err := rows.Scan(&phone, &keeper.Name, &keeper.Phone); err != nil {
+			if err := rows.Scan(&phone, &keeper.Name, &keeper.Phone, &keeper.ChainTooLong); err != nil {
 				return nil, err
 			}
 			if m := out[phone]; m.Live == 0 {
@@ -111,12 +108,15 @@ func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimp
 	}
 	// A merge can land between plan and apply: a phone that only a tombstoned customer
 	// has must not be re-created, so the import is stale (409) instead.
+	// Tombstone phones minus live phones, both limited to the create set, so the cost is
+	// bounded by the file (two passes), not by a per-row correlated lookup.
 	var mergedAway int
 	if err := tx.QueryRow(ctx, `
-		SELECT count(*)::int FROM customers d
-		 WHERE d.merged_into IS NOT NULL AND `+normPhoneSQL2Of("d")+` = ANY($1)
-		   AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.merged_into IS NULL AND `+normPhoneSQL2+` = `+normPhoneSQL2Of("d")+`)`,
-		phonesToCreate).Scan(&mergedAway); err != nil {
+		SELECT count(*)::int FROM (
+		  SELECT `+normPhoneSQL+` FROM customers WHERE merged_into IS NOT NULL AND `+normPhoneSQL+` = ANY($1)
+		  EXCEPT
+		  SELECT `+normPhoneSQL+` FROM customers WHERE merged_into IS NULL AND `+normPhoneSQL+` = ANY($1)
+		) x`, phonesToCreate).Scan(&mergedAway); err != nil {
 		return err
 	}
 	if mergedAway > 0 {

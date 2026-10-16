@@ -256,3 +256,19 @@ func TestRedactedReportDropsMergedAwayKeeperName(t *testing.T) {
 		t.Errorf("redaction must keep the code and a generic message: %+v", red.Issues)
 	}
 }
+
+func TestPlanCustomersMergeChainTooLongNamesNoKeeper(t *testing.T) {
+	look := lookupMatches(map[string]PhoneMatch{"0811999888": {Keeper: &MergedKeeper{Name: "Middle Link", Phone: "081355556789", ChainTooLong: true}}})
+	p, err := PlanCustomers(Read([]byte("Nama,Telepon\nAyu,0811999888\n"), CustomerSpec), look)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := p.Report
+	if r.Summary.Skip != 1 || r.Summary.Create != 0 || len(r.Issues) != 1 || r.Issues[0].Code != "merged_away" {
+		t.Fatalf("%+v %+v", r.Summary, r.Issues)
+	}
+	msg := r.Issues[0].Message
+	if !strings.Contains(msg, "rantai penggabungan terlalu panjang") || strings.Contains(msg, "Middle Link") || strings.Contains(msg, "6789") {
+		t.Errorf("an over-long chain must not quote an intermediate record as keeper: %q", msg)
+	}
+}

@@ -33,7 +33,12 @@ type CustomerCreate struct {
 
 // MergedKeeper is the terminal live customer a merged-away (tombstoned) customer ended
 // up in; the planner only quotes its name and the last four digits of its phone.
-type MergedKeeper struct{ Name, Phone string }
+type MergedKeeper struct {
+	Name, Phone string
+	// ChainTooLong is set when the merge chain was cut at the depth cap, so Name/Phone
+	// are an intermediate record and must not be quoted as the keeper.
+	ChainTooLong bool
+}
 
 // PhoneMatch is what the database knows about one cleaned phone: how many LIVE customers
 // (merged_into IS NULL) have it exactly, and, when none do but a tombstoned customer
@@ -120,6 +125,9 @@ const (
 
 // mergedAwayMessage points at the keeper by name and masked phone only.
 func mergedAwayMessage(k *MergedKeeper) string {
+	if k.ChainTooLong {
+		return "pelanggan dengan nomor ini sudah digabung, tetapi rantai penggabungan terlalu panjang untuk ditelusuri; baris dilewati, tidak dibuat ulang"
+	}
 	return fmt.Sprintf("pelanggan dengan nomor ini sudah digabung ke %q (telepon ****%s); baris dilewati, tidak dibuat ulang",
 		k.Name, lastDigits(k.Phone, 4))
 }

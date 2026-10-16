@@ -362,6 +362,20 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	sub("customers: the apply re-check is not stale when a live customer and a tombstone share the phone", func(t *testing.T) {
+		exec(`INSERT INTO customers(name,phone) VALUES('Share live','081100000941')`)
+		exec(`INSERT INTO customers(name,phone,merged_into,merged_at) VALUES('Share tomb','081100000941',(SELECT id FROM customers WHERE name='Chain C'),now())`)
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		if err = write.ApplyCustomerImportCreates(ctx, tx, []csvimport.CustomerCreate{{Name: "Share new", Phone: "081100000941"}}); err != nil {
+			t.Fatalf("a live holder of the phone must not make the apply stale: %v", err)
+		}
+		_ = tx.Rollback(ctx)
+	})
+
 	sub("customers: a same-phone customer landing between plan and apply gets a dup candidate, not a merge", func(t *testing.T) {
 		exec(`INSERT INTO customers(name,phone) VALUES('POS older','081100000777')`)
 		tx, err := pool.Begin(ctx)
@@ -828,9 +842,9 @@ func TestCsvImportPostgres(t *testing.T) {
 		exec(`INSERT INTO ingredients(name,unit,sku) VALUES('Sku Twin','g',''),('sku twin','g','')`)
 		exec(`INSERT INTO ingredients(name,unit,sku) VALUES('Sku Owned','g','OWN-1')`)
 		before := count(`SELECT count(*) FROM ingredients`)
-		csv := ingHeader + "sku blank,SB-1,g,,,,\nSku Twin,ST-1,g,,,,\nSku Owned,OWN-2,g,,,,\nSku Blank,SB-2,g,,,,\n"
+		csv := ingHeader + "sku blank,SB-1,g,,,,\nSku Twin,ST-1,g,,,,\nSku Owned,OWN-2,g,,,,\n"
 		rep := mustApply("/ingredients/import", csv, "i-assign")
-		if rep.Summary.Update != 1 || rep.Summary.Create != 3 || rep.Summary.Warning != 3 {
+		if rep.Summary.Update != 1 || rep.Summary.Create != 2 || rep.Summary.Warning != 2 {
 			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
 		}
 		if got := text(`SELECT sku FROM ingredients WHERE id=$1`, blank); got != "SB-1" {
@@ -839,11 +853,24 @@ func TestCsvImportPostgres(t *testing.T) {
 		if got := text(`SELECT name FROM ingredients WHERE id=$1`, blank); got != "Sku Blank" {
 			t.Errorf("stored name changed to %q", got)
 		}
-		if count(`SELECT count(*) FROM ingredients`) != before+3 {
-			t.Error("expected three new ingredients (twin, owned, and the second SKU for the already-assigned name)")
+		if count(`SELECT count(*) FROM ingredients`) != before+2 {
+			t.Error("expected two new ingredients (twin and owned)")
 		}
-		if count(`SELECT count(*) FROM ingredients WHERE sku IN ('SB-1','SB-2','ST-1','OWN-2')`) != 4 {
+		if count(`SELECT count(*) FROM ingredients WHERE sku IN ('SB-1','ST-1','OWN-2')`) != 3 {
 			t.Error("each SKU must exist exactly once")
+		}
+	})
+
+	sub("ingredients: two rows targeting one ingredient, or a unit change on a SKU assign, are row errors", func(t *testing.T) {
+		const ingHeader = "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\n"
+		exec(`INSERT INTO ingredients(name,unit,sku) VALUES('Dual Target','g','')`)
+		rep := preview("/ingredients/import", ingHeader+"Dual Target,DT-1,g,,,,\nDual Target,,g,,9.000,,\n")
+		if rep.Summary.Error != 1 || len(rep.Issues) == 0 || rep.Issues[0].Row != 2 || rep.Issues[0].Code != "duplicate_in_file" {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		rep = preview("/ingredients/import", ingHeader+"Dual Target,DT-1,kg,,,,\n")
+		if rep.Summary.Error != 1 || rep.Issues[0].Code != "unit_mismatch" {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
 		}
 	})
 

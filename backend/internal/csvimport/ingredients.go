@@ -75,10 +75,10 @@ func PlanIngredients(t *Table, cat IngredientCatalog) (*IngredientsPlan, error) 
 
 	plan := &IngredientsPlan{}
 	seen := map[string]int{}
-	assigned := map[string]bool{} // blank-SKU ingredients an earlier row already gave a SKU
+	targeted := map[string]int{} // ingredient id -> first row that will write it
 	for _, row := range t.Rows {
 		b.Begin(row)
-		pi, key, outcome := planIngredientRow(b, row, bySKU, byName, ix, cats, seen, assigned)
+		pi, key, outcome := planIngredientRow(b, row, bySKU, byName, ix, cats, seen, targeted)
 		if b.RowHasError(row) {
 			b.Row(row, ActionError, key, "")
 			continue
@@ -95,7 +95,7 @@ func PlanIngredients(t *Table, cat IngredientCatalog) (*IngredientsPlan, error) 
 }
 
 func planIngredientRow(b *Builder, row Row, bySKU, byName map[string][]*CatalogIngredient,
-	ix *catalogIndex, cats *categoryTracker, seen map[string]int, assigned map[string]bool) (PlannedIngredient, string, rowOutcome) {
+	ix *catalogIndex, cats *categoryTracker, seen map[string]int, targeted map[string]int) (PlannedIngredient, string, rowOutcome) {
 	c := row.Cells
 	var pi PlannedIngredient
 	pi.Name = strings.TrimSpace(c["Nama"])
@@ -165,10 +165,9 @@ func planIngredientRow(b *Builder, row Row, bySKU, byName map[string][]*CatalogI
 		switch cands := bySKU[strings.ToLower(pi.SKU)]; len(cands) {
 		case 0:
 			named := byName[strings.ToLower(pi.Name)]
-			if len(named) == 1 && named[0].SKU == "" && !assigned[named[0].ID] {
+			if len(named) == 1 && named[0].SKU == "" {
 				// a new SKU for the one same-named ingredient that has none: assign it, no duplicate
 				match, skuAssigned = named[0], true
-				assigned[match.ID] = true
 			} else if len(named) > 0 {
 				b.Issue(row, "Nama", SevWarning, "name_exists",
 					"sudah ada bahan dengan nama ini dan SKU lain; baris ini dibuat sebagai bahan baru", pi.Name)
@@ -187,8 +186,26 @@ func planIngredientRow(b *Builder, row Row, bySKU, byName map[string][]*CatalogI
 			b.Issue(row, "Nama", SevError, "ambiguous_match", fmt.Sprintf("%d bahan bernama sama; isi SKU untuk memilih salah satu", len(cands)), pi.Name)
 		}
 	}
+	if match != nil {
+		// Any two rows (SKU match, name match or SKU assign) that target one ingredient would
+		// race in the single UPDATE ... FROM, so the second one is an error.
+		if first, dup := targeted[match.ID]; dup {
+			b.Issue(row, "Nama", SevError, "duplicate_in_file", fmt.Sprintf("bahan yang sama sudah dipakai baris %d", first), key)
+		}
+	}
+	if skuAssigned && !b.RowHasError(row) {
+		if unit != "" && unit != match.Unit {
+			b.Issue(row, "Satuan", SevError, "unit_mismatch",
+				"satuan berbeda dari bahan yang sudah ada; ubah satuan lewat formulir bahan, bukan lewat import", unit)
+		} else if !match.Active {
+			b.Issue(row, "Nama", SevWarning, "ingredient_inactive", "SKU ditetapkan ke bahan yang nonaktif", pi.Name)
+		}
+	}
 	if b.RowHasError(row) {
 		return pi, key, rowOutcome{}
+	}
+	if match != nil {
+		targeted[match.ID] = row.Index
 	}
 
 	if category != "" {
