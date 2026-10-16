@@ -162,6 +162,12 @@
       "finding": "review-resolve",
       "description": "Sidebar badge, open list, detail, resolve with trimmed note and escaped key, badge clears",
       "source": "tests/browser/backoffice-review-scenarios.ts"
+    },
+    {
+      "id": "BO-CSV-IMPORT",
+      "finding": "A39",
+      "description": "CSV import dialog: preview errors block Terapkan, clean preview enables it, apply sends Idempotency-Key + dryRun false + preview hash/summary, success text",
+      "source": "tests/browser/backoffice-import-scenarios.ts"
     }
   ],
   "redundant": [

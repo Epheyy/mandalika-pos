@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import { SINGLE_UNIT_SIZE } from '@mandalika/types'
 import { api } from '../../api'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { uploadImage } from '../../lib/uploadImage'
-import { exportToCSV, exportToXLSX, parseCSV, buildExportName } from '../../lib/csvUtils'
+import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
+import { PRODUCT_TEMPLATE_ROWS } from '../../lib/importTemplates'
+import { productExportRows } from '../../lib/productExport'
 import { EMPTY, EMPTY_OC, EMPTY_VARIANT, MAX_IMAGES, ocKey } from './types'
 import type { Form, OcRow } from './types'
 
@@ -34,8 +36,6 @@ export function useProductsData() {
   const [err, setErr] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [delId, setDelId] = useState<string | null>(null)
-  const catCsvRef = useRef<HTMLInputElement>(null)
-  const [importMessage, setImportMessage] = useState<string | null>(null)
   // Per-outlet stock/price/availability for the product being edited. Keyed
   // `${outletId}|${variantSize}` and rendered as outlets × current form.variants
   // so newly added variants appear (with defaults) before saving.
@@ -271,16 +271,8 @@ export function useProductsData() {
   }
 
   const exportProducts = (fmt: 'csv' | 'xlsx') => {
-    const rows = products.flatMap((p) =>
-      p.variants.map((v) => ({
-        Nama: p.name, Brand: p.brand, Kategori: catName(p.categoryId),
-        Deskripsi: p.description || '', Ukuran: v.size, Harga: v.price,
-        SKU: v.sku, Barcode: v.barcode || v.sku,
-        Jual: p.sellable === false ? 'Tidak' : 'Ya',
-        Aktif: p.isActive ? 'Ya' : 'Tidak',
-        Unggulan: p.isFeatured ? 'Ya' : 'Tidak',
-      })),
-    )
+    // Blank (not the "—" display placeholder) for a product without category, and the BASE price.
+    const rows = productExportRows(products, (id) => categories.find((c) => c.id === id)?.name ?? '')
     if (!rows.length) return
     // The product list is outlet-scoped (X-Outlet-Id); name the file by that scope.
     const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
@@ -289,98 +281,8 @@ export function useProductsData() {
     else exportToCSV(rows, name)
   }
 
-  const importProductRows = async (rows: Record<string, string>[]) => {
-    // Upsert: a product is matched by Nama+Brand; within it, variants are matched
-    // by SKU (keep SKU, change Ukuran = rename → stock preserved server-side).
-    // Rows without a SKU can't be correlated, so they're skipped.
-    // Auto-creates missing product categories (deduplicated per import run).
-    const grouped: Record<string, { row: Record<string, string>; variants: ProductVariant[] }> = {}
-    let skipped = 0
-    for (const row of rows) {
-      if (!row['Nama']?.trim()) continue
-      if (!row['SKU']?.trim()) {
-        skipped++
-        continue
-      }
-      const key = `${row['Nama'].trim().toLowerCase()}|${(row['Brand'] || '').trim().toLowerCase()}`
-      if (!grouped[key]) grouped[key] = { row, variants: [] }
-      grouped[key].variants.push({
-        size: row['Ukuran'] || '', price: parseFloat(row['Harga']) || 0,
-        stock: 0, // stock managed in Inventori; not imported via CSV
-        sku: row['SKU'].trim(),
-        barcode: (row['Barcode'] || '').trim() || row['SKU'].trim(),
-      })
-    }
-
-    // Resolve categories — auto-create any new ones (dedupe by lowercased name).
-    // Precompute a name→category map (O(1) lookups; first match wins like .find).
-    const catByLower = new Map<string, { id: string }>()
-    for (const c of cq.data ?? []) {
-      const k = c.name.toLowerCase()
-      if (!catByLower.has(k)) catByLower.set(k, c)
-    }
-    const createdCatNames = new Set<string>()
-    const resolvedCatIds: Record<string, string> = {}
-    for (const { row } of Object.values(grouped)) {
-      const catName = (row['Kategori'] || '').trim()
-      if (!catName) continue
-      const lower = catName.toLowerCase()
-      if (resolvedCatIds[lower]) continue
-      const existing = catByLower.get(lower)
-      if (existing) {
-        resolvedCatIds[lower] = existing.id
-      } else if (!createdCatNames.has(lower)) {
-        createdCatNames.add(lower)
-        const newCat = await api.createCategory({ name: catName })
-        resolvedCatIds[lower] = newCat.id
-        if (!catByLower.has(lower)) catByLower.set(lower, newCat)
-      }
-    }
-
-    // Precompute name|brand → product for O(1) upsert matching (first match wins
-    // like .find), avoiding a per-group linear scan of the product list.
-    const productByNameBrand = new Map<string, (typeof products)[number]>()
-    for (const p of products) {
-      const k = `${p.name.trim().toLowerCase()}|${p.brand.trim().toLowerCase()}`
-      if (!productByNameBrand.has(k)) productByNameBrand.set(k, p)
-    }
-
-    let created = 0
-    let updated = 0
-    for (const { row, variants } of Object.values(grouped)) {
-      if (variants.length === 0) continue
-      const catLower = (row['Kategori'] || '').trim().toLowerCase()
-      const catId = resolvedCatIds[catLower] || ''
-      const existing = productByNameBrand.get(
-        `${row['Nama'].trim().toLowerCase()}|${(row['Brand'] || '').trim().toLowerCase()}`,
-      )
-      const body: ProductInput = {
-        name: row['Nama'].trim(),
-        brand: row['Brand'] || 'Mandalika',
-        categoryId: catId || existing?.categoryId || '',
-        description: row['Deskripsi'] || '',
-        imageUrl: existing?.imageUrl || '',
-        images: existing?.images ?? [],
-        sellable: row['Jual'] ? row['Jual'] !== 'Tidak' : (existing?.sellable ?? true),
-        isActive: row['Aktif'] !== 'Tidak',
-        isFeatured: row['Unggulan'] === 'Ya',
-        variants,
-      }
-      if (existing) {
-        await api.updateProduct(existing.id, body)
-        updated++
-      } else {
-        await api.createProduct(body)
-        created++
-      }
-    }
-    await Promise.all([pq.refetch(), cq.refetch()])
-    setImportMessage(
-      `${created} produk dibuat, ${updated} diperbarui` +
-        (skipped ? `, ${skipped} baris dilewati (tanpa SKU)` : '') +
-        (createdCatNames.size ? `, ${createdCatNames.size} kategori baru dibuat` : ''),
-    )
-  }
+  const downloadProductTemplate = () => exportToCSV(PRODUCT_TEMPLATE_ROWS, 'template_produk_mandalika')
+  const refetchAfterImport = () => void Promise.all([pq.refetch(), cq.refetch()])
 
   const saveCat = async () => {
     if (!catForm.name.trim()) return setErr('Nama kategori wajib diisi')
@@ -393,16 +295,6 @@ export function useProductsData() {
     } finally {
       setBusy(false)
     }
-  }
-  const importCats = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    for (const row of parseCSV(await file.text())) {
-      if (!row['Nama']?.trim()) continue
-      await api.createCategory({ name: row['Nama'].trim(), description: row['Deskripsi'] || '' })
-    }
-    e.target.value = ''
-    await cq.refetch()
   }
 
   return {
@@ -428,6 +320,6 @@ export function useProductsData() {
     catOpen, setCatOpen, editingCat, setEditingCat, catForm, setCatForm,
     delCatId, setDelCatId, saveCat,
     // import/export
-    catCsvRef, importMessage, exportProducts, importProductRows, importCats,
+    exportProducts, downloadProductTemplate, refetchAfterImport,
   }
 }

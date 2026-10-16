@@ -110,6 +110,13 @@ export type OversellReport = S['OversellReport']
 export type OversellRecord = S['OversellRecord']
 export type OversellSummary = S['OversellSummary']
 export type OversellBreakdown = S['OversellBreakdown']
+export type CsvImportRequest = S['CsvImportRequest']
+export type ImportReport = S['ImportReport']
+export type ImportSummary = S['ImportSummary']
+export type ImportIssue = S['ImportIssue']
+export type ImportFileIssue = S['ImportFileIssue']
+export type ImportRowResult = S['ImportRowResult']
+export type ImportKind = ImportReport['kind']
 export interface OversellReportParams {
   dateFrom?: string
   dateTo?: string
@@ -152,6 +159,8 @@ export class ApiError extends Error {
     public status: number,
     message: string,
     public kind: ApiErrorKind = 'http',
+    /** Parsed JSON body of an error response (e.g. the import report on a 422), when there was one. */
+    public body?: unknown,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -161,6 +170,8 @@ export class ApiError extends Error {
 /** Per-request options. `timeoutMs` aborts the request (fetch + body read). */
 export interface RequestOptions {
   timeoutMs?: number
+  /** Extra request headers (e.g. Idempotency-Key). */
+  headers?: Record<string, string>
 }
 
 export interface ListResult<T> {
@@ -355,6 +366,10 @@ export interface Api {
   getOversellOpenCount: () => Promise<number>
   acknowledgeOversell: (ids: string[], note?: string) => Promise<number>
 
+  // CSV import (A39): dryRun previews, dryRun=false applies (needs idempotencyKey).
+  // A 422 (row errors) or 409 (stale / key conflict) throws an ApiError whose body carries the report.
+  importCsv: (kind: ImportKind, input: CsvImportRequest, idempotencyKey?: string) => Promise<ImportReport>
+
   // recipes / formulas (SP-Recipe-2)
   getRecipeVariantIds: (productId: string) => Promise<string[]>
   getVariantRecipe: (productId: string, variantId: string) => Promise<Recipe | null>
@@ -446,6 +461,7 @@ export function createClient(opts: ClientOptions): Api {
       if (token) headers.Authorization = `Bearer ${token}`
       const outlet = opts.getOutletId?.()
       if (outlet) headers['X-Outlet-Id'] = outlet
+      if (reqOpts?.headers) Object.assign(headers, reqOpts.headers)
       return fetch(opts.baseUrl + path, {
         method,
         headers,
@@ -504,7 +520,7 @@ export function createClient(opts: ClientOptions): Api {
         throw new ApiError(res.status, `request failed (${res.status})`)
       }
       if (!res.ok) {
-        throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`)
+        throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`, 'http', json)
       }
       return json as T
     } finally {
@@ -855,6 +871,10 @@ export function createClient(opts: ClientOptions): Api {
       (await data<{ openCount: number }>('GET', `${API}/oversell-report/open-count`)).openCount,
     acknowledgeOversell: async (ids, note) =>
       (await data<{ acknowledged: number }>('POST', `${API}/oversell-records/acknowledge`, { ids, ...(note ? { note } : {}) })).acknowledged,
+
+    importCsv: (kind, input, idempotencyKey) =>
+      data<ImportReport>('POST', `${API}/${kind}/import`, input,
+        idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined),
 
     getRecipeVariantIds: (productId) =>
       // This endpoint returns the bare object `{variantIds:[...]}` (no `{data}` envelope),

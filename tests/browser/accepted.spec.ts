@@ -2,6 +2,7 @@ import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
 import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
+import { csvImportFlow } from './backoffice-import-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
@@ -68,6 +69,12 @@ test('POS-RECAP all pages cached and actual panel remount keeps complete snapsho
 
 test('BO-REVIEW-RESOLVE head office resolves a parked tablet item and the badge clears', async ({ page }, info) => {
   const result = await reviewResolveFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-CSV-IMPORT preview errors block apply, a clean preview applies with an idempotency key', async ({ page }, info) => {
+  const result = await csvImportFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
   await evidence(info, result)
 })

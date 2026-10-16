@@ -11,92 +11,41 @@ export function exportToXLSX(data: Row[], filename: string) {
 }
 
 /** Text cells starting with these can run as a spreadsheet formula (CSV injection). */
-const FORMULA_TRIGGER = /^[=+\-@\t\r]/
+const FORMULA_TRIGGER = /^[=@\t\r]/
+/** '+' / '-' only start a formula when what follows is not a plain number ("+62812...", "-5000" are fine). */
+const SIGN_TRIGGER = /^[+-]/
+const PLAIN_SIGNED_NUMBER = /^[+-]?\d+([.,]\d+)*$/
 
 /**
- * One CSV cell. Only TEXT cells that start with = + - @ tab or CR get a leading
- * apostrophe, so they open as text; numbers (including negative stock) stay numbers.
+ * One CSV cell. Only TEXT cells that could run as a formula get a leading apostrophe
+ * (= @ tab CR, and + or - unless the cell is a plain number), so they open as text;
+ * real numbers (including negative stock) stay numbers. The importer strips exactly
+ * that one apostrophe again (backend csvimport), so a round trip is lossless.
  */
 export function csvCell(val: unknown): string {
   let s = String(val ?? '')
-  if (typeof val === 'string' && FORMULA_TRIGGER.test(s)) s = `'${s}`
-  return s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')
-    ? `"${s.replace(/"/g, '""')}"`
-    : s
+  if (typeof val === 'string' && (FORMULA_TRIGGER.test(s) || (SIGN_TRIGGER.test(s) && !PLAIN_SIGNED_NUMBER.test(s)))) {
+    s = `'${s}`
+  }
+  return /[,;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+/** The whole CSV text: BOM + RFC 4180 records joined by CRLF, every cell through csvCell. */
+export function buildCSV(data: Row[]): string {
+  const headers = Object.keys(data[0])
+  return '﻿' + [
+    headers.map(csvCell).join(','),
+    ...data.map((row) => headers.map((h) => csvCell(row[h])).join(',')),
+  ].join('\r\n')
 }
 
 export function exportToCSV(data: Row[], filename: string, opts: { appendDate?: boolean } = {}) {
   if (!data.length) return
-  const headers = Object.keys(data[0])
-  const csv = [
-    headers.join(','),
-    ...data.map((row) => headers.map((h) => csvCell(row[h])).join(',')),
-  ].join('\n')
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob([buildCSV(data)], { type: 'text/csv;charset=utf-8;' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
   a.download = opts.appendDate === false ? `${filename}.csv` : `${filename}_${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
-}
-
-/**
- * Pick the field delimiter by counting candidates in the header line (outside
- * quotes). Excel exports CSV with ';' in locales where ',' is the decimal
- * separator (Indonesia/Europe), and tab-separated files also turn up — so we
- * auto-detect instead of assuming ','.
- */
-function detectDelimiter(headerLine: string): string {
-  const candidates = [',', ';', '\t']
-  let best = ','
-  let bestCount = -1
-  for (const d of candidates) {
-    let count = 0
-    let inQuote = false
-    for (const ch of headerLine) {
-      if (ch === '"') inQuote = !inQuote
-      else if (ch === d && !inQuote) count++
-    }
-    if (count > bestCount) {
-      bestCount = count
-      best = d
-    }
-  }
-  return best
-}
-
-export function parseCSV(text: string): Record<string, string>[] {
-  const lines = text
-    .replace(/\r\n?/g, '\n')
-    .trim()
-    .split('\n')
-    .map((l) => l.trim())
-  if (lines.length < 2) return []
-  const delim = detectDelimiter(lines[0])
-  const splitLine = (line: string): string[] => {
-    const values: string[] = []
-    let cur = ''
-    let inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      if (line[i] === '"') inQuote = !inQuote
-      else if (line[i] === delim && !inQuote) {
-        values.push(cur.trim())
-        cur = ''
-      } else cur += line[i]
-    }
-    values.push(cur.trim())
-    return values
-  }
-  const headers = splitLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim())
-  return lines.slice(1).flatMap((line) => {
-    if (!line) return []
-    const values = splitLine(line)
-    return [
-      headers.reduce(
-        (obj, h, i) => ({ ...obj, [h]: values[i] || '' }),
-        {} as Record<string, string>,
-      ),
-    ]
-  })
 }
 
 /**

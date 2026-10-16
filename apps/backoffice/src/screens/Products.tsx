@@ -1,4 +1,4 @@
-import { Plus, Upload, Download } from 'lucide-react'
+import { Plus, Download } from 'lucide-react'
 import { api } from '../api'
 import { RecipeSlideOver } from './recipes/RecipeSlideOver'
 import { ImportExportBar } from '../components/ImportExportBar'
@@ -39,8 +39,9 @@ export default function Products() {
                 <ImportExportBar
                   onExport={d.exportProducts}
                   exportDisabled={d.products.length === 0}
-                  // A39: import hidden until the server-side import ships (the old path can delete variants' stock).
-                  importMessage={d.importMessage}
+                  importKind="products"
+                  onImported={d.refetchAfterImport}
+                  onTemplate={d.downloadProductTemplate}
                 />
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { d.setEditing(null); d.setForm({ ...EMPTY, variants: [{ ...EMPTY_VARIANT }] }); d.setErr(null); d.setOcfgOutlets([]); d.setOcfgMap({}); d.setOpen(true) }}>
                   Tambah
@@ -52,10 +53,6 @@ export default function Products() {
                 <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => exportToCSV(d.categories.map((c) => ({ Nama: c.name, Deskripsi: c.description || '', Urutan: c.sortOrder || 0 })), 'kategori_mandalika')}>
                   Export
                 </Button>
-                <Button variant="secondary" size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => d.catCsvRef.current?.click()}>
-                  Import
-                </Button>
-                <input ref={d.catCsvRef} type="file" accept=".csv" onChange={d.importCats} className="hidden" aria-label="Impor kategori dari CSV" />
                 <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { d.setEditingCat(null); d.setCatForm({ name: '', description: '' }); d.setCatOpen(true) }}>
                   Tambah
                 </Button>

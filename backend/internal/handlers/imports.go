@@ -1,0 +1,135 @@
+package handlers
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/csvimport"
+	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/write"
+)
+
+// importBodyCap bounds the JSON request (the CSV text itself is capped at 16 MiB inside
+// csvimport.Read); anything larger is refused with an explicit 413.
+const importBodyCap = 20 << 20
+
+const maxIdempotencyKey = 200
+
+// ImportCustomers, ImportProducts and ImportIngredients share one flow: dry run
+// (preview, nothing written) or commit (Idempotency-Key + the preview's hash and
+// summary, all-or-nothing). Permission is enforced by the route group.
+func (h *Handlers) ImportCustomers(w http.ResponseWriter, r *http.Request) {
+	h.runImport(w, r, csvimport.KindCustomers)
+}
+
+func (h *Handlers) ImportProducts(w http.ResponseWriter, r *http.Request) {
+	h.runImport(w, r, csvimport.KindProducts)
+}
+
+func (h *Handlers) ImportIngredients(w http.ResponseWriter, r *http.Request) {
+	h.runImport(w, r, csvimport.KindIngredients)
+}
+
+// maxConcurrentImports caps import requests (preview or commit) running at once in this
+// process; Cloud Run gives 512 MiB and one 50k-row preview holds several copies of the file.
+const maxConcurrentImports = 2
+
+// defaultImportSlots serves a Handlers value built without New (nil importSlots).
+var defaultImportSlots = make(chan struct{}, maxConcurrentImports)
+
+// The server's global timeouts (ReadTimeout 15s, WriteTimeout 30s) are far too short for a
+// 16 MiB upload plus a 50k-row plan, so these routes alone extend their own deadlines.
+const (
+	importReadWindow  = 60 * time.Second
+	importWriteWindow = 150 * time.Second
+)
+
+func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
+	slots := h.importSlots
+	if slots == nil { // a Handlers built without New still gets the default limit
+		slots = defaultImportSlots
+	}
+	select {
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
+	default:
+		httpx.Err(w, http.StatusTooManyRequests, "sibuk, coba lagi sebentar (impor lain sedang berjalan)")
+		return
+	}
+	rc := http.NewResponseController(w)
+	for name, set := range map[string]func(time.Time) error{"read": rc.SetReadDeadline, "write": rc.SetWriteDeadline} {
+		window := importReadWindow
+		if name == "write" {
+			window = importWriteWindow
+		}
+		// A writer without deadline support (httptest) is expected; anything else is worth a log.
+		if err := set(time.Now().Add(window)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			slog.Warn("csv import: could not extend deadline", "which", name, "err", err)
+		}
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, importBodyCap)
+	var body api.CsvImportRequest
+	if err := httpx.Decode(r, &body); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			httpx.Err(w, http.StatusRequestEntityTooLarge, "file terlalu besar (maksimum 20 MiB)")
+			return
+		}
+		httpx.Err(w, http.StatusBadRequest, "permintaan impor tidak valid")
+		return
+	}
+	req := write.ImportRequest{Kind: kind, CSV: body.Csv, DryRun: body.DryRun}
+	if body.FileName != nil {
+		req.FileName = *body.FileName
+	}
+	if !body.DryRun {
+		key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+		if key == "" || len(key) > maxIdempotencyKey {
+			httpx.Err(w, http.StatusBadRequest, "header Idempotency-Key wajib untuk menerapkan impor")
+			return
+		}
+		if body.FileSha256 == nil || *body.FileSha256 == "" || body.ExpectedSummary == nil {
+			httpx.Err(w, http.StatusBadRequest, "fileSha256 dan expectedSummary dari pratinjau wajib untuk menerapkan impor")
+			return
+		}
+		req.Key, req.FileSHA256 = key, *body.FileSha256
+		req.Expected = &csvimport.Summary{
+			Create: body.ExpectedSummary.Create, Update: body.ExpectedSummary.Update,
+			Skip: body.ExpectedSummary.Skip, Error: body.ExpectedSummary.Error,
+			Warning: body.ExpectedSummary.Warning, NewCategories: body.ExpectedSummary.NewCategories,
+		}
+	}
+	req.UserID, _ = r.Context().Value(auth.CtxUserID).(string)
+
+	res, err := h.Write.RunImport(r.Context(), req)
+	if errors.Is(err, write.ErrBusy) {
+		httpx.Err(w, http.StatusServiceUnavailable, "sibuk, coba lagi (proses lain sedang memakai data yang sama); tidak ada data yang diubah")
+		return
+	}
+	if err != nil {
+		slog.Error("csv import failed", "kind", kind, "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "impor gagal; tidak ada data yang diubah")
+		return
+	}
+	switch res.Outcome {
+	case write.ImportPreview, write.ImportReplay:
+		httpx.JSON(w, http.StatusOK, res.Report)
+	case write.ImportApplied:
+		h.invalidate(r)
+		httpx.JSON(w, http.StatusOK, res.Report)
+	case write.ImportRejected:
+		writeJSON(w, http.StatusUnprocessableEntity, httpx.Envelope{Data: res.Report,
+			Error: "impor ditolak: perbaiki baris yang salah; tidak ada data yang diubah"})
+	case write.ImportStale:
+		writeJSON(w, http.StatusConflict, httpx.Envelope{Data: map[string]string{"code": "import_stale"},
+			Error: "data berubah sejak pratinjau; pratinjau ulang sebelum menerapkan"})
+	default: // ImportKeyConflict
+		writeJSON(w, http.StatusConflict, httpx.Envelope{Data: map[string]string{"code": "idempotency_conflict"},
+			Error: "kunci idempotensi ini sudah dipakai untuk file lain"})
+	}
+}

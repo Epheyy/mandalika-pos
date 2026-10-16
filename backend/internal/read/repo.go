@@ -104,7 +104,7 @@ func productObjScoped(sc Scope) string {
 		  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 		  'createdAt',p.created_at,
 		  'variants',COALESCE((SELECT json_agg(json_build_object(
-		     'id',v.id,'size',v.size,'price',v.price,
+		     'id',v.id,'size',v.size,'price',v.price,'basePrice',v.price,
 		     'stock',COALESCE((SELECT SUM(s.stock)::int FROM outlet_variant_stock s
 		        WHERE s.product_id=v.product_id AND s.variant_size=v.size),0),
 		     'sku',v.sku,'barcode',v.barcode) ORDER BY v.size)
@@ -117,7 +117,7 @@ func productObjScoped(sc Scope) string {
 	  'isFeatured',p.is_featured,'isFavourite',p.is_favourite,'isActive',p.is_active,
 	  'createdAt',p.created_at,
 	  'variants',COALESCE((SELECT json_agg(json_build_object(
-	     'size',v.size,
+	     'size',v.size,'basePrice',v.price,
 	     'price',COALESCE((SELECT op.price FROM outlet_variant_price op
 	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size), v.price),
 	     'stock',COALESCE((SELECT os.stock FROM outlet_variant_stock os

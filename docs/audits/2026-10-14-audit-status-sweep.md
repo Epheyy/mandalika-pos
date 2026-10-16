@@ -456,6 +456,7 @@ Verified against HEAD 33557cb (prod-hardening), 2026-10-14. Read-only. CI state 
   - `apps/backoffice/src/lib/csvUtils.ts` has no commits since 2026-09-15. `parseCSV` (`:51-82`) still splits on physical lines (`:52-57`), toggles `inQuote` on every `"` and drops the character (`:63`). So `A "quoted" name` becomes `A quoted name` and a quoted multiline record splits into two rows. `values[i] || ''` hides short rows. `.trim()` also strips intentional whitespace.
   - `exportToCSV` (`:13-30`) quotes properly but does no formula neutralization (`=`, `+`, `-`, `@`).
   - Importers still call this parser (Customers, Products via `useProductsData`, Users, ingredients).
+    - **Correction (2026-10-16 plan):** Customers was export-only; there was no customer import. The plan adds one (`docs/plans/2026-10-16-a39-csv-import.md`).
 - **What's left**:
   - Replace with a conformant RFC 4180 parser (a small library such as papaparse, or a ~40-line state machine with `""` and embedded-newline handling).
   - Add row/column validation with error reporting and a preview step.
