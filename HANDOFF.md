@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-14 (night) by Claude (Opus 5.5).
+Last updated: 2026-10-16 by Claude (Opus 5.5) — end of session; see Next item 0 "NEXT SESSION".
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -185,7 +185,33 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      auditor 'sudah dicek' step; POS stops blocking out-of-stock items, warns instead, via OTA). A39 plan
      `docs/plans/2026-10-16-a39-csv-import.md` + owner decisions (stopgap c7d0d71 hides product import / retires users import;
      no stock column; phone dupes skipped; users import retired). Order: A44 (mig 0055, port 56457), then A39 (mig 0056, 56456).
-   - Next: build A44, then A39; A36 build waits on owner O1–O4.
+   - **A44 code-complete, NOT reviewed/merged/deployed (2026-10-16):** branch `worktree-agent-ae978051544692d45` (worktree
+     `.claude/worktrees/agent-ae978051544692d45`), commits 71f7f34 (P1 mig 0055 `sale_stock_exceptions`, no online clamp,
+     exception rows in the sale tx, PG gate OS 56457), 710c86f (P2 oversell-report / open-count / acknowledge API, OpenAPI +
+     types, `Order.stockWarning`), 0f2befd (P3 backoffice Stok Minus tab + badges + formula-safe CSV), f2d6d0f + f94fc34 (P4
+     unresolved variants; refund restocks only what the sale took), 5636ceb (P5 POS stops blocking out-of-stock, warns; OTA).
+     Implementer-reported: go build/vet/test green, gofmt clean, codegen + gen:check pass, full PG gate 18/18, OS alone ×3,
+     quality:ci exit 0. Two existing tests intentionally changed (cite owner decision): order_input_test
+     TestSaleInputPreservesKnownReceiptAndQ08Shortage (direct sale now -1 + warn), lock_order sale_vs_sale_new_stock_rows (-2/-2).
+     Notes: exportToCSV now formula-safe for ALL exports (a lone "-" exports as `'-`) — coordinate with A39; Stok Minus tab
+     ignores the date range by default (checkbox to restrict); no 200k-row EXPLAIN run; RF gate not extended; POS vitest
+     covers helpers only. Open question: should an `unresolved_variant` sale also set orders.stock_warning (left unset)?
+   - **NEXT SESSION, in order:**
+     1. Opus review of the A44 branch (stock/refund/sale path, generated types, report scope/IDOR, acknowledge permission,
+        replay safety, POS warning flow) — re-derive claims, run OS gate ×3 yourself. Fix round if needed (resume or new
+        implementer in that worktree). Answer the stock_warning question (recommend: yes, set it).
+     2. Merge into prod-hardening → full local verify → owner go-ahead → push → CI → Neon snapshot/read-only check →
+        deploy-backend (mig 0055) → smoke (sale beyond stock → negative + 1 row; report; acknowledge) → promote →
+        backoffice deploys on the next non-skip push → OTA (`make ota-release VERSION=x.y.z`, targets versionCode 12/APK 2.1)
+        for the POS warning, emulator-check it.
+     3. A39 build (plan docs/plans/2026-10-16-a39-csv-import.md + owner decisions; mig 0056, PG port 56456).
+     4. Small follow-ups: /healthz reserved by Cloud Run → serve health at an unreserved path + fix RUNBOOK; pin Go 1.26.9 in
+        postgres.yml (CI reports go1.26.0); OpenAPI 400 on refresh/logout, 413 on login; A33 Task 9 cleanup on/after
+        2026-10-30 (re-run Task 0 first); A36 build once owner does O1–O4.
+     5. Then the medium findings (A05/A07 leftovers, A10, A15, A41, A28, A30, A37, A23/A26/A27/A29/A35 leftovers) → Fable re-audit.
+   - Environment notes: network to GitHub/Upstash is flaky from this PC (retry pushes; PowerShell Invoke-WebRequest for CI
+     artifacts); CI postgres gate now uses digest-pinned image with mirror fallback; the emulator must be started by the
+     owner (cold-start command in the Emulator section) — Claude's own start command was blocked by a safety check.
 0b. **Done 2026-10-12:** head-office review resolve shipped (backend 00096-neh, backoffice 307fb1b, APK 1.8 built + emulator-verified).
 1. **Rollout (ready):** APK 1.9 to every tablet (each at 0 pending first; install over the old app — `install -r` keeps data,
    never uninstall with pending items). Then set `SYNC_LEGACY_ENVELOPE_UNTIL` = rollout date + 14 days.
