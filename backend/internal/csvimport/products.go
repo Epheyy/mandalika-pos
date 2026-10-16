@@ -2,6 +2,7 @@ package csvimport
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -32,6 +33,13 @@ type Catalog struct {
 	// StockSizes lists, per product id, the sizes that already have per-outlet or warehouse
 	// stock/price rows (a rename onto one of them would collide on the location key).
 	StockSizes map[string]map[string]bool
+	// InFlightSizes lists, per product id, the sizes referenced by open documents (draft or
+	// in-transit transfers, planned or in-progress stock counts). Those documents key stock
+	// by the stored size text, so renaming a variant away from such a size would make their
+	// completion write stock under a size that no variant has any more.
+	InFlightSizes map[string]map[string]bool
+	// CategoryNames maps category id -> name (for old->new text in the preview).
+	CategoryNames map[string]string
 }
 
 type CatalogProduct struct {
@@ -56,8 +64,13 @@ type PlannedVariant struct {
 	Barcode    string
 	Price      float64
 	RenameFrom string
-	Create     bool
-	Update     bool
+	// CurrentSize is the size the planner saw on the matched variant. Apply updates only
+	// while the variant still has it, so a concurrent edit makes the import stale.
+	CurrentSize string
+	// Changes is the old→new summary shown as the reason of an update row.
+	Changes string
+	Create  bool
+	Update  bool
 }
 
 // PlannedProduct is one product write. For an existing product nil pointers mean "keep";
@@ -200,10 +213,27 @@ func parseProductRow(b *Builder, row Row) *productRow {
 	pr.aktif = optionalBool(b, row, "Aktif")
 	pr.unggulan = optionalBool(b, row, "Unggulan")
 
-	pr.key = strings.ToLower(pr.name) + "|" + strings.ToLower(pr.brand)
+	// Excel turns long numeric codes into 8.99E+12; refuse them like phones.
+	for _, f := range []struct{ col, v string }{{"SKU", pr.sku}, {"Barcode", pr.barcode}} {
+		if LooksScientific(f.v) {
+			b.Issue(row, f.col, SevError, "code_scientific",
+				"Excel mengubah angka "+f.col+" ke notasi ilmiah; format kolom sebagai Teks lalu isi ulang", f.v)
+		}
+	}
+
+	pr.key = productKey(pr.name, pr.brand)
 	pr.valid = !b.RowHasError(row)
 	return pr
 }
+
+// productKey identifies a product by trimmed, case-folded name and brand. The separator is
+// a control character so a "|" inside a name can never make two products collide.
+func productKey(name, brand string) string {
+	return strings.ToLower(strings.TrimSpace(name)) + "\x1f" + strings.ToLower(strings.TrimSpace(brand))
+}
+
+// ProductKey is exported for the apply side, which maps created ids back to plan entries.
+func ProductKey(name, brand string) string { return productKey(name, brand) }
 
 func checkMax(b *Builder, row Row, col, v string, max int) {
 	if err := CheckLen(v, max); err != nil {
@@ -232,6 +262,8 @@ type catalogIndex struct {
 	barcodeOf  map[string]string          // barcode -> variant id
 	catByLower map[string]CatalogCategory
 	stockSizes map[string]map[string]bool
+	inFlight   map[string]map[string]bool
+	catName    map[string]string
 }
 
 func newCatalogIndex(cat Catalog) *catalogIndex {
@@ -239,10 +271,11 @@ func newCatalogIndex(cat Catalog) *catalogIndex {
 		byKey: map[string][]*CatalogProduct{}, variantsOf: map[string][]CatalogVariant{},
 		skuOwners: map[string]map[string]bool{}, barcodeOf: map[string]string{},
 		catByLower: map[string]CatalogCategory{}, stockSizes: cat.StockSizes,
+		inFlight: cat.InFlightSizes, catName: cat.CategoryNames,
 	}
 	for i := range cat.Products {
 		p := &cat.Products[i]
-		k := strings.ToLower(strings.TrimSpace(p.Name)) + "|" + strings.ToLower(strings.TrimSpace(p.Brand))
+		k := productKey(p.Name, p.Brand)
 		ix.byKey[k] = append(ix.byKey[k], p)
 	}
 	for _, v := range cat.Variants {
@@ -309,7 +342,8 @@ func planProductGroup(b *Builder, g *productGroup, ix *catalogIndex, cats *categ
 		pp.ExistingID = g.existing.ID
 		existingVariants = ix.variantsOf[g.existing.ID]
 	}
-	productChanged := mergeProductFields(b, g, pp, ix, cats)
+	productChanges := mergeProductFields(b, g, pp, ix, cats)
+	productChanged := len(productChanges) > 0
 
 	seenSKU := map[string]int{}
 	seenBarcode := map[string]int{}
@@ -327,7 +361,7 @@ func planProductGroup(b *Builder, g *productGroup, ix *catalogIndex, cats *categ
 		case pv.Create:
 			actions[r.row.Index] = rowOutcome{ActionCreate, ""}
 		case pv.Update:
-			actions[r.row.Index] = rowOutcome{ActionUpdate, ""}
+			actions[r.row.Index] = rowOutcome{ActionUpdate, pv.Changes}
 		default:
 			actions[r.row.Index] = rowOutcome{ActionSkip, noChange}
 		}
@@ -336,8 +370,13 @@ func planProductGroup(b *Builder, g *productGroup, ix *catalogIndex, cats *categ
 		}
 	}
 	if g.existing != nil && productChanged && firstOK != nil {
-		if o := actions[firstOK.row.Index]; o.action == ActionSkip {
-			actions[firstOK.row.Index] = rowOutcome{ActionUpdate, ""}
+		o := actions[firstOK.row.Index]
+		reason := strings.Join(productChanges, "; ")
+		if o.action == ActionUpdate && o.reason != "" {
+			reason = o.reason + "; " + reason
+		}
+		if o.action == ActionSkip || o.action == ActionUpdate {
+			actions[firstOK.row.Index] = rowOutcome{ActionUpdate, reason}
 		}
 	}
 	if g.existing == nil || productChanged || len(pp.Variants) > 0 {
@@ -348,7 +387,7 @@ func planProductGroup(b *Builder, g *productGroup, ix *catalogIndex, cats *categ
 
 // mergeProductFields folds the product-level cells (first non-blank wins, later
 // conflicting values warn) into pp and reports whether an existing product changes.
-func mergeProductFields(b *Builder, g *productGroup, pp *PlannedProduct, ix *catalogIndex, cats *categoryTracker) bool {
+func mergeProductFields(b *Builder, g *productGroup, pp *PlannedProduct, ix *catalogIndex, cats *categoryTracker) []string {
 	var (
 		catRow, descRow, jualRow, aktifRow, unggRow *productRow
 		cat, desc                                   string
@@ -391,30 +430,46 @@ func mergeProductFields(b *Builder, g *productGroup, pp *PlannedProduct, ix *cat
 	}
 
 	ex := g.existing
-	changed := false
+	var changed []string
 	if cat != "" {
 		pp.CategoryName = cat
 		id := cats.resolve(cat)
-		if ex != nil && id != ex.CategoryID {
-			changed = true
+		// A category that does not exist yet is always a change (it is created and assigned),
+		// even when the product currently has none.
+		if ex != nil && (id == "" || id != ex.CategoryID) {
+			old := ix.catName[ex.CategoryID]
+			if old == "" {
+				old = "(kosong)"
+			}
+			changed = append(changed, fmt.Sprintf("kategori %s→%s", old, cat))
 		}
 	}
 	if desc != "" {
 		d := desc
 		pp.Description = &d
 		if ex != nil && d != ex.Description {
-			changed = true
+			changed = append(changed, "deskripsi diubah")
 		}
 	}
-	pp.Sellable = pick(jual, ex, func(p *CatalogProduct) bool { return p.Sellable }, true, &changed)
-	pp.Active = pick(aktif, ex, func(p *CatalogProduct) bool { return p.Active }, true, &changed)
-	pp.Featured = pick(ungg, ex, func(p *CatalogProduct) bool { return p.Featured }, false, &changed)
+	pp.Sellable = pick(jual, ex, func(p *CatalogProduct) bool { return p.Sellable }, true, "jual", &changed)
+	pp.Active = pick(aktif, ex, func(p *CatalogProduct) bool { return p.Active }, true, "aktif", &changed)
+	pp.Featured = pick(ungg, ex, func(p *CatalogProduct) bool { return p.Featured }, false, "unggulan", &changed)
 	return changed
 }
 
+func yaTidak(v bool) string {
+	if v {
+		return "Ya"
+	}
+	return "Tidak"
+}
+
+// fmtMoney prints a rupiah amount without a needless fraction.
+func fmtMoney(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+
 // pick returns the planned boolean: for a new product the cell or the default; for an
-// existing one the cell (flagging a change when it differs) or nil (keep).
-func pick(cell *bool, ex *CatalogProduct, cur func(*CatalogProduct) bool, def bool, changed *bool) *bool {
+// existing one the cell (recording a change when it differs) or nil (keep).
+func pick(cell *bool, ex *CatalogProduct, cur func(*CatalogProduct) bool, def bool, name string, changed *[]string) *bool {
 	if ex == nil {
 		v := def
 		if cell != nil {
@@ -426,7 +481,7 @@ func pick(cell *bool, ex *CatalogProduct, cur func(*CatalogProduct) bool, def bo
 		return nil
 	}
 	if *cell != cur(ex) {
-		*changed = true
+		*changed = append(*changed, fmt.Sprintf("%s %s→%s", name, yaTidak(cur(ex)), yaTidak(*cell)))
 	}
 	v := *cell
 	return &v
@@ -493,22 +548,28 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 	}
 
 	pv := PlannedVariant{Size: r.size, SKU: r.sku, Price: r.price}
+	var changes []string
 	if matched != nil {
 		pv.ExistingID = matched.ID
+		pv.CurrentSize = matched.Size
 		if matched.Size != r.size {
 			if holder := sizeHolder(existing, r.size, matched.ID); holder != "" {
 				fail("Ukuran", "size_collision", fmt.Sprintf("ukuran \"%s\" sudah dipakai varian lain (SKU %s); tukar atau ganti nama ukuran lewat form produk", r.size, holder), r.size)
 			} else if ix.stockSizes[matched.ProductID][r.size] {
 				fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok/harga dari varian lama; rapikan lewat form produk dulu", r.size), r.size)
+			} else if ix.inFlight[matched.ProductID][matched.Size] {
+				fail("Ukuran", "size_in_flight", fmt.Sprintf("ukuran \"%s\" masih dipakai transfer atau stock count yang belum selesai; selesaikan atau batalkan dulu sebelum mengganti ukuran", matched.Size), r.size)
 			} else {
 				pv.RenameFrom = matched.Size
 				pv.Update = true
+				changes = append(changes, fmt.Sprintf("ukuran %s→%s", matched.Size, r.size))
 				b.Issue(row, "Ukuran", SevWarning, "size_rename",
-					fmt.Sprintf("ukuran berubah dari \"%s\" ke \"%s\": stok dan harga per outlet ikut pindah", matched.Size, r.size), r.sku)
+					fmt.Sprintf("ukuran berubah dari \"%s\" ke \"%s\": stok dan harga per outlet ikut pindah; penjualan POS yang masih antre dan pemilih tingkat varian (promo, loyalti, bundle: id|ukuran) tidak akan cocok lagi dengan ukuran baru", matched.Size, r.size), r.sku)
 			}
 		}
 		if matched.Price != r.price {
 			pv.Update = true
+			changes = append(changes, fmt.Sprintf("harga %s→%s", fmtMoney(matched.Price), fmtMoney(r.price)))
 		}
 		if r.barcode != "" && r.barcode != matched.Barcode {
 			if owner := ix.barcodeOf[r.barcode]; owner != "" && owner != matched.ID {
@@ -516,13 +577,17 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 			} else {
 				pv.Barcode = r.barcode
 				pv.Update = true
+				changes = append(changes, fmt.Sprintf("barcode %s→%s", matched.Barcode, r.barcode))
 			}
 		}
+		pv.Changes = strings.Join(changes, "; ")
 	} else {
 		pv.Create = true
 		pv.Barcode = effBarcode
 		if holder := sizeHolder(existing, r.size, ""); holder != "" {
 			fail("Ukuran", "size_exists", fmt.Sprintf("ukuran \"%s\" sudah ada pada varian lain (SKU %s)", r.size, holder), r.size)
+		} else if g.existing != nil && ix.stockSizes[g.existing.ID][r.size] {
+			fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok/harga dari varian lama; rapikan lewat form produk dulu", r.size), r.size)
 		}
 		if owner := ix.barcodeOf[effBarcode]; owner != "" {
 			fail("Barcode", "barcode_in_use", "barcode (atau SKU yang dipakai sebagai barcode) sudah dipakai varian lain", effBarcode)

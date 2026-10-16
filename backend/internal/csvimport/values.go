@@ -84,6 +84,10 @@ func ParseRupiah(s string, allowFraction bool) (float64, error) {
 		}
 	}
 	if grouping {
+		// "0,125", "0.500", "000.500": a leading 0 makes grouping versus decimal ambiguous.
+		if parts[0][0] == '0' {
+			return 0, fmt.Errorf("format angka ambigu: angka diawali 0 dengan pemisah; tulis tanpa pemisah")
+		}
 		return finishMoney(strings.Join(parts, ""), "")
 	}
 	if allowFraction && len(parts) == 2 && (len(parts[1]) == 1 || len(parts[1]) == 2) {

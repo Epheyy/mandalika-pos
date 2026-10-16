@@ -69,6 +69,16 @@ func TestPlanIngredientsUpdateKeepsBlankCells(t *testing.T) {
 	}
 }
 
+func TestPlanIngredientsNewCategoryOnUncategorisedIngredientIsAChange(t *testing.T) {
+	p := planIngredients(t, ingredientHeader+"Alkohol,,ml,Pelarut,,,\n")
+	if p.Report.HasErrors() || p.Report.Summary.Update != 1 || p.Report.Summary.NewCategories != 1 {
+		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+	if p.Ingredients[0].CategoryName != "Pelarut" || p.Ingredients[0].ExistingID != "i2" {
+		t.Errorf("%+v", p.Ingredients[0])
+	}
+}
+
 func TestPlanIngredientsErrors(t *testing.T) {
 	cases := map[string]string{
 		"ambiguous name":    "Dup,,ml,,,,\n",

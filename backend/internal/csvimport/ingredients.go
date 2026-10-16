@@ -215,7 +215,7 @@ func planIngredientRow(b *Builder, row Row, bySKU, byName map[string][]*CatalogI
 	if pi.SKU != "" && pi.SKU != match.SKU {
 		changed = true
 	}
-	if category != "" && catID != match.CategoryID {
+	if category != "" && (catID == "" || catID != match.CategoryID) { // a new category always counts
 		changed = true
 	}
 	if pi.Cost != nil && (match.Cost == nil || *match.Cost != *pi.Cost) {

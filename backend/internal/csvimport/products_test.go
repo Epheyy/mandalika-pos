@@ -131,6 +131,78 @@ func TestPlanProductsRowErrors(t *testing.T) {
 	}
 }
 
+func TestPlanProductsScientificCodesAreErrors(t *testing.T) {
+	for name, row := range map[string]string{
+		"barcode": "Melati,Mandalika,,,50 ml,1000,MEL-50,8.99E+12,,,\n",
+		"sku":     "Anggrek,Mandalika,,,30 ml,1000,1.2E+10,,,,\n",
+	} {
+		p := planProducts(t, productHeader+row)
+		if !hasIssue(p.Report, "code_scientific", SevError) || p.Report.Summary.Error != 1 {
+			t.Errorf("%s: %+v", name, p.Report.Issues)
+		}
+	}
+}
+
+func TestPlanProductsNewCategoryOnProductWithoutOneIsAChange(t *testing.T) {
+	// Mawar has no category; a brand-new category must be created AND assigned, and the row
+	// must count as an update (otherwise Terapkan would stay disabled).
+	p := planProducts(t, productHeader+"Mawar,Flamboyan,Segar,,50 ml,90000,MAW-50,,,,\n")
+	if p.Report.HasErrors() || p.Report.Summary.Update != 1 || p.Report.Summary.NewCategories != 1 {
+		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+	if p.Products[0].CategoryName != "Segar" {
+		t.Errorf("%+v", p.Products[0])
+	}
+}
+
+func TestPlanProductsNewVariantOnSizeWithStockResidueIsRejected(t *testing.T) {
+	cat := baseCatalog()
+	cat.StockSizes = map[string]map[string]bool{"p1": {"25 ml": true}}
+	tb := Read([]byte(productHeader+"Melati,Mandalika,,,25 ml,1000,MEL-25,,,,\n"), ProductSpec)
+	p, _ := PlanProducts(tb, cat)
+	if !hasIssue(p.Report, "size_stock_residue", SevError) {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+}
+
+func TestPlanProductsRenameBlockedByOpenDocuments(t *testing.T) {
+	cat := baseCatalog()
+	cat.InFlightSizes = map[string]map[string]bool{"p1": {"50 ml": true}}
+	tb := Read([]byte(productHeader+"Melati,Mandalika,,,75 ml,100000,MEL-50,,,,\n"), ProductSpec)
+	p, _ := PlanProducts(tb, cat)
+	if !hasIssue(p.Report, "size_in_flight", SevError) {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+	// a price-only change on the same variant is still fine
+	tb = Read([]byte(productHeader+"Melati,Mandalika,,,50 ml,111000,MEL-50,,,,\n"), ProductSpec)
+	if p, _ = PlanProducts(tb, cat); p.Report.HasErrors() || p.Report.Summary.Update != 1 {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+}
+
+func TestPlanProductsUpdateRowsCarryOldToNewReason(t *testing.T) {
+	cat := baseCatalog()
+	cat.CategoryNames = map[string]string{"c1": "Floral"}
+	tb := Read([]byte(productHeader+"Melati,Mandalika,Citrus,Baru,75 ml,125000,MEL-50,NEW-BC,Tidak,,\n"), ProductSpec)
+	p, _ := PlanProducts(tb, cat)
+	if p.Report.HasErrors() || len(p.Report.Rows) != 1 {
+		t.Fatalf("%+v", p.Report.Issues)
+	}
+	r := p.Report.Rows[0].Reason
+	for _, want := range []string{"harga 100000→125000", "ukuran 50 ml→75 ml", "barcode MEL-50→NEW-BC", "kategori Floral→Citrus", "deskripsi diubah", "jual Ya→Tidak"} {
+		if !strings.Contains(r, want) {
+			t.Errorf("reason %q lacks %q", r, want)
+		}
+	}
+}
+
+func TestPlanProductsNameWithPipeDoesNotCollide(t *testing.T) {
+	p := planProducts(t, productHeader+"A|B,C,,,30 ml,1000,X-1,,,,\nA,B|C,,,30 ml,1000,X-2,,,,\n")
+	if p.Report.HasErrors() || len(p.Products) != 2 {
+		t.Fatalf("two distinct products expected: %+v %+v", p.Report.Issues, p.Products)
+	}
+}
+
 func TestPlanProductsSizeSwapIsRejected(t *testing.T) {
 	// Melati 50 ml <-> 100 ml swapped: each rename lands on the other's size, which would
 	// collide on the (outlet, product, size) stock key. Both rows must be errors.

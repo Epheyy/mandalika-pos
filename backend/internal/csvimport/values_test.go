@@ -31,6 +31,13 @@ func TestParseRupiah(t *testing.T) {
 		{"12abc", false, 0, true},
 		{"1e5", false, 0, true},
 		{"1000000000000", false, 0, true}, // over numeric(14,2) headroom
+		{"0,125", false, 0, true},         // leading 0 + 3 digits: grouping or decimal? ambiguous
+		{"0.500", false, 0, true},
+		{"000.500", false, 0, true},
+		{"00.000", false, 0, true},
+		{"0,125", true, 0, true},
+		{"0.000", false, 0, true},
+		{"0,5", true, 0.5, false},
 		{"12,5", true, 12.5, false},
 		{"12.50", true, 12.5, false},
 		{"0,5", true, 0.5, false},
