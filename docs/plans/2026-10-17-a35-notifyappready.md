@@ -58,8 +58,10 @@ Current behavior is already the target. Remaining edge cases:
    on a new bundle, a *good* bundle is rolled back and marked error (it is never retried, see section 1). This is not data
    loss. Measure it on the emulator (E1). If it comes close, the remedy is an APK with an explicit `appReadyTimeout`, not
    an OTA.
-3. **Render crash after a good boot.** It stays unconfirmed and rolls back. This is good, and it is why the confirm
-   stays in the effect.
+3. **Render crash.** The confirm fires on App's first commit (the "Memuat…" frame; `auth.tsx` starts `ready=false`),
+   after the journal booted. A crash while App itself first renders stays unconfirmed and rolls back, which is why the
+   confirm stays in the effect. A crash in a LATER screen (Login/Cashier) is not auto-reverted (no error boundary in
+   `apps/pos/src`): roll forward.
 4. **Plugin absent / web.** `native.ts:59-67` is a no-op off-device and swallows import errors. Unchanged.
 5. **Never gate on network/login.** Pre-login screens never mount SyncProvider (`App.tsx:174-181`). Gating there would
    roll back every logged-out or offline tablet. Task 1 adds a test that forbids this.
@@ -217,6 +219,8 @@ goes to all tablets at once. Task 9 comes last.
   a commit between that bump and the actual APK build commit passes (ii) without descending from the build commit. The
   exact build commit is in the APK manifest JSON under `Downloads/mandalika-apk/`, not in the repo. Owner question 4
   closes this gap.
+- **R6:** the confirm precedes the first Login/Cashier commit. Candidate follow-up (owner call, not now): an error
+  boundary, or confirm only after the first Login-or-Cashier commit.
 - **R4:** the Task 8 custom_id only takes effect after an all-at-once OTA. Until then, pick pilots by device_id from the
   Task 5 logs.
 - **R5:** the emulator tests need `webContentsDebuggingEnabled: true`. A production-type APK turns it off, so run E1-E4 on

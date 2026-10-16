@@ -116,9 +116,11 @@ APK's build commit unless acknowledged (rule 4 below).
 
 **Rollback facts (A35).**
 
-- A bundle confirms (`notifyAppReady`) only from App's mount effect, which
-  `main.tsx` reaches only after `bootStorage()` (secure KV + journal) succeeded.
-  A BootError, or a render crash, leaves it unconfirmed.
+- A bundle confirms (`notifyAppReady`) from App's mount effect, i.e. after the
+  journal booted (`main.tsx` mounts App only after `bootStorage()` succeeded) and
+  App first committed (the "Memuat…" frame). A BootError, or a crash while App
+  itself first renders, leaves it unconfirmed. A crash in a LATER screen
+  (Login/Cashier; there is no error boundary yet) is not auto-reverted: roll forward.
 - Capgo protects only a bundle's **first launch** (about 30 s for a not-yet
   confirmed bundle; native config, APK-only). An unconfirmed bundle is rolled
   back to the previous good bundle or the APK's builtin, and that version is
@@ -126,8 +128,8 @@ APK's build commit unless acknowledged (rule 4 below).
 - A bundle that has already confirmed is never auto-reverted. A later defect
   (BootError on a later launch, bad queue writes) needs a higher-version fix OTA
   (roll forward) or an APK.
-- With real journal corruption the rollback lands on the builtin, which hits the
-  same error. The queue is kept (nothing is lost); use `quarantineCorruptRows`.
+- With real journal corruption the rollback lands on the previous good bundle or
+  the builtin, which hits the same error. The queue is kept (nothing is lost); use `quarantineCorruptRows`.
 
 **Journal rollback-compatibility rule (A35).** Any OTA bundle can be rolled back
 automatically, so every OTA must leave the journal readable, and correctly
@@ -137,7 +139,8 @@ handled, by the previous bundle and by the APK's builtin.
    - the `packages/sync/src/journalBoot.ts` migration states and keys (`migration`
      meta values, `TAKEOVER_KEY`, `LEGACY_BACKUP_PREFIX`, quarantine keys);
    - `journalSentinel.ts` (`SENTINEL_VERSION`, sentinel shape) and `OUTBOX_KEY`;
-   - the format of journal meta values (e.g. `synced_refunds`);
+   - the format of journal meta values (e.g. `SYNCED_REFUNDS_KEY`,
+     `mandalika.pos.syncedRefunds`);
    - removing or renaming an `OutboxItem` field, or changing what a `status` means;
    - anything native (`OutboxJournalPlugin.java`).
 2. **OTA-safe:** additive optional `OutboxItem` fields or payload keys that older
@@ -149,11 +152,17 @@ handled, by the previous bundle and by the APK's builtin.
    local views (queue summary, refund gate, recap) do not tolerate the new item,
    it is APK-only.
 4. The bundle's commit must descend from the commit the target APK was built from.
-   `ota-release.sh` checks ancestry against `APK_BUILD_SHA` (default: the last
-   commit that changed `versionCode`; that default is weaker than the real rule)
-   and refuses journal-file changes since it unless `OTA_JOURNAL_CHANGE_ACK=1`.
-5. For a journal-adjacent OTA: confirm 0 pending sales on a pilot tablet first,
-   and do not promote until it has synced a sale and restarted once.
+   `ota-release.sh` checks ancestry against `APK_BUILD_SHA`. The ancestry check
+   only bites when you supply `APK_BUILD_SHA` (from the APK manifest); the default
+   base (the last commit that changed `versionCode`) always passes it. It also
+   refuses journal-adjacent file changes since the base unless
+   `OTA_JOURNAL_CHANGE_ACK=1`. Once such a change exists since the APK base, every
+   later OTA on that versionCode needs the ack again (expected: re-read the list).
+5. Today a journal-adjacent OTA reaches every tablet on that versionCode at once
+   (staged rollout is not built yet). Prefer shipping it by APK; if it must be an
+   OTA, confirm 0 pending sales first and watch the first tablets to update.
+   `/ota/check` logs `device_id`/`custom_id`; the Cloud Run access log carries the
+   caller IP for the same request, so the two can be joined.
 
 ## Tablet upgrade rules
 
