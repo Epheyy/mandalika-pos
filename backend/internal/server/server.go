@@ -163,6 +163,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			// content_version → POS sync wall) ──
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_products"))
+				r.Post("/products/import", h.ImportProducts) // static path before /products/{id}
 				r.Post("/products", h.CreateProduct)
 				r.Put("/products/{id}", h.UpdateProduct)
 				r.Delete("/products/{id}", h.DeleteProduct)
@@ -176,6 +177,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_customers"))
 				r.Get("/customers/by-phone", h.CustomersByPhone)
+				r.Post("/customers/import", h.ImportCustomers)
 				r.Post("/customers", h.CreateCustomer)
 				r.Put("/customers/{id}", h.UpdateCustomer)
 				r.Delete("/customers/{id}", h.DeleteCustomer)
@@ -246,6 +248,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Group(func(r chi.Router) {
 					r.Use(mw.RequireRecipesEnabled(rd))
 					r.Get("/ingredients", h.Ingredients)
+					r.Post("/ingredients/import", h.ImportIngredients)
 					r.Post("/ingredients", h.CreateIngredient)
 					r.Put("/ingredients/{id}", h.UpdateIngredient)
 					r.Delete("/ingredients/{id}", h.DeleteIngredient)

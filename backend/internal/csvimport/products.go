@@ -29,6 +29,9 @@ type Catalog struct {
 	Products   []CatalogProduct
 	Variants   []CatalogVariant
 	Categories []CatalogCategory
+	// StockSizes lists, per product id, the sizes that already have per-outlet or warehouse
+	// stock/price rows (a rename onto one of them would collide on the location key).
+	StockSizes map[string]map[string]bool
 }
 
 type CatalogProduct struct {
@@ -228,13 +231,14 @@ type catalogIndex struct {
 	skuOwners  map[string]map[string]bool // sku -> product ids
 	barcodeOf  map[string]string          // barcode -> variant id
 	catByLower map[string]CatalogCategory
+	stockSizes map[string]map[string]bool
 }
 
 func newCatalogIndex(cat Catalog) *catalogIndex {
 	ix := &catalogIndex{
 		byKey: map[string][]*CatalogProduct{}, variantsOf: map[string][]CatalogVariant{},
 		skuOwners: map[string]map[string]bool{}, barcodeOf: map[string]string{},
-		catByLower: map[string]CatalogCategory{},
+		catByLower: map[string]CatalogCategory{}, stockSizes: cat.StockSizes,
 	}
 	for i := range cat.Products {
 		p := &cat.Products[i]
@@ -494,6 +498,8 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 		if matched.Size != r.size {
 			if holder := sizeHolder(existing, r.size, matched.ID); holder != "" {
 				fail("Ukuran", "size_collision", fmt.Sprintf("ukuran \"%s\" sudah dipakai varian lain (SKU %s); tukar atau ganti nama ukuran lewat form produk", r.size, holder), r.size)
+			} else if ix.stockSizes[matched.ProductID][r.size] {
+				fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok/harga dari varian lama; rapikan lewat form produk dulu", r.size), r.size)
 			} else {
 				pv.RenameFrom = matched.Size
 				pv.Update = true
