@@ -218,7 +218,37 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	sub("customers: the stored import_runs result holds no phone, email or name; the live response and the replay stay coherent", func(t *testing.T) {
+		csv := custHeader + "Rahasia Nama,812345678,rahasia@bocor,,,\n"
+		rep := preview("/customers/import", csv)
+		if rep.Summary.Create != 1 || rep.Summary.Warning != 2 {
+			t.Fatalf("want 1 create and 2 warnings (leading zero, email): %+v", rep.Summary)
+		}
+		code, live := commit("/customers/import", csv, rep, "key-pii")
+		if code != http.StatusOK || !strings.Contains(string(live), "812345678") {
+			t.Fatalf("live response must stay unredacted: %d %s", code, live)
+		}
+		stored := text(`SELECT result::text FROM import_runs WHERE idempotency_key='key-pii'`)
+		for _, secret := range []string{"812345678", "rahasia@bocor", "Rahasia Nama"} {
+			if strings.Contains(stored, secret) {
+				t.Errorf("import_runs.result contains %q: %s", secret, stored)
+			}
+		}
+		if count(`SELECT count(*) FROM import_runs WHERE idempotency_key='key-pii' AND file_name IS NULL`) != 1 {
+			t.Error("file_name handling changed (this request sent none, so it must stay NULL)")
+		}
+		code, raw := commit("/customers/import", csv, rep, "key-pii")
+		replay := decodeReport(raw)
+		if code != http.StatusOK || replay.Summary != rep.Summary || len(replay.Issues) != 2 || replay.Issues[0].Code == "" || replay.Issues[0].Value != "" {
+			t.Errorf("replay: %d %+v", code, replay)
+		}
+		if strings.Contains(string(raw), "812345678") {
+			t.Error("replay leaked the phone")
+		}
+	})
+
 	sub("customers: the same key with a different file is a 409 idempotency_conflict", func(t *testing.T) {
+		beforeCustomers := count(`SELECT count(*) FROM customers`)
 		other := custHeader + "Dewi,081100000009,,,,\n"
 		rep := preview("/customers/import", other)
 		code, raw := commit("/customers/import", other, rep, "key-1")
@@ -227,7 +257,7 @@ func TestCsvImportPostgres(t *testing.T) {
 		if code != http.StatusConflict || e.Data.Code != "idempotency_conflict" {
 			t.Errorf("%d %s", code, raw)
 		}
-		if count(`SELECT count(*) FROM customers`) != 3 {
+		if count(`SELECT count(*) FROM customers`) != beforeCustomers {
 			t.Error("conflicting key wrote data")
 		}
 	})

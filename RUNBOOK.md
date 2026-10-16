@@ -81,8 +81,9 @@ Pelanggan, Produk and Bahan each have Template, Import and Export. The import is
    taken, and a size rename onto another variant's size are row errors. A SKU kept with a new Ukuran renames the variant and
    the per-outlet stock/price (and warehouse stock) follow it. Prices are whole rupiah: `150000`, `150.000` and `Rp 150.000`
    all mean 150000.
-6. **Limits:** 16 MiB, 50,000 rows, 40 columns per file. Each import writes one `import_runs` row (who, when, hash, summary;
-   never the file).
+6. **Limits:** 16 MiB, 50,000 rows, 40 columns per file. Each import writes one `import_runs` row (who, when, hash, summary,
+   file name, and a redacted report: no phone/email/name values, customer row keys blank; never the file itself). A
+   same-key retry replays that redacted report.
 
 ## POS APK
 

@@ -1,6 +1,7 @@
 package csvimport
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -137,6 +138,34 @@ func TestPlanCustomersIgnoresExportOnlyColumnsWithWarning(t *testing.T) {
 	}
 	if n != 5 || p.Report.Summary.Create != 1 {
 		t.Errorf("ignored=%d summary=%+v", n, p.Report.Summary)
+	}
+}
+
+func TestRedactedReportHasNoPersonalValues(t *testing.T) {
+	csv := "Nama,Telepon,Email\nAyu Rahasia,0811999888,ayu@rahasia.example\nBudi,6.28E+11,not-an-email\n"
+	p := planCustomers(t, csv, map[string]int{"0811999888": 1})
+	live, _ := json.Marshal(p.Report)
+	if !strings.Contains(string(live), "0811999888") {
+		t.Fatal("the live report must keep the values the user is looking at")
+	}
+	red := p.Report.Redacted()
+	raw, _ := json.Marshal(red)
+	for _, secret := range []string{"0811999888", "ayu@rahasia.example", "Ayu Rahasia", "not-an-email", "6.28E+11"} {
+		if strings.Contains(string(raw), secret) {
+			t.Errorf("redacted report still contains %q: %s", secret, raw)
+		}
+	}
+	if red.Summary != p.Report.Summary || len(red.Issues) != len(p.Report.Issues) || len(red.Rows) != len(p.Report.Rows) {
+		t.Error("redaction must keep counts, issues and rows")
+	}
+	for i, is := range red.Issues {
+		if is.Code != p.Report.Issues[i].Code || is.Row != p.Report.Issues[i].Row {
+			t.Errorf("issue %d lost code/row", i)
+		}
+	}
+	// the original is untouched
+	if p.Report.Issues[0].Value == "" {
+		t.Error("Redacted mutated the original")
 	}
 }
 

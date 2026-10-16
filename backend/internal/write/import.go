@@ -160,8 +160,9 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 	report := p.report
 	report.AppliedAt = time.Now().UTC().Format(time.RFC3339)
 	var runID string
-	// result is stored without runId (it is the row's own id and is added on replay).
-	stored, err := json.Marshal(report)
+	// The STORED copy carries no personal values (see Report.Redacted); the live response
+	// the user is looking at stays unredacted. result has no runId (the row id, added on replay).
+	stored, err := json.Marshal(report.Redacted())
 	if err != nil {
 		return ImportResult{}, err
 	}

@@ -1,6 +1,8 @@
 -- A39: audit + replay record of every APPLIED CSV import (customers, products,
 -- ingredients). Dry runs are never stored and raw file contents are never kept:
--- only the hash, the summary and the report the user already saw.
+-- only the hash, the summary and a redacted copy of the report.
+-- result is the report with personal values redacted (issue values and, for customer
+-- imports, row keys are blank); it keeps counts, row numbers, codes and actions.
 -- idempotency_key is UNIQUE so a retried commit replays the stored result instead
 -- of writing twice.
 CREATE TABLE IF NOT EXISTS import_runs (
