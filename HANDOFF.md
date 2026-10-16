@@ -289,6 +289,20 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         recognition basis (sale date vs refund date); A28 timezones/day cutoff/return window; A30 customer-read scope across
         brands/outlets (privacy); A41 local receipt retention + offline-return need; A08 offline PIN hashes (design choice);
         A37 retention/access for error_logs (light). Suggested order: A35 → A15 → A37 → A29 → A26 → A10 → A23.
+        **A35 + A15 BUILT, REVIEWED (Opus ×3 each), MERGED LOCALLY 2026-10-17 (A35 fd9a49c, A15 41d6947; NOT pushed/OTA'd).**
+        A35 premise was stale (App mounts only after bootStorage/initJournal; confirm is in App's mount effect) → delivered
+        tests locking the order, RUNBOOK journal-rollback rule, `scripts/lib/ota-journal-guard.sh` in ota-release.sh (refuses
+        journal-adjacent changes since the APK base unless OTA_JOURNAL_CHANGE_ACK=1; pass APK_BUILD_SHA for the real ancestor
+        check), `/ota/check` logs device_id/custom_id (live only after the next backend deploy; owner sign-off pending),
+        flake fix. A35 backlog: staged rollout (tasks 6-8, mig 0057, setCustomId) only once >1 outlet is on APK 2.1; no error
+        boundary — a crash in a LATER screen is already confirmed and not auto-reverted. A15 phase A (client only, OTA
+        versionCode 12, publish as 2.1.2): settling-debits store keeps acked sales reducing displayed stock until a pull sent
+        after the ack is applied; parked sales keep reducing; refunds unchanged; hold ≤3 then ack-anyway; 2000-entry cap.
+        A15 backlog: Phase B (stock_seq trigger, mig 0057→ renumber, gate ST 56458) after A has soaked; T4 throttled
+        auto-resync (cap hits only after ~6.7 days without restart/manual sync at ~300 sales/day); rehydrate() reload can drop
+        a failed-write in-memory entry on a flushOnly flip (double fault); release-note: old parked orders start lowering stock.
+        USER-PENDING: emulator check of A15 after the OTA (stock must not jump back up after a sale syncs; watch Preferences
+        write cost).
         **All policy questions ANSWERED 2026-10-17 (see Decisions) → now also buildable:** A39 follow-ups (merged-away skip,
         ingredient SKU assign) S; A37 (60-day retention job + redaction) S–M; A27 refund-date basis M; A28 per-outlet timezone
         (WIB/WITA) + shift-opening business day M–L; A30 phone-only customer lookup + brand scoping M; A41 local receipts
