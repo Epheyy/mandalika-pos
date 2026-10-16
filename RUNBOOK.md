@@ -77,7 +77,7 @@ Pelanggan, Produk and Bahan each have Template, Import and Export. The import is
    same apply does not duplicate anything.
 5. **Rules:** import never deletes anything and never changes stock (load opening stock by goods receipt or stock count).
    A blank cell on a row that already exists keeps the current value (clear a field in the form instead). A customer whose
-   phone already exists is skipped and listed, never merged or filled. A SKU that belongs to another product, a barcode that is
+   phone already exists is skipped and listed, never merged or filled. A phone that only a merged-away customer had is skipped with a warning naming the keeper (never re-created). An ingredient row with a new SKU and the exact name of one ingredient that has no SKU assigns the SKU to it instead of creating a duplicate. A SKU that belongs to another product, a barcode that is
    taken, and a size rename onto another variant's size are row errors. A SKU kept with a new Ukuran renames the variant and
    the per-outlet stock/price (and warehouse stock) follow it. Prices are whole rupiah: `150000`, `150.000` and `Rp 150.000`
    all mean 150000.
