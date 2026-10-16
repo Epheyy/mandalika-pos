@@ -135,6 +135,24 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
     errors, formula-safe export).
   - **A44 short stock:** never block a sale (negative stock allowed, matches allowNegativeStock default) but **flag and report**
     every oversold line so auditor/cashier human errors surface.
+- **2026-10-17 owner policy answers (medium-findings scoping):**
+  1. **A05 offline authority:** offline sales allowed until shift close, capped at 12 h after the last successful online contact;
+     enforced on next sync (recommendation accepted).
+  2. **A27 refunds in reports:** recognised on the REFUND date.
+  3. **A28 time:** TWO timezones in use, WIB and WITA (not WIB-only) → each outlet needs a timezone; the business day belongs to
+     the SHIFT'S OPENING date; NO return deadline until the owner sets one.
+  4. **A30 customer privacy:** cashiers look customers up BY PHONE only (no browsing); managers see their own brand's customers;
+     admins see all.
+  5. **A41 local receipts:** keep 7 days OR the last 500 receipts on the tablet; offline returns for sales made on that tablet
+     before reconnecting = YES.
+  6. **A08 transfer-receive PIN:** NOT approvable offline → online step-up; stop shipping PIN hashes in the sync bundle; remove
+     the raw PIN from the queued payload; server-side lockout.
+  7. **A37 error_logs:** retention 60 days, admin-only read.
+  8. **Import vs merged-away customer:** never re-create one; skip the row with a warning pointing to the keeper (A39 follow-up).
+  9. **Ingredient import:** a row with a new SKU whose exact name matches exactly one ingredient with a blank SKU ASSIGNS the SKU to
+     it (no duplicate) (A39 follow-up).
+  10. **OTA rollout (A35):** pilot outlet first, once more than one outlet's tablets are on APK 2.1 (staged-rollout mechanism
+      to be built when that is true; until then all-at-once on the single pilot set).
 
 ## Next
 
@@ -271,6 +289,10 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         recognition basis (sale date vs refund date); A28 timezones/day cutoff/return window; A30 customer-read scope across
         brands/outlets (privacy); A41 local receipt retention + offline-return need; A08 offline PIN hashes (design choice);
         A37 retention/access for error_logs (light). Suggested order: A35 → A15 → A37 → A29 → A26 → A10 → A23.
+        **All policy questions ANSWERED 2026-10-17 (see Decisions) → now also buildable:** A39 follow-ups (merged-away skip,
+        ingredient SKU assign) S; A37 (60-day retention job + redaction) S–M; A27 refund-date basis M; A28 per-outlet timezone
+        (WIB/WITA) + shift-opening business day M–L; A30 phone-only customer lookup + brand scoping M; A41 local receipts
+        7d/500 + offline returns M; A05 offline cap 12 h/shift close S–M; A08 online-only step-up + drop PIN hashes M–L.
    - Environment notes: network to GitHub/Upstash is flaky from this PC (retry pushes; PowerShell Invoke-WebRequest for CI
      artifacts); CI postgres gate now uses digest-pinned image with mirror fallback; the emulator must be started by the
      owner (cold-start command in the Emulator section) — Claude's own start command was blocked by a safety check.
