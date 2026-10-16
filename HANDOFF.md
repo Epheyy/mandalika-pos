@@ -28,7 +28,26 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-17, release 6 = A39 follow-ups + /livez + ota logging):** revision **`00112-paw`** (100%, tag `rel6`, commit
+- **Backend (2026-10-17, release 7 = OTA built-in fix):** revision **`00114-win`** (100%, tag `rel7`, commit 5f11921, NO migration; rollback =
+  `00112-paw`). **BUG FOUND ON THE EMULATOR 2026-10-17:** a device on the BUILT-IN bundle sends `version_name` = the APK versionName
+  ("2.1", with `version_build` "2.1"), NOT "builtin"; the old Decide() could not parse "2.1" so OTA 2.1.1/2.1.2 were never offered
+  to real tablets ("no update"; plugin logs "Error no url or wrong format"). Fix: built-in when version_name=="builtin" or
+  == non-empty version_build that parses; 2-part device versions compare as x.y.0; garbage still fails safe; `version_build` logged.
+  Verified on the tag + live: built-in 2.1/2.1 code 12 → offered 2.1.2; 2.1.1 → offered; 2.1.2 → up-to-date; 2.1.5 → no update;
+  codes 11/13 → "no release"; abc/abc → no update. Smokes on rel7: oversell 28/28, import 21/21, ingredient 8/8, release 1/2
+  18/18, auth 11/12 (one 429 from the refresh limiter). Opus review: ship; lows (optional): built-in skips the comparison when
+  the release label is not newer than the APK name (future APK 2.2 + release 2.1.9), keep APK versionNames 2-part / OTAs patch≥1,
+  handler test does not reach the offered path (no repo seam), one spec line inexact.
+  **EMULATOR (APK 2.1, 2026-10-17, bundle 2.1.2 installed BY HAND via CapacitorUpdater.download+set):** A35 bundle confirmed
+  (notifyAppReady, session/shift survived, persisted across force-stop); A44 stock-0 item adds to cart with the "tetap ditambahkan"
+  message and the warn-and-override sheet, sale BSD-AB0003 synced, server order stock_warning + shortage row (0→-1) + stock -1;
+  A15: sold 1× HOLY SWEET 10ml ATOMIZER (BSD-AB0004), picker 42→41 and stayed 41 (server 41), settling store held 2 entries,
+  retired on the startup pull (entries 0), stock still correct. Test data left: BSD-AB0003/AB0004 (+1 unacknowledged oversell
+  record, visible in Stok Minus). Privacy note: the Capgo plugin sends stats batches to Capgo's servers by default (device_id,
+  app_id, version); disable with `statsUrl: ''` in capacitor.config (needs an APK). USER-PENDING: restart the emulator → reset to
+  built-in (CapacitorUpdater.reset + delete) and watch it pick up 2.1.2 BY ITSELF; backoffice import-dialog walkthrough (needs the
+  owner's login in the Browser pane).
+  Release 6 was: **`00112-paw`** (tag `rel6`, commit
   1edfa65, NO migration, still through **0056**; rollback = `00110-cis`). Contains: import never re-creates a merged-away customer
   (skip + warning naming the keeper, redacted in import_runs), ingredient new-SKU assign (one target per ingredient, `unit_mismatch`,
   inactive warning), `/livez` (Cloud Run reserves `/healthz`; live returns `{"db":"ok","redis":"ok","status":"ok"}`), OpenAPI 400/413
