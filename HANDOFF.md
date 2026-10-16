@@ -28,7 +28,16 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-17, release 5 = A39 CSV import):** revision **`00110-cis`** (100%, tag `rel5`, commit 7392d08, migrations
+- **Backend (2026-10-17, release 6 = A39 follow-ups + /livez + ota logging):** revision **`00112-paw`** (100%, tag `rel6`, commit
+  1edfa65, NO migration, still through **0056**; rollback = `00110-cis`). Contains: import never re-creates a merged-away customer
+  (skip + warning naming the keeper, redacted in import_runs), ingredient new-SKU assign (one target per ingredient, `unit_mismatch`,
+  inactive warning), `/livez` (Cloud Run reserves `/healthz`; live returns `{"db":"ok","redis":"ok","status":"ok"}`), OpenAPI 400/413
+  docs for login/refresh/logout, `/ota/check` logs device_id/custom_id (verified in Cloud Run logs). Smoke on the tag: import 21/21,
+  ingredient SKU 8/8, oversell 28/28, release 1/2 18/18; live auth smoke 12/12 (script updated to /livez + X-Outlet-Id). The
+  merged-away skip was NOT smoked hosted (test DB has 0 tombstones; a merge leaves immutable audit rows) — covered by gate IM. CI note:
+  the first postgres run on 1edfa65 failed on a runner port-bind flake (56448 in use); `gh run rerun --failed` passed; follow-up:
+  retry once on fixture start. The login limiter (10/5 min per IP+email, per instance) bites repeated smoke logins: reuse ADMIN_TOKEN.
+  Release 5 was: revision **`00110-cis`** (tag `rel5`, commit 7392d08, migrations
   through **0056** `import_runs`; rollback = `00108-naz` — additive table, the old revision ignores it). Smoke on the tag:
   import flow 21/21 (guards, dup-in-file→422, preview writes nothing, commit applied, same-key replay, different-file 409,
   formatted-phone dedupe skip, stale 409, throwaway customers deleted), oversell 28/28, release 1/2 18/18, auth 10/12
