@@ -252,9 +252,25 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      4. Small follow-ups: ~~/healthz reserved by Cloud Run~~ DONE on branch followups-1017 (deep health also at `/livez`, RUNBOOK
         fixed; live check after deploy: `curl <url>/livez`); ~~pin Go 1.26.9 in postgres.yml~~ DONE (explicit go-version +
         check-latest false in all three setup-go steps; the next postgres gate log should print `go1.26.9`); ~~OpenAPI 400 on
-        refresh/logout, 413 on login~~ DONE (docs only); A33 Task 9 cleanup on/after
-        2026-10-30 (re-run Task 0 first); A36 build once owner does O1–O4.
-     5. Then the medium findings (A05/A07 leftovers, A10, A15, A41, A28, A30, A37, A23/A26/A27/A29/A35 leftovers) → Fable re-audit.
+        refresh/logout, 413 on login~~ DONE (docs only; pushed 8c4e19b, CI green, postgres gate now prints go1.26.9;
+        `/livez` goes live with the next backend deploy); A33 Task 9 cleanup on/after
+        2026-10-30; A36 build once owner does O1–O4.
+        **A33 Task 0 re-run 2026-10-17 (read-only, tool deleted):** PG rows 719, live 200, Redis refresh keys 204; live with
+        key 200, live WITHOUT key 0, keys on revoked/expired rows 0; Redis-only keys (no PG row) = 4, but none belongs to an
+        existing user (adoption requires the user to exist), TTLs run to 2027-05/2027-10 (legacy long-TTL tokens) → they are
+        dead orphans, adoption can never use them, Task 9 may drop adoption + the Redis mirror on/after 2026-10-30 (re-run the
+        audit once more first; optionally delete the 4 orphan keys, owner OK needed for the Upstash write).
+     5. Then the medium findings → Fable re-audit. **Scoping pass 2026-10-17** (source: docs/audits/2026-10-14-audit-status-sweep.md;
+        A07/A33 now DONE, A12/A14/A32/A39/A42/A43/A44 DONE): NO owner decision needed — A35 notifyAppReady fires at first React
+        render, BEFORE journal open/migration (`App.tsx:163-166`; matters now that OTA 2.1.1 is live; also no staged rollout /
+        web-layer journal-compat rule) M; A15 acked sale debits let stock reappear on the POS (SyncEngine/optimistic, cashier-
+        visible) M; A37 recursive redaction in sync redactor/error reporter/server error-log insert + restore log line S–M;
+        A29 no sync batch cap/oversized-backlog handling M; A26 reports client-side full-table aggregation (scale) M; A10 retain
+        the quoted receipt total/lines server-side + "differs" warning M; A23 tiered-promo POS/server disagreement leftover M.
+        NEED OWNER DECISION first: A05 offline authority window after revoke (shift end vs fixed hours); A27 refund
+        recognition basis (sale date vs refund date); A28 timezones/day cutoff/return window; A30 customer-read scope across
+        brands/outlets (privacy); A41 local receipt retention + offline-return need; A08 offline PIN hashes (design choice);
+        A37 retention/access for error_logs (light). Suggested order: A35 → A15 → A37 → A29 → A26 → A10 → A23.
    - Environment notes: network to GitHub/Upstash is flaky from this PC (retry pushes; PowerShell Invoke-WebRequest for CI
      artifacts); CI postgres gate now uses digest-pinned image with mirror fallback; the emulator must be started by the
      owner (cold-start command in the Emulator section) — Claude's own start command was blocked by a safety check.
