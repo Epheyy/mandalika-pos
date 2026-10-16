@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { SyncEngine, type ApiLike, type KV } from '@mandalika/sync'
 import { applyPendingStock, stockFor, overstockLines, nextVariantQty, exceedsStock, oversoldSizes, OVERSELL_WARNING } from './stock'
 
 const products = [
@@ -82,5 +83,48 @@ describe('out-of-stock selling (A44 Q2)', () => {
 
   it('the warning copy tells the cashier the sale still goes through', () => {
     expect(OVERSELL_WARNING).toContain('tetap')
+  })
+})
+
+// A15: what the cashier sees (snapshot minus engine deltas, exactly as CashierScreen computes it) must not
+// jump back up when a sale is acknowledged, and must settle once a pull sent after the ack arrives.
+describe('displayed stock across ack and resync (A15)', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function memKV(): KV {
+    const m = new Map<string, string>()
+    return {
+      get: (k) => m.get(k) ?? null, set: (k, v) => { m.set(k, v) }, remove: (k) => { m.delete(k) },
+      setDurable: async (k, v) => { m.set(k, v) }, removeDurable: async (k) => { m.delete(k) },
+    }
+  }
+
+  it('stays lowered after the ack and is exact after the next resync', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    let serverStock = 5
+    const api = {
+      request: vi.fn(async (method: string, path: string, body?: { items: { idempotencyKey: string }[] }) => {
+        if (path.includes('/sync/pull')) {
+          return { data: { version: 1, products: [{ id: 'p1', name: 'A', isActive: true, variants: [{ size: '10ml', price: 1, stock: serverStock, sku: '' }] }], categories: [], bundles: [], customers: [], promotions: [], discountCodes: [], loyaltyConditions: [] } }
+        }
+        if (method === 'POST' && body) {
+          serverStock -= 2
+          return { data: { processed: 1, version: 1, results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'ok' })) } }
+        }
+        return { data: [] }
+      }),
+    } as unknown as ApiLike
+    const engine = new SyncEngine(api, {}, memKV(), { actor: null })
+    await engine.resync()
+    const display = () => stockFor(applyPendingStock(engine.getSnapshot().products as any, engine.pendingStockDeltas()), 'p1', '10ml')
+
+    await engine.enqueue('order', { items: [{ productId: 'p1', variantSize: '10ml', quantity: 2 }] })
+    expect(display()).toBe(3)
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(display()).toBe(3) // acked, no pull yet: used to jump back to 5
+    await engine.resync()
+    expect(display()).toBe(3)
+    expect(engine.pendingStockDeltas()).toEqual({})
   })
 })
