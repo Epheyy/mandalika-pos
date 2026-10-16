@@ -190,8 +190,12 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      auditor 'sudah dicek' step; POS stops blocking out-of-stock items, warns instead, via OTA). A39 plan
      `docs/plans/2026-10-16-a39-csv-import.md` + owner decisions (stopgap c7d0d71 hides product import / retires users import;
      no stock column; phone dupes skipped; users import retired). Order: A44 (mig 0055, port 56457), then A39 (mig 0056, 56456).
-   - **A44 BACKEND LIVE 2026-10-17 (rev 00108-naz, mig 0055); backoffice deploys with the next non-skip push; POS warning
-     still needs the OTA (versionCode 12) + emulator check.** Merged as 477fc8f; Opus review found no
+   - **A44 LIVE 2026-10-17: backend rev 00108-naz (mig 0055), backoffice deployed (901b499), POS OTA 2.1.1 PUBLISHED
+     (test type, targets versionCode 12 / APK 2.1, from 61379ef, sha256 fd353089…9497; /ota/check offers it to
+     version_name builtin/2.1.0 on code 12, "no release" on codes 10/11/13). First OTA ever published. First attempt failed
+     safely before upload (Capgo CLI needs cwd=apps/pos + --package-json; fixed + CLI pinned 8.83.0 in ota-release.sh).
+     USER-PENDING: emulator check (open POS, restart once to apply 2.1.1; tap/scan stock-0 item → warns, adds; sale goes
+     through; shows in backoffice Stok Minus + "⚠ Stok" badge).** Merged as 477fc8f; Opus review found no
      CRIT/HIGH; fix round 2031c75 (M1 non-live refund lines never restocked incl. bundles; Q6 unresolved_variant sale sets
      orders.stock_warning; L1 report totals = kind shortage only; L2 qty<=0 skip) + 536603d (api.gen.go regen — `make gen-check`
      in backend is separate from `pnpm gen:check`; breakdown sums shortage-only). Opus re-review: no runtime defect. Verified on
