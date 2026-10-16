@@ -831,17 +831,19 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 	}
 	// A44: restock exactly what the sale decremented. A line the sale skipped (no
 	// variant at sale time, recorded as unresolved_variant) is never restocked, and a
-	// line whose variant has been deleted since is skipped and recorded instead of
+	// line whose variant AND outlet stock row are gone (catalog delete removes both) is skipped and recorded instead of
 	// recreating an orphan stock row (or failing the refund on the stock FK).
 	rows, err := tx.Query(ctx,
 		`SELECT oi.id, oi.product_id, oi.variant_size, oi.quantity, oi.is_bundle,
 		        EXISTS (SELECT 1 FROM sale_stock_exceptions x
 		                 WHERE x.order_item_id = oi.id AND x.kind = 'unresolved_variant'),
-		        EXISTS (SELECT 1 FROM product_variants pv
-		                 WHERE pv.product_id = oi.product_id AND pv.size = oi.variant_size)
+		        (EXISTS (SELECT 1 FROM product_variants pv
+		                  WHERE pv.product_id = oi.product_id AND pv.size = oi.variant_size)
+		         OR EXISTS (SELECT 1 FROM outlet_variant_stock s
+		                     WHERE s.outlet_id = $2 AND s.product_id = oi.product_id AND s.variant_size = oi.variant_size))
 		   FROM order_items oi WHERE oi.order_id=$1
 		  ORDER BY oi.product_id, oi.variant_size, oi.id`,
-		orderID)
+		orderID, outletID)
 	if err != nil {
 		return err
 	}
