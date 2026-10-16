@@ -16,6 +16,8 @@ beforeEach(() => {
   h.journal = null
 })
 
+const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+
 describe('storage boot (A01b)', () => {
   it('adopts the journal right after secure storage', async () => {
     const { bootStorage } = await import('./bootStorage')
@@ -33,5 +35,25 @@ describe('storage boot (A01b)', () => {
     const main = readFileSync(fileURLToPath(new URL('./main.tsx', import.meta.url)), 'utf8')
     expect(main).toMatch(/try \{\s*await bootStorage\(\)\s*\} catch \(err\) \{[\s\S]*?<BootError/)
     expect(main).not.toMatch(/initSecureKV/)
+  })
+  it('App mounts only after bootStorage succeeded, never inside the BootError catch (A35)', () => {
+    const main = src('./main.tsx')
+    const tryAt = main.indexOf('await bootStorage()')
+    const catchAt = main.indexOf('} catch (err) {')
+    const returnAt = main.indexOf('return', catchAt)
+    const appAt = main.indexOf('<App />')
+    expect(tryAt).toBeGreaterThan(-1)
+    expect(appAt).toBeGreaterThan(returnAt) // the catch returns before App can render
+    expect(main.slice(catchAt, returnAt)).not.toMatch(/<App/)
+  })
+  it('the OTA confirm lives only in App.tsx, never in boot-error, main, sync or auth paths (A35)', () => {
+    expect(src('./BootError.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
+    expect(src('./main.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
+    expect(src('./cashier/SyncProvider.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
+    expect(src('./auth.tsx')).not.toMatch(/otaNotifyReady|notifyAppReady/)
+    const app = src('./App.tsx')
+    expect(app.match(/otaNotifyReady\(\)/g)).toHaveLength(1)
+    // inside the mount effect (empty deps), not behind a network/auth promise
+    expect(app).toMatch(/useEffect\(\(\) => \{[^}]*otaNotifyReady\(\)[^}]*\}, \[\]\)/)
   })
 })
