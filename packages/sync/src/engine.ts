@@ -6,6 +6,7 @@ import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
+import { SettlingDebits, type DebitLine } from './settlingDebits'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 const INBOUND_KEY = 'mandalika.pos.inboundTransfers'
@@ -131,6 +132,19 @@ function toReviewReport(i: ReviewItem): ReviewReport {
     ...(i.capturedOutletId ? { capturedOutletId: i.capturedOutletId } : {}),
   }
 }
+/** The stock lines of an order item (reward lines included: they decrement stock server-side too). */
+function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[] {
+  const payload = item.payload as { items?: Array<{ productId?: string; variantSize?: string; quantity?: number }> }
+  const lines: DebitLine[] = []
+  for (const l of payload.items ?? []) {
+    if (l.productId) lines.push({ productId: l.productId, variantSize: l.variantSize ?? '', qty: l.quantity ?? 0 })
+  }
+  return lines
+}
+
+/** An acked order is kept queued at most this many times when its settling-debit write fails. */
+const SETTLING_HOLD_MAX = 3
+
 /** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
 export const BACKOFF_BASE_MS = 20_000
 export const BACKOFF_CAP_MS = 5 * 60_000
@@ -229,6 +243,8 @@ export class SyncEngine {
   readonly outbox: Outbox
   readonly snapshot: Snapshot
   readonly pending: PendingCredits
+  /** A15: debits of acked orders the next pulled snapshot may not contain yet (display only). */
+  private readonly settling: SettlingDebits
   private readonly syncedRefunds: SyncedRefunds
   private refundMemory: Promise<boolean> = Promise.resolve(true)
   private creditedView: Bundle | null = null
@@ -242,6 +258,10 @@ export class SyncEngine {
   private nextFlushAt = 0
   private backoffStep = 0
   private disposed = false
+  /** How many times an acked order was held back from ack because its settling-debit write failed. */
+  private readonly settlingHolds = new Map<string, number>()
+  /** Bumped by every dispose(); lets an in-flight pull tell it was retired even if start() revived the engine. */
+  private disposeEpoch = 0
   // Review check-in (head-office resolve). Key -> last time it was sent in a successful check-in.
   private reviewSentAt = new Map<string, number>()
   private reviewCheckInAt = 0
@@ -268,6 +288,7 @@ export class SyncEngine {
     this.outbox = new Outbox(store)
     this.snapshot = new Snapshot(kv)
     this.pending = new PendingCredits(kv)
+    this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
     // synced-refund write; fold it into the memory now.
@@ -299,6 +320,7 @@ export class SyncEngine {
   async idle(): Promise<void> {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
+    await this.settling.idle()
     await this.refundMemory
   }
 
@@ -306,6 +328,10 @@ export class SyncEngine {
    *  engine and the store are idle (see {@link idle}); no-op on the KV store. */
   async rehydrate(): Promise<void> {
     await this.outbox.refresh()
+    // A flush on this same instance (a flush-only <-> normal flip keeps it) may be inside a settling write:
+    // wait for it, or reload() would read the old blob and drop that entry.
+    await this.settling.idle()
+    this.settling.reload() // the predecessor's last writes landed after this engine's constructor read the key
     this.refundMemory = this.foldAckedRefunds()
     await this.refundMemory
   }
@@ -316,6 +342,8 @@ export class SyncEngine {
    *  because React StrictMode re-runs effects on the same instance in dev. */
   dispose(): void {
     this.disposed = true
+    this.disposeEpoch += 1
+    this.settling.dispose()
     this.stopTimers?.()
     this.stopTimers = null
     this.outbox.dispose()
@@ -350,8 +378,17 @@ export class SyncEngine {
 
   /** Initial/refresh pull when online; atomically swaps the local snapshot. */
   async resync(): Promise<void> {
+    // A15: number the pull before it is sent. Debits acked before this number was taken are in what the
+    // server answers; anything acked after (or while) it is in flight stays until a later pull.
+    const epoch = this.disposeEpoch
+    const pullNo = await this.settling.beginPull()
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
+    if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
+    const known = new Set<string>()
+    for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
+    // A response older than one already applied would roll the snapshot (and stock) back.
+    if (!this.settling.applyPull(pullNo, known)) return
     this.snapshot.replace(r.data)
     this.pending.retire(r.data.version ?? 0)
     this.recomputeCredited()
@@ -541,18 +578,29 @@ export class SyncEngine {
 
   /** SP-CRM-9c: sum unsynced order quantities per `${productId}|${variantSize}` so
    *  the POS can optimistically decrement displayed stock. Includes reward lines
-   *  because they decrement stock server-side too. Dead-lettered items are excluded
-   *  (outbox.pending() already filters them). */
+   *  because they decrement stock server-side too. Parked (needs-review) orders are included until head
+   *  office resolves them, and A15 adds acked orders until a pull sent after the ack. */
   pendingStockDeltas(): Record<string, number> {
     const deltas: Record<string, number> = {}
-    for (const item of this.outbox.pending()) {
-      if (item.type !== 'order') continue
-      const payload = item.payload as { items?: Array<{ productId?: string; variantSize?: string; quantity?: number }> }
-      for (const line of payload.items ?? []) {
-        if (!line.productId) continue
-        const key = `${line.productId}|${line.variantSize ?? ''}`
-        deltas[key] = (deltas[key] ?? 0) + (line.quantity ?? 0)
+    // Queued and parked (needs review) sales never reached server stock, or are not yet in the snapshot.
+    const unacked = [...this.outbox.pending(), ...this.outbox.deadLettered()]
+    const unackedKeys = new Set(unacked.map((i) => i.idempotencyKey))
+    // Only the outlet in effect (a flush-only or mismatched terminal may still drain another outlet's queue).
+    const outlet = this.actorProvider?.()?.outletId
+    const inScope = (o: string | undefined) => !outlet || !o || o === outlet
+    const add = (lines: DebitLine[]) => {
+      for (const l of lines) {
+        const key = `${l.productId}|${l.variantSize}`
+        deltas[key] = (deltas[key] ?? 0) + l.qty
       }
+    }
+    for (const item of unacked) {
+      if (item.type === 'order' && inScope(item.envelope?.outletId)) add(orderDebitLines(item))
+    }
+    // A15: acked orders until a pull sent after the ack. Skip one only while its item is still unacked
+    // (a failed settle write); an acked row left behind by a skipped prune must NOT hide it.
+    for (const e of this.settling.list()) {
+      if (!unackedKeys.has(e.key) && inScope(e.outletId)) add(e.lines)
     }
     return deltas
   }
@@ -716,6 +764,13 @@ export class SyncEngine {
         this.outbox.reviewItems().filter((i) => byKey.has(i.idempotencyKey)).map((i) => [i.idempotencyKey, i]),
       )
       if (parkedBefore.size === 0) return
+      // A15: a resolved sale may not be in the snapshot yet. Keep its debit (it can only err LOW) until a
+      // later pull; the entry is hidden while the item is still parked, so recording first never double counts.
+      await this.settling.recordMany(
+        [...parkedBefore.values()].filter((i) => i.type === 'order').map((i) => ({
+          key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i),
+        })),
+      ).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
       let removed: readonly Pick<OutboxItem, 'idempotencyKey' | 'type'>[]
       try {
         removed = await this.outbox.resolveReviewed([...parkedBefore.keys()])
@@ -892,6 +947,7 @@ export class SyncEngine {
   private async applyBatch(data: BatchResult, typeByKey: Map<string, OutboxType>): Promise<void> {
     const updates: OutboxSettle[] = []
     const ackedRefundOrderIds: string[] = []
+    const ackedOrders: { key: string; outletId?: string; lines: DebitLine[] }[] = []
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
@@ -902,6 +958,12 @@ export class SyncEngine {
           if (typeof acked?.payload.orderId === 'string') ackedRefundOrderIds.push(acked.payload.orderId)
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
+        if (type === 'order') {
+          // A15: keep the debit visible once the ack prunes the row; written before settle, so a crash
+          // between the two can only leave a duplicate that the key-skip in pendingStockDeltas absorbs.
+          const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
+          if (acked) ackedOrders.push({ key: acked.idempotencyKey, outletId: acked.envelope?.outletId, lines: orderDebitLines(acked) })
+        }
         // SP4: surface the completed transfer to the UI so the tanda-terima
         // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
         // the cashier already saw the prompt — skip the second modal).
@@ -940,7 +1002,26 @@ export class SyncEngine {
     }
     // One serialized write for the whole batch (settle is best-effort: a
     // failed write leaves items pending and the server dedups the resend).
-    await this.outbox.settle(updates)
+    // If the debit could not be stored, do not ack/prune those orders now: the debit would vanish with the
+    // row. They stay queued and the server dedups the resend (A11); the next batch records them again.
+    // Bounded: after SETTLING_HOLD_MAX holds of one key it is acked anyway (the entry stays in memory), so
+    // a persistently failing settling key can never block the queue and the terminal-release guard.
+    let toSettle = updates
+    try {
+      await this.settling.recordMany(ackedOrders)
+      for (const o of ackedOrders) this.settlingHolds.delete(o.key)
+    } catch (err) {
+      const held = new Set<string>()
+      for (const o of ackedOrders) {
+        const n = (this.settlingHolds.get(o.key) ?? 0) + 1
+        this.settlingHolds.set(o.key, n)
+        if (n <= SETTLING_HOLD_MAX) held.add(o.key)
+        else this.settlingHolds.delete(o.key)
+      }
+      console.error(`[sync] settling-debit write failed; keeping ${held.size} acked order(s) queued`, err)
+      toSettle = updates.filter((u) => !(u.op === 'ack' && held.has(u.key)))
+    }
+    await this.outbox.settle(toSettle)
     this.recomputeCredited()
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
@@ -1020,6 +1101,7 @@ export class SyncEngine {
   /** Wire connectivity + periodic version polling. Returns a disposer. */
   start(pollMs = 20000, opts: { flushOnly?: boolean } = {}): () => void {
     this.disposed = false
+    this.settling.revive()
     this.outbox.revive()
     this.autoCheckIn = !opts.flushOnly
     // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
