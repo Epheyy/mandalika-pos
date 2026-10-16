@@ -538,6 +538,20 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	sub("products and ingredients: non-ASCII names and categories link up (Go folding, not the database locale)", func(t *testing.T) {
+		mustApply("/products/import", prodHeader+"ÇİÇEK Äyu,Ünal Ä,ÄÖÜ Kategori,,30 ml,50000,CIC-30,,,,\n", "p-utf8")
+		if count(`SELECT count(*) FROM products p JOIN categories c ON c.id=p.category_id
+		           WHERE p.name='ÇİÇEK Äyu' AND p.brand='Ünal Ä' AND c.name='ÄÖÜ Kategori'`) != 1 ||
+			count(`SELECT count(*) FROM product_variants WHERE sku='CIC-30'`) != 1 {
+			t.Error("non-ASCII product was not created with its category and variant")
+		}
+		mustApply("/ingredients/import", "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\nÄyu Oil,AY-1,g,Ünik Ä,,,\n", "i-utf8")
+		if count(`SELECT count(*) FROM ingredients i JOIN ingredient_categories c ON c.id=i.category_id
+		           WHERE i.sku='AY-1' AND c.name='Ünik Ä'`) != 1 {
+			t.Error("non-ASCII ingredient category not linked")
+		}
+	})
+
 	// ── ingredients ─────────────────────────────────────────────
 	sub("ingredients: create and update never touch ingredient stock or the content version", func(t *testing.T) {
 		const ingHeader = "Nama,SKU,Satuan,Kategori,Biaya Default,Catatan,Status\n"

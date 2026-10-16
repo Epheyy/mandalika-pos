@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -67,7 +68,7 @@ func applyIngredientPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.Ingredi
 		}
 	}
 	catIDs := map[string]string{}
-	rows, err := tx.Query(ctx, `SELECT lower(name), id::text FROM ingredient_categories`)
+	rows, err := tx.Query(ctx, `SELECT name, id::text FROM ingredient_categories`)
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func applyIngredientPlan(ctx context.Context, tx pgx.Tx, plan *csvimport.Ingredi
 			rows.Close()
 			return err
 		}
-		catIDs[name] = id
+		catIDs[strings.ToLower(strings.TrimSpace(name))] = id // planner's folding, not the database locale
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil {

@@ -161,7 +161,7 @@ func ensureCategories(ctx context.Context, tx pgx.Tx, newNames []string) (map[st
 		}
 	}
 	ids := map[string]string{}
-	rows, err := tx.Query(ctx, `SELECT lower(name), id::text FROM categories ORDER BY id`)
+	rows, err := tx.Query(ctx, `SELECT name, id::text FROM categories ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +171,9 @@ func ensureCategories(ctx context.Context, tx pgx.Tx, newNames []string) (map[st
 		if err := rows.Scan(&name, &id); err != nil {
 			return nil, err
 		}
-		if _, ok := ids[name]; !ok {
-			ids[name] = id
+		key := strings.ToLower(strings.TrimSpace(name)) // same folding as the planner (Go), never the database locale
+		if _, ok := ids[key]; !ok {
+			ids[key] = id
 		}
 	}
 	return ids, rows.Err()
@@ -208,7 +209,7 @@ func insertImportedProducts(ctx context.Context, tx pgx.Tx, ps []csvimport.Plann
 		INSERT INTO products (name, brand, category_id, description, sellable, is_active, is_featured)
 		SELECT t.n, t.b, t.c::uuid, t.d, t.s, t.a, t.f
 		  FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::bool[],$6::bool[],$7::bool[]) AS t(n,b,c,d,s,a,f)
-		RETURNING id::text, lower(name), lower(brand)`,
+		RETURNING id::text, name, brand`,
 		names, brands, cats, descs, sell, act, feat)
 	if err != nil {
 		return err
@@ -227,7 +228,7 @@ func insertImportedProducts(ctx context.Context, tx pgx.Tx, ps []csvimport.Plann
 	}
 	rows.Close()
 	for _, i := range idx {
-		productID[i] = created[strings.ToLower(ps[i].Name)+"|"+strings.ToLower(ps[i].Brand)]
+		productID[i] = created[ps[i].Name+"|"+ps[i].Brand]
 	}
 	return nil
 }

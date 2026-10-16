@@ -27,7 +27,7 @@ interface ImportDialogProps {
 }
 
 const ISSUES_SHOWN = 200
-const ROWS_SHOWN = 100
+
 
 const ACTION_LABEL: Record<string, string> = { create: 'Baru', update: 'Diperbarui', skip: 'Dilewati', error: 'Error' }
 
@@ -232,7 +232,7 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
                       </tr>
                     </thead>
                     <tbody>
-                      {report.rows.slice(0, ROWS_SHOWN).map((r) => (
+                      {report.rows.map((r) => (
                         <tr key={r.row} className="border-t border-gray-50">
                           <td className="px-3 py-1.5">{r.row}</td>
                           <td className="px-3 py-1.5 break-all">{r.key}</td>
