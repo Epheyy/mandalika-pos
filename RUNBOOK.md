@@ -63,6 +63,27 @@ Push to `prod-hardening` → Cloudflare Pages builds and deploys. Head commits
 starting with `[CF-Pages-Skip]` do not deploy.
 Deploy the backoffice **after** a backend that serves the API it needs.
 
+### CSV import (onboarding the catalog, customers, ingredients)
+
+Pelanggan, Produk and Bahan each have Template, Import and Export. The import is a server dry run first:
+
+1. **Template:** download it, fill it in (one row per variant for products), keep the header names.
+2. **Save as "CSV UTF-8"** in Excel. A file that is not UTF-8 is refused (accented names would be corrupted).
+   For phone numbers format the Telepon column as Text first, or Excel drops the leading 0 or turns the number into `6.28E+11`
+   (the import rejects that).
+3. **Import:** pick the file. The preview shows new / updated / skipped / error rows, every problem with its row and line, and
+   "Unduh laporan error". Nothing is written yet.
+4. **Fix and re-pick** until there are no errors. **Terapkan** applies the whole file at once or not at all, and retrying the
+   same apply does not duplicate anything.
+5. **Rules:** import never deletes anything and never changes stock (load opening stock by goods receipt or stock count).
+   A blank cell on a row that already exists keeps the current value (clear a field in the form instead). A customer whose
+   phone already exists is skipped and listed, never merged or filled. A SKU that belongs to another product, a barcode that is
+   taken, and a size rename onto another variant's size are row errors. A SKU kept with a new Ukuran renames the variant and
+   the per-outlet stock/price (and warehouse stock) follow it. Prices are whole rupiah: `150000`, `150.000` and `Rp 150.000`
+   all mean 150000.
+6. **Limits:** 16 MiB, 50,000 rows, 40 columns per file. Each import writes one `import_runs` row (who, when, hash, summary;
+   never the file).
+
 ## POS APK
 
 1. Push first. Workflows build from **origin**, not the local tree.

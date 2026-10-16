@@ -212,7 +212,11 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         deploy-backend (mig 0055) → smoke (sale beyond stock → negative + 1 row; report; acknowledge) → promote →
         backoffice deploys on the next non-skip push → OTA (`make ota-release VERSION=x.y.z`, targets versionCode 12/APK 2.1)
         for the POS warning, emulator-check it.
-     3. A39 build (plan docs/plans/2026-10-16-a39-csv-import.md + owner decisions; mig 0056, PG port 56456).
+     3. A39 CSV import: **built 2026-10-16 on a local branch (not pushed/deployed)** per docs/plans/2026-10-16-a39-csv-import.md
+        (mig 0056 `import_runs`, PG gate IM port 56456, BO-CSV-IMPORT browser scenario). Needs an Opus review (idempotency/replay,
+        stock-adjacent rename path, generated types, sync-wall bump), then the usual push/CI/Neon snapshot/deploy-backend (0056)
+        sequence. Backoffice commits are `[CF-Pages-Skip]`; the next non-skip push deploys the new dialogs. New backlog (not
+        fixed): the Customers and Ingredients exports fetch a single 10,000-row page and silently truncate above that.
      4. Small follow-ups: /healthz reserved by Cloud Run → serve health at an unreserved path + fix RUNBOOK; pin Go 1.26.9 in
         postgres.yml (CI reports go1.26.0); OpenAPI 400 on refresh/logout, 413 on login; A33 Task 9 cleanup on/after
         2026-10-30 (re-run Task 0 first); A36 build once owner does O1–O4.

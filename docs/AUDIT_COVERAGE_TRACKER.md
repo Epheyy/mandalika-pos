@@ -963,7 +963,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A36 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T31 |
 | A37 | P1 | S0i | Needs current behavioral revalidation; source matches audit | T32 |
 | A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust resolved 2026-10-10 (RealIP removed); OpenPGP/rgbcolor unresolved | T33 |
-| A39 | P2 | S0j | Needs current behavioral revalidation; source matches audit | T32 |
+| A39 | P2 | S0j | Built 2026-10-16 on a local branch (server-side import, PG gate IM, formula-safe export); not pushed or deployed | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
 | A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
 | A42 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T34 |
@@ -1488,7 +1488,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 
 ### A39 — CSV import corrupts escaped quotes and multiline fields
 
-- **Original priority / evidence:** P2; historical class: Reproduced; formula-export hardening identified statically.
+- **Current disposition:** Built 2026-10-16 (not pushed, not deployed): standards parser (Go encoding/csv) with server dry-run preview, per-row errors, all-or-nothing idempotent commit, formula-safe export, customer import added (it was export-only). Hosted gate and on-device review still pending.
 - **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
 - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/backoffice/src/lib/csvUtils.ts:1-124`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
 - **Authority / decision:** AUDIT_REPORT A39 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: no additional owner question identified; technical review under the shared workflow.
