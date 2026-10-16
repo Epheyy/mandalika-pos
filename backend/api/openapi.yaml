@@ -2326,7 +2326,16 @@ paths:
       operationId: health
       tags: [auth]
       security: []
-      summary: Deep health (DB required; Redis reported, optional)
+      summary: Deep health (DB required; Redis reported, optional). Reserved by Cloud Run, use /livez there
+      responses:
+        '200': { description: 'ok, or degraded when only Redis is down or disabled' }
+        '503': { description: database down }
+  /livez:
+    get:
+      operationId: healthLivez
+      tags: [auth]
+      security: []
+      summary: Same deep health as /healthz, at a path Cloud Run does not reserve
       responses:
         '200': { description: 'ok, or degraded when only Redis is down or disabled' }
         '503': { description: database down }
@@ -2352,7 +2361,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { description: 'malformed body', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { description: 'request body over the 8 KiB cap', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: rate limited }
   /api/v1/auth/refresh:
     post:
@@ -2375,6 +2386,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { description: 'malformed body, or body over the 16 KiB cap', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/v1/auth/logout:
     post:
@@ -2391,6 +2403,7 @@ paths:
                 refresh: { type: string }
       responses:
         '200': { description: ok }
+        '400': { description: 'request body over the 16 KiB cap (a malformed body is ignored and still returns 200)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/auth/me:
     get:
       operationId: me
