@@ -289,7 +289,11 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         recognition basis (sale date vs refund date); A28 timezones/day cutoff/return window; A30 customer-read scope across
         brands/outlets (privacy); A41 local receipt retention + offline-return need; A08 offline PIN hashes (design choice);
         A37 retention/access for error_logs (light). Suggested order: A35 → A15 → A37 → A29 → A26 → A10 → A23.
-        **A35 + A15 BUILT, REVIEWED (Opus ×3 each), MERGED LOCALLY 2026-10-17 (A35 fd9a49c, A15 41d6947; NOT pushed/OTA'd).**
+        **A35 + A15 BUILT, REVIEWED (Opus ×3 each), MERGED 2026-10-17 (A35 fd9a49c, A15 41d6947; pushed, CI green on b88c7f8).
+        **OTA 2.1.2 PUBLISHED 2026-10-17** (test type, versionCode 12, from b88c7f8, sha256 e3fb14d8…3a4b, id faa132c5; journal guard
+        flagged only terminalBinding.ts = one-line OUTLET_CACHE_KEYS addition, owner acknowledged with OTA_JOURNAL_CHANGE_ACK=1;
+        /ota/check offers 2.1.2 to builtin/2.1.1 on code 12, "no release" on 11/13, zip checksum matches). `/ota/check`
+        device_id/custom_id logging approved by owner; it goes live with the next backend deploy.**
         A35 premise was stale (App mounts only after bootStorage/initJournal; confirm is in App's mount effect) → delivered
         tests locking the order, RUNBOOK journal-rollback rule, `scripts/lib/ota-journal-guard.sh` in ota-release.sh (refuses
         journal-adjacent changes since the APK base unless OTA_JOURNAL_CHANGE_ACK=1; pass APK_BUILD_SHA for the real ancestor
