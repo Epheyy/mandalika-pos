@@ -44,9 +44,12 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
   A15: sold 1× HOLY SWEET 10ml ATOMIZER (BSD-AB0004), picker 42→41 and stayed 41 (server 41), settling store held 2 entries,
   retired on the startup pull (entries 0), stock still correct. Test data left: BSD-AB0003/AB0004 (+1 unacknowledged oversell
   record, visible in Stok Minus). Privacy note: the Capgo plugin sends stats batches to Capgo's servers by default (device_id,
-  app_id, version); disable with `statsUrl: ''` in capacitor.config (needs an APK). USER-PENDING: restart the emulator → reset to
-  built-in (CapacitorUpdater.reset + delete) and watch it pick up 2.1.2 BY ITSELF; backoffice import-dialog walkthrough (needs the
-  owner's login in the Browser pane).
+  app_id, version); disable with `statsUrl: ''` in capacitor.config (needs an APK). **OTA END-TO-END PROVEN 2026-10-17 (after rel7):** emulator reset to
+  built-in 2.1 (CapacitorUpdater.reset + delete), then on the next foreground the plugin checked `/ota/check`, logged "New bundle:
+  2.1.2 found. Current is: 2.1", downloaded it (checksum e3fb14d8… matched, setNext true), and after the next background→foreground it
+  applied 2.1.2, `notifyAppReady()` was called inside the window, status success, session/shift intact. (The plugin's "Error no url or
+  wrong format" log line just means up-to-date / no update.) USER-PENDING: backoffice import-dialog walkthrough (needs the owner's login
+  in the Browser pane). Tablets on APK 2.1 now receive OTA 2.1.2 automatically on their next foreground.
   Release 6 was: **`00112-paw`** (tag `rel6`, commit
   1edfa65, NO migration, still through **0056**; rollback = `00110-cis`). Contains: import never re-creates a merged-away customer
   (skip + warning naming the keeper, redacted in import_runs), ingredient new-SKU assign (one target per ingredient, `unit_mismatch`,
