@@ -553,6 +553,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/oversell-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oversold sale lines (Stok Minus) report, view_reports */
+        get: operations["listOversellReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oversell-report/open-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unchecked oversell lines in the caller's scope (badge), view_reports */
+        get: operations["getOversellOpenCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oversell-records/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark oversell lines 'sudah dicek' (idempotent), manage_stock_count */
+        post: operations["acknowledgeOversellRecords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/loyalty-conditions": {
         parameters: {
             query?: never;
@@ -2850,6 +2901,82 @@ export interface components {
             data: components["schemas"]["DiscountCodeReportRow"][];
             meta: components["schemas"]["Meta"];
         };
+        OversellRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            orderStatus: string;
+            /** Format: uuid */
+            outletId: string;
+            outletName: string;
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku?: string | null;
+            /** @enum {string} */
+            kind: "shortage" | "unresolved_variant" | "refund_unresolved_variant";
+            quantity: number;
+            stockBefore?: number | null;
+            stockAfter?: number | null;
+            shortfall: number;
+            currentStock?: number | null;
+            /** @enum {string} */
+            channel: "sync" | "direct";
+            /** Format: uuid */
+            cashierId: string;
+            cashierName: string;
+            /** Format: uuid */
+            shiftId?: string | null;
+            /** Format: uuid */
+            deviceId?: string | null;
+            /** Format: date-time */
+            soldAt: string;
+            /** Format: date-time */
+            recordedAt: string;
+            /** Format: date-time */
+            acknowledgedAt?: string | null;
+            acknowledgedByName?: string | null;
+            acknowledgeNote?: string | null;
+        };
+        OversellBreakdown: {
+            key: string;
+            name: string;
+            variantSize?: string | null;
+            lines: number;
+            shortfall: number;
+        };
+        OversellSummary: {
+            lines: number;
+            orders: number;
+            totalShortfall: number;
+            activeShortfall: number;
+            reversedShortfall: number;
+            openCount: number;
+            byProduct: components["schemas"]["OversellBreakdown"][];
+            byCashier: components["schemas"]["OversellBreakdown"][];
+        };
+        OversellReport: {
+            summary: components["schemas"]["OversellSummary"];
+            data: components["schemas"]["OversellRecord"][];
+            meta: components["schemas"]["Meta"];
+        };
+        OversellOpenCountResponse: {
+            data: {
+                openCount: number;
+            };
+        };
+        OversellAckInput: {
+            ids: string[];
+            note?: string;
+        };
+        OversellAckResponse: {
+            data: {
+                acknowledged: number;
+            };
+        };
         BXGYConfig: {
             buyQuantity: number;
             getQuantity: number;
@@ -2970,6 +3097,7 @@ export interface components {
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             discountWarning?: boolean;
             discountWarningReason?: string | null;
+            stockWarning?: boolean;
             tenderWarning?: boolean;
             tenderWarningReason?: string | null;
             surchargeType?: string | null;
@@ -4850,6 +4978,102 @@ export interface operations {
                     "application/json": components["schemas"]["DiscountCodeReport"];
                 };
             };
+        };
+    };
+    listOversellReport: {
+        parameters: {
+            query?: {
+                dateFrom?: string;
+                dateTo?: string;
+                outletId?: string;
+                productId?: string;
+                variantSize?: string;
+                cashierId?: string;
+                kind?: "shortage" | "unresolved_variant" | "refund_unresolved_variant";
+                status?: "open" | "acknowledged";
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OversellReport"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getOversellOpenCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OversellOpenCountResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    acknowledgeOversellRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OversellAckInput"];
+            };
+        };
+        responses: {
+            /** @description number of lines newly acknowledged (already-checked or out-of-scope lines are skipped) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OversellAckResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     listLoyaltyConditions: {

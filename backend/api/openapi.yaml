@@ -1057,6 +1057,88 @@ components:
         summary: { $ref: '#/components/schemas/DiscountCodeReportSummary' }
         data: { type: array, items: { $ref: '#/components/schemas/DiscountCodeReportRow' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    OversellRecord:
+      type: object
+      required: [id, orderId, orderNumber, orderStatus, outletId, outletName, productId, productName, variantSize, kind, quantity, shortfall, channel, cashierId, cashierName, soldAt, recordedAt]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        orderStatus: { type: string }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string, nullable: true }
+        kind: { type: string, enum: [shortage, unresolved_variant, refund_unresolved_variant] }
+        quantity: { type: integer }
+        stockBefore: { type: integer, nullable: true }
+        stockAfter: { type: integer, nullable: true }
+        shortfall: { type: integer }
+        currentStock: { type: integer, nullable: true }
+        channel: { type: string, enum: [sync, direct] }
+        cashierId: { type: string, format: uuid }
+        cashierName: { type: string }
+        shiftId: { type: string, format: uuid, nullable: true }
+        deviceId: { type: string, format: uuid, nullable: true }
+        soldAt: { type: string, format: date-time }
+        recordedAt: { type: string, format: date-time }
+        acknowledgedAt: { type: string, format: date-time, nullable: true }
+        acknowledgedByName: { type: string, nullable: true }
+        acknowledgeNote: { type: string, nullable: true }
+    OversellBreakdown:
+      type: object
+      required: [key, name, lines, shortfall]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        variantSize: { type: string, nullable: true }
+        lines: { type: integer }
+        shortfall: { type: integer }
+    OversellSummary:
+      type: object
+      required: [lines, orders, totalShortfall, activeShortfall, reversedShortfall, openCount, byProduct, byCashier]
+      properties:
+        lines: { type: integer }
+        orders: { type: integer }
+        totalShortfall: { type: integer }
+        activeShortfall: { type: integer }
+        reversedShortfall: { type: integer }
+        openCount: { type: integer }
+        byProduct: { type: array, items: { $ref: '#/components/schemas/OversellBreakdown' } }
+        byCashier: { type: array, items: { $ref: '#/components/schemas/OversellBreakdown' } }
+    OversellReport:
+      type: object
+      required: [summary, data, meta]
+      properties:
+        summary: { $ref: '#/components/schemas/OversellSummary' }
+        data: { type: array, items: { $ref: '#/components/schemas/OversellRecord' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    OversellOpenCountResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [openCount]
+          properties:
+            openCount: { type: integer }
+    OversellAckInput:
+      type: object
+      required: [ids]
+      properties:
+        ids: { type: array, minItems: 1, maxItems: 200, items: { type: string, format: uuid } }
+        note: { type: string, maxLength: 500 }
+    OversellAckResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [acknowledged]
+          properties:
+            acknowledged: { type: integer }
     BXGYConfig:
       type: object
       required: [buyQuantity, getQuantity, getDiscountKind, getDiscountValue]
@@ -1206,6 +1288,7 @@ components:
           items: { $ref: '#/components/schemas/DiscountComponent' }
         discountWarning: { type: boolean }
         discountWarningReason: { type: string, nullable: true }
+        stockWarning: { type: boolean }
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
@@ -2806,6 +2889,71 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeReport' }
+  /api/v1/oversell-report:
+    get:
+      operationId: listOversellReport
+      tags: [reports]
+      summary: Oversold sale lines (Stok Minus) report, view_reports
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string } }
+        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: productId, in: query, schema: { type: string } }
+        - { name: variantSize, in: query, schema: { type: string } }
+        - { name: cashierId, in: query, schema: { type: string } }
+        - { name: kind, in: query, schema: { type: string, enum: [shortage, unresolved_variant, refund_unresolved_variant] } }
+        - { name: status, in: query, schema: { type: string, enum: [open, acknowledged] } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OversellReport' }
+        '400':
+          description: invalid filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/oversell-report/open-count:
+    get:
+      operationId: getOversellOpenCount
+      tags: [reports]
+      summary: Unchecked oversell lines in the caller's scope (badge), view_reports
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OversellOpenCountResponse' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/oversell-records/acknowledge:
+    post:
+      operationId: acknowledgeOversellRecords
+      tags: [reports]
+      summary: Mark oversell lines 'sudah dicek' (idempotent), manage_stock_count
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OversellAckInput' }
+      responses:
+        '200':
+          description: number of lines newly acknowledged (already-checked or out-of-scope lines are skipped)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OversellAckResponse' }
+        '400':
+          description: invalid body
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/loyalty-conditions:
     get:
       operationId: listLoyaltyConditions

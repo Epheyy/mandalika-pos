@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -116,6 +114,12 @@ func TestOversellPostgres(t *testing.T) {
 	router.With(authWrap, mw.RequirePermission("create_order")).Post("/orders", h.CreateOrder)
 	router.With(authWrap, mw.RequirePermission("process_refund")).Post("/orders/{id}/refund", h.RefundOrder)
 	router.With(authWrap).Post("/sync/batch", h.SyncBatch)
+	router.With(authWrap, mw.RequirePermission("view_reports")).Get("/oversell-report", h.OversellReport)
+	router.With(authWrap, mw.RequirePermission("view_reports")).Get("/oversell-report/open-count", h.OversellOpenCount)
+	router.With(authWrap, mw.RequirePermission("manage_stock_count")).Post("/oversell-records/acknowledge", h.AcknowledgeOversell)
+	adminTok := issue(admin, "admin", "", "view_reports", "manage_stock_count")
+	cashier2 := issue(user2, "cashier", outlet2, "create_order", "view_reports")                       // no manage_stock_count
+	auditor2 := issue(user2, "cashier", outlet2, "create_order", "view_reports", "manage_stock_count") // outlet-two auditor
 	if _, err = h.Sync.Version(ctx, outlet); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +258,10 @@ func TestOversellPostgres(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := 0; i < 6; i++ {
 			wg.Add(1)
-			go func() { defer wg.Done(); do(token, "POST", "/sync/batch", map[string]any{"items": []any{map[string]any{"type": "order", "idempotencyKey": "os-conc-3", "payload": cp}}}, "") }()
+			go func() {
+				defer wg.Done()
+				do(token, "POST", "/sync/batch", map[string]any{"items": []any{map[string]any{"type": "order", "idempotencyKey": "os-conc-3", "payload": cp}}}, "")
+			}()
 		}
 		wg.Wait()
 		if exceptions("os-conc-3") != 1 || count(`SELECT count(*) FROM orders WHERE idempotency_key='os-conc-3'`) != 1 {
@@ -308,10 +315,189 @@ func TestOversellPostgres(t *testing.T) {
 			t.Fatalf("stock=%d rows=%d", stockOf(pid), exceptions("os-ok-6"))
 		}
 	})
-	_ = bytes.MinRead
-	_ = admin
-	_ = user2
-	_ = outlet2
+
+	// ---- report + acknowledge (Q1) ----
+	type breakdown struct {
+		Key       string `json:"key"`
+		Lines     int    `json:"lines"`
+		Shortfall int    `json:"shortfall"`
+	}
+	type reportOut struct {
+		Summary struct {
+			Lines, Orders, TotalShortfall, ActiveShortfall, ReversedShortfall, OpenCount int
+			ByProduct, ByCashier                                                         []breakdown
+		} `json:"summary"`
+		Data []struct {
+			ID, OrderNumber, OrderStatus, Kind, Channel, CashierName, VariantSize string
+			Shortfall                                                             int
+			StockBefore, StockAfter, CurrentStock                                 *int
+			AcknowledgedAt                                                        *string
+			AcknowledgedByName, AcknowledgeNote                                   *string
+			SKU                                                                   *string `json:"sku"`
+		} `json:"data"`
+		Meta struct{ Total, Page, Limit int } `json:"meta"`
+	}
+	report := func(tk, query string) (int, reportOut) {
+		cur.Helper()
+		code, body := do(tk, "GET", "/oversell-report?"+query, nil, "")
+		var out reportOut
+		if code == 200 {
+			if err := json.Unmarshal([]byte(body), &out); err != nil {
+				cur.Fatalf("decode: %v %s", err, body)
+			}
+		}
+		return code, out
+	}
+	// outlet-two sale through its own cashier
+	sellAt2 := func(key string, p map[string]any) {
+		cur.Helper()
+		delete(p, "shiftId") // the open shift belongs to outlet one
+		if code, body := do(cashier2, "POST", "/orders", p, key); code != 201 && code != 200 {
+			cur.Fatalf("outlet2 sale: %d %s", code, body)
+		}
+	}
+	var rp string // report product, isolated from the earlier subtests
+	var ids1 []string
+
+	sub("7 report: filters, totals, scope clamp, pagination, refund split", func(t *testing.T) {
+		rp = newProduct(0)
+		direct("os-rep-a", payload(sale{rp, 2}))
+		syncSale("os-rep-b", payload(sale{rp, 1}))
+		sellAt2("os-rep-c", payload(sale{rp, 4}))
+
+		code, all := report(adminTok, "outletId=all&productId="+rp)
+		if code != 200 || all.Summary.Lines != 3 || all.Summary.Orders != 3 || all.Summary.TotalShortfall != 7 || all.Summary.ActiveShortfall != 7 ||
+			all.Summary.ReversedShortfall != 0 || all.Summary.OpenCount != 3 || len(all.Summary.ByProduct) != 1 || len(all.Summary.ByCashier) != 2 ||
+			all.Meta.Total != 3 || len(all.Data) != 3 {
+			t.Fatalf("admin all: %d %+v", code, all)
+		}
+		if all.Data[0].SKU == nil || *all.Data[0].SKU == "" || all.Data[0].CurrentStock == nil || *all.Data[0].CurrentStock >= 0 {
+			t.Fatalf("display fields: %+v", all.Data[0])
+		}
+		_, one := report(adminTok, "outletId="+outlet+"&productId="+rp)
+		if one.Summary.Lines != 2 || one.Summary.TotalShortfall != 3 {
+			t.Fatalf("admin outlet one: %+v", one.Summary)
+		}
+		// scope clamp: a non-admin naming another outlet still gets only their own.
+		_, clamped := report(cashier2, "outletId="+outlet+"&productId="+rp)
+		if clamped.Summary.Lines != 1 || clamped.Summary.TotalShortfall != 4 || len(clamped.Data) != 1 {
+			t.Fatalf("scope clamp leaked: %+v", clamped.Summary)
+		}
+		// pagination meta
+		_, pg := report(adminTok, "outletId=all&productId="+rp+"&limit=1&page=2")
+		if pg.Meta.Total != 3 || pg.Meta.Page != 2 || pg.Meta.Limit != 1 || len(pg.Data) != 1 {
+			t.Fatalf("pagination: %+v", pg.Meta)
+		}
+		// filters that match nothing, and invalid input
+		if _, none := report(adminTok, "outletId=all&productId="+rp+"&kind=unresolved_variant"); none.Summary.Lines != 0 || len(none.Data) != 0 {
+			t.Fatalf("kind filter: %+v", none.Summary)
+		}
+		if _, none := report(adminTok, "outletId=all&productId="+rp+"&dateFrom=2999-01-01"); none.Summary.Lines != 0 {
+			t.Fatalf("date filter: %+v", none.Summary)
+		}
+		if _, day := report(adminTok, "outletId=all&productId="+rp+"&dateFrom=2000-01-01&dateTo=2999-01-01"); day.Summary.Lines != 3 {
+			t.Fatalf("date range: %+v", day.Summary)
+		}
+		for _, bad := range []string{"dateFrom=garbage", "kind=nope", "status=nope", "productId=not-a-uuid", "cashierId=x"} {
+			if c, _ := report(adminTok, bad); c != 400 {
+				t.Fatalf("%s -> %d, want 400", bad, c)
+			}
+		}
+		if c, _ := report(token, ""); c != 403 { // create_order/process_refund only: no view_reports
+			t.Fatalf("no view_reports -> %d, want 403", c)
+		}
+		// refund the first sale: its shortfall moves from active to reversed.
+		id := count2(t, pool, ctx, `SELECT id::text FROM orders WHERE idempotency_key='os-rep-a'`)
+		if c, body := do(token, "POST", "/orders/"+id+"/refund", map[string]any{"reason": "salah"}, ""); c != 200 && c != 201 {
+			t.Fatalf("refund %d %s", c, body)
+		}
+		_, split := report(adminTok, "outletId=all&productId="+rp)
+		if split.Summary.ActiveShortfall != 5 || split.Summary.ReversedShortfall != 2 || split.Summary.TotalShortfall != 7 {
+			t.Fatalf("refund split: %+v", split.Summary)
+		}
+		for _, d := range split.Data {
+			ids1 = append(ids1, d.ID)
+		}
+	})
+
+	sub("8 acknowledge: permission, scope, idempotence, validation, badge count", func(t *testing.T) {
+		openCount := func(tk string) int {
+			t.Helper()
+			code, body := do(tk, "GET", "/oversell-report/open-count", nil, "")
+			var out struct {
+				Data struct {
+					OpenCount int `json:"openCount"`
+				} `json:"data"`
+			}
+			if code != 200 || json.Unmarshal([]byte(body), &out) != nil {
+				t.Fatalf("open-count %d %s", code, body)
+			}
+			return out.Data.OpenCount
+		}
+		_, two := report(adminTok, "outletId="+outlet2+"&productId="+rp)
+		_, one := report(adminTok, "outletId="+outlet+"&productId="+rp)
+		if len(two.Data) != 1 || len(one.Data) != 2 {
+			t.Fatalf("setup: two=%d one=%d", len(two.Data), len(one.Data))
+		}
+		before2 := openCount(cashier2)
+		if c, _ := do(cashier2, "POST", "/oversell-records/acknowledge", map[string]any{"ids": []string{two.Data[0].ID}}, ""); c != 403 {
+			t.Fatalf("ack without manage_stock_count -> %d, want 403", c)
+		}
+		// an outlet-two auditor cannot touch an outlet-one line (out of scope: skipped, not an error)
+		code, body := do(auditor2, "POST", "/oversell-records/acknowledge", map[string]any{"ids": []string{one.Data[0].ID}}, "")
+		if code != 200 || !strings.Contains(body, `"acknowledged":0`) {
+			t.Fatalf("cross-outlet ack: %d %s", code, body)
+		}
+		if count(`SELECT count(*) FROM sale_stock_exceptions WHERE id=$1::uuid AND acknowledged_at IS NULL`, one.Data[0].ID) != 1 {
+			t.Fatal("cross-outlet line was acknowledged")
+		}
+		// own line, with a note
+		code, body = do(auditor2, "POST", "/oversell-records/acknowledge", map[string]any{"ids": []string{two.Data[0].ID}, "note": "  botol ada di rak, salah hitung  "}, "")
+		if code != 200 || !strings.Contains(body, `"acknowledged":1`) {
+			t.Fatalf("own ack: %d %s", code, body)
+		}
+		if openCount(cashier2) != before2-1 {
+			t.Fatalf("badge did not drop: %d -> %d", before2, openCount(cashier2))
+		}
+		// repeat is a no-op and keeps the first acknowledgement
+		code, body = do(auditor2, "POST", "/oversell-records/acknowledge", map[string]any{"ids": []string{two.Data[0].ID}, "note": "lain"}, "")
+		if code != 200 || !strings.Contains(body, `"acknowledged":0`) {
+			t.Fatalf("repeat ack: %d %s", code, body)
+		}
+		_, after := report(adminTok, "outletId="+outlet2+"&productId="+rp+"&status=acknowledged")
+		d := after.Data
+		if len(d) != 1 || d[0].AcknowledgedAt == nil || d[0].AcknowledgedByName == nil || *d[0].AcknowledgedByName != "OS cashier two" ||
+			d[0].AcknowledgeNote == nil || *d[0].AcknowledgeNote != "botol ada di rak, salah hitung" {
+			t.Fatalf("ack fields: %+v", d)
+		}
+		// validation: unknown field, empty ids, bad uuid, over-long note, too many ids
+		tooMany := make([]string, 201)
+		for i := range tooMany {
+			tooMany[i] = "00000000-0000-4000-8f99-000000000001"
+		}
+		for name, b := range map[string]any{
+			"unknown field": map[string]any{"ids": []string{one.Data[0].ID}, "extra": 1},
+			"empty ids":     map[string]any{"ids": []string{}},
+			"bad uuid":      map[string]any{"ids": []string{"nope"}},
+			"long note":     map[string]any{"ids": []string{one.Data[0].ID}, "note": strings.Repeat("x", 501)},
+			"too many ids":  map[string]any{"ids": tooMany},
+		} {
+			if c, _ := do(adminTok, "POST", "/oversell-records/acknowledge", b, ""); c != 400 {
+				t.Fatalf("%s -> %d, want 400", name, c)
+			}
+		}
+		// admin acknowledges the rest of this product (cross-all scope)
+		code, body = do(adminTok, "POST", "/oversell-records/acknowledge", map[string]any{"ids": ids1}, "")
+		if code != 200 || !strings.Contains(body, `"acknowledged":2`) {
+			t.Fatalf("admin ack: %d %s", code, body)
+		}
+		if _, open := report(adminTok, "outletId=all&productId="+rp+"&status=open"); open.Summary.Lines != 0 || open.Summary.OpenCount != 0 {
+			t.Fatalf("still open: %+v", open.Summary)
+		}
+		if openCount(adminTok) < 1 { // other subtests' lines are still unchecked
+			t.Fatalf("admin badge = %d", openCount(adminTok))
+		}
+	})
 }
 
 func count2(t *testing.T, pool *pgxpool.Pool, ctx context.Context, sql string, args ...any) string {
@@ -322,5 +508,3 @@ func count2(t *testing.T, pool *pgxpool.Pool, ctx context.Context, sql string, a
 	}
 	return s
 }
-
-var _ = http.StatusOK
