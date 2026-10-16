@@ -38,16 +38,17 @@ func validateOtaPublish(in ota.Release) error {
 var errOtaUnavailable = errors.New("ota check unavailable")
 
 // OtaCheck is the PUBLIC Capgo self-hosted update endpoint. The plugin POSTs
-// AppInfos; we read only platform + version_name + version_code (the APK
+// AppInfos; we read only platform + version_name + version_build + version_code (the APK
 // versionCode: a bundle is only offered to the build it targets) and reply with the BARE Capgo
 // JSON (no {data} envelope — Capgo parses the raw body). Lenient decode: a
 // malformed body defaults to android/empty so a bad request just yields
 // "no update".
 func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Platform    string          `json:"platform"`
-		VersionName string          `json:"version_name"`
-		VersionCode json.RawMessage `json:"version_code"`
+		Platform     string          `json:"platform"`
+		VersionName  string          `json:"version_name"`
+		VersionBuild string          `json:"version_build"`
+		VersionCode  json.RawMessage `json:"version_code"`
 		// Capgo's persisted random install id and the app-set custom id (the bound outlet id
 		// once the POS sets it). Opaque, client-asserted, logged only; never trusted or echoed.
 		DeviceID string `json:"device_id"`
@@ -59,13 +60,14 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		platform = "android"
 	}
 	versionName := otaOpaqueID(body.VersionName)
+	versionBuild := otaOpaqueID(body.VersionBuild)
 	deviceID := otaOpaqueID(body.DeviceID)
 	customID := otaOpaqueID(body.CustomID)
 	code, ok := ota.ParseVersionCode(body.VersionCode)
 	if !ok {
 		// No usable versionCode: fail safe, never offer a bundle (no DB hit).
-		logOtaCheck(platform, versionName, 0, deviceID, customID, false)
-		writeJSON(w, http.StatusOK, ota.Decide(nil, body.VersionName))
+		logOtaCheck(platform, versionName, versionBuild, 0, deviceID, customID, false)
+		writeJSON(w, http.StatusOK, ota.Decide(nil, body.VersionName, body.VersionBuild))
 		return
 	}
 	latest, err := h.Repo.LatestOtaRelease(r.Context(), platform, code)
@@ -75,8 +77,8 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, errOtaUnavailable)
 		return
 	}
-	resp := ota.Decide(latest, body.VersionName)
-	logOtaCheck(platform, versionName, code, deviceID, customID, resp.URL != "")
+	resp := ota.Decide(latest, body.VersionName, body.VersionBuild)
+	logOtaCheck(platform, versionName, versionBuild, code, deviceID, customID, resp.URL != "")
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -98,8 +100,8 @@ func otaOpaqueID(v string) string {
 
 // logOtaCheck is the OTA adoption trail: which install (device_id) / outlet (custom_id) asked
 // for what, and whether a bundle was offered. Opaque ids only: no IP, headers or customer data.
-func logOtaCheck(platform, versionName string, versionCode int, deviceID, customID string, offered bool) {
-	slog.Info("ota check", "platform", otaOpaqueID(platform), "version_name", versionName,
+func logOtaCheck(platform, versionName, versionBuild string, versionCode int, deviceID, customID string, offered bool) {
+	slog.Info("ota check", "platform", otaOpaqueID(platform), "version_name", versionName, "version_build", versionBuild,
 		"version_code", versionCode, "device_id", deviceID, "custom_id", customID, "offered", offered)
 }
 

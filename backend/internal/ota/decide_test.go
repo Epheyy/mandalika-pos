@@ -30,12 +30,17 @@ func TestDecide(t *testing.T) {
 		{"device prerelease of same core gets update", rel, "1.2.0-beta.1", "https://x/1.2.0.zip", "1.2.0"},
 		{"garbage device version no update", rel, "not-a-version", "", "1.2.0"},
 		{"empty device version no update", rel, "", "", "1.2.0"},
-		{"two-part device version no update", rel, "1.2", "", "1.2.0"},
+		{"two-part device version equal to release no update", rel, "1.2", "", "1.2.0"},
+		{"two-part older device version gets update", rel, "1.1", "https://x/1.2.0.zip", "1.2.0"},
+		{"two-part newer device version no update", rel, "1.3", "", "1.2.0"},
+		{"four-part device version no update", rel, "1.1.0.0", "", "1.2.0"},
+		{"underscore garbage no update", rel, "__none__", "", "1.2.0"},
+		{"letters no update", rel, "abc", "", "1.2.0"},
 		{"negative part no update", rel, "1.-2.0", "", "1.2.0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Decide(tt.latest, tt.reqVersion)
+			got := Decide(tt.latest, tt.reqVersion, "")
 			if got.URL != tt.wantURL {
 				t.Errorf("URL got %q want %q", got.URL, tt.wantURL)
 			}
@@ -69,7 +74,7 @@ func TestDecideLatestVersionShapes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rel := &Release{Platform: "android", Version: tt.latest, URL: "https://x/b.zip", Checksum: "abc"}
-			got := Decide(rel, tt.device)
+			got := Decide(rel, tt.device, "")
 			if (got.URL != "") != tt.wantURL {
 				t.Errorf("offered=%v want %v (resp %+v)", got.URL != "", tt.wantURL, got)
 			}
@@ -115,5 +120,43 @@ func TestParseVersionCode(t *testing.T) {
 				t.Errorf("got (%d,%v) want (%d,%v)", got, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+// Real device body (Capgo 8.50.2, APK 2.1 versionCode 12): the built-in bundle reports
+// version_name == version_build == the APK versionName, not "builtin".
+func TestDecideBuiltinReportedAsApkVersionName(t *testing.T) {
+	rel := &Release{Platform: "android", Version: "2.1.2", URL: "https://x/2.1.2.zip", Checksum: "abc"}
+	tests := []struct {
+		name         string
+		name_, build string
+		wantURL      string
+	}{
+		{"built-in 2.1 build 2.1 offered", "2.1", "2.1", "https://x/2.1.2.zip"},
+		{"built-in with three-part apk name offered", "2.1.0", "2.1.0", "https://x/2.1.2.zip"},
+		{"installed 2.1.1 offered 2.1.2", "2.1.1", "2.1", "https://x/2.1.2.zip"},
+		{"installed 2.1.2 up to date", "2.1.2", "2.1", ""},
+		{"installed 2.1.5 newer than latest no update", "2.1.5", "2.1", ""},
+		{"literal builtin offered", "builtin", "2.1", "https://x/2.1.2.zip"},
+		{"abc/abc fails safe", "abc", "abc", ""},
+		{"__none__ fails safe", "__none__", "__none__", ""},
+		{"empty name and build no update", "", "", ""},
+		{"empty name build set no update", "", "2.1", ""},
+		{"name 2.1 build mismatch treated as installed 2.1.0 older still offered", "2.1", "2.0", "https://x/2.1.2.zip"},
+		{"build mismatch garbage name no update", "abc", "2.1", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Decide(rel, tt.name_, tt.build)
+			if got.URL != tt.wantURL {
+				t.Errorf("URL got %q want %q (%+v)", got.URL, tt.wantURL, got)
+			}
+			if got.Version != "2.1.2" {
+				t.Errorf("Version got %q", got.Version)
+			}
+		})
+	}
+	if got := Decide(nil, "2.1", "2.1"); got.Message != "no release" || got.URL != "" {
+		t.Errorf("no release must stay no release: %+v", got)
 	}
 }

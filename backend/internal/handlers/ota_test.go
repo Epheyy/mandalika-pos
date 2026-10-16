@@ -138,3 +138,29 @@ func TestOtaCheckDropsHostileIDs(t *testing.T) {
 		t.Errorf("hostile id not dropped:\n%s", out)
 	}
 }
+
+// The exact body a built-in-bundle device (APK 2.1, versionCode 12) sends: version_build is
+// decoded and logged sanitized. No Repo seam here, so the offered path is covered by
+// ota.TestDecideBuiltinReportedAsApkVersionName; this proves the decode + log + no-DB fail-safe.
+func TestOtaCheckDecodesVersionBuild(t *testing.T) {
+	buf := captureLogs(t)
+	body := `{"platform":"android","device_id":"dev-1","app_id":"com.mandalika.pos","custom_id":"","version_build":"2.1","version_code":"abc","version_os":"15","version_name":"2.1","plugin_version":"8.50.2"}`
+	rec := httptest.NewRecorder()
+	(&Handlers{}).OtaCheck(rec, httptest.NewRequest(http.MethodPost, "/api/v1/ota/check", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if out := buf.String(); !strings.Contains(out, "version_build=2.1") || !strings.Contains(out, "version_name=2.1") {
+		t.Errorf("log missing version_build/version_name:\n%s", out)
+	}
+}
+
+func TestOtaCheckDropsHostileVersionBuild(t *testing.T) {
+	buf := captureLogs(t)
+	body := `{"version_build":"2.1\nforged=1","version_code":"abc"}`
+	rec := httptest.NewRecorder()
+	(&Handlers{}).OtaCheck(rec, httptest.NewRequest(http.MethodPost, "/api/v1/ota/check", strings.NewReader(body)))
+	if out := buf.String(); strings.Contains(out, "forged") || !strings.Contains(out, `version_build=""`) {
+		t.Errorf("hostile version_build not dropped:\n%s", out)
+	}
+}
