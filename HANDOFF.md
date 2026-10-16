@@ -28,8 +28,13 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-16, release 3):** revision **`00106-riq`** (100%, tag `rel3`, commit 1e8309e, migrations through
-  **0054**; rollback = `00104-den` — check the RUNBOOK rollback log keys first). Release 2 was:
+- **Backend (2026-10-17, release 4 = A44):** revision **`00108-naz`** (100%, tag `rel4`, commit 29f6f1a, migrations through
+  **0055**; rollback = `00106-riq` — additive table, the old revision ignores it). Smoke on the tag: oversell flow 28/28
+  (sale beyond stock → -2 + stockWarning + 1 row; replay no double move; report; acknowledge idempotent; refund restores 0),
+  release 1/2 18/18, auth 10/12 (`/healthz` 404 = Cloud Run reserved path, follow-up; sync-pull 403 = smoke script sent no
+  X-Outlet-Id, fine with it). Live: /readyz 200 + authed report/open-count 200. Smoke residue on Neon test DB: 1 refunded
+  order + 1 acknowledged exception row. Release 3 was: revision **`00106-riq`** (tag `rel3`, commit 1e8309e, migrations
+  through **0054**; rollback = `00104-den` — check the RUNBOOK rollback log keys first). Release 2 was:
   revision **`00104-den`** (100%, tag `rel2`, commit a2cffe3, migrations through
   **0053**, Cloud Run max-instances 4, DB_MAX_CONNS default 10; rollback = `00102-vas`). Release 1 was `00102-vas` (tag
   `a14rcpt`, cfd6917, migrations 0051+0052; its rollback = 00100-wul). Previously: revision `00100-wul` (tag `gates50`, labels commit-sha=`f08c94f`,
@@ -185,7 +190,8 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      auditor 'sudah dicek' step; POS stops blocking out-of-stock items, warns instead, via OTA). A39 plan
      `docs/plans/2026-10-16-a39-csv-import.md` + owner decisions (stopgap c7d0d71 hides product import / retires users import;
      no stock column; phone dupes skipped; users import retired). Order: A44 (mig 0055, port 56457), then A39 (mig 0056, 56456).
-   - **A44 REVIEWED + MERGED LOCALLY 2026-10-17 (merge 477fc8f on prod-hardening; NOT pushed/deployed):** Opus review found no
+   - **A44 BACKEND LIVE 2026-10-17 (rev 00108-naz, mig 0055); backoffice deploys with the next non-skip push; POS warning
+     still needs the OTA (versionCode 12) + emulator check.** Merged as 477fc8f; Opus review found no
      CRIT/HIGH; fix round 2031c75 (M1 non-live refund lines never restocked incl. bundles; Q6 unresolved_variant sale sets
      orders.stock_warning; L1 report totals = kind shortage only; L2 qty<=0 skip) + 536603d (api.gen.go regen — `make gen-check`
      in backend is separate from `pnpm gen:check`; breakdown sums shortage-only). Opus re-review: no runtime defect. Verified on
