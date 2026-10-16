@@ -138,7 +138,7 @@ new review.
      `SET refresh_revoked_before:<user_id> <unix seconds of refresh_revoked_before + 2> EX 31536000`.
   Use the Redis console you already have; no new tool is needed. Do not roll back past the
   cleanup release that removes the mirror.
-- PostgreSQL gates: 17 (AU `TestAuthAuthorityPostgres` on port 56455 is the newest).
+- PostgreSQL gates: 18 (OS `TestOversellPostgres` on port 56457 is the newest; 56456 is reserved).
 - Logs: `gcloud run services logs read mandalika-pos --region asia-southeast2`.
 
 ---

@@ -10,6 +10,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +47,7 @@ type OrderItem struct {
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
-// never the payload. Offline=true (sync path) allows stock to go negative.
+// never the payload. Offline=true (sync path) relaxes tender/promo enforcement; stock goes negative on both paths (A44) and every shortfall is recorded.
 type CreateOrderInput struct {
 	IdempotencyKey    string
 	OrderUUID         string
@@ -77,6 +78,28 @@ type CreateOrderInput struct {
 	ShiftID           string
 	ClientCreated     *time.Time
 	Offline           bool
+}
+
+// pendingStockException is a sale line found short of stock (or unresolved) while
+// the stock rows are locked; it is written once the order and item rows exist (A44).
+type pendingStockException struct {
+	line                    int
+	kind                    string
+	shortfall               int
+	stockBefore, stockAfter *int
+}
+
+// shortfallOf is how many units of a sale line the balance could not cover:
+// covered = clamp(stock, 0, qty); shortfall = qty - covered.
+func shortfallOf(stock, qty int) int {
+	covered := stock
+	if covered < 0 {
+		covered = 0
+	}
+	if covered > qty {
+		covered = qty
+	}
+	return qty - covered
 }
 
 type OrderService struct{ Pool *pgxpool.Pool }
@@ -393,7 +416,8 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if e := lockStockRowsSorted(ctx, tx, in.OutletID, in.Items); e != nil {
 		return "", false, false, e
 	}
-	for _, it := range in.Items {
+	var stockExceptions []pendingStockException
+	for li, it := range in.Items {
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
 			SELECT $1,$2,$3,0
@@ -413,13 +437,19 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		if e != nil {
 			return "", false, false, fmt.Errorf("lock variant stock: %w", e)
 		}
+		// A44 (owner decision 2026-10-14): never block a sale and never hide a
+		// shortfall. Both paths record the true negative, flag the order and write a
+		// per-line exception row below (same tx). Stock already <= 0 means the whole
+		// line is short; each line sees the previous line's decrement, so the sum of
+		// shortfalls over an order equals the total pushed below zero.
 		next := stock - it.Quantity
-		if next < 0 {
-			if in.Offline {
-				stockWarning = true // recorded, flagged for admin reconciliation
-			} else {
-				next = 0 // online zero-floor (legacy parity)
-			}
+		if short := shortfallOf(stock, it.Quantity); short > 0 {
+			stockWarning = true
+			before, after := stock, next
+			stockExceptions = append(stockExceptions, pendingStockException{
+				line: li, kind: write.StockExceptionShortage, shortfall: short,
+				stockBefore: &before, stockAfter: &after,
+			})
 		}
 		if _, e := tx.Exec(ctx,
 			`UPDATE outlet_variant_stock SET stock=$1
@@ -470,14 +500,38 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		return "", false, false, fmt.Errorf("insert order: %w", err)
 	}
 
-	for _, it := range in.Items {
+	// A44: item ids are generated here (not RETURNING) so exception rows can name
+	// their order line without changing this Exec into a query.
+	itemIDs := make([]string, len(in.Items))
+	for i, it := range in.Items {
+		itemIDs[i] = uuid.NewString()
 		if _, e := tx.Exec(ctx, `
-			INSERT INTO order_items (order_id, product_id, product_name,
+			INSERT INTO order_items (id, order_id, product_id, product_name,
 			  variant_size, price, quantity, subtotal, is_bundle)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-			orderID, it.ProductID, it.ProductName, it.VariantSize,
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			itemIDs[i], orderID, it.ProductID, it.ProductName, it.VariantSize,
 			it.Price, it.Quantity, it.Subtotal, it.IsBundle); e != nil {
 			return "", false, false, fmt.Errorf("insert item: %w", e)
+		}
+	}
+
+	// A44: one exception row per short line, in the sale tx (a replay returns at the
+	// processed_keys guard before any write; a lost same-key race rolls all of this back).
+	channel := "direct"
+	if in.Offline {
+		channel = "sync"
+	}
+	for _, x := range stockExceptions {
+		it := in.Items[x.line]
+		if e := write.InsertSaleStockException(ctx, tx, write.SaleStockExceptionRow{
+			OrderID: orderID, OrderItemID: itemIDs[x.line], OrderNumber: orderNumber,
+			OutletID: in.OutletID, ProductID: it.ProductID, ProductName: it.ProductName,
+			VariantSize: it.VariantSize, Kind: x.kind, Quantity: it.Quantity,
+			StockBefore: x.stockBefore, StockAfter: x.stockAfter, Shortfall: x.shortfall,
+			Channel: channel, CashierID: in.CashierID, CashierName: in.CashierName,
+			ShiftID: in.ShiftID, DeviceID: in.DeviceID, SoldAt: saleTime,
+		}); e != nil {
+			return "", false, false, e
 		}
 	}
 

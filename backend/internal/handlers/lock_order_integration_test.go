@@ -116,10 +116,12 @@ func TestLockOrderPostgres(t *testing.T) {
 			x, y := newProduct(false), newProduct(false)
 			race("new rows",
 				noID(func() (string, error) { return sale("", x, y) }), noID(func() (string, error) { return sale("", y, x) }))
-			// Rows were created lazily at 0 and the online sale floors at 0: both exist
-			// (stockOf fails on a missing row) and are exactly 0.
-			if sx, sy := stockOf(x), stockOf(y); sx != 0 || sy != 0 {
-				t.Fatalf("new rows: stock x=%d y=%d, want 0/0", sx, sy)
+			// A44 owner decision 2026-10-14 (never hide a shortfall): rows were created
+			// lazily at 0 and the two online sales (qty 1 each) now record the true
+			// negative -2/-2 instead of flooring at 0. Both rows exist (stockOf fails on
+			// a missing row).
+			if sx, sy := stockOf(x), stockOf(y); sx != -2 || sy != -2 {
+				t.Fatalf("new rows: stock x=%d y=%d, want -2/-2", sx, sy)
 			}
 		}
 	})
