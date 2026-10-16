@@ -222,7 +222,21 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         deploy-backend (mig 0055) → smoke (sale beyond stock → negative + 1 row; report; acknowledge) → promote →
         backoffice deploys on the next non-skip push → OTA (`make ota-release VERSION=x.y.z`, targets versionCode 12/APK 2.1)
         for the POS warning, emulator-check it.
-     3. A39 CSV import: **built 2026-10-16 on a local branch (not pushed/deployed)** per docs/plans/2026-10-16-a39-csv-import.md
+     3. **A39 REVIEWED + MERGED LOCALLY 2026-10-17 (merge 6d1082c; NOT pushed/deployed; awaiting owner go-ahead for release 5 /
+        mig 0056).** Two parallel Opus reviews + a re-review found no data-destroying bug; fixed: rename vs in-flight
+        transfers/stock counts (size_in_flight, re-checked inside the apply tx), concurrent-edit guard (409), lock order +
+        retryBusy, phone normalization on stored side, per-route deadlines + max 2 concurrent imports (429), scientific-notation
+        barcodes/SKUs, export BASE price (new `basePrice` on variants) + update-row reasons, leading-zero rupiah ambiguity, new
+        category counts as change, dialog guards. Verified on merged tree: IM ×3 + full PG gate 19/19 (no -race), go test,
+        both gen checks, quality:ci, browser:ci (implementer). Release-5 notes: invalidate the product-list cache once after
+        deploy (cached lists lack basePrice → outlet-scoped export falls back to the override price until expiry). OPEN OWNER
+        DECISIONS: (a) `import_runs.result` keeps up to 5,000 issue values incl. customer phone/email/name with no retention —
+        redact? (b) may an import re-create a merged-away customer whose phone differs from the keeper's (plan D5 says yes)?
+        (c) ingredient rows with no SKU + a new SKU create duplicates (plan D5). Backlog: UpdateProduct form rename leaves
+        warehouse stock + ignores open documents; functional index on normalized phone if customers >~100k; transfer/stock-count
+        create paths do not validate the variant exists; variant-level promo/loyalty/bundle selectors not re-keyed on rename;
+        gate case for the 40P01 retry→503 path. Original line:
+        A39 CSV import: **built 2026-10-16 on a local branch** per docs/plans/2026-10-16-a39-csv-import.md
         (mig 0056 `import_runs`, PG gate IM port 56456, BO-CSV-IMPORT browser scenario). Needs an Opus review (idempotency/replay,
         stock-adjacent rename path, generated types, sync-wall bump), then the usual push/CI/Neon snapshot/deploy-backend (0056)
         sequence. Backoffice commits are `[CF-Pages-Skip]`; the next non-skip push deploys the new dialogs. New backlog (not
