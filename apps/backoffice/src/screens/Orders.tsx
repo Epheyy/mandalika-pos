@@ -196,6 +196,14 @@ export function OrdersPanel() {
                         ⚠ Diskon
                       </span>
                     )}
+                    {o.stockWarning && (
+                      <span
+                        title="Ada baris yang melebihi stok atau varian tidak ditemukan saat dijual (lihat Laporan → Stok Minus)"
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                      >
+                        ⚠ Stok
+                      </span>
+                    )}
                     {o.tenderWarning && (
                       <span
                         title={tenderWarningTitle(o.tenderWarningReason)}

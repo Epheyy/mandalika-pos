@@ -20,6 +20,8 @@ import { paymentFilterOptions } from '../lib/paymentOptions'
 import { OrdersPanel } from './Orders'
 import { PromoGrantsTab } from './reports/PromoGrantsTab'
 import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
+import { OversellTab } from './reports/OversellTab'
+import { useOversellOpenCount } from './reports/useOversellOpenCount'
 import { Button } from '../ui/Button'
 import { Input, Select } from '../ui/Field'
 import { Card } from '../ui/Card'
@@ -29,7 +31,7 @@ import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from './refundDisplay'
 
-type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport'
+type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'oversell'
 
 const statusBadge = (st: string) =>
   st === 'completed' ? (
@@ -49,6 +51,9 @@ export default function Reports() {
   const canViewTransactions = isAdmin || perms.includes('view_transactions')
   const canViewReports = isAdmin || perms.includes('view_reports')
 
+  const canAcknowledgeOversell = isAdmin || perms.includes('manage_stock_count')
+  const oversellOpen = useOversellOpenCount(canViewReports, outletId ?? null)
+
   const visibleTabs = useMemo(() => {
     const t: { id: ReportTab; label: string }[] = []
     if (canViewTransactions) t.push({ id: 'orders', label: 'Transaksi' })
@@ -56,8 +61,9 @@ export default function Reports() {
     if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
     if (canViewReports) t.push({ id: 'grants', label: 'Hadiah Promo' })
     if (canViewReports) t.push({ id: 'codeReport', label: 'Kode Diskon' })
+    if (canViewReports) t.push({ id: 'oversell', label: oversellOpen > 0 ? `Stok Minus (${oversellOpen})` : 'Stok Minus' })
     return t
-  }, [canViewTransactions, canViewReports])
+  }, [canViewTransactions, canViewReports, oversellOpen])
 
   const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
   const [tab, setTab] = useState<ReportTab>(defaultTab)
@@ -234,6 +240,10 @@ export default function Reports() {
       {tab === 'grants' && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'oversell' && (
+        <OversellTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />
+      )}
 
       {tab === 'export' && oq.data && (
         <>

@@ -31,6 +31,8 @@ type inputTestTx struct {
 	paymentMethods []byte
 	orderArgs      []any
 	key            string
+	noVariant      bool    // stock SELECT returns ErrNoRows (deleted/renamed variant)
+	exceptions     [][]any // args of each INSERT INTO sale_stock_exceptions
 }
 
 func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
@@ -59,6 +61,9 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 			*d[2].(*float64) = 0
 			return nil
 		case strings.Contains(sql, "SELECT stock FROM outlet_variant_stock"):
+			if tx.noVariant {
+				return pgx.ErrNoRows
+			}
 			*d[0].(*int) = tx.stock
 			return nil
 		case strings.Contains(sql, "nextval('order_no_seq')"):
@@ -79,6 +84,9 @@ func (tx *inputTestTx) Exec(_ context.Context, sql string, args ...any) (pgconn.
 	if tx.allowWrites {
 		if strings.Contains(sql, "UPDATE outlet_variant_stock") {
 			tx.stock = args[0].(int)
+		}
+		if strings.Contains(sql, "INSERT INTO sale_stock_exceptions") {
+			tx.exceptions = append(tx.exceptions, append([]any(nil), args...))
 		}
 		if strings.Contains(sql, "INSERT INTO processed_keys") {
 			tx.key = args[0].(string)
@@ -251,7 +259,7 @@ func TestSaleInputDerivedArithmeticBeforeEffects(t *testing.T) {
 
 func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 	for _, offline := range []bool{false, true} {
-		t.Run(map[bool]string{false: "direct floor", true: "batch warning"}[offline], func(t *testing.T) {
+		t.Run(map[bool]string{false: "direct negative", true: "batch warning"}[offline], func(t *testing.T) {
 			in := ordinaryInput()
 			in.Offline = offline
 			// Current tax raises the total to 110000; tender covers it (A09), so this
@@ -261,11 +269,11 @@ func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 			tx := &inputTestTx{allowWrites: true, stock: 0, taxRate: 10}
 			begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
 			id, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, begin)
-			wantStock := 0
-			if offline {
-				wantStock = -1
-			}
-			if err != nil || dup || id != "accepted-original" || warn != offline || tx.commits != 1 || tx.stock != wantStock {
+			// A44 owner decision 2026-10-14 (never block a sale, record the true
+			// negative): the direct path no longer floors at 0, and both paths flag
+			// the shortage. This replaces the old "direct floor" expectation (0 / no warn).
+			wantStock := -1
+			if err != nil || dup || id != "accepted-original" || !warn || tx.commits != 1 || tx.stock != wantStock {
 				t.Fatalf("id=%s dup=%v warn=%v err=%v tx=%+v", id, dup, warn, err, tx)
 			}
 			// Current tax raises total; capture is kept and tender is not flagged.
@@ -360,5 +368,111 @@ func TestSaleInputNegativeAndZeroQuantityRegression(t *testing.T) {
 				t.Errorf("quantity=%d offline=%v must reject before effects: err=%v dup=%v writes=%d commits=%d", qty, offline, err, dup, tx.writes, tx.commits)
 			}
 		}
+	}
+}
+
+// A44: the sale records a per-line exception for every shortfall and no longer
+// floors stock at zero on the direct path. Args order of the exception insert is
+// defined by write.InsertSaleStockException (see the arg-index constants below).
+const (
+	excArgKind        = 7
+	excArgQuantity    = 8
+	excArgStockBefore = 9
+	excArgStockAfter  = 10
+	excArgShortfall   = 11
+	excArgChannel     = 12
+)
+
+func shortageInput(qtys ...int) CreateOrderInput {
+	in := ordinaryInput()
+	in.Items = nil
+	for _, q := range qtys {
+		in.Items = append(in.Items, OrderItem{ProductID: "synthetic-product", ProductName: "Synthetic", VariantSize: "110ml",
+			Price: 1000, Quantity: q, Subtotal: float64(1000 * q)})
+	}
+	in.AmountPaid = 1000 * 100
+	return in
+}
+
+func TestSaleRecordsStockShortageException(t *testing.T) {
+	cases := []struct {
+		name       string
+		stock      int
+		qtys       []int
+		wantRows   int
+		wantBefore []int
+		wantAfter  []int
+		wantShort  []int
+		wantFinal  int
+	}{
+		{"zero stock sells one", 0, []int{1}, 1, []int{0}, []int{-1}, []int{1}, -1},
+		{"partial cover", 1, []int{3}, 1, []int{1}, []int{-2}, []int{2}, -2},
+		{"already negative", -2, []int{1}, 1, []int{-2}, []int{-3}, []int{1}, -3},
+		{"same sku two lines", 1, []int{1, 1}, 1, []int{0}, []int{-1}, []int{1}, -1},
+		{"enough stock", 5, []int{2}, 0, nil, nil, nil, 3},
+	}
+	for _, tc := range cases {
+		for _, offline := range []bool{false, true} {
+			t.Run(tc.name+map[bool]string{false: "/direct", true: "/sync"}[offline], func(t *testing.T) {
+				in := shortageInput(tc.qtys...)
+				in.Offline = offline
+				in.ClientCreated = nil
+				tx := &inputTestTx{allowWrites: true, stock: tc.stock}
+				_, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+				if err != nil || dup || tx.commits != 1 {
+					t.Fatalf("err=%v dup=%v tx=%+v", err, dup, tx)
+				}
+				if warn != (tc.wantRows > 0) || tx.stock != tc.wantFinal || len(tx.exceptions) != tc.wantRows {
+					t.Fatalf("warn=%v stock=%d rows=%d", warn, tx.stock, len(tx.exceptions))
+				}
+				wantChannel := map[bool]string{false: "direct", true: "sync"}[offline]
+				for i, row := range tx.exceptions {
+					if row[excArgKind] != "shortage" || *row[excArgStockBefore].(*int) != tc.wantBefore[i] ||
+						*row[excArgStockAfter].(*int) != tc.wantAfter[i] || row[excArgShortfall] != tc.wantShort[i] ||
+						row[excArgChannel] != wantChannel {
+						t.Fatalf("row %d = %v", i, row)
+					}
+				}
+			})
+		}
+	}
+}
+
+// A replay of a known key must not attempt any exception insert.
+func TestSaleReplayWritesNoStockException(t *testing.T) {
+	in := shortageInput(1)
+	tx := &inputTestTx{allowWrites: true, stock: 0, existing: "accepted-original"}
+	_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+	if err != nil || !dup || len(tx.exceptions) != 0 || tx.writes != 0 {
+		t.Fatalf("replay err=%v dup=%v exceptions=%d writes=%d", err, dup, len(tx.exceptions), tx.writes)
+	}
+}
+
+// A44 phase 4: a line whose variant has no product_variants row moves no stock and
+// is recorded as an unresolved_variant exception (not for bundle lines).
+func TestSaleRecordsUnresolvedVariantException(t *testing.T) {
+	for _, offline := range []bool{false, true} {
+		in := shortageInput(2)
+		in.Offline = offline
+		tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
+		_, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+		if err != nil || dup || tx.commits != 1 || tx.stock != 7 || len(tx.exceptions) != 1 || !warn {
+			t.Fatalf("offline=%v err=%v dup=%v warn=%v stock=%d rows=%d", offline, err, dup, warn, tx.stock, len(tx.exceptions))
+		}
+		row := tx.exceptions[0]
+		if row[excArgKind] != "unresolved_variant" || row[excArgQuantity] != 2 || row[excArgShortfall] != 2 ||
+			row[excArgStockBefore].(*int) != nil || row[excArgStockAfter].(*int) != nil {
+			t.Fatalf("row = %v", row)
+		}
+	}
+}
+
+func TestSaleBundleLineWithoutVariantWritesNoException(t *testing.T) {
+	in := shortageInput(1)
+	in.Items[0].IsBundle = true
+	tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
+	_, _, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+	if err != nil || len(tx.exceptions) != 0 || warn {
+		t.Fatalf("bundle line: err=%v rows=%d warn=%v", err, len(tx.exceptions), warn)
 	}
 }

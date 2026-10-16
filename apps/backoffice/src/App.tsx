@@ -32,6 +32,8 @@ import SettingsScreen from './screens/SettingsScreen'
 import ErrorLogs from './screens/ErrorLogs'
 import SyncReview from './screens/syncReview/SyncReview'
 import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
+import { useOversellOpenCount } from './screens/reports/useOversellOpenCount'
+import { useOutlet } from './outlet'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard', C: Dashboard },
@@ -119,6 +121,12 @@ export default function App() {
   }, [user])
 
   const reviewCount = useSyncReviewCount(visible.some((n) => n.id === 'syncReview'))
+  const { outletId: activeOutletId } = useOutlet()
+  // Same count as the "Stok Minus" tab badge (A44): unchecked oversell lines in scope.
+  const oversellCount = useOversellOpenCount(
+    user?.role === 'admin' || (user?.permissions ?? []).includes('view_reports'),
+    activeOutletId,
+  )
 
   const [activeId, setActiveId] = useState<string>('dashboard')
 
@@ -190,6 +198,10 @@ export default function App() {
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1 text-left">{label}</span>
+                {id === 'reports' && oversellCount > 0 && (
+                  <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"
+                    aria-label={`${oversellCount} stok minus belum dicek`}>{oversellCount}</span>
+                )}
                 {id === 'syncReview' && reviewCount > 0 && (
                   <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"
                     aria-label={`${reviewCount} item terbuka`}>{reviewCount}</span>

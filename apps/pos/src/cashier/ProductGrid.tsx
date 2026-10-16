@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
+import { nextVariantQty, oversoldSizes } from './stock'
 import { variantLabel } from '@mandalika/types'
 
 type Product = components['schemas']['Product']
@@ -103,10 +104,12 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
       {...attributes}
       {...listeners}
       role="button"
-      tabIndex={inStock ? 0 : -1}
-      onClick={() => { if (inStock) onTap(product) }}
+      tabIndex={0}
+      // A44 owner decision 2026-10-16: an out-of-stock item is still sellable. The card
+      // keeps a clear "Habis" warning and the add is warned + recorded server-side.
+      onClick={() => onTap(product)}
       onKeyDown={(e) => {
-        if (inStock && (e.key === 'Enter' || e.key === ' ')) {
+        if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onTap(product)
         }
@@ -114,7 +117,7 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
       className={`group flex flex-col rounded-xl border text-left overflow-hidden select-none touch-manipulation ${
         inStock
           ? 'border-gray-200 bg-white cursor-pointer hover:border-indigo-300 hover:shadow-md active:scale-[0.98]'
-          : 'border-gray-100 bg-gray-50 cursor-not-allowed'
+          : 'border-amber-200 bg-amber-50 cursor-pointer hover:border-amber-300 hover:shadow-md active:scale-[0.98]'
       } ${isDragging ? 'shadow-lg ring-2 ring-indigo-300' : 'transition-all duration-150'}`}
     >
       {/* Media — uniform aspect-square so every card is the same height,
@@ -167,7 +170,7 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
             )}
             {showStock && (
               <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
-                {inStock ? `Stok ${totalStock}` : 'Stok habis'}
+                {inStock ? `Stok ${totalStock}` : 'Stok habis · tetap bisa dijual'}
               </p>
             )}
           </>
@@ -251,12 +254,9 @@ export const ProductGrid = memo(function ProductGrid({
 
   const handleVariantChange = (size: string, delta: number) => {
     if (!variantPopup) return
-    const variant = variantPopup.variants.find((v) => v.size === size)
-    if (!variant) return
-    setVariantQtys((prev) => ({
-      ...prev,
-      [size]: Math.max(0, Math.min((prev[size] || 0) + delta, variant.stock)),
-    }))
+    if (!variantPopup.variants.some((v) => v.size === size)) return
+    // Not capped by stock (A44 owner decision 2026-10-16); the popup warns instead.
+    setVariantQtys((prev) => ({ ...prev, [size]: nextVariantQty(prev[size] || 0, delta) }))
   }
 
   const handleConfirmVariants = () => {
@@ -376,7 +376,7 @@ export const ProductGrid = memo(function ProductGrid({
                   <div>
                     {variantLabel(v.size) && <p className="text-sm font-semibold text-gray-700">{variantLabel(v.size)}</p>}
                     <p className="text-xs text-indigo-600">{formatRupiah(v.price)}</p>
-                    <p className="text-xs text-gray-400">Stok: {v.stock}</p>
+                    <p className={`text-xs ${v.stock > 0 ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>Stok: {v.stock}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button type="button"
@@ -391,7 +391,6 @@ export const ProductGrid = memo(function ProductGrid({
                     </span>
                     <button type="button"
                       onClick={() => handleVariantChange(v.size, 1)}
-                      disabled={(variantQtys[v.size] || 0) >= v.stock}
                       className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
                     >
                       +
@@ -400,6 +399,11 @@ export const ProductGrid = memo(function ProductGrid({
                 </div>
               ))}
             </div>
+            {oversoldSizes(variantPopup, variantQtys, () => 0).length > 0 && (
+              <p role="status" className="mb-3 text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                Jumlah melebihi stok. Tetap bisa ditambahkan; penjualan dicatat sebagai stok minus.
+              </p>
+            )}
             <button type="button"
               onClick={handleConfirmVariants}
               disabled={Object.values(variantQtys).reduce((a, b) => a + b, 0) === 0}

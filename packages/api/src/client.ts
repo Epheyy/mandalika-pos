@@ -106,6 +106,22 @@ export type MovementSummaryRow = S['MovementSummaryRow']
 export type MovementSummaryResponse = S['MovementSummaryResponse']
 export type PromoRewardGrantReport = S['PromoRewardGrantReport']
 export type DiscountCodeReport = S['DiscountCodeReport']
+export type OversellReport = S['OversellReport']
+export type OversellRecord = S['OversellRecord']
+export type OversellSummary = S['OversellSummary']
+export type OversellBreakdown = S['OversellBreakdown']
+export interface OversellReportParams {
+  dateFrom?: string
+  dateTo?: string
+  outletId?: string
+  productId?: string
+  variantSize?: string
+  cashierId?: string
+  kind?: OversellRecord['kind']
+  status?: 'open' | 'acknowledged'
+  page?: number
+  limit?: number
+}
 
 export interface ClientOptions {
   baseUrl: string
@@ -333,6 +349,11 @@ export interface Api {
 
   // discount code usage report (SP-Code-2)
   listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>
+
+  // oversold sale lines "Stok Minus" (A44)
+  listOversellReport: (opts?: OversellReportParams) => Promise<OversellReport>
+  getOversellOpenCount: () => Promise<number>
+  acknowledgeOversell: (ids: string[], note?: string) => Promise<number>
 
   // recipes / formulas (SP-Recipe-2)
   getRecipeVariantIds: (productId: string) => Promise<string[]>
@@ -823,6 +844,17 @@ export function createClient(opts: ClientOptions): Api {
       if (dateTo) params.dateTo = dateTo
       return request<DiscountCodeReport>('GET', `${API}/discount-code-report` + qs(params))
     },
+
+    listOversellReport: (opts) => {
+      const { page = 1, limit = 50, ...filters } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      for (const [k, v] of Object.entries(filters)) if (v) params[k] = v
+      return request<OversellReport>('GET', `${API}/oversell-report` + qs(params))
+    },
+    getOversellOpenCount: async () =>
+      (await data<{ openCount: number }>('GET', `${API}/oversell-report/open-count`)).openCount,
+    acknowledgeOversell: async (ids, note) =>
+      (await data<{ acknowledged: number }>('POST', `${API}/oversell-records/acknowledge`, { ids, ...(note ? { note } : {}) })).acknowledged,
 
     getRecipeVariantIds: (productId) =>
       // This endpoint returns the bare object `{variantIds:[...]}` (no `{data}` envelope),

@@ -55,3 +55,27 @@ export function overstockLines(
   }
   return result
 }
+
+/** A44 (owner decision 2026-10-16): selling past the system stock is never blocked. */
+export const OVERSELL_WARNING = 'Stok habis — tetap ditambahkan, dicatat sebagai stok minus'
+
+/** Variant popup +/-: quantity floors at zero and is NOT capped by stock. */
+export function nextVariantQty(prev: number, delta: number): number {
+  return Math.max(0, prev + delta)
+}
+
+/** True when adding `add` units on top of `inCart` passes `stock` (stock may be <= 0). */
+export function exceedsStock(inCart: number, add: number, stock: number): boolean {
+  return add > 0 && inCart + add > stock
+}
+
+/** Sizes in `variantQtys` (qty > 0) that pass their stock once added to what the cart holds. */
+export function oversoldSizes(
+  product: Product,
+  variantQtys: Record<string, number>,
+  cartQtyFor: (size: string) => number,
+): string[] {
+  return product.variants
+    .filter((v) => exceedsStock(cartQtyFor(v.size), variantQtys[v.size] ?? 0, v.stock))
+    .map((v) => v.size)
+}

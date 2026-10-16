@@ -10,23 +10,32 @@ export function exportToXLSX(data: Row[], filename: string) {
   XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-export function exportToCSV(data: Row[], filename: string) {
+/** Text cells starting with these can run as a spreadsheet formula (CSV injection). */
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/
+
+/**
+ * One CSV cell. Only TEXT cells that start with = + - @ tab or CR get a leading
+ * apostrophe, so they open as text; numbers (including negative stock) stay numbers.
+ */
+export function csvCell(val: unknown): string {
+  let s = String(val ?? '')
+  if (typeof val === 'string' && FORMULA_TRIGGER.test(s)) s = `'${s}`
+  return s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s
+}
+
+export function exportToCSV(data: Row[], filename: string, opts: { appendDate?: boolean } = {}) {
   if (!data.length) return
   const headers = Object.keys(data[0])
-  const escape = (val: unknown) => {
-    const s = String(val ?? '')
-    return s.includes(',') || s.includes('"') || s.includes('\n')
-      ? `"${s.replace(/"/g, '""')}"`
-      : s
-  }
   const csv = [
     headers.join(','),
-    ...data.map((row) => headers.map((h) => escape(row[h])).join(',')),
+    ...data.map((row) => headers.map((h) => csvCell(row[h])).join(',')),
   ].join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = opts.appendDate === false ? `${filename}.csv` : `${filename}_${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
 }
 

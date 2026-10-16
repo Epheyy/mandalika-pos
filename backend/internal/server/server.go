@@ -295,6 +295,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/stock-counts", h.CreateStockCount)
 				r.Put("/stock-counts/{id}", h.UpdateStockCount)
 				r.Post("/stock-counts/{id}/complete", h.CompleteStockCount)
+				r.Post("/oversell-records/acknowledge", h.AcknowledgeOversell)
 			})
 
 			// Reports — permission-gated.
@@ -303,6 +304,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/reports/summary", h.ReportSummary)
 				r.Get("/promo-reward-grants", h.PromoRewardGrants)
 				r.Get("/discount-code-report", h.DiscountCodeReport)
+				r.Get("/oversell-report", h.OversellReport)
+				r.Get("/oversell-report/open-count", h.OversellOpenCount)
 			})
 
 			// Users / roles — admin only.

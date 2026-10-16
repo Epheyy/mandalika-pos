@@ -418,6 +418,7 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			return p.OrderID, refund(ctx, tx, service.RefundInput{
 				OutletID: c.OutletID, OrderID: p.OrderID, Reason: p.Reason,
 				ShiftID: c.EnvelopeShiftID, UserID: c.UserID, UserName: c.DisplayName,
+				Channel: "sync",
 			})
 		})
 		if err != nil {

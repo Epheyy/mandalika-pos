@@ -10,6 +10,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +47,7 @@ type OrderItem struct {
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
-// never the payload. Offline=true (sync path) allows stock to go negative.
+// never the payload. Offline=true (sync path) relaxes tender/promo enforcement; stock goes negative on both paths (A44) and every shortfall is recorded.
 type CreateOrderInput struct {
 	IdempotencyKey    string
 	OrderUUID         string
@@ -77,6 +78,28 @@ type CreateOrderInput struct {
 	ShiftID           string
 	ClientCreated     *time.Time
 	Offline           bool
+}
+
+// pendingStockException is a sale line found short of stock (or unresolved) while
+// the stock rows are locked; it is written once the order and item rows exist (A44).
+type pendingStockException struct {
+	line                    int
+	kind                    string
+	shortfall               int
+	stockBefore, stockAfter *int
+}
+
+// shortfallOf is how many units of a sale line the balance could not cover:
+// covered = clamp(stock, 0, qty); shortfall = qty - covered.
+func shortfallOf(stock, qty int) int {
+	covered := stock
+	if covered < 0 {
+		covered = 0
+	}
+	if covered > qty {
+		covered = qty
+	}
+	return qty - covered
 }
 
 type OrderService struct{ Pool *pgxpool.Pool }
@@ -393,7 +416,8 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if e := lockStockRowsSorted(ctx, tx, in.OutletID, in.Items); e != nil {
 		return "", false, false, e
 	}
-	for _, it := range in.Items {
+	var stockExceptions []pendingStockException
+	for li, it := range in.Items {
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
 			SELECT $1,$2,$3,0
@@ -408,18 +432,33 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			   WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 FOR UPDATE`,
 			in.OutletID, it.ProductID, it.VariantSize).Scan(&stock)
 		if errors.Is(e, pgx.ErrNoRows) {
-			continue // bundle component or deleted variant — skip, do not fail the sale
+			// Bundle component or deleted/renamed variant: the sale still succeeds and no
+			// stock moves. A44: a non-bundle line is recorded so it is not silently lost,
+			// and RefundTx must not restock it (the sale decremented nothing).
+			if !it.IsBundle {
+				stockWarning = true
+				stockExceptions = append(stockExceptions, pendingStockException{
+					line: li, kind: write.StockExceptionUnresolvedVariant, shortfall: it.Quantity,
+				})
+			}
+			continue
 		}
 		if e != nil {
 			return "", false, false, fmt.Errorf("lock variant stock: %w", e)
 		}
+		// A44 (owner decision 2026-10-14): never block a sale and never hide a
+		// shortfall. Both paths record the true negative, flag the order and write a
+		// per-line exception row below (same tx). Stock already <= 0 means the whole
+		// line is short; each line sees the previous line's decrement, so the sum of
+		// shortfalls over an order equals the total pushed below zero.
 		next := stock - it.Quantity
-		if next < 0 {
-			if in.Offline {
-				stockWarning = true // recorded, flagged for admin reconciliation
-			} else {
-				next = 0 // online zero-floor (legacy parity)
-			}
+		if short := shortfallOf(stock, it.Quantity); short > 0 {
+			stockWarning = true
+			before, after := stock, next
+			stockExceptions = append(stockExceptions, pendingStockException{
+				line: li, kind: write.StockExceptionShortage, shortfall: short,
+				stockBefore: &before, stockAfter: &after,
+			})
 		}
 		if _, e := tx.Exec(ctx,
 			`UPDATE outlet_variant_stock SET stock=$1
@@ -470,14 +509,38 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		return "", false, false, fmt.Errorf("insert order: %w", err)
 	}
 
-	for _, it := range in.Items {
+	// A44: item ids are generated here (not RETURNING) so exception rows can name
+	// their order line without changing this Exec into a query.
+	itemIDs := make([]string, len(in.Items))
+	for i, it := range in.Items {
+		itemIDs[i] = uuid.NewString()
 		if _, e := tx.Exec(ctx, `
-			INSERT INTO order_items (order_id, product_id, product_name,
+			INSERT INTO order_items (id, order_id, product_id, product_name,
 			  variant_size, price, quantity, subtotal, is_bundle)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-			orderID, it.ProductID, it.ProductName, it.VariantSize,
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			itemIDs[i], orderID, it.ProductID, it.ProductName, it.VariantSize,
 			it.Price, it.Quantity, it.Subtotal, it.IsBundle); e != nil {
 			return "", false, false, fmt.Errorf("insert item: %w", e)
+		}
+	}
+
+	// A44: one exception row per short line, in the sale tx (a replay returns at the
+	// processed_keys guard before any write; a lost same-key race rolls all of this back).
+	channel := "direct"
+	if in.Offline {
+		channel = "sync"
+	}
+	for _, x := range stockExceptions {
+		it := in.Items[x.line]
+		if e := write.InsertSaleStockException(ctx, tx, write.SaleStockExceptionRow{
+			OrderID: orderID, OrderItemID: itemIDs[x.line], OrderNumber: orderNumber,
+			OutletID: in.OutletID, ProductID: it.ProductID, ProductName: it.ProductName,
+			VariantSize: it.VariantSize, Kind: x.kind, Quantity: it.Quantity,
+			StockBefore: x.stockBefore, StockAfter: x.stockAfter, Shortfall: x.shortfall,
+			Channel: channel, CashierID: in.CashierID, CashierName: in.CashierName,
+			ShiftID: in.ShiftID, DeviceID: in.DeviceID, SoldAt: saleTime,
+		}); e != nil {
+			return "", false, false, e
 		}
 	}
 
@@ -767,28 +830,57 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 			}
 		}
 	}
+	// A44: restock exactly what the sale decremented. A line the sale skipped (no
+	// variant at sale time, recorded as unresolved_variant) is never restocked, and a
+	// line whose variant AND outlet stock row are gone (catalog delete removes both) is skipped and recorded instead of
+	// recreating an orphan stock row (or failing the refund on the stock FK).
 	rows, err := tx.Query(ctx,
-		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1
-		  ORDER BY product_id, variant_size`,
-		orderID)
+		`SELECT oi.id, oi.product_id, oi.variant_size, oi.quantity, oi.is_bundle,
+		        EXISTS (SELECT 1 FROM sale_stock_exceptions x
+		                 WHERE x.order_item_id = oi.id AND x.kind = 'unresolved_variant'),
+		        (EXISTS (SELECT 1 FROM product_variants pv
+		                  WHERE pv.product_id = oi.product_id AND pv.size = oi.variant_size)
+		         OR EXISTS (SELECT 1 FROM outlet_variant_stock s
+		                     WHERE s.outlet_id = $2 AND s.product_id = oi.product_id AND s.variant_size = oi.variant_size))
+		   FROM order_items oi WHERE oi.order_id=$1
+		  ORDER BY oi.product_id, oi.variant_size, oi.id`,
+		orderID, outletID)
 	if err != nil {
 		return err
 	}
 	type ri struct {
-		pid, size string
-		qty       int
+		itemID, pid, size           string
+		qty                         int
+		isBundle, saleSkipped, live bool
 	}
 	var restock []ri
 	for rows.Next() {
 		var r ri
-		if err := rows.Scan(&r.pid, &r.size, &r.qty); err != nil {
+		if err := rows.Scan(&r.itemID, &r.pid, &r.size, &r.qty, &r.isBundle, &r.saleSkipped, &r.live); err != nil {
 			rows.Close()
 			return err
 		}
 		restock = append(restock, r)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for _, r := range restock {
+		if r.saleSkipped {
+			continue // the sale moved no stock for this line (its exception row says so)
+		}
+		if !r.live {
+			// Never restock a gone variant (it would orphan a stock row or hit the
+			// stock->products FK). Bundles were skipped silently at sale time, and a
+			// legacy qty<=0 line cannot satisfy the exception CHECK, so neither is recorded.
+			if !r.isBundle && r.qty > 0 {
+				if err := write.InsertRefundUnresolvedVariant(ctx, tx, r.itemID, in.Channel); err != nil {
+					return err
+				}
+			}
+			continue
+		}
 		if _, err = tx.Exec(ctx,
 			`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
 			   VALUES ($1,$2,$3,$4)

@@ -42,7 +42,7 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
 import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
-import { applyPendingStock, stockFor } from './stock'
+import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { calcPromoDiscount, bxgyRewardDue } from './pricing'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
@@ -301,13 +301,28 @@ export default function CashierScreen() {
     return false
   }
 
+  // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
+  // added and the cashier is warned; the server records the oversell. Returns true when
+  // the add passes the (pending-adjusted) stock so scan can pick the right toast.
+  const addWithStockWarning = (
+    product: components['schemas']['Product'],
+    variantQtys: Record<string, number>,
+  ): boolean => {
+    if (!ensureShift()) return false
+    track(`Tambah ${product.name}`)
+    const inCart = (size: string) => state.cart
+      .filter((i) => i.productId === product.id && i.variantSize === size)
+      .reduce((s, i) => s + i.quantity, 0)
+    const oversold = oversoldSizes(product, variantQtys, inCart).length > 0
+    cartActions.addVariants(product, variantQtys)
+    return oversold
+  }
+
   const handleProductTap = (
     product: components['schemas']['Product'],
     variantQtys: Record<string, number>,
   ) => {
-    if (!ensureShift()) return
-    track(`Tambah ${product.name}`)
-    cartActions.addVariants(product, variantQtys)
+    if (addWithStockWarning(product, variantQtys)) showToast(OVERSELL_WARNING)
   }
 
   // Scan-to-cart: resolve the code to a variant, add 1 respecting stock.
@@ -321,15 +336,11 @@ export default function CashierScreen() {
       return
     }
     const { product, variant } = match
-    const inCart = state.cart
-      .filter((i) => i.productId === product.id && i.variantSize === variant.size)
-      .reduce((s, i) => s + i.quantity, 0)
-    if (inCart + 1 > variant.stock) {
-      showToast('Stok habis')
-      return
-    }
-    handleProductTap(product, { [variant.size]: 1 })
-    showToast(`Ditambah: ${product.name}${variantLabel(variant.size) ? ' ' + variantLabel(variant.size) : ''}`)
+    // Past the stock: still added (A44 owner decision 2026-10-16), with a warning toast.
+    const oversold = addWithStockWarning(product, { [variant.size]: 1 })
+    showToast(oversold
+      ? OVERSELL_WARNING
+      : `Ditambah: ${product.name}${variantLabel(variant.size) ? ' ' + variantLabel(variant.size) : ''}`)
   }
 
   // Wedge path: Enter in the search box. If it exactly matches a barcode, scan
