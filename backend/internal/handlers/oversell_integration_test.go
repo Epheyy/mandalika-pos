@@ -537,7 +537,18 @@ func TestOversellPostgres(t *testing.T) {
 		if before != nil || after != nil || short != 2 || qty != 2 {
 			t.Fatalf("unresolved row: before=%v after=%v short=%d qty=%d", before, after, short, qty)
 		}
+		if count(`SELECT count(*) FROM orders WHERE id=$1 AND stock_warning`, id) != 1 {
+			t.Fatal("an unresolved-variant sale must set orders.stock_warning")
+		}
+		// the report counts the line but a missing variant is not extra shortfall
+		if _, rep := report(adminTok, "outletId=all&productId="+pid); rep.Summary.Lines != 1 || rep.Summary.TotalShortfall != 0 ||
+			rep.Summary.ActiveShortfall != 0 || rep.Summary.ReversedShortfall != 0 {
+			t.Fatalf("unresolved line leaked into shortfall totals: %+v", rep.Summary)
+		}
 		refundOK(id)
+		if count(`SELECT count(*) FROM orders WHERE id=$1 AND stock_warning`, id) != 1 {
+			t.Fatal("refund must not touch orders.stock_warning")
+		}
 		if stockRows(pid) != 0 || kindCount(id, "refund_unresolved_variant") != 0 {
 			t.Fatalf("refund created phantom stock: rows=%d refund-side=%d", stockRows(pid), kindCount(id, "refund_unresolved_variant"))
 		}
@@ -547,7 +558,8 @@ func TestOversellPostgres(t *testing.T) {
 		if st := syncSale("os-p4-sync", payload(sale{pid2, 1})); st != "ok" {
 			t.Fatalf("sync status %s", st)
 		}
-		if exceptions("os-p4-sync") != 1 || stockRows(pid2) != 0 {
+		if exceptions("os-p4-sync") != 1 || stockRows(pid2) != 0 ||
+			count(`SELECT count(*) FROM orders WHERE idempotency_key='os-p4-sync' AND stock_warning`) != 1 {
 			t.Fatalf("sync unresolved rows=%d stock rows=%d", exceptions("os-p4-sync"), stockRows(pid2))
 		}
 	})
@@ -578,6 +590,19 @@ func TestOversellPostgres(t *testing.T) {
 		refundOK(id2)
 		if kindCount(id2, "refund_unresolved_variant") != 1 || count(`SELECT count(*) FROM orders WHERE id=$1 AND status='refunded'`, id2) != 1 {
 			t.Fatal("refund of a deleted product did not complete and record")
+		}
+	})
+
+	sub("12 a bundle line whose variant and stock row are gone: refund restocks nothing and records nothing", func(t *testing.T) {
+		pid := newProduct(5)
+		p := payload(sale{pid, 1})
+		p["items"].([]map[string]any)[0]["isBundle"] = true
+		id := direct("os-p4-bundle", p)
+		dropVariant(pid)
+		refundOK(id)
+		if stockRows(pid) != 0 || count(`SELECT count(*) FROM sale_stock_exceptions WHERE order_id=$1`, id) != 0 ||
+			count(`SELECT count(*) FROM orders WHERE id=$1 AND status='refunded'`, id) != 1 {
+			t.Fatalf("bundle refund: stock rows=%d exceptions=%d", stockRows(pid), count(`SELECT count(*) FROM sale_stock_exceptions WHERE order_id=$1`, id))
 		}
 	})
 

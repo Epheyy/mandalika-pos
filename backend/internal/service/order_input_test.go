@@ -455,9 +455,9 @@ func TestSaleRecordsUnresolvedVariantException(t *testing.T) {
 		in := shortageInput(2)
 		in.Offline = offline
 		tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
-		_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
-		if err != nil || dup || tx.commits != 1 || tx.stock != 7 || len(tx.exceptions) != 1 {
-			t.Fatalf("offline=%v err=%v dup=%v stock=%d rows=%d", offline, err, dup, tx.stock, len(tx.exceptions))
+		_, dup, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+		if err != nil || dup || tx.commits != 1 || tx.stock != 7 || len(tx.exceptions) != 1 || !warn {
+			t.Fatalf("offline=%v err=%v dup=%v warn=%v stock=%d rows=%d", offline, err, dup, warn, tx.stock, len(tx.exceptions))
 		}
 		row := tx.exceptions[0]
 		if row[excArgKind] != "unresolved_variant" || row[excArgQuantity] != 2 || row[excArgShortfall] != 2 ||
@@ -471,8 +471,8 @@ func TestSaleBundleLineWithoutVariantWritesNoException(t *testing.T) {
 	in := shortageInput(1)
 	in.Items[0].IsBundle = true
 	tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
-	_, _, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
-	if err != nil || len(tx.exceptions) != 0 {
-		t.Fatalf("bundle line: err=%v rows=%d", err, len(tx.exceptions))
+	_, _, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+	if err != nil || len(tx.exceptions) != 0 || warn {
+		t.Fatalf("bundle line: err=%v rows=%d warn=%v", err, len(tx.exceptions), warn)
 	}
 }

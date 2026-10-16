@@ -436,6 +436,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			// stock moves. A44: a non-bundle line is recorded so it is not silently lost,
 			// and RefundTx must not restock it (the sale decremented nothing).
 			if !it.IsBundle {
+				stockWarning = true
 				stockExceptions = append(stockExceptions, pendingStockException{
 					line: li, kind: write.StockExceptionUnresolvedVariant, shortfall: it.Quantity,
 				})
@@ -869,9 +870,14 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 		if r.saleSkipped {
 			continue // the sale moved no stock for this line (its exception row says so)
 		}
-		if !r.live && !r.isBundle {
-			if err := write.InsertRefundUnresolvedVariant(ctx, tx, r.itemID, in.Channel); err != nil {
-				return err
+		if !r.live {
+			// Never restock a gone variant (it would orphan a stock row or hit the
+			// stock->products FK). Bundles were skipped silently at sale time, and a
+			// legacy qty<=0 line cannot satisfy the exception CHECK, so neither is recorded.
+			if !r.isBundle && r.qty > 0 {
+				if err := write.InsertRefundUnresolvedVariant(ctx, tx, r.itemID, in.Channel); err != nil {
+					return err
+				}
 			}
 			continue
 		}

@@ -40,9 +40,9 @@ func (r *Repo) SaleStockExceptionReport(ctx context.Context, f OversellFilters, 
 
 	if err := r.Pool.QueryRow(ctx,
 		`SELECT COUNT(*), COUNT(DISTINCT x.order_id),
-		        COALESCE(SUM(x.shortfall),0),
-		        COALESCE(SUM(x.shortfall) FILTER (WHERE o.status = 'completed'),0),
-		        COALESCE(SUM(x.shortfall) FILTER (WHERE o.status <> 'completed'),0),
+		        COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage'),0),
+		        COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage' AND o.status = 'completed'),0),
+		        COALESCE(SUM(x.shortfall) FILTER (WHERE x.kind = 'shortage' AND o.status <> 'completed'),0),
 		        COUNT(*) FILTER (WHERE x.acknowledged_at IS NULL) `+oversellWhere, args...,
 	).Scan(&sum.Lines, &sum.Orders, &sum.TotalShortfall, &sum.ActiveShortfall, &sum.ReversedShortfall, &sum.OpenCount); err != nil {
 		return sum, nil, 0, err
