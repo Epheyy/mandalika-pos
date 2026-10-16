@@ -17,7 +17,7 @@ go run ./cmd/server           # http://localhost:8080
 ## Smoke test
 
 ```bash
-curl localhost:8080/healthz
+curl localhost:8080/livez   # /healthz is the same handler but Cloud Run reserves it
 curl -X POST localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@mandalika.local","password":"<SEED_ADMIN_PASSWORD>"}'

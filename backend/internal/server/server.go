@@ -81,7 +81,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	syncEngine.LegacyEnvelopeUntil = cfg.SyncLegacyEnvelopeUntil
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 
-	r.Get("/healthz", healthHandler(database.Pool, c))
+	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
+	// the same deep check is also served at /livez. No auth, no secrets, no PII.
+	health := healthHandler(database.Pool, c)
+	r.Get("/healthz", health)
+	r.Get("/livez", health)
 
 	// Liveness: process is up. Used by the platform health check; must not
 	// touch dependencies so a transient DB blip doesn't kill the instance.

@@ -249,8 +249,10 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         stock-adjacent rename path, generated types, sync-wall bump), then the usual push/CI/Neon snapshot/deploy-backend (0056)
         sequence. Backoffice commits are `[CF-Pages-Skip]`; the next non-skip push deploys the new dialogs. New backlog (not
         fixed): the Customers and Ingredients exports fetch a single 10,000-row page and silently truncate above that.
-     4. Small follow-ups: /healthz reserved by Cloud Run → serve health at an unreserved path + fix RUNBOOK; pin Go 1.26.9 in
-        postgres.yml (CI reports go1.26.0); OpenAPI 400 on refresh/logout, 413 on login; A33 Task 9 cleanup on/after
+     4. Small follow-ups: ~~/healthz reserved by Cloud Run~~ DONE on branch followups-1017 (deep health also at `/livez`, RUNBOOK
+        fixed; live check after deploy: `curl <url>/livez`); ~~pin Go 1.26.9 in postgres.yml~~ DONE (explicit go-version +
+        check-latest false in all three setup-go steps; the next postgres gate log should print `go1.26.9`); ~~OpenAPI 400 on
+        refresh/logout, 413 on login~~ DONE (docs only); A33 Task 9 cleanup on/after
         2026-10-30 (re-run Task 0 first); A36 build once owner does O1–O4.
      5. Then the medium findings (A05/A07 leftovers, A10, A15, A41, A28, A30, A37, A23/A26/A27/A29/A35 leftovers) → Fable re-audit.
    - Environment notes: network to GitHub/Upstash is flaky from this PC (retry pushes; PowerShell Invoke-WebRequest for CI

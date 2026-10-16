@@ -29,7 +29,7 @@ The server refuses to boot on dev defaults, non-TLS DB URLs or bad CORS.
    - **Migrations run at revision start**, so a no-traffic revision already
      migrates the shared DB. Migrations are forward-only.
 3. Smoke the tag URL: `curl -s <tag-url>/readyz` (expect 200), then check
-   `/healthz` and the sync path you changed.
+   `/livez` (Cloud Run reserves `/healthz`: Google answers 404 there) and the sync path you changed.
 4. `scripts/promote-backend.sh <tag>` — re-checks the commit-sha label is CI-green
    and `/readyz` is 200, then moves 100% traffic to the tag.
 5. Record the new revision in `HANDOFF.md` "Now".
@@ -137,7 +137,7 @@ new review.
 ## Monitoring
 
 - `GET /readyz` — liveness, no dependencies (used for promotion checks).
-- `GET /healthz` — deep check. DB down: 503. DB up, Redis down or disabled: **200** with
+- `GET /livez` — deep check (same handler also at `/healthz` for non-Cloud-Run hosts; **on Cloud Run use `/livez`**, `/healthz` is reserved and returns Google's 404). DB down: 503. DB up, Redis down or disabled: **200** with
   `{"status":"degraded","db":"ok","redis":"down|disabled"}`. All up: `"status":"ok"`.
 - Redis tuning (optional): `REDIS_DIAL_TIMEOUT_MS` (default 1000), `REDIS_OP_TIMEOUT_MS`
   (default 500). After 3 consecutive transport errors the in-process breaker skips Redis for
