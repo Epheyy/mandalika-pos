@@ -104,7 +104,7 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
           <Button variant="secondary" icon={<FileUp className="w-4 h-4" />} onClick={onRepick} disabled={busy}>
             Pilih file lain
           </Button>
-          {(phase === 'stale' || phase === 'rejected') && (
+          {(phase === 'stale' || phase === 'rejected' || (phase === 'failed' && !report)) && (
             <Button variant="secondary" onClick={() => void preview()} disabled={busy}>
               Pratinjau ulang
             </Button>
@@ -123,7 +123,7 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
   )
 
   return (
-    <Modal open onClose={onClose} title={KIND_TITLE[kind]} subtitle={file.name} size="2xl" footer={footer}>
+    <Modal open onClose={phase === 'applying' ? () => undefined : onClose} title={KIND_TITLE[kind]} subtitle={file.name} size="2xl" footer={footer}>
       <div className="space-y-4" aria-live="polite">
         {phase === 'previewing' && (
           <p className="flex items-center gap-2 text-sm text-gray-500">

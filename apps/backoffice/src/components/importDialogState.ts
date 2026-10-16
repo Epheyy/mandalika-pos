@@ -53,13 +53,17 @@ export function importReducer(state: ImportState, action: ImportAction): ImportS
       if (!canApply(state)) return state
       return { ...state, phase: 'applying', message: null }
     case 'applyOk':
+      if (state.phase !== 'applying') return state // a late response must not resurrect a closed or reset flow
       return { ...state, phase: 'applied', report: action.report, message: null }
     case 'applyStale':
+      if (state.phase !== 'applying') return state
       // The old report no longer describes the data: re-preview before anything else.
       return { ...state, phase: 'stale', key: null, message: action.message }
     case 'applyRejected':
+      if (state.phase !== 'applying') return state
       return { ...state, phase: 'rejected', report: action.report, key: null, message: action.message }
     case 'applyFailed':
+      if (state.phase !== 'applying') return state
       // Keep report and key: a retry of the same apply must carry the same Idempotency-Key.
       return { ...state, phase: 'failed', message: action.message }
     case 'reset':

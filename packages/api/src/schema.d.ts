@@ -550,7 +550,7 @@ export interface paths {
         put?: never;
         /**
          * CSV product import, dry run or commit (manage_products)
-         * @description Merge-only: never deletes a product or variant and never writes stock, images, favourites or per-outlet price. Same dry run and commit contract as the customer import.
+         * @description Merge-only: never deletes a product or variant and never writes stock, images, favourites or per-outlet availability or price (a size rename re-keys the existing per-outlet stock, price and warehouse rows). Same dry run and commit contract as the customer import.
          */
         post: operations["importProducts"];
         delete?: never;
@@ -2641,6 +2641,8 @@ export interface components {
             stock: number;
             sku: string;
             barcode?: string;
+            /** @description the catalog base price; price may be an outlet override when an outlet is in scope */
+            basePrice?: number;
             parLevel?: number | null;
         };
         Product: {
@@ -5119,9 +5121,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             422: components["responses"]["ImportRejected"];
+            /** @description two imports already running in this process; retry shortly */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description busy (lock conflict), nothing applied, retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     importProducts: {
@@ -5155,9 +5177,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             422: components["responses"]["ImportRejected"];
+            /** @description two imports already running in this process; retry shortly */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description busy (lock conflict), nothing applied, retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     importIngredients: {
@@ -5191,9 +5233,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             422: components["responses"]["ImportRejected"];
+            /** @description two imports already running in this process; retry shortly */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description busy (lock conflict), nothing applied, retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listPromoRewardGrants: {

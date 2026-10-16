@@ -73,6 +73,18 @@ describe('importReducer', () => {
     expect(importReducer(failed, { type: 'apply' }).key).toBe('k1')
   })
 
+  it('a late apply response is ignored unless an apply is in flight', () => {
+    for (const a of [
+      { type: 'applyOk', report: report() },
+      { type: 'applyFailed', message: 'x' },
+      { type: 'applyStale', message: 'x' },
+      { type: 'applyRejected', report: report(), message: 'x' },
+    ] as const) {
+      expect(importReducer(ready, a)).toBe(ready)
+      expect(importReducer(initialImportState, a)).toBe(initialImportState)
+    }
+  })
+
   it('previewOk is ignored when no preview is in flight', () => {
     expect(importReducer(initialImportState, { type: 'previewOk', report: report(), key: 'k' })).toBe(initialImportState)
   })

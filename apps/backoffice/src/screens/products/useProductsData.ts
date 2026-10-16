@@ -7,6 +7,7 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { uploadImage } from '../../lib/uploadImage'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { PRODUCT_TEMPLATE_ROWS } from '../../lib/importTemplates'
+import { productExportRows } from '../../lib/productExport'
 import { EMPTY, EMPTY_OC, EMPTY_VARIANT, MAX_IMAGES, ocKey } from './types'
 import type { Form, OcRow } from './types'
 
@@ -270,16 +271,8 @@ export function useProductsData() {
   }
 
   const exportProducts = (fmt: 'csv' | 'xlsx') => {
-    const rows = products.flatMap((p) =>
-      p.variants.map((v) => ({
-        Nama: p.name, Brand: p.brand, Kategori: catName(p.categoryId),
-        Deskripsi: p.description || '', Ukuran: v.size, Harga: v.price,
-        SKU: v.sku, Barcode: v.barcode || v.sku,
-        Jual: p.sellable === false ? 'Tidak' : 'Ya',
-        Aktif: p.isActive ? 'Ya' : 'Tidak',
-        Unggulan: p.isFeatured ? 'Ya' : 'Tidak',
-      })),
-    )
+    // Blank (not the "—" display placeholder) for a product without category, and the BASE price.
+    const rows = productExportRows(products, (id) => categories.find((c) => c.id === id)?.name ?? '')
     if (!rows.length) return
     // The product list is outlet-scoped (X-Outlet-Id); name the file by that scope.
     const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
