@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { SettlingDebits, SETTLING_DEBITS_KEY, SETTLING_DEBITS_TTL_MS } from './settlingDebits'
+import { SettlingDebits, SETTLING_DEBITS_KEY, SETTLING_DEBITS_MAX } from './settlingDebits'
 import type { KV } from './storage'
 
 function memKV(): KV & { store: Map<string, string> } {
@@ -82,22 +82,13 @@ describe('SettlingDebits (A15)', () => {
     expect(s.list()[0].lines).toEqual([line])
   })
 
-  it('keeps entries past the TTL at load (offline restart) and expires them only when a pull is applied', async () => {
-    const kv = memKV()
-    const old = { v: 1, gen: 5, applied: 5, entries: [{ key: 'old', lines: [line], gen: 9, at: Date.now() - SETTLING_DEBITS_TTL_MS - 1000 }] }
-    kv.store.set(SETTLING_DEBITS_KEY, JSON.stringify(old))
-    const s = new SettlingDebits(kv)
-    expect(s.list()).toHaveLength(1) // an offline boot still shows the debit
-    const g = await s.beginPull()
-    s.applyPull(g, null) // gen 9 >= g: only the age rule can drop it
-    expect(s.list()).toEqual([])
-  })
-
-  it('never expires on a clock that went backwards', () => {
+  it('caps the count, dropping the oldest', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = new SettlingDebits(memKV())
-    void s.record({ key: 'k', lines: [line] })
-    s.applyPull(0, null, Date.now() - 10 * SETTLING_DEBITS_TTL_MS)
-    expect(s.list()).toHaveLength(1)
+    const many = Array.from({ length: SETTLING_DEBITS_MAX + 3 }, (_, i) => ({ key: `k${i}`, lines: [line] }))
+    await s.recordMany(many)
+    expect(s.list()).toHaveLength(SETTLING_DEBITS_MAX)
+    expect(s.list()[0].key).toBe('k3')
   })
 
   it('reload re-reads what another writer stored; a disposed store does not write', async () => {

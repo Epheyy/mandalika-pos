@@ -142,6 +142,9 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
   return lines
 }
 
+/** An acked order is kept queued at most this many times when its settling-debit write fails. */
+const SETTLING_HOLD_MAX = 3
+
 /** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
 export const BACKOFF_BASE_MS = 20_000
 export const BACKOFF_CAP_MS = 5 * 60_000
@@ -255,6 +258,8 @@ export class SyncEngine {
   private nextFlushAt = 0
   private backoffStep = 0
   private disposed = false
+  /** How many times an acked order was held back from ack because its settling-debit write failed. */
+  private readonly settlingHolds = new Map<string, number>()
   /** Bumped by every dispose(); lets an in-flight pull tell it was retired even if start() revived the engine. */
   private disposeEpoch = 0
   // Review check-in (head-office resolve). Key -> last time it was sent in a successful check-in.
@@ -323,6 +328,9 @@ export class SyncEngine {
    *  engine and the store are idle (see {@link idle}); no-op on the KV store. */
   async rehydrate(): Promise<void> {
     await this.outbox.refresh()
+    // A flush on this same instance (a flush-only <-> normal flip keeps it) may be inside a settling write:
+    // wait for it, or reload() would read the old blob and drop that entry.
+    await this.settling.idle()
     this.settling.reload() // the predecessor's last writes landed after this engine's constructor read the key
     this.refundMemory = this.foldAckedRefunds()
     await this.refundMemory
@@ -996,12 +1004,21 @@ export class SyncEngine {
     // failed write leaves items pending and the server dedups the resend).
     // If the debit could not be stored, do not ack/prune those orders now: the debit would vanish with the
     // row. They stay queued and the server dedups the resend (A11); the next batch records them again.
+    // Bounded: after SETTLING_HOLD_MAX holds of one key it is acked anyway (the entry stays in memory), so
+    // a persistently failing settling key can never block the queue and the terminal-release guard.
     let toSettle = updates
     try {
       await this.settling.recordMany(ackedOrders)
+      for (const o of ackedOrders) this.settlingHolds.delete(o.key)
     } catch (err) {
-      console.error('[sync] settling-debit write failed; keeping the acked orders queued', err)
-      const held = new Set(ackedOrders.map((o) => o.key))
+      const held = new Set<string>()
+      for (const o of ackedOrders) {
+        const n = (this.settlingHolds.get(o.key) ?? 0) + 1
+        this.settlingHolds.set(o.key, n)
+        if (n <= SETTLING_HOLD_MAX) held.add(o.key)
+        else this.settlingHolds.delete(o.key)
+      }
+      console.error(`[sync] settling-debit write failed; keeping ${held.size} acked order(s) queued`, err)
       toSettle = updates.filter((u) => !(u.op === 'ack' && held.has(u.key)))
     }
     await this.outbox.settle(toSettle)

@@ -15,7 +15,7 @@ function makeServer() {
   const s = {
     stock: 5, // what the server holds right now
     pullPlans: [] as PullPlan[],
-    batchMode: 'ok' as 'ok' | 'lost' | 'busy' | 'park' | 'rejectMulti',
+    batchMode: 'ok' as 'ok' | 'duplicate' | 'lost' | 'busy' | 'park' | 'rejectMulti',
     batches: [] as string[][],
     resolved: [] as string[], // keys head office has resolved (answered by /sync/review-items)
   }
@@ -44,7 +44,7 @@ function makeServer() {
       const results = body.items.map((i) => {
         if (s.batchMode === 'busy') return { idempotencyKey: i.idempotencyKey, status: 'error', error: 'sibuk', code: 'busy', retryable: true }
         if (s.batchMode === 'park') return { idempotencyKey: i.idempotencyKey, status: 'error', error: 'x', code: 'conflict', retryable: false }
-        return { idempotencyKey: i.idempotencyKey, status: 'ok' }
+        return { idempotencyKey: i.idempotencyKey, status: s.batchMode === 'duplicate' ? 'duplicate' : 'ok' }
       })
       return { data: { processed: results.length, version: 1, results } }
     }
@@ -296,7 +296,8 @@ describe('A15 settling debits', () => {
     expect(engine.outbox.pending()).toHaveLength(1) // stays queued, still counted once
     expect(shown(engine)).toBe(3)
     k.ctl.modeFor = undefined
-    await send(engine) // the server dedups the resend
+    s.batchMode = 'duplicate' // the backend answers a seen idempotency key with a duplicate status
+    await send(engine)
     expect(engine.outbox.pending()).toHaveLength(0)
     expect(shown(engine)).toBe(3)
     expect(engine.pendingStockDeltas()).toEqual({ [SKU]: 2 })
@@ -318,24 +319,32 @@ describe('A15 settling debits', () => {
     }
   })
 
-  it('18: replacing the engine mid-pull: the old pull cannot overwrite the new engine entry', async () => {
-    const { s, engine: oldEngine, k } = await setup()
+  it('18: replacing the engine mid-pull: the old pull cannot overwrite the new engine or touch its own state', async () => {
+    const { k } = await setup()
+    const onWall = vi.fn()
+    const old = makeServer()
     const g = gate()
-    s.pullPlans.push({ gate: g.p, stock: 5 })
-    const stalePull = oldEngine.resync() // in flight
+    old.s.pullPlans.push({ gate: g.p, stock: 99 })
+    const hanging = new SyncEngine(old.api, { onWall }, k.kv, { actor: null })
+    const stalePull = hanging.resync() // in flight
     await Promise.resolve()
-    oldEngine.dispose()
-    await oldEngine.idle()
+    hanging.dispose()
+    await hanging.idle()
     const fresh = makeServer()
     const next = new SyncEngine(fresh.api, {}, k.kv, { actor: null })
     await next.rehydrate()
+    await next.resync()
     await next.enqueue('order', order())
     fresh.s.stock = 3
     await send(next)
     await next.idle()
+    onWall.mockClear()
+    const snapshotBefore = k.kv.get('mandalika.pos.snapshot')
     g.open()
     await stalePull
-    await oldEngine.idle()
+    await hanging.idle()
+    expect(onWall).not.toHaveBeenCalled() // no wall update from the retired engine
+    expect(k.kv.get('mandalika.pos.snapshot')).toBe(snapshotBefore) // no snapshot.replace
     const restarted = new SyncEngine(makeServer().api, {}, k.kv, { actor: null })
     expect(restarted.pendingStockDeltas()).toEqual({ [SKU]: 2 }) // the debit survived
   })
@@ -346,5 +355,39 @@ describe('A15 settling debits', () => {
     engine.dispose()
     await engine.resync()
     expect(engine.getSnapshot().products?.[0]?.variants[0].stock).toBe(4)
+  })
+
+  it('20: a persistently failing settling write holds an order at most 3 times, then the queue drains', async () => {
+    const { s, engine, k } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    k.ctl.modeFor = (key) => (key === SETTLING_DEBITS_KEY ? 'reject' : undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (let i = 0; i < 3; i++) {
+      await send(engine)
+      expect(engine.outbox.pending()).toHaveLength(1)
+    }
+    await send(engine)
+    expect(engine.outbox.pending()).toHaveLength(0) // drained: the terminal can be released
+    expect(shown(engine)).toBe(3) // the debit is still counted from memory
+  })
+
+  it('21: rehydrate during an in-flight settling write keeps the entry and counts the order once', async () => {
+    const { s, engine, k } = await setup()
+    await engine.enqueue('order', order())
+    s.stock = 3
+    k.ctl.modeFor = (key) => (key === SETTLING_DEBITS_KEY ? 'hold' : undefined)
+    const flushing = send(engine)
+    await vi.waitFor(() => expect(k.ctl.held.some((h) => h.key === SETTLING_DEBITS_KEY)).toBe(true))
+    const rehydrating = engine.rehydrate()
+    await new Promise((r) => setTimeout(r, 20)) // let a reload that does not wait for the write run first
+    k.ctl.modeFor = undefined
+    k.ctl.held.filter((h) => h.key === SETTLING_DEBITS_KEY).forEach((h) => h.resolve())
+    await Promise.all([flushing, rehydrating])
+    expect(shown(engine)).toBe(3)
+    expect(engine.pendingStockDeltas()).toEqual({ [SKU]: 2 })
+    await engine.idle()
+    const restarted = new SyncEngine(makeServer().api, {}, k.kv, { actor: null })
+    expect(restarted.pendingStockDeltas()).toEqual({ [SKU]: 2 })
   })
 })

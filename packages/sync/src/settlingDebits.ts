@@ -3,7 +3,9 @@ import type { KV } from './storage'
 /** A15: stock debits of orders the server has acknowledged but that the next pulled snapshot may not
  *  contain yet. An ack prunes the order from the outbox, and the snapshot only changes on a pull, so
  *  without this the displayed stock jumps back up between the ack and the next pull. Display-only:
- *  never read by the outbox, the journal or the release guard. */
+ *  never read by the outbox, the journal or the release guard. Entries normally retire on the next
+ *  applied pull (app start or manual resync); there is no age expiry because a clock jump could only
+ *  drop a debit the snapshot may still lack (stock too HIGH). Growth is bounded by a count cap instead. */
 export interface DebitLine { productId: string; variantSize: string; qty: number }
 export interface SettlingEntry {
   /** The order's idempotency key. */
@@ -17,10 +19,8 @@ export interface SettlingEntry {
 }
 
 export const SETTLING_DEBITS_KEY = 'mandalika.pos.settlingDebits'
-/** Safety net only, applied when a pull is applied (never at load: an offline restart must keep
- *  debits the old snapshot lacks). Entries are normally retired by the next pull (app start or
- *  manual resync). */
-export const SETTLING_DEBITS_TTL_MS = 14 * 24 * 60 * 60 * 1000
+/** Count cap. Past it the OLDEST entries are dropped (with a warning). */
+export const SETTLING_DEBITS_MAX = 2000
 
 interface State { v: 1; gen: number; applied: number; entries: SettlingEntry[] }
 
@@ -98,7 +98,12 @@ export class SettlingDebits {
     const at = Date.now()
     const incoming = new Set(entries.map((e) => e.key))
     const fresh = entries.map((e): SettlingEntry => ({ ...e, gen: this.state.gen, at }))
-    this.state = { ...this.state, entries: [...this.state.entries.filter((x) => !incoming.has(x.key)), ...fresh] }
+    let next = [...this.state.entries.filter((x) => !incoming.has(x.key)), ...fresh]
+    if (next.length > SETTLING_DEBITS_MAX) {
+      console.warn(`[sync] settling debits over ${SETTLING_DEBITS_MAX}: dropping the oldest`)
+      next = next.slice(next.length - SETTLING_DEBITS_MAX)
+    }
+    this.state = { ...this.state, entries: next }
     return this.persist()
   }
 
@@ -109,11 +114,10 @@ export class SettlingDebits {
   /** A pull numbered `g` came back. False (nothing changed) when a newer pull was already applied.
    *  Otherwise retires entries recorded before `g` was sent and drops lines whose variant the new
    *  snapshot no longer has (`known` = `productId|size` keys; null skips that check). */
-  applyPull(g: number, known: ReadonlySet<string> | null, now: number = Date.now()): boolean {
+  applyPull(g: number, known: ReadonlySet<string> | null): boolean {
     if (g < this.state.applied) return false
-    // Age is judged only forward: a clock that went backwards never expires anything.
     const entries = this.state.entries
-      .filter((e) => e.gen >= g && !(now - e.at > SETTLING_DEBITS_TTL_MS))
+      .filter((e) => e.gen >= g)
       .map((e) => (known ? { ...e, lines: e.lines.filter((l) => known.has(`${l.productId}|${l.variantSize}`)) } : e))
       .filter((e) => e.lines.length > 0)
     this.state = { ...this.state, applied: g, entries }
