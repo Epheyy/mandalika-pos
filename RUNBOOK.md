@@ -111,6 +111,50 @@ Pelanggan, Produk and Bahan each have Template, Import and Export. The import is
 `make ota-release VERSION=x.y.z` (POS web bundle only; native changes need an
 APK). It gates on a clean, pushed, CI-green commit (`OTA_RELEASE_TYPE=test|production`).
 
+`scripts/ota-release.sh` also refuses journal-adjacent changes since the target
+APK's build commit unless acknowledged (rule 4 below).
+
+**Rollback facts (A35).**
+
+- A bundle confirms (`notifyAppReady`) only from App's mount effect, which
+  `main.tsx` reaches only after `bootStorage()` (secure KV + journal) succeeded.
+  A BootError, or a render crash, leaves it unconfirmed.
+- Capgo protects only a bundle's **first launch** (about 30 s for a not-yet
+  confirmed bundle; native config, APK-only). An unconfirmed bundle is rolled
+  back to the previous good bundle or the APK's builtin, and that version is
+  **never retried** on that tablet: publish a higher semver.
+- A bundle that has already confirmed is never auto-reverted. A later defect
+  (BootError on a later launch, bad queue writes) needs a higher-version fix OTA
+  (roll forward) or an APK.
+- With real journal corruption the rollback lands on the builtin, which hits the
+  same error. The queue is kept (nothing is lost); use `quarantineCorruptRows`.
+
+**Journal rollback-compatibility rule (A35).** Any OTA bundle can be rolled back
+automatically, so every OTA must leave the journal readable, and correctly
+handled, by the previous bundle and by the APK's builtin.
+
+1. **APK only, never OTA:**
+   - the `packages/sync/src/journalBoot.ts` migration states and keys (`migration`
+     meta values, `TAKEOVER_KEY`, `LEGACY_BACKUP_PREFIX`, quarantine keys);
+   - `journalSentinel.ts` (`SENTINEL_VERSION`, sentinel shape) and `OUTBOX_KEY`;
+   - the format of journal meta values (e.g. `synced_refunds`);
+   - removing or renaming an `OutboxItem` field, or changing what a `status` means;
+   - anything native (`OutboxJournalPlugin.java`).
+2. **OTA-safe:** additive optional `OutboxItem` fields or payload keys that older
+   bundles ignore (status rewrites spread the stored item, so they survive).
+   Data the server needs must live in `payload` or `envelope`: an older bundle
+   sends only `type`, `idempotencyKey`, `payload` and `envelope`.
+3. **A new `OutboxType` or a new required payload key:** two steps. Ship the
+   server that accepts it first, then the bundle that writes it. If the builtin's
+   local views (queue summary, refund gate, recap) do not tolerate the new item,
+   it is APK-only.
+4. The bundle's commit must descend from the commit the target APK was built from.
+   `ota-release.sh` checks ancestry against `APK_BUILD_SHA` (default: the last
+   commit that changed `versionCode`; that default is weaker than the real rule)
+   and refuses journal-file changes since it unless `OTA_JOURNAL_CHANGE_ACK=1`.
+5. For a journal-adjacent OTA: confirm 0 pending sales on a pilot tablet first,
+   and do not promote until it has synced a sale and restarted once.
+
 ## Tablet upgrade rules
 
 1. Confirm **0 pending** sales on the tablet first (outbox empty).
