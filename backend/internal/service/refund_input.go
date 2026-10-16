@@ -38,6 +38,9 @@ type RefundInput struct {
 	OutletID, OrderID, Reason string
 	ShiftID                   string
 	UserID, UserName          string
+	// Channel is the transport the refund arrived on: "sync" (tablet batch) or
+	// "direct" (empty = direct). Only recorded on refund_unresolved_variant rows (A44).
+	Channel string
 }
 
 // NormalizeRefund validates the refund input shared by the direct route and the

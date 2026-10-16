@@ -498,6 +498,97 @@ func TestOversellPostgres(t *testing.T) {
 			t.Fatalf("admin badge = %d", openCount(adminTok))
 		}
 	})
+
+	// ---- phase 4: unresolved variants and the refund restock guard ----
+	// Variants are hard-deleted in production (write/repo.go removes the variant and
+	// its stock rows), so the fixture deletes them the same way.
+	dropVariant := func(pid string) {
+		cur.Helper()
+		exec(`DELETE FROM outlet_variant_stock WHERE product_id=$1`, pid)
+		exec(`DELETE FROM product_variants WHERE product_id=$1`, pid)
+	}
+	refundOK := func(orderID string) {
+		cur.Helper()
+		if c, body := do(token, "POST", "/orders/"+orderID+"/refund", map[string]any{"reason": "uji"}, ""); c != 200 && c != 201 {
+			cur.Fatalf("refund %d %s", c, body)
+		}
+	}
+	kindCount := func(orderID, kind string) int {
+		cur.Helper()
+		return count(`SELECT count(*) FROM sale_stock_exceptions WHERE order_id=$1 AND kind=$2`, orderID, kind)
+	}
+	stockRows := func(pid string) int {
+		cur.Helper()
+		return count(`SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1`, pid)
+	}
+
+	sub("9 a variant deleted before the sale: the line is recorded, no stock is invented, refund restocks nothing", func(t *testing.T) {
+		pid := newProduct(3)
+		dropVariant(pid)
+		id := direct("os-p4-sale", payload(sale{pid, 2}))
+		if stockRows(pid) != 0 || kindCount(id, "unresolved_variant") != 1 {
+			t.Fatalf("stock rows=%d unresolved rows=%d", stockRows(pid), kindCount(id, "unresolved_variant"))
+		}
+		var before, after *int
+		var short, qty int
+		if err := pool.QueryRow(ctx, `SELECT stock_before, stock_after, shortfall, quantity FROM sale_stock_exceptions WHERE order_id=$1`, id).Scan(&before, &after, &short, &qty); err != nil {
+			t.Fatal(err)
+		}
+		if before != nil || after != nil || short != 2 || qty != 2 {
+			t.Fatalf("unresolved row: before=%v after=%v short=%d qty=%d", before, after, short, qty)
+		}
+		refundOK(id)
+		if stockRows(pid) != 0 || kindCount(id, "refund_unresolved_variant") != 0 {
+			t.Fatalf("refund created phantom stock: rows=%d refund-side=%d", stockRows(pid), kindCount(id, "refund_unresolved_variant"))
+		}
+		// a late offline sync of a deleted variant is recorded the same way
+		pid2 := newProduct(3)
+		dropVariant(pid2)
+		if st := syncSale("os-p4-sync", payload(sale{pid2, 1})); st != "ok" {
+			t.Fatalf("sync status %s", st)
+		}
+		if exceptions("os-p4-sync") != 1 || stockRows(pid2) != 0 {
+			t.Fatalf("sync unresolved rows=%d stock rows=%d", exceptions("os-p4-sync"), stockRows(pid2))
+		}
+	})
+
+	sub("10 a variant deleted after the sale: refund succeeds, restocks nothing, records the skipped line", func(t *testing.T) {
+		pid := newProduct(5)
+		id := direct("os-p4-after", payload(sale{pid, 1}))
+		if exceptions("os-p4-after") != 0 || stockOf(pid) != 4 {
+			t.Fatalf("setup: rows=%d stock=%d", exceptions("os-p4-after"), stockOf(pid))
+		}
+		dropVariant(pid)
+		refundOK(id)
+		if stockRows(pid) != 0 {
+			t.Fatalf("orphan stock row recreated: %d", stockRows(pid))
+		}
+		var short int
+		var channel string
+		if err := pool.QueryRow(ctx, `SELECT shortfall, channel FROM sale_stock_exceptions WHERE order_id=$1 AND kind='refund_unresolved_variant'`, id).Scan(&short, &channel); err != nil {
+			t.Fatalf("refund-side row: %v", err)
+		}
+		if short != 1 || channel != "direct" {
+			t.Fatalf("refund-side row: shortfall=%d channel=%s", short, channel)
+		}
+		// a whole product deleted after the sale used to fail the refund on the stock FK
+		pid2 := newProduct(5)
+		id2 := direct("os-p4-product", payload(sale{pid2, 1}))
+		exec(`DELETE FROM products WHERE id=$1`, pid2)
+		refundOK(id2)
+		if kindCount(id2, "refund_unresolved_variant") != 1 || count(`SELECT count(*) FROM orders WHERE id=$1 AND status='refunded'`, id2) != 1 {
+			t.Fatal("refund of a deleted product did not complete and record")
+		}
+	})
+
+	sub("11 a normal refund still restocks exactly what the sale took", func(t *testing.T) {
+		pid := newProduct(5)
+		id := direct("os-p4-normal", payload(sale{pid, 2}))
+		refundOK(id)
+		if stockOf(pid) != 5 || kindCount(id, "refund_unresolved_variant") != 0 {
+			t.Fatalf("stock=%d", stockOf(pid))
+		}
+	})
 }
 
 func count2(t *testing.T, pool *pgxpool.Pool, ctx context.Context, sql string, args ...any) string {

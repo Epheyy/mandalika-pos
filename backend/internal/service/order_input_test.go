@@ -447,3 +447,32 @@ func TestSaleReplayWritesNoStockException(t *testing.T) {
 		t.Fatalf("replay err=%v dup=%v exceptions=%d writes=%d", err, dup, len(tx.exceptions), tx.writes)
 	}
 }
+
+// A44 phase 4: a line whose variant has no product_variants row moves no stock and
+// is recorded as an unresolved_variant exception (not for bundle lines).
+func TestSaleRecordsUnresolvedVariantException(t *testing.T) {
+	for _, offline := range []bool{false, true} {
+		in := shortageInput(2)
+		in.Offline = offline
+		tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
+		_, dup, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+		if err != nil || dup || tx.commits != 1 || tx.stock != 7 || len(tx.exceptions) != 1 {
+			t.Fatalf("offline=%v err=%v dup=%v stock=%d rows=%d", offline, err, dup, tx.stock, len(tx.exceptions))
+		}
+		row := tx.exceptions[0]
+		if row[excArgKind] != "unresolved_variant" || row[excArgQuantity] != 2 || row[excArgShortfall] != 2 ||
+			row[excArgStockBefore].(*int) != nil || row[excArgStockAfter].(*int) != nil {
+			t.Fatalf("row = %v", row)
+		}
+	}
+}
+
+func TestSaleBundleLineWithoutVariantWritesNoException(t *testing.T) {
+	in := shortageInput(1)
+	in.Items[0].IsBundle = true
+	tx := &inputTestTx{allowWrites: true, stock: 7, noVariant: true}
+	_, _, _, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
+	if err != nil || len(tx.exceptions) != 0 {
+		t.Fatalf("bundle line: err=%v rows=%d", err, len(tx.exceptions))
+	}
+}

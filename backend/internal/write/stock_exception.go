@@ -73,3 +73,28 @@ func (r *Repo) AcknowledgeSaleStockExceptions(ctx context.Context, ids []string,
 	}
 	return int(tag.RowsAffected()), nil
 }
+
+// InsertRefundUnresolvedVariant records a refund line whose variant no longer exists
+// (nothing is restocked). The row is built from the order and line so it carries the
+// sale's cashier, shift and time; channel is the refund transport ("" = direct).
+func InsertRefundUnresolvedVariant(ctx context.Context, tx pgx.Tx, orderItemID, channel string) error {
+	if channel != "sync" {
+		channel = "direct"
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO sale_stock_exceptions
+		  (order_id, order_item_id, order_number, outlet_id, product_id, product_name,
+		   variant_size, kind, quantity, shortfall, channel, cashier_id, cashier_name,
+		   shift_id, device_id, sold_at)
+		SELECT o.id, oi.id, o.order_number, o.outlet_id, oi.product_id, oi.product_name,
+		       oi.variant_size, 'refund_unresolved_variant', oi.quantity, oi.quantity, $2,
+		       o.cashier_id, o.cashier_name, o.shift_id, o.device_id,
+		       COALESCE(o.client_created_at, o.created_at)
+		  FROM order_items oi JOIN orders o ON o.id = oi.order_id
+		 WHERE oi.id = $1
+		ON CONFLICT (order_item_id, kind) DO NOTHING`, orderItemID, channel)
+	if err != nil {
+		return fmt.Errorf("insert refund unresolved variant: %w", err)
+	}
+	return nil
+}

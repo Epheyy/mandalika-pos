@@ -432,7 +432,15 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			   WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 FOR UPDATE`,
 			in.OutletID, it.ProductID, it.VariantSize).Scan(&stock)
 		if errors.Is(e, pgx.ErrNoRows) {
-			continue // bundle component or deleted variant — skip, do not fail the sale
+			// Bundle component or deleted/renamed variant: the sale still succeeds and no
+			// stock moves. A44: a non-bundle line is recorded so it is not silently lost,
+			// and RefundTx must not restock it (the sale decremented nothing).
+			if !it.IsBundle {
+				stockExceptions = append(stockExceptions, pendingStockException{
+					line: li, kind: write.StockExceptionUnresolvedVariant, shortfall: it.Quantity,
+				})
+			}
+			continue
 		}
 		if e != nil {
 			return "", false, false, fmt.Errorf("lock variant stock: %w", e)
@@ -821,28 +829,50 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 			}
 		}
 	}
+	// A44: restock exactly what the sale decremented. A line the sale skipped (no
+	// variant at sale time, recorded as unresolved_variant) is never restocked, and a
+	// line whose variant has been deleted since is skipped and recorded instead of
+	// recreating an orphan stock row (or failing the refund on the stock FK).
 	rows, err := tx.Query(ctx,
-		`SELECT product_id, variant_size, quantity FROM order_items WHERE order_id=$1
-		  ORDER BY product_id, variant_size`,
+		`SELECT oi.id, oi.product_id, oi.variant_size, oi.quantity, oi.is_bundle,
+		        EXISTS (SELECT 1 FROM sale_stock_exceptions x
+		                 WHERE x.order_item_id = oi.id AND x.kind = 'unresolved_variant'),
+		        EXISTS (SELECT 1 FROM product_variants pv
+		                 WHERE pv.product_id = oi.product_id AND pv.size = oi.variant_size)
+		   FROM order_items oi WHERE oi.order_id=$1
+		  ORDER BY oi.product_id, oi.variant_size, oi.id`,
 		orderID)
 	if err != nil {
 		return err
 	}
 	type ri struct {
-		pid, size string
-		qty       int
+		itemID, pid, size           string
+		qty                         int
+		isBundle, saleSkipped, live bool
 	}
 	var restock []ri
 	for rows.Next() {
 		var r ri
-		if err := rows.Scan(&r.pid, &r.size, &r.qty); err != nil {
+		if err := rows.Scan(&r.itemID, &r.pid, &r.size, &r.qty, &r.isBundle, &r.saleSkipped, &r.live); err != nil {
 			rows.Close()
 			return err
 		}
 		restock = append(restock, r)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for _, r := range restock {
+		if r.saleSkipped {
+			continue // the sale moved no stock for this line (its exception row says so)
+		}
+		if !r.live && !r.isBundle {
+			if err := write.InsertRefundUnresolvedVariant(ctx, tx, r.itemID, in.Channel); err != nil {
+				return err
+			}
+			continue
+		}
 		if _, err = tx.Exec(ctx,
 			`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
 			   VALUES ($1,$2,$3,$4)
