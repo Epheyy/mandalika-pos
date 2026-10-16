@@ -28,8 +28,15 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
-- **Backend (2026-10-17, release 4 = A44):** revision **`00108-naz`** (100%, tag `rel4`, commit 29f6f1a, migrations through
-  **0055**; rollback = `00106-riq` — additive table, the old revision ignores it). Smoke on the tag: oversell flow 28/28
+- **Backend (2026-10-17, release 5 = A39 CSV import):** revision **`00110-cis`** (100%, tag `rel5`, commit 7392d08, migrations
+  through **0056** `import_runs`; rollback = `00108-naz` — additive table, the old revision ignores it). Smoke on the tag:
+  import flow 21/21 (guards, dup-in-file→422, preview writes nothing, commit applied, same-key replay, different-file 409,
+  formatted-phone dedupe skip, stale 409, throwaway customers deleted), oversell 28/28, release 1/2 18/18, auth 10/12
+  (same two known script-side items; a first run showed 429s from login volume only). Read-only SQL: 0056 applied, the 1
+  stored import_runs row contains none of the smoke's phone/email/name, customers back to 12. Product list cache TTL is
+  15 s and live serves `basePrice` on all variants, so no manual invalidation was needed. Backoffice import dialogs deploy
+  with the next non-skip push. Release 4 was: revision **`00108-naz`** (tag `rel4`, commit 29f6f1a, migrations through
+  **0055**; rollback = `00106-riq`). Smoke on the tag: oversell flow 28/28
   (sale beyond stock → -2 + stockWarning + 1 row; replay no double move; report; acknowledge idempotent; refund restores 0),
   release 1/2 18/18, auth 10/12 (`/healthz` 404 = Cloud Run reserved path, follow-up; sync-pull 403 = smoke script sent no
   X-Outlet-Id, fine with it). Live: /readyz 200 + authed report/open-count 200. Smoke residue on Neon test DB: 1 refunded
@@ -222,16 +229,17 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
         deploy-backend (mig 0055) → smoke (sale beyond stock → negative + 1 row; report; acknowledge) → promote →
         backoffice deploys on the next non-skip push → OTA (`make ota-release VERSION=x.y.z`, targets versionCode 12/APK 2.1)
         for the POS warning, emulator-check it.
-     3. **A39 REVIEWED + MERGED LOCALLY 2026-10-17 (merge 6d1082c; NOT pushed/deployed; awaiting owner go-ahead for release 5 /
-        mig 0056).** Two parallel Opus reviews + a re-review found no data-destroying bug; fixed: rename vs in-flight
+     3. **A39 LIVE 2026-10-17: backend rev 00110-cis (mig 0056, commit 7392d08), import_runs stores a REDACTED report (owner:
+        "redact"; message was cut off after that word, so the other two owner decisions below stay at plan behaviour until
+        answered); backoffice dialogs deploy with the next non-skip push. USER-PENDING: on-screen walkthrough of the
+        Import/Template dialogs for Customers, Products, Ingredients (backoffice).** Two parallel Opus reviews + a re-review found no data-destroying bug; fixed: rename vs in-flight
         transfers/stock counts (size_in_flight, re-checked inside the apply tx), concurrent-edit guard (409), lock order +
         retryBusy, phone normalization on stored side, per-route deadlines + max 2 concurrent imports (429), scientific-notation
         barcodes/SKUs, export BASE price (new `basePrice` on variants) + update-row reasons, leading-zero rupiah ambiguity, new
         category counts as change, dialog guards. Verified on merged tree: IM ×3 + full PG gate 19/19 (no -race), go test,
         both gen checks, quality:ci, browser:ci (implementer). Release-5 notes: invalidate the product-list cache once after
         deploy (cached lists lack basePrice → outlet-scoped export falls back to the override price until expiry). OPEN OWNER
-        DECISIONS: (a) `import_runs.result` keeps up to 5,000 issue values incl. customer phone/email/name with no retention —
-        redact? (b) may an import re-create a merged-away customer whose phone differs from the keeper's (plan D5 says yes)?
+        DECISIONS: (a) RESOLVED 2026-10-17: import_runs.result is stored redacted (no phone/email/name values; customer row keys blanked). (b) may an import re-create a merged-away customer whose phone differs from the keeper's (plan D5 says yes)?
         (c) ingredient rows with no SKU + a new SKU create duplicates (plan D5). Backlog: UpdateProduct form rename leaves
         warehouse stock + ignores open documents; functional index on normalized phone if customers >~100k; transfer/stock-count
         create paths do not validate the variant exists; variant-level promo/loyalty/bundle selectors not re-keyed on rename;
