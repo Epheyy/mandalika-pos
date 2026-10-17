@@ -27,7 +27,6 @@ func TestMaybeSweepErrorLogsIsThrottled(t *testing.T) {
 // Body/shape rejections happen before any caller or database lookup, so a bare
 // Handlers value is enough.
 func TestCreateErrorLogsRejectsBadInput(t *testing.T) {
-	item := `{"source":"sync","message":"m"}`
 	cases := []struct {
 		name string
 		body string
@@ -36,7 +35,6 @@ func TestCreateErrorLogsRejectsBadInput(t *testing.T) {
 		{"oversize body", `{"items":[{"source":"sync","message":"` + strings.Repeat("a", errorLogsBodyLimit) + `"}]}`, http.StatusRequestEntityTooLarge},
 		{"malformed JSON", `{"items":[`, http.StatusBadRequest},
 		{"wrong shape", `{"items":"nope"}`, http.StatusBadRequest},
-		{"too many items", `{"items":[` + strings.Repeat(item+",", maxErrorLogItems) + item + `]}`, http.StatusBadRequest},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

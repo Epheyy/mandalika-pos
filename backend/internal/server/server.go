@@ -22,6 +22,7 @@ import (
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/observability"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/redact"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/uploads"
@@ -341,7 +342,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 // sentryRecoverer recovers panics, ships them to error tracking, logs a
 // structured error, and returns 500 — replacing chi's plain Recoverer so
 // crashes are observable in production instead of only on stdout.
-func sentryRecoverer(s *observability.Sentry, wr *write.Repo) func(http.Handler) http.Handler {
+// errorLogSink is where recovered panics are persisted (write.Repo in production).
+type errorLogSink interface {
+	InsertErrorLogs(ctx context.Context, logs []write.ErrorLog) error
+}
+
+func sentryRecoverer(s *observability.Sentry, wr errorLogSink) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -351,7 +357,7 @@ func sentryRecoverer(s *observability.Sentry, wr *write.Repo) func(http.Handler)
 						err = fmt.Errorf("panic: %v", rec)
 					}
 					reqID := chimw.GetReqID(r.Context())
-					slog.Error("panic recovered", "err", err, "path", r.URL.Path, "request_id", reqID)
+					slog.Error("panic recovered", "err", redact.String(err.Error(), redact.Logs), "path", r.URL.Path, "request_id", reqID)
 					s.CaptureError(r.Context(), err, map[string]string{
 						"path": r.URL.Path, "request_id": reqID,
 					})

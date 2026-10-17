@@ -93,7 +93,7 @@ func (s *Sentry) CaptureError(ctx context.Context, err error, tags map[string]st
 		"tags":        tags,
 		// Same redactor as error_logs (A37): panic text can carry customer data or tokens.
 		"message": redact.String(err.Error(), redact.Logs),
-		"extra":   map[string]any{"stacktrace": redact.String(string(buf[:n]), redact.Logs)},
+		"extra":   map[string]any{"stacktrace": redact.Stack(string(buf[:n]))},
 	}
 	body, mErr := json.Marshal(event)
 	if mErr != nil {

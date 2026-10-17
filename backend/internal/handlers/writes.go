@@ -1219,10 +1219,11 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, map[string]any{"data": nullableShift(v)})
 }
 
-// Limits for POST /error-logs. The tablet sends small batches (it chunks at 10);
-// anything beyond these is refused whole rather than partially stored.
+// Limits for POST /error-logs. Old POS bundles send every dead letter in one call, so a
+// big report is not dropped for its size: the body may reach 1 MiB (413 beyond) and the
+// first maxErrorLogItems items are kept (the rest are ignored, never an error).
 const (
-	errorLogsBodyLimit = 256 << 10
+	errorLogsBodyLimit = 1 << 20
 	maxErrorLogItems   = 50
 )
 
@@ -1255,8 +1256,7 @@ func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(body.Items) > maxErrorLogItems {
-		httpx.Err(w, http.StatusBadRequest, "too many error log items")
-		return
+		body.Items = body.Items[:maxErrorLogItems]
 	}
 	c, _ := h.caller(r)
 	logs := make([]write.ErrorLog, 0, len(body.Items))
@@ -1282,17 +1282,18 @@ func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.maybeSweepErrorLogs()
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "accepted": len(logs)})
 }
 
-// Error-log retention: at most one sweep per instance per interval, started from
-// POST /error-logs (the request still has CPU; Cloud Run throttles idle instances,
-// so no ticker). The startup sweep in cmd/server covers quiet periods.
+// Error-log retention: at most one sweep per instance per interval, run inline after the
+// insert (a request has CPU; Cloud Run throttles idle instances, so a detached goroutine
+// could stall) and bounded by a short context. The startup sweep in cmd/server covers
+// quiet periods.
 const (
 	errorLogSweepInterval = time.Hour
 	errorLogSweepBatch    = 1000
 	errorLogSweepBatches  = 20
-	errorLogSweepBudget   = 30 * time.Second
+	errorLogSweepBudget   = 3 * time.Second
 )
 
 func (h *Handlers) maybeSweepErrorLogs() {
@@ -1301,17 +1302,15 @@ func (h *Handlers) maybeSweepErrorLogs() {
 	if now-last < int64(errorLogSweepInterval) || !h.lastErrorLogSweep.CompareAndSwap(last, now) {
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), errorLogSweepBudget)
-		defer cancel()
-		n, skipped, err := h.Write.SweepErrorLogs(ctx, errorLogSweepBatch, errorLogSweepBatches)
-		switch {
-		case err != nil:
-			slog.Warn("error_log_sweep_failed", "err", err)
-		case n > 0:
-			slog.Info("error_log_sweep", "deleted", n, "skipped", skipped)
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), errorLogSweepBudget)
+	defer cancel()
+	n, skipped, err := h.Write.SweepErrorLogs(ctx, errorLogSweepBatch, errorLogSweepBatches)
+	switch {
+	case err != nil:
+		slog.Warn("error_log_sweep_failed", "err", err)
+	case n > 0:
+		slog.Info("error_log_sweep", "deleted", n, "skipped", skipped)
+	}
 }
 
 func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {

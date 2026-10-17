@@ -5,14 +5,13 @@
 #
 #   TARGET_DATABASE_URL=postgres://... ./scripts/db-restore.sh path/to.dump
 set -euo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dsn-label.sh"
 
 : "${TARGET_DATABASE_URL:?set TARGET_DATABASE_URL (the database to restore INTO)}"
 DUMP="${1:?usage: db-restore.sh <dump-file>}"
 [ -f "$DUMP" ] || { echo "no such dump: $DUMP" >&2; exit 1; }
 
-# Log host/port/db only: the URL carries the password.
-target="${TARGET_DATABASE_URL#*://}"; target="${target#*@}"; target="${target%%\?*}"
-echo "Restoring $DUMP -> $target"
+echo "Restoring $DUMP -> $(dsn_label "$TARGET_DATABASE_URL")"
 pg_restore --clean --if-exists --no-owner --no-acl \
   -d "$TARGET_DATABASE_URL" "$DUMP"
 

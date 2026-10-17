@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/handlers"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -66,8 +69,8 @@ func TestErrorLogsPostgres(t *testing.T) {
 			t.Fatalf("post: %d %s", w.Code, w.Body.String())
 		}
 		assertClean(t, `device_id='dev-el'`)
-		if rows(`device_id='dev-el' AND payload->>'nul'='ab' AND payload ? 'lone'`) != 1 {
-			t.Fatal("NUL must be stripped and a lone surrogate stored as U+FFFD")
+		if rows(`device_id='dev-el' AND payload->>'nul'='ab' AND payload->>'lone'=chr(65533)`) != 1 {
+			t.Fatal("NUL must be stripped and the lone surrogate stored as exactly U+FFFD")
 		}
 		if rows(`device_id='dev-el' AND payload::text LIKE '%ord-1%'`) != 1 {
 			t.Fatal("non-sensitive ids must survive redaction")
@@ -98,9 +101,9 @@ func TestErrorLogsPostgres(t *testing.T) {
 		}
 	})
 
-	t.Run("oversize and malformed batches are refused whole", func(t *testing.T) {
+	t.Run("oversize (over 1 MiB) and malformed batches are refused whole", func(t *testing.T) {
 		before := rows(`true`)
-		big := fmt.Sprintf(`{"items":[{"source":"sync","message":"%s"}]}`, strings.Repeat("a", 300<<10))
+		big := fmt.Sprintf(`{"items":[{"source":"sync","message":"%s"}]}`, strings.Repeat("a", 1200<<10))
 		if w := g.call(srv, "POST", "/api/v1/error-logs", big, cash, g.nextIP()); w.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("oversize: %d", w.Code)
 		}
@@ -110,6 +113,48 @@ func TestErrorLogsPostgres(t *testing.T) {
 		if rows(`true`) != before {
 			t.Fatal("refused batches must store nothing")
 		}
+	})
+
+	t.Run("more than 50 items keep the first 50 and say how many were accepted", func(t *testing.T) {
+		items := make([]any, 55)
+		for i := range items {
+			items[i] = map[string]any{"source": "sync", "message": fmt.Sprintf("many-%02d", i), "deviceId": "dev-many"}
+		}
+		raw, _ := json.Marshal(map[string]any{"items": items})
+		w := g.call(srv, "POST", "/api/v1/error-logs", string(raw), cash, g.nextIP())
+		var env struct {
+			OK       bool `json:"ok"`
+			Accepted int  `json:"accepted"`
+		}
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &env) != nil || !env.OK || env.Accepted != 50 {
+			t.Fatalf("post: %d %s", w.Code, w.Body.String())
+		}
+		if rows(`device_id='dev-many'`) != 50 || rows(`message='many-49'`) != 1 || rows(`message='many-50'`) != 0 {
+			t.Fatal("exactly the first 50 items must be stored")
+		}
+	})
+
+	t.Run("a POST triggers the due sweep inline, once per interval", func(t *testing.T) {
+		h := handlers.New(read.New(pool), nil, auth.NewStore(pool), wr, nil, nil, nil)
+		post := func(msg string) int {
+			body := fmt.Sprintf(`{"items":[{"source":"runtime","message":%q}]}`, msg)
+			w := httptest.NewRecorder()
+			h.CreateErrorLogs(w, httptest.NewRequest("POST", "/error-logs", strings.NewReader(body)))
+			return w.Code
+		}
+		g.exec(`INSERT INTO error_logs(source,message,created_at) VALUES('runtime','post-sweep-old-1', now() - interval '65 days')`)
+		if post("not-due") != 200 || rows(`message='post-sweep-old-1'`) != 1 {
+			t.Fatal("a fresh handler must not sweep on its first POST (startup already did)")
+		}
+		handlers.ExpireErrorLogSweep(h)
+		if post("due") != 200 || rows(`message='post-sweep-old-1'`) != 0 {
+			t.Fatal("the due POST must sweep before returning")
+		}
+		g.exec(`INSERT INTO error_logs(source,message,created_at) VALUES('runtime','post-sweep-old-2', now() - interval '65 days')`)
+		if post("throttled") != 200 || rows(`message='post-sweep-old-2'`) != 1 {
+			t.Fatal("a second POST inside the interval must not sweep")
+		}
+		g.exec(`DELETE FROM error_logs WHERE message='post-sweep-old-2'`)
 	})
 
 	t.Run("read omits rows older than 60 days", func(t *testing.T) {

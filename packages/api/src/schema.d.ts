@@ -3491,6 +3491,10 @@ export interface components {
         OkResponse: {
             ok: boolean;
         };
+        ErrorLogAcceptedResponse: {
+            ok: boolean;
+            accepted: number;
+        };
         OrderItemInput: {
             productId: string;
             productName: string;
@@ -7934,13 +7938,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description recorded */
+            /** @description recorded (at most the first 50 items are kept; `accepted` says how many were stored) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OkResponse"];
+                    "application/json": components["schemas"]["ErrorLogAcceptedResponse"];
                 };
             };
         };

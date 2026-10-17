@@ -177,7 +177,7 @@ handled, by the previous bundle and by the APK's builtin.
 - Portable copy: `DATABASE_URL=<prod> ./scripts/db-backup.sh`, restore with
   `TARGET_DATABASE_URL=<target> ./scripts/db-restore.sh <dump>`. Compare the
   printed row counts. Backups hold PII and stay out of git.
-- `db-restore.sh` logs only host/port/database, never the connection string.
+- `db-restore.sh` logs only host/port/database for a URL DSN and a fixed placeholder for any other form, never the connection string (`scripts/dsn-label.test.sh` proves it with fake DSNs).
 - Off-host, scheduled, locked backups are **not built yet**: see
   `docs/plans/2026-10-15-a36-backup-build-plan.md`.
 
