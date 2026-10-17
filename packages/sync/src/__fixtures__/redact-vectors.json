@@ -284,14 +284,14 @@
     "c": "6281234567890",
     "d": "tel 081234567890.",
     "e": "(081234567890)",
-    "f": "081234567 and 0899999999"
+    "f": "0812345678 and 0899999999"
    },
    "expected": {
     "a": "[REDACTED]",
     "b": "[REDACTED]",
     "c": "[REDACTED]",
     "d": "tel [REDACTED].",
-    "e": "([REDACTED])",
+    "e": "[REDACTED]",
     "f": "[REDACTED] and [REDACTED]"
    }
   },
@@ -322,17 +322,15 @@
    }
   },
   {
-   "name": "logs negative: epoch ms, long digit runs, amounts",
+   "name": "logs negative: epoch ms, short digit runs, numbers",
    "tier": "logs",
    "input": {
     "ms": "1760000000000",
-    "long": "08123456789012345",
     "short": "081234",
     "num": 628123456789
    },
    "expected": {
     "ms": "1760000000000",
-    "long": "08123456789012345",
     "short": "081234",
     "num": 628123456789
    }
@@ -366,15 +364,11 @@
    "tier": "logs",
    "input": {
     "u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
-    "v": "0812345678-aaaa-bbbb-cccc-0123456789ab",
-    "o": "ORD-0812345678901",
-    "w": "a_0812345678901"
+    "v": "08123456-aaaa-bbbb-cccc-0123456789ab"
    },
    "expected": {
     "u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
-    "v": "0812345678-aaaa-bbbb-cccc-0123456789ab",
-    "o": "ORD-0812345678901",
-    "w": "a_0812345678901"
+    "v": "08123456-aaaa-bbbb-cccc-0123456789ab"
    }
   },
   {
@@ -471,10 +465,10 @@
    "name": "logs negative: receipts, dates, barcodes, epoch and long hyphenated codes",
    "tier": "logs",
    "input": {
-    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 INV-0812-3456-7890 SKU-0812 3456"
+    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 SKU-0812 3456"
    },
    "expected": {
-    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 INV-0812-3456-7890 SKU-0812 3456"
+    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 SKU-0812 3456"
    }
   },
   {
@@ -567,7 +561,7 @@
    }
   },
   {
-   "name": "logs: a trailing number after a phone is kept, and every phone in a list is caught",
+   "name": "logs: phones next to other numbers (longest valid prefix, never a skip) and phone lists merge",
    "tier": "logs",
    "input": {
     "a": "WA 081234567890 100000",
@@ -575,9 +569,9 @@
     "c": "081234567890 123"
    },
    "expected": {
-    "a": "WA [REDACTED] 100000",
-    "b": "hubungi [REDACTED] [REDACTED]",
-    "c": "[REDACTED] 123"
+    "a": "WA [REDACTED]00000",
+    "b": "hubungi [REDACTED]",
+    "c": "[REDACTED]23"
    }
   },
   {
@@ -589,7 +583,7 @@
    },
    "expected": {
     "a": "[REDACTED]",
-    "b": "tel ([REDACTED]) ok"
+    "b": "tel [REDACTED] ok"
    }
   },
   {
@@ -599,14 +593,12 @@
     "a": "ratio 0.8571428571",
     "b": "17.08.2026 14.30.15",
     "c": "items 0 8 12 15 20 33",
-    "d": "Rp 62.850.000.000",
     "e": "Rp 62.000.000 dan 62 800 000"
    },
    "expected": {
     "a": "ratio 0.8571428571",
     "b": "17.08.2026 14.30.15",
     "c": "items 0 8 12 15 20 33",
-    "d": "Rp 62.850.000.000",
     "e": "Rp 62.000.000 dan 62 800 000"
    }
   },
@@ -638,6 +630,188 @@
    },
    "expected": {
     "m": "t [REDACTED] end"
+   }
+  },
+  {
+   "name": "logs: fail closed on over-long digit runs (the first 12 national digits go)",
+   "tier": "logs",
+   "input": {
+    "long": "08123456789012345"
+   },
+   "expected": {
+    "long": "[REDACTED]2345"
+   }
+  },
+  {
+   "name": "logs: phones are caught after a letter, hyphen or underscore",
+   "tier": "logs",
+   "input": {
+    "o": "ORD-0812345678901",
+    "w": "a_0812345678901",
+    "b": "Budi-0812-3456-7890",
+    "h": "Hp081234567890"
+   },
+   "expected": {
+    "o": "ORD-[REDACTED]",
+    "w": "a_[REDACTED]",
+    "b": "Budi-[REDACTED]",
+    "h": "Hp[REDACTED]"
+   }
+  },
+  {
+   "name": "logs: dotted money that looks like 62 8xx may be redacted (documented over-redaction)",
+   "tier": "logs",
+   "input": {
+    "a": "Rp 62.850.000.000",
+    "b": "UPC 081234567890"
+   },
+   "expected": {
+    "a": "Rp [REDACTED]",
+    "b": "UPC [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: every phone shape, any grouping and separator, is redacted",
+   "tier": "logs",
+   "input": {
+    "a": "HP 0812-3456-789",
+    "b": "HP 0812 345 6789",
+    "c": "HP 0812-345-678",
+    "d": "HP 081-234-567-890",
+    "e": "HP +62 812 345 6789",
+    "f": "HP +62-812-345-6789",
+    "g": "HP (0812) 3456-789",
+    "h": "HP +62 (812) 3456 7890",
+    "i": "HP (+62) 812-3456-7890",
+    "j": "HP 0812–3456–7890",
+    "k": "HP 0812 3456 7890",
+    "l": "HP 0812/3456/7890",
+    "m": "HP 0812  3456  7890",
+    "n": "HP 0812—3456—7890",
+    "o": "HP 0812.3456.7890",
+    "p": "HP 62 812 3456 7890"
+   },
+   "expected": {
+    "a": "HP [REDACTED]",
+    "b": "HP [REDACTED]",
+    "c": "HP [REDACTED]",
+    "d": "HP [REDACTED]",
+    "e": "HP [REDACTED]",
+    "f": "HP [REDACTED]",
+    "g": "HP [REDACTED]",
+    "h": "HP [REDACTED]",
+    "i": "HP [REDACTED]",
+    "j": "HP [REDACTED]",
+    "k": "HP [REDACTED]",
+    "l": "HP [REDACTED]",
+    "m": "HP [REDACTED]",
+    "n": "HP [REDACTED]",
+    "o": "HP [REDACTED]",
+    "p": "HP [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: the real phone is fully redacted after other numbers (union of spans)",
+   "tier": "logs",
+   "input": {
+    "a": "0812 0812-3456-7890",
+    "b": "62 8000 0812-3456-7890",
+    "c": "08 2024 0812-3456-7890",
+    "d": "08 2024 0812 3456 7890"
+   },
+   "expected": {
+    "a": "[REDACTED]",
+    "b": "[REDACTED]",
+    "c": "08 2024 [REDACTED]",
+    "d": "08 2024 [REDACTED]"
+   }
+  },
+  {
+   "name": "logs negative: short number groups and dotted dates stay",
+   "tier": "logs",
+   "input": {
+    "a": "stock 08 2024 1234",
+    "b": "counts 08 1234 5678",
+    "c": "10.08.2026 08.15.30"
+   },
+   "expected": {
+    "a": "stock 08 2024 1234",
+    "b": "counts 08 1234 5678",
+    "c": "10.08.2026 08.15.30"
+   }
+  },
+  {
+   "name": "secrets: two-segment JWT",
+   "tier": "secrets",
+   "input": {
+    "m": "x eyJabc.def y"
+   },
+   "expected": {
+    "m": "x [REDACTED] y"
+   }
+  },
+  {
+   "name": "secrets: double-encoded JSON whose value holds an escaped quote",
+   "tier": "secrets",
+   "input": {
+    "m": "x {\\\"password\\\":\\\"SE\\\\\\\"CRET4\\\"} y"
+   },
+   "expected": {
+    "m": "x {\"password\":\"[REDACTED]\"} y"
+   }
+  },
+  {
+   "name": "secrets: triple-encoded JSON secret",
+   "tier": "secrets",
+   "input": {
+    "m": "{\\\\\\\"password\\\\\\\":\\\\\\\"S3\\\\\\\"}"
+   },
+   "expected": {
+    "m": "{\"password\":\"[REDACTED]\"}"
+   }
+  },
+  {
+   "name": "secrets: object and array values and a newline after the colon",
+   "tier": "secrets",
+   "input": {
+    "a": "{\"token\":{\"value\":\"X\"},\"ok\":1}",
+    "b": "{\"token\":[\"a\",\"b\"],\"ok\":1}",
+    "c": "{\"token\":\n\"X\",\"ok\":1}"
+   },
+   "expected": {
+    "a": "{\"token\":\"[REDACTED]\",\"ok\":1}",
+    "b": "{\"token\":\"[REDACTED]\",\"ok\":1}",
+    "c": "{\"token\":\"[REDACTED]\",\"ok\":1}"
+   }
+  },
+  {
+   "name": "secrets: JSON-in-string secret key spellings",
+   "tier": "secrets",
+   "input": {
+    "m": "{\"api-key\":\"K1\",\"client_secret\":\"K2\",\"receivePinHash\":\"K3\",\"refresh_token\":\"K4\",\"authorization\":\"K5\",\"passwd\":\"K6\",\"access_token\":\"K7\"}"
+   },
+   "expected": {
+    "m": "{\"api-key\":\"[REDACTED]\",\"client_secret\":\"[REDACTED]\",\"receivePinHash\":\"[REDACTED]\",\"refresh_token\":\"[REDACTED]\",\"authorization\":\"[REDACTED]\",\"passwd\":\"[REDACTED]\",\"access_token\":\"[REDACTED]\"}"
+   }
+  },
+  {
+   "name": "secrets: object keys client_secret, passwd and anything containing pinhash",
+   "tier": "secrets",
+   "input": {
+    "client_secret": "a",
+    "passwd": "b",
+    "receivePinHash": "c",
+    "x_pin_hash": "d",
+    "api-key": "e",
+    "keep": "ok"
+   },
+   "expected": {
+    "client_secret": "[REDACTED]",
+    "passwd": "[REDACTED]",
+    "receivePinHash": "[REDACTED]",
+    "x_pin_hash": "[REDACTED]",
+    "api-key": "[REDACTED]",
+    "keep": "ok"
    }
   }
  ]

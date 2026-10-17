@@ -20,7 +20,7 @@ export type RedactTier = 'secrets' | 'logs'
 
 const SECRET_KEYS = new Set([
   'pin', 'pinhash', 'password', 'token', 'accesstoken', 'refreshtoken',
-  'authorization', 'cookie', 'secret', 'apikey',
+  'authorization', 'cookie', 'secret', 'apikey', 'passwd', 'clientsecret',
 ])
 const PII_KEYS = new Set([
   'phone', 'email', 'customerphone', 'customeremail', 'customername', 'address', 'nik',
@@ -45,16 +45,12 @@ const TRUNCATED_SUFFIX = '...[truncated]'
 // are bounded (RE2 allows at most 1000) so adversarial input cannot backtrack.
 const BEARER_RE = /Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+/gi
 const BASIC_RE = /(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}/gi
-// JWT segments are unbounded: the logs-tier pre-cut (4x the cap) bounds the input.
-const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g
-// JSON inside a string: plain or backslash-escaped (double-encoded) quotes, and a value that is a
-// whole string literal (escaped quotes inside it included), a number or a bare word.
-const JSON_SECRET_RE = /\\?"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)\\?"[ \t]*:[ \t]*(?:\\"(?:[^"\\]|\\[^"])*\\"|"(?:[^"\\]|\\.)*"|[^,}\] \t\r\n"\\]+)/gi
 const URL_SECRET_RE = /((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*/gi
 const EMAIL_RE = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}/g
-// '-' and '_' count as word characters so UUID/receipt fragments are never mistaken for phone numbers.
-const WORD_CHAR_RE = /[0-9A-Za-z_-]/
 const NUL_RE = /\0/g
+
+/** Credential keys: exact names plus anything containing pinhash (receivePinHash, pin_hash...). */
+const isSecretKey = (nk: string): boolean => SECRET_KEYS.has(nk) || nk.includes('pinhash')
 
 function normKey(k: string): string {
   return k.toLowerCase().replace(/[_-]/g, '')
@@ -80,62 +76,194 @@ function exceedsCodePoints(s: string, n: number): boolean {
 }
 
 const isDigit = (c: string): boolean => c >= '0' && c <= '9'
-const isPhoneSep = (c: string): boolean => c === ' ' || c === '.' || c === '-'
-const isWordChar = (c: string): boolean => WORD_CHAR_RE.test(c)
+const isB64 = (c: string): boolean => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_' || c === '-'
+// Separators a phone number may be written with (NBSP, en/em dash included).
+const PHONE_SEPS = new Set([' ', '\t', '.', '-', '–', '—', '/', '(', ')', ' '])
+const isPhoneSep = (c: string): boolean => PHONE_SEPS.has(c)
+
+const PHONE_LOOKAHEAD = 40 // characters examined per candidate: keeps the scan linear
+const PHONE_CHAIN_LOOKAHEAD = 80
+const PHONE_MIN_NATIONAL = 9
+const PHONE_MAX_NATIONAL = 12
+const CODE_CHAIN_DIGITS = 20
 
 /**
- * Replace Indonesian phone numbers: a prefix (0, 62 or +62) directly followed by 8 (one separator
- * may sit between 62/+62 and the 8), then further digit runs of at least 4 digits joined by ONE
- * separator (space, dot, hyphen, or ")" with an optional space). Total digits must be
- * prefix+1+7 .. prefix+1+12. Whole runs only: when the next run would exceed the maximum the
- * number ends there, but it must then be followed by a non-word character ('-' counts as a word
- * character, so a long hyphenated code is never cut). The Go twin implements the same scanner.
+ * The span [begin, end) of an Indonesian phone number starting at the token boundary i, or null.
+ * FAIL CLOSED: a prefix (0 directly before the 8, or 62/+62 with up to two separators before it)
+ * then digits and separators (at most two separators in a row, no minimum group size) until the
+ * national digits (from the 8) reach 12; the LONGEST prefix ending on a digit with 9..12 national
+ * digits is taken. Exception: a '-'/'.' joined chain of 20+ digits whose candidate would end inside
+ * it is a barcode-like code and stays. The Go twin implements the same scanner.
  */
+function phoneSpanAt(s: string, i: number): [number, number] | null {
+  const n = s.length
+  let begin = i
+  let q: number
+  let closeSeen = false
+  if (s[i] === '6' && s[i + 1] === '2') {
+    q = i + 2
+    if (i > 0 && s[i - 1] === '+') begin = i - 1
+    let seps = 0
+    while (seps < 2 && q < n && isPhoneSep(s[q])) {
+      if (s[q] === ')') closeSeen = true
+      q++
+      seps++
+    }
+  } else if (s[i] === '0' && s[i + 1] === '8' && i + 2 < n && isDigit(s[i + 2])) {
+    q = i + 1
+  } else {
+    return null
+  }
+  if (s[q] !== '8') return null
+  let nd = 0
+  let validEnd = -1
+  let validClose = false
+  let sepRun = 0
+  const limit = Math.min(n, i + PHONE_LOOKAHEAD)
+  for (let j = q; j < limit; j++) {
+    const c = s[j]
+    if (isDigit(c)) {
+      nd++
+      if (nd > PHONE_MAX_NATIONAL) break
+      sepRun = 0
+      if (nd >= PHONE_MIN_NATIONAL) {
+        validEnd = j + 1
+        validClose = closeSeen
+      }
+    } else if (isPhoneSep(c)) {
+      if (++sepRun > 2) break
+      if (c === ')') closeSeen = true
+    } else {
+      break
+    }
+  }
+  if (validEnd < 0) return null
+  // Barcode-like chain: 20+ digits joined by single '-' or '.', candidate ends inside it.
+  let digits = 0
+  let k = i
+  const chainLimit = Math.min(n, i + PHONE_CHAIN_LOOKAHEAD)
+  while (k < chainLimit) {
+    if (isDigit(s[k])) { digits++; k++ }
+    else if ((s[k] === '-' || s[k] === '.') && k > i && k + 1 < n && isDigit(s[k + 1])) k++
+    else break
+  }
+  if (digits >= CODE_CHAIN_DIGITS && validEnd < k) return null
+  let end = validEnd
+  if (begin > 0 && s[begin - 1] === '(') {
+    if (validClose) begin--
+    else if (end < n && s[end] === ')') { begin--; end++ }
+  }
+  return [begin, end]
+}
+
+/** Redact the UNION of every phone span (candidates at every token boundary), merging touching ones. */
 function redactPhones(s: string): string {
+  const n = s.length
   let out = ''
   let last = 0
-  let i = 0
-  const n = s.length
-  while (i < n) {
-    if (i > 0 && isWordChar(s[i - 1])) { i++; continue }
-    let pdig = 0
-    let q = i
-    if (s.startsWith('+62', i)) { pdig = 2; q = i + 3 }
-    else if (s.startsWith('62', i)) { pdig = 2; q = i + 2 }
-    else if (s[i] === '0') { pdig = 1; q = i + 1 }
-    else { i++; continue }
-    if (pdig === 2 && q < n && isPhoneSep(s[q])) q++
-    if (q >= n || s[q] !== '8') { i++; continue }
-    const maxDigits = pdig + 1 + 12
-    const minDigits = pdig + 1 + 7
-    let r = q
-    while (r < n && isDigit(s[r])) r++
-    let digits = pdig + (r - q)
-    let end = r
-    let paren = false
-    if (digits > maxDigits) { i = end; continue }
-    while (end < n) {
-      let sepEnd = -1
-      let isParen = false
-      if (isPhoneSep(s[end])) sepEnd = end + 1
-      else if (s[end] === ')') {
-        sepEnd = end + 1
-        isParen = true
-        if (sepEnd < n && s[sepEnd] === ' ') sepEnd++
-      }
-      if (sepEnd < 0) break
-      let v = sepEnd
-      while (v < n && isDigit(s[v])) v++
-      if (v - sepEnd < 4 || digits + (v - sepEnd) > maxDigits) break
-      digits += v - sepEnd
-      end = v
-      paren = paren || isParen
+  let curB = -1
+  let curE = -1
+  for (let i = 0; i < n; i++) {
+    if (!isDigit(s[i]) || (i > 0 && isDigit(s[i - 1]))) continue
+    const span = phoneSpanAt(s, i)
+    if (!span) continue
+    if (curB >= 0 && span[0] <= curE) {
+      curB = Math.min(curB, span[0])
+      curE = Math.max(curE, span[1])
+    } else {
+      if (curB >= 0) { out += s.slice(last, curB) + REDACTED; last = curE }
+      curB = span[0]
+      curE = span[1]
     }
-    if (digits < minDigits || (end < n && isWordChar(s[end]))) { i = end; continue }
-    const begin = paren && i > 0 && s[i - 1] === '(' ? i - 1 : i
-    out += s.slice(last, begin) + REDACTED
+  }
+  if (curB >= 0) { out += s.slice(last, curB) + REDACTED; last = curE }
+  return out + s.slice(last)
+}
+
+/** JWTs (two or three base64url segments starting eyJ), one linear pass. */
+function redactJwts(s: string): string {
+  const n = s.length
+  let out = ''
+  let last = 0
+  let from = 0
+  for (;;) {
+    const st = s.indexOf('eyJ', from)
+    if (st < 0) break
+    let p = st + 3
+    while (p < n && isB64(s[p])) p++
+    if (p === st + 3 || p >= n || s[p] !== '.') { from = Math.max(p, st + 3); continue }
+    let q = p + 1
+    while (q < n && isB64(s[q])) q++
+    if (q === p + 1) { from = q; continue }
+    let end = q
+    if (q < n && s[q] === '.') {
+      end = q + 1
+      while (end < n && isB64(s[end])) end++
+    }
+    out += s.slice(last, st) + REDACTED
     last = end
-    i = end
+    from = end
+  }
+  return out + s.slice(last)
+}
+
+/**
+ * Where the value after a secret key's colon ends (exclusive), starting at pos. `escaped` is true
+ * when the key itself was written with backslash-escaped quotes (JSON inside JSON): values are then
+ * delimited by the same number of backslashes. Unterminated values run to the end of the string.
+ */
+function jsonValueEnd(s: string, pos: number, escaped: boolean): number {
+  const n = s.length
+  if (pos >= n) return pos
+  const c = s[pos]
+  if (c === '{' || c === '[') {
+    let depth = 0
+    let inStr = false
+    for (let i = pos; i < n; i++) {
+      const d = s[i]
+      if (!escaped && inStr) {
+        if (d === '\\') i++
+        else if (d === '"') inStr = false
+        continue
+      }
+      if (!escaped && d === '"') inStr = true
+      else if (d === '{' || d === '[') depth++
+      else if (d === '}' || d === ']') { if (--depth === 0) return i + 1 }
+    }
+    return n
+  }
+  let k = 0
+  while (pos + k < n && s[pos + k] === '\\') k++
+  if (pos + k < n && s[pos + k] === '"') {
+    for (let i = pos + k + 1; i < n; i++) {
+      if (s[i] !== '"') continue
+      let r = 0
+      while (i - 1 - r > pos + k && s[i - 1 - r] === '\\') r++
+      if (k === 0 ? r % 2 === 0 : r === k) return i + 1
+    }
+    return n
+  }
+  let e = pos
+  while (e < n && !',}] \t\r\n"\\'.includes(s[e])) e++
+  return e
+}
+
+// Key + colon of a secret entry inside a string that holds JSON (possibly escaped up to 3 levels).
+const JSON_KEY_RE = /(\\{0,3})"([A-Za-z0-9_-]{0,40}pin[_-]?hash[A-Za-z0-9_-]{0,40}|pin|passwd|password|token|access[_-]?token|refresh[_-]?token|authorization|cookie|secret|client[_-]?secret|api[_-]?key|apikey)(\\{0,3})"[ \t\r\n]*:[ \t\r\n]*/gi
+
+function redactJsonSecrets(s: string): string {
+  let out = ''
+  let last = 0
+  JSON_KEY_RE.lastIndex = 0
+  for (;;) {
+    const m = JSON_KEY_RE.exec(s)
+    if (!m) break
+    const valStart = m.index + m[0].length
+    const end = jsonValueEnd(s, valStart, m[1].length > 0)
+    if (end <= valStart) { JSON_KEY_RE.lastIndex = valStart; continue }
+    out += s.slice(last, m.index) + `"${m[2]}":"${REDACTED}"`
+    last = end
+    JSON_KEY_RE.lastIndex = end
   }
   return out + s.slice(last)
 }
@@ -155,11 +283,9 @@ function utf8Len(s: string): number {
 function redactStr(s: string, tier: RedactTier, skipPhone: boolean, capCP: number): string {
   let out = s.replace(NUL_RE, '')
   if (tier === 'logs') out = cutCodePoints(out, capCP * PRE_CUT_FACTOR)
-  out = out
+  out = redactJsonSecrets(redactJwts(out
     .replace(BEARER_RE, `Bearer ${REDACTED}`)
-    .replace(BASIC_RE, `$1Basic ${REDACTED}`)
-    .replace(JWT_RE, REDACTED)
-    .replace(JSON_SECRET_RE, `"$1":"${REDACTED}"`)
+    .replace(BASIC_RE, `$1Basic ${REDACTED}`)))
     .replace(URL_SECRET_RE, `$1${REDACTED}`)
   if (tier !== 'logs') return out
   out = out.replace(EMAIL_RE, REDACTED)
@@ -242,7 +368,7 @@ function walk(v: unknown, depth: number, ctx: Ctx, skipPhone: boolean, isCustome
         if (BASE_ERROR_KEYS.has(k) || ctx.over) continue
         if (typeof val !== 'string' && typeof val !== 'number' && typeof val !== 'boolean') continue
         const nk = normKey(k)
-        if (SECRET_KEYS.has(nk) || (ctx.tier === 'logs' && PII_KEYS.has(nk))) out[k] = REDACTED
+        if (isSecretKey(nk) || (ctx.tier === 'logs' && PII_KEYS.has(nk))) out[k] = REDACTED
         else out[k] = walk(val, depth + 1, ctx, isIdKey(k))
       }
       return out
@@ -265,7 +391,7 @@ function walk(v: unknown, depth: number, ctx: Ctx, skipPhone: boolean, isCustome
       const k = rawKey.replace(NUL_RE, '')
       const nk = normKey(k)
       account(ctx, utf8Len(k) + KEY_OVERHEAD)
-      if (SECRET_KEYS.has(nk) || (ctx.tier === 'logs' && (PII_KEYS.has(nk) || (personName && nk === 'name')))) {
+      if (isSecretKey(nk) || (ctx.tier === 'logs' && (PII_KEYS.has(nk) || (personName && nk === 'name')))) {
         out[k] = REDACTED
         account(ctx, REDACTED.length + 2)
         continue

@@ -53,6 +53,7 @@ var (
 	secretKeys = map[string]bool{
 		"pin": true, "pinhash": true, "password": true, "token": true, "accesstoken": true,
 		"refreshtoken": true, "authorization": true, "cookie": true, "secret": true, "apikey": true,
+		"passwd": true, "clientsecret": true,
 	}
 	piiKeys = map[string]bool{
 		"phone": true, "email": true, "customerphone": true, "customeremail": true,
@@ -67,18 +68,14 @@ var (
 
 	bearerRE = regexp.MustCompile(`(?i)Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+`)
 	basicRE  = regexp.MustCompile(`(?i)(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}`)
-	// Segments are unbounded: the Logs-tier pre-cut (4x the cap) bounds the input, and RE2 is linear.
-	jwtRE = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
-	// JSON inside a string: plain quotes or backslash-escaped quotes (double encoding), and a value
-	// that is a whole string literal (escaped quotes inside it included), a number or a bare word.
-	jsonSecretRE = regexp.MustCompile(`(?i)\\?"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)\\?"[ \t]*:[ \t]*(?:\\"(?:[^"\\]|\\[^"])*\\"|"(?:[^"\\]|\\.)*"|[^,}\] \t\r\n"\\]+)`)
-	urlSecretRE  = regexp.MustCompile(`(?i)((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*`)
-	emailRE      = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
+	// Key + colon of a secret entry inside a string that holds JSON (possibly escaped up to 3 levels).
+	jsonKeyRE   = regexp.MustCompile(`(?i)(\\{0,3})"([A-Za-z0-9_-]{0,40}pin[_-]?hash[A-Za-z0-9_-]{0,40}|pin|passwd|password|token|access[_-]?token|refresh[_-]?token|authorization|cookie|secret|client[_-]?secret|api[_-]?key|apikey)(\\{0,3})"[ \t\r\n]*:[ \t\r\n]*`)
+	urlSecretRE = regexp.MustCompile(`(?i)((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*`)
+	emailRE     = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
 )
 
-func isWordChar(b byte) bool {
-	return b == '_' || b == '-' || (b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
-}
+// isSecretKey: exact credential names plus anything containing pinhash (receivePinHash, pin_hash...).
+func isSecretKey(nk string) bool { return secretKeys[nk] || strings.Contains(nk, "pinhash") }
 
 func normKey(k string) string {
 	return keyNormalizer.Replace(strings.ToLower(k))
@@ -124,8 +121,8 @@ func str(s string, t Tier, skipPhone bool, capCP int) string {
 	}
 	s = bearerRE.ReplaceAllString(s, "Bearer "+Redacted)
 	s = basicRE.ReplaceAllString(s, "${1}Basic "+Redacted)
-	s = jwtRE.ReplaceAllString(s, Redacted)
-	s = jsonSecretRE.ReplaceAllString(s, `"${1}":"`+Redacted+`"`)
+	s = redactJWTs(s)
+	s = redactJSONSecrets(s)
 	s = urlSecretRE.ReplaceAllString(s, "${1}"+Redacted)
 	if t != Logs {
 		return s
@@ -140,95 +137,298 @@ func str(s string, t Tier, skipPhone bool, capCP int) string {
 	return s
 }
 
-func isDigit(b byte) bool { return b >= '0' && b <= '9' }
+func isDigit(r rune) bool { return r >= '0' && r <= '9' }
 
-func isPhoneSep(b byte) bool { return b == ' ' || b == '.' || b == '-' }
+func isB64(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
+}
 
-// redactPhones replaces Indonesian phone numbers: a prefix (0, 62 or +62) directly followed
-// by 8 (a single separator may sit between 62/+62 and the 8), then further digit runs of at
-// least 4 digits joined by ONE separator (space, dot, hyphen, or ")" with an optional space).
-// Total digits must be prefix+1+7 .. prefix+1+12. Whole runs only: when the next run would
-// exceed the maximum the number ends there, but it must then be followed by a non-word
-// character ('-' counts as a word character, so a long hyphenated code is never cut).
-// The TS twin implements the same scanner.
-func redactPhones(s string) string {
-	var b strings.Builder
-	last, i, n := 0, 0, len(s)
-	for i < n {
-		if i > 0 && isWordChar(s[i-1]) {
-			i++
-			continue
+// Separators a phone number may be written with (NBSP, en/em dash included).
+func isPhoneSep(r rune) bool {
+	switch r {
+	case ' ', '\t', '.', '-', '–', '—', '/', '(', ')', ' ':
+		return true
+	}
+	return false
+}
+
+const (
+	phoneLookahead      = 40 // characters examined per candidate: keeps the scan linear
+	phoneChainLookahead = 80
+	phoneMinNational    = 9
+	phoneMaxNational    = 12
+	codeChainDigits     = 20
+)
+
+// phoneSpanAt returns the span [begin, end) (rune indexes) of an Indonesian phone number
+// starting at the token boundary i, or ok=false. FAIL CLOSED: a prefix (0 directly before the 8,
+// or 62/+62 with up to two separators before it) then digits and separators (at most two
+// separators in a row, no minimum group size) until the national digits (from the 8) reach 12;
+// the LONGEST prefix ending on a digit with 9..12 national digits is taken. Exception: a
+// '-'/'.' joined chain of 20+ digits whose candidate would end inside it is a barcode-like
+// code and stays. The TS twin implements the same scanner.
+func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
+	n := len(s)
+	at := func(k int) rune {
+		if k < n {
+			return s[k]
 		}
-		pdig, q := 0, i
-		switch {
-		case strings.HasPrefix(s[i:], "+62"):
-			pdig, q = 2, i+3
-		case strings.HasPrefix(s[i:], "62"):
-			pdig, q = 2, i+2
-		case s[i] == '0':
-			pdig, q = 1, i+1
-		default:
-			i++
-			continue
-		}
-		if pdig == 2 && q < n && isPhoneSep(s[q]) {
-			q++
-		}
-		if q >= n || s[q] != '8' {
-			i++
-			continue
-		}
-		maxDigits, minDigits := pdig+1+12, pdig+1+7
-		r := q
-		for r < n && isDigit(s[r]) {
-			r++
-		}
-		digits, end, paren := pdig+(r-q), r, false
-		if digits > maxDigits {
-			i = end
-			continue
-		}
-		for end < n {
-			sepEnd, isParen := end, false
-			switch {
-			case isPhoneSep(s[end]):
-				sepEnd = end + 1
-			case s[end] == ')':
-				sepEnd, isParen = end+1, true
-				if sepEnd < n && s[sepEnd] == ' ' {
-					sepEnd++
-				}
-			default:
-				sepEnd = -1
-			}
-			if sepEnd < 0 {
-				break
-			}
-			v := sepEnd
-			for v < n && isDigit(s[v]) {
-				v++
-			}
-			if v-sepEnd < 4 || digits+(v-sepEnd) > maxDigits {
-				break
-			}
-			digits += v - sepEnd
-			end = v
-			paren = paren || isParen
-		}
-		if digits < minDigits || (end < n && isWordChar(s[end])) {
-			i = end
-			continue
-		}
-		begin := i
-		if paren && i > 0 && s[i-1] == '(' {
+		return 0
+	}
+	begin = i
+	var q int
+	closeSeen := false
+	switch {
+	case s[i] == '6' && at(i+1) == '2':
+		q = i + 2
+		if i > 0 && s[i-1] == '+' {
 			begin = i - 1
 		}
-		b.WriteString(s[last:begin])
-		b.WriteString(Redacted)
-		last, i = end, end
+		for seps := 0; seps < 2 && q < n && isPhoneSep(s[q]); seps++ {
+			if s[q] == ')' {
+				closeSeen = true
+			}
+			q++
+		}
+	case s[i] == '0' && at(i+1) == '8' && i+2 < n && isDigit(s[i+2]):
+		q = i + 1
+	default:
+		return 0, 0, false
 	}
-	b.WriteString(s[last:])
+	if at(q) != '8' {
+		return 0, 0, false
+	}
+	nd, validEnd, validClose, sepRun := 0, -1, false, 0
+	limit := i + phoneLookahead
+	if limit > n {
+		limit = n
+	}
+scan:
+	for j := q; j < limit; j++ {
+		c := s[j]
+		switch {
+		case isDigit(c):
+			nd++
+			if nd > phoneMaxNational {
+				break scan
+			}
+			sepRun = 0
+			if nd >= phoneMinNational {
+				validEnd, validClose = j+1, closeSeen
+			}
+		case isPhoneSep(c):
+			sepRun++
+			if sepRun > 2 {
+				break scan
+			}
+			if c == ')' {
+				closeSeen = true
+			}
+		default:
+			break scan
+		}
+	}
+	if validEnd < 0 {
+		return 0, 0, false
+	}
+	// Barcode-like chain: 20+ digits joined by single '-' or '.', candidate ends inside it.
+	digits, k := 0, i
+	chainLimit := i + phoneChainLookahead
+	if chainLimit > n {
+		chainLimit = n
+	}
+	for k < chainLimit {
+		if isDigit(s[k]) {
+			digits++
+			k++
+		} else if (s[k] == '-' || s[k] == '.') && k > i && k+1 < n && isDigit(s[k+1]) {
+			k++
+		} else {
+			break
+		}
+	}
+	if digits >= codeChainDigits && validEnd < k {
+		return 0, 0, false
+	}
+	end = validEnd
+	if begin > 0 && s[begin-1] == '(' {
+		if validClose {
+			begin--
+		} else if end < n && s[end] == ')' {
+			begin--
+			end++
+		}
+	}
+	return begin, end, true
+}
+
+// redactPhones redacts the UNION of every phone span (candidates at every token boundary),
+// merging touching ones into one marker.
+func redactPhones(str string) string {
+	s := []rune(str)
+	n := len(s)
+	var b strings.Builder
+	last, curB, curE := 0, -1, -1
+	for i := 0; i < n; i++ {
+		if !isDigit(s[i]) || (i > 0 && isDigit(s[i-1])) {
+			continue
+		}
+		sb, se, ok := phoneSpanAt(s, i)
+		if !ok {
+			continue
+		}
+		if curB >= 0 && sb <= curE {
+			if sb < curB {
+				curB = sb
+			}
+			if se > curE {
+				curE = se
+			}
+		} else {
+			if curB >= 0 {
+				b.WriteString(string(s[last:curB]))
+				b.WriteString(Redacted)
+				last = curE
+			}
+			curB, curE = sb, se
+		}
+	}
+	if curB >= 0 {
+		b.WriteString(string(s[last:curB]))
+		b.WriteString(Redacted)
+		last = curE
+	}
+	b.WriteString(string(s[last:]))
 	return b.String()
+}
+
+// redactJWTs replaces JWTs (two or three base64url segments starting eyJ) in one linear pass.
+func redactJWTs(s string) string {
+	n := len(s)
+	var out strings.Builder
+	last, from := 0, 0
+	for from < n {
+		rel := strings.Index(s[from:], "eyJ")
+		if rel < 0 {
+			break
+		}
+		st := from + rel
+		p := st + 3
+		for p < n && isB64(s[p]) {
+			p++
+		}
+		if p == st+3 || p >= n || s[p] != '.' {
+			if p > st+3 {
+				from = p
+			} else {
+				from = st + 3
+			}
+			continue
+		}
+		q := p + 1
+		for q < n && isB64(s[q]) {
+			q++
+		}
+		if q == p+1 {
+			from = q
+			continue
+		}
+		end := q
+		if q < n && s[q] == '.' {
+			end = q + 1
+			for end < n && isB64(s[end]) {
+				end++
+			}
+		}
+		out.WriteString(s[last:st])
+		out.WriteString(Redacted)
+		last, from = end, end
+	}
+	out.WriteString(s[last:])
+	return out.String()
+}
+
+// jsonValueEnd is where the value after a secret key's colon ends (exclusive), starting at pos.
+// escaped is true when the key itself was written with backslash-escaped quotes (JSON inside
+// JSON): values are then delimited by the same number of backslashes. Unterminated values run
+// to the end of the string.
+func jsonValueEnd(s string, pos int, escaped bool) int {
+	n := len(s)
+	if pos >= n {
+		return pos
+	}
+	if c := s[pos]; c == '{' || c == '[' {
+		depth, inStr := 0, false
+		for i := pos; i < n; i++ {
+			d := s[i]
+			if !escaped && inStr {
+				if d == '\\' {
+					i++
+				} else if d == '"' {
+					inStr = false
+				}
+				continue
+			}
+			switch {
+			case !escaped && d == '"':
+				inStr = true
+			case d == '{' || d == '[':
+				depth++
+			case d == '}' || d == ']':
+				depth--
+				if depth == 0 {
+					return i + 1
+				}
+			}
+		}
+		return n
+	}
+	k := 0
+	for pos+k < n && s[pos+k] == '\\' {
+		k++
+	}
+	if pos+k < n && s[pos+k] == '"' {
+		for i := pos + k + 1; i < n; i++ {
+			if s[i] != '"' {
+				continue
+			}
+			r := 0
+			for i-1-r > pos+k && s[i-1-r] == '\\' {
+				r++
+			}
+			if (k == 0 && r%2 == 0) || (k > 0 && r == k) {
+				return i + 1
+			}
+		}
+		return n
+	}
+	e := pos
+	for e < n && !strings.ContainsRune(",}] \t\r\n\"\\", rune(s[e])) {
+		e++
+	}
+	return e
+}
+
+func redactJSONSecrets(s string) string {
+	var out strings.Builder
+	last, from := 0, 0
+	for from <= len(s) {
+		loc := jsonKeyRE.FindStringSubmatchIndex(s[from:])
+		if loc == nil {
+			break
+		}
+		mStart, mEnd := from+loc[0], from+loc[1]
+		end := jsonValueEnd(s, mEnd, loc[3] > loc[2])
+		if end <= mEnd {
+			from = mEnd
+			continue
+		}
+		out.WriteString(s[last:mStart])
+		out.WriteString(`"` + s[from+loc[4]:from+loc[5]] + `":"` + Redacted + `"`)
+		last, from = end, end
+	}
+	out.WriteString(s[last:])
+	return out.String()
 }
 
 // walker carries the per-call budget: a node cap and (Logs) the running size estimate.
@@ -290,7 +490,7 @@ func (w *walker) walk(v any, depth int, skipPhone, isCustomer bool, capCP int) a
 			clean := strings.ReplaceAll(k, "\x00", "")
 			nk := normKey(clean)
 			w.account(len(clean) + keyOverhead)
-			if secretKeys[nk] || (w.t == Logs && (piiKeys[nk] || (personName && nk == "name"))) {
+			if isSecretKey(nk) || (w.t == Logs && (piiKeys[nk] || (personName && nk == "name"))) {
 				out[clean] = Redacted
 				w.account(len(Redacted) + 2)
 				continue

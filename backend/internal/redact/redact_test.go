@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// wantVectors is the exact size of the shared vector file: a silently shrinking file fails here.
+const wantVectors = 55
+
 var templateRE = regexp.MustCompile(`\{\{(\d+)\*([^}]*)\}\}`)
 
 // expand replaces {{N*unit}} templates in every string, like the TS harness.
@@ -74,8 +77,8 @@ func TestSharedVectors(t *testing.T) {
 	if err := json.Unmarshal(raw, &file); err != nil {
 		t.Fatalf("parse vectors: %v", err)
 	}
-	if len(file.Vectors) < 20 {
-		t.Fatalf("expected the full vector set, got %d", len(file.Vectors))
+	if len(file.Vectors) != wantVectors {
+		t.Fatalf("shared vector file holds %d vectors, this test expects %d (update wantVectors with the file)", len(file.Vectors), wantVectors)
 	}
 	for _, v := range file.Vectors {
 		t.Run(v.Name, func(t *testing.T) {
@@ -203,5 +206,28 @@ func TestStackHelperUsesLargerCap(t *testing.T) {
 	got := Stack(strings.Repeat("a", 5000))
 	if len([]rune(got)) != maxStackLogs+len(truncatedSuffix) {
 		t.Fatalf("stack len = %d", len([]rune(got)))
+	}
+}
+
+func TestScannersStayLinearInBothTiers(t *testing.T) {
+	cases := []string{
+		strings.Repeat("0812 ", 13000),
+		strings.Repeat("1", 65536),
+		strings.Repeat("0 8 ", 16000),
+		strings.Repeat("08-1.2 3/4-5.6 7", 4000),
+		strings.Repeat("0812", 16000),
+		strings.Repeat("62 8", 16000),
+		strings.Repeat("eyJ", 43000),
+		strings.Repeat("eyJa.", 26000),
+		strings.Repeat(`"token":{`, 8000),
+	}
+	for _, tier := range []Tier{Logs, Secrets} {
+		for i, c := range cases {
+			start := time.Now()
+			String(c, tier)
+			if d := time.Since(start); d > 50*time.Millisecond {
+				t.Errorf("tier %d case %d took %v", tier, i, d)
+			}
+		}
 	}
 }
