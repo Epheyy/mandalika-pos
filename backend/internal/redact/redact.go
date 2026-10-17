@@ -46,7 +46,8 @@ var (
 		"phone": true, "email": true, "customerphone": true, "customeremail": true,
 		"customername": true, "address": true, "nik": true,
 	}
-	idKeys = map[string]bool{
+	contactKeys = map[string]bool{"phone": true, "email": true, "customerphone": true, "customeremail": true}
+	idKeys      = map[string]bool{
 		"idempotencykey": true, "ordernumber": true, "transferno": true, "sku": true, "barcode": true,
 	}
 
@@ -110,7 +111,7 @@ func redactPhones(s string) string {
 	return b.String()
 }
 
-func walk(v any, depth, maxDepth int, t Tier, skipPhone bool) any {
+func walk(v any, depth, maxDepth int, t Tier, skipPhone, isCustomer bool) any {
 	switch x := v.(type) {
 	case string:
 		return str(x, t, skipPhone)
@@ -119,14 +120,25 @@ func walk(v any, depth, maxDepth int, t Tier, skipPhone bool) any {
 			return "[MaxDepth]"
 		}
 		out := make(map[string]any, len(x))
+		// A bare "name" is a person's name only next to contact fields or inside a
+		// "customer" object; product and outlet names stay readable.
+		personName := t == Logs && isCustomer
+		if t == Logs && !personName {
+			for k := range x {
+				if contactKeys[normKey(k)] {
+					personName = true
+					break
+				}
+			}
+		}
 		for k, e := range x {
 			clean := strings.ReplaceAll(k, "\x00", "")
 			nk := normKey(clean)
-			if secretKeys[nk] || (t == Logs && piiKeys[nk]) {
+			if secretKeys[nk] || (t == Logs && (piiKeys[nk] || (personName && nk == "name"))) {
 				out[clean] = Redacted
 				continue
 			}
-			out[clean] = walk(e, depth+1, maxDepth, t, isIDKey(clean))
+			out[clean] = walk(e, depth+1, maxDepth, t, isIDKey(clean), nk == "customer")
 		}
 		return out
 	case []any:
@@ -135,7 +147,7 @@ func walk(v any, depth, maxDepth int, t Tier, skipPhone bool) any {
 		}
 		out := make([]any, len(x))
 		for i, e := range x {
-			out[i] = walk(e, depth+1, maxDepth, t, skipPhone)
+			out[i] = walk(e, depth+1, maxDepth, t, skipPhone, false)
 		}
 		return out
 	default:
@@ -150,7 +162,7 @@ func Value(v any, t Tier) any {
 	if t == Logs {
 		maxDepth = maxDepthLogs
 	}
-	out := walk(v, 0, maxDepth, t, false)
+	out := walk(v, 0, maxDepth, t, false, false)
 	if t == Logs {
 		if n := encodedLen(out); n > maxTotalLogs {
 			return map[string]any{"_truncated": true, "bytes": n}

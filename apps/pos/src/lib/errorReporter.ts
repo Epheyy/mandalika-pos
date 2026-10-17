@@ -49,7 +49,8 @@ export async function reportErrors(reports: ErrorReport[]): Promise<void> {
     action: r.action == null ? null : redactString(r.action),
     // Redact on the device (secrets + customer PII); the server redacts again
     // as a backstop for older bundles. Copies only: never touches the source.
-    message: redactString((r.message || 'unknown error').slice(0, 1000)),
+    // redact first, then cut: a slice through a phone number would leave an unmatched digit run
+    message: redactString(r.message || 'unknown error').slice(0, 1000),
     payload: r.payload == null ? null : redactForLogs(r.payload),
     breadcrumbs: redactForLogs(breadcrumbs),
     appVersion,

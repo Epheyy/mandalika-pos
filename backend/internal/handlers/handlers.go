@@ -43,9 +43,12 @@ type Handlers struct {
 
 func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
 	os *service.OrderService, sy *syncpkg.Engine, signer *uploads.Signer) *Handlers {
-	return &Handlers{Repo: repo, Cache: c, Store: store, Write: wr,
+	h := &Handlers{Repo: repo, Cache: c, Store: store, Write: wr,
 		OrderSvc: os, Sync: sy, Signer: signer,
 		importSlots: make(chan struct{}, maxConcurrentImports)}
+	// cmd/server sweeps error_logs at startup; the first POST-triggered sweep is an interval later.
+	h.lastErrorLogSweep.Store(time.Now().UnixNano())
+	return h
 }
 
 // invalidate drops the whole read cache (degradable, coarse). Called after any

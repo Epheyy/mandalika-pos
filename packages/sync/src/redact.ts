@@ -21,6 +21,7 @@ const SECRET_KEYS = new Set([
 const PII_KEYS = new Set([
   'phone', 'email', 'customerphone', 'customeremail', 'customername', 'address', 'nik',
 ])
+const CONTACT_KEYS = new Set(['phone', 'email', 'customerphone', 'customeremail'])
 // Keys whose values are identifiers: never run the phone pattern over them.
 const ID_KEYS = new Set(['idempotencykey', 'ordernumber', 'transferno', 'sku', 'barcode'])
 
@@ -75,7 +76,7 @@ interface Ctx {
   seen: WeakSet<object>
 }
 
-function walk(v: unknown, depth: number, ctx: Ctx, skipPhone: boolean): unknown {
+function walk(v: unknown, depth: number, ctx: Ctx, skipPhone: boolean, isCustomer = false): unknown {
   if (v === null) return null
   if (v === undefined) return undefined
   switch (typeof v) {
@@ -102,13 +103,17 @@ function walk(v: unknown, depth: number, ctx: Ctx, skipPhone: boolean): unknown 
     }
     if (Array.isArray(v)) return v.map((e) => walk(e, depth + 1, ctx, skipPhone) ?? null)
     const out: Record<string, unknown> = {}
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    const entries = Object.entries(v as Record<string, unknown>)
+    // A bare `name` is a person's name only next to contact fields or inside a `customer`
+    // object; product and outlet names stay readable.
+    const personName = ctx.tier === 'logs' && (isCustomer || entries.some(([k]) => CONTACT_KEYS.has(normKey(k))))
+    for (const [k, val] of entries) {
       const nk = normKey(k)
-      if (SECRET_KEYS.has(nk) || (ctx.tier === 'logs' && PII_KEYS.has(nk))) {
+      if (SECRET_KEYS.has(nk) || (ctx.tier === 'logs' && (PII_KEYS.has(nk) || (personName && nk === 'name')))) {
         out[k] = REDACTED
         continue
       }
-      const r = walk(val, depth + 1, ctx, isIdKey(k))
+      const r = walk(val, depth + 1, ctx, isIdKey(k), nk === 'customer')
       if (r !== undefined) out[k] = r
     }
     return out

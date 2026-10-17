@@ -57,11 +57,18 @@ func TestErrorLogsPostgres(t *testing.T) {
 			"breadcrumbs": []any{map[string]any{"at": "t", "label": "pilih 081234567890"}},
 			"appVersion":  "pos-test", "deviceId": "dev-el",
 		}
+		// A lone UTF-16 surrogate and a NUL are what jsonb rejects: they must be stored, cleaned.
+		item["payload"].(map[string]any)["lone"] = "LONE-PLACEHOLDER"
+		item["payload"].(map[string]any)["nul"] = "NUL-PLACEHOLDER"
 		raw, _ := json.Marshal(map[string]any{"items": []any{item}})
-		if w := g.call(srv, "POST", "/api/v1/error-logs", string(raw), cash, g.nextIP()); w.Code != 200 {
+		body := strings.NewReplacer("LONE-PLACEHOLDER", `\ud83d`, "NUL-PLACEHOLDER", `a\u0000b`).Replace(string(raw))
+		if w := g.call(srv, "POST", "/api/v1/error-logs", body, cash, g.nextIP()); w.Code != 200 {
 			t.Fatalf("post: %d %s", w.Code, w.Body.String())
 		}
 		assertClean(t, `device_id='dev-el'`)
+		if rows(`device_id='dev-el' AND payload->>'nul'='ab' AND payload ? 'lone'`) != 1 {
+			t.Fatal("NUL must be stripped and a lone surrogate stored as U+FFFD")
+		}
 		if rows(`device_id='dev-el' AND payload::text LIKE '%ord-1%'`) != 1 {
 			t.Fatal("non-sensitive ids must survive redaction")
 		}
