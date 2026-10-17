@@ -34,6 +34,7 @@ import SyncReview from './screens/syncReview/SyncReview'
 import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
 import { useOversellOpenCount } from './screens/reports/useOversellOpenCount'
 import { useOutlet } from './outlet'
+import { canSeeNav } from './lib/navAccess'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard', C: Dashboard },
@@ -109,15 +110,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const visible = useMemo(() => {
-    if (!user) return []
-    const isAdmin = user.role === 'admin'
-    const perms = user.permissions || []
-    return NAV.filter((n) => {
-      if (isAdmin) return true
-      if (n.id === 'warehouses') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
-      if (n.id === 'reports') return perms.includes('view_reports') || perms.includes('view_transactions')
-      return perms.includes(n.perm)
-    })
+    return NAV.filter((n) => canSeeNav(n.id, n.perm, user))
   }, [user])
 
   const reviewCount = useSyncReviewCount(visible.some((n) => n.id === 'syncReview'))
