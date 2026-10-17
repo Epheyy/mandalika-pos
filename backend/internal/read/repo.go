@@ -1140,18 +1140,17 @@ const errorLogObj = `json_build_object('id',e.id,'outletId',e.outlet_id,
   'appVersion',e.app_version,'clientCreatedAt',e.client_created_at,
   'createdAt',e.created_at)`
 
-// ErrorLogs lists captured errors (admin; cross-outlet), newest first.
+// ErrorLogRetentionDays bounds what ErrorLogs returns, so the retention policy
+// holds even if the sweep lags. Must equal write.ErrorLogRetentionDays.
+const ErrorLogRetentionDays = 60
+
+// ErrorLogs lists captured errors (admin; cross-outlet), newest first, within the retention window.
 func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string, page, limit int) ([]api.ErrorLog, int, error) {
 	args := []any{}
-	cond := ""
+	cond := fmt.Sprintf(" WHERE e.created_at >= now() - interval '%d days'", ErrorLogRetentionDays)
 	add := func(clause string, val any) {
 		args = append(args, val)
-		if cond == "" {
-			cond = " WHERE "
-		} else {
-			cond += " AND "
-		}
-		cond += fmt.Sprintf(clause, len(args))
+		cond += " AND " + fmt.Sprintf(clause, len(args))
 	}
 	if outletID != "" {
 		add("e.outlet_id=$%d", outletID)

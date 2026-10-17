@@ -5,7 +5,24 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/write"
 )
+
+func TestErrorLogRetentionConstantsAgree(t *testing.T) {
+	if read.ErrorLogRetentionDays != write.ErrorLogRetentionDays {
+		t.Fatalf("read (%d) and write (%d) retention differ", read.ErrorLogRetentionDays, write.ErrorLogRetentionDays)
+	}
+}
+
+// A recent sweep must short-circuit before touching the (nil here) repository.
+func TestMaybeSweepErrorLogsIsThrottled(t *testing.T) {
+	h := &Handlers{}
+	h.lastErrorLogSweep.Store(time.Now().UnixNano())
+	h.maybeSweepErrorLogs() // would panic on the nil Write repo if it started a sweep
+}
 
 // Body/shape rejections happen before any caller or database lookup, so a bare
 // Handlers value is enough.

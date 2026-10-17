@@ -52,7 +52,7 @@ var (
 
 	bearerRE    = regexp.MustCompile(`Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+`)
 	jwtRE       = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
-	urlSecretRE = regexp.MustCompile(`([?&](?:token|access_token|key|sig|password)=)[^& \t\r\n#]*`)
+	urlSecretRE = regexp.MustCompile(`((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password)=)[^& \t\r\n#]*`)
 	emailRE     = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
 	// Leading boundary is captured (RE2 has no lookbehind); the trailing one is
 	// checked by hand. '-' and '_' count as word characters so UUID and receipt

@@ -1281,7 +1281,37 @@ func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusInternalServerError, "failed to store error logs")
 		return
 	}
+	h.maybeSweepErrorLogs()
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Error-log retention: at most one sweep per instance per interval, started from
+// POST /error-logs (the request still has CPU; Cloud Run throttles idle instances,
+// so no ticker). The startup sweep in cmd/server covers quiet periods.
+const (
+	errorLogSweepInterval = time.Hour
+	errorLogSweepBatch    = 1000
+	errorLogSweepBatches  = 20
+	errorLogSweepBudget   = 30 * time.Second
+)
+
+func (h *Handlers) maybeSweepErrorLogs() {
+	now := time.Now().UnixNano()
+	last := h.lastErrorLogSweep.Load()
+	if now-last < int64(errorLogSweepInterval) || !h.lastErrorLogSweep.CompareAndSwap(last, now) {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), errorLogSweepBudget)
+		defer cancel()
+		n, skipped, err := h.Write.SweepErrorLogs(ctx, errorLogSweepBatch, errorLogSweepBatches)
+		switch {
+		case err != nil:
+			slog.Warn("error_log_sweep_failed", "err", err)
+		case n > 0:
+			slog.Info("error_log_sweep", "deleted", n, "skipped", skipped)
+		}
+	}()
 }
 
 func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {

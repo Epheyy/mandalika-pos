@@ -124,6 +124,60 @@ func (r *Repo) InsertErrorLogs(ctx context.Context, logs []ErrorLog) error {
 	return tx.Commit(ctx)
 }
 
+// ErrorLogRetentionDays is how long error_logs rows live (HANDOFF decision 2026-10-17).
+// read.ErrorLogRetentionDays must match (a handlers test pins this).
+const ErrorLogRetentionDays = 60
+
+// ErrorLogSweepLockKey serializes retention sweeps across instances (advisory lock).
+const ErrorLogSweepLockKey int64 = 0x656c4c4f47535745 // "elLOGSWE"
+
+// SweepErrorLogs deletes error_logs rows older than the retention window, in
+// short batches. Each batch is its own transaction holding a transaction-level
+// advisory lock; if another instance holds it the sweep is skipped (not an
+// error). It stops after maxBatches batches or the first short batch.
+func (r *Repo) SweepErrorLogs(ctx context.Context, batch, maxBatches int) (deleted int64, skipped bool, err error) {
+	for i := 0; i < maxBatches; i++ {
+		n, got, err := r.sweepErrorLogBatch(ctx, batch)
+		if err != nil {
+			return deleted, false, err
+		}
+		if !got {
+			return deleted, true, nil
+		}
+		deleted += n
+		if n < int64(batch) {
+			break
+		}
+	}
+	return deleted, false, nil
+}
+
+func (r *Repo) sweepErrorLogBatch(ctx context.Context, batch int) (n int64, locked bool, err error) {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, ErrorLogSweepLockKey).Scan(&locked); err != nil {
+		return 0, false, err
+	}
+	if !locked {
+		return 0, false, nil
+	}
+	ct, err := tx.Exec(ctx, `
+		DELETE FROM error_logs WHERE id IN (
+		  SELECT id FROM error_logs
+		  WHERE created_at < now() - make_interval(days => $1)
+		  ORDER BY created_at LIMIT $2)`, ErrorLogRetentionDays, batch)
+	if err != nil {
+		return 0, true, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, true, err
+	}
+	return ct.RowsAffected(), true, nil
+}
+
 func elNullStr(s string) any {
 	if s == "" {
 		return nil
