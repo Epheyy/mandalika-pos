@@ -61,6 +61,11 @@ func canon(t *testing.T, v any) string {
 	return string(b)
 }
 
+// raceSlack widens the absolute wall-clock caps: CI runs `go test -race`, which is ~8x slower
+// than a plain run (GitHub runners measured ~300 ms where a plain run takes ~30 ms). The caps
+// only exist to catch quadratic blow-ups (seconds); the ratio test below checks linearity.
+const raceSlack = 12
+
 func TestSharedVectors(t *testing.T) {
 	raw, err := os.ReadFile(vectorsPath)
 	if err != nil {
@@ -159,7 +164,7 @@ func TestWideAdversarialPayloadStaysCheap(t *testing.T) {
 	}
 	start := time.Now()
 	out := Value(wide, Logs)
-	if d := time.Since(start); d > 250*time.Millisecond {
+	if d := time.Since(start); d > raceSlack*250*time.Millisecond {
 		t.Fatalf("wide payload took %v", d)
 	}
 	if m, ok := out.(map[string]any); !ok || m["_truncated"] != true {
@@ -185,7 +190,7 @@ func TestAdversarialStringsAreLinearEnough(t *testing.T) {
 	for name, in := range cases {
 		start := time.Now()
 		String(in, Logs)
-		if d := time.Since(start); d > 100*time.Millisecond {
+		if d := time.Since(start); d > raceSlack*100*time.Millisecond {
 			t.Errorf("%s: %v", name, d)
 		}
 	}
@@ -225,7 +230,7 @@ func TestScannersStayLinearInBothTiers(t *testing.T) {
 		for i, c := range cases {
 			start := time.Now()
 			String(c, tier)
-			if d := time.Since(start); d > 250*time.Millisecond {
+			if d := time.Since(start); d > raceSlack*250*time.Millisecond {
 				t.Errorf("tier %d case %d took %v", tier, i, d)
 			}
 		}
