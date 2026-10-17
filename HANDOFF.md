@@ -8,6 +8,9 @@ Last updated: 2026-10-17 by Claude (Sonnet 5.5) — A44 merged locally, awaiting
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-17: A37 error_logs (redaction, 60-day retention, admin-only read pinned; PG gate EL 56459) is code-complete on
+> branch a37-error-logs, NOT pushed or deployed (see Decisions #7).
+>
 > 2026-10-15: A33/A07 (Postgres auth authority, Redis optional; mig 0054, AU gate 56455) is code-complete and
 > locally verified on a worktree branch, NOT yet pushed or deployed. Pending owner steps: Neon pre-deploy revoke of
 > rows the current server already refuses (show count first), Neon snapshot, deploy-backend.sh smoke, promote.
@@ -178,12 +181,21 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
      before reconnecting = YES.
   6. **A08 transfer-receive PIN:** NOT approvable offline → online step-up; stop shipping PIN hashes in the sync bundle; remove
      the raw PIN from the queued payload; server-side lockout.
-  7. **A37 error_logs:** retention 60 days, admin-only read.
+  7. **A37 error_logs:** retention 60 days, admin-only read. **IMPLEMENTED on branch a37-error-logs (not pushed/deployed):**
+     redaction twins `packages/sync/src/redact.ts` + `backend/internal/redact` share one vector file
+     (`packages/sync/src/__fixtures__/redact-vectors.json`). Two tiers: SECRETS (credential keys, Bearer/JWT/URL-secret patterns;
+     used for review reports to head office, which keep customer data) and LOGS (secrets + PII keys, email/phone patterns, size
+     caps; used for error logs, the sync log and the cashier "Kirim log" diagnostics). The server redacts inside
+     `write.InsertErrorLogs` (covers old POS bundles and the panic path) and the Sentry event text; 60-day sweep at startup and
+     at most hourly from POST /error-logs; read bounded to 60 days; PG gate EL (port 56459). Release: backend deploy (no
+     migration), then OTA for the on-device redaction. Existing test rows: read-only count first, then owner picks scrub or delete.
   8. **Import vs merged-away customer:** never re-create one; skip the row with a warning pointing to the keeper (A39 follow-up). **IMPLEMENTED on branch import-followups (not pushed/deployed).**
   9. **Ingredient import:** a row with a new SKU whose exact name matches exactly one ingredient with a blank SKU ASSIGNS the SKU to
      it (no duplicate) (A39 follow-up). **IMPLEMENTED on branch import-followups (not pushed/deployed).**
   10. **OTA rollout (A35):** pilot outlet first, once more than one outlet's tablets are on APK 2.1 (staged-rollout mechanism
       to be built when that is true; until then all-at-once on the single pilot set).
+  11. **Migration numbering:** A37 takes no migration. Whichever plan merges first takes 0057; any later plan renumbers in the
+      same PR and updates its plan text and PG gate.
 
 ## Next
 

@@ -1474,6 +1474,8 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 - **Acceptance:** T32. Inject marker secrets and sensitive sample customer data into nested errors. Logs, exports and telemetry retain useful diagnostics without unauthorized disclosure; operational evidence remains accessible only to approved roles.
 - **Execution / residual risk:** E04; application tests not run, no implementation commit/PR or release artifact. Behavior/concurrency/device applicability must be verified in its actual environment. Original priority release rule above applies; no approved exception recorded.
 
+- **Status 2026-10-17 (A37 error_logs slice):** implemented on branch a37-error-logs, not pushed or deployed. Recursive tiered redaction (TS + Go, one shared vector file), server-side redaction/caps/atomic insert, 60-day retention sweep and read bound, admin-only read pinned by tests, `db-restore.sh` DSN line removed. PG gate EL (56459). Still open under A37: secret scanning and history exposure, the sanitized sharing archive process, and the existing-rows count/scrub.
+
 ### A38 — Dependency review is not a full reachability-verified vulnerability audit
 
 - **Original priority / evidence:** P2; historical class: Verified advisory/version concern; exploitability not established.
