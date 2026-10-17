@@ -10,7 +10,9 @@ set -euo pipefail
 DUMP="${1:?usage: db-restore.sh <dump-file>}"
 [ -f "$DUMP" ] || { echo "no such dump: $DUMP" >&2; exit 1; }
 
-echo "Restoring $DUMP -> $TARGET_DATABASE_URL"
+# Log host/port/db only: the URL carries the password.
+target="${TARGET_DATABASE_URL#*://}"; target="${target#*@}"; target="${target%%\?*}"
+echo "Restoring $DUMP -> $target"
 pg_restore --clean --if-exists --no-owner --no-acl \
   -d "$TARGET_DATABASE_URL" "$DUMP"
 
