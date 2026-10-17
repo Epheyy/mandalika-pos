@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { canSeeNav } from './navAccess'
 
 describe('canSeeNav', () => {
-  it('shows Log Error to admin only, whatever permissions another role carries', () => {
+  it('canSeeNav shows the Log Error tab only for the admin role, even when a non-admin carries view_error_logs', () => {
     expect(canSeeNav('errors', 'view_error_logs', { role: 'admin', permissions: [] })).toBe(true)
-    expect(canSeeNav('errors', 'view_error_logs', { role: 'manager', permissions: ['view_reports', 'manage_users'] })).toBe(false)
+    expect(canSeeNav('errors', 'view_error_logs', { role: 'manager', permissions: ['view_reports', 'manage_users', 'view_error_logs'] })).toBe(false)
     expect(canSeeNav('errors', 'view_error_logs', { role: 'cashier', permissions: [] })).toBe(false)
     expect(canSeeNav('errors', 'view_error_logs', null)).toBe(false)
   })

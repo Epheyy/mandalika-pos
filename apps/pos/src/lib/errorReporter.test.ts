@@ -40,6 +40,22 @@ describe('reportErrors redaction (A37)', () => {
     expect(request.mock.calls.map((c) => (c[2] as { items: unknown[] }).items.length)).toEqual([10, 10, 5])
   })
 
+  it('splits by byte budget as well as item count, never emptying a chunk', async () => {
+    const big = 'y'.repeat(1500)
+    const payload = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`f${i}`, big]))
+    await reportErrors(Array.from({ length: 9 }, (_, i) => ({ source: 'sync' as const, message: `m${i}`, payload })))
+    const sizes = request.mock.calls.map((c) => (c[2] as { items: unknown[] }).items.length)
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(9)
+    expect(sizes.every((n) => n >= 1)).toBe(true)
+    expect(sizes.length).toBeGreaterThan(1)
+    for (const c of request.mock.calls) expect(JSON.stringify(c[2]).length).toBeLessThan(260_000)
+  })
+
+  it('never rejects when the payload throws while being read', async () => {
+    const hostile = new Proxy({}, { ownKeys() { throw new Error('boom') }, get() { throw new Error('boom') } })
+    await expect(reportErrors([{ source: 'runtime', message: 'm', payload: hostile }])).resolves.toBeUndefined()
+  })
+
   it('still swallows transport failures', async () => {
     request.mockRejectedValue(new Error('offline'))
     await expect(reportErrors([{ source: 'print', message: 'x' }])).resolves.toBeUndefined()
