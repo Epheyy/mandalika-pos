@@ -106,6 +106,11 @@ describe('redact (TS-only behaviour)', () => {
       '0 8 '.repeat(8192),
       'a@'.repeat(16 * 1024),
       '"pin"'.repeat(6000),
+      '"password":'.repeat(3000),
+      '"password":"'.repeat(3000),
+      '\\"password\\":\\"'.repeat(2000),
+      '0812 '.repeat(6000),
+      'eyJ'.repeat(10000),
     ]
     for (const c of cases) {
       const t0 = performance.now()
@@ -125,5 +130,12 @@ describe('redact (TS-only behaviour)', () => {
   it('never produces a lone surrogate when cutting astral text', () => {
     const out = redactForLogs({ s: '😀'.repeat(MAX_STRING_LOGS + 10) }) as { s: string }
     expect(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(out.s)).toBe(false)
+  })
+
+  it('pre-cuts a huge string by code units without expanding it, keeping astral text whole', () => {
+    const t0 = performance.now()
+    const out = redactString('😀'.repeat(2_000_000))
+    expect(performance.now() - t0).toBeLessThan(500)
+    expect(Array.from(out.replace('...[truncated]', '')).length).toBe(MAX_STRING_LOGS)
   })
 })

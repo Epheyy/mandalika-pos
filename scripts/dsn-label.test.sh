@@ -16,4 +16,6 @@ check "url with creds and query" 'postgres://u:FAKESECRET@db.example:5432/mydb?s
 check "password containing @"    'postgres://u:p@FAKESECRET@h/db' 'h/db'
 check "no userinfo"              'postgresql://h:5432/db' 'h:5432/db'
 check "keyword form"             'host=h user=u password=FAKESECRET dbname=d' '<non-URL connection string, not shown>'
+check "url embedded in a keyword value" 'application_name=http://x host=h password=FAKESECRET dbname=d' '<non-URL connection string, not shown>'
+check "url-looking password value" 'password=ab://FAKESECRET host=h' '<non-URL connection string, not shown>'
 exit "$fail"

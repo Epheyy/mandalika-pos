@@ -463,7 +463,7 @@
     "d": "[REDACTED]",
     "e": "[REDACTED]",
     "f": "[REDACTED]",
-    "g": "([REDACTED]",
+    "g": "[REDACTED]",
     "h": "hubungi [REDACTED], terima kasih"
    }
   },
@@ -564,6 +564,80 @@
    "expected": {
     "_truncated": true,
     "bytes": "*"
+   }
+  },
+  {
+   "name": "logs: a trailing number after a phone is kept, and every phone in a list is caught",
+   "tier": "logs",
+   "input": {
+    "a": "WA 081234567890 100000",
+    "b": "hubungi 08123456789 08129876543",
+    "c": "081234567890 123"
+   },
+   "expected": {
+    "a": "WA [REDACTED] 100000",
+    "b": "hubungi [REDACTED] [REDACTED]",
+    "c": "[REDACTED] 123"
+   }
+  },
+  {
+   "name": "logs: parenthesised area code redacts the whole number, lone parens stay balanced",
+   "tier": "logs",
+   "input": {
+    "a": "(0812) 3456 7890",
+    "b": "tel (081234567890) ok"
+   },
+   "expected": {
+    "a": "[REDACTED]",
+    "b": "tel ([REDACTED]) ok"
+   }
+  },
+  {
+   "name": "logs negative: ratios, dotted dates and times, spaced small numbers, dotted money",
+   "tier": "logs",
+   "input": {
+    "a": "ratio 0.8571428571",
+    "b": "17.08.2026 14.30.15",
+    "c": "items 0 8 12 15 20 33",
+    "d": "Rp 62.850.000.000",
+    "e": "Rp 62.000.000 dan 62 800 000"
+   },
+   "expected": {
+    "a": "ratio 0.8571428571",
+    "b": "17.08.2026 14.30.15",
+    "c": "items 0 8 12 15 20 33",
+    "d": "Rp 62.850.000.000",
+    "e": "Rp 62.000.000 dan 62 800 000"
+   }
+  },
+  {
+   "name": "secrets: JSON secret with an escaped quote inside the value",
+   "tier": "secrets",
+   "input": {
+    "m": "{\"password\":\"ab\\\"cdSECRET\",\"ok\":1}"
+   },
+   "expected": {
+    "m": "{\"password\":\"[REDACTED]\",\"ok\":1}"
+   }
+  },
+  {
+   "name": "secrets: double-encoded JSON secret",
+   "tier": "secrets",
+   "input": {
+    "m": "{\\\"password\\\":\\\"SECRET\\\",\\\"ok\\\":1}"
+   },
+   "expected": {
+    "m": "{\"password\":\"[REDACTED]\",\\\"ok\\\":1}"
+   }
+  },
+  {
+   "name": "secrets: JWT with a payload segment over 1000 characters",
+   "tier": "secrets",
+   "input": {
+    "m": "t eyJhbGciOiJIUzI1NiJ9.{{2500*a}}.sig_-x end"
+   },
+   "expected": {
+    "m": "t [REDACTED] end"
    }
   }
  ]

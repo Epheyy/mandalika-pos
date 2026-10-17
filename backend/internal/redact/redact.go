@@ -67,16 +67,13 @@ var (
 
 	bearerRE = regexp.MustCompile(`(?i)Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+`)
 	basicRE  = regexp.MustCompile(`(?i)(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}`)
-	// RE2 caps repetition at 1000; the same bounds are used in the TS twin.
-	jwtRE        = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{1,1000}\.[A-Za-z0-9_-]{1,1000}\.[A-Za-z0-9_-]{0,1000}`)
-	jsonSecretRE = regexp.MustCompile(`(?i)"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)"[ \t]*:[ \t]*(?:"[^"]*"|[^,}\] \t\r\n"]+)`)
+	// Segments are unbounded: the Logs-tier pre-cut (4x the cap) bounds the input, and RE2 is linear.
+	jwtRE = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
+	// JSON inside a string: plain quotes or backslash-escaped quotes (double encoding), and a value
+	// that is a whole string literal (escaped quotes inside it included), a number or a bare word.
+	jsonSecretRE = regexp.MustCompile(`(?i)\\?"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)\\?"[ \t]*:[ \t]*(?:\\"(?:[^"\\]|\\[^"])*\\"|"(?:[^"\\]|\\.)*"|[^,}\] \t\r\n"\\]+)`)
 	urlSecretRE  = regexp.MustCompile(`(?i)((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*`)
 	emailRE      = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
-	// Leading boundary is captured (RE2 has no lookbehind); the trailing one is
-	// checked by hand. '-' and '_' count as word characters so UUID and receipt
-	// fragments are never mistaken for phone numbers. Single separators (space,
-	// dot, hyphen, parens) are tolerated between digits.
-	phoneRE = regexp.MustCompile(`(^|[^0-9A-Za-z_-])((?:\+62|62|0)[ .()-]{0,2}8(?:[ .()-]{0,2}[0-9]){7,12})`)
 )
 
 func isWordChar(b byte) bool {
@@ -143,17 +140,92 @@ func str(s string, t Tier, skipPhone bool, capCP int) string {
 	return s
 }
 
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
+
+func isPhoneSep(b byte) bool { return b == ' ' || b == '.' || b == '-' }
+
+// redactPhones replaces Indonesian phone numbers: a prefix (0, 62 or +62) directly followed
+// by 8 (a single separator may sit between 62/+62 and the 8), then further digit runs of at
+// least 4 digits joined by ONE separator (space, dot, hyphen, or ")" with an optional space).
+// Total digits must be prefix+1+7 .. prefix+1+12. Whole runs only: when the next run would
+// exceed the maximum the number ends there, but it must then be followed by a non-word
+// character ('-' counts as a word character, so a long hyphenated code is never cut).
+// The TS twin implements the same scanner.
 func redactPhones(s string) string {
 	var b strings.Builder
-	last := 0
-	for _, m := range phoneRE.FindAllStringSubmatchIndex(s, -1) {
-		numStart, numEnd := m[4], m[5]
-		if numEnd < len(s) && isWordChar(s[numEnd]) {
-			continue // the number runs into more word characters: not a phone
+	last, i, n := 0, 0, len(s)
+	for i < n {
+		if i > 0 && isWordChar(s[i-1]) {
+			i++
+			continue
 		}
-		b.WriteString(s[last:numStart]) // text plus the leading boundary char
+		pdig, q := 0, i
+		switch {
+		case strings.HasPrefix(s[i:], "+62"):
+			pdig, q = 2, i+3
+		case strings.HasPrefix(s[i:], "62"):
+			pdig, q = 2, i+2
+		case s[i] == '0':
+			pdig, q = 1, i+1
+		default:
+			i++
+			continue
+		}
+		if pdig == 2 && q < n && isPhoneSep(s[q]) {
+			q++
+		}
+		if q >= n || s[q] != '8' {
+			i++
+			continue
+		}
+		maxDigits, minDigits := pdig+1+12, pdig+1+7
+		r := q
+		for r < n && isDigit(s[r]) {
+			r++
+		}
+		digits, end, paren := pdig+(r-q), r, false
+		if digits > maxDigits {
+			i = end
+			continue
+		}
+		for end < n {
+			sepEnd, isParen := end, false
+			switch {
+			case isPhoneSep(s[end]):
+				sepEnd = end + 1
+			case s[end] == ')':
+				sepEnd, isParen = end+1, true
+				if sepEnd < n && s[sepEnd] == ' ' {
+					sepEnd++
+				}
+			default:
+				sepEnd = -1
+			}
+			if sepEnd < 0 {
+				break
+			}
+			v := sepEnd
+			for v < n && isDigit(s[v]) {
+				v++
+			}
+			if v-sepEnd < 4 || digits+(v-sepEnd) > maxDigits {
+				break
+			}
+			digits += v - sepEnd
+			end = v
+			paren = paren || isParen
+		}
+		if digits < minDigits || (end < n && isWordChar(s[end])) {
+			i = end
+			continue
+		}
+		begin := i
+		if paren && i > 0 && s[i-1] == '(' {
+			begin = i - 1
+		}
+		b.WriteString(s[last:begin])
 		b.WriteString(Redacted)
-		last = numEnd
+		last, i = end, end
 	}
 	b.WriteString(s[last:])
 	return b.String()

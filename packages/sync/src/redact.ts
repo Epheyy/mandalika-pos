@@ -45,15 +45,14 @@ const TRUNCATED_SUFFIX = '...[truncated]'
 // are bounded (RE2 allows at most 1000) so adversarial input cannot backtrack.
 const BEARER_RE = /Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+/gi
 const BASIC_RE = /(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}/gi
-const JWT_RE = /eyJ[A-Za-z0-9_-]{1,1000}\.[A-Za-z0-9_-]{1,1000}\.[A-Za-z0-9_-]{0,1000}/g
-const JSON_SECRET_RE = /"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)"[ \t]*:[ \t]*(?:"[^"]*"|[^,}\] \t\r\n"]+)/gi
+// JWT segments are unbounded: the logs-tier pre-cut (4x the cap) bounds the input.
+const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g
+// JSON inside a string: plain or backslash-escaped (double-encoded) quotes, and a value that is a
+// whole string literal (escaped quotes inside it included), a number or a bare word.
+const JSON_SECRET_RE = /\\?"(pin|pinhash|password|token|accesstoken|refreshtoken|authorization|cookie|secret|apikey|access_token|refresh_token|api_key)\\?"[ \t]*:[ \t]*(?:\\"(?:[^"\\]|\\[^"])*\\"|"(?:[^"\\]|\\.)*"|[^,}\] \t\r\n"\\]+)/gi
 const URL_SECRET_RE = /((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*/gi
 const EMAIL_RE = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}/g
-// Boundary before the number is captured (no lookbehind in the Go twin); the
-// boundary after is checked by hand. '-' and '_' count as word characters so
-// UUID/receipt fragments are never mistaken for phone numbers. Single
-// separators (space, dot, hyphen, parens) are tolerated between digits.
-const PHONE_RE = /(^|[^0-9A-Za-z_-])((?:\+62|62|0)[ .()-]{0,2}8(?:[ .()-]{0,2}[0-9]){7,12})/g
+// '-' and '_' count as word characters so UUID/receipt fragments are never mistaken for phone numbers.
 const WORD_CHAR_RE = /[0-9A-Za-z_-]/
 const NUL_RE = /\0/g
 
@@ -69,12 +68,76 @@ function isIdKey(k: string): boolean {
 /** s limited to n code points (never splits a surrogate pair). */
 function cutCodePoints(s: string, n: number): string {
   if (s.length <= n) return s
-  const cps = Array.from(s)
-  return cps.length <= n ? s : cps.slice(0, n).join('')
+  // The first n code points always sit inside the first 2n code units: slice the raw string
+  // first so a huge string is never expanded into an array.
+  const cps = Array.from(s.slice(0, 2 * n))
+  return cps.length <= n && s.length <= 2 * n ? s : cps.slice(0, n).join('')
 }
 
 function exceedsCodePoints(s: string, n: number): boolean {
-  return s.length > n && Array.from(s).length > n
+  // 2n+2 code units hold more than n code points whenever the string is that long.
+  return s.length > n && Array.from(s.slice(0, 2 * n + 2)).length > n
+}
+
+const isDigit = (c: string): boolean => c >= '0' && c <= '9'
+const isPhoneSep = (c: string): boolean => c === ' ' || c === '.' || c === '-'
+const isWordChar = (c: string): boolean => WORD_CHAR_RE.test(c)
+
+/**
+ * Replace Indonesian phone numbers: a prefix (0, 62 or +62) directly followed by 8 (one separator
+ * may sit between 62/+62 and the 8), then further digit runs of at least 4 digits joined by ONE
+ * separator (space, dot, hyphen, or ")" with an optional space). Total digits must be
+ * prefix+1+7 .. prefix+1+12. Whole runs only: when the next run would exceed the maximum the
+ * number ends there, but it must then be followed by a non-word character ('-' counts as a word
+ * character, so a long hyphenated code is never cut). The Go twin implements the same scanner.
+ */
+function redactPhones(s: string): string {
+  let out = ''
+  let last = 0
+  let i = 0
+  const n = s.length
+  while (i < n) {
+    if (i > 0 && isWordChar(s[i - 1])) { i++; continue }
+    let pdig = 0
+    let q = i
+    if (s.startsWith('+62', i)) { pdig = 2; q = i + 3 }
+    else if (s.startsWith('62', i)) { pdig = 2; q = i + 2 }
+    else if (s[i] === '0') { pdig = 1; q = i + 1 }
+    else { i++; continue }
+    if (pdig === 2 && q < n && isPhoneSep(s[q])) q++
+    if (q >= n || s[q] !== '8') { i++; continue }
+    const maxDigits = pdig + 1 + 12
+    const minDigits = pdig + 1 + 7
+    let r = q
+    while (r < n && isDigit(s[r])) r++
+    let digits = pdig + (r - q)
+    let end = r
+    let paren = false
+    if (digits > maxDigits) { i = end; continue }
+    while (end < n) {
+      let sepEnd = -1
+      let isParen = false
+      if (isPhoneSep(s[end])) sepEnd = end + 1
+      else if (s[end] === ')') {
+        sepEnd = end + 1
+        isParen = true
+        if (sepEnd < n && s[sepEnd] === ' ') sepEnd++
+      }
+      if (sepEnd < 0) break
+      let v = sepEnd
+      while (v < n && isDigit(s[v])) v++
+      if (v - sepEnd < 4 || digits + (v - sepEnd) > maxDigits) break
+      digits += v - sepEnd
+      end = v
+      paren = paren || isParen
+    }
+    if (digits < minDigits || (end < n && isWordChar(s[end]))) { i = end; continue }
+    const begin = paren && i > 0 && s[i - 1] === '(' ? i - 1 : i
+    out += s.slice(last, begin) + REDACTED
+    last = end
+    i = end
+  }
+  return out + s.slice(last)
 }
 
 function utf8Len(s: string): number {
@@ -100,13 +163,7 @@ function redactStr(s: string, tier: RedactTier, skipPhone: boolean, capCP: numbe
     .replace(URL_SECRET_RE, `$1${REDACTED}`)
   if (tier !== 'logs') return out
   out = out.replace(EMAIL_RE, REDACTED)
-  if (!skipPhone) {
-    out = out.replace(PHONE_RE, (m: string, pre: string, _num: string, offset: number, whole: string) => {
-      const next = whole.charAt(offset + m.length)
-      if (next !== '' && WORD_CHAR_RE.test(next)) return m
-      return pre + REDACTED
-    })
-  }
+  if (!skipPhone) out = redactPhones(out)
   if (exceedsCodePoints(out, capCP)) out = cutCodePoints(out, capCP) + TRUNCATED_SUFFIX
   return out
 }

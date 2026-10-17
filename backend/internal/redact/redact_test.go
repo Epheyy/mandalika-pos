@@ -170,9 +170,14 @@ func TestWideAdversarialPayloadStaysCheap(t *testing.T) {
 
 func TestAdversarialStringsAreLinearEnough(t *testing.T) {
 	cases := map[string]string{
-		"email": strings.Repeat("a", 32*1024),
-		"jwt":   "eyJ" + strings.Repeat("a", 32*1024),
-		"phone": strings.Repeat("0 8 ", 8192),
+		"email":  strings.Repeat("a", 32*1024),
+		"jwt":    "eyJ" + strings.Repeat("a", 32*1024),
+		"phone":  strings.Repeat("0 8 ", 8192),
+		"json1":  strings.Repeat(`"password":`, 3000),
+		"json2":  strings.Repeat(`"password":"`, 3000),
+		"json3":  strings.Repeat(`\"password\":\"`, 2000),
+		"phone2": strings.Repeat("0812 ", 6000),
+		"jwts":   strings.Repeat("eyJ", 10000),
 	}
 	for name, in := range cases {
 		start := time.Now()
