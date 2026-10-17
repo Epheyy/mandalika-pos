@@ -200,6 +200,28 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 
 ## Next
 
+**RESUME HERE (written 2026-10-17 at ~88% context):**
+1. **A37** (error-log redaction + 60-day retention): branch `a37-error-logs`, worktree `.claude/worktrees/a37`, head `ed37314` (round 4: fail-closed phone scanner, committed corpus
+   `packages/sync/src/__fixtures__/redact-phone-corpus.json`, linear JWT scan, JSON-secret parser, dsn-label fail-closed). Implementer + gates green (EL ×3, full PG gate 20/20, quality:ci,
+   browser:ci). PENDING: independent Opus differential attack (own generator) + my own full gate (output in the session scratchpad `k.out`). If clean (only the accepted leaks: <9 national digits,
+   >2 consecutive separators, digits past the 12th, '08 1234 5678', glued +62, ≥20-digit hyphen chains) → merge into prod-hardening (merge commit), re-verify, push, then the purge. If a NEW
+   common leak shape is found → another fix round (SendMessage to the implementer agent). Backlog from A37: panic-recoverer (ErrAbortHandler swallowed; 500 written after an unbounded sync
+   insert; sink panic ⇒ no 500), own rate bucket for POST /error-logs (declined: global limiter), T10 existing error_logs rows (read-only COUNT, then owner decides scrub/delete).
+2. **Unpushed local commits on prod-hardening** (docs: A37 plan, secret plan, HANDOFF notes; merge `248fe9d` = CI secret-scan guard `scripts/ci/secret_scan.py` + quality.yml step + RUNBOOK
+   "Secret hygiene"). Push needs the owner's OK; push them BEFORE the purge so the rewrite includes them.
+3. **HISTORY PURGE — owner gave GO 2026-10-17** (collaborators warned by owner; pre-flight clean: 12 heads, 0 tags, all commits by Epheyy, 1 open PR #1 by Epheyy, no branch protection).
+   Script `purge-run.sh` in the session scratchpad (`dry` | `push`): fresh mirror clone → backup bundle to `C:\Users\MyBook Hype AMD\Downloads\mandalika-backup\` (contains old secrets; delete
+   after confirming) → `git filter-branch` removing `.claude/settings.local.json` (~12 min) → verify (file unreachable, no other content change) → `--force-with-lease` per head pinned to the cloned SHA
+   (never refs/pull/*). Then locally: `git fetch origin`, reset local prod-hardening to origin, delete stale worktrees/branches under `.claude/worktrees` (22 listed), re-create what's needed.
+   Dry-run 2026-10-17 verified. Side effects: every SHA changes (HANDOFF/plan SHAs stale), Cloud Run `commit-sha` labels + OTA `commit_sha` records dangle (`promote-backend.sh` of OLD labelled
+   revisions refuses; gcloud rollback works), CI reruns on the new heads. OWNER then asks GitHub Support to purge cached views + `refs/pull/*`. If the script is gone, redo from
+   `docs/plans/2026-10-17-secret-rotation-and-history-purge.md`.
+4. **Owner pending:** GitHub Support request after the purge; backoffice import-dialog walkthrough (login with the NEW admin password works — read it with
+   `gcloud secrets versions access latest --secret=SEED_ADMIN_PASSWORD --project mandalika-pos`); Neon connection history not checkable (free tier) — accepted; APK 2.1 fleet rollout not done.
+5. **Then (in order):** A29 batch cap, A26 reports aggregation, A10 quoted receipt total, A23 tiered-promo leftover; answered-policy builds (A05, A27, A28 per-outlet tz WIB/WITA, A30, A41, A08);
+   A15 Phase B (mig 0057 stock_seq — renumber if 0057 is taken); A33 Task 9 cleanup on/after 2026-10-30 (re-run the Task 0 audit first; Redis-only keys are orphans); A36 backups build once the owner
+   does O1–O4; PG gate runner: retry once on port-bind failure; then the Fable re-audit (owner must ask). Smoke scripts live in the session scratchpad (login limiter: 10/5 min per IP+email per instance → reuse ADMIN_TOKEN).
+
 0. **NOW (2026-10-14): finish non-policy audit findings** — source of truth `docs/audits/2026-10-14-audit-status-sweep.md`.
    Order: (a) A14 completion guard + difference apply; (b) receipt numbers repeat across tablets/reinstalls (orderRef.ts);
    (c) A38 dependency blockers; (d) quick wins A43/A12 leftovers, A32 pool limits, A40 RUNBOOK, A42 lock order;
