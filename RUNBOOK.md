@@ -180,6 +180,22 @@ handled, by the previous bundle and by the APK's builtin.
 - Off-host, scheduled, locked backups are **not built yet**: see
   `docs/plans/2026-10-15-a36-backup-build-plan.md`.
 
+## Secret hygiene
+
+`scripts/ci/secret_scan.py` runs in the `quality.yml` workflow on every push (and
+`python scripts/ci/secret_scan.py` locally; `--rev <commit>` scans an old tree). It fails on
+tracked files that contain: database URLs with a real password, literal `*_PASSWORD=` values,
+private key blocks, JWTs, AWS/GitHub/Google/Slack tokens, Sentry DSNs with keys; and on any
+tracked `.claude/settings.local.json`, `.env`/`.env.*` (except `*.example`/`*.sample`), `*.jks`,
+`*.keystore`, `*.pem`, `*.p12`, `id_rsa*`. Output is `file:line: rule` only, never the value.
+
+- **Allowlist**: add `path-glob | rule | reason` to `scripts/ci/secret_scan.allowlist`. The
+  reason is mandatory. Only for synthetic fixtures and documented local-dev values, never a
+  real credential.
+- **If a secret was committed**: rotate it first (Neon password, `SEED_ADMIN_PASSWORD`, tokens),
+  because history and clones already hold it. Then remove it from the tree, and purge history
+  only afterwards if wanted (`git filter-repo`, force-push needs the owner's go-ahead).
+
 ## Dependency-security exceptions
 
 `scripts/ci/dependency-exceptions.json` lists accepted advisories. Each entry
