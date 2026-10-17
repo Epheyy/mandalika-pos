@@ -813,6 +813,118 @@
     "api-key": "[REDACTED]",
     "keep": "ok"
    }
+  },
+  {
+   "name": "logs: trunk zero and 0062 prefix (csvimport stores +620812...)",
+   "tier": "logs",
+   "input": {
+    "a": "HP +6208123456789",
+    "b": "HP 6208123456789",
+    "c": "HP +62 (0)812-3456-7890",
+    "d": "HP +62(0)812-3456-7890",
+    "e": "HP 0062 812 3456 7890",
+    "f": "HP 0062-0812-3456-7890",
+    "g": "HP +62 0812 3456 7890"
+   },
+   "expected": {
+    "a": "HP [REDACTED]",
+    "b": "HP [REDACTED]",
+    "c": "HP [REDACTED]",
+    "d": "HP [REDACTED]",
+    "e": "HP [REDACTED]",
+    "f": "HP [REDACTED]",
+    "g": "HP [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: space-dash-space counts as ONE separator",
+   "tier": "logs",
+   "input": {
+    "a": "HP 0812 - 3456 - 7890",
+    "b": "HP +62 - 81716 4678",
+    "c": "HP 0812 – 3456 – 7890"
+   },
+   "expected": {
+    "a": "HP [REDACTED]",
+    "b": "HP [REDACTED]",
+    "c": "HP [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: non-breaking hyphen, minus sign, narrow no-break space, thin space and underscore separate digits",
+   "tier": "logs",
+   "input": {
+    "a": "HP 0812‑3456‑7890",
+    "b": "HP 0812−3456−7890",
+    "c": "HP 0812 3456 7890",
+    "d": "HP 0812 3456 7890",
+    "e": "HP 0812_3456_7890"
+   },
+   "expected": {
+    "a": "HP [REDACTED]",
+    "b": "HP [REDACTED]",
+    "c": "HP [REDACTED]",
+    "d": "HP [REDACTED]",
+    "e": "HP [REDACTED]"
+   }
+  },
+  {
+   "name": "secrets: brackets inside nested string literals do not end an object or array value",
+   "tier": "secrets",
+   "input": {
+    "a": "x {\"password\":{\"v\":\"a}FAKESECRET\"}} y",
+    "b": "x {\\\"password\\\":{\\\"v\\\":\\\"a}FAKESECRET\\\"}} y",
+    "c": "x {\"password\":[\"a]FAKESECRET\"]} y",
+    "d": "x {\\\"password\\\":[\\\"a]FAKESECRET\\\"]} y"
+   },
+   "expected": {
+    "a": "x {\"password\":\"[REDACTED]\"} y",
+    "b": "x {\"password\":\"[REDACTED]\"} y",
+    "c": "x {\"password\":\"[REDACTED]\"} y",
+    "d": "x {\"password\":\"[REDACTED]\"} y"
+   }
+  },
+  {
+   "name": "secrets: JSON escaped three levels deep (7 backslashes)",
+   "tier": "secrets",
+   "input": {
+    "m": "{\\\\\\\\\\\\\\\"password\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"S\\\\\\\\\\\\\\\"}"
+   },
+   "expected": {
+    "m": "{\"password\":\"[REDACTED]\"}"
+   }
+  },
+  {
+   "name": "both twins fold case for ASCII letters only (Kelvin sign, long s and dotted I are not folded)",
+   "tier": "secrets",
+   "input": {
+    "a": "{\"toKen\":\"x\"}",
+    "b": "toKen=x",
+    "c": "{\"paſsword\":\"x\"}",
+    "d": "Authorization: Baſic abc",
+    "e": "PIN=1 pin=2 BEARER z"
+   },
+   "expected": {
+    "a": "{\"toKen\":\"x\"}",
+    "b": "toKen=x",
+    "c": "{\"paſsword\":\"x\"}",
+    "d": "Authorization: Baſic abc",
+    "e": "PIN=[REDACTED] pin=[REDACTED] Bearer [REDACTED]"
+   }
+  },
+  {
+   "name": "object keys fold ASCII only",
+   "tier": "secrets",
+   "input": {
+    "PİN": "x",
+    "PIN": "y",
+    "KEY": "z"
+   },
+   "expected": {
+    "PİN": "x",
+    "PIN": "[REDACTED]",
+    "KEY": "z"
+   }
   }
  ]
 }

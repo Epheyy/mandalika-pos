@@ -34,7 +34,7 @@ const rnd = mulberry32(SEED)
 const int = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1))
 const pick = (arr) => arr[int(0, arr.length - 1)]
 
-const SEPS = [' ', ' ', ' ', '-', '-', '.', '/', '–', ' ']
+const SEPS = [' ', ' ', ' ', '-', '-', '.', '/', '\u2013', '\u00a0', '\u2011', '\u2212', '\u202f', '\u2009', '_', ' - ', ' \u2013 ']
 const sep = () => (rnd() < 0.1 ? pick(SEPS) + pick(SEPS) : pick(SEPS))
 
 function groups(nat, firstMin) {
@@ -52,7 +52,7 @@ function phone() {
   const natLen = int(9, 12)
   let nat = '8'
   while (nat.length < natLen) nat += String(int(0, 9))
-  const style = pick(['0', '0', '62', '+62', '(0)', '(+62)', '+62(8)'])
+  const style = pick(['0', '0', '62', '+62', '(0)', '(+62)', '+62(8)', '0062', '+62(0)', '62+0'])
   let text
   let digits
   if (style === '0' || style === '(0)') {
@@ -63,9 +63,10 @@ function phone() {
     if (style === '(0)' && g.length === 1) text = '(' + g[0] + ')'
   } else {
     const g = groups(nat, 1)
-    digits = '62' + nat
-    const lead = style === '62' ? '62' : '+62'
-    const between = style === '(+62)' ? ') ' : style === '+62(8)' ? ' (' : pick(['', ' ', '-', ' ', '  '])
+    digits = nat
+    const lead = style === '62' || style === '62+0' ? '62' : style === '0062' ? '0062' : '+62'
+    const trunk = style === '62+0' ? '0' : style === '+62(0)' ? '(0)' : style === '0062' && rnd() < 0.5 ? '0' : ''
+    const between = style === '(+62)' ? ') ' : style === '+62(8)' ? ' (' : pick(['', ' ', '-', ' ', '  ']) + trunk
     if (style === '(+62)') text = '(' + lead + between + g.join(sep())
     else if (style === '+62(8)') text = lead + between + g[0] + ') ' + g.slice(1).join(sep())
     else text = lead + between + g.join(sep())
@@ -92,7 +93,7 @@ while (cases.length < CASES) {
   if (seen.has(input)) continue
   seen.add(input)
   const expected = redactString(input, 'logs')
-  const stripped = expected.replace(/[ \t.\-–—/() ]/g, '')
+  const stripped = expected.replace(/[ \t.\-\u2013\u2014\u2011\u2212\u202f\u2009/()_\u00a0]/g, '')
   for (const d of digitsList) {
     if (stripped.includes(d)) {
       console.error(`LEAK: ${JSON.stringify(input)} -> ${JSON.stringify(expected)} (digits ${d})`)

@@ -66,23 +66,58 @@ var (
 
 	keyNormalizer = strings.NewReplacer("_", "", "-", "")
 
-	bearerRE = regexp.MustCompile(`(?i)Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+`)
-	basicRE  = regexp.MustCompile(`(?i)(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}`)
-	// Key + colon of a secret entry inside a string that holds JSON (possibly escaped up to 3 levels).
-	jsonKeyRE   = regexp.MustCompile(`(?i)(\\{0,3})"([A-Za-z0-9_-]{0,40}pin[_-]?hash[A-Za-z0-9_-]{0,40}|pin|passwd|password|token|access[_-]?token|refresh[_-]?token|authorization|cookie|secret|client[_-]?secret|api[_-]?key|apikey)(\\{0,3})"[ \t\r\n]*:[ \t\r\n]*`)
-	urlSecretRE = regexp.MustCompile(`(?i)((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*`)
-	emailRE     = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
+	// ASCII whitespace classes and ASCII-only case folding: ci() spells out [bB] classes instead
+	// of (?i), whose Unicode folding (Kelvin sign, long s) differs from the TS twin.
+	bearerRE = regexp.MustCompile(ci("Bearer") + `[ \t\r\n]+[A-Za-z0-9._~+/=-]+`)
+	basicRE  = regexp.MustCompile(`(` + ci("Authorization:") + `[ \t]*)` + ci("Basic") + `[ \t]+[A-Za-z0-9+/]+={0,2}`)
+	// Key + colon of a secret entry inside a string that holds JSON, escaped up to three levels
+	// (up to 7 backslashes before a quote).
+	jsonKeyRE = regexp.MustCompile(`(\\{0,7})"(` + strings.Join([]string{
+		`[A-Za-z0-9_-]{0,40}` + ci("pin") + `[_-]?` + ci("hash") + `[A-Za-z0-9_-]{0,40}`,
+		ci("pin"), ci("passwd"), ci("password"), ci("token"),
+		ci("access") + `[_-]?` + ci("token"), ci("refresh") + `[_-]?` + ci("token"), ci("authorization"), ci("cookie"), ci("secret"),
+		ci("client") + `[_-]?` + ci("secret"), ci("api") + `[_-]?` + ci("key"), ci("apikey"),
+	}, "|") + `)(\\{0,7})"[ \t\r\n]*:[ \t\r\n]*`)
+	urlSecretRE = regexp.MustCompile(`((?:^|[?&,;( \t\r\n])(?:` + strings.Join([]string{
+		ci("token"), ci("access_token"), ci("key"), ci("sig"), ci("password"), ci("pin"), ci("api_key"), ci("apikey"),
+	}, "|") + `)=)[^& \t\r\n#]*`)
+	emailRE = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
 )
+
+// ci spells each ASCII letter as a [xX] class (ASCII-only case folding; see bearerRE).
+func ci(lit string) string {
+	var b strings.Builder
+	for _, r := range lit {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			lo, up := r|0x20, r&^0x20
+			b.WriteString("[" + string(lo) + string(up) + "]")
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// asciiLower lower-cases ASCII letters only (unicode.ToLower folds non-ASCII differently from JS).
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + 32
+		}
+	}
+	return string(b)
+}
 
 // isSecretKey: exact credential names plus anything containing pinhash (receivePinHash, pin_hash...).
 func isSecretKey(nk string) bool { return secretKeys[nk] || strings.Contains(nk, "pinhash") }
 
 func normKey(k string) string {
-	return keyNormalizer.Replace(strings.ToLower(k))
+	return keyNormalizer.Replace(asciiLower(k))
 }
 
 func isIDKey(k string) bool {
-	lower := strings.ToLower(k)
+	lower := asciiLower(k)
 	return lower == "id" || strings.HasSuffix(k, "Id") || strings.HasSuffix(lower, "_id") || idKeys[normKey(k)]
 }
 
@@ -143,13 +178,44 @@ func isB64(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
 }
 
-// Separators a phone number may be written with (NBSP, en/em dash included).
-func isPhoneSep(r rune) bool {
+// Separators a phone number may be written with: space-like, dash-like, '.', '/', parens, '_'.
+func isSpaceLike(r rune) bool {
 	switch r {
-	case ' ', '\t', '.', '-', '–', '—', '/', '(', ')', ' ':
+	case ' ', '\t', ' ', ' ', ' ':
 		return true
 	}
 	return false
+}
+
+func isDashLike(r rune) bool {
+	switch r {
+	case '-', '–', '—', '‑', '−':
+		return true
+	}
+	return false
+}
+
+func isPhoneSep(r rune) bool {
+	switch r {
+	case '.', '/', '(', ')', '_':
+		return true
+	}
+	return isSpaceLike(r) || isDashLike(r)
+}
+
+// sepLen is the length of the separator unit at j: " - " (space, dash, space) is ONE unit;
+// 0 if there is none.
+func sepLen(s []rune, j int) int {
+	if j >= len(s) {
+		return 0
+	}
+	if isSpaceLike(s[j]) && j+2 < len(s) && isDashLike(s[j+1]) && isSpaceLike(s[j+2]) {
+		return 3
+	}
+	if isPhoneSep(s[j]) {
+		return 1
+	}
+	return 0
 }
 
 const (
@@ -161,12 +227,13 @@ const (
 )
 
 // phoneSpanAt returns the span [begin, end) (rune indexes) of an Indonesian phone number
-// starting at the token boundary i, or ok=false. FAIL CLOSED: a prefix (0 directly before the 8,
-// or 62/+62 with up to two separators before it) then digits and separators (at most two
-// separators in a row, no minimum group size) until the national digits (from the 8) reach 12;
-// the LONGEST prefix ending on a digit with 9..12 national digits is taken. Exception: a
-// '-'/'.' joined chain of 20+ digits whose candidate would end inside it is a barcode-like
-// code and stays. The TS twin implements the same scanner.
+// starting at the token boundary i, or ok=false. FAIL CLOSED: a prefix (0 directly before the
+// 8; or 62, +62 or 0062 with up to three separator units before the 8 and an optional trunk 0
+// or (0) in between) then digits and separators (at most two separator units in a row, no
+// minimum group size) until the national digits (from the 8) reach 12; the LONGEST prefix
+// ending on a digit with 9..12 national digits is taken. Exception: a '-'/'.' joined chain of
+// 20+ digits whose candidate would end inside it is a barcode-like code and stays. The TS
+// twin implements the same scanner.
 func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 	n := len(s)
 	at := func(k int) rune {
@@ -176,23 +243,40 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 		return 0
 	}
 	begin = i
-	var q int
+	q := i
 	closeSeen := false
+	pfx := 0
 	switch {
-	case s[i] == '6' && at(i+1) == '2':
-		q = i + 2
-		if i > 0 && s[i-1] == '+' {
+	case at(i) == '0' && at(i+1) == '0' && at(i+2) == '6' && at(i+3) == '2':
+		pfx = 4
+	case at(i) == '6' && at(i+1) == '2':
+		pfx = 2
+	}
+	if pfx > 0 {
+		q = i + pfx
+		if pfx == 2 && i > 0 && s[i-1] == '+' {
 			begin = i - 1
 		}
-		for seps := 0; seps < 2 && q < n && isPhoneSep(s[q]); seps++ {
-			if s[q] == ')' {
-				closeSeen = true
+		skipSeps := func(max int) {
+			for units := 0; units < max; units++ {
+				l := sepLen(s, q)
+				if l == 0 {
+					return
+				}
+				if l == 1 && s[q] == ')' {
+					closeSeen = true
+				}
+				q += l
 			}
-			q++
 		}
-	case s[i] == '0' && at(i+1) == '8' && i+2 < n && isDigit(s[i+2]):
+		skipSeps(3)
+		if at(q) == '0' {
+			q++
+			skipSeps(2)
+		}
+	} else if at(i) == '0' && at(i+1) == '8' && i+2 < n && isDigit(s[i+2]) {
 		q = i + 1
-	default:
+	} else {
 		return 0, 0, false
 	}
 	if at(q) != '8' {
@@ -203,30 +287,29 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 	if limit > n {
 		limit = n
 	}
-scan:
-	for j := q; j < limit; j++ {
+	for j := q; j < limit; {
 		c := s[j]
-		switch {
-		case isDigit(c):
+		if isDigit(c) {
 			nd++
 			if nd > phoneMaxNational {
-				break scan
+				break
 			}
 			sepRun = 0
+			j++
 			if nd >= phoneMinNational {
-				validEnd, validClose = j+1, closeSeen
+				validEnd, validClose = j, closeSeen
 			}
-		case isPhoneSep(c):
-			sepRun++
-			if sepRun > 2 {
-				break scan
-			}
-			if c == ')' {
-				closeSeen = true
-			}
-		default:
-			break scan
+			continue
 		}
+		l := sepLen(s, j)
+		sepRun++
+		if l == 0 || sepRun > 2 {
+			break
+		}
+		if l == 1 && c == ')' {
+			closeSeen = true
+		}
+		j += l
 	}
 	if validEnd < 0 {
 		return 0, 0, false
@@ -348,30 +431,43 @@ func redactJWTs(s string) string {
 	return out.String()
 }
 
+// backslashesBefore counts the backslashes directly before s[i], not looking before floor.
+func backslashesBefore(s string, i, floor int) int {
+	r := 0
+	for i-1-r >= floor && s[i-1-r] == '\\' {
+		r++
+	}
+	return r
+}
+
 // jsonValueEnd is where the value after a secret key's colon ends (exclusive), starting at pos.
-// escaped is true when the key itself was written with backslash-escaped quotes (JSON inside
-// JSON): values are then delimited by the same number of backslashes. Unterminated values run
-// to the end of the string.
-func jsonValueEnd(s string, pos int, escaped bool) int {
+// keyEscapes is the number of backslashes before the key's quotes (0 = plain JSON, 1 = JSON
+// inside a JSON string, 3 = twice nested, 7 = three times): string literals inside the value
+// are then delimited by that many backslashes plus the quote. Object/array values end at their
+// matching bracket, ignoring brackets inside string literals. Unterminated values run to the
+// end of the string.
+func jsonValueEnd(s string, pos, keyEscapes int) int {
 	n := len(s)
 	if pos >= n {
 		return pos
+	}
+	isDelimiter := func(i, floor, k int) bool {
+		r := backslashesBefore(s, i, floor)
+		if k == 0 {
+			return r%2 == 0
+		}
+		return r == k
 	}
 	if c := s[pos]; c == '{' || c == '[' {
 		depth, inStr := 0, false
 		for i := pos; i < n; i++ {
 			d := s[i]
-			if !escaped && inStr {
-				if d == '\\' {
-					i++
-				} else if d == '"' {
-					inStr = false
-				}
-				continue
-			}
 			switch {
-			case !escaped && d == '"':
-				inStr = true
+			case d == '"':
+				if isDelimiter(i, pos, keyEscapes) {
+					inStr = !inStr
+				}
+			case inStr:
 			case d == '{' || d == '[':
 				depth++
 			case d == '}' || d == ']':
@@ -389,14 +485,7 @@ func jsonValueEnd(s string, pos int, escaped bool) int {
 	}
 	if pos+k < n && s[pos+k] == '"' {
 		for i := pos + k + 1; i < n; i++ {
-			if s[i] != '"' {
-				continue
-			}
-			r := 0
-			for i-1-r > pos+k && s[i-1-r] == '\\' {
-				r++
-			}
-			if (k == 0 && r%2 == 0) || (k > 0 && r == k) {
+			if s[i] == '"' && isDelimiter(i, pos+k+1, k) {
 				return i + 1
 			}
 		}
@@ -418,7 +507,7 @@ func redactJSONSecrets(s string) string {
 			break
 		}
 		mStart, mEnd := from+loc[0], from+loc[1]
-		end := jsonValueEnd(s, mEnd, loc[3] > loc[2])
+		end := jsonValueEnd(s, mEnd, loc[3]-loc[2])
 		if end <= mEnd {
 			from = mEnd
 			continue

@@ -133,6 +133,25 @@ describe('redact (TS-only behaviour)', () => {
     expect(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(out.s)).toBe(false)
   })
 
+  it('scales linearly: 8x the input costs less than 16x the time', () => {
+    const best = (input: string, tier: 'logs' | 'secrets'): number => {
+      let min = Infinity
+      for (let k = 0; k < 3; k++) {
+        const t0 = performance.now()
+        redactString(input, tier)
+        min = Math.min(min, performance.now() - t0)
+      }
+      return min
+    }
+    for (const unit of ['eyJ', 'eyJa.', '0812 ', '"token":{', '62 8']) {
+      for (const tier of ['logs', 'secrets'] as const) {
+        const small = best(unit.repeat(Math.floor((16 * 1024) / unit.length)), tier)
+        const big = best(unit.repeat(Math.floor((128 * 1024) / unit.length)), tier)
+        expect(big).toBeLessThan(16 * Math.max(small, 2))
+      }
+    }
+  })
+
   it('pre-cuts a huge string by code units without expanding it, keeping astral text whole', () => {
     const t0 = performance.now()
     const out = redactString('😀'.repeat(2_000_000))
@@ -140,7 +159,7 @@ describe('redact (TS-only behaviour)', () => {
     expect(Array.from(out.replace('...[truncated]', '')).length).toBe(MAX_STRING_LOGS)
   })
 
-  it('phone, JWT and JSON scanners stay linear: 64-128 KB adversarial strings under 50 ms in both tiers', () => {
+  it('phone, JWT and JSON scanners stay linear: 64-128 KB adversarial strings (250 ms cap, ratio check below)', () => {
     const cases = [
       '0812 '.repeat(13000),
       '1'.repeat(65536),
@@ -156,7 +175,7 @@ describe('redact (TS-only behaviour)', () => {
       for (const c of cases) {
         const t0 = performance.now()
         redactString(c, tier)
-        expect(performance.now() - t0).toBeLessThan(50)
+        expect(performance.now() - t0).toBeLessThan(250)
       }
     }
   })

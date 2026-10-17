@@ -41,23 +41,31 @@ const NODE_OVERHEAD = 6
 const KEY_OVERHEAD = 4
 const TRUNCATED_SUFFIX = '...[truncated]'
 
-// ASCII whitespace classes (not \s) so the Go twin matches exactly. Quantifiers
-// are bounded (RE2 allows at most 1000) so adversarial input cannot backtrack.
-const BEARER_RE = /Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+/gi
-const BASIC_RE = /(Authorization:[ \t]*)Basic[ \t]+[A-Za-z0-9+/]+={0,2}/gi
-const URL_SECRET_RE = /((?:^|[?&,;( \t\r\n])(?:token|access_token|key|sig|password|pin|api_key|apikey)=)[^& \t\r\n#]*/gi
+// ASCII whitespace classes (not \s) and ASCII-only case folding (ci() spells out [bB] classes
+// instead of the i flag, whose Unicode folding differs between JS and Go) so the Go twin
+// matches exactly. Quantifiers are bounded (RE2 allows at most 1000).
+const ci = (lit: string): string => lit.replace(/[a-z]/gi, (c) => '[' + c.toLowerCase() + c.toUpperCase() + ']')
+const BEARER_RE = new RegExp(ci('Bearer') + '[ \\t\\r\\n]+[A-Za-z0-9._~+/=-]+', 'g')
+const BASIC_RE = new RegExp('(' + ci('Authorization:') + '[ \\t]*)' + ci('Basic') + '[ \\t]+[A-Za-z0-9+/]+={0,2}', 'g')
+const URL_SECRET_RE = new RegExp(
+  '((?:^|[?&,;( \\t\\r\\n])(?:' + ['token', 'access_token', 'key', 'sig', 'password', 'pin', 'api_key', 'apikey'].map(ci).join('|') + ')=)[^& \\t\\r\\n#]*',
+  'g',
+)
 const EMAIL_RE = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}/g
 const NUL_RE = /\0/g
 
 /** Credential keys: exact names plus anything containing pinhash (receivePinHash, pin_hash...). */
 const isSecretKey = (nk: string): boolean => SECRET_KEYS.has(nk) || nk.includes('pinhash')
 
+/** Lower-case ASCII letters only (toLowerCase folds non-ASCII differently from Go). */
+const asciiLower = (s: string): string => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32))
+
 function normKey(k: string): string {
-  return k.toLowerCase().replace(/[_-]/g, '')
+  return asciiLower(k).replace(/[_-]/g, '')
 }
 
 function isIdKey(k: string): boolean {
-  const lower = k.toLowerCase()
+  const lower = asciiLower(k)
   return lower === 'id' || k.endsWith('Id') || lower.endsWith('_id') || ID_KEYS.has(normKey(k))
 }
 
@@ -77,9 +85,18 @@ function exceedsCodePoints(s: string, n: number): boolean {
 
 const isDigit = (c: string): boolean => c >= '0' && c <= '9'
 const isB64 = (c: string): boolean => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_' || c === '-'
-// Separators a phone number may be written with (NBSP, en/em dash included).
-const PHONE_SEPS = new Set([' ', '\t', '.', '-', '–', '—', '/', '(', ')', ' '])
-const isPhoneSep = (c: string): boolean => PHONE_SEPS.has(c)
+// Separators a phone number may be written with: space-like, dash-like, '.', '/', parens, '_'.
+const SPACE_LIKE = new Set([' ', '\t', ' ', ' ', ' '])
+const DASH_LIKE = new Set(['-', '–', '—', '‑', '−'])
+const PHONE_SEPS = new Set([...SPACE_LIKE, ...DASH_LIKE, '.', '/', '(', ')', '_'])
+
+/** Length of the separator unit at j: " - " (space, dash, space) is ONE unit; 0 if none. */
+function sepLen(s: string, j: number): number {
+  const c = s[j]
+  if (c === undefined) return 0
+  if (SPACE_LIKE.has(c) && j + 2 < s.length && DASH_LIKE.has(s[j + 1]) && SPACE_LIKE.has(s[j + 2])) return 3
+  return PHONE_SEPS.has(c) ? 1 : 0
+}
 
 const PHONE_LOOKAHEAD = 40 // characters examined per candidate: keeps the scan linear
 const PHONE_CHAIN_LOOKAHEAD = 80
@@ -89,26 +106,34 @@ const CODE_CHAIN_DIGITS = 20
 
 /**
  * The span [begin, end) of an Indonesian phone number starting at the token boundary i, or null.
- * FAIL CLOSED: a prefix (0 directly before the 8, or 62/+62 with up to two separators before it)
- * then digits and separators (at most two separators in a row, no minimum group size) until the
- * national digits (from the 8) reach 12; the LONGEST prefix ending on a digit with 9..12 national
- * digits is taken. Exception: a '-'/'.' joined chain of 20+ digits whose candidate would end inside
- * it is a barcode-like code and stays. The Go twin implements the same scanner.
+ * FAIL CLOSED: a prefix (0 directly before the 8; or 62, +62 or 0062 with up to three separator
+ * units before the 8 and an optional trunk 0 or (0) in between) then digits and separators (at
+ * most two separator units in a row, no minimum group size) until the national digits (from the
+ * 8) reach 12; the LONGEST prefix ending on a digit with 9..12 national digits is taken.
+ * Exception: a '-'/'.' joined chain of 20+ digits whose candidate would end inside it is a
+ * barcode-like code and stays. The Go twin implements the same scanner.
  */
 function phoneSpanAt(s: string, i: number): [number, number] | null {
   const n = s.length
   let begin = i
   let q: number
   let closeSeen = false
-  if (s[i] === '6' && s[i + 1] === '2') {
-    q = i + 2
-    if (i > 0 && s[i - 1] === '+') begin = i - 1
-    let seps = 0
-    while (seps < 2 && q < n && isPhoneSep(s[q])) {
-      if (s[q] === ')') closeSeen = true
-      q++
-      seps++
+  let pfx = 0
+  if (s.startsWith('0062', i)) pfx = 4
+  else if (s[i] === '6' && s[i + 1] === '2') pfx = 2
+  if (pfx > 0) {
+    q = i + pfx
+    if (pfx === 2 && i > 0 && s[i - 1] === '+') begin = i - 1
+    const skipSeps = (max: number): void => {
+      for (let units = 0; units < max; units++) {
+        const len = sepLen(s, q)
+        if (len === 0) return
+        if (len === 1 && s[q] === ')') closeSeen = true
+        q += len
+      }
     }
+    skipSeps(3)
+    if (s[q] === '0') { q++; skipSeps(2) }
   } else if (s[i] === '0' && s[i + 1] === '8' && i + 2 < n && isDigit(s[i + 2])) {
     q = i + 1
   } else {
@@ -120,22 +145,23 @@ function phoneSpanAt(s: string, i: number): [number, number] | null {
   let validClose = false
   let sepRun = 0
   const limit = Math.min(n, i + PHONE_LOOKAHEAD)
-  for (let j = q; j < limit; j++) {
+  for (let j = q; j < limit;) {
     const c = s[j]
     if (isDigit(c)) {
       nd++
       if (nd > PHONE_MAX_NATIONAL) break
       sepRun = 0
+      j++
       if (nd >= PHONE_MIN_NATIONAL) {
-        validEnd = j + 1
+        validEnd = j
         validClose = closeSeen
       }
-    } else if (isPhoneSep(c)) {
-      if (++sepRun > 2) break
-      if (c === ')') closeSeen = true
-    } else {
-      break
+      continue
     }
+    const len = sepLen(s, j)
+    if (len === 0 || ++sepRun > 2) break
+    if (len === 1 && c === ')') closeSeen = true
+    j += len
   }
   if (validEnd < 0) return null
   // Barcode-like chain: 20+ digits joined by single '-' or '.', candidate ends inside it.
@@ -207,28 +233,39 @@ function redactJwts(s: string): string {
   return out + s.slice(last)
 }
 
+/** Backslashes directly before s[i], not looking before `floor`. */
+function backslashesBefore(s: string, i: number, floor: number): number {
+  let r = 0
+  while (i - 1 - r >= floor && s[i - 1 - r] === '\\') r++
+  return r
+}
+
 /**
- * Where the value after a secret key's colon ends (exclusive), starting at pos. `escaped` is true
- * when the key itself was written with backslash-escaped quotes (JSON inside JSON): values are then
- * delimited by the same number of backslashes. Unterminated values run to the end of the string.
+ * Where the value after a secret key's colon ends (exclusive), starting at pos. `keyEscapes` is the
+ * number of backslashes before the key's quotes (0 = plain JSON, 1 = JSON inside a JSON string,
+ * 3 = twice nested, 7 = three times): string literals inside the value are then delimited by that
+ * many backslashes plus the quote. Object/array values end at their matching bracket, ignoring
+ * brackets inside string literals. Unterminated values run to the end of the string.
  */
-function jsonValueEnd(s: string, pos: number, escaped: boolean): number {
+function jsonValueEnd(s: string, pos: number, keyEscapes: number): number {
   const n = s.length
   if (pos >= n) return pos
+  const isDelimiter = (i: number, floor: number, k: number): boolean => {
+    const r = backslashesBefore(s, i, floor)
+    return k === 0 ? r % 2 === 0 : r === k
+  }
   const c = s[pos]
   if (c === '{' || c === '[') {
     let depth = 0
     let inStr = false
     for (let i = pos; i < n; i++) {
       const d = s[i]
-      if (!escaped && inStr) {
-        if (d === '\\') i++
-        else if (d === '"') inStr = false
-        continue
+      if (d === '"') {
+        if (isDelimiter(i, pos, keyEscapes)) inStr = !inStr
+      } else if (!inStr) {
+        if (d === '{' || d === '[') depth++
+        else if ((d === '}' || d === ']') && --depth === 0) return i + 1
       }
-      if (!escaped && d === '"') inStr = true
-      else if (d === '{' || d === '[') depth++
-      else if (d === '}' || d === ']') { if (--depth === 0) return i + 1 }
     }
     return n
   }
@@ -236,10 +273,7 @@ function jsonValueEnd(s: string, pos: number, escaped: boolean): number {
   while (pos + k < n && s[pos + k] === '\\') k++
   if (pos + k < n && s[pos + k] === '"') {
     for (let i = pos + k + 1; i < n; i++) {
-      if (s[i] !== '"') continue
-      let r = 0
-      while (i - 1 - r > pos + k && s[i - 1 - r] === '\\') r++
-      if (k === 0 ? r % 2 === 0 : r === k) return i + 1
+      if (s[i] === '"' && isDelimiter(i, pos + k + 1, k)) return i + 1
     }
     return n
   }
@@ -248,8 +282,16 @@ function jsonValueEnd(s: string, pos: number, escaped: boolean): number {
   return e
 }
 
-// Key + colon of a secret entry inside a string that holds JSON (possibly escaped up to 3 levels).
-const JSON_KEY_RE = /(\\{0,3})"([A-Za-z0-9_-]{0,40}pin[_-]?hash[A-Za-z0-9_-]{0,40}|pin|passwd|password|token|access[_-]?token|refresh[_-]?token|authorization|cookie|secret|client[_-]?secret|api[_-]?key|apikey)(\\{0,3})"[ \t\r\n]*:[ \t\r\n]*/gi
+// Key + colon of a secret entry inside a string that holds JSON, escaped up to three levels
+// (up to 7 backslashes before a quote). ASCII-only case folding via ci().
+const JSON_KEY_RE = new RegExp(
+  '(\\\\{0,7})"(' +
+    ['[A-Za-z0-9_-]{0,40}' + ci('pin') + '[_-]?' + ci('hash') + '[A-Za-z0-9_-]{0,40}', ci('pin'), ci('passwd'), ci('password'), ci('token'),
+      ci('access') + '[_-]?' + ci('token'), ci('refresh') + '[_-]?' + ci('token'), ci('authorization'), ci('cookie'), ci('secret'),
+      ci('client') + '[_-]?' + ci('secret'), ci('api') + '[_-]?' + ci('key'), ci('apikey')].join('|') +
+    ')(\\\\{0,7})"[ \\t\\r\\n]*:[ \\t\\r\\n]*',
+  'g',
+)
 
 function redactJsonSecrets(s: string): string {
   let out = ''
@@ -259,7 +301,7 @@ function redactJsonSecrets(s: string): string {
     const m = JSON_KEY_RE.exec(s)
     if (!m) break
     const valStart = m.index + m[0].length
-    const end = jsonValueEnd(s, valStart, m[1].length > 0)
+    const end = jsonValueEnd(s, valStart, m[1].length)
     if (end <= valStart) { JSON_KEY_RE.lastIndex = valStart; continue }
     out += s.slice(last, m.index) + `"${m[2]}":"${REDACTED}"`
     last = end
