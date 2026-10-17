@@ -20,7 +20,7 @@ const PAYLOAD = {
 async function deadLetterEngine(events = {}) {
   const engine = new SyncEngine(api(vi.fn()), events, controllableKV().kv, { actor: null })
   await engine.outbox.add('order', 'dev:1', structuredClone(PAYLOAD))
-  for (let i = 0; i < MAX_ATTEMPTS; i++) await engine.outbox.fail('dev:1', 'rejected')
+  for (let i = 0; i < MAX_ATTEMPTS; i++) await engine.outbox.fail('dev:1', 'rejected for budi@example.com 081234567890')
   return engine
 }
 

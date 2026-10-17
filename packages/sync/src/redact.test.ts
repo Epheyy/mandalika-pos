@@ -4,13 +4,30 @@ import { MAX_STRING_LOGS, redactForLogs, redactSecrets, redactString } from './r
 
 interface Vector { name: string; tier: 'secrets' | 'logs'; input: unknown; expected: unknown }
 
+/** Expands {{N*unit}} templates in every string (input and expected), like the Go harness. */
+function expand(v: unknown): unknown {
+  if (typeof v === 'string') return v.replace(/\{\{(\d+)\*([^}]*)\}\}/g, (_m, n: string, unit: string) => unit.repeat(Number(n)))
+  if (Array.isArray(v)) return v.map(expand)
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, e]) => [k, expand(e)]))
+  }
+  return v
+}
+
 describe('shared redaction vectors (also run by backend/internal/redact)', () => {
   for (const v of (vectors as unknown as { vectors: Vector[] }).vectors) {
     it(v.name, () => {
-      const before = JSON.stringify(v.input)
-      const out = v.tier === 'logs' ? redactForLogs(v.input) : redactSecrets(v.input)
-      expect(out).toEqual(v.expected)
-      expect(JSON.stringify(v.input)).toBe(before) // input never mutated
+      const input = expand(v.input)
+      const expected = expand(v.expected) as { _truncated?: boolean }
+      const before = JSON.stringify(input)
+      const out = v.tier === 'logs' ? redactForLogs(input) : redactSecrets(input)
+      if (expected && expected._truncated) {
+        expect(out).toMatchObject({ _truncated: true })
+        expect((out as { bytes: number }).bytes).toBeGreaterThan(32 * 1024)
+      } else {
+        expect(out).toEqual(expected)
+      }
+      expect(JSON.stringify(input)).toBe(before) // input never mutated
     })
   }
 })
@@ -71,5 +88,42 @@ describe('redact (TS-only behaviour)', () => {
 
   it('drops undefined object members and keeps JSON-like shape', () => {
     expect(redactForLogs({ a: undefined, b: 1 })).toEqual({ b: 1 })
+  })
+
+  it('keeps primitive custom props of an Error and still redacts them by key and pattern', () => {
+    const err = Object.assign(new Error('x'), { status: 503, code: 'E_UPSTREAM', token: 'CANARY', note: 'call 081234567890' })
+    const out = redactForLogs(err) as Record<string, unknown>
+    expect(out.status).toBe(503)
+    expect(out.code).toBe('E_UPSTREAM')
+    expect(out.token).toBe('[REDACTED]')
+    expect(out.note).toBe('call [REDACTED]')
+  })
+
+  it('stays fast on adversarial 32 KB strings (bounded quantifiers + pre-cut)', () => {
+    const cases = [
+      'a'.repeat(32 * 1024),
+      'eyJ' + 'a'.repeat(32 * 1024),
+      '0 8 '.repeat(8192),
+      'a@'.repeat(16 * 1024),
+      '"pin"'.repeat(6000),
+    ]
+    for (const c of cases) {
+      const t0 = performance.now()
+      redactString(c)
+      expect(performance.now() - t0).toBeLessThan(100)
+    }
+  })
+
+  it('collapses a payload past the node budget to a marker without walking all of it', () => {
+    const wide: Record<string, string> = {}
+    for (let i = 0; i < 12000; i++) wide['k' + i] = 'v'
+    const t0 = performance.now()
+    expect(redactForLogs(wide)).toMatchObject({ _truncated: true })
+    expect(performance.now() - t0).toBeLessThan(250)
+  })
+
+  it('never produces a lone surrogate when cutting astral text', () => {
+    const out = redactForLogs({ s: '😀'.repeat(MAX_STRING_LOGS + 10) }) as { s: string }
+    expect(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(out.s)).toBe(false)
   })
 })

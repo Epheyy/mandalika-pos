@@ -4,9 +4,35 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+var templateRE = regexp.MustCompile(`\{\{(\d+)\*([^}]*)\}\}`)
+
+// expand replaces {{N*unit}} templates in every string, like the TS harness.
+func expand(v any) any {
+	switch x := v.(type) {
+	case string:
+		return templateRE.ReplaceAllStringFunc(x, func(m string) string {
+			g := templateRE.FindStringSubmatch(m)
+			n, _ := strconv.Atoi(g[1])
+			return strings.Repeat(g[2], n)
+		})
+	case []any:
+		for i := range x {
+			x[i] = expand(x[i])
+		}
+	case map[string]any:
+		for k := range x {
+			x[k] = expand(x[k])
+		}
+	}
+	return v
+}
 
 // The vector file is shared with packages/sync/src/redact.test.ts: both
 // redactors must produce exactly these outputs.
@@ -57,10 +83,20 @@ func TestSharedVectors(t *testing.T) {
 			if v.Tier == "logs" {
 				tier = Logs
 			}
-			in := decode(t, v.Input)
+			in := expand(decode(t, v.Input))
 			before := canon(t, in)
-			got := canon(t, Value(in, tier))
-			want := canon(t, decode(t, v.Expected))
+			out := Value(in, tier)
+			expected := expand(decode(t, v.Expected))
+			if m, ok := expected.(map[string]any); ok && m["_truncated"] == true {
+				om, isMap := out.(map[string]any)
+				n, _ := om["bytes"].(int)
+				if !isMap || om["_truncated"] != true || n <= maxTotalLogs {
+					t.Fatalf("expected a truncation marker over the cap, got %v", out)
+				}
+				return
+			}
+			got := canon(t, out)
+			want := canon(t, expected)
 			if got != want {
 				t.Fatalf("got  %s\nwant %s", got, want)
 			}
@@ -110,5 +146,57 @@ func TestJSONStripsNULAndRoundTrips(t *testing.T) {
 	}
 	if _, err := JSON([]byte(`{bad`), Logs); err == nil {
 		t.Fatal("invalid JSON must error")
+	}
+}
+
+func TestWideAdversarialPayloadStaysCheap(t *testing.T) {
+	wide := make(map[string]any)
+	for i := 0; i < 12000; i++ {
+		wide["k"+strconv.Itoa(i)] = "v"
+	}
+	start := time.Now()
+	out := Value(wide, Logs)
+	if d := time.Since(start); d > 250*time.Millisecond {
+		t.Fatalf("wide payload took %v", d)
+	}
+	if m, ok := out.(map[string]any); !ok || m["_truncated"] != true {
+		t.Fatal("a payload past the node budget must collapse to a marker")
+	}
+	allocs := testing.AllocsPerRun(3, func() { Value(wide, Logs) })
+	if allocs > 40000 {
+		t.Fatalf("too many allocations for a capped walk: %.0f", allocs)
+	}
+}
+
+func TestAdversarialStringsAreLinearEnough(t *testing.T) {
+	cases := map[string]string{
+		"email": strings.Repeat("a", 32*1024),
+		"jwt":   "eyJ" + strings.Repeat("a", 32*1024),
+		"phone": strings.Repeat("0 8 ", 8192),
+	}
+	for name, in := range cases {
+		start := time.Now()
+		String(in, Logs)
+		if d := time.Since(start); d > 100*time.Millisecond {
+			t.Errorf("%s: %v", name, d)
+		}
+	}
+}
+
+func BenchmarkWideLogsPayload(b *testing.B) {
+	wide := make(map[string]any)
+	for i := 0; i < 12000; i++ {
+		wide["k"+strconv.Itoa(i)] = "v"
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		Value(wide, Logs)
+	}
+}
+
+func TestStackHelperUsesLargerCap(t *testing.T) {
+	got := Stack(strings.Repeat("a", 5000))
+	if len([]rune(got)) != maxStackLogs+len(truncatedSuffix) {
+		t.Fatalf("stack len = %d", len([]rune(got)))
 	}
 }

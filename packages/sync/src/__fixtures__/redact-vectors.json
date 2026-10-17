@@ -1,77 +1,570 @@
 {
-  "_comment": "Shared redaction vectors (A37). Run by packages/sync/src/redact.test.ts AND backend/internal/redact/redact_test.go. Tier 'secrets' = keys+Bearer/JWT/URL-param patterns only; tier 'logs' = secrets + PII keys + email/phone patterns + size caps.",
-  "vectors": [
-    {"name": "secrets: top-level and nested secret keys", "tier": "secrets",
-     "input": {"pin": "1234", "a": {"b": [{"password": "x", "token": "t", "ok": 1}]}},
-     "expected": {"pin": "[REDACTED]", "a": {"b": [{"password": "[REDACTED]", "token": "[REDACTED]", "ok": 1}]}}},
-    {"name": "secrets: key match ignores case, underscore and dash", "tier": "secrets",
-     "input": {"PIN": "1", "Access_Token": "x", "API-KEY": "k", "pinHash": "h", "refreshToken": "r", "Authorization": "a", "cookie": "c", "secret": "s"},
-     "expected": {"PIN": "[REDACTED]", "Access_Token": "[REDACTED]", "API-KEY": "[REDACTED]", "pinHash": "[REDACTED]", "refreshToken": "[REDACTED]", "Authorization": "[REDACTED]", "cookie": "[REDACTED]", "secret": "[REDACTED]"}},
-    {"name": "secrets: object value under a secret key is replaced whole", "tier": "secrets",
-     "input": {"token": {"a": 1}, "keep": true},
-     "expected": {"token": "[REDACTED]", "keep": true}},
-    {"name": "secrets: Bearer token inside a string", "tier": "secrets",
-     "input": {"h": "Authorization failed: Bearer abc.def-123 end"},
-     "expected": {"h": "Authorization failed: Bearer [REDACTED] end"}},
-    {"name": "secrets: JWT inside a string", "tier": "secrets",
-     "input": {"m": "x eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig_-abc y"},
-     "expected": {"m": "x [REDACTED] y"}},
-    {"name": "secrets: URL query secrets", "tier": "secrets",
-     "input": {"u": "https://x.test/y?token=abc&a=1&key=zz&password=p#f"},
-     "expected": {"u": "https://x.test/y?token=[REDACTED]&a=1&key=[REDACTED]&password=[REDACTED]#f"}},
-    {"name": "secrets: a monkey= param is not a key= param", "tier": "secrets",
-     "input": {"u": "https://x.test/y?monkey=1&sig=abc"},
-     "expected": {"u": "https://x.test/y?monkey=1&sig=[REDACTED]"}},
-    {"name": "secrets: bare key=value secrets in free text", "tier": "secrets",
-     "input": {"m": "retry token=abc key=def (password=p ) x_key=ghi monkey=1"},
-     "expected": {"m": "retry token=[REDACTED] key=[REDACTED] (password=[REDACTED] ) x_key=ghi monkey=1"}},
-    {"name": "secrets tier keeps customer phone and email", "tier": "secrets",
-     "input": {"customerPhone": "081234567890", "note": "call 081234567890 a@b.co"},
-     "expected": {"customerPhone": "081234567890", "note": "call 081234567890 a@b.co"}},
-    {"name": "secrets: scalars and arrays pass through", "tier": "secrets",
-     "input": {"n": 12.5, "t": true, "z": null, "arr": [1, "two", [3]], "e": {}},
-     "expected": {"n": 12.5, "t": true, "z": null, "arr": [1, "two", [3]], "e": {}}},
-    {"name": "logs: PII keys", "tier": "logs",
-     "input": {"customerPhone": "0812", "email": "a@b.co", "address": "jl x", "nik": "1", "customerName": "Budi", "customerEmail": "e", "phone": "p"},
-     "expected": {"customerPhone": "[REDACTED]", "email": "[REDACTED]", "address": "[REDACTED]", "nik": "[REDACTED]", "customerName": "[REDACTED]", "customerEmail": "[REDACTED]", "phone": "[REDACTED]"}},
-    {"name": "logs: secret keys also redacted", "tier": "logs",
-     "input": {"pin": "1", "nested": {"password": "p"}},
-     "expected": {"pin": "[REDACTED]", "nested": {"password": "[REDACTED]"}}},
-    {"name": "logs: bare name is a person only beside contact fields or inside customer", "tier": "logs",
-     "input": {"op": {"customerId": "c1", "name": "Budi", "phone": "x", "email": "y"}, "customer": {"id": "c2", "name": "Sari"}, "items": [{"name": "Parfum A", "size": "110ml"}], "outlet": {"name": "Mandalika Bali"}},
-     "expected": {"op": {"customerId": "c1", "name": "[REDACTED]", "phone": "[REDACTED]", "email": "[REDACTED]"}, "customer": {"id": "c2", "name": "[REDACTED]"}, "items": [{"name": "Parfum A", "size": "110ml"}], "outlet": {"name": "Mandalika Bali"}}},
-    {"name": "secrets tier keeps person names", "tier": "secrets",
-     "input": {"customer": {"name": "Sari"}, "op": {"name": "Budi", "phone": "x"}},
-     "expected": {"customer": {"name": "Sari"}, "op": {"name": "Budi", "phone": "x"}}},
-    {"name": "logs: email inside a string", "tier": "logs",
-     "input": {"m": "mail budi.s+1@example.co.id now"},
-     "expected": {"m": "mail [REDACTED] now"}},
-    {"name": "logs: Indonesian phone formats", "tier": "logs",
-     "input": {"a": "0812345678901", "b": "+6281234567890", "c": "6281234567890", "d": "tel 081234567890.", "e": "(081234567890)", "f": "081234567 and 0899999999"},
-     "expected": {"a": "[REDACTED]", "b": "[REDACTED]", "c": "[REDACTED]", "d": "tel [REDACTED].", "e": "([REDACTED])", "f": "[REDACTED] and [REDACTED]"}},
-    {"name": "logs: phones in an array of strings", "tier": "logs",
-     "input": {"list": ["0812345678901", "ok"]},
-     "expected": {"list": ["[REDACTED]", "ok"]}},
-    {"name": "logs: receipt number kept, phone after it redacted", "tier": "logs",
-     "input": {"m": "MDL-20261017-0001 paid by 0812345678901"},
-     "expected": {"m": "MDL-20261017-0001 paid by [REDACTED]"}},
-    {"name": "logs negative: epoch ms, long digit runs, amounts", "tier": "logs",
-     "input": {"ms": "1760000000000", "long": "08123456789012345", "short": "081234", "num": 628123456789},
-     "expected": {"ms": "1760000000000", "long": "08123456789012345", "short": "081234", "num": 628123456789}},
-    {"name": "logs negative: ids, order numbers and barcodes under exempt keys", "tier": "logs",
-     "input": {"id": "081234567890", "customerId": "081234567890", "outlet_id": "081234567890", "idempotencyKey": "081234567890", "orderNumber": "081234567890", "transferNo": "081234567890", "sku": "081234567890", "barcode": "081234567890"},
-     "expected": {"id": "081234567890", "customerId": "081234567890", "outlet_id": "081234567890", "idempotencyKey": "081234567890", "orderNumber": "081234567890", "transferNo": "081234567890", "sku": "081234567890", "barcode": "081234567890"}},
-    {"name": "logs negative: UUIDs and dash-joined ids", "tier": "logs",
-     "input": {"u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924", "v": "0812345678-aaaa-bbbb-cccc-0123456789ab", "o": "ORD-0812345678901", "w": "a_0812345678901"},
-     "expected": {"u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924", "v": "0812345678-aaaa-bbbb-cccc-0123456789ab", "o": "ORD-0812345678901", "w": "a_0812345678901"}},
-    {"name": "logs: exempt key still gets secret patterns", "tier": "logs",
-     "input": {"idempotencyKey": "Bearer abc"},
-     "expected": {"idempotencyKey": "Bearer [REDACTED]"}},
-    {"name": "logs: Bearer and URL token", "tier": "logs",
-     "input": {"m": "GET /x?access_token=abc failed, Bearer zzz.yyy"},
-     "expected": {"m": "GET /x?access_token=[REDACTED] failed, Bearer [REDACTED]"}},
-    {"name": "logs: top-level string", "tier": "logs",
-     "input": "call 081234567890",
-     "expected": "call [REDACTED]"}
-  ]
+ "_comment": "Shared redaction vectors (A37). Run by packages/sync/src/redact.test.ts AND backend/internal/redact/redact_test.go. Tier 'secrets' = keys+Bearer/JWT/URL-param patterns only; tier 'logs' = secrets + PII keys + email/phone patterns + size caps. Strings may use {{N*unit}} templates, expanded by both harnesses in input and expected.",
+ "vectors": [
+  {
+   "name": "secrets: top-level and nested secret keys",
+   "tier": "secrets",
+   "input": {
+    "pin": "1234",
+    "a": {
+     "b": [
+      {
+       "password": "x",
+       "token": "t",
+       "ok": 1
+      }
+     ]
+    }
+   },
+   "expected": {
+    "pin": "[REDACTED]",
+    "a": {
+     "b": [
+      {
+       "password": "[REDACTED]",
+       "token": "[REDACTED]",
+       "ok": 1
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "secrets: key match ignores case, underscore and dash",
+   "tier": "secrets",
+   "input": {
+    "PIN": "1",
+    "Access_Token": "x",
+    "API-KEY": "k",
+    "pinHash": "h",
+    "refreshToken": "r",
+    "Authorization": "a",
+    "cookie": "c",
+    "secret": "s"
+   },
+   "expected": {
+    "PIN": "[REDACTED]",
+    "Access_Token": "[REDACTED]",
+    "API-KEY": "[REDACTED]",
+    "pinHash": "[REDACTED]",
+    "refreshToken": "[REDACTED]",
+    "Authorization": "[REDACTED]",
+    "cookie": "[REDACTED]",
+    "secret": "[REDACTED]"
+   }
+  },
+  {
+   "name": "secrets: object value under a secret key is replaced whole",
+   "tier": "secrets",
+   "input": {
+    "token": {
+     "a": 1
+    },
+    "keep": true
+   },
+   "expected": {
+    "token": "[REDACTED]",
+    "keep": true
+   }
+  },
+  {
+   "name": "secrets: Bearer token inside a string",
+   "tier": "secrets",
+   "input": {
+    "h": "Authorization failed: Bearer abc.def-123 end"
+   },
+   "expected": {
+    "h": "Authorization failed: Bearer [REDACTED] end"
+   }
+  },
+  {
+   "name": "secrets: JWT inside a string",
+   "tier": "secrets",
+   "input": {
+    "m": "x eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig_-abc y"
+   },
+   "expected": {
+    "m": "x [REDACTED] y"
+   }
+  },
+  {
+   "name": "secrets: URL query secrets",
+   "tier": "secrets",
+   "input": {
+    "u": "https://x.test/y?token=abc&a=1&key=zz&password=p#f"
+   },
+   "expected": {
+    "u": "https://x.test/y?token=[REDACTED]&a=1&key=[REDACTED]&password=[REDACTED]#f"
+   }
+  },
+  {
+   "name": "secrets: a monkey= param is not a key= param",
+   "tier": "secrets",
+   "input": {
+    "u": "https://x.test/y?monkey=1&sig=abc"
+   },
+   "expected": {
+    "u": "https://x.test/y?monkey=1&sig=[REDACTED]"
+   }
+  },
+  {
+   "name": "secrets: bare key=value secrets in free text",
+   "tier": "secrets",
+   "input": {
+    "m": "retry token=abc key=def (password=p ) x_key=ghi monkey=1"
+   },
+   "expected": {
+    "m": "retry token=[REDACTED] key=[REDACTED] (password=[REDACTED] ) x_key=ghi monkey=1"
+   }
+  },
+  {
+   "name": "secrets tier keeps customer phone and email",
+   "tier": "secrets",
+   "input": {
+    "customerPhone": "081234567890",
+    "note": "call 081234567890 a@b.co"
+   },
+   "expected": {
+    "customerPhone": "081234567890",
+    "note": "call 081234567890 a@b.co"
+   }
+  },
+  {
+   "name": "secrets: scalars and arrays pass through",
+   "tier": "secrets",
+   "input": {
+    "n": 12.5,
+    "t": true,
+    "z": null,
+    "arr": [
+     1,
+     "two",
+     [
+      3
+     ]
+    ],
+    "e": {}
+   },
+   "expected": {
+    "n": 12.5,
+    "t": true,
+    "z": null,
+    "arr": [
+     1,
+     "two",
+     [
+      3
+     ]
+    ],
+    "e": {}
+   }
+  },
+  {
+   "name": "logs: PII keys",
+   "tier": "logs",
+   "input": {
+    "customerPhone": "0812",
+    "email": "a@b.co",
+    "address": "jl x",
+    "nik": "1",
+    "customerName": "Budi",
+    "customerEmail": "e",
+    "phone": "p"
+   },
+   "expected": {
+    "customerPhone": "[REDACTED]",
+    "email": "[REDACTED]",
+    "address": "[REDACTED]",
+    "nik": "[REDACTED]",
+    "customerName": "[REDACTED]",
+    "customerEmail": "[REDACTED]",
+    "phone": "[REDACTED]"
+   }
+  },
+  {
+   "name": "logs: secret keys also redacted",
+   "tier": "logs",
+   "input": {
+    "pin": "1",
+    "nested": {
+     "password": "p"
+    }
+   },
+   "expected": {
+    "pin": "[REDACTED]",
+    "nested": {
+     "password": "[REDACTED]"
+    }
+   }
+  },
+  {
+   "name": "logs: bare name is a person only beside contact fields or inside customer",
+   "tier": "logs",
+   "input": {
+    "op": {
+     "customerId": "c1",
+     "name": "Budi",
+     "phone": "x",
+     "email": "y"
+    },
+    "customer": {
+     "id": "c2",
+     "name": "Sari"
+    },
+    "items": [
+     {
+      "name": "Parfum A",
+      "size": "110ml"
+     }
+    ],
+    "outlet": {
+     "name": "Mandalika Bali"
+    }
+   },
+   "expected": {
+    "op": {
+     "customerId": "c1",
+     "name": "[REDACTED]",
+     "phone": "[REDACTED]",
+     "email": "[REDACTED]"
+    },
+    "customer": {
+     "id": "c2",
+     "name": "[REDACTED]"
+    },
+    "items": [
+     {
+      "name": "Parfum A",
+      "size": "110ml"
+     }
+    ],
+    "outlet": {
+     "name": "Mandalika Bali"
+    }
+   }
+  },
+  {
+   "name": "secrets tier keeps person names",
+   "tier": "secrets",
+   "input": {
+    "customer": {
+     "name": "Sari"
+    },
+    "op": {
+     "name": "Budi",
+     "phone": "x"
+    }
+   },
+   "expected": {
+    "customer": {
+     "name": "Sari"
+    },
+    "op": {
+     "name": "Budi",
+     "phone": "x"
+    }
+   }
+  },
+  {
+   "name": "logs: email inside a string",
+   "tier": "logs",
+   "input": {
+    "m": "mail budi.s+1@example.co.id now"
+   },
+   "expected": {
+    "m": "mail [REDACTED] now"
+   }
+  },
+  {
+   "name": "logs: Indonesian phone formats",
+   "tier": "logs",
+   "input": {
+    "a": "0812345678901",
+    "b": "+6281234567890",
+    "c": "6281234567890",
+    "d": "tel 081234567890.",
+    "e": "(081234567890)",
+    "f": "081234567 and 0899999999"
+   },
+   "expected": {
+    "a": "[REDACTED]",
+    "b": "[REDACTED]",
+    "c": "[REDACTED]",
+    "d": "tel [REDACTED].",
+    "e": "([REDACTED])",
+    "f": "[REDACTED] and [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: phones in an array of strings",
+   "tier": "logs",
+   "input": {
+    "list": [
+     "0812345678901",
+     "ok"
+    ]
+   },
+   "expected": {
+    "list": [
+     "[REDACTED]",
+     "ok"
+    ]
+   }
+  },
+  {
+   "name": "logs: receipt number kept, phone after it redacted",
+   "tier": "logs",
+   "input": {
+    "m": "MDL-20261017-0001 paid by 0812345678901"
+   },
+   "expected": {
+    "m": "MDL-20261017-0001 paid by [REDACTED]"
+   }
+  },
+  {
+   "name": "logs negative: epoch ms, long digit runs, amounts",
+   "tier": "logs",
+   "input": {
+    "ms": "1760000000000",
+    "long": "08123456789012345",
+    "short": "081234",
+    "num": 628123456789
+   },
+   "expected": {
+    "ms": "1760000000000",
+    "long": "08123456789012345",
+    "short": "081234",
+    "num": 628123456789
+   }
+  },
+  {
+   "name": "logs negative: ids, order numbers and barcodes under exempt keys",
+   "tier": "logs",
+   "input": {
+    "id": "081234567890",
+    "customerId": "081234567890",
+    "outlet_id": "081234567890",
+    "idempotencyKey": "081234567890",
+    "orderNumber": "081234567890",
+    "transferNo": "081234567890",
+    "sku": "081234567890",
+    "barcode": "081234567890"
+   },
+   "expected": {
+    "id": "081234567890",
+    "customerId": "081234567890",
+    "outlet_id": "081234567890",
+    "idempotencyKey": "081234567890",
+    "orderNumber": "081234567890",
+    "transferNo": "081234567890",
+    "sku": "081234567890",
+    "barcode": "081234567890"
+   }
+  },
+  {
+   "name": "logs negative: UUIDs and dash-joined ids",
+   "tier": "logs",
+   "input": {
+    "u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "v": "0812345678-aaaa-bbbb-cccc-0123456789ab",
+    "o": "ORD-0812345678901",
+    "w": "a_0812345678901"
+   },
+   "expected": {
+    "u": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "v": "0812345678-aaaa-bbbb-cccc-0123456789ab",
+    "o": "ORD-0812345678901",
+    "w": "a_0812345678901"
+   }
+  },
+  {
+   "name": "logs: exempt key still gets secret patterns",
+   "tier": "logs",
+   "input": {
+    "idempotencyKey": "Bearer abc"
+   },
+   "expected": {
+    "idempotencyKey": "Bearer [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: Bearer and URL token",
+   "tier": "logs",
+   "input": {
+    "m": "GET /x?access_token=abc failed, Bearer zzz.yyy"
+   },
+   "expected": {
+    "m": "GET /x?access_token=[REDACTED] failed, Bearer [REDACTED]"
+   }
+  },
+  {
+   "name": "logs: top-level string",
+   "tier": "logs",
+   "input": "call 081234567890",
+   "expected": "call [REDACTED]"
+  },
+  {
+   "name": "secrets: Bearer is case-insensitive",
+   "tier": "secrets",
+   "input": {
+    "m": "got bearer abc123 and BEARER xyz"
+   },
+   "expected": {
+    "m": "got Bearer [REDACTED] and Bearer [REDACTED]"
+   }
+  },
+  {
+   "name": "secrets: Authorization Basic, but not the word Basic alone",
+   "tier": "secrets",
+   "input": {
+    "m": "Authorization: Basic dXNlcjpwYXNz ok; Basic information here"
+   },
+   "expected": {
+    "m": "Authorization: Basic [REDACTED] ok; Basic information here"
+   }
+  },
+  {
+   "name": "secrets: pin, api_key, apikey and mixed-case params",
+   "tier": "secrets",
+   "input": {
+    "m": "x?PIN=1234&Api_Key=abc&apikey=def&Token=t"
+   },
+   "expected": {
+    "m": "x?PIN=[REDACTED]&Api_Key=[REDACTED]&apikey=[REDACTED]&Token=[REDACTED]"
+   }
+  },
+  {
+   "name": "secrets: JSON serialised inside a string",
+   "tier": "secrets",
+   "input": {
+    "m": "body {\"pin\":\"1234\",\"Password\": \"p w\",\"token\":99,\"ok\":\"y\"}"
+   },
+   "expected": {
+    "m": "body {\"pin\":\"[REDACTED]\",\"Password\":\"[REDACTED]\",\"token\":\"[REDACTED]\",\"ok\":\"y\"}"
+   }
+  },
+  {
+   "name": "logs: phone numbers with separators",
+   "tier": "logs",
+   "input": {
+    "a": "0812 3456 7890",
+    "b": "0812-3456-7890",
+    "c": "+62 812-3456-7890",
+    "d": "+62 81234567890",
+    "e": "62-812-3456-7890",
+    "f": "0812.3456.7890",
+    "g": "(0812) 3456 7890",
+    "h": "hubungi 0812 3456 7890, terima kasih"
+   },
+   "expected": {
+    "a": "[REDACTED]",
+    "b": "[REDACTED]",
+    "c": "[REDACTED]",
+    "d": "[REDACTED]",
+    "e": "[REDACTED]",
+    "f": "[REDACTED]",
+    "g": "([REDACTED]",
+    "h": "hubungi [REDACTED], terima kasih"
+   }
+  },
+  {
+   "name": "logs negative: receipts, dates, barcodes, epoch and long hyphenated codes",
+   "tier": "logs",
+   "input": {
+    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 INV-0812-3456-7890 SKU-0812 3456"
+   },
+   "expected": {
+    "m": "BSD-AB0003 2026-10-17 8991234567890 0812-3456-7890-1234-5678-9012 1760000000000 INV-0812-3456-7890 SKU-0812 3456"
+   }
+  },
+  {
+   "name": "logs: string cap counts code points and never splits an astral character",
+   "tier": "logs",
+   "input": {
+    "s": "{{2047*x}}😀😀"
+   },
+   "expected": {
+    "s": "{{2047*x}}😀...[truncated]"
+   }
+  },
+  {
+   "name": "logs: stack fields get the larger cap, other fields the normal one",
+   "tier": "logs",
+   "input": {
+    "stack": "{{5000*a}}",
+    "other": "{{5000*a}}"
+   },
+   "expected": {
+    "stack": "{{4096*a}}...[truncated]",
+    "other": "{{2048*a}}...[truncated]"
+   }
+  },
+  {
+   "name": "secrets: no string cap",
+   "tier": "secrets",
+   "input": {
+    "stack": "{{5000*a}}"
+   },
+   "expected": {
+    "stack": "{{5000*a}}"
+   }
+  },
+  {
+   "name": "both tiers strip NUL from keys and values",
+   "tier": "secrets",
+   "input": {
+    "a\u0000b": "x\u0000y"
+   },
+   "expected": {
+    "ab": "xy"
+   }
+  },
+  {
+   "name": "logs: NUL stripped",
+   "tier": "logs",
+   "input": {
+    "a\u0000b": "x\u0000y"
+   },
+   "expected": {
+    "ab": "xy"
+   }
+  },
+  {
+   "name": "logs: U+2028 text near the size cap is measured identically (5 fields x 2000 chars, not truncated)",
+   "tier": "logs",
+   "input": {
+    "a": "{{2000* }}",
+    "b": "{{2000* }}",
+    "c": "{{2000* }}",
+    "d": "{{2000* }}",
+    "e": "{{2000* }}"
+   },
+   "expected": {
+    "a": "{{2000* }}",
+    "b": "{{2000* }}",
+    "c": "{{2000* }}",
+    "d": "{{2000* }}",
+    "e": "{{2000* }}"
+   }
+  },
+  {
+   "name": "logs: over the size estimate collapses to a truncation marker",
+   "tier": "logs",
+   "input": {
+    "a": "{{2000*é}}",
+    "b": "{{2000*é}}",
+    "c": "{{2000*é}}",
+    "d": "{{2000*é}}",
+    "e": "{{2000*é}}",
+    "f": "{{2000*é}}",
+    "g": "{{2000*é}}",
+    "h": "{{2000*é}}",
+    "i": "{{2000*é}}"
+   },
+   "expected": {
+    "_truncated": true,
+    "bytes": "*"
+   }
+  }
+ ]
 }
