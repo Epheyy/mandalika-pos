@@ -1219,9 +1219,18 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, map[string]any{"data": nullableShift(v)})
 }
 
+// Limits for POST /error-logs. The tablet sends small batches (it chunks at 10);
+// anything beyond these is refused whole rather than partially stored.
+const (
+	errorLogsBodyLimit = 256 << 10
+	maxErrorLogItems   = 50
+)
+
 // CreateErrorLogs records a batch of client errors (sync/runtime/print). Outlet
-// and user come from the JWT; the rest from the body. Best-effort.
+// and user come from the JWT; the rest from the body. Every row is redacted and
+// capped inside write.InsertErrorLogs; the batch is stored atomically.
 func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, errorLogsBodyLimit)
 	var body struct {
 		Items []struct {
 			DeviceID        string          `json:"deviceId"`
@@ -1236,7 +1245,19 @@ func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
 			ClientCreatedAt *time.Time      `json:"clientCreatedAt"`
 		} `json:"items"`
 	}
-	_ = httpx.DecodeLoose(r, &body)
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			httpx.Err(w, http.StatusRequestEntityTooLarge, "error log batch too large")
+			return
+		}
+		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if len(body.Items) > maxErrorLogItems {
+		httpx.Err(w, http.StatusBadRequest, "too many error log items")
+		return
+	}
 	c, _ := h.caller(r)
 	logs := make([]write.ErrorLog, 0, len(body.Items))
 	for _, it := range body.Items {
@@ -1256,7 +1277,8 @@ func (h *Handlers) CreateErrorLogs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err := h.Write.InsertErrorLogs(r.Context(), logs); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		slog.Error("error log insert failed", "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "failed to store error logs")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

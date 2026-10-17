@@ -35,6 +35,11 @@ describe('reportErrors redaction (A37)', () => {
     expect(sent).toContain('failed Bearer [REDACTED]')
   })
 
+  it('sends large report sets in chunks of 10', async () => {
+    await reportErrors(Array.from({ length: 25 }, (_, i) => ({ source: 'sync' as const, message: `m${i}` })))
+    expect(request.mock.calls.map((c) => (c[2] as { items: unknown[] }).items.length)).toEqual([10, 10, 5])
+  })
+
   it('still swallows transport failures', async () => {
     request.mockRejectedValue(new Error('offline'))
     await expect(reportErrors([{ source: 'print', message: 'x' }])).resolves.toBeUndefined()

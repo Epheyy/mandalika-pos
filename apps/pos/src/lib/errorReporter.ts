@@ -22,6 +22,8 @@ export interface ErrorReport {
   outletName?: string | null
 }
 
+const BATCH_SIZE = 10
+
 let cachedDeviceId = ''
 function deviceId(): string {
   if (!cachedDeviceId) {
@@ -53,10 +55,13 @@ export async function reportErrors(reports: ErrorReport[]): Promise<void> {
     appVersion,
     clientCreatedAt: now,
   }))
-  try {
-    await api.request('POST', '/api/v1/error-logs', { items })
-  } catch {
-    // best-effort — offline or unauthenticated; nothing else to do here
+  // The server refuses batches over 50 items / 256 KB whole, so send small chunks.
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    try {
+      await api.request('POST', '/api/v1/error-logs', { items: items.slice(i, i + BATCH_SIZE) })
+    } catch {
+      // best-effort — offline or unauthenticated; nothing else to do here
+    }
   }
 }
 

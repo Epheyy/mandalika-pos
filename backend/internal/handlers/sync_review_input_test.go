@@ -74,6 +74,8 @@ func TestNormalizeReviewReportsClipsAndStrips(t *testing.T) {
 func TestSanitizeReviewPayload(t *testing.T) {
 	cases := []struct{ name, in, want string }{
 		{"strips pin", `{"transferId":"t1","pin":"1234"}`, `{"transferId":"t1"}`},
+		{"nested secrets are redacted, customer data kept", `{"customerPhone":"0812","a":{"token":"t","list":[{"password":"p"}]},"h":"Bearer abc.def"}`,
+			`{"a":{"list":[{"password":"[REDACTED]"}],"token":"[REDACTED]"},"customerPhone":"0812","h":"Bearer [REDACTED]"}`},
 		{"not an object", `[1,2]`, `{"_invalid":true}`},
 		{"NUL in string", `{"note":"a\u0000b"}`, `{"note":"ab"}`},
 	}
