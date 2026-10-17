@@ -213,6 +213,9 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 ## Next
 
 **RESUME HERE (written 2026-10-17 at ~88% context):**
+**UPDATE: A37 is MERGED LOCALLY as `44a6b4a` (5 fix rounds, final head a7a6481; every phone shape in the independent harness 0 leaks, TS/Go parity 0 diffs; full PG gate 20/20, quality:ci 0,
+secret-scan OK with an allowlist entry for the fake-DSN test fixtures). 25 commits are unpushed. NEXT: owner OK → `git push origin prod-hardening` (CI runs the secret scan) → run `purge-run.sh push`
+(copy at `Downloads\mandalika-backup\purge-run.sh`) → local reset/cleanup → owner contacts GitHub Support. Items 1–2 below are superseded by this line except the backlog notes.**
 1. **A37** (error-log redaction + 60-day retention): branch `a37-error-logs`, worktree `.claude/worktrees/a37`, head `ed37314` (round 4: fail-closed phone scanner, committed corpus
    `packages/sync/src/__fixtures__/redact-phone-corpus.json`, linear JWT scan, JSON-secret parser, dsn-label fail-closed). Implementer + gates green (EL ×3, full PG gate 20/20, quality:ci,
    browser:ci). PENDING: independent Opus differential attack (own generator) + my own full gate (output in the session scratchpad `k.out`). If clean (only the accepted leaks: <9 national digits,
