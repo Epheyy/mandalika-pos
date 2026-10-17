@@ -212,6 +212,23 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 
 ## Next
 
+**NEXT SESSION — START HERE (2026-10-17, final state of the long session):**
+- Prod: backend revision `00116-vev` (100%, migrations through 0056, secrets rotated, `/livez` health), backoffice on Cloudflare (auto-deploys on non-skip push), POS OTA 2.1.2 (offered to APK 2.1 /
+  versionCode 12 devices; proven end-to-end on the emulator), APK 2.1 fleet rollout NOT done. `prod-hardening` = `origin/prod-hardening` at the head recorded in git (history was rewritten today: all older SHAs
+  in docs are stale). All today's work (A44, A39, A35, A15, A37, secret rotation, CI secret-scan guard, history purge) is merged, pushed and CI-green. Smoke scripts now live in `scripts/smoke/` (see its README).
+- **Task 1 (owner asked for it in the new session): backoffice import walkthrough** on https://mandalika-pos.pages.dev via the in-app Browser pane. Claude must NOT type the password: the OWNER logs in
+  (admin@mandalika.test; the password is the Secret Manager value `SEED_ADMIN_PASSWORD`, read with `gcloud secrets versions access latest --secret=SEED_ADMIN_PASSWORD --project mandalika-pos` in the
+  owner's own terminal). Then drive Pelanggan / Produk / Bahan: "Template" download and "Import" dialog (preview → errors table → "Unduh laporan error" → commit) with THROWAWAY CSVs (names `ZZ Smoke …`,
+  phones `0899…`), then delete what the import created (UI delete or API) — a customers import records a redacted `import_runs` row by design. Check: preview wrote nothing, dedupe skip, error rows
+  downloadable, Terapkan disabled when errors, stale (409) message, ingredient SKU assign / unit mismatch messages in Indonesian, Stok Minus tab under Laporan (the oversold sale BSD-AB0003 from the emulator
+  check is an unacknowledged record to try "sudah dicek" on — acknowledging it is fine). Record the result in HANDOFF.
+- **Task 2:** delete the one locked leftover dir under `.claude/worktrees` (PowerShell `Remove-Item -LiteralPath '\\?\<path>' -Recurse -Force`), keep the checkout clean.
+- **Then** the queue in item 5 of the block below (A29 → A26 → A10 → A23 → answered-policy builds A05/A27/A28/A30/A41/A08 → A15 Phase B → A33 Task 9 on/after 2026-10-30 → A36 once the owner does O1–O4 → Fable
+  re-audit only when the owner asks). Owner decisions are in "Decisions (owner)" above (incl. the 2026-10-17 policy answers). Working rules: plan with Opus `planner`, implement with Sonnet `implementer` in a
+  FRESH worktree created by you (`git worktree add .claude/worktrees/<name> -b <branch> HEAD`, tell the agent to `cd` there; the harness `isolation: worktree` once handed out a stale base), Opus `reviewer` for anything
+  touching sync/stock/auth/payments/generated types/OTA, run the gates yourself, merge locally, ASK before push/deploy/OTA/Neon writes. Commit messages via the file tool + `git commit -F` (hook blocks flag-like text).
+  Keep replies short (owner watches the context window) and end each reply with the P0 progress board.
+
 **RESUME HERE (written 2026-10-17 at ~88% context):**
 **HISTORY PURGE DONE 2026-10-17** (supersedes the push/purge steps below). `.claude/settings.local.json` removed from ALL history of all 12 GitHub branches (0 tags) with `git filter-branch`
 (dry-run then guarded push, `--force-with-lease` per branch pinned to the cloned SHA; first attempt failed for all 12 because the mirror clone has `remote.origin.mirror=true`, which forbids explicit
