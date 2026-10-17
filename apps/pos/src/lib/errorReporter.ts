@@ -9,7 +9,7 @@
  * activity breadcrumb trail.
  */
 
-import { getDeviceId, getKV } from '@mandalika/sync'
+import { getDeviceId, getKV, redactForLogs, redactString } from '@mandalika/sync'
 import { api } from '../api'
 import { getBreadcrumbs } from './activityLog'
 
@@ -44,10 +44,12 @@ export async function reportErrors(reports: ErrorReport[]): Promise<void> {
     outletName: r.outletName ?? null,
     source: r.source,
     kind: r.kind ?? null,
-    action: r.action ?? null,
-    message: (r.message || 'unknown error').slice(0, 1000),
-    payload: r.payload ?? null,
-    breadcrumbs,
+    action: r.action == null ? null : redactString(r.action),
+    // Redact on the device (secrets + customer PII); the server redacts again
+    // as a backstop for older bundles. Copies only: never touches the source.
+    message: redactString((r.message || 'unknown error').slice(0, 1000)),
+    payload: r.payload == null ? null : redactForLogs(r.payload),
+    breadcrumbs: redactForLogs(breadcrumbs),
     appVersion,
     clientCreatedAt: now,
   }))
