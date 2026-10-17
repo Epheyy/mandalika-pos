@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/mandalika/pos-backend/internal/redact"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -113,9 +114,11 @@ func uuidOrEmpty(s string) string {
 var invalidPayload = []byte(`{"_invalid":true}`)
 
 // sanitizeReviewPayload returns a JSON object safe for jsonb: size-capped,
-// top-level pin removed (backstop; the tablet already strips it). The payload
-// is decoded and re-encoded so lone UTF-16 surrogate escapes become U+FFFD
-// (jsonb rejects them) and NUL is removed from every key and string value.
+// top-level pin removed and credentials redacted at any depth (backstop; the
+// tablet already strips them; customer data is kept so head office can resolve
+// the item). The payload is decoded and re-encoded so lone UTF-16 surrogate
+// escapes become U+FFFD (jsonb rejects them) and NUL is removed from every key
+// and string value.
 func sanitizeReviewPayload(raw json.RawMessage) []byte {
 	if len(raw) > maxReviewPayloadBytes {
 		b, _ := json.Marshal(map[string]any{"_truncated": true, "bytes": len(raw)})
@@ -132,33 +135,11 @@ func sanitizeReviewPayload(raw json.RawMessage) []byte {
 		return invalidPayload
 	}
 	delete(m, "pin")
-	b, err := json.Marshal(stripNUL(m))
+	b, err := json.Marshal(redact.Value(m, redact.Secrets))
 	if err != nil {
 		return invalidPayload
 	}
 	return b
-}
-
-// stripNUL removes NUL from every string, map key included, recursively.
-func stripNUL(v any) any {
-	switch t := v.(type) {
-	case string:
-		return strings.ReplaceAll(t, "\x00", "")
-	case map[string]any:
-		out := make(map[string]any, len(t))
-		for k, e := range t {
-			out[strings.ReplaceAll(k, "\x00", "")] = stripNUL(e)
-		}
-		return out
-	case []any:
-		out := make([]any, len(t))
-		for i, e := range t {
-			out[i] = stripNUL(e)
-		}
-		return out
-	default:
-		return v
-	}
 }
 
 func normalizeResolveNote(s string) (string, error) {

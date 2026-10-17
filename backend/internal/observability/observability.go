@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/mandalika/pos-backend/internal/redact"
 )
 
 // InitLogger installs a process-wide slog default. JSON in production so a
@@ -89,8 +91,9 @@ func (s *Sentry) CaptureError(ctx context.Context, err error, tags map[string]st
 		"environment": s.env,
 		"release":     s.release,
 		"tags":        tags,
-		"message":     err.Error(),
-		"extra":       map[string]any{"stacktrace": string(buf[:n])},
+		// Same redactor as error_logs (A37): panic text can carry customer data or tokens.
+		"message": redact.String(err.Error(), redact.Logs),
+		"extra":   map[string]any{"stacktrace": redact.Stack(string(buf[:n]))},
 	}
 	body, mErr := json.Marshal(event)
 	if mErr != nil {

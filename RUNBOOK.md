@@ -177,6 +177,7 @@ handled, by the previous bundle and by the APK's builtin.
 - Portable copy: `DATABASE_URL=<prod> ./scripts/db-backup.sh`, restore with
   `TARGET_DATABASE_URL=<target> ./scripts/db-restore.sh <dump>`. Compare the
   printed row counts. Backups hold PII and stay out of git.
+- `db-restore.sh` logs only host/port/database for a URL DSN and a fixed placeholder for anything else, never the connection string (`scripts/dsn-label.test.sh` proves it with fake DSNs).
 - Off-host, scheduled, locked backups are **not built yet**: see
   `docs/plans/2026-10-15-a36-backup-build-plan.md`.
 
@@ -195,6 +196,16 @@ tracked `.claude/settings.local.json`, `.env`/`.env.*` (except `*.example`/`*.sa
 - **If a secret was committed**: rotate it first (Neon password, `SEED_ADMIN_PASSWORD`, tokens),
   because history and clones already hold it. Then remove it from the tree, and purge history
   only afterwards if wanted (`git filter-repo`, force-push needs the owner's go-ahead).
+
+## Error log retention and access
+
+- `error_logs` rows live 60 days. The sweep deletes old rows in batches of 1000 (at most 20 batches, advisory-locked so only
+  one instance sweeps): once at server start and at most hourly per instance from `POST /error-logs`. The read endpoint
+  also hides rows older than 60 days, so the policy holds even if the sweep lags.
+- Only the `admin` role can read the log (`GET /error-logs`); the backoffice "Log Error" tab shows for admin only.
+- Payloads are redacted before storage (credentials, customer phone/email/name/address, Bearer/JWT/URL secrets), both on the
+  tablet and again on the server. Rows stored before this change were not redacted: count them read-only, then scrub or delete
+  with the owner's go-ahead.
 
 ## Dependency-security exceptions
 

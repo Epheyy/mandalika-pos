@@ -7,20 +7,15 @@ import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine } from './settlingDebits'
+import { redactForLogs, redactSecrets, redactString } from './redact'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 const INBOUND_KEY = 'mandalika.pos.inboundTransfers'
 
-/** Strip sensitive fields (currently the receive PIN) from an outbox payload
- *  before it is surfaced to logs, error reports, or shareable blobs. */
-function redactPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  if (payload && typeof payload === 'object' && 'pin' in payload) {
-    const clone: Record<string, unknown> = { ...payload }
-    delete clone.pin
-    return clone
-  }
-  return payload
-}
+type Payload = Record<string, unknown>
+/** Log/diagnostic tier: secrets + PII removed, size-capped (A37). Never mutates the outbox item. */
+const forLogs = (p: Payload): Payload => redactForLogs(p) as Payload
+const forLogsText = (t: string | undefined): string | undefined => (t === undefined ? t : redactString(t, 'logs'))
 
 type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
@@ -124,7 +119,7 @@ function toReviewReport(i: ReviewItem): ReviewReport {
     idempotencyKey: i.idempotencyKey,
     type: i.type,
     clientCreatedAt: i.clientCreatedAt,
-    payload: redactPayload({ ...i.payload }),
+    payload: redactSecrets(i.payload) as Payload, // secrets only: head office needs the customer to resolve the item
     ...(i.reviewCode ? { reviewCode: i.reviewCode } : {}),
     ...(i.reviewReason ? { reviewReason: i.reviewReason } : {}),
     ...(i.lastError ? { lastError: i.lastError } : {}),
@@ -710,14 +705,20 @@ export class SyncEngine {
         deviceId: this.deviceId,
         type: d.type,
         idempotencyKey: d.idempotencyKey,
-        lastError: d.lastError,
+        lastError: forLogsText(d.lastError),
         reviewCode: d.reviewCode,
-        reviewReason: d.reviewReason,
+        reviewReason: forLogsText(d.reviewReason),
         clientCreatedAt: d.clientCreatedAt,
-        payload: redactPayload(d.payload),
+        payload: forLogs(d.payload),
       })))
     }
-    const redacted = dead.map((d) => ({ ...d, payload: redactPayload(d.payload) }))
+    const redacted = dead.map((d) => ({
+      ...d,
+      payload: forLogs(d.payload),
+      ...(d.lastError !== undefined ? { lastError: forLogsText(d.lastError) } : {}),
+      ...(d.reviewReason !== undefined ? { reviewReason: forLogsText(d.reviewReason) } : {}),
+      ...(d.envelope ? { envelope: redactForLogs(d.envelope) as typeof d.envelope } : {}),
+    }))
     return JSON.stringify(redacted, null, 2)
   }
 
@@ -1050,8 +1051,8 @@ export class SyncEngine {
       fresh.map((i) => ({
         type: i.type,
         idempotencyKey: i.idempotencyKey,
-        payload: redactPayload(i.payload),
-        lastError: i.lastError,
+        payload: forLogs(i.payload),
+        lastError: forLogsText(i.lastError),
       })),
     )
   }
@@ -1072,8 +1073,8 @@ export class SyncEngine {
       fresh.map((i) => ({
         type: i.type,
         idempotencyKey: i.idempotencyKey,
-        payload: redactPayload(i.payload),
-        lastError: i.lastError,
+        payload: forLogs(i.payload),
+        lastError: forLogsText(i.lastError),
         reviewCode: i.reviewCode,
       })),
     )

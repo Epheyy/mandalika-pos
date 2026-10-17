@@ -30,4 +30,6 @@ jobs:
           corepack prepare pnpm@9.15.0 --activate
       - name: Frozen install, tests, source/test types, builds and API drift
         run: corepack pnpm quality:ci
+      - name: Restore-script DSN label test (fake DSNs only)
+        run: bash scripts/dsn-label.test.sh
       # React Doctor is a separate advisory workflow, not this blocking gate.

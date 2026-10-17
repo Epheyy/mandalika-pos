@@ -16,6 +16,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/db"
 	"github.com/mandalika/pos-backend/internal/observability"
 	"github.com/mandalika/pos-backend/internal/server"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 func main() {
@@ -56,6 +57,16 @@ func main() {
 		slog.Warn("refresh_sweep_failed", "err", err)
 	} else if n > 0 {
 		slog.Info("refresh_sweep", "deleted", n)
+	}
+
+	// Error-log retention (60 days): bounded, advisory-locked, non-fatal.
+	elCtx, cancelEL := context.WithTimeout(ctx, 30*time.Second)
+	deleted, _, elErr := write.New(database.Pool).SweepErrorLogs(elCtx, 1000, 20)
+	cancelEL()
+	if elErr != nil {
+		slog.Warn("error_log_sweep_failed", "err", elErr)
+	} else if deleted > 0 {
+		slog.Info("error_log_sweep", "deleted", deleted)
 	}
 
 	// Redis is an optional cache: never fatal. An unparseable URL runs disabled.

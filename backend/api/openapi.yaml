@@ -1666,6 +1666,12 @@ components:
       required: [ok]
       properties:
         ok: { type: boolean }
+    ErrorLogAcceptedResponse:
+      type: object
+      required: [ok, accepted]
+      properties:
+        ok: { type: boolean }
+        accepted: { type: integer }
     OrderItemInput:
       type: object
       required: [productId, productName, variantSize, price, quantity, subtotal]
@@ -4557,10 +4563,10 @@ paths:
             schema: { $ref: '#/components/schemas/ErrorLogBatchRequest' }
       responses:
         '200':
-          description: recorded
+          description: recorded (at most the first 50 items are kept; `accepted` says how many were stored)
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/OkResponse' }
+              schema: { $ref: '#/components/schemas/ErrorLogAcceptedResponse' }
     get:
       operationId: listErrorLogs
       tags: [admin]

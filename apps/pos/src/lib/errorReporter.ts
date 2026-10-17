@@ -9,7 +9,7 @@
  * activity breadcrumb trail.
  */
 
-import { getDeviceId, getKV } from '@mandalika/sync'
+import { getDeviceId, getKV, redactForLogs, redactString } from '@mandalika/sync'
 import { api } from '../api'
 import { getBreadcrumbs } from './activityLog'
 
@@ -21,6 +21,8 @@ export interface ErrorReport {
   payload?: unknown
   outletName?: string | null
 }
+
+const BATCH_SIZE = 10
 
 let cachedDeviceId = ''
 function deviceId(): string {
@@ -34,27 +36,62 @@ function deviceId(): string {
   return cachedDeviceId
 }
 
-export async function reportErrors(reports: ErrorReport[]): Promise<void> {
-  if (!reports.length) return
+/** Item cap and JSON byte budget per POST: the server refuses an oversize batch whole. */
+const BATCH_MAX_BYTES = 200_000
+
+function buildItems(reports: ErrorReport[]) {
   const breadcrumbs = getBreadcrumbs()
   const now = new Date().toISOString()
   const appVersion = import.meta.env.DEV ? 'pos-dev' : 'pos'
-  const items = reports.map((r) => ({
+  return reports.map((r) => ({
     deviceId: deviceId() || null,
     outletName: r.outletName ?? null,
     source: r.source,
     kind: r.kind ?? null,
-    action: r.action ?? null,
-    message: (r.message || 'unknown error').slice(0, 1000),
-    payload: r.payload ?? null,
-    breadcrumbs,
+    action: r.action == null ? null : redactString(r.action),
+    // Redact on the device (secrets + customer PII); the server redacts again
+    // as a backstop for older bundles. Copies only: never touches the source.
+    // Redact first, then cut: a slice through a phone number would leave an unmatched digit run.
+    message: Array.from(redactString(r.message || 'unknown error')).slice(0, 1000).join(''),
+    payload: r.payload == null ? null : redactForLogs(r.payload),
+    breadcrumbs: redactForLogs(breadcrumbs),
     appVersion,
     clientCreatedAt: now,
   }))
+}
+
+/** Split into POSTs of at most BATCH_SIZE items and about BATCH_MAX_BYTES of JSON (at least one item each). */
+function chunk(items: ReturnType<typeof buildItems>): ReturnType<typeof buildItems>[] {
+  const out: ReturnType<typeof buildItems>[] = []
+  let cur: ReturnType<typeof buildItems> = []
+  let bytes = 0
+  for (const item of items) {
+    const size = JSON.stringify(item).length
+    if (cur.length && (cur.length >= BATCH_SIZE || bytes + size > BATCH_MAX_BYTES)) {
+      out.push(cur)
+      cur = []
+      bytes = 0
+    }
+    cur.push(item)
+    bytes += size
+  }
+  if (cur.length) out.push(cur)
+  return out
+}
+
+/** Best-effort and never throws: redaction, chunking and transport all sit inside the try. */
+export async function reportErrors(reports: ErrorReport[]): Promise<void> {
+  if (!reports.length) return
   try {
-    await api.request('POST', '/api/v1/error-logs', { items })
+    for (const items of chunk(buildItems(reports))) {
+      try {
+        await api.request('POST', '/api/v1/error-logs', { items })
+      } catch {
+        // offline or unauthenticated; try the next chunk
+      }
+    }
   } catch {
-    // best-effort — offline or unauthenticated; nothing else to do here
+    // a hostile or throwing payload must not break the caller
   }
 }
 

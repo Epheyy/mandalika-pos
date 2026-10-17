@@ -49,6 +49,7 @@ GATES = (
     ("AU", "TestAuthAuthorityPostgres", 56455, "au"),
     ("OS", "TestOversellPostgres", 56457, "os"),
     ("IM", "TestCsvImportPostgres", 56456, "im"),
+    ("EL", "TestErrorLogsPostgres", 56459, "el"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 
