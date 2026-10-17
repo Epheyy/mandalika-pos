@@ -29,9 +29,10 @@ export const MAX_DEPTH_SECRETS = 32
 export const MAX_STRING_LOGS = 2048
 export const MAX_TOTAL_BYTES_LOGS = 32 * 1024
 
-const BEARER_RE = /Bearer\s+[A-Za-z0-9._~+/=-]+/g
+// ASCII whitespace classes (not \s) so the Go twin matches exactly.
+const BEARER_RE = /Bearer[ \t\r\n]+[A-Za-z0-9._~+/=-]+/g
 const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g
-const URL_SECRET_RE = /([?&](?:token|access_token|key|sig|password)=)[^&\s#]*/g
+const URL_SECRET_RE = /([?&](?:token|access_token|key|sig|password)=)[^& \t\r\n#]*/g
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
 // Boundary before the number is captured (no lookbehind in the Go twin); the
 // boundary after is checked by hand. '-' and '_' count as word characters so
