@@ -17,6 +17,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+      - name: Secret scan (tracked files) and its unit tests
+        run: |
+          python3 scripts/ci/secret_scan.py
+          python3 -m unittest discover -s scripts/ci -p test_secret_scan.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
