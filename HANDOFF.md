@@ -28,6 +28,19 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **SECRET ROTATION DONE 2026-10-17** (leak: Neon `DATABASE_URL` + `SEED_ADMIN_PASSWORD` in old versions of `.claude/settings.local.json`,
+  commits a595fc6/34676aa; full-history search found NO other current secret; plan `docs/plans/2026-10-17-secret-rotation-and-history-purge.md`).
+  Owner reset the Neon role password and added `DATABASE_URL` v2 (v1 disabled). Claude rolled Cloud Run revision **`00116-vev`**
+  (100%, tag `rot1`, same image as rel7 + env `SECRETS_ROTATED_AT`; the service was down from the Neon reset until this roll:
+  `/livez` 503 "db down" → 200). Admin password rotated via the app's own `auth.Store.ResetPassword` (209 sessions revoked, one-off
+  script, not committed), new random value stored as `SEED_ADMIN_PASSWORD` v2 (v1 disabled); new password → 200, old → 401.
+  Rollback note: older revisions also read `latest`, so rolling back to an old revision still uses the NEW secrets (good).
+  STILL OPEN: (a) git history purge of the file — prepared + dry-run verified, waits for the owner's explicit GO (collaborators
+  mikaeladityan/kujangga must be warned; plan in the docs file); (b) owner to review Neon connection history since 2026-05-18;
+  (c) CI secret-scan guard merged locally (`scripts/ci/secret_scan.py` in quality.yml), not pushed yet; (d) emulator/tablet admin
+  sessions were revoked → log in again with the new password (owner reads it: `gcloud secrets versions access latest --secret=SEED_ADMIN_PASSWORD --project mandalika-pos`);
+  (e) the local untracked `.claude/settings.local.json` still holds the now-dead old values — the owner can delete those lines.
+
 - **Backend (2026-10-17, release 7 = OTA built-in fix):** revision **`00114-win`** (100%, tag `rel7`, commit 5f11921, NO migration; rollback =
   `00112-paw`). **BUG FOUND ON THE EMULATOR 2026-10-17:** a device on the BUILT-IN bundle sends `version_name` = the APK versionName
   ("2.1", with `version_build` "2.1"), NOT "builtin"; the old Decide() could not parse "2.1" so OTA 2.1.1/2.1.2 were never offered
