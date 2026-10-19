@@ -39,6 +39,10 @@ type ReceiveMeta struct {
 	ReceivedBy     string // approver/admin user id ("" allowed)
 	ReceivedVia    string // "pos" | "backoffice"
 	IdempotencyKey string // POS offline retry guard ("" for backoffice)
+	// Approval (A08) is the single-use online step-up grant a POS receive must spend.
+	// nil for the backoffice receive. When set, received_by comes from the grant's
+	// approver, never from ReceivedBy.
+	Approval *ApprovalBinding
 }
 
 // loaded transfer row (locations are nil for the leg that is the other kind).
@@ -339,6 +343,15 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 
 	if _, e := transferTransition(t.status, "receive"); e != nil {
 		return e
+	}
+	// A08: spend the approval grant (lock order: transfer row, then grant row). Any
+	// later error rolls the whole transaction back, so the grant is not burnt.
+	if meta.Approval != nil {
+		approver, e := consumeApproval(ctx, tx, id, t, meta.Approval)
+		if e != nil {
+			return e
+		}
+		meta.ReceivedBy = approver
 	}
 	lines, e := transferLines(ctx, tx, id)
 	if e != nil {
