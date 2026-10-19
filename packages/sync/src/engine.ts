@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
@@ -221,6 +221,35 @@ export interface QueuedRefund {
   readonly payload: Readonly<Record<string, unknown>>
 }
 
+/** A sale made on this tablet, as the local receipt book shows it (A41). Receipt facts only: no customer,
+ *  notes or salesman data. */
+export interface LocalReceipt {
+  orderUuid: string
+  idempotencyKey: string
+  /** Known once the server acknowledged the sale and returned its id. */
+  serverOrderId?: string
+  orderNumber: string
+  capturedAt: string
+  outletId: string
+  shiftId: string | null
+  paymentMethod: string
+  quotedTotal: number | null
+  /** The A10 receipt snapshot, verbatim. */
+  receiptSnapshot: unknown
+  /** queued = still in the outbox (queued or retrying); parked = needs review; synced = acknowledged. */
+  state: 'queued' | 'parked' | 'synced'
+  /** An unacknowledged refund (queued or parked) names this sale. */
+  refundQueued: boolean
+  /** This tablet saw the server acknowledge a refund of this sale. */
+  refunded: boolean
+}
+
+/** Where a refund's sale stands for the send rule. */
+type SaleState = 'acked' | 'queued' | 'parked' | 'unknown'
+
+const SALE_IN_REVIEW_MESSAGE =
+  'Penjualan asal refund ini sedang ditinjau, jadi refund ditahan dan tidak dikirim. Jangan bayar ulang. Hubungi admin untuk meninjau penjualan ini.'
+
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
 export interface PendingShiftOp {
   type: 'shift_open' | 'shift_close'
@@ -319,7 +348,8 @@ export class SyncEngine {
   private foldAckedRefunds(extra: readonly string[] = []): Promise<boolean> {
     const ids = new Set(extra)
     for (const i of this.outbox.all()) {
-      if (i.type === 'refund' && i.status === 'acked' && typeof i.payload.orderId === 'string') ids.add(i.payload.orderId)
+      if (i.type !== 'refund' || i.status !== 'acked') continue
+      for (const id of [i.payload.orderId, i.payload.saleOrderUuid, i.ackedOrderId]) if (typeof id === 'string') ids.add(id)
     }
     ids.delete('')
     if (!ids.size) return Promise.resolve(true)
@@ -751,6 +781,76 @@ export class SyncEngine {
     return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
   }
 
+  /** Sales (by client orderUuid) that already have an unacknowledged refund (incl. parked). */
+  queuedRefundSaleUuids(): Set<string> {
+    const out = new Set<string>()
+    for (const r of this.queuedRefunds()) {
+      const u = r.payload.saleOrderUuid
+      if (typeof u === 'string' && u) out.add(u)
+    }
+    return out
+  }
+
+  /** Where the sale named by a linked refund stands. An acked row not yet pruned counts as acked. */
+  private saleState(orderUuid: string): SaleState {
+    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === orderUuid)
+    if (row) {
+      if (row.status === 'acked') return 'acked'
+      return row.status === 'failed' && (row.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued'
+    }
+    return this.receiptArchive.entries().some((e) => e.orderUuid === orderUuid) ? 'acked' : 'unknown'
+  }
+
+  /** Sales made on this tablet at the outlet in effect: the ones still in the outbox plus the archived
+   *  receipts, newest first. A derived view; nothing here is stored twice. */
+  localReceipts(): LocalReceipt[] {
+    const outlet = this.actorProvider?.()?.outletId
+    const inScope = (o: string | undefined) => !outlet || !o || o === outlet
+    const refunded = this.syncedRefunds.ids()
+    const queuedRefunds = new Set<string>()
+    for (const r of this.queuedRefunds()) {
+      if (r.orderId) queuedRefunds.add(r.orderId)
+      const u = r.payload.saleOrderUuid
+      if (typeof u === 'string' && u) queuedRefunds.add(u)
+    }
+    const flags = (orderUuid: string, serverOrderId?: string) => ({
+      refundQueued: queuedRefunds.has(orderUuid) || (!!serverOrderId && queuedRefunds.has(serverOrderId)),
+      refunded: refunded.has(orderUuid) || (!!serverOrderId && refunded.has(serverOrderId)),
+    })
+    const byUuid = new Map<string, { r: LocalReceipt; order: number }>()
+    this.receiptArchive.entries().forEach((e, index) => {
+      if (!inScope(e.outletId)) return
+      byUuid.set(e.orderUuid, {
+        order: index,
+        r: {
+          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, ...(e.serverOrderId ? { serverOrderId: e.serverOrderId } : {}),
+          orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
+          paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
+          ...flags(e.orderUuid, e.serverOrderId),
+        },
+      })
+    })
+    for (const i of this.outbox.all()) {
+      if (i.status === 'acked' || i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
+      const e = receiptEntryFromItem(i)
+      if (!e) continue
+      byUuid.set(e.orderUuid, {
+        order: i.seq,
+        r: {
+          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, orderNumber: e.orderNumber, capturedAt: e.capturedAt,
+          outletId: e.outletId, shiftId: e.shiftId, paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal,
+          receiptSnapshot: e.receiptSnapshot, state: i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
+          ...flags(e.orderUuid),
+        },
+      })
+    }
+    const at = (r: LocalReceipt) => {
+      const t = Date.parse(r.capturedAt)
+      return Number.isFinite(t) ? t : 0
+    }
+    return [...byUuid.values()].sort((a, b) => at(b.r) - at(a.r) || b.order - a.order).map((x) => x.r)
+  }
+
   /** Items needing review: explicit server/client verdicts plus legacy attempt-count
    *  parks. Never auto-retried, never deleted. */
   reviewItems(): ReviewItem[] {
@@ -947,24 +1047,47 @@ export class SyncEngine {
       // not go out in another request (the server hold only sees the same request), so those stay pending
       // and unsent. Every other item keeps draining, so one stuck item cannot block the rest of the queue.
       let earlierRetryable = false
-      for (let at = 0; at < pending.length; at += BATCH_MAX_ITEMS) {
-        if (at > 0 && (this.disposed || !ONLINE())) break
-        let chunk = pending.slice(at, at + BATCH_MAX_ITEMS)
-        if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
-        if (chunk.length === 0) continue
-        let data: BatchResult
-        try {
-          data = await this.post(chunk)
-        } catch (err) {
-          if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
-          // Stop after a thrown chunk (and its isolation pass): the next tick continues. The result
-          // returned covers the chunks already sent plus whatever isolation settled.
-          return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
+      // A41: a refund that names its sale by uuid is held (with every later shift open/close) until that sale
+      // is acknowledged. Held items stay pending; a second pass sends them once their sale was acked by this
+      // same flush, so sale and refund do not need two ticks.
+      let work: readonly OutboxItem[] = pending
+      const held = new Set<string>()
+      for (let pass = 0; pass < 2; pass++) {
+        if (pass === 1) {
+          if (held.size === 0 || this.disposed || !ONLINE()) break
+          const keys = new Set(held)
+          held.clear()
+          work = this.outbox.pending().filter((i) => keys.has(i.idempotencyKey))
         }
-        if (this.disposed) return null
-        await this.applyBatch(data, typeByKey)
-        merged = mergeBatch(merged, data)
-        if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) earlierRetryable = true
+        let linkedHold = false
+        for (let at = 0; at < work.length; at += BATCH_MAX_ITEMS) {
+          if (at > 0 && (this.disposed || !ONLINE())) break
+          let chunk = work.slice(at, at + BATCH_MAX_ITEMS)
+          if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          if (linkedHold) {
+            for (const i of chunk) if (i.type === 'shift_close' || i.type === 'shift_open') held.add(i.idempotencyKey)
+            chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          }
+          const gated = await this.gateLinkedRefunds(chunk)
+          for (const k of gated.held) held.add(k)
+          if (gated.held.size) linkedHold = true
+          chunk = gated.send
+          if (this.disposed) return null
+          if (chunk.length === 0) continue
+          let data: BatchResult
+          try {
+            data = await this.post(chunk)
+          } catch (err) {
+            if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
+            // Stop after a thrown chunk (and its isolation pass): the next tick continues. The result
+            // returned covers the chunks already sent plus whatever isolation settled.
+            return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
+          }
+          if (this.disposed) return null
+          await this.applyBatch(data, typeByKey)
+          merged = mergeBatch(merged, data)
+          if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) earlierRetryable = true
+        }
       }
       return merged
     } finally {
@@ -973,6 +1096,42 @@ export class SyncEngine {
       this.emitStuckRetrying()
       if (this.autoCheckIn) void this.checkInReviews()
     }
+  }
+
+  /** Apply the send rule to the linked refunds of a chunk, in order. A refund whose sale is acknowledged (or
+   *  unknown here: the server decides) goes out; one whose sale is queued is held together with every later
+   *  shift open/close (A06/M3); one whose sale is parked is parked too (sale_in_review): never sent, never
+   *  deleted, and it does not hold anything back. */
+  private async gateLinkedRefunds(chunk: readonly OutboxItem[]): Promise<{ send: OutboxItem[]; held: Set<string> }> {
+    const send: OutboxItem[] = []
+    const held = new Set<string>()
+    const toPark: string[] = []
+    let holding = false
+    for (const i of chunk) {
+      if (holding && (i.type === 'shift_close' || i.type === 'shift_open')) {
+        held.add(i.idempotencyKey)
+        continue
+      }
+      const sale = i.type === 'refund' ? i.payload.saleOrderUuid : undefined
+      if (typeof sale !== 'string' || !sale) {
+        send.push(i)
+        continue
+      }
+      const state = this.saleState(sale)
+      if (state === 'queued') {
+        held.add(i.idempotencyKey)
+        holding = true
+      } else if (state === 'parked') {
+        toPark.push(i.idempotencyKey)
+      } else {
+        send.push(i)
+      }
+    }
+    if (toPark.length) {
+      await this.outbox.settle(toPark.map((key) => ({ key, op: 'review' as const, code: 'sale_in_review', reason: SALE_IN_REVIEW_MESSAGE })))
+      this.events.onOutboxChange?.(this.outbox.count())
+    }
+    return { send, held }
   }
 
   private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
@@ -1087,7 +1246,9 @@ export class SyncEngine {
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          if (typeof acked?.payload.orderId === 'string') ackedRefundOrderIds.push(acked.payload.orderId)
+          for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
+            if (typeof id === 'string') ackedRefundOrderIds.push(id)
+          }
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         if (type === 'order') {
