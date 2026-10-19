@@ -31,4 +31,11 @@ describe('CashierScreen customer privacy wiring (A30)', () => {
     expect(src).toContain('lookupFailureMessage(')
     expect(src).toContain('lookupError=')
   })
+
+  it('looks up only on an explicit search, not on every typed character', () => {
+    expect(src).toContain('[lookupRequest, offlineData.isOnline]')
+    expect(src).not.toContain('[searchPhone, offlineData.isOnline]')
+    expect(src).toContain('onSubmitSearch=')
+    expect(src).toContain('awaitingSearch(')
+  })
 })

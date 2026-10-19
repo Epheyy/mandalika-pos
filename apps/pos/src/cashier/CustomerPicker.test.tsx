@@ -22,6 +22,7 @@ function render(over: Partial<Parameters<typeof CustomerPicker>[0]> = {}) {
       onSaveNew: vi.fn(),
       earnedPoints: 0,
       onAddNewFromSearch: vi.fn(),
+      onSubmitSearch: vi.fn(),
       loyaltyEnabled: true,
       ...over,
     }),
@@ -72,5 +73,22 @@ describe('CustomerPicker phone-only search', () => {
   it('does not filter the hits it is given by name', () => {
     const html = render({ customerSearch: '081234567890', customers: [{ ...alice, name: 'Zed' }] })
     expect(html).toContain('Zed')
+  })
+
+  it('has a Cari button that is disabled until the text is a full phone', () => {
+    expect(render({ customerSearch: '0812' })).toMatch(/<button[^>]*disabled=""[^>]*>Cari<\/button>/)
+    const ready = render({ customerSearch: '081299998888' })
+    expect(ready).toMatch(/<button[^>]*>Cari<\/button>/)
+    expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>Cari<\/button>/)
+  })
+
+  it('disables Cari while the online lookup runs', () => {
+    expect(render({ customerSearch: '081299998888', isSearching: true })).toMatch(/<button[^>]*disabled=""[^>]*>Cari<\/button>/)
+  })
+
+  it('asks the cashier to search before offering add-new (no lookup while typing)', () => {
+    const html = render({ customerSearch: '081299998888', customers: [], awaitingSearch: true })
+    expect(html).toContain('Tekan Cari')
+    expect(html).not.toContain('sebagai pelanggan baru')
   })
 })

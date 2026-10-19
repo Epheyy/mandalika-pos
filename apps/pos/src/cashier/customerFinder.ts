@@ -44,6 +44,17 @@ export function phoneHint(search: string): string | null {
   return 'Ketik nomor telepon lengkap pelanggan (minimal 8 digit).'
 }
 
+/**
+ * True while the cashier has typed a full phone but not yet searched for it online. Lookups are
+ * explicit (Cari / Enter) so typing never spends the shared budget; until then "add new" is not
+ * offered, so an unsearched number cannot become a duplicate. Offline there is nothing to wait for.
+ */
+export function awaitingSearch(search: string, online: boolean, requested: string | null): boolean {
+  const norm = normalizePhone(search)
+  if (!online || !norm) return false
+  return requested === null || normalizePhone(requested) !== norm
+}
+
 /** Add-new prefill from the search box: the phone only, never a name. */
 export function prefillFromSearch(q: string): { name: string; phone: string; email: string } {
   const isPhone = /^[+0-9][0-9\s-]*$/.test(q)

@@ -7,7 +7,7 @@ import { generateCode } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
-import { CUSTOMER_PHONE_HINT } from './customerLookupMode'
+import { CUSTOMER_PHONE_HINT, customerLookupTerm } from './customerLookupMode'
 
 interface DiscountCodeFormModalProps {
   open: boolean
@@ -38,25 +38,27 @@ export function DiscountCodeFormModal({
   onSave,
   onClose,
 }: DiscountCodeFormModalProps) {
-  // Debounced customer typeahead — mirrors the pattern in Customers.tsx (phoneDupe lookup).
+  // Customer readers get a debounced typeahead. A phone-only user searches only on Enter / Cari
+  // (each lookup spends the shared per-account budget), so typing never calls the server.
   const [custQuery, setCustQuery] = useState('')
+  const [custSubmitted, setCustSubmitted] = useState('')
   const [custResults, setCustResults] = useState<Customer[]>([])
+  const term = customerLookupTerm(phoneOnly, custQuery, custSubmitted)
 
   useEffect(() => {
-    if (!custQuery.trim()) { setCustResults([]); return }
+    if (!term) { setCustResults([]); return }
     let ignore = false
-    const t = setTimeout(async () => {
+    const run = async () => {
       try {
-        const results = phoneOnly
-          ? await api.lookupCustomerByPhone(custQuery.trim())
-          : await api.lookupCustomers(custQuery, 10)
+        const results = phoneOnly ? await api.lookupCustomerByPhone(term) : await api.lookupCustomers(term, 10)
         if (!ignore) setCustResults(results)
       } catch {
         if (!ignore) setCustResults([])
       }
-    }, 250)
+    }
+    const t = setTimeout(run, phoneOnly ? 0 : 250)
     return () => { clearTimeout(t); ignore = true }
-  }, [custQuery, phoneOnly])
+  }, [term, phoneOnly])
 
   return (
     <Modal
@@ -104,12 +106,20 @@ export function DiscountCodeFormModal({
                 type="text"
                 value={custQuery}
                 onChange={(e) => setCustQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (phoneOnly && e.key === 'Enter') { e.preventDefault(); setCustSubmitted(custQuery) }
+                }}
                 placeholder={phoneOnly ? 'No. HP lengkap pelanggan…' : 'Cari nama / no. HP pelanggan…'}
                 aria-label="Cari pelanggan"
                 className={fieldClass}
               />
-              {phoneOnly && <p className="text-xs text-gray-500">{CUSTOMER_PHONE_HINT}</p>}
-              {custQuery.trim() && (
+              {phoneOnly && (
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-gray-500 flex-1">{CUSTOMER_PHONE_HINT} Tekan Enter atau Cari.</p>
+                  <Button variant="secondary" onClick={() => setCustSubmitted(custQuery)}>Cari</Button>
+                </div>
+              )}
+              {term && (
                 <div className="rounded-lg border border-gray-200 bg-white max-h-44 overflow-auto">
                   {custResults.length === 0 ? (
                     <p className="px-3 py-2.5 text-xs text-gray-400">Tidak ada pelanggan cocok.</p>
@@ -118,7 +128,7 @@ export function DiscountCodeFormModal({
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() => { onCustomerChange(c.id, c.name); setCustQuery(''); setCustResults([]) }}
+                        onClick={() => { onCustomerChange(c.id, c.name); setCustQuery(''); setCustSubmitted(''); setCustResults([]) }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between items-center border-b border-gray-50 last:border-0"
                       >
                         <span className="font-medium text-gray-800">{c.name}</span>

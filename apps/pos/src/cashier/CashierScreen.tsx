@@ -29,7 +29,7 @@ import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { cashTender } from './tender'
 import { CustomerPicker } from './CustomerPicker'
-import { finderHits, getKnownCustomers, lookupFailureMessage, prefillFromSearch } from './customerFinder'
+import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, prefillFromSearch } from './customerFinder'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
@@ -123,24 +123,26 @@ export default function CashierScreen() {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
   const [localCustomers, setLocalCustomers] = useState<Customer[]>([])
-  // A30: customers are found by full phone number only. The online lookup answers when the typed
-  // text is a full phone; offline (or on a failure) the tablet memory and "add new" still work.
+  // A30: customers are found by full phone number only. The online lookup runs only when the
+  // cashier asks (Cari / Enter), never while typing, so it cannot drain the shared per-account
+  // budget. Offline (or on a failure) the tablet memory and "add new" still work.
   const [lookupResults, setLookupResults] = useState<Customer[]>([])
   const [lookupPending, setLookupPending] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookupRequest, setLookupRequest] = useState<{ text: string; n: number } | null>(null)
   const searchPhone = normalizePhone(state.customerSearch)
   useEffect(() => {
     setLookupError(null)
-    if (!offlineData.isOnline || !searchPhone) {
+    if (!lookupRequest || !offlineData.isOnline || !normalizePhone(lookupRequest.text)) {
       setLookupResults([])
       setLookupPending(false)
       return
     }
     let ignore = false
     setLookupPending(true)
-    const t = setTimeout(async () => {
+    void (async () => {
       try {
-        const res = await api.lookupCustomerByPhone(state.customerSearch.trim())
+        const res = await api.lookupCustomerByPhone(lookupRequest.text)
         if (ignore) return
         res.forEach((c) => getKnownCustomers().refresh(c))
         setLookupResults(res)
@@ -151,12 +153,11 @@ export default function CashierScreen() {
       } finally {
         if (!ignore) setLookupPending(false)
       }
-    }, 300)
+    })()
     return () => {
-      clearTimeout(t)
       ignore = true
     }
-  }, [searchPhone, offlineData.isOnline])
+  }, [lookupRequest, offlineData.isOnline])
   // Single-flight gates for actions that mean "durably queued on this device".
   // A ref flips synchronously, unlike the isProcessing/disabled render state.
   const saleGate = useRef(createSubmitGate())
@@ -1013,6 +1014,8 @@ export default function CashierScreen() {
             errorText={customerError}
             loyaltyEnabled={loyalty.enabled}
             isSearching={lookupPending} lookupError={lookupError}
+            awaitingSearch={awaitingSearch(state.customerSearch, offlineData.isOnline, lookupRequest?.text ?? null)}
+            onSubmitSearch={() => setLookupRequest((prev) => ({ text: state.customerSearch.trim(), n: (prev?.n ?? 0) + 1 }))}
           />
           <ProductGrid
             products={displayProducts} categories={categories}

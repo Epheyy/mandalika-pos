@@ -31,6 +31,10 @@ interface CustomerPickerProps {
   isSearching?: boolean
   /** Why the online lookup could not answer (e.g. the 429 budget message). */
   lookupError?: string | null
+  /** A full phone is typed but not searched online yet: ask for Cari instead of offering add-new. */
+  awaitingSearch?: boolean
+  /** Explicit online search (Cari button / Enter). Typing alone never calls the server. */
+  onSubmitSearch: () => void
 }
 
 export const CustomerPicker = memo(function CustomerPicker({
@@ -52,6 +56,8 @@ export const CustomerPicker = memo(function CustomerPicker({
   loyaltyEnabled,
   isSearching = false,
   lookupError = null,
+  awaitingSearch = false,
+  onSubmitSearch,
 }: CustomerPickerProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -166,7 +172,17 @@ export const CustomerPicker = memo(function CustomerPicker({
               inputMode="tel"
               value={customerSearch}
               onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                if (hasPhone && !isSearching) onSubmitSearch()
+              }}
             />
+            <button type="button"
+              onClick={onSubmitSearch}
+              disabled={!hasPhone || isSearching}
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 whitespace-nowrap"
+            >Cari</button>
             <button type="button"
               onClick={onToggleAdding}
               className="px-2 py-1.5 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200 whitespace-nowrap"
@@ -175,10 +191,13 @@ export const CustomerPicker = memo(function CustomerPicker({
             </button>
           </div>
           {hint && <p className="mt-1 text-[11px] text-gray-500">{hint}</p>}
-          {hasPhone && lookupError && (
+          {hasPhone && !awaitingSearch && lookupError && (
             <p className="mt-1 text-[11px] font-semibold text-amber-700">{lookupError}</p>
           )}
-          {hasPhone && hits.length === 0 && !isSearching && !lookupError && (
+          {hasPhone && awaitingSearch && hits.length === 0 && !isSearching && !lookupError && (
+            <p className="mt-1 text-[11px] text-gray-500">Tekan Cari atau Enter untuk mencari pelanggan.</p>
+          )}
+          {hasPhone && !awaitingSearch && hits.length === 0 && !isSearching && !lookupError && (
             <button type="button"
               onClick={() => onAddNewFromSearch(customerSearch.trim())}
               className="mt-1 w-full text-left px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors"

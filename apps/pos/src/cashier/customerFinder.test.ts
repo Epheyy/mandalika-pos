@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@mandalika/api'
-import { LOOKUP_BUSY_MESSAGE, finderHits, lookupFailureMessage, phoneHint, prefillFromSearch } from './customerFinder'
+import { LOOKUP_BUSY_MESSAGE, awaitingSearch, finderHits, lookupFailureMessage, phoneHint, prefillFromSearch } from './customerFinder'
 
 const alice = { id: 'a', name: 'Alice', phone: '0812-3456-7890', points: 3, totalSpent: 0, visitCount: 0, createdAt: '2026-01-01T00:00:00Z' }
 const budi = { id: 'b', name: 'Budi', phone: '081200000002', points: 0, totalSpent: 0, visitCount: 0, createdAt: '2026-01-01T00:00:00Z' }
@@ -54,5 +54,18 @@ describe('prefillFromSearch', () => {
     expect(prefillFromSearch('0812 3456-7890')).toEqual({ name: '', phone: '081234567890', email: '' })
     expect(prefillFromSearch('+62 812 3456 7890').phone).toBe('+6281234567890')
     expect(prefillFromSearch('Alice').name).toBe('')
+  })
+})
+
+describe('awaitingSearch', () => {
+  it('waits for an explicit search online until the typed phone has been submitted', () => {
+    expect(awaitingSearch('081299998888', true, null)).toBe(true)
+    expect(awaitingSearch('081299998888', true, '081299997777')).toBe(true)
+    expect(awaitingSearch('081299998888', true, '+62 812 9999 8888')).toBe(false)
+  })
+  it('never waits offline or while the text is not a phone', () => {
+    expect(awaitingSearch('081299998888', false, null)).toBe(false)
+    expect(awaitingSearch('0812', true, null)).toBe(false)
+    expect(awaitingSearch('', true, null)).toBe(false)
   })
 })
