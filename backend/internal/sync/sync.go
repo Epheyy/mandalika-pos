@@ -313,6 +313,31 @@ func (e *Engine) keyed(ctx context.Context, c Caller, it BatchItem, effect func(
 	return out.OrderID, nil
 }
 
+// replay is the already-applied probe shared by the attribution and offline-cap
+// refusals: an item whose key already landed returns the first attempt's result. A
+// failed probe is a retryable error, never a refusal.
+func (e *Engine) replay(ctx context.Context, c Caller, it BatchItem, r ItemResult, fail func(error) ItemResult) (ItemResult, bool) {
+	id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+	if aerr != nil {
+		return fail(aerr), true
+	}
+	if !applied {
+		return r, false
+	}
+	r.Status, r.OrderID = status, id
+	return r, true
+}
+
+// decodeEnvelope returns the item's envelope, or the zero value when absent or
+// unparseable (attribute has already refused unparseable ones).
+func decodeEnvelope(it BatchItem) Envelope {
+	var env Envelope
+	if len(it.Envelope) > 0 {
+		_ = json.Unmarshal(it.Envelope, &env)
+	}
+	return env
+}
+
 // Keep the refund mutation boundary injectable for isolated authorization tests.
 func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund refundFunc) ItemResult {
 	return e.processOneWithCommands(ctx, c, it, refund, e.Orders.CreateOrder)
@@ -339,16 +364,25 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 	c, err := e.attribute(ctx, c, it)
 	if err != nil {
 		if code, _ := apperr.CodeOf(err); code == apperr.ActorMismatch {
-			id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
-			if aerr != nil {
-				return fail(aerr)
-			}
-			if applied {
-				r.Status, r.OrderID = status, id
-				return r
+			if res, replayed := e.replay(ctx, c, it, r, fail); replayed {
+				return res
 			}
 		}
 		return fail(err)
+	}
+
+	// Offline cap (A05): an item captured more than 12 h after the tablet's last online
+	// contact is refused into review. The replay probe runs first, so a key that already
+	// landed replays as ok/duplicate and never becomes a review item. Never dropped.
+	env := decodeEnvelope(it)
+	if refuse, warn := capVerdict(it.Type, env, e.now(), e.ContactKey); refuse {
+		err := apperr.New(apperr.OfflineExpired, offlineExpiredMessage)
+		if res, replayed := e.replay(ctx, c, it, r, fail); replayed {
+			return res
+		}
+		return fail(err)
+	} else if warn != "" {
+		slog.Warn(warn, "type", it.Type, "idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
 	}
 
 	switch it.Type {
