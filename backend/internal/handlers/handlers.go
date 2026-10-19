@@ -286,21 +286,6 @@ func (h *Handlers) CustomersByPhone(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
 }
 
-// CustomersLookup is the search-as-you-type helper for the customer picker.
-// Unlike the by-phone dup-check it stays cached: brief staleness on a typeahead
-// list is acceptable, whereas the dup-check requires freshness.
-func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
-	h.cached(w, r, ckey(r), func() (any, int, error) {
-		q := strings.TrimSpace(r.URL.Query().Get("q"))
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		rows, err := h.Repo.CustomerLookup(r.Context(), q, limit)
-		if err != nil {
-			return nil, 500, err
-		}
-		return api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))}, 200, nil
-	})
-}
-
 func (h *Handlers) Customer(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		v, err := h.Repo.Customer(r.Context(), chi.URLParam(r, "id"))

@@ -13,6 +13,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/ota"
+	"github.com/mandalika/pos-backend/internal/phone"
 	"github.com/mandalika/pos-backend/internal/service"
 )
 
@@ -708,11 +709,37 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, s
 	return listJSON[api.Customer](ctx, r.Pool, sql, args...)
 }
 
-// CustomerByPhone returns 0+ customers with this exact (trimmed) phone — backs
-// the backoffice soft dup-check via idx_customers_phone.
-func (r *Repo) CustomerByPhone(ctx context.Context, phone string) ([]api.Customer, error) {
+// CustomerByPhone returns 0+ live customers whose phone matches this one in any
+// format (normalized key, A30), falling back to the exact raw value when the input
+// does not normalize. Backs the backoffice soft dup-check via idx_customers_phone_norm.
+func (r *Repo) CustomerByPhone(ctx context.Context, rawPhone string) ([]api.Customer, error) {
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers WHERE phone = $1 AND merged_into IS NULL`, phone)
+		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
+		  WHERE merged_into IS NULL AND (($2 <> '' AND phone_norm = $2) OR phone = $1)
+		  ORDER BY created_at, id`, rawPhone, phone.Normalize(rawPhone))
+	return rows, err
+}
+
+// customerPosObj is the reduced customer the cashier may see: what the POS needs to
+// attach a customer and show points. No email, birthday, anniversary, notes or tags.
+const customerPosObj = `json_build_object('id',id,'name',name,'phone',phone,
+  'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'createdAt',created_at,'segment', ` + segmentSel + `)`
+
+// CustomerByPhoneNorm is the cashier lookup: live (not merged-away) customers whose
+// normalized phone equals norm exactly, oldest first, at most limit rows, reduced fields.
+func (r *Repo) CustomerByPhoneNorm(ctx context.Context, norm string, limit int) ([]api.Customer, error) {
+	if norm == "" {
+		return []api.Customer{}, nil
+	}
+	if limit < 1 || limit > 20 {
+		limit = 3
+	}
+	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
+		`SELECT `+customerPosObj+`, count(*) OVER() AS total FROM customers
+		  WHERE phone_norm = $1 AND merged_into IS NULL
+		  ORDER BY created_at, id
+		  LIMIT $2`, norm, limit)
 	return rows, err
 }
 
