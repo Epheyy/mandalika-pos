@@ -5,6 +5,7 @@ import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
+import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine } from './settlingDebits'
 import { redactForLogs, redactSecrets, redactString } from './redact'
@@ -253,6 +254,9 @@ export class SyncEngine {
   private readonly settling: SettlingDebits
   private readonly syncedRefunds: SyncedRefunds
   private refundMemory: Promise<boolean> = Promise.resolve(true)
+  /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
+  private readonly receiptArchive: ReceiptArchive
+  private receiptMemory: Promise<boolean> = Promise.resolve(true)
   private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
@@ -301,9 +305,11 @@ export class SyncEngine {
     this.pending = new PendingCredits(kv)
     this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
+    this.receiptArchive = new ReceiptArchive(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
     // synced-refund write; fold it into the memory now.
     this.refundMemory = this.foldAckedRefunds()
+    this.receiptMemory = this.foldAckedReceipts()
     this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
   }
@@ -326,13 +332,50 @@ export class SyncEngine {
     )
   }
 
-  /** Resolves when this engine has nothing queued to write (outbox, refund memory). Call on the
+  /** What the archive prune must respect, read from the live outbox: the unacknowledged sales (they
+   *  count toward the newest 500) and the sales named by refunds that are not yet acknowledged. */
+  private receiptContext(): ReceiptContext {
+    const unsynced: ReceiptContext['unsynced'][number][] = []
+    const referenced = new Set<string>()
+    for (const i of this.outbox.all()) {
+      if (i.status === 'acked') continue
+      if (i.type === 'order' && typeof i.payload.orderUuid === 'string') {
+        unsynced.push({ orderUuid: i.payload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
+      } else if (i.type === 'refund') {
+        for (const k of [i.payload.saleOrderUuid, i.payload.orderId]) if (typeof k === 'string' && k) referenced.add(k)
+      }
+    }
+    return { unsynced, referenced }
+  }
+
+  /** Durably archive the receipts of acked sales (those still sitting in the queue as acked rows) and
+   *  prune the archive. Idempotent. Resolves false, never rejects, when the write failed: the caller must
+   *  then keep the acked rows, which stay the only copy. */
+  private foldAckedReceipts(): Promise<boolean> {
+    const incoming: ReceiptEntry[] = []
+    for (const i of this.outbox.all()) {
+      if (i.status !== 'acked') continue
+      const e = receiptEntryFromItem(i)
+      if (e) incoming.push(e)
+    }
+    return this.receiptArchive.addMany(incoming, () => this.receiptContext()).then(
+      () => true,
+      (err) => {
+        console.error('[sync] receipt archive write failed; acked sale rows are kept', err)
+        return false
+      },
+    )
+  }
+
+  /** Resolves when this engine has nothing queued to write (outbox, refund memory, receipt archive). Call on the
    *  old engine before building its replacement (journal wiring rule). */
   async idle(): Promise<void> {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
+    await this.receiptArchive.idle()
     await this.settling.idle()
     await this.refundMemory
+    await this.receiptMemory
   }
 
   /** Re-read the committed queue from the store and re-fold acked refunds. Only after the previous
@@ -344,7 +387,9 @@ export class SyncEngine {
     await this.settling.idle()
     this.settling.reload() // the predecessor's last writes landed after this engine's constructor read the key
     this.refundMemory = this.foldAckedRefunds()
+    this.receiptMemory = this.foldAckedReceipts()
     await this.refundMemory
+    await this.receiptMemory
   }
 
   /** Retire this engine (SyncProvider unmounted / replaced after logout): stop
@@ -1112,7 +1157,9 @@ export class SyncEngine {
     this.recomputeCredited()
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
-    if (await this.foldAckedRefunds(ackedRefundOrderIds)) await this.outbox.prune()
+    // Both folds always run; the acked rows are dropped only when both facts are durable.
+    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds), this.foldAckedReceipts()])
+    if (refundsOk && receiptsOk) await this.outbox.prune()
     this.accountProblemMsg = null
     this.resetBackoff()
     this.events.onOutboxChange?.(this.outbox.count())
