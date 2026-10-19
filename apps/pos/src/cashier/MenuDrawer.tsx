@@ -22,6 +22,7 @@ interface MenuDrawerProps {
   lastSyncedLabel?: string | null
   onTakeOrder: () => void
   onHistory: () => void
+  onLocalReceipts: () => void
   onRecap: () => void
   onCashFlow: () => void
   onSync: () => void
@@ -101,6 +102,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   lastSyncedLabel,
   onTakeOrder,
   onHistory,
+  onLocalReceipts,
   onRecap,
   onCashFlow,
   onSync,
@@ -119,6 +121,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   const opItems: Item[] = [
     { Icon: BagIcon, label: 'Ambil Pesanan', active: true, onClick: () => { onTakeOrder() } },
     { Icon: HistoryIcon, label: 'Riwayat', onClick: () => { onClose(); onHistory() } },
+    { Icon: HistoryIcon, label: 'Struk di Tablet Ini', onClick: () => { onClose(); onLocalReceipts() } },
     { Icon: RecapIcon, label: 'Rekapan', onClick: () => { onClose(); onRecap() } },
     { Icon: CashIcon, label: 'Uang Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },

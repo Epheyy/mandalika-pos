@@ -5,7 +5,7 @@
 
 import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
-import { normalizePhone } from '@mandalika/sync'
+import { normalizePhone, type LocalReceipt } from '@mandalika/sync'
 import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
@@ -38,8 +38,10 @@ import { receiveApprovers } from './receive/receiveTypes'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
-import { planRefundSubmit, refundGateProps } from './refundView'
+import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
+import { LocalReceiptsPanel } from './LocalReceiptsPanel'
+import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
@@ -178,6 +180,9 @@ export default function CashierScreen() {
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showLocalReceipts, setShowLocalReceipts] = useState(false)
+  // Set while the refund dialog is open for a sale made on this tablet (a local receipt): its identity rides into the payload.
+  const [refundSale, setRefundSale] = useState<LocalSaleRef | null>(null)
   const [showRecap, setShowRecap] = useState(false)
   // Raised when the recap was opened to close the shift (header "Tutup") — the
   // panel then requires counted income before allowing the close.
@@ -754,7 +759,12 @@ export default function CashierScreen() {
   }
 
   const handleReprint = () => {
-    if (!lastReceipt.current) return
+    if (!lastReceipt.current) {
+      // After a restart the ref is empty: fall back to the newest receipt kept on this tablet.
+      const newest = newestReprintable(engine.localReceipts())
+      if (newest) reprintLocal(newest)
+      return
+    }
     setPrintError(null)
     printer
       .print(lastReceipt.current, settings.receipt)
@@ -762,6 +772,21 @@ export default function CashierScreen() {
         const msg = e instanceof Error ? e.message : 'Gagal mencetak'
         setPrintError(msg)
         void reportErrors([{ source: 'print', kind: 'receipt', action: 'Cetak ulang struk', message: msg, outletName: snapshot.outletName }])
+      })
+  }
+
+  // Reprint a receipt kept on this tablet (A41) from its stored snapshot, with the REPRINT marker. Never queues
+  // anything and never goes through the sale gate; the customer is not stored locally, so none is printed.
+  const reprintLocal = (r: LocalReceipt) => {
+    if (!printer.isPaired) { showToast('Pasangkan printer untuk cetak ulang struk'); return }
+    const receipt = reprintReceiptData(r)
+    if (!receipt) { showToast('Struk ini tidak punya rincian yang bisa dicetak'); return }
+    printer
+      .print(receipt, settings.receipt, true)
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Gagal mencetak struk'
+        showToast(msg)
+        void reportErrors([{ source: 'print', kind: 'receipt', action: `Cetak ulang struk ${r.orderNumber}`, message: msg, outletName: snapshot.outletName }])
       })
   }
 
@@ -825,7 +850,16 @@ export default function CashierScreen() {
     setRefundError(null)
     // Defensive guards (the panel already hides the button): permission, an open synced shift, a valid
     // reason. The display snapshot is built here, once; nothing rewrites the payload after it is queued.
-    const plan = planRefundSubmit({ refundOrder, orderId, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id })
+    if (refundSale) {
+      // A local sale: a refund may already be queued or done under its uuid or server id (the panel hides the button too).
+      const ids = [refundSale.orderUuid, refundSale.serverOrderId].filter((k): k is string => !!k)
+      const synced = engine.syncedRefundOrderIds()
+      const queuedIds = engine.queuedRefundOrderIds()
+      const queuedUuids = engine.queuedRefundSaleUuids()
+      if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
+      if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
+    }
+    const plan = planRefundSubmit({ refundOrder, orderId, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id, sale: refundSale ?? undefined })
     if (plan.kind === 'error') {
       setRefundError(plan.message)
       return
@@ -839,6 +873,7 @@ export default function CashierScreen() {
       return
     }
     setRefundOrder(null)
+    setRefundSale(null)
     showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
   }
 
@@ -900,9 +935,10 @@ export default function CashierScreen() {
       if (showMenu) { setShowMenu(false); return true }
       if (showSettings) { setShowSettings(false); return true }
       if (showHistory) { setShowHistory(false); return true }
+      if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRecap) { setShowRecap(false); return true }
-      if (refundOrder) { setRefundOrder(null); return true }
+      if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
       if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
       if (state.activeAdjustment) { dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: null }); return true }
@@ -913,12 +949,16 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showMenu, showSettings, showHistory, showTransferHistory, showRecap, refundOrder,
+    showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
     state.activeTab,
   ])
 
   if (!user) return null
+
+  // Sales made on this tablet (A41): read only while a surface that needs them is open (the list is parsed from storage).
+  const localReceipts: LocalReceipt[] = showHistory || showLocalReceipts ? engine.localReceipts() : []
+  const saleUuidByServerId = new Map(localReceipts.flatMap((r): [string, string][] => (r.serverOrderId ? [[r.serverOrderId, r.orderUuid]] : [])))
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -1143,6 +1183,7 @@ export default function CashierScreen() {
           : null}
         onTakeOrder={() => setShowMenu(false)}
         onHistory={() => setShowHistory(true)}
+        onLocalReceipts={() => setShowLocalReceipts(true)}
         onRecap={() => setShowRecap(true)}
         onCashFlow={() => openSettings('cashflow')}
         onSync={() => void offlineData.resync()}
@@ -1158,17 +1199,27 @@ export default function CashierScreen() {
       <OrderHistoryPanel
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
-        onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
+        onRefund={(o) => { setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
         timezone={outletTimezone}
         shiftOpenedAt={shift.currentShift?.openedAt}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds() })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId })}
+      />
+
+      <LocalReceiptsPanel
+        isOpen={showLocalReceipts}
+        onClose={() => setShowLocalReceipts(false)}
+        receipts={localReceipts}
+        canReprint={printer.isPaired}
+        onReprint={reprintLocal}
+        onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r)) }}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId })}
       />
 
       <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}
         onConfirm={(id, reason) => { void handleRefundConfirm(id, reason) }}
-        onClose={() => { setRefundError(null); setRefundOrder(null) }} />
+        onClose={() => { setRefundError(null); setRefundOrder(null); setRefundSale(null) }} />
 
       {showReceive && (
         <ReceiveTransferPanel
