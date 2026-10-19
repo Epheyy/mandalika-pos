@@ -1910,7 +1910,7 @@ components:
       type: object
       required: [items]
       properties:
-        items: { type: array, items: { $ref: '#/components/schemas/SyncBatchItem' } }
+        items: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/SyncBatchItem' } }
     SyncItemResult:
       type: object
       required: [idempotencyKey, status]
@@ -4689,6 +4689,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SyncBatchResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: 'batch over 200 items or 8 MiB; clients retry item by item', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/sync/review-items:
     post:
       operationId: reportSyncReviewItems

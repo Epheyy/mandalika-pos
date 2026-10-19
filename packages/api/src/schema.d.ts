@@ -8083,6 +8083,15 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+            /** @description batch over 200 items or 8 MiB; clients retry item by item */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     reportSyncReviewItems: {
