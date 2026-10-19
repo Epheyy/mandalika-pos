@@ -1488,7 +1488,11 @@ func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
 	resolveCaller func(*http.Request) (callerID, error),
 	process func(context.Context, syncpkg.Caller, []syncpkg.BatchItem) (syncpkg.BatchResult, error),
 ) {
-	items, err := decodeBatchEnvelope(r.Body)
+	items, err := decodeBatchEnvelope(http.MaxBytesReader(w, r.Body, syncBatchBodyLimit))
+	if errors.Is(err, errBatchTooLarge) {
+		httpx.Err(w, http.StatusRequestEntityTooLarge, "batch too large")
+		return
+	}
 	if err != nil {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
