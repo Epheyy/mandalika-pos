@@ -15,6 +15,11 @@ describe('orderHistoryQuery', () => {
   it('adds the search term', () => {
     expect(new URLSearchParams(orderHistoryQuery('2026-10-19', '2026-10-19', 1, 'budi').qs).get('q')).toBe('budi')
   })
+  it('has NO cache key for a search: a typed phone or name is never written into storage (A30)', () => {
+    expect(orderHistoryQuery('2026-10-19', '2026-10-19', 1, '0812345678').cacheKey).toBeNull()
+    expect(orderHistoryQuery('2026-10-19', '2026-10-19', 1, 'budi').cacheKey).toBeNull()
+    expect(orderHistoryQuery('2026-10-19', '2026-10-19', 1, '').cacheKey).toBe('orders:bd:2026-10-19:2026-10-19:1:')
+  })
   it('cache key cannot collide with the legacy UTC-day key shape', () => {
     const { cacheKey } = orderHistoryQuery('2026-10-19', '2026-10-19', 1, '')
     expect(cacheKey).toBe('orders:bd:2026-10-19:2026-10-19:1:')
