@@ -696,29 +696,12 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 // approverAllowed reports whether a user with the given role may approve a POS
 // transfer receive. Admins are always allowed; others must be in approverRoles.
 func approverAllowed(role string, approverRoles []string) bool {
-	if role == "admin" {
-		return true
-	}
-	for _, r := range approverRoles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return write.ApproverAllowed(role, approverRoles)
 }
 
-// receiveScope checks that (a) the transfer's destination outlet matches the
-// caller's outlet, and (b) the approver is either an admin or assigned to that
-// same outlet. Returns "" on success, or an Indonesian error string on failure.
-// destOutlet == "" means the transfer targets a warehouse (not an outlet).
+// receiveScope: see write.ReceiveScope (shared with the in-transaction re-check).
 func receiveScope(callerOutlet, destOutlet, approverRole, approverOutlet string) string {
-	if destOutlet == "" || destOutlet != callerOutlet {
-		return "transfer bukan untuk outlet ini"
-	}
-	if approverRole != "admin" && approverOutlet != destOutlet {
-		return "tidak berwenang"
-	}
-	return ""
+	return write.ReceiveScope(callerOutlet, destOutlet, approverRole, approverOutlet)
 }
 
 type transferReceivePayload struct {
