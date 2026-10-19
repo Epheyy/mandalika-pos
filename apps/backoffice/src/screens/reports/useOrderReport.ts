@@ -13,10 +13,15 @@ export function useOrderReport(
   page: number,
   pageSize: number,
   outletId: string | null | undefined,
-): { summary: PolledQuery<ReportSummary>; list: PolledQuery<ListResult<Order>> } {
+  withSummary = true,
+): { summary: PolledQuery<ReportSummary | null>; list: PolledQuery<ListResult<Order>> } {
   const params = orderFilterParams(filters)
   const key = JSON.stringify(params)
-  const summary = usePolledQuery<ReportSummary>(() => api.reportSummary(params), [outletId, key])
+  // /reports/summary needs view_reports; callers without it skip the request (data stays null).
+  const summary = usePolledQuery<ReportSummary | null>(
+    () => (withSummary ? api.reportSummary(params) : Promise.resolve(null)),
+    [outletId, key, withSummary],
+  )
   const list = usePolledQuery<ListResult<Order>>(
     () => api.listOrders({ ...params, page, limit: pageSize }),
     [outletId, key, page, pageSize],

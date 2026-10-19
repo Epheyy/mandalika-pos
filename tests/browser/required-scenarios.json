@@ -10,25 +10,25 @@
     {
       "id": "BO-PAGES-CSV",
       "finding": "A26",
-      "description": "51/201/1000 dashboard/order/product/CSV/shift completeness and filters; page2 failure",
+      "description": "51/201/1000 dashboard/order/product/CSV/shift completeness, server-side filters and summary totals; a later-page failure is asserted at export time (no partial CSV)",
       "source": "scripts/a26-browser/backoffice-checks.js"
     },
     {
       "id": "BO-PAGES-XLSX",
       "finding": "A26",
-      "description": "51/201/1000 real XLSX downloads, filters/totals, typed Unicode/text cells, library identity and page2 failure",
+      "description": "51/201/1000 real XLSX downloads via the full server-paged export, server filters/totals, typed Unicode/text cells, library identity; a later-page failure is asserted at export time (no partial download)",
       "source": "scripts/a26-browser/transactions-checks.js"
     },
     {
       "id": "BO-RACE-SUCCESS",
       "finding": "A31",
-      "description": "B success survives late multi-page A",
+      "description": "B success survives a late A page-1 list response and a late A summary response",
       "source": "scripts/a31-browser/reports-races.js"
     },
     {
       "id": "BO-RACE-ERROR",
       "finding": "A31",
-      "description": "B failure survives late multi-page A",
+      "description": "B failure survives a late A page-1 list response and a late A summary response",
       "source": "scripts/a31-browser/reports-races.js"
     },
     {

@@ -18,7 +18,7 @@ import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 import { Pagination } from '../ui/Pagination'
-import { lastDaysRange, orderFilterParams } from './reports/orderQuery'
+import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
 
@@ -61,14 +61,9 @@ export function OrdersPanel() {
     return () => clearTimeout(t)
   }, [query])
 
-  const filters = {
-    dateFrom: allDates ? '' : range.dateFrom,
-    dateTo: allDates ? '' : range.dateTo,
-    status: fStatus,
-    payment: fPay,
-    q: debouncedQuery,
-  }
-  const { summary: sq, list: q } = useOrderReport(filters, page, pageSize, outletId)
+  const filters = transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: debouncedQuery })
+  const showSummary = canViewSummary(user?.role === 'admin', user?.permissions ?? [])
+  const { summary: sq, list: q } = useOrderReport(filters, page, pageSize, outletId, showSummary)
   const orders = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -103,7 +98,7 @@ export function OrdersPanel() {
     setExportError(null)
     try {
       // The live search text, not the 300 ms debounced one, so Export matches what was typed.
-      const params = orderFilterParams({ ...filters, q: query })
+      const params = orderFilterParams(transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: query }))
       const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
       const rows = all.map((o) => ({
         'No. Order': o.orderNumber,
@@ -138,7 +133,10 @@ export function OrdersPanel() {
     <div className="space-y-5">
       {(q.error || sq.error) && <p role="alert" className="text-sm text-red-600">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
       {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
-      <p className="text-sm text-gray-500">{total} transaksi · Total: {BRAND.currency.format(sq.data?.totalSales ?? 0)}</p>
+      <p className="text-sm text-gray-500">
+        {transaksiHeader(q.data ? total : undefined, showSummary ? sq.data?.totalSales : undefined, (n) => BRAND.currency.format(n))}
+        {debouncedQuery.trim() !== '' && !allDates && ' · pencarian mencakup semua tanggal'}
+      </p>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">

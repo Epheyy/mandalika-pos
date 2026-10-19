@@ -30,3 +30,34 @@ export function lastDaysRange(days: number, now = new Date()): { dateFrom: strin
     dateTo: format(now, 'yyyy-MM-dd'),
   }
 }
+
+/** The server totals come from /reports/summary, which needs view_reports (admins pass). */
+export function canViewSummary(isAdmin: boolean, permissions: readonly string[]): boolean {
+  return isAdmin || permissions.includes('view_reports')
+}
+
+/**
+ * Filters for the Transaksi tab. The date window (default last 30 days) is dropped
+ * when "Semua tanggal" is ticked or when a search is typed, so search covers all dates.
+ */
+export function transaksiFilters(
+  range: { dateFrom: string; dateTo: string },
+  allDates: boolean,
+  f: { status: string; payment: string; q: string },
+): OrderFilters {
+  const unbounded = allDates || f.q.trim() !== ''
+  return {
+    dateFrom: unbounded ? '' : range.dateFrom,
+    dateTo: unbounded ? '' : range.dateTo,
+    status: f.status,
+    payment: f.payment,
+    q: f.q,
+  }
+}
+
+/** Header text; a count or total that is not loaded (or not allowed) shows a dash, never 0. */
+export function transaksiHeader(total: number | undefined, sales: number | undefined, formatMoney: (n: number) => string): string {
+  const count = total === undefined ? '–' : String(total)
+  const money = sales === undefined ? '–' : formatMoney(sales)
+  return `${count} transaksi · Total: ${money}`
+}

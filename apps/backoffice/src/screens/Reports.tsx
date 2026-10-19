@@ -71,7 +71,7 @@ export default function Reports() {
         }
       />
 
-      {tab === 'orders' && <OrdersPanel />}
+      {tab === 'orders' && <OrdersPanel key={outletId ?? 'all'} />}
 
       {tab !== 'orders' && (
       <Card className="p-4 flex flex-wrap gap-3 items-end">
@@ -126,7 +126,7 @@ export default function Reports() {
       {tab === 'export' && (
         // Remount on a filter change so paging restarts at page 1.
         <ExportTab
-          key={`${dateFrom}|${dateTo}|${fStatus}|${fPay}`}
+          key={`${outletId}|${dateFrom}|${dateTo}|${fStatus}|${fPay}`}
           filters={{ dateFrom, dateTo, status: fStatus, payment: fPay, q: '' }}
           outletId={outletId}
           outlets={outlets}
