@@ -28,7 +28,17 @@ var (
 	// outlet (indistinguishable on purpose). Unlike ErrOrderClosed, shared with shifts,
 	// it carries the do-not-repay warning.
 	ErrRefundOrderNotFound = apperr.New(apperr.Conflict, "Transaksi tidak ditemukan di outlet ini."+refundWarning)
+	// A41: a refund that names its sale by client orderUuid. Another tablet's sale is
+	// a review item; an id and a uuid that are not the same order are a bad request.
+	ErrRefundSaleOtherDevice = apperr.New(apperr.Conflict, "Transaksi ini dibuat di tablet lain dan tidak dapat direfund dari tablet ini."+refundWarning)
+	ErrRefundOrderMismatch   = apperr.New(apperr.Rejected, "ID transaksi dan UUID penjualan refund tidak cocok."+refundWarning)
 )
+
+// IsCanonicalUUID reports whether s is a uuid in the canonical 36-char spelling.
+func IsCanonicalUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil && len(s) == 36
+}
 
 // RefundInput is one refund. ShiftID is the shift whose drawer paid it out ("" when
 // unknown or none: direct/backoffice refunds, legacy items, unknown envelope shift);
@@ -49,7 +59,7 @@ type RefundInput struct {
 func NormalizeRefund(orderID, reason string) (string, error) {
 	// Canonical 36-char form only. uuid.Parse (and PostgreSQL) also accept braces,
 	// "urn:uuid:" and 32 hex digits; we deliberately allow exactly one spelling.
-	if _, err := uuid.Parse(orderID); err != nil || len(orderID) != 36 {
+	if !IsCanonicalUUID(orderID) {
 		return "", ErrRefundOrderInvalid
 	}
 	reason = strings.TrimSpace(reason)

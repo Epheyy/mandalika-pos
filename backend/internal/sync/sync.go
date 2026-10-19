@@ -41,6 +41,61 @@ type Engine struct {
 	// secret by DeriveContactKey. Empty = no signed contacts: /sync/version issues none
 	// and the cap uses the device-reported elapsed time alone.
 	ContactKey []byte
+	// SaleResolver maps a sale's client orderUuid to its server id and device (A41);
+	// nil = a query on the refund's transaction. Injectable for tests.
+	SaleResolver saleResolver
+}
+
+// saleResolver resolves a sale by order_uuid within one outlet. A missing sale must
+// return service.ErrRefundOrderNotFound.
+type saleResolver func(ctx context.Context, tx pgx.Tx, outletID, orderUUID string) (id, deviceID string, err error)
+
+func resolveSaleTx(ctx context.Context, tx pgx.Tx, outletID, orderUUID string) (string, string, error) {
+	if tx == nil {
+		return "", "", service.ErrRefundOrderNotFound
+	}
+	var id string
+	var dev *string
+	err := tx.QueryRow(ctx,
+		`SELECT id, device_id FROM orders WHERE order_uuid=$1 AND outlet_id=$2`,
+		orderUUID, outletID).Scan(&id, &dev)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", service.ErrRefundOrderNotFound
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if dev == nil {
+		return id, "", nil
+	}
+	return id, *dev, nil
+}
+
+// refundSaleID returns the server order id a refund applies to. A payload with
+// saleOrderUuid is resolved here, inside the keyed transaction, so the receipt
+// records the resolved id and a replay returns the same one (A41).
+func (e *Engine) refundSaleID(ctx context.Context, tx pgx.Tx, outletID, orderID, saleUUID, deviceID string) (string, error) {
+	if saleUUID == "" {
+		return orderID, nil
+	}
+	if !service.IsCanonicalUUID(saleUUID) {
+		return "", service.ErrRefundOrderInvalid
+	}
+	resolve := e.SaleResolver
+	if resolve == nil {
+		resolve = resolveSaleTx
+	}
+	id, saleDevice, err := resolve(ctx, tx, outletID, saleUUID)
+	if err != nil {
+		return "", err
+	}
+	if saleDevice != deviceID || deviceID == "" {
+		return "", service.ErrRefundSaleOtherDevice
+	}
+	if orderID != "" && orderID != id {
+		return "", service.ErrRefundOrderMismatch
+	}
+	return id, nil
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -465,16 +520,22 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
 		}
 		var p struct {
-			OrderID string `json:"orderId"`
-			Reason  string `json:"reason"`
+			OrderID       string `json:"orderId"`
+			Reason        string `json:"reason"`
+			SaleOrderUUID string `json:"saleOrderUuid"`
+			DeviceID      string `json:"deviceId"`
 		}
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+			orderID, rerr := e.refundSaleID(ctx, tx, c.OutletID, p.OrderID, p.SaleOrderUUID, p.DeviceID)
+			if rerr != nil {
+				return "", rerr
+			}
 			// ShiftID is only ever a shift attribute() found at the attributed outlet.
-			return p.OrderID, refund(ctx, tx, service.RefundInput{
-				OutletID: c.OutletID, OrderID: p.OrderID, Reason: p.Reason,
+			return orderID, refund(ctx, tx, service.RefundInput{
+				OutletID: c.OutletID, OrderID: orderID, Reason: p.Reason,
 				ShiftID: c.EnvelopeShiftID, UserID: c.UserID, UserName: c.DisplayName,
 				Channel: "sync",
 			})
