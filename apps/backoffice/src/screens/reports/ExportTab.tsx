@@ -129,8 +129,8 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Penjualan Kotor', value: moneyOrDash(summary.grossSales, BRAND.currency.format), sub: summary.grossOrders === undefined ? undefined : `${summary.grossOrders} transaksi`, icon: <TrendingUp className="w-5 h-5" /> },
-              { label: 'Refund (hari refund)', value: BRAND.currency.format(summary.totalRefunds), sub: `${summary.refundedOrders} transaksi`, icon: <RotateCcw className="w-5 h-5" /> },
+              { label: 'Penjualan Kotor', value: moneyOrDash(summary.grossSales, BRAND.currency.format), sub: summary.grossOrders === undefined ? undefined : `${summary.grossOrders} penjualan`, icon: <TrendingUp className="w-5 h-5" /> },
+              { label: 'Refund (hari refund)', value: BRAND.currency.format(summary.totalRefunds), sub: `${summary.refundedOrders} refund`, icon: <RotateCcw className="w-5 h-5" /> },
               { label: 'Penjualan Bersih', value: moneyOrDash(summary.netSales, BRAND.currency.format), negative: isNegative(summary.netSales), icon: <TrendingUp className="w-5 h-5" /> },
               { label: 'Jumlah Transaksi', value: String(summary.totalOrders), icon: <ShoppingBag className="w-5 h-5" /> },
             ].map((c) => (
