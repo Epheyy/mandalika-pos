@@ -1037,7 +1037,8 @@ export class SyncEngine {
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
-        updates.push({ key: res.idempotencyKey, op: 'ack' })
+        // Only order/refund results carry an order id; other types return their own ids (shift, customer...).
+        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId ? { orderId: res.orderId } : {}) })
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)

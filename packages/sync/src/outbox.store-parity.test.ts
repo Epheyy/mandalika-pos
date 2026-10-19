@@ -715,3 +715,21 @@ describe('JournalOutboxStore meta facade vs resync (HIGH-2)', () => {
     expect(disk.map((e) => e.orderId).sort()).toEqual(['o1', 'o2', 'o3'])
   })
 })
+
+describe.each([
+  ['kv', kvBackend],
+  ['journal', journalBackend],
+] as const)('Outbox ack carries the server id over the %s store (A41)', (_name, create) => {
+  it('persists ackedOrderId beside the untouched payload and drops the row on prune', async () => {
+    const b = await create()
+    const outbox = b.newOutbox()
+    const item = await outbox.add('order', 'dev:1', { total: 1 })
+    await outbox.settle([{ key: 'dev:1', op: 'ack', orderId: 'srv-1' }])
+    const [row] = b.stored() as (OutboxItem & { ackedOrderId?: string })[]
+    expect(row.status).toBe('acked')
+    expect(row.ackedOrderId).toBe('srv-1')
+    expect(row.payload).toEqual(item.payload)
+    await outbox.prune()
+    expect(b.stored()).toEqual([])
+  })
+})

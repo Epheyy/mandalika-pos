@@ -52,6 +52,9 @@ export interface OutboxItem {
    *  (e.g. `competing_receipt`) or a client reason (`batch_rejected`). Additive. */
   reviewCode?: string
   reviewReason?: string
+  /** Server id of an acked order/refund (A41). Top-level and additive: the payload, which the server
+   *  fingerprints (A11), is never touched; older bundles ignore it. */
+  ackedOrderId?: string
 }
 
 /** After this many consecutive retryable failures an item is reported and shown
@@ -69,7 +72,7 @@ export interface OutboxCorruption {
 
 /** One settled-result update applied by {@link Outbox.settle}. */
 export type OutboxSettle =
-  | { key: string; op: 'ack' }
+  | { key: string; op: 'ack'; orderId?: string }
   | { key: string; op: 'discard' }
   // retryable === true: record the error but do not count it toward MAX_ATTEMPTS.
   | { key: string; op: 'fail'; error: string; retryable?: boolean }
@@ -384,7 +387,7 @@ export class Outbox {
           changed = true
         } else if (u.op === 'ack') {
           changed = true
-          next.push({ ...it, status: 'acked' })
+          next.push(u.orderId ? { ...it, status: 'acked', ackedOrderId: u.orderId } : { ...it, status: 'acked' })
         } else if (u.op === 'review') {
           changed = true
           const parked: OutboxItem = {
