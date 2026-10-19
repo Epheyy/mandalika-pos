@@ -261,24 +261,41 @@ func TestBusinessDatePostgres(t *testing.T) {
 	}
 
 	sub("2 an offline sale synced days later keeps its closed shift's day", func(t *testing.T) {
+		// The shift is a week old; the sale syncs now. A stamp taken from created_at (the sync day)
+		// would differ from the shift's day, so this fails unless the shift's date is used.
 		shiftClosedW = "00000000-0000-4000-8b02-000000000002"
-		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,$3,'BD','closed','2026-10-19T01:00:00Z','2026-10-19T15:00:00Z',0)`, shiftClosedW, outW, userW)
-		key := batch("late-closed", payload(map[string]any{"shiftId": shiftClosedW, "clientCreatedAt": "2026-10-19T13:00:00Z"}), envelope(shiftClosedW))
-		if got := bd(key); got != "2026-10-19" {
-			t.Fatalf("late sale on a closed shift: business_date=%s want 2026-10-19", got)
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,$3,'BD','closed','2026-10-12T01:00:00Z','2026-10-12T15:00:00Z',0)`, shiftClosedW, outW, userW)
+		shiftCols := `SELECT concat_ws('|',status,total_sales,total_orders,total_refunds,cash_sales,closing_cash) FROM shifts WHERE id=$1`
+		shiftBefore := str(shiftCols, shiftClosedW)
+		key := batch("late-closed", payload(map[string]any{"shiftId": shiftClosedW, "clientCreatedAt": "2026-10-12T13:00:00Z"}), envelope(shiftClosedW))
+		if got := bd(key); got != "2026-10-12" {
+			t.Fatalf("late sale on a closed shift: business_date=%s want 2026-10-12", got)
 		}
-		before := summary(tokAdmin, "dateFrom=2026-10-19&dateTo=2026-10-19&outletId="+outW)
-		if before["totalSales"] != float64(100100) {
-			t.Errorf("10-19 summary must include the late sale: %v", before["totalSales"])
+		syncDay := str(`SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date::text FROM orders WHERE idempotency_key=$1`, key)
+		if syncDay == "2026-10-12" {
+			t.Fatalf("test needs a sync day different from the shift day, got %s", syncDay)
 		}
-		if !strings.Contains(dailyDates(before), "2026-10-19=100100") {
-			t.Errorf("dailySales: %s", dailyDates(before))
-		}
-		today := time.Now().UTC().Format("2006-01-02")
-		if today != "2026-10-19" {
-			if s := summary(tokAdmin, "dateFrom="+today+"&dateTo="+today+"&outletId="+outW); s["totalSales"] != float64(0) {
-				t.Errorf("the late sale must be absent from the day it synced: %v", s["totalSales"])
+		id := str(`SELECT id::text FROM orders WHERE idempotency_key=$1`, key)
+		has := func(day string) bool {
+			for _, o := range get(tokAdmin, "/orders?dateFrom="+day+"&dateTo="+day+"&outletId="+outW)["data"].([]any) {
+				if o.(map[string]any)["id"] == id {
+					return true
+				}
 			}
+			return false
+		}
+		if !has("2026-10-12") {
+			t.Error("the late sale must be listed on the shift's day")
+		}
+		if has(syncDay) {
+			t.Errorf("the late sale must be absent from the day it synced (%s)", syncDay)
+		}
+		s := summary(tokAdmin, "dateFrom=2026-10-12&dateTo=2026-10-12&outletId="+outW)
+		if s["totalSales"] != float64(100000) || dailyDates(s) != "2026-10-12=100000" {
+			t.Errorf("summary on the shift's day: %v / %s", s["totalSales"], dailyDates(s))
+		}
+		if shiftAfter := str(shiftCols, shiftClosedW); shiftAfter != shiftBefore {
+			t.Errorf("closed shift totals changed: %s -> %s", shiftBefore, shiftAfter)
 		}
 	})
 
@@ -415,8 +432,9 @@ func TestBusinessDatePostgres(t *testing.T) {
 		}
 		// Scope: a cashier cannot widen the outlet through the query.
 		s := summary(tokW, "dateFrom=2026-10-20&dateTo=2026-10-20&outletId="+outM)
-		if s["totalSales"] != float64(400) {
-			t.Errorf("cashier scope leaked another outlet: %v", s["totalSales"])
+		ownOnly := str(`SELECT COALESCE(sum(total),0)::float8::text FROM orders WHERE outlet_id=$1 AND status='completed' AND business_date='2026-10-20'`, outW)
+		if fmt.Sprint(s["totalSales"]) != ownOnly || ownOnly == "0" {
+			t.Errorf("cashier scope leaked another outlet: summary %v, own outlet %s", s["totalSales"], ownOnly)
 		}
 	})
 

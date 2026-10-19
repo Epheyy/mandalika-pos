@@ -13,7 +13,7 @@ import (
 
 // ReportSummary aggregates the rows selected by the shared OrderFilter (the same
 // filter Repo.Orders uses, so the summary and the list/CSV cover identical rows) by
-// created_at and CURRENT status. Refunded rows are already excluded from total_sales,
+// business day and CURRENT status. Refunded rows are already excluded from total_sales,
 // so netSales equals totalSales; this is not settlement-time refund accounting (A27).
 // Cancelled rows never count as money. Money/aggregation is server-authoritative.
 func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSummary, error) {
