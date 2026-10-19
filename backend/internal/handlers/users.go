@@ -141,9 +141,22 @@ func (h *Handlers) SetUserReceivePin(w http.ResponseWriter, r *http.Request) {
 	if body.Pin != nil && (body.Clear == nil || !*body.Clear) {
 		pin = *body.Pin
 	}
-	if pin != "" && (len(pin) < 4 || len(pin) > 8) {
+	if pin != "" && !validReceivePin(pin) {
 		httpx.Err(w, http.StatusBadRequest, "PIN harus 4-8 digit")
 		return
 	}
 	h.mutated(w, r, h.Store.SetReceivePin(r.Context(), id, pin))
+}
+
+// validReceivePin: 4-8 ASCII digits (A08; the server used to check only the length).
+func validReceivePin(pin string) bool {
+	if len(pin) < 4 || len(pin) > 8 {
+		return false
+	}
+	for i := 0; i < len(pin); i++ {
+		if pin[i] < '0' || pin[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
