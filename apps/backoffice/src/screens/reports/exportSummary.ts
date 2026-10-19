@@ -22,7 +22,7 @@ export interface BreakdownRow {
  * by the ORIGINAL method) and net = gross - refunds. Methods are the union of both maps, in first-seen
  * order (gross first). Empty when the server sent neither map.
  */
-export function breakdownRows(s: Pick<ReportSummary, 'grossByPaymentMethod' | 'refundsByPaymentMethod'>): BreakdownRow[] {
+export function breakdownRows(s: Partial<Pick<ReportSummary, 'grossByPaymentMethod' | 'refundsByPaymentMethod'>>): BreakdownRow[] {
   const gross = s.grossByPaymentMethod ?? {}
   const refunds = s.refundsByPaymentMethod ?? {}
   const methods = [...Object.keys(gross), ...Object.keys(refunds).filter((m) => !(m in gross))]
