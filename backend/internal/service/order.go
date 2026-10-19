@@ -67,13 +67,15 @@ type CreateOrderInput struct {
 	ManualValue       float64
 	Surcharge         float64
 	SurchargeKind     DiscountKind
-	DiscountCode      string   // promo code applied
-	PromotionID       string   // applied promotion id
-	PromotionIDs      []string // SP-Promo-3a: stacked promotions; falls back to PromotionID
-	DiscountCodes     []string // SP-Promo-3a: stacked codes; falls back to DiscountCode
-	DiscountLabel     string   // denormalized source: promotion name / code / "Manual"
-	DiscountBreakdown []byte   // raw JSON array of {label,kind,value,amount}; stored as jsonb
-	PointsRedeemed    int      // loyalty points the customer spends on this order
+	DiscountCode      string          // promo code applied
+	PromotionID       string          // applied promotion id
+	PromotionIDs      []string        // SP-Promo-3a: stacked promotions; falls back to PromotionID
+	DiscountCodes     []string        // SP-Promo-3a: stacked codes; falls back to DiscountCode
+	DiscountLabel     string          // denormalized source: promotion name / code / "Manual"
+	DiscountBreakdown []byte          // raw JSON array of {label,kind,value,amount}; stored as jsonb
+	QuotedTotal       *float64        // A10: the total the POS showed/printed; nil = no quote (old clients)
+	ReceiptSnapshot   json.RawMessage // A10: the printed receipt as sent; stored unchanged, never trusted for money
+	PointsRedeemed    int             // loyalty points the customer spends on this order
 	Notes             string
 	ShiftID           string
 	ClientCreated     *time.Time
@@ -367,6 +369,14 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	}
 	tenderWarning := tenderReason != ""
 
+	// A10: judge the quoted receipt total after the replay guard, flag-only on both
+	// routes. An unusable quote is dropped (NULL) with quote_invalid; the sale stands.
+	quotedStored, quoteReason := evaluateQuote(in.QuotedTotal, in.ReceiptSnapshot, finalTotal)
+	var snapStored json.RawMessage
+	if quotedStored != nil {
+		snapStored = in.ReceiptSnapshot
+	}
+
 	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
 	base := res.EarnedPoints
@@ -486,9 +496,10 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		  discount_value, discount_code, surcharge_type, surcharge_value,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
-		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason)
+		  stock_warning, points_redeemed, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason,
+		  receipt_snapshot, quote_warning, quote_warning_reason)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb,$37,$38)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32::jsonb,$33,$34,$35,$36::jsonb,$37,$38,$39::jsonb,$40,$41)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -497,10 +508,11 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		nullNum(in.ManualValue), nullStr(in.DiscountCode),
 		nullStr(string(in.SurchargeKind)), nullNum(in.Surcharge), res.SurchargeAmount,
 		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
-		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, finalTotal,
+		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, quotedStored,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
 		tenderWarning, nullStr(tenderReason),
+		nullBytes(snapStored), quoteReason != "", nullStr(quoteReason),
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {

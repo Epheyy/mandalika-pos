@@ -295,7 +295,8 @@ func TestSaleInputPostgres(t *testing.T) {
 			t.Fatalf("%d %s", w.Code, w.Body.String())
 		}
 		var stock int
-		var total, paid, quoted float64
+		var total, paid float64
+		var quoted *float64
 		var savedOutlet, savedUser string
 		if err := pool.QueryRow(ctx, `SELECT total,amount_paid,quoted_total,outlet_id,cashier_id FROM orders WHERE idempotency_key='mixed-good'`).Scan(&total, &paid, &quoted, &savedOutlet, &savedUser); err != nil {
 			t.Fatal(err)
@@ -304,8 +305,9 @@ func TestSaleInputPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Catalog is now 110000, captured price 100000, current tax adds 10000.
-		// This exposes the existing quoted_total gap rather than declaring A10 fixed.
-		if stock != -1 || total != 110000 || paid != 100000 || quoted != 110000 || savedOutlet != outlet || savedUser != user {
+		// A10: this legacy payload carries no quote, so quoted_total is NULL (it used to
+		// be the server's own recompute, which made the receipt total unrecoverable).
+		if stock != -1 || total != 110000 || paid != 100000 || quoted != nil || savedOutlet != outlet || savedUser != user {
 			t.Fatalf("stock=%d total=%v paid=%v quoted=%v scope=%s/%s", stock, total, paid, quoted, savedOutlet, savedUser)
 		}
 		before := snapshot()

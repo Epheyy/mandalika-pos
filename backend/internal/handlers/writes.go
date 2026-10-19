@@ -946,6 +946,8 @@ type createOrderBody struct {
 	PointsRedeemed    int                 `json:"pointsRedeemed"`
 	Notes             string              `json:"notes"`
 	ShiftID           string              `json:"shiftId"`
+	QuotedTotal       *float64            `json:"quotedTotal"` // A10
+	ReceiptSnapshot   json.RawMessage     `json:"receiptSnapshot"`
 }
 
 func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -990,6 +992,8 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		PromotionIDs: body.PromotionIDs, DiscountCodes: body.DiscountCodes,
 		DiscountLabel:     body.DiscountLabel,
 		DiscountBreakdown: body.DiscountBreakdown,
+		QuotedTotal:       body.QuotedTotal,
+		ReceiptSnapshot:   body.ReceiptSnapshot,
 		PointsRedeemed:    body.PointsRedeemed,
 		Notes:             body.Notes, ShiftID: body.ShiftID, Offline: false,
 	}

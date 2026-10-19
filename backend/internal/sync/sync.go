@@ -374,6 +374,8 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			DiscountCodes:     p.DiscountCodes,
 			DiscountLabel:     p.DiscountLabel,
 			DiscountBreakdown: p.DiscountBreakdown,
+			QuotedTotal:       p.QuotedTotal,
+			ReceiptSnapshot:   p.ReceiptSnapshot,
 			PointsRedeemed:    p.PointsRedeemed,
 			Notes:             p.Notes,
 			ShiftID:           shiftID,
@@ -638,4 +640,6 @@ type orderPayload struct {
 	Notes             string              `json:"notes"`
 	ShiftID           string              `json:"shiftId"`
 	ClientCreatedAt   *time.Time          `json:"clientCreatedAt"`
+	QuotedTotal       *float64            `json:"quotedTotal"`     // A10: absent on legacy outbox items
+	ReceiptSnapshot   json.RawMessage     `json:"receiptSnapshot"` // A10
 }
