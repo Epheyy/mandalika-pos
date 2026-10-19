@@ -151,6 +151,12 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
 
 /** An acked order is kept queued at most this many times when its settling-debit write fails. */
 const SETTLING_HOLD_MAX = 3
+/** Consecutive failed receipt-archive writes (A41) after which acked rows that are NOT sales stop being held back. */
+export const ARCHIVE_HOLD_MAX = 5
+/** ...and after which even an acked sale row that could not be archived is dropped. Its sale is already
+ *  acknowledged server side, so what is lost is only the tablet's local receipt copy (the history still has it
+ *  online); keeping rows forever behind a write that never succeeds would grow the outbox without bound. */
+export const ARCHIVE_DROP_MAX = 50
 
 /** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
 export const BACKOFF_BASE_MS = 20_000
@@ -287,6 +293,8 @@ export class SyncEngine {
   /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
   private readonly receiptArchive: ReceiptArchive
   private receiptMemory: Promise<boolean> = Promise.resolve(true)
+  /** Consecutive failed archive writes; reset by any successful fold. */
+  private archiveFailures = 0
   private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
@@ -390,8 +398,12 @@ export class SyncEngine {
       if (e) incoming.push(e)
     }
     return this.receiptArchive.addMany(incoming, () => this.receiptContext()).then(
-      () => true,
+      () => {
+        this.archiveFailures = 0
+        return true
+      },
       (err) => {
+        this.archiveFailures += 1
         console.error('[sync] receipt archive write failed; acked sale rows are kept', err)
         return false
       },
@@ -1336,6 +1348,16 @@ export class SyncEngine {
     // Both folds always run; the acked rows are dropped only when both facts are durable.
     const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds), this.foldAckedReceipts()])
     if (refundsOk && receiptsOk) await this.outbox.prune()
+    else if (refundsOk && this.archiveFailures >= ARCHIVE_HOLD_MAX) {
+      // The archive keeps failing: do not let acked rows pile up behind it. Rows that are not sales never needed
+      // the archive and go now; acked sales (their only receipt copy) stay until the drop cap.
+      const dropSales = this.archiveFailures >= ARCHIVE_DROP_MAX
+      if (dropSales) {
+        const n = this.outbox.all().filter((i) => i.status === 'acked' && i.type === 'order').length
+        console.error(`[sync] receipt archive failed ${this.archiveFailures} times in a row; dropping ${n} acked sale row(s) without a local receipt copy`)
+      }
+      await this.outbox.prune((i) => i.type === 'order' && !dropSales)
+    }
     this.accountProblemMsg = null
     this.resetBackoff()
     this.events.onOutboxChange?.(this.outbox.count())

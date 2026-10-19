@@ -472,10 +472,11 @@ export class Outbox {
     })
   }
 
-  /** Drop acked rows once their canonical order is reconciled locally. */
-  prune(): Promise<void> {
+  /** Drop acked rows once their canonical order is reconciled locally. `keep` retains the acked rows it
+   *  returns true for (the engine keeps unarchived acked sales while the receipt archive cannot be written). */
+  prune(keep?: (item: OutboxItem) => boolean): Promise<void> {
     return this.mutate((items) => {
-      const next = items.filter((i) => i.status !== 'acked')
+      const next = items.filter((i) => i.status !== 'acked' || (keep?.(i) ?? false))
       return next.length === items.length ? null : next
     })
   }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SyncEngine, type ApiLike } from './engine'
+import { ARCHIVE_DROP_MAX, ARCHIVE_HOLD_MAX, SyncEngine, type ApiLike } from './engine'
 import { RECEIPT_ARCHIVE_KEY, RECEIPT_KEEP_NEWEST, RECEIPT_RETENTION_MS, type ReceiptEntry } from './receiptArchive'
 import { SYNCED_REFUNDS_KEY } from './syncedRefunds'
 import type { OutboxItem } from './outbox'
@@ -138,6 +138,77 @@ describe('acked sales are archived before the acked row is pruned', () => {
     await flushed
     await engine.idle()
     expect(archive(store)).toHaveLength(1)
+  })
+})
+
+describe('a persistently failing archive write is bounded (L1)', () => {
+  const failing = () => {
+    const c = controllableKV()
+    c.ctl.modeFor = (k) => (k === RECEIPT_ARCHIVE_KEY ? 'reject' : undefined)
+    return c
+  }
+  // One sale or cash_flow per round: queue offline, then flush online.
+  const round = async (e: SyncEngine, type: 'order' | 'cash_flow', n: number) => {
+    offline()
+    await e.enqueue(type, type === 'order' ? sale(n) : { amount: n, type: 'in', description: `c${n}` })
+    online()
+    await e.flushNow()
+  }
+  const kinds = (store: Map<string, string>) => outboxRows(store).map((r) => `${r.type}:${r.status}`)
+
+  it('holds every acked row until ARCHIVE_HOLD_MAX failed folds, then stops holding the non-sale rows', async () => {
+    const { kv, store } = failing()
+    const e = newEngine(kv)
+    await round(e, 'order', 1)
+    for (let n = 2; n < ARCHIVE_HOLD_MAX; n++) await round(e, 'cash_flow', n)
+    // ARCHIVE_HOLD_MAX - 1 failed folds so far: everything is still held.
+    expect(kinds(store)).toEqual(['order:acked', ...Array(ARCHIVE_HOLD_MAX - 2).fill('cash_flow:acked')])
+    await round(e, 'cash_flow', 99)
+    // The cap is reached: acked non-sale rows go, the acked SALE row (its only receipt copy) stays.
+    expect(kinds(store)).toEqual(['order:acked'])
+    expect(archive(store)).toEqual([])
+  })
+
+  it('never prunes an acked sale row that is not archived below ARCHIVE_DROP_MAX', async () => {
+    const { kv, store } = failing()
+    const e = newEngine(kv)
+    for (let n = 1; n < ARCHIVE_DROP_MAX; n++) await round(e, 'order', n)
+    expect(outboxRows(store)).toHaveLength(ARCHIVE_DROP_MAX - 1)
+    expect(outboxRows(store).every((r) => r.status === 'acked' && r.type === 'order')).toBe(true)
+  })
+
+  it('at ARCHIVE_DROP_MAX drops the acked sale rows too (already server side) and says so', async () => {
+    const { kv, store } = failing()
+    const e = newEngine(kv)
+    for (let n = 1; n <= ARCHIVE_DROP_MAX; n++) await round(e, 'order', n)
+    expect(outboxRows(store)).toEqual([])
+    const logged = (console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))
+    expect(logged.some((m) => /receipt archive.*dropping/i.test(m))).toBe(true)
+  })
+
+  it('a successful fold resets the count: the next failure holds everything again', async () => {
+    const c = failing()
+    const e = newEngine(c.kv)
+    for (let n = 1; n < ARCHIVE_HOLD_MAX; n++) await round(e, 'order', n)
+    c.ctl.modeFor = undefined
+    await round(e, 'order', 100) // the archive catches up: acked rows fold and prune
+    expect(outboxRows(c.store)).toEqual([])
+    expect(archive(c.store)).toHaveLength(ARCHIVE_HOLD_MAX)
+    c.ctl.modeFor = (k) => (k === RECEIPT_ARCHIVE_KEY ? 'reject' : undefined)
+    await round(e, 'order', 101)
+    await round(e, 'cash_flow', 102) // failures 1 and 2 of a new run: everything is held again
+    expect(kinds(c.store)).toEqual(['order:acked', 'cash_flow:acked'])
+  })
+
+  it('a failed refund-memory write still holds every acked row (unchanged)', async () => {
+    const { kv, store, ctl } = controllableKV()
+    ctl.modeFor = (k) => (k === SYNCED_REFUNDS_KEY || k === RECEIPT_ARCHIVE_KEY ? 'reject' : undefined)
+    const e = newEngine(kv)
+    await round(e, 'order', 1)
+    await e.enqueue('refund', { orderId: 'o1', reason: 'r' })
+    for (let n = 0; n < ARCHIVE_HOLD_MAX + 2; n++) await round(e, 'cash_flow', n)
+    expect(outboxRows(store).every((r) => r.status === 'acked')).toBe(true)
+    expect(outboxRows(store).length).toBeGreaterThan(ARCHIVE_HOLD_MAX)
   })
 })
 
