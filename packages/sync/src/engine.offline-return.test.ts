@@ -152,6 +152,94 @@ describe('linked refund send rule', () => {
   })
 })
 
+describe('linked refund gate: flush edge cases (L5)', () => {
+  const throwing = (status: number) => {
+    const calls: Sent[][] = []
+    const request = vi.fn(async (_m: string, _p: string, body: { items: Sent[] }) => {
+      calls.push(body.items)
+      throw Object.assign(new Error(`HTTP ${status}`), { status })
+    })
+    return { api: { request: request as unknown as ApiLike['request'] } as ApiLike, calls }
+  }
+  const row = (r: OutboxItem[], type: string) => r.find((x) => x.type === type)!
+
+  it('a thrown chunk leaves the held refund and the shift close untouched (no park, no send, no second pass)', async () => {
+    const { api, calls } = throwing(503)
+    const kv = controllableKV()
+    const e = engineOf(api, kv.kv)
+    const { orderUuid } = await e.enqueue('order', sale(1))
+    await e.enqueue('refund', refundOf(orderUuid))
+    await e.enqueue('shift_close', { shiftId: 's1', closingCash: 0 })
+    online()
+    await e.flushNow()
+    expect(calls.map((c) => c.map((i) => i.type))).toEqual([['order']])
+    const rows_ = rows(kv.store)
+    expect(row(rows_, 'order')).toMatchObject({ status: 'failed', retryableFailures: 1 })
+    for (const t of ['refund', 'shift_close']) {
+      expect(row(rows_, t).status).toBe('pending')
+      expect(row(rows_, t).attempts).toBeUndefined()
+      expect(row(rows_, t).reviewCode).toBeUndefined()
+    }
+  })
+
+  it('a rejected chunk parks the sale; the held refund stays queued, then parks itself next flush and frees the close', async () => {
+    const bad = throwing(422)
+    const kv = controllableKV()
+    const e = engineOf(bad.api, kv.kv)
+    const { orderUuid } = await e.enqueue('order', sale(1))
+    await e.enqueue('refund', refundOf(orderUuid))
+    await e.enqueue('shift_close', { shiftId: 's1', closingCash: 0 })
+    online()
+    await e.flushNow()
+    expect(bad.calls.map((c) => c.map((i) => i.type))).toEqual([['order']])
+    expect(row(rows(kv.store), 'order')).toMatchObject({ status: 'failed', reviewCode: 'batch_rejected' })
+    expect(row(rows(kv.store), 'refund').status).toBe('pending')
+
+    const good = fakeApi()
+    const again = engineOf(good.api, kv.kv)
+    await again.flushNow()
+    expect(good.types()).toEqual([['shift_close']])
+    expect(row(rows(kv.store), 'refund')).toMatchObject({ status: 'failed', reviewCode: 'sale_in_review' })
+  })
+
+  it('a hold carries across the 25-item chunk boundary: a close in a later chunk waits with its refund, and both go once the sale is acked', async () => {
+    const stamp = { clientCreatedAt: NOW }
+    const items: OutboxItem[] = [
+      { idempotencyKey: 'dev:r', type: 'refund', seq: 1, status: 'pending', ...stamp, payload: refundOf('sale-x') },
+      ...Array.from({ length: 24 }, (_, i): OutboxItem => ({ idempotencyKey: `dev:c${i}`, type: 'cash_flow', seq: i + 2, status: 'pending', ...stamp, payload: { amount: 1, type: 'in', description: `c${i}` } })),
+      { idempotencyKey: 'dev:o', type: 'order', seq: 26, status: 'pending', ...stamp, payload: { ...sale(1), orderUuid: 'sale-x', orderNumber: 'ORD-X' } },
+      { idempotencyKey: 'dev:close', type: 'shift_close', seq: 27, status: 'pending', ...stamp, payload: { shiftId: 's1', closingCash: 0 } },
+    ]
+    const { api, types } = fakeApi()
+    const e = engineOf(api, controllableKV({ [OUTBOX_KEY]: JSON.stringify(items) }).kv)
+    online()
+    await e.flushNow()
+    // chunk 1 = refund + 24 cash flows (refund held), chunk 2 = sale (+ the close, held), then the held pair together.
+    expect(types()).toEqual([Array(24).fill('cash_flow'), ['order'], ['refund', 'shift_close']])
+  })
+
+  it('a sale that fails without a verdict (under 5 attempts) holds the refund and the close until the sale is parked', async () => {
+    const { api, types } = fakeApi((it) =>
+      it.type === 'order' ? { status: 'error', error: 'x', retryable: false } : { status: 'ok', orderId: 'srv' })
+    const kv = controllableKV()
+    const e = engineOf(api, kv.kv)
+    const { orderUuid } = await e.enqueue('order', sale(1))
+    await e.enqueue('refund', refundOf(orderUuid))
+    await e.enqueue('shift_close', { shiftId: 's1', closingCash: 0 })
+    online()
+    for (let n = 1; n < 5; n++) {
+      await e.flushNow()
+      expect(types()).toEqual(Array(n).fill(['order'])) // the order retries each flush; the refund and the close never go
+      expect(row(rows(kv.store), 'order')).toMatchObject({ status: 'failed', attempts: n })
+      expect(row(rows(kv.store), 'refund').status).toBe('pending')
+    }
+    await e.flushNow() // the 5th failure parks the sale: the refund parks with it and the close is no longer held
+    expect(row(rows(kv.store), 'order').attempts).toBe(5)
+    expect(row(rows(kv.store), 'refund')).toMatchObject({ status: 'failed', reviewCode: 'sale_in_review' })
+    expect(types().at(-1)).toEqual(['shift_close'])
+  })
+})
+
 describe('queued and acknowledged refund memory', () => {
   it('queuedRefundSaleUuids lists unacknowledged refunds (parked included) and queuedRefundOrderIds ignores the empty id', async () => {
     const { api } = fakeApi()
