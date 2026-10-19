@@ -953,7 +953,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A24 | P1 | A24 guest-sale containment (S0e) | Locally verified; scoped accepted E24; parent/attachment/release open | T22 |
 | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
 | A26 | P1 | A26-pagination-completeness | Open; E26 scoped ChatGPT acceptance; remaining inventory/qualification | T23 |
-| A27 | P1 | A27-summary-double-subtraction | Open; E28 scoped ChatGPT acceptance of E27; Q09/A28 separate | T24 |
+| A27 | P1 | A27-summary-double-subtraction | Mostly: refund-date basis (gross minus refunds on refund business day) built and merged locally 2026-10-19 (mig 0060), NOT released; Dashboard net (T7) pending owner answer; see docs/plans/2026-10-19-a27-refund-date-basis.md | T24 |
 | A28 | P1 | S1 | Mostly: per-outlet timezone + stored business date (shift opening date) built and merged locally 2026-10-19 (mig 0059, gate BD), NOT released; no return deadline by owner policy; see docs/plans/2026-10-19-a28-outlet-timezone.md | T24 |
 | A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
 | A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T04a–T04e,T06 |
