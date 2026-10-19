@@ -612,6 +612,23 @@ describe('JournalOutboxStore meta kv facade', () => {
     expect(fake.persisted.meta.get(SYNCED_REFUNDS_KEY)).toBe('v1')
   })
 
+  it('serves the receipt archive key too (A41), but still refuses to remove it', async () => {
+    const ARCHIVE_KEY = 'mandalika.pos.receiptArchive'
+    const fake = createFakeJournal()
+    const store = await JournalOutboxStore.open(fake.plugin)
+    expect(store.kv.get(ARCHIVE_KEY)).toBeNull()
+    await store.kv.setDurable(ARCHIVE_KEY, '[1]')
+    expect(store.kv.get(ARCHIVE_KEY)).toBe('[1]')
+    expect(fake.persisted.meta.get(ARCHIVE_KEY)).toBe('[1]')
+    store.kv.set(ARCHIVE_KEY, '[2]')
+    expect(store.kv.get(ARCHIVE_KEY)).toBe('[2]')
+    await expect(store.kv.removeDurable(ARCHIVE_KEY)).rejects.toThrow()
+    expect(() => store.kv.remove(ARCHIVE_KEY)).toThrow()
+    await store.kv.setDurable(ARCHIVE_KEY, '[3]')
+    const again = await JournalOutboxStore.open(fake.restart().plugin)
+    expect(again.kv.get(ARCHIVE_KEY)).toBe('[3]')
+  })
+
   it('refuses every other key and never writes it', async () => {
     const fake = createFakeJournal()
     const store = await JournalOutboxStore.open(fake.plugin)

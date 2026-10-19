@@ -21,6 +21,7 @@ import {
 // step. The invariant under every crash: the same item set, no duplicate keys, a sentinel and a backup.
 
 const REFUNDS_KEY = 'mandalika.pos.syncedRefunds'
+const ARCHIVE_KEY = 'mandalika.pos.receiptArchive' // A41
 const NOW = new Date('2026-10-11T04:00:00.000Z')
 
 const env = { v: 1, outletId: 'out-1', userId: 'u-a', deviceId: 'd', capturedAt: 'x' }
@@ -440,6 +441,40 @@ describe('an old OTA bundle wrote the queue after the seal (merge)', () => {
     const j = journalOf(await boot(kv, fj.restart()))
     const ids = (JSON.parse(j.kv.get(REFUNDS_KEY) as string) as { orderId: string }[]).map((e) => e.orderId).sort()
     expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('receipt archive on takeover (A41)', () => {
+  const rec = (n: number) => ({ orderUuid: `u${n}`, orderNumber: `N${n}`, capturedAt: '2026-10-11T00:00:00.000Z' })
+
+  it('copies the archive written while on the KV store into the journal and serves it', async () => {
+    const archive = JSON.stringify([rec(1)])
+    const { kv } = seedKV([sale(1)], { [ARCHIVE_KEY]: archive })
+    const fj = createFakeJournal()
+    const j = journalOf(await boot(kv, fj))
+    expect(fj.persisted.meta.get(ARCHIVE_KEY)).toBe(archive)
+    expect(j.kv.get(ARCHIVE_KEY)).toBe(archive)
+  })
+
+  it('writes no archive meta when there was none', async () => {
+    const { kv } = seedKV([sale(1)])
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    expect(fj.persisted.meta.has(ARCHIVE_KEY)).toBe(false)
+  })
+
+  it('unions an archive that reached the KV after the seal, journal entry winning', async () => {
+    const { kv, store } = seedKV([sale(1)], { [ARCHIVE_KEY]: JSON.stringify([rec(1)]) })
+    const fj = createFakeJournal()
+    await boot(kv, fj)
+    adoptOutboxStore(null)
+    resetJournalBootForTests()
+    store.set(ARCHIVE_KEY, JSON.stringify([{ ...rec(1), orderNumber: 'STALE' }, rec(2)]))
+    store.set(OUTBOX_KEY, JSON.stringify([sale(1), sale(2, { idempotencyKey: 'd:late' })]))
+    const j = journalOf(await boot(kv, fj.restart()))
+    const list = JSON.parse(j.kv.get(ARCHIVE_KEY) as string) as { orderUuid: string; orderNumber: string }[]
+    expect(list.map((e) => e.orderUuid).sort()).toEqual(['u1', 'u2'])
+    expect(list.find((e) => e.orderUuid === 'u1')?.orderNumber).toBe('N1')
   })
 })
 

@@ -17,6 +17,8 @@ export type { JournalBootResult, JournalBootNotice, InitJournalDeps } from './jo
 export { parseSentinel } from './journalSentinel'
 export type { JournalSentinel } from './journalSentinel'
 export { SyncedRefunds, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
+export { ReceiptArchive, RECEIPT_ARCHIVE_KEY, RECEIPT_RETENTION_MS, RECEIPT_KEEP_NEWEST, prunable, receiptEntryFromItem } from './receiptArchive'
+export type { ReceiptEntry, ReceiptContext, UnsyncedSale } from './receiptArchive'
 export { Snapshot } from './snapshot'
 export { normalizePhone, PHONE_MIN_DIGITS } from './phone'
 export { KnownCustomers, KNOWN_CUSTOMERS_KEY, KNOWN_CUSTOMERS_MAX, KNOWN_CUSTOMERS_TTL_MS } from './knownCustomers'
