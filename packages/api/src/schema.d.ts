@@ -2180,6 +2180,11 @@ export interface components {
             phone?: string | null;
             logoUrl?: string | null;
             isActive: boolean;
+            /**
+             * @description Outlet timezone (WIB, WITA, WIT). Decides the business day of its sales.
+             * @enum {string}
+             */
+            timezone: "Asia/Jakarta" | "Asia/Makassar" | "Asia/Jayapura";
             /** Format: date-time */
             createdAt: string;
         };
@@ -3163,6 +3168,11 @@ export interface components {
             orderNumber: string;
             /** Format: uuid */
             outletId: string;
+            /**
+             * Format: date
+             * @description The business day of the sale in its outlet's zone (a shift's sales take the shift's opening date). Optional because POS builds local Order objects.
+             */
+            businessDate?: string;
             cashierId: string;
             cashierName: string;
             salesmanId?: string | null;
@@ -3289,6 +3299,11 @@ export interface components {
             id: string;
             /** Format: uuid */
             outletId: string;
+            /**
+             * Format: date
+             * @description The shift's opening date in its outlet's zone. Optional because POS builds local Shift objects.
+             */
+            businessDate?: string;
             outletName?: string | null;
             cashierId: string;
             cashierName: string;
@@ -3497,13 +3512,18 @@ export interface components {
         };
         /**
          * @description Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
-         *     `from`/`to` echo the lower/upper instant actually applied; null when that side is unbounded.
+         *     `from`/`to` echo only the legacy instant parameters; null when that side is not given.
+         *     `dateFrom`/`dateTo` echo the business days applied; null when that side is unbounded.
          */
         ReportSummary: {
             /** Format: date-time */
             from?: string | null;
             /** Format: date-time */
             to?: string | null;
+            /** Format: date */
+            dateFrom?: string | null;
+            /** Format: date */
+            dateTo?: string | null;
             outletId?: string | null;
             /** Format: double */
             totalSales: number;
@@ -3958,6 +3978,11 @@ export interface components {
             phone?: string;
             logoUrl?: string | null;
             isActive: boolean;
+            /**
+             * @description Optional. Absent keeps the current zone (new outlets default to Asia/Jakarta). Changing it never rewrites the business date of existing sales.
+             * @enum {string}
+             */
+            timezone?: "Asia/Jakarta" | "Asia/Makassar" | "Asia/Jayapura";
         };
         ReceiveApprover: {
             /** Format: uuid */
@@ -4100,9 +4125,9 @@ export interface components {
         };
     };
     parameters: {
-        /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+        /** @description Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
         WIBDateFrom: string;
-        /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+        /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
         WIBDateTo: string;
         OrderStatusFilter: "completed" | "refunded" | "cancelled";
         /** @description Matched case-insensitively after trimming whitespace. */
@@ -5400,7 +5425,9 @@ export interface operations {
     listPromoRewardGrants: {
         parameters: {
             query?: {
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateFrom?: string;
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateTo?: string;
                 outletId?: string;
                 promotionId?: string;
@@ -5428,7 +5455,9 @@ export interface operations {
     listDiscountCodeReport: {
         parameters: {
             query?: {
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateFrom?: string;
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateTo?: string;
                 page?: number;
                 limit?: number;
@@ -5453,7 +5482,9 @@ export interface operations {
     listOversellReport: {
         parameters: {
             query?: {
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateFrom?: string;
+                /** @description Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable. */
                 dateTo?: string;
                 outletId?: string;
                 productId?: string;
@@ -7180,9 +7211,9 @@ export interface operations {
                 from?: string;
                 /** @description Legacy (POS) inclusive upper day (YYYY-MM-DD, UTC day). Meaning unchanged; prefer dateTo. */
                 to?: string;
-                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateFrom?: components["parameters"]["WIBDateFrom"];
-                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
                 status?: components["parameters"]["OrderStatusFilter"];
                 /** @description Matched case-insensitively after trimming whitespace. */
@@ -7293,9 +7324,9 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
-                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateFrom?: components["parameters"]["WIBDateFrom"];
-                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
             };
             header?: {
@@ -7307,7 +7338,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description shifts (dateFrom/dateTo bound opened_at by WIB calendar day) */
+            /** @description shifts (dateFrom/dateTo bound the shift's business date, its opening day in the outlet's zone) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7713,9 +7744,9 @@ export interface operations {
                 from?: string;
                 /** @description Legacy upper bound instant (exclusive). Prefer dateTo. */
                 to?: string;
-                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateFrom?: components["parameters"]["WIBDateFrom"];
-                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
                 status?: components["parameters"]["OrderStatusFilter"];
                 /** @description Matched case-insensitively after trimming whitespace. */
