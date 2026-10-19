@@ -1,10 +1,13 @@
 import { memo, useEffect, useRef } from 'react'
 import type { components } from '@mandalika/api'
+import { normalizePhone } from '@mandalika/sync'
 import { segmentChipClasses } from './segmentColors'
+import { phoneHint } from './customerFinder'
 
 type Customer = components['schemas']['Customer']
 
 interface CustomerPickerProps {
+  /** Customers matching the typed phone (the parent resolves them; the picker never filters by name). */
   customers: Customer[]
   selectedCustomer: Customer | null
   customerSearch: string
@@ -24,6 +27,10 @@ interface CustomerPickerProps {
   errorText?: string | null
   /** Loyalty is configurable in Backoffice; hide tier/points when off. */
   loyaltyEnabled: boolean
+  /** The online phone lookup is still running (do not offer "add new" yet). */
+  isSearching?: boolean
+  /** Why the online lookup could not answer (e.g. the 429 budget message). */
+  lookupError?: string | null
 }
 
 export const CustomerPicker = memo(function CustomerPicker({
@@ -43,19 +50,15 @@ export const CustomerPicker = memo(function CustomerPicker({
   onAddNewFromSearch,
   errorText,
   loyaltyEnabled,
+  isSearching = false,
+  lookupError = null,
 }: CustomerPickerProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const filteredCustomers =
-    customerSearch.length >= 2
-      ? customers
-          .filter(
-            (c) =>
-              c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-              c.phone.includes(customerSearch),
-          )
-          .slice(0, 5)
-      : []
+  // A30: phone-only. Nothing is listed until the typed text is a full phone number.
+  const hasPhone = normalizePhone(customerSearch) !== ''
+  const hits = hasPhone ? customers : []
+  const hint = phoneHint(customerSearch)
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -157,8 +160,10 @@ export const CustomerPicker = memo(function CustomerPicker({
           <div className="flex gap-2">
             <input
               className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-              placeholder="Cari nama / no. telepon…"
-              aria-label="Cari nama atau nomor telepon pelanggan"
+              placeholder="No. telepon pelanggan…"
+              aria-label="Cari pelanggan dengan nomor telepon"
+              type="tel"
+              inputMode="tel"
               value={customerSearch}
               onChange={(e) => onSearchChange(e.target.value)}
             />
@@ -169,18 +174,21 @@ export const CustomerPicker = memo(function CustomerPicker({
               + Baru
             </button>
           </div>
-          {customerSearch.trim().length >= 2 &&
-            filteredCustomers.length === 0 && (
-              <button type="button"
-                onClick={() => onAddNewFromSearch(customerSearch.trim())}
-                className="mt-1 w-full text-left px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors"
-              >
-                + Tambah “{customerSearch.trim()}” sebagai pelanggan baru
-              </button>
-            )}
-          {filteredCustomers.length > 0 && (
+          {hint && <p className="mt-1 text-[11px] text-gray-500">{hint}</p>}
+          {hasPhone && lookupError && (
+            <p className="mt-1 text-[11px] font-semibold text-amber-700">{lookupError}</p>
+          )}
+          {hasPhone && hits.length === 0 && !isSearching && !lookupError && (
+            <button type="button"
+              onClick={() => onAddNewFromSearch(customerSearch.trim())}
+              className="mt-1 w-full text-left px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors"
+            >
+              + Tambah “{customerSearch.trim()}” sebagai pelanggan baru
+            </button>
+          )}
+          {hits.length > 0 && (
             <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
-              {filteredCustomers.map((c) => (
+              {hits.map((c) => (
                 <button type="button"
                   key={c.id}
                   onClick={() => {
