@@ -52,19 +52,14 @@ func (h *Handlers) lookupAllowed(r *http.Request) (retryAfter int, ok bool) {
 // CustomersLookup is the cashier's customer finder. It is never cached: the result is
 // role-dependent and a shared cache key must not serve one role's rows to another.
 //
-//   - customerScope All (backoffice typeahead): name/phone substring, full object.
+//   - customerScope All: `phone` (what the POS sends) finds the customers with that phone,
+//     full object; otherwise the backoffice typeahead (`q`, name/phone substring). With
+//     neither, the answer is empty: nobody gets the customer table from this endpoint.
 //   - PhoneOnly (cashier): an exact match on the normalized phone only, at most 3 rows,
 //     reduced fields, rate limited. Names and short or malformed input return [].
 func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
 	if customerScope(r) == CustomerAll {
-		q := strings.TrimSpace(r.URL.Query().Get("q"))
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		rows, err := h.Repo.CustomerLookup(r.Context(), q, limit)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
+		h.lookupForReader(w, r)
 		return
 	}
 	raw := r.URL.Query().Get("phone")
@@ -82,6 +77,26 @@ func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := h.Repo.CustomerByPhoneNorm(r.Context(), norm, lookupMaxRows)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
+}
+
+// lookupForReader serves callers who may browse customers (not rate limited, full objects).
+func (h *Handlers) lookupForReader(w http.ResponseWriter, r *http.Request) {
+	rows := []api.Customer{}
+	var err error
+	if raw := strings.TrimSpace(r.URL.Query().Get("phone")); raw != "" {
+		// An explicit phone is never a name search: a POS login of a manager sends only this.
+		if phone.Normalize(raw) != "" {
+			rows, err = h.Repo.CustomerByPhone(r.Context(), raw)
+		}
+	} else if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		rows, err = h.Repo.CustomerLookup(r.Context(), q, limit)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

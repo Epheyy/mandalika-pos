@@ -276,6 +276,58 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("lookup All scope with phone returns the matching customers, never a list", func(t *testing.T) {
+		for _, who := range []string{"admin", "mgrMC"} {
+			// A POS login of a customer reader sends only ?phone=: the right single customer, full object.
+			for _, q := range []string{"phone=081234567890", "phone=%2B62%20812-3456-7890", "phone=6281234567890"} {
+				code, hdr, body := lookup(who, q)
+				got := decode(body)
+				if code != http.StatusOK || len(got) != 1 || got[0]["id"] != custA {
+					t.Fatalf("%s %s = %d %s", who, q, code, body)
+				}
+				if got[0]["email"] != "alice@example.invalid" {
+					t.Errorf("%s %s lost the full object: %s", who, q, body)
+				}
+				if hdr.Get("X-Cache") != "" {
+					t.Errorf("%s %s served from cache", who, q)
+				}
+			}
+			// Soft duplicates of one phone: exactly those, not the rest of the table.
+			_, _, body := lookup(who, "phone=0811-0000-2222")
+			got := decode(body)
+			if len(got) != 4 {
+				t.Fatalf("%s soft dups = %s", who, body)
+			}
+			for _, row := range got {
+				if !strings.HasPrefix(row["name"].(string), "Dup ") {
+					t.Errorf("%s phone lookup leaked %v", who, row["name"])
+				}
+			}
+			// A phone that matches nobody, a short number, and a non-phone are empty, not a list.
+			for _, q := range []string{"phone=089999999999", "phone=0812", "phone=Alice"} {
+				if code, _, body := lookup(who, q); code != http.StatusOK || len(decode(body)) != 0 {
+					t.Errorf("%s %s = %d %s", who, q, code, body)
+				}
+			}
+			// phone wins over q when both are sent.
+			_, _, body = lookup(who, "phone=081234567890&q=Dup")
+			if got := decode(body); len(got) != 1 || got[0]["id"] != custA {
+				t.Errorf("%s phone must win over q: %s", who, body)
+			}
+		}
+	})
+
+	t.Run("lookup with no search text never returns a list, for any role", func(t *testing.T) {
+		for _, who := range []string{"admin", "mgrMC", "mgrNo", "cashier", "cashMC"} {
+			for _, q := range []string{"", "q=", "phone=", "q=%20%20", "limit=20", "q=&phone="} {
+				code, _, body := lookup(who, q)
+				if code != http.StatusOK || len(decode(body)) != 0 {
+					t.Errorf("%s ?%s = %d %s", who, q, code, body)
+				}
+			}
+		}
+	})
+
 	t.Run("lookup rate limit: invalid queries are free, the 31st valid one in a minute is 429", func(t *testing.T) {
 		for i := 0; i < 40; i++ {
 			if code, _, _ := lookup("cashRL", "phone=081"); code != http.StatusOK {

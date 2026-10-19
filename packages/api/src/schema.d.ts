@@ -2035,8 +2035,10 @@ export interface paths {
          * On-demand customer lookup (cashier)
          * @description Two modes, chosen by the caller's customer access (A30). Never cached.
          *
-         *     Customer readers (admin, or a non-cashier with manage_customers) get the
-         *     backoffice typeahead: a name or phone substring in `q`, full customer objects.
+         *     Customer readers (admin, or a non-cashier with manage_customers) get full customer
+         *     objects: `phone` returns the customers with that phone (any format; this is what the
+         *     POS sends), otherwise `q` is the backoffice typeahead (name or phone substring). With
+         *     neither, the list is empty: this endpoint never returns the whole customer table.
          *
          *     Everyone else, and cashiers always, is phone-only: the phone goes in `phone`
          *     (legacy clients send it as `q`), is normalized (+62/62 folds to 0, digits only,
