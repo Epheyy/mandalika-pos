@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Edit2, Trash2, Tag, Copy, Layers } from 'lucide-react'
 import { api } from '../api'
+import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
@@ -250,7 +251,7 @@ export default function Promotions() {
     await dcq.refetch()
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDay()
   const promoStatus = (p: Promotion) => {
     if (!p.isActive) return { label: 'Nonaktif', color: 'bg-gray-100 text-gray-600' }
     if (p.endDate && p.endDate < today) return { label: 'Kadaluarsa', color: 'bg-red-50 text-red-700' }

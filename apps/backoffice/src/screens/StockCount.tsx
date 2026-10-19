@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api, authStore } from '../api'
+import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
@@ -77,7 +78,7 @@ export default function StockCount() {
   const [form, setForm] = useState({
     name: '',
     locationKey: '',
-    plannedDate: new Date().toISOString().slice(0, 10),
+    plannedDate: localDay(),
     notes: '',
   })
 
@@ -147,7 +148,7 @@ export default function StockCount() {
         })
       }
       setOpen(false)
-      setForm({ name: '', locationKey: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
+      setForm({ name: '', locationKey: '', plannedDate: localDay(), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal membuat stock count.')

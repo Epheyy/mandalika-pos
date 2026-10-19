@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { localDay } from './businessDay'
 
 type Row = Record<string, unknown>
 
@@ -7,7 +8,7 @@ export function exportToXLSX(data: Row[], filename: string) {
   const ws = XLSX.utils.json_to_sheet(data)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Data')
-  XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  XLSX.writeFile(wb, `${filename}_${localDay()}.xlsx`)
 }
 
 /** Text cells starting with these can run as a spreadsheet formula (CSV injection). */
@@ -44,7 +45,7 @@ export function exportToCSV(data: Row[], filename: string, opts: { appendDate?: 
   const blob = new Blob([buildCSV(data)], { type: 'text/csv;charset=utf-8;' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = opts.appendDate === false ? `${filename}.csv` : `${filename}_${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = opts.appendDate === false ? `${filename}.csv` : `${filename}_${localDay()}.csv`
   a.click()
 }
 

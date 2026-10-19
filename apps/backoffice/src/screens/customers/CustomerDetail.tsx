@@ -9,6 +9,7 @@ import type { Tag as TagType, Interaction } from '@mandalika/api'
 import { api } from '../../api'
 import { useOutlet } from '../../outlet'
 import { useAuth } from '../../auth'
+import { localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Button } from '../../ui/Button'
@@ -38,7 +39,7 @@ interface CustomerDetailProps {
 const fmtDate = (d?: string | null) =>
   d ? format(parseISO(d), 'dd MMM yyyy', { locale: idLocale }) : '—'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = () => localDay()
 
 export default function CustomerDetail({
   customerId, loyaltyEnabled, onBack, onEdit, onDelete,
