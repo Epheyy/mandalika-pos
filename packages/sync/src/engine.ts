@@ -98,6 +98,16 @@ const KNOWN_ERROR_CODES = new Set([
  *  cannot leave `flushing` stuck. */
 export const BATCH_TIMEOUT_MS = 30_000
 
+/** A flush posts the outbox in slices of this size, so one request always fits well inside
+ *  BATCH_TIMEOUT_MS and the server's batch caps (A29). */
+export const BATCH_MAX_ITEMS = 25
+
+/** Fold a chunk's answer into the flush result: concatenated results, last version, summed processed. */
+function mergeBatch(a: BatchResult | null, b: BatchResult | null): BatchResult | null {
+  if (!a || !b) return a ?? b
+  return { ...b, processed: a.processed + b.processed, results: [...a.results, ...b.results] }
+}
+
 /** Review check-in: re-report everything at most this often... */
 export const REVIEW_CHECKIN_MS = 5 * 60_000
 /** ...but report a not-yet-reported review item within this. */
@@ -822,21 +832,33 @@ export class SyncEngine {
   async flush(): Promise<BatchResult | null> {
     if (this.disposed || this.flushing || !ONLINE()) return null
     if (Date.now() < this.nextFlushAt) return null
+    // One snapshot per flush, never re-read between chunks: settling-held orders (A15) stay pending
+    // and would be resent in the same flush. Items enqueued meanwhile go out on the next tick.
     const pending = this.outbox.pending()
     if (pending.length === 0) return null
     this.flushing = true
     try {
       const typeByKey = new Map(pending.map((i) => [i.idempotencyKey, i.type]))
-      let data: BatchResult
-      try {
-        data = await this.post(pending)
-      } catch (err) {
-        if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
-        return await this.onBatchFailure(err, pending, typeByKey)
+      let merged: BatchResult | null = null
+      for (let at = 0; at < pending.length; at += BATCH_MAX_ITEMS) {
+        if (at > 0 && (this.disposed || !ONLINE())) break
+        const chunk = pending.slice(at, at + BATCH_MAX_ITEMS)
+        let data: BatchResult
+        try {
+          data = await this.post(chunk)
+        } catch (err) {
+          if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
+          // Stop after a failed chunk, whether or not isolation settled it: later items may depend on it.
+          return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
+        }
+        if (this.disposed) return null
+        await this.applyBatch(data, typeByKey)
+        merged = mergeBatch(merged, data)
+        // The server holds a shift_close/shift_open only behind a retryable failure in the SAME request,
+        // so never send a later chunk past one.
+        if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) break
       }
-      if (this.disposed) return null
-      await this.applyBatch(data, typeByKey)
-      return data
+      return merged
     } finally {
       this.flushing = false
       this.emitDeadLetters()
