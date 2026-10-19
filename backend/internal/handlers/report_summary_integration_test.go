@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -169,7 +170,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "from", "netSales", "outletId", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
+			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
 			if !reflect.DeepEqual(keys, wantKeys) {
 				t.Errorf("API shape changed: %v", keys)
 			}
@@ -247,6 +248,171 @@ func TestReportSummaryPostgres(t *testing.T) {
 		if before != snapshot(t) {
 			t.Error("denied read mutated rows")
 		}
+	})
+	t.Run("a26-filters-and-parity", func(t *testing.T) {
+		exec(`DELETE FROM order_items`)
+		exec(`DELETE FROM orders`)
+		type ord struct {
+			status, method, outlet, created string
+			total                           string
+		}
+		// Totals are non-round and their sum exceeds 2^24 (float32 would round it).
+		rows := []ord{
+			{"completed", " QRIS", outletA, "2026-03-02T05:00:00Z", "16777217.37"},
+			{"completed", "qris", outletA, "2026-03-02T06:00:00Z", "16777219.11"},
+			{"completed", "cash", outletA, "2026-03-02T07:00:00Z", "12345.67"},
+			{"refunded", "cash", outletA, "2026-03-02T08:00:00Z", "5000.50"},
+			{"cancelled", "cash", outletA, "2026-03-02T09:00:00Z", "900.00"},
+			{"completed", "cash", outletA, "2026-03-01T16:59:00Z", "111.00"}, // WIB 23:59 on 1 Mar
+			{"completed", "cash", outletA, "2026-03-02T17:01:00Z", "222.00"}, // WIB 00:01 on 3 Mar
+			{"completed", "qris", outletB, "2026-03-02T05:00:00Z", "777.00"},
+		}
+		for i, o := range rows {
+			id := fmt.Sprintf("00000000-0000-4000-8702-%012d", i+1)
+			exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,created_at) VALUES($1,$1,$2,$2,$3,$4,'Kasir Ani',$5::numeric,$5::numeric,$6,$7,$8)`,
+				id, fmt.Sprintf("A26-%d", i), o.outlet, cashier, o.total, o.method, o.status, o.created)
+			exec(`INSERT INTO order_items(order_id,product_id,product_name,variant_size,price,quantity,subtotal) VALUES($1,$2,'A26 product','M',$3::numeric,1,$3::numeric)`, id, product, o.total)
+		}
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/reports/summary", h.ReportSummary)
+		mux.HandleFunc("/api/v1/orders", h.Orders)
+		both := mw.RequireAuth(&config.Config{AccessSecret: secret})(mux)
+		get := func(t *testing.T, role, outlet, path string) (int, []byte) {
+			t.Helper()
+			token, err := auth.IssueAccess(secret, time.Hour, cashier, role, outlet, []string{"view_reports"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			w := httptest.NewRecorder()
+			both.ServeHTTP(w, req)
+			return w.Code, w.Body.Bytes()
+		}
+		type summary struct {
+			TotalSales      float64            `json:"totalSales"`
+			TotalOrders     int                `json:"totalOrders"`
+			TotalRefunds    float64            `json:"totalRefunds"`
+			RefundedOrders  int                `json:"refundedOrders"`
+			ByPaymentMethod map[string]float64 `json:"byPaymentMethod"`
+		}
+		sum := func(t *testing.T, role, outlet, query string) summary {
+			t.Helper()
+			code, body := get(t, role, outlet, "/api/v1/reports/summary?"+query)
+			if code != 200 {
+				t.Fatalf("summary %s: %d %s", query, code, body)
+			}
+			var r struct{ Data summary }
+			if err := json.Unmarshal(body, &r); err != nil {
+				t.Fatal(err)
+			}
+			return r.Data
+		}
+		// Sum every /orders page for the same filter; summary must equal it.
+		listSum := func(t *testing.T, role, outlet, query string) (float64, int) {
+			t.Helper()
+			total, count := 0.0, 0
+			for page := 1; ; page++ {
+				code, body := get(t, role, outlet, fmt.Sprintf("/api/v1/orders?%s&page=%d&limit=2", query, page))
+				if code != 200 {
+					t.Fatalf("orders %s: %d %s", query, code, body)
+				}
+				var r struct {
+					Data []struct {
+						Total  float64 `json:"total"`
+						Status string  `json:"status"`
+					} `json:"data"`
+					Meta struct{ Total int }
+				}
+				if err := json.Unmarshal(body, &r); err != nil {
+					t.Fatal(err)
+				}
+				for _, o := range r.Data {
+					if o.Status == "completed" {
+						total += o.Total
+					}
+					count++
+				}
+				if count >= r.Meta.Total || len(r.Data) == 0 {
+					return total, r.Meta.Total
+				}
+			}
+		}
+		// Decimal sums parsed to float64 may differ from float addition by an ulp;
+		// float32 (the bug) was off by whole rupiah at this magnitude.
+		approx := func(a, b float64) bool { return math.Abs(a-b) < 1e-4 }
+		const day = "dateFrom=2026-03-02&dateTo=2026-03-02&outletId=" + outletA
+		t.Run("money-above-2^24-is-exact", func(t *testing.T) {
+			s := sum(t, "admin", "", day+"&paymentMethod=qris")
+			want := 16777217.37 + 16777219.11
+			if !approx(s.TotalSales, want) || s.TotalOrders != 2 {
+				t.Errorf("totalSales=%v orders=%d want %v/2", s.TotalSales, s.TotalOrders, want)
+			}
+		})
+		t.Run("wib-midnight-boundary", func(t *testing.T) {
+			s := sum(t, "admin", "", "dateFrom=2026-03-02&dateTo=2026-03-02&outletId="+outletA+"&paymentMethod=cash&status=completed")
+			// 16:59Z (WIB 1 Mar) and 17:01Z (WIB 3 Mar) are outside 2 Mar WIB; only 12345.67.
+			if !approx(s.TotalSales, 12345.67) || s.TotalOrders != 1 {
+				t.Errorf("totalSales=%v orders=%d", s.TotalSales, s.TotalOrders)
+			}
+		})
+		t.Run("payment-filter-normalised-grouping-raw", func(t *testing.T) {
+			s := sum(t, "admin", "", day+"&paymentMethod=QRIS")
+			if len(s.ByPaymentMethod) != 2 || s.ByPaymentMethod[" QRIS"] != 16777217.37 || s.ByPaymentMethod["qris"] != 16777219.11 {
+				t.Errorf("byPaymentMethod=%v", s.ByPaymentMethod)
+			}
+		})
+		t.Run("status-and-refunded-count", func(t *testing.T) {
+			s := sum(t, "admin", "", day)
+			if s.RefundedOrders != 1 || s.TotalRefunds != 5000.5 {
+				t.Errorf("refunded=%d refunds=%v", s.RefundedOrders, s.TotalRefunds)
+			}
+			c := sum(t, "admin", "", day+"&status=cancelled")
+			if c.TotalSales != 0 || c.TotalOrders != 0 || c.RefundedOrders != 0 {
+				t.Errorf("cancelled must not appear in money: %+v", c)
+			}
+		})
+		t.Run("q-matches-cashier-name", func(t *testing.T) {
+			if s := sum(t, "admin", "", day+"&q=kasir%20ani&status=completed"); s.TotalOrders != 3 {
+				t.Errorf("orders=%d", s.TotalOrders)
+			}
+			if s := sum(t, "admin", "", day+"&q=nobody-xyz"); s.TotalOrders != 0 {
+				t.Errorf("orders=%d", s.TotalOrders)
+			}
+		})
+		t.Run("unbounded-range", func(t *testing.T) {
+			s := sum(t, "admin", "", "outletId="+outletA+"&status=completed")
+			want := 16777217.37 + 16777219.11 + 12345.67 + 111 + 222
+			if !approx(s.TotalSales, want) || s.TotalOrders != 5 {
+				t.Errorf("totalSales=%v orders=%d want %v/5", s.TotalSales, s.TotalOrders, want)
+			}
+		})
+		t.Run("non-admin-cannot-widen-outlet", func(t *testing.T) {
+			s := sum(t, "cashier", outletA, "outletId="+outletB+"&status=completed&dateFrom=2026-03-02&dateTo=2026-03-02")
+			if s.TotalSales == 777 || s.TotalOrders != 3 {
+				t.Errorf("cashier saw other outlet: %+v", s)
+			}
+		})
+		t.Run("invalid-date-is-400", func(t *testing.T) {
+			if code, _ := get(t, "admin", "", "/api/v1/reports/summary?dateFrom=2026-13-45"); code != 400 {
+				t.Errorf("status=%d", code)
+			}
+		})
+		t.Run("summary-equals-sum-of-all-order-pages", func(t *testing.T) {
+			for _, q := range []string{
+				day,
+				"outletId=" + outletA,
+				"outletId=all",
+				day + "&paymentMethod=qris",
+				"outletId=" + outletA + "&dateFrom=2026-03-01",
+			} {
+				s := sum(t, "admin", "", q+"&status=completed")
+				got, n := listSum(t, "admin", "", q+"&status=completed")
+				if !approx(s.TotalSales, got) || s.TotalOrders != n {
+					t.Errorf("%s: summary %v/%d != pages %v/%d", q, s.TotalSales, s.TotalOrders, got, n)
+				}
+			}
+		})
 	})
 	if path := os.Getenv("MANDALIKA_A27_TEST_OUTPUT"); path != "" {
 		raw, err := json.MarshalIndent(evidence, "", "  ")

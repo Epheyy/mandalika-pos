@@ -314,12 +314,13 @@ func (h *Handlers) Customer(w http.ResponseWriter, r *http.Request) {
 // ── Sales (outlet-scoped) ─────────────────────────────────
 
 func (h *Handlers) Orders(w http.ResponseWriter, r *http.Request) {
+	f, ok := ordersFilter(w, r)
+	if !ok {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
-		q := r.URL.Query()
-		rows, total, err := h.Repo.Orders(r.Context(), scope(r),
-			q.Get("shiftId"), q.Get("customerId"), q.Get("from"), q.Get("to"),
-			q.Get("q"), p, l)
+		rows, total, err := h.Repo.Orders(r.Context(), f, p, l)
 		if err != nil {
 			return nil, 500, err
 		}
@@ -338,9 +339,13 @@ func (h *Handlers) Order(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) Shifts(w http.ResponseWriter, r *http.Request) {
+	dateFrom, dateTo := r.URL.Query().Get("dateFrom"), r.URL.Query().Get("dateTo")
+	if !wibDayRange(w, dateFrom, dateTo) {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
-		rows, total, err := h.Repo.Shifts(r.Context(), scope(r), p, l)
+		rows, total, err := h.Repo.Shifts(r.Context(), scope(r), dateFrom, dateTo, p, l)
 		if err != nil {
 			return nil, 500, err
 		}
@@ -420,27 +425,17 @@ func (h *Handlers) CashFlows(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
-	now := time.Now()
-	from := now.AddDate(0, 0, -30)
-	to := now
-	if v := r.URL.Query().Get("from"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			from = t
-		}
+	f, ok := summaryFilter(w, r)
+	if !ok {
+		return
 	}
-	if v := r.URL.Query().Get("to"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			to = t
+	h.cached(w, r, ckey(r), func() (any, int, error) {
+		v, err := h.Repo.ReportSummary(r.Context(), f)
+		if err != nil {
+			return nil, 500, err
 		}
-	}
-	h.cached(w, r, ckey(r)+":"+from.Format(time.RFC3339)+":"+to.Format(time.RFC3339),
-		func() (any, int, error) {
-			v, err := h.Repo.ReportSummary(r.Context(), scope(r), from, to)
-			if err != nil {
-				return nil, 500, err
-			}
-			return api.ReportSummaryResponse{Data: v}, 200, nil
-		})
+		return api.ReportSummaryResponse{Data: v}, 200, nil
+	})
 }
 
 // PromoRewardGrants returns a grouped, paginated report of promo reward

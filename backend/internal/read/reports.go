@@ -5,30 +5,28 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oapi-codegen/nullable"
+
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
-// ReportSummary aggregates current completed/refunded statuses by created_at in
-// [from,to), outlet-scoped. Refunded rows are already excluded from total_sales,
-// so netSales equals totalSales; this is not settlement-time refund accounting.
-// Money/aggregation is server-authoritative (replaces client-side rollups).
-func (r *Repo) ReportSummary(ctx context.Context, sc Scope, from, to time.Time) (api.ReportSummary, error) {
-	args := []any{from, to}
-	scopeCond := ""
-	if !sc.CrossAll {
-		args = append(args, sc.OutletID)
-		scopeCond = " AND o.outlet_id=$3"
-	}
+// ReportSummary aggregates the rows selected by the shared OrderFilter (the same
+// filter Repo.Orders uses, so the summary and the list/CSV cover identical rows) by
+// created_at and CURRENT status. Refunded rows are already excluded from total_sales,
+// so netSales equals totalSales; this is not settlement-time refund accounting (A27).
+// Cancelled rows never count as money. Money/aggregation is server-authoritative.
+func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSummary, error) {
+	where, args := buildOrderWhere(f)
 	sql := fmt.Sprintf(`
 WITH base AS (
-  SELECT o.* FROM orders o
-  WHERE o.created_at >= $1 AND o.created_at < $2%s
+  SELECT o.* FROM orders o %s
 ),
 agg AS (
   SELECT
     COALESCE(SUM(total) FILTER (WHERE status='completed'),0)              AS total_sales,
     COUNT(*) FILTER (WHERE status='completed')                            AS total_orders,
-    COALESCE(SUM(total) FILTER (WHERE status='refunded'),0)               AS total_refunds
+    COALESCE(SUM(total) FILTER (WHERE status='refunded'),0)               AS total_refunds,
+    COUNT(*) FILTER (WHERE status='refunded')                             AS refunded_orders
   FROM base
 ),
 pay AS (
@@ -55,22 +53,31 @@ daily AS (
         GROUP BY 1 ORDER BY 1) g
 )
 SELECT json_build_object(
-  'from',$1::timestamptz,'to',$2::timestamptz,
-  'outletId',%s,
   'totalSales',agg.total_sales,'totalOrders',agg.total_orders,
-  'totalRefunds',agg.total_refunds,
+  'totalRefunds',agg.total_refunds,'refundedOrders',agg.refunded_orders,
   'netSales',agg.total_sales,
   'avgOrderValue',CASE WHEN agg.total_orders>0
      THEN agg.total_sales/agg.total_orders ELSE 0 END,
   'byPaymentMethod',pay.by_pm,'topProducts',prod.top,'dailySales',daily.rows)
-FROM agg, pay, prod, daily`,
-		scopeCond, scopeArg(sc))
-	return oneJSON[api.ReportSummary](ctx, r.Pool, sql, args...)
-}
-
-func scopeArg(sc Scope) string {
-	if sc.CrossAll {
-		return "NULL"
+FROM agg, pay, prod, daily`, where)
+	v, err := oneJSON[api.ReportSummary](ctx, r.Pool, sql, args...)
+	if err != nil {
+		return v, err
 	}
-	return "$3"
+	// Echo the applied window and scope; null where a side is unbounded / cross-outlet.
+	from, to, err := f.appliedWindow()
+	if err != nil {
+		return v, err
+	}
+	v.From, v.To, v.OutletId = nullable.NewNullNullable[time.Time](), nullable.NewNullNullable[time.Time](), nullable.NewNullNullable[string]()
+	if from != nil {
+		v.From = nullable.NewNullableWithValue(*from)
+	}
+	if to != nil {
+		v.To = nullable.NewNullableWithValue(*to)
+	}
+	if !f.Scope.CrossAll {
+		v.OutletId = nullable.NewNullableWithValue(f.Scope.OutletID)
+	}
+	return v, nil
 }
