@@ -7,6 +7,7 @@ import { generateCode } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { CUSTOMER_PHONE_HINT } from './customerLookupMode'
 
 interface DiscountCodeFormModalProps {
   open: boolean
@@ -16,6 +17,8 @@ interface DiscountCodeFormModalProps {
   promotions: Promotion[]
   /** Display-only name for form.customerId (DiscountCodeInput has no customerName field). */
   customerName: string
+  /** The caller may only find customers by a full phone number (A30). */
+  phoneOnly?: boolean
   onCustomerChange: (id: string | undefined, name: string) => void
   busy: boolean
   onSave: () => void
@@ -29,6 +32,7 @@ export function DiscountCodeFormModal({
   setForm,
   promotions,
   customerName,
+  phoneOnly = false,
   onCustomerChange,
   busy,
   onSave,
@@ -43,14 +47,16 @@ export function DiscountCodeFormModal({
     let ignore = false
     const t = setTimeout(async () => {
       try {
-        const results = await api.lookupCustomers(custQuery, 10)
+        const results = phoneOnly
+          ? await api.lookupCustomerByPhone(custQuery.trim())
+          : await api.lookupCustomers(custQuery, 10)
         if (!ignore) setCustResults(results)
       } catch {
         if (!ignore) setCustResults([])
       }
     }, 250)
     return () => { clearTimeout(t); ignore = true }
-  }, [custQuery])
+  }, [custQuery, phoneOnly])
 
   return (
     <Modal
@@ -98,10 +104,11 @@ export function DiscountCodeFormModal({
                 type="text"
                 value={custQuery}
                 onChange={(e) => setCustQuery(e.target.value)}
-                placeholder="Cari nama / no. HP pelanggan…"
+                placeholder={phoneOnly ? 'No. HP lengkap pelanggan…' : 'Cari nama / no. HP pelanggan…'}
                 aria-label="Cari pelanggan"
                 className={fieldClass}
               />
+              {phoneOnly && <p className="text-xs text-gray-500">{CUSTOMER_PHONE_HINT}</p>}
               {custQuery.trim() && (
                 <div className="rounded-lg border border-gray-200 bg-white max-h-44 overflow-auto">
                   {custResults.length === 0 ? (

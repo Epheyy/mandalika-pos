@@ -6,6 +6,7 @@ import { Plus, Edit2, Trash2, Tag, Copy, Layers } from 'lucide-react'
 import { api } from '../api'
 import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
+import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { BRAND } from '../lib/brand'
@@ -21,6 +22,7 @@ import { Tabs } from '../ui/Tabs'
 import { promotionKeyError } from './promotions/promotionKeyValidation'
 import { PromoFormModal } from './promotions/PromoFormModal'
 import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
+import { isPhoneOnlyCustomerLookup } from './promotions/customerLookupMode'
 import { DiscountCodeBatchModal } from './promotions/DiscountCodeBatchModal'
 
 const EMPTY_PROMO: PromotionInput = {
@@ -103,6 +105,7 @@ const exportDiscountCodes = async (fmt: 'csv' | 'xlsx') => {
 }
 
 export default function Promotions() {
+  const { user } = useAuth()
   const { outletId } = useOutlet()
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const dcq = usePolledQuery<DiscountCode[]>(() => api.listDiscountCodes(), [])
@@ -423,6 +426,7 @@ export default function Promotions() {
         setForm={setCodeForm}
         promotions={promotions}
         customerName={codeCustomerName}
+        phoneOnly={isPhoneOnlyCustomerLookup(user)}
         onCustomerChange={(id, name) => { setCodeForm((f) => ({ ...f, customerId: id })); setCodeCustomerName(name) }}
         busy={busy}
         onSave={saveCode}
