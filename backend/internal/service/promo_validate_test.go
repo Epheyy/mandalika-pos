@@ -8,7 +8,7 @@ import (
 // 2026-06-13 is a Saturday (Weekday 6). 14:30 WIB.
 func ctxAt(y int, m time.Month, d, hh, mm int, subtotal float64, outlet string) PromoEvalContext {
 	t := time.Date(y, m, d, hh, mm, 0, 0, wib)
-	return PromoEvalContext{SaleTimeWIB: t, OutletID: outlet, Subtotal: subtotal}
+	return PromoEvalContext{SaleTimeLocal: t, OutletID: outlet, Subtotal: subtotal}
 }
 func dptr(y int, m time.Month, d int) *time.Time { t := time.Date(y, m, d, 0, 0, 0, 0, wib); return &t }
 

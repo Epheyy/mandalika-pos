@@ -34,8 +34,9 @@ type RewardPreview struct {
 // PreviewRewards evaluates the active product_reward conditions for this cart +
 // customer and returns the eligible free-item menus. Read-only, online-only,
 // advisory: CreateOrder re-evaluates authoritatively at commit. total is the
-// client-computed cart total (for the spending_threshold trigger).
-func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, items []OrderItem, total float64, clientCreated *time.Time) ([]RewardPreview, error) {
+// client-computed cart total (for the spending_threshold trigger). outletID picks the clock
+// date triggers run on (A28); empty = Asia/Jakarta.
+func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, items []OrderItem, total float64, clientCreated *time.Time, outletID string) ([]RewardPreview, error) {
 	if customerID == "" {
 		return nil, nil
 	}
@@ -73,11 +74,15 @@ func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, it
 	if clientCreated != nil {
 		saleTime = *clientCreated
 	}
+	saleZone, err := outletZone(ctx, s.Pool, outletID)
+	if err != nil {
+		return nil, err
+	}
 	rewards := ProductRewards(conds, EvalContext{
 		Total:      total,
 		BasePoints: int(total/1000) * int(pointsPerK),
 		ProductIDs: pidSet,
-		SaleDate:   saleTime.In(wib),
+		SaleDate:   saleTime.In(saleZone),
 		Customer:   cust,
 	})
 	if len(rewards) == 0 {

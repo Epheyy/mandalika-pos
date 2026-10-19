@@ -1060,7 +1060,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "customerId required")
 		return
 	}
-	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt)
+	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt, scope(r).OutletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

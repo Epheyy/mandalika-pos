@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/bizday"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -25,9 +26,29 @@ var (
 	ErrOrderClosed = apperr.New(apperr.Conflict, "order not refundable")
 )
 
-// wib is the fixed Indonesia business zone (UTC+7, no DST) used to evaluate
-// date-dependent loyalty triggers against the order's sale moment.
-var wib = time.FixedZone("WIB", 7*3600)
+// wib is the fixed WIB zone (UTC+7, no DST): the default outlet zone and the stamp zone
+// promoDateOnly uses. Evaluation zones come from the outlet (outletZone).
+var wib = bizday.Zone(bizday.Default)
+
+// outletZone loads the outlet's timezone (A28) as a fixed-offset location. A missing outlet,
+// NULL or unknown name is Asia/Jakarta, so outlets that never set a zone behave exactly as
+// before. Compared as text so a malformed id cannot abort the surrounding transaction.
+func outletZone(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, outletID string) (*time.Location, error) {
+	var tz *string
+	err := q.QueryRow(ctx, `SELECT timezone FROM outlets WHERE id::text=$1`, outletID).Scan(&tz)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return wib, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("outlet timezone: %w", err)
+	}
+	if tz == nil {
+		return wib, nil
+	}
+	return bizday.Zone(*tz), nil
+}
 
 // OrderItem is one cart line submitted by the client.
 type OrderItem struct {
@@ -196,7 +217,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	in.Items = append([]OrderItem(nil), in.Items...)
 
 	// SP-Promo-1: validate the applied discount against its stored rules. Subtotal
-	// (pre-discount) is needed for min_purchase; saleTime (WIB) for date/hour/day
+	// (pre-discount) is needed for min_purchase; saleTime (outlet-local) for date/hour/day
 	// gating — hoisted here and reused by the loyalty engine below.
 	var promoSubtotal float64
 	for _, it := range in.Items {
@@ -206,7 +227,13 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if in.ClientCreated != nil {
 		saleTime = *in.ClientCreated
 	}
-	promoEvalCtx := PromoEvalContext{SaleTimeWIB: saleTime.In(wib), OutletID: in.OutletID, Subtotal: promoSubtotal, HasCustomer: in.CustomerID != "", CustomerID: in.CustomerID}
+	// A28 Phase B: promo hours/days/dates and loyalty date triggers run on the ORDER OUTLET's
+	// clock. Unknown or missing outlet = Asia/Jakarta (the former fixed WIB).
+	saleZone, err := outletZone(ctx, tx, in.OutletID)
+	if err != nil {
+		return "", false, false, err
+	}
+	promoEvalCtx := PromoEvalContext{SaleTimeLocal: saleTime.In(saleZone), OutletID: in.OutletID, Subtotal: promoSubtotal, HasCustomer: in.CustomerID != "", CustomerID: in.CustomerID}
 
 	// SP-Promo-3a: prefer the plural lists; fall back to the singular fields so old
 	// APKs (which send only promotionId/discountCode) keep working during rollout.
@@ -401,7 +428,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		}
 		outcome = EvaluateLoyalty(conds, EvalContext{
 			Total: res.Total, BasePoints: base, ProductIDs: pidSet,
-			SaleDate: saleTime.In(wib), Customer: evalCust,
+			SaleDate: saleTime.In(saleZone), Customer: evalCust,
 		})
 		finalEarned = outcome.FinalEarned(base)
 	}

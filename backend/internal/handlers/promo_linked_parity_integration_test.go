@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -224,4 +225,91 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 			t.Fatalf("linked code_only status=%d total=%v discount=%v warning=%v body=%s", l.status, l.total, l.discount, l.warning, l.body)
 		}
 	})
+
+	// A28 Phase B: gating runs on the ORDER OUTLET's local clock. The vectors are the same
+	// file the TS twin (promoValidate.test.ts) and the Go unit test read; an online order is
+	// accepted exactly when the twin returns no violation, else rejected with those codes.
+	t.Run("outlet-local-clock-vectors", func(t *testing.T) {
+		raw, err := os.ReadFile(filepath.Join("..", "service", "testdata", "promo_timezone_vectors.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var vectors []struct {
+			Name, Kind, Tz, At string
+			Row                struct {
+				StartDate, EndDate, ActiveFromHour, ActiveToHour string
+				ActiveDays                                       []int
+			}
+			Want []string
+		}
+		if err = json.Unmarshal(raw, &vectors); err != nil {
+			t.Fatal(err)
+		}
+		zoneOutlet := map[string]string{
+			"": outlet, "Asia/Jakarta": outlet,
+			"Asia/Makassar": "00000000-0000-4000-8500-0000000000a1",
+			"Asia/Jayapura": "00000000-0000-4000-8500-0000000000a2",
+		}
+		for tz, id := range zoneOutlet {
+			if tz == "" || tz == "Asia/Jakarta" {
+				continue
+			}
+			exec(t, `INSERT INTO outlets(id,name,timezone) VALUES($1,$2,$3)`, id, "PL zone "+tz, tz)
+			exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',1000)`, id, p2)
+		}
+		for i, v := range vectors {
+			t.Run(v.Name, func(t *testing.T) {
+				id := fmt.Sprintf("00000000-0000-4000-8502-%012d", i)
+				code := ""
+				if v.Kind == "promo" {
+					exec(t, `INSERT INTO promotions(id,name,type,value,combinable,code_only,start_date,end_date,active_from_hour,active_to_hour,active_days)
+					      VALUES($1,$2,'percentage',10,true,false,NULLIF($3,'')::date,NULLIF($4,'')::date,NULLIF($5,''),NULLIF($6,''),NULLIF($7,'')::jsonb)`,
+						id, "tz "+v.Name, v.Row.StartDate, v.Row.EndDate, v.Row.ActiveFromHour, v.Row.ActiveToHour, activeDaysJSON(v.Row.ActiveDays))
+				} else {
+					code = fmt.Sprintf("TZ-VEC-%d", i)
+					exec(t, `INSERT INTO discount_codes(code,type,value,combinable,start_date,end_date) VALUES($1,'percentage',10,true,NULLIF($2,'')::date,NULLIF($3,'')::date)`,
+						code, v.Row.StartDate, v.Row.EndDate)
+				}
+				at, err := time.Parse(time.RFC3339, v.At)
+				if err != nil {
+					t.Fatal(err)
+				}
+				in := service.CreateOrderInput{
+					IdempotencyKey: id, OrderUUID: id, OutletID: zoneOutlet[v.Tz], CashierID: cashier, CashierName: "PL",
+					Items:         []service.OrderItem{{ProductID: p2, ProductName: p2, VariantSize: "M", Price: 50000, Quantity: 1, Subtotal: 50000}},
+					PaymentMethod: "cash", AmountPaid: 50000, ClientCreated: &at,
+				}
+				if v.Kind == "promo" {
+					in.PromotionIDs = []string{id}
+				} else {
+					in.DiscountCodes = []string{code}
+				}
+				_, _, _, err = svc.CreateOrder(ctx, in)
+				var rej *service.ErrDiscountRejected
+				switch {
+				case len(v.Want) == 0 && err != nil:
+					t.Fatalf("want accepted, got %v", err)
+				case len(v.Want) > 0 && !errors.As(err, &rej):
+					t.Fatalf("want rejected %v, got %v", v.Want, err)
+				case len(v.Want) > 0:
+					got := make([]string, len(rej.Violations))
+					for k, x := range rej.Violations {
+						got[k] = string(x)
+					}
+					if strings.Join(got, ",") != strings.Join(v.Want, ",") {
+						t.Fatalf("violations %v want %v", got, v.Want)
+					}
+				}
+			})
+		}
+	})
+}
+
+// activeDaysJSON renders active_days for the fixture insert; empty means no constraint.
+func activeDaysJSON(days []int) string {
+	if len(days) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(days)
+	return string(b)
 }
