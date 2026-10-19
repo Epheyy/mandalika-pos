@@ -4,6 +4,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
   Tooltip,
   ResponsiveContainer,
   Cell,
@@ -20,13 +21,13 @@ import {
 } from '../../ui/chartColors'
 import type { TrendPoint, PayRow, CashierRow } from './metrics'
 
-const rb = (v: number) => `Rp ${(v / 1000).toFixed(0)}rb`
+const rb = (v: number) => `${v < 0 ? '-' : ''}Rp ${(Math.abs(v) / 1000).toFixed(0)}rb`
 
 interface TrendChartProps {
   trend: TrendPoint[]
 }
 
-/** Tren Penjualan — daily/hourly/monthly revenue bars. */
+/** Tren Penjualan — daily/hourly/monthly net revenue bars (a refund day can be negative). */
 export function TrendChart({ trend }: TrendChartProps) {
   return (
     <ResponsiveContainer width="100%" height={220}>
@@ -51,6 +52,7 @@ export function TrendChart({ trend }: TrendChartProps) {
           contentStyle={CHART_TOOLTIP}
           cursor={{ fill: 'rgba(176,125,24,0.06)' }}
         />
+        <ReferenceLine y={0} stroke={CHART_AXIS} strokeWidth={1} />
         <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>

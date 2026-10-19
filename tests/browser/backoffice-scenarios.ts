@@ -13,7 +13,9 @@ const wibDay = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3600_000)
 const filterOrders = (list: any[], query: Record<string, string>) => {
   const dec = (v?: string) => (v === undefined ? '' : decodeURIComponent(v.replace(/\+/g, ' ')))
   const pay = dec(query.paymentMethod).trim().toLowerCase(), q = dec(query.q).toLowerCase()
+  // dateBasis=refund (A27) returns only refunded rows, bounded by the refund day (mock rows are never refunded).
   return list.filter(o =>
+    (query.dateBasis !== 'refund' || o.status === 'refunded') &&
     (!query.status || o.status === query.status) &&
     (!pay || o.paymentMethod.trim().toLowerCase() === pay) &&
     (!query.dateFrom || wibDay(o.createdAt) >= query.dateFrom) &&
@@ -79,8 +81,11 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   for(const n of [51,201,1000]) {
     page.__a26.count=n;page.__a26.calls=[];
     await page.getByRole('button',{name:'Dashboard',exact:true}).click();
-    await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
+    // T7: the revenue KPI is net; its subtitle shows Kotor / Refund (was "N transaksi"), proving the refund side loaded.
+    await page.getByText(/^Kotor .* \/ Refund /).waitFor();
     const dashboard=await page.locator('main').innerText();
+    check(dashboard.includes('Tren Penjualan (Bersih)'),'dashboard net trend heading');
+    check(page.__a26.calls.some(c=>c.path.endsWith('/orders')),'dashboard orders request');
     check(dashboard.includes(`Rp ${(n*1000).toLocaleString('id-ID')}`)||dashboard.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'dashboard total');
     check(dashboard.includes('Product 200'),'last-page low stock missing');
     await page.getByRole('button',{name:'Laporan',exact:true}).click();

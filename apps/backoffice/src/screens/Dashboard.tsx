@@ -32,6 +32,11 @@ import {
   periodInterval,
   prevInterval,
   completedIn,
+  salesIn,
+  refundsIn as refundsInWindow,
+  netKpis,
+  netPaymentBreakdown,
+  refundSideOrNull,
   computeKpis,
   delta,
   buildTrend,
@@ -54,6 +59,12 @@ const CashierChart = lazy(() =>
   import('./dashboard/Charts').then((m) => ({ default: m.CashierChart })),
 )
 
+/** Sale side (completed + refunded, by sale day) and refund side (by refund day); null = unsupported/failed. */
+interface DashboardOrders {
+  sale: Order[]
+  refund: Order[] | null
+}
+
 /** Height-reserving placeholder so lazy chart loading does not shift layout. */
 function ChartFallback({ height }: { height: number }) {
   return <div className="animate-pulse bg-gray-50 rounded-xl" style={{ height }} />
@@ -64,16 +75,26 @@ export default function Dashboard() {
   const { outletId } = useOutlet()
   const [period, setPeriod] = useState<Period>('7d')
 
-  // Only completed orders inside the period (+ previous period for deltas) are fetched.
-  // The window is recomputed per fetch so the 12 s poll slides past midnight.
+  // Orders inside the period (+ previous period for deltas) are fetched twice (A27 net revenue):
+  // the sale side WITHOUT a status filter (cancelled rows are dropped client-side) and the refunds
+  // recognised on their refund day. The window is recomputed per fetch so the 12 s poll slides past
+  // midnight. If the refund side is unavailable (older backend, or the request fails) the dashboard
+  // falls back to completed-only numbers instead of showing a wrong net.
   const win = dashboardFetchWindow(period)
-  const oq = usePolledQuery<Order[]>(
-    () => {
+  const oq = usePolledQuery<DashboardOrders>(
+    async () => {
       const w = dashboardFetchWindow(period)
-      const params: ListOrdersParams = { status: 'completed' }
+      const params: ListOrdersParams = {}
       if (w.dateFrom) params.dateFrom = w.dateFrom
       if (w.dateTo) params.dateTo = w.dateTo
-      return fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit }))
+      const [sale, refund] = await Promise.all([
+        fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit })),
+        fetchAllPages((page, limit) => api.listOrders({ ...params, dateBasis: 'refund', page, limit })).then(
+          refundSideOrNull,
+          () => null,
+        ),
+      ])
+      return { sale, refund }
     },
     [outletId, period, win.dateFrom, win.dateTo],
   )
@@ -94,7 +115,8 @@ export default function Dashboard() {
 
   if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-red-600">Gagal memuat data lengkap. {oq.error || pq.error}</p>
 
-  const orders = oq.data ?? []
+  const orders = oq.data.sale
+  const refundRows = oq.data.refund
   const products = pq.data ?? []
   const promotions = prq.data ?? []
 
@@ -107,7 +129,15 @@ export default function Dashboard() {
   const kpis = computeKpis(completed)
   const kpisPrev = computeKpis(completedPrev)
 
-  const trend = buildTrend(completed, period, now)
+  // Net = gross sales by sale day minus refunds by refund day; completed-only when refunds are unknown.
+  const net = refundRows ? netKpis(orders, refundRows, iv) : null
+  const netPrev = refundRows && ivPrev ? netKpis(orders, refundRows, ivPrev) : null
+  const revenue = net ? net.net : kpis.revenue
+  const revenuePrev = netPrev ? netPrev.net : kpisPrev.revenue
+
+  const trend = refundRows
+    ? buildTrend(salesIn(orders, iv), period, now, refundsInWindow(refundRows, iv))
+    : buildTrend(completed, period, now)
   const trendEmpty = trend.every((t) => t.revenue === 0)
   const ranking = productRanking(completed)
   const top = ranking.slice(0, 10)
@@ -116,8 +146,9 @@ export default function Dashboard() {
   const outCount = stock.filter((s) => s.stock <= 0).length
   const lowCount = stock.length - outCount
   const promo = promoUsage(completed, promotions)
-  const pay = paymentBreakdown(completed)
-  const payTotal = pay.reduce((s, p) => s + p.amount, 0)
+  const pay = refundRows ? netPaymentBreakdown(orders, refundRows, iv) : paymentBreakdown(completed)
+  const payPositive = pay.filter((p) => p.amount > 0)
+  const payTotal = payPositive.reduce((s, p) => s + p.amount, 0)
   const cashiers = cashierPerformance(completed)
 
   const aov = kpis.orders ? kpis.revenue / kpis.orders : 0
@@ -131,13 +162,22 @@ export default function Dashboard() {
       />
 
       {(oq.error || pq.error) && <p role="alert" className="text-sm text-red-600">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
+      {!refundRows && (
+        <p className="text-xs text-gray-400">
+          Data refund belum tersedia; penjualan menampilkan transaksi selesai saja (belum dikurangi refund).
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Penjualan"
-          value={BRAND.currency.format(kpis.revenue)}
-          sub={`${kpis.orders} transaksi`}
+          value={BRAND.currency.format(revenue)}
+          sub={
+            net
+              ? `Kotor ${BRAND.currency.format(net.gross)} / Refund ${BRAND.currency.format(net.refunds)}`
+              : `${kpis.orders} transaksi`
+          }
           icon={<TrendingUp className="w-5 h-5" />}
-          deltaPct={delta(kpis.revenue, ivPrev ? kpisPrev.revenue : null)}
+          deltaPct={delta(revenue, ivPrev ? revenuePrev : null)}
         />
         <KpiCard
           label="Transaksi"
@@ -164,7 +204,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 p-5">
-          <h3 className="font-black text-gray-900 mb-4">Tren Penjualan</h3>
+          <h3 className="font-black text-gray-900 mb-4">{refundRows ? 'Tren Penjualan (Bersih)' : 'Tren Penjualan'}</h3>
           {trendEmpty ? (
             <div className="h-52 flex items-center justify-center text-gray-300 text-sm">
               Belum ada data penjualan
@@ -185,7 +225,7 @@ export default function Dashboard() {
           ) : (
             <>
               <Suspense fallback={<ChartFallback height={150} />}>
-                <PaymentChart pay={pay} />
+                <PaymentChart pay={payPositive} />
               </Suspense>
               <div className="mt-3 space-y-1.5">
                 {pay.map((p, i) => (
@@ -197,7 +237,7 @@ export default function Dashboard() {
                     <span className="text-gray-600 flex-1">{p.label}</span>
                     <span className="font-bold text-gray-900">{BRAND.currency.format(p.amount)}</span>
                     <span className="text-gray-400 tabular-nums w-9 text-right">
-                      {payTotal > 0 ? Math.round((p.amount / payTotal) * 100) : 0}%
+                      {payTotal > 0 && p.amount > 0 ? Math.round((p.amount / payTotal) * 100) : 0}%
                     </span>
                   </div>
                 ))}
