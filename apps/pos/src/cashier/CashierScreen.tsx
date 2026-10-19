@@ -237,6 +237,7 @@ export default function CashierScreen() {
   const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
   const discountCodes = snapshot.discountCodes ?? []
+  const outletTimezone = snapshot.outletTimezone // A28: promo clock = outlet-local; absent (old server) = WIB in promoValidate
   const settings = snapshot.appSettings ?? DEFAULT_SETTINGS
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
@@ -522,6 +523,7 @@ export default function CashierScreen() {
         {
           now: new Date(),
           outletId: authStore.outletId ?? '',
+          timezone: outletTimezone,
           subtotal: derived.subtotal,
           hasCustomer: state.selectedCustomer !== null,
           customerId: state.selectedCustomer?.id,
@@ -566,6 +568,7 @@ export default function CashierScreen() {
     const guardCtx = {
       now: new Date(),
       outletId: authStore.outletId ?? '',
+      timezone: outletTimezone,
       subtotal: derived.subtotal,
       hasCustomer: state.selectedCustomer !== null,
       customerId: state.selectedCustomer?.id,
@@ -1026,7 +1029,7 @@ export default function CashierScreen() {
       {/* Floating panels */}
       <AdjustmentDrawer
         state={state} dispatch={dispatch} promotions={promotions} discountCodes={discountCodes}
-        subtotal={derived.subtotal} outletId={authStore.outletId ?? ''} isValidatingCode={isValidatingCode}
+        subtotal={derived.subtotal} outletId={authStore.outletId ?? ''} timezone={outletTimezone} isValidatingCode={isValidatingCode}
         onSelectPromotion={handleSelectPromotion}
         onApplyPromoCode={() => void handleApplyPromoCode()}
         onApplyDiscount={cartActions.applyDiscount}
@@ -1128,6 +1131,7 @@ export default function CashierScreen() {
         onRefund={(o) => { setShowHistory(false); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
+        timezone={outletTimezone}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds() })}
       />
 

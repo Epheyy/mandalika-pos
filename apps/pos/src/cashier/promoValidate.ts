@@ -31,20 +31,29 @@ export interface PromoEvalContext {
   subtotal: number
   hasCustomer: boolean
   customerId?: string
+  /** Outlet timezone from the sync bundle (outletTimezone); absent = Asia/Jakarta. */
+  timezone?: string | null
 }
 
-// Fixed WIB offset (UTC+7, no DST) so validation matches the server regardless
-// of the device's local zone. Mirrors the Go validator's fixed `wib` zone.
-const WIB_OFFSET_MIN = 7 * 60
+// A28 Phase B: gating follows the OUTLET's local clock. Fixed UTC offsets (no DST in
+// Indonesia, no Intl/tzdata dependency on the WebView), mirroring backend/internal/bizday.
+const DEFAULT_TIMEZONE = 'Asia/Jakarta'
+const ZONE_OFFSET_MIN: Record<string, number> = {
+  'Asia/Jakarta': 7 * 60,
+  'Asia/Makassar': 8 * 60,
+  'Asia/Jayapura': 9 * 60,
+}
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`
 }
 
-// Wall-clock parts of `now` in WIB. We shift the UTC epoch by +7h then read the
-// UTC getters, which yields the WIB calendar date / weekday / HH:MM.
-function wibParts(now: Date): { dateStr: string; weekday: number; hhmm: string } {
-  const w = new Date(now.getTime() + WIB_OFFSET_MIN * 60_000)
+// Wall-clock parts of `now` in the outlet zone. An absent (old server bundle) or unknown
+// timezone is Asia/Jakarta. We shift the UTC epoch by the zone offset then read the UTC
+// getters, which yields the local calendar date / weekday / HH:MM.
+export function zoneParts(now: Date, tz?: string | null): { dateStr: string; weekday: number; hhmm: string } {
+  const offset = ZONE_OFFSET_MIN[tz ?? ''] ?? ZONE_OFFSET_MIN[DEFAULT_TIMEZONE]
+  const w = new Date(now.getTime() + offset * 60_000)
   const dateStr = `${w.getUTCFullYear()}-${pad2(w.getUTCMonth() + 1)}-${pad2(w.getUTCDate())}`
   return { dateStr, weekday: w.getUTCDay(), hhmm: `${pad2(w.getUTCHours())}:${pad2(w.getUTCMinutes())}` }
 }
@@ -57,7 +66,7 @@ function dateOnly(s: string): string {
 
 export function validatePromo(p: Promotion, ctx: PromoEvalContext): Violation[] {
   const v: Violation[] = []
-  const { dateStr, weekday, hhmm } = wibParts(ctx.now)
+  const { dateStr, weekday, hhmm } = zoneParts(ctx.now, ctx.timezone)
 
   if (p.startDate && dateStr < dateOnly(p.startDate)) v.push('not_started')
   if (p.endDate && dateStr > dateOnly(p.endDate)) v.push('expired')
@@ -73,7 +82,7 @@ export function validatePromo(p: Promotion, ctx: PromoEvalContext): Violation[] 
 
 export function validateCode(c: DiscountCode, ctx: PromoEvalContext): Violation[] {
   const v: Violation[] = []
-  const { dateStr } = wibParts(ctx.now)
+  const { dateStr } = zoneParts(ctx.now, ctx.timezone)
 
   if (c.startDate && dateStr < dateOnly(c.startDate)) v.push('not_started')
   if (c.endDate && dateStr > dateOnly(c.endDate)) v.push('expired')
