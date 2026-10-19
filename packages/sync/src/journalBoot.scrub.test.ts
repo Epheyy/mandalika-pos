@@ -49,7 +49,7 @@ describe('initJournal scrubs the stored copies', () => {
   })
 
   // A tablet already taken over by the journal, rebooted after the copies appeared.
-  const rebootTakenOver = async (extra: Record<string, string>, meta: Record<string, string> = {}) => {
+  const rebootTakenOver = async (extra: Record<string, string>, meta: Record<string, string> = {}, rejectKey?: string) => {
     const fj = createFakeJournal()
     const c = controllableKV({ [OUTBOX_KEY]: '[]' })
     await boot(c.kv, fj)
@@ -57,6 +57,7 @@ describe('initJournal scrubs the stored copies', () => {
     resetJournalBootForTests()
     for (const [k, v] of Object.entries(extra)) c.store.set(k, v)
     for (const [k, v] of Object.entries(meta)) fj.persisted.meta.set(k, v)
+    if (rejectKey) c.ctl.modeFor = (k) => (k === rejectKey ? 'reject' : undefined)
     const fj2 = fj.restart()
     const result = await boot(c.kv, fj2)
     return { ...c, fj, result }
@@ -84,6 +85,16 @@ describe('initJournal scrubs the stored copies', () => {
     expect(stored).toMatchObject({ key: 'dev:9', seq: 9, at: NOW.toISOString() })
     expect(JSON.parse(stored.json).payload).toEqual({ transferId: 't9', approverUserId: 'a' })
     expect(fj.persisted.meta.get('quarantine.garbage')).toBe('not json')
+  })
+
+  it('reports a failed rewrite as a write failure, not as unparseable, and leaves the copy as it was', async () => {
+    const key = LEGACY_BACKUP_PREFIX + 'stuck'
+    const raw = JSON.stringify(queue())
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { store } = await rebootTakenOver({ [key]: raw }, {}, key)
+    expect(store.get(key)).toBe(raw)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('could not be rewritten'), [key])
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('unparseable'))).toBe(false)
   })
 
   it('writes nothing when no copy holds a PIN', async () => {

@@ -16,7 +16,8 @@ import { RECEIPT_ARCHIVE_KEY } from './receiptArchive'
 import { adoptOutboxStore, getKV, type KV } from './storage'
 import { scrubQuarantineMeta, scrubQueueCopies } from './scrubStoredCopies'
 
-/** Verbatim copy of the pre-migration queue (never deleted by the app; owner Q7). */
+/** Copy of the pre-migration queue, verbatim except that raw transfer-receive approver PINs are
+ *  stripped from it (A08 decision, see scrubStoredCopies). Never deleted by the app; owner Q7. */
 export const LEGACY_BACKUP_PREFIX = 'mandalika.outbox.legacy.'
 const MIGRATION_KEY = 'migration'
 const SOURCE_SHA_KEY = 'source_sha256'
@@ -25,7 +26,7 @@ const MERGED_SHA_KEY = 'merged_from_sha256'
 /** Durable Preferences record (ISO time) written at every seal, so takeover evidence survives a lost
  *  sentinel even when there was no legacy backup (empty queue, the expected fleet case). */
 export const TAKEOVER_KEY = 'mandalika.pos.journalTakenOverAt'
-const QUARANTINE_META_PREFIX = 'quarantine.'
+export const QUARANTINE_META_PREFIX = 'quarantine.'
 
 export const MSG_VERSION_MISMATCH =
   'Antrean tersimpan di journal; versi aplikasi tidak cocok. Pasang versi aplikasi terbaru atau hubungi admin. Jangan lakukan transaksi.'
@@ -148,6 +149,9 @@ async function scrubStoredCopies(kv: KV, result: JournalBootResult): Promise<voi
     }
     if (report.unparseable.length) {
       console.warn('[outbox] unparseable stored queue copies left untouched (A08 PIN scrub)', report.unparseable)
+    }
+    if (report.writeFailed.length) {
+      console.warn('[outbox] stored queue copies could not be rewritten (A08 PIN scrub); retried at the next boot', report.writeFailed)
     }
   } catch (err) {
     console.warn('[outbox] stored queue copy scrub failed; it runs again at the next boot', errMsg(err))

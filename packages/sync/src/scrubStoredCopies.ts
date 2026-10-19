@@ -1,4 +1,5 @@
 import { OUTBOX_QUARANTINE_PREFIX } from './outbox'
+import { LEGACY_BACKUP_PREFIX, QUARANTINE_META_PREFIX } from './journalBoot'
 import type { KV } from './storage'
 
 // A08: older code queued the approver PIN inside transfer_receive payloads. Besides the live queue
@@ -7,8 +8,6 @@ import type { KV } from './storage'
 // They are rewritten in place where parseable and NEVER deleted; unparseable ones are left as they
 // are and reported by key (never by content).
 
-const LEGACY_BACKUP_PREFIX = 'mandalika.outbox.legacy.'
-const QUARANTINE_META_PREFIX = 'quarantine.'
 
 type Loose = Record<string, unknown>
 const isObj = (v: unknown): v is Loose => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -62,11 +61,13 @@ export function scrubQuarantineRow(value: string): string | null {
 export interface ScrubReport {
   scrubbed: string[]
   unparseable: string[]
+  /** Parseable but the rewrite failed: left as it was, retried at the next boot. */
+  writeFailed: string[]
 }
 
 /** Scrub every legacy-backup and corrupt-queue copy in KV. Best effort per key. */
 export async function scrubQueueCopies(kv: KV): Promise<ScrubReport> {
-  const report: ScrubReport = { scrubbed: [], unparseable: [] }
+  const report: ScrubReport = { scrubbed: [], unparseable: [], writeFailed: [] }
   for (const key of kv.keys?.() ?? []) {
     if (!key.startsWith(LEGACY_BACKUP_PREFIX) && !key.startsWith(OUTBOX_QUARANTINE_PREFIX)) continue
     const raw = kv.get(key)
@@ -77,7 +78,7 @@ export async function scrubQueueCopies(kv: KV): Promise<ScrubReport> {
         await kv.setDurable(key, clean)
         report.scrubbed.push(key)
       } catch {
-        report.unparseable.push(key) // could not rewrite: left as it was, retried at the next boot
+        report.writeFailed.push(key)
       }
     } else if (!isParseable(raw)) {
       report.unparseable.push(key)

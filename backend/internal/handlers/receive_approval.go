@@ -98,11 +98,11 @@ func (h *Handlers) CreateTransferReceiveApproval(w http.ResponseWriter, r *http.
 func mintError(w http.ResponseWriter, err error) {
 	var locked *write.LockedError
 	if errors.As(err, &locked) {
-		secs := int(locked.RetryAfter.Seconds())
-		if secs < 1 && !locked.Hard {
-			secs = 1
-		}
+		// A hard lock (either subject) has no countdown: retryAfterSeconds 0 and no Retry-After
+		// header, even if the other subject also has a soft lock running.
+		secs := 0
 		if !locked.Hard {
+			secs = max(1, int(locked.RetryAfter.Seconds()))
 			w.Header().Set("Retry-After", strconv.Itoa(secs))
 		}
 		writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": locked.Error(), "retryAfterSeconds": secs, "hardLocked": locked.Hard})
