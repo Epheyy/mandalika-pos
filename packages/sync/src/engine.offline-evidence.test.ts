@@ -126,6 +126,49 @@ describe('offline-cap evidence (A05)', () => {
   })
 })
 
+describe('a corrected clock plus a contact clears a lock (A05)', () => {
+  const fresh = (kv: ReturnType<typeof controllableKV>['kv']) =>
+    new SyncEngine({ request: vi.fn().mockResolvedValue(versionOk()) as unknown as ApiLike['request'] }, {}, kv, { actor: () => actor })
+
+  it('clock set forward locks, then a 2xx contact with the clock fixed unlocks, even with the forward-dated item queued', async () => {
+    const { engine } = make(vi.fn().mockResolvedValue(versionOk()))
+    await engine.checkVersion()
+    vi.setSystemTime(new Date(T0 + 20 * H)) // clock wrongly forward
+    await enqueueOffline(engine)
+    expect(engine.offlineState().level).toBe('locked')
+    vi.setSystemTime(new Date(T0 + 2 * H)) // corrected, and the tablet is online
+    await engine.checkVersion()
+    expect(engine.offlineState()).toEqual({ level: 'ok', offlineMs: 0 })
+  })
+
+  it('stays unlocked after a restart: the forward-dated item from before the contact is not rescanned', async () => {
+    const { kv } = controllableKV()
+    const first = fresh(kv)
+    await first.checkVersion()
+    vi.setSystemTime(new Date(T0 + 20 * H))
+    vi.stubGlobal('navigator', { onLine: false })
+    await first.enqueue('order', { total: 1 })
+    vi.stubGlobal('navigator', { onLine: true })
+    vi.setSystemTime(new Date(T0 + 2 * H))
+    await first.checkVersion()
+    const restarted = fresh(kv)
+    expect(restarted.outbox.all()).toHaveLength(1)
+    expect(restarted.offlineState().level).toBe('ok')
+  })
+
+  it('a captured item after the contact still holds the window up across a restart (clock-back protection)', async () => {
+    const { kv } = controllableKV()
+    const first = fresh(kv)
+    await first.checkVersion()
+    vi.setSystemTime(new Date(T0 + 11 * H))
+    vi.stubGlobal('navigator', { onLine: false })
+    await first.enqueue('order', { total: 1 })
+    vi.stubGlobal('navigator', { onLine: true })
+    vi.setSystemTime(new Date(T0 + 2 * H)) // clock set back, no contact
+    expect(fresh(kv).offlineState().level).toBe('warn')
+  })
+})
+
 describe('offline_expired goes to review (A05)', () => {
   it('a non-retryable offline_expired result parks the item for review, never drops it', async () => {
     const request = vi.fn().mockImplementation(async (_m: string, path: string, body?: { items: { idempotencyKey: string }[] }) => {

@@ -396,7 +396,7 @@ export class SyncEngine {
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
     if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
-    this.contacts.contact() // a 2xx pull is a contact (unsigned: the pull carries no token)
+    this.noteContact() // a 2xx pull is a contact (unsigned: the pull carries no token)
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
     // A response older than one already applied would roll the snapshot (and stock) back.
@@ -438,7 +438,7 @@ export class SyncEngine {
       )
       this.setReachable(true)
       // A05: only a 2xx counts as contact (the 4xx branch below never does).
-      this.contacts.contact(r.data.contact)
+      this.noteContact(r.data.contact)
       const server = r.data.version ?? 0
       const local = this.snapshot.localVersion()
       this.wall = {
@@ -504,14 +504,30 @@ export class SyncEngine {
     return env
   }
 
-  /** Latest capture time (ms) of anything in the outbox; holds the offline window open
-   *  after a clock set back. Scanned once, then kept current by commitOutbox. */
+  /** A successful online contact (A05). It also resets the newest-capture high water: only items
+   *  captured AFTER this contact may hold the window open, so a corrected clock plus a 2xx
+   *  contact clears a lock caused by a wrongly-forward clock. */
+  private noteContact(signed?: { at: string; sig: string } | null): void {
+    this.contacts.contact(signed)
+    this.newestCapture = 0
+    this.newestScanned = true
+  }
+
+  /** Latest capture time (ms) among items captured since the current contact; holds the offline
+   *  window open after a clock set back. Scanned once at start (only items stamped with this
+   *  contact or a later one; parked review items and older rows are ignored), then kept current
+   *  by commitOutbox and reset by every contact. */
   private newestCaptureMs(): number {
     if (!this.newestScanned) {
       this.newestScanned = true
-      for (const i of this.outbox.all()) {
-        const t = Date.parse(i.envelope?.capturedAt ?? String(i.payload.clientCreatedAt ?? ''))
-        if (Number.isFinite(t)) this.newestCapture = Math.max(this.newestCapture, t)
+      const since = this.contacts.record()?.deviceAt
+      if (since !== undefined) {
+        for (const i of this.outbox.all()) {
+          const cd = i.envelope?.contactDeviceAt
+          if (i.reviewCode || cd === undefined || cd < since) continue
+          const t = Date.parse(i.envelope?.capturedAt ?? '')
+          if (Number.isFinite(t)) this.newestCapture = Math.max(this.newestCapture, t)
+        }
       }
     }
     return this.newestCapture
