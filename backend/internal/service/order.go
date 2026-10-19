@@ -32,12 +32,12 @@ var wib = bizday.Zone(bizday.Default)
 
 // outletZone loads the outlet's timezone (A28) as a fixed-offset location. A missing outlet,
 // NULL or unknown name is Asia/Jakarta, so outlets that never set a zone behave exactly as
-// before. Compared as text so a malformed id cannot abort the surrounding transaction.
+// before. Compared as lower-cased text (envelope ids are case-insensitive) so a malformed id cannot abort the surrounding transaction.
 func outletZone(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, outletID string) (*time.Location, error) {
 	var tz *string
-	err := q.QueryRow(ctx, `SELECT timezone FROM outlets WHERE id::text=$1`, outletID).Scan(&tz)
+	err := q.QueryRow(ctx, `SELECT timezone FROM outlets WHERE id::text=lower($1)`, outletID).Scan(&tz)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return wib, nil
 	}

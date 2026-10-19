@@ -11,7 +11,7 @@ import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS } from './refundView'
-import { PAGE_SIZE, businessToday, orderHistoryQuery } from './orderHistoryQuery'
+import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -36,6 +36,8 @@ interface OrderHistoryPanelProps {
   syncedRefundOrderIds?: ReadonlySet<string>
   /** Outlet timezone from the sync bundle (A28); absent = Asia/Jakarta. Decides "today". */
   timezone?: string | null
+  /** ISO open time of the shown shift; its business day is the default day (A28). */
+  shiftOpenedAt?: string | null
 }
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', refunded: 'Refund', cancelled: 'Batal',
@@ -46,9 +48,17 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, timezone }: OrderHistoryPanelProps) {
-  const [from, setFrom] = useState(() => businessToday(new Date(), timezone))
-  const [to, setTo] = useState(() => businessToday(new Date(), timezone))
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
+  const [from, setFrom] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  const [to, setTo] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  // Once the cashier picks a day, a late-arriving timezone/shift no longer moves it.
+  const [pickedDay, setPickedDay] = useState(false)
+  useEffect(() => {
+    if (pickedDay) return
+    const day = defaultHistoryDay(new Date(), timezone, shiftOpenedAt)
+    setFrom(day)
+    setTo(day)
+  }, [pickedDay, timezone, shiftOpenedAt])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])
@@ -131,7 +141,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <input
               id="history-from"
               type="date" value={from} max={to}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={(e) => { setPickedDay(true); setFrom(e.target.value) }}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
@@ -140,7 +150,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <input
               id="history-to"
               type="date" value={to} min={from} max={businessToday(new Date(), timezone)}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => { setPickedDay(true); setTo(e.target.value) }}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>

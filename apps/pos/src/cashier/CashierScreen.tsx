@@ -1132,6 +1132,7 @@ export default function CashierScreen() {
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
         timezone={outletTimezone}
+        shiftOpenedAt={shift.currentShift?.openedAt}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds() })}
       />
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { businessToday, orderHistoryQuery } from './orderHistoryQuery'
+import { businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
 
 describe('orderHistoryQuery', () => {
   it('sends business-day dateFrom/dateTo and never the legacy UTC from/to', () => {
@@ -32,5 +32,21 @@ describe('businessToday', () => {
   it('defaults to Asia/Jakarta when the bundle has no timezone', () => {
     expect(businessToday(at)).toBe('2026-10-19')
     expect(businessToday(at, null)).toBe('2026-10-19')
+  })
+})
+
+describe('defaultHistoryDay', () => {
+  const now = new Date('2026-10-20T03:00:00Z') // 10:00 WIB 10-20
+  it('opens on the shift business day when a shift opened yesterday is still open', () => {
+    expect(defaultHistoryDay(now, 'Asia/Jakarta', '2026-10-19T08:00:00Z')).toBe('2026-10-19')
+  })
+  it('reads the shift open time in the outlet zone, not UTC', () => {
+    expect(defaultHistoryDay(now, 'Asia/Makassar', '2026-10-19T16:30:00Z')).toBe('2026-10-20') // 00:30 WITA
+    expect(defaultHistoryDay(now, 'Asia/Jakarta', '2026-10-19T16:30:00Z')).toBe('2026-10-19') // 23:30 WIB
+  })
+  it('falls back to outlet-zone today without a usable shift', () => {
+    expect(defaultHistoryDay(now, 'Asia/Jakarta')).toBe('2026-10-20')
+    expect(defaultHistoryDay(now, 'Asia/Jakarta', null)).toBe('2026-10-20')
+    expect(defaultHistoryDay(now, 'Asia/Jakarta', 'garbage')).toBe('2026-10-20')
   })
 })
