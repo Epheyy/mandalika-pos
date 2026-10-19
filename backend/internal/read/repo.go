@@ -923,14 +923,15 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 
 // ReceiveApprovingUsers returns the users who may approve a transfer receive at
 // a given outlet: role ∈ receive_approver_roles OR role = 'admin', scoped to
-// the outlet (or global for admins), and must have a PIN hash set.
+// the outlet (or global for admins), and must have a PIN set. The hash itself is
+// never returned (A08): the PIN is verified on the server only.
 func (r *Repo) ReceiveApprovingUsers(ctx context.Context, outletID string) ([]api.ReceiveApprover, error) {
 	sql := `SELECT json_build_object(
-	    'userId', u.id, 'displayName', u.display_name, 'receivePinHash', u.receive_pin_hash),
+	    'userId', u.id, 'displayName', u.display_name),
 	    count(*) OVER() AS total
-	  FROM users u, app_settings s
-	  WHERE s.id = 1 AND u.receive_pin_hash IS NOT NULL
-	    AND (u.role = ANY (s.receive_approver_roles) OR u.role = 'admin')
+	  FROM users u LEFT JOIN app_settings s ON s.id = 1
+	  WHERE u.receive_pin_hash IS NOT NULL AND u.receive_pin_set_at IS NOT NULL
+	    AND (u.role = ANY (COALESCE(s.receive_approver_roles, '{}')) OR u.role = 'admin')
 	    AND (u.outlet_id = $1 OR u.role = 'admin')
 	  ORDER BY u.display_name`
 	rows, _, err := listJSON[api.ReceiveApprover](ctx, r.Pool, sql, outletID)
@@ -1353,55 +1354,6 @@ func (r *Repo) CashFlows(ctx context.Context, s Scope, shiftID string, page, lim
 	  ORDER BY cf.created_at DESC, cf.id DESC LIMIT $%d OFFSET $%d`,
 		where, len(args)-1, len(args))
 	return listJSON[api.CashFlow](ctx, r.Pool, sql, args...)
-}
-
-// ── Sync helpers (transfer receive auth) ─────────────────
-
-// ApproverAuth holds the minimal fields needed to validate a POS receive approver.
-type ApproverAuth struct {
-	Role           string
-	ReceivePinHash string
-	OutletID       string // "" when the user has no outlet (e.g. admins)
-}
-
-// UserAuth fetches the role, receive PIN hash, and outlet id for the given user id.
-// Returns pgx.ErrNoRows (wrapped) when the user does not exist.
-func (r *Repo) UserAuth(ctx context.Context, id string) (ApproverAuth, error) {
-	var a ApproverAuth
-	var hash *string
-	var outlet *string
-	e := r.Pool.QueryRow(ctx,
-		`SELECT role, receive_pin_hash, outlet_id FROM users WHERE id=$1`, id).Scan(&a.Role, &hash, &outlet)
-	if hash != nil {
-		a.ReceivePinHash = *hash
-	}
-	if outlet != nil {
-		a.OutletID = *outlet
-	}
-	return a, e
-}
-
-// TransferDestOutlet returns the destination outlet id of a transfer, or "" if
-// the transfer's destination is a warehouse (not an outlet). Errors if not found.
-func (r *Repo) TransferDestOutlet(ctx context.Context, id string) (string, error) {
-	var dest *string
-	e := r.Pool.QueryRow(ctx, `SELECT dest_outlet_id FROM transfers WHERE id=$1`, id).Scan(&dest)
-	if e != nil {
-		return "", e
-	}
-	if dest == nil {
-		return "", nil
-	}
-	return *dest, nil
-}
-
-// ReceiveApproverRoles returns the list of roles allowed to approve a POS
-// transfer receive (stored in app_settings.receive_approver_roles).
-func (r *Repo) ReceiveApproverRoles(ctx context.Context) ([]string, error) {
-	var roles []string
-	e := r.Pool.QueryRow(ctx,
-		`SELECT receive_approver_roles FROM app_settings WHERE id=1`).Scan(&roles)
-	return roles, e
 }
 
 // RecipesEnabled returns true when the Recipe/Formula module is turned on

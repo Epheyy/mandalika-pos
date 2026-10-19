@@ -106,7 +106,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES
 		($1,'x@example.invalid','x','EV cashier X','cashier',$3),
 		($2,'y@example.invalid','x','EV cashier Y','cashier',$4)`, userX, userY, outX, outY)
-	exec(`INSERT INTO users(id,email,password_hash,display_name,role,receive_pin_hash) VALUES($1,'adm@example.invalid','x','EV admin','admin',$2)`, adminU, pinHash)
+	exec(`INSERT INTO users(id,email,password_hash,display_name,role,receive_pin_hash,receive_pin_set_at) VALUES($1,'adm@example.invalid','x','EV admin','admin',$2,now())`, adminU, pinHash)
 	exec(`INSERT INTO products(id,name) VALUES($1,'EV product')`, product)
 	exec(`INSERT INTO product_variants(product_id,size,price,stock,sku) VALUES($1,'110ml',100000,1000,'EV')`, product)
 	for _, o := range []string{outX, outY} {
@@ -344,7 +344,13 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		if err := wr.SendTransfer(ctx, tid); err != nil {
 			t.Fatal(err)
 		}
-		recv := map[string]any{"transferId": tid, "items": []any{}, "approverUserId": adminU, "pin": pin}
+		// A08: the approval is minted online (requester = the captured user at the captured outlet).
+		grant, err := wr.MintReceiveApproval(ctx, write.MintInput{OutletID: outX, RequesterID: adminU, TransferID: tid,
+			ReceiptKey: device + ":op-recv", ApproverID: adminU, PIN: pin})
+		if err != nil {
+			t.Fatal(err)
+		}
+		recv := map[string]any{"transferId": tid, "items": []any{}, "approverUserId": adminU, "approvalGrantId": grant.GrantID}
 		wantOK("transfer_receive", flush(tokAdmin, outY, item("transfer_receive", "op-recv", recv, envelope(outX, adminU, device, ""))))
 	})
 	sub("8 legacy items without an envelope: accepted before the cutoff, refused after", func(t *testing.T) {
@@ -458,7 +464,12 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		if err := wr.SendTransfer(ctx, tid); err != nil {
 			t.Fatal(err)
 		}
-		recv := map[string]any{"transferId": tid, "items": []any{}, "approverUserId": adminU, "pin": pin}
+		grant, err := wr.MintReceiveApproval(ctx, write.MintInput{OutletID: outX, RequesterID: userX, TransferID: tid,
+			ReceiptKey: device + ":na-recv", ApproverID: adminU, PIN: pin})
+		if err != nil {
+			t.Fatal(err)
+		}
+		recv := map[string]any{"transferId": tid, "items": []any{}, "approverUserId": adminU, "approvalGrantId": grant.GrantID}
 		wantOK("non-admin transfer_receive", flush(tokX, "", item("transfer_receive", "na-recv", recv, envelope(outX, userX, device, ""))))
 	})
 	sub("12 replay under a different envelope outlet is key_conflict, not a second effect", func(t *testing.T) {

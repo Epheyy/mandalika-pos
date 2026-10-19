@@ -17,7 +17,6 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/apperr"
-	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -206,12 +205,10 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	if b.Users, _, err = e.Read.Users(ctx, 1, 100000); err != nil {
 		return b, err
 	}
-	// Scoped receive approvers (outlet pulls only; transfers now served by the inbound poll).
-	if outletID != "" {
-		if b.ReceiveApprovers, err = e.Read.ReceiveApprovingUsers(ctx, outletID); err != nil {
-			return b, err
-		}
-	}
+	// A08: no PIN hash (and no approver list) is shipped to tablets any more. The field
+	// stays, always empty, so older bundles still parse; approvers come online from
+	// GET /sync/receive-approvers.
+	b.ReceiveApprovers = []api.ReceiveApprover{}
 	return b, nil
 }
 
@@ -627,70 +624,60 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.New(apperr.Rejected, "payload tidak valid"))
 		}
-		appr, err := e.Read.UserAuth(ctx, p.ApproverUserID)
-		if isMissing(err) {
-			return fail(apperr.New(apperr.NotFound, "penyetuju tidak ditemukan"))
+		// Replay first: a receipt that already landed under this key returns ok before any
+		// grant or authority check, so it keeps replaying after the grant expired, the PIN
+		// was re-set or the approver was demoted.
+		if res, replayed := e.replay(ctx, c, it, r, fail); replayed {
+			if res.Status == "ok" {
+				e.fillTransfer(ctx, &res)
+			}
+			return res
 		}
-		if err != nil {
-			return fail(err) // not a refusal: a transient read failure must retry
-		}
-		// No app_settings row means "no extra approver roles" (admins still pass).
-		roles, err := e.Read.ReceiveApproverRoles(ctx)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return fail(err)
-		}
-		if !approverAllowed(appr.Role, roles) {
-			return fail(apperr.New(apperr.Forbidden, "tidak berwenang"))
-		}
-		if appr.ReceivePinHash == "" {
-			return fail(apperr.New(apperr.Forbidden, "PIN belum disetel"))
-		}
-		ok, _ := auth.VerifyPassword(p.Pin, appr.ReceivePinHash)
-		if !ok {
-			return fail(apperr.New(apperr.Forbidden, "PIN salah"))
-		}
-		// Scope re-validation (defense-in-depth; the on-device bundle scoping is not a server control):
-		// the receive must target THIS device's outlet, and the approver must belong to that outlet (or be an admin).
-		destOutlet, err := e.Read.TransferDestOutlet(ctx, p.TransferID)
-		if isMissing(err) {
-			return fail(apperr.New(apperr.NotFound, "transfer tidak ditemukan"))
-		}
-		if err != nil {
-			return fail(err)
-		}
-		if msg := receiveScope(c.OutletID, destOutlet, appr.Role, appr.OutletID); msg != "" {
-			return fail(apperr.New(apperr.Forbidden, msg))
+		// Every refusal below is forbidden: non-retryable, goes to review, never dropped.
+		if p.ApprovalGrantID == "" {
+			return fail(apperr.New(apperr.Forbidden, "Persetujuan online diperlukan"))
 		}
 		items := make([]write.TransferReceiveItem, len(p.Items))
-		for i, it := range p.Items {
+		for i, pi := range p.Items {
 			items[i] = write.TransferReceiveItem{
-				ProductID:   it.ProductID,
-				VariantSize: it.VariantSize,
-				ReceivedQty: it.ReceivedQty,
+				ProductID:   pi.ProductID,
+				VariantSize: pi.VariantSize,
+				ReceivedQty: pi.ReceivedQty,
 			}
 		}
 		if err := e.Write.ReceiveTransfer(ctx, p.TransferID,
 			write.TransferReceive{Items: items, DiscrepancyReason: p.DiscrepancyReason},
-			write.ReceiveMeta{ReceivedBy: p.ApproverUserID, ReceivedVia: "pos", IdempotencyKey: it.IdempotencyKey},
+			write.ReceiveMeta{ReceivedVia: "pos", IdempotencyKey: it.IdempotencyKey,
+				Approval: &write.ApprovalBinding{
+					GrantID: p.ApprovalGrantID, OutletID: c.OutletID, RequesterID: c.UserID,
+					ReceiptKey:  it.IdempotencyKey,
+					Fingerprint: write.ReceiveFingerprint(p.TransferID, items, p.DiscrepancyReason),
+					DeviceID:    env.DeviceID,
+				}},
 		); err != nil {
 			return fail(err)
 		}
 		r.Status, r.OrderID = "ok", p.TransferID
-		// Soft-fail: receive succeeded; we just couldn't read it back.
-		// The POS onReceiveAccepted prompt won't appear for this transfer —
-		// acceptable (the reprint button still works if the cashier opens the
-		// completed detail manually).
-		tr, terr := e.Read.Transfer(ctx, p.TransferID)
-		if terr == nil {
-			r.Transfer = &tr
-			if tr.TandaTerimaNo.IsSpecified() && !tr.TandaTerimaNo.IsNull() {
-				v, _ := tr.TandaTerimaNo.Get()
-				r.TandaTerimaNo = v
-			}
-		}
+		// Soft-fail: the receive succeeded; we just couldn't read it back.
+		e.fillTransfer(ctx, &r)
 		return r
 	}
 	return fail(apperr.New(apperr.Rejected, "unknown batch item type: "+it.Type))
+}
+
+// fillTransfer adds the completed transfer snapshot and tanda terima number to an ok
+// transfer_receive result (r.OrderID is the transfer id). Soft-fail: when the read
+// fails the POS onReceiveAccepted prompt just won't appear (the reprint button still works).
+func (e *Engine) fillTransfer(ctx context.Context, r *ItemResult) {
+	tr, terr := e.Read.Transfer(ctx, r.OrderID)
+	if terr != nil {
+		return
+	}
+	r.Transfer = &tr
+	if tr.TandaTerimaNo.IsSpecified() && !tr.TandaTerimaNo.IsNull() {
+		v, _ := tr.TandaTerimaNo.Get()
+		r.TandaTerimaNo = v
+	}
 }
 
 // approverAllowed reports whether a user with the given role may approve a POS
@@ -713,7 +700,9 @@ type transferReceivePayload struct {
 	} `json:"items"`
 	DiscrepancyReason string `json:"discrepancyReason"`
 	ApproverUserID    string `json:"approverUserId"`
-	Pin               string `json:"pin"`
+	// ApprovalGrantID is the single-use online step-up grant (A08). There is no PIN
+	// field: a legacy item carrying one is decoded without it and refused for lack of a grant.
+	ApprovalGrantID string `json:"approvalGrantId"`
 }
 
 type orderPayload struct {
