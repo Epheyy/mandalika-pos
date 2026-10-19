@@ -641,8 +641,8 @@ func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.Ingredi
 
 // segmentMatch: the RFM rule predicate. Correlates via BARE columns (last_visit,
 // visit_count, total_spent) NOT customers.<col> — because customerObj is also used
-// by RecentCustomersForOutlet which aliases `customers c`. Bare cols resolve to the
-// outer customers row whatever its alias.
+// by queries that alias the table. Bare cols resolve to the outer customers row
+// whatever its alias.
 const segmentMatch = `s.is_active
   AND (s.r_min IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) >= s.r_min))
   AND (s.r_max IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) <= s.r_max))
@@ -758,35 +758,6 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 	return rows, err
 }
 
-// RecentCustomersForOutlet returns the bounded set of customers who transacted
-// at outletID within the last `days`, most-recent-first, capped at `limit`. This
-// replaces the global bulk customer sync (SP-CRM-3 Phase 2). Reuses customerObj.
-// (`limit`, not `cap`, to avoid shadowing the Go builtin.)
-func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, days, limit int) ([]api.Customer, error) {
-	if days < 1 {
-		days = 90
-	}
-	if limit < 1 || limit > 5000 {
-		limit = 1000
-	}
-	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total
-		   FROM customers c
-		   JOIN (
-		     SELECT customer_id, max(created_at) AS last_seen
-		       FROM orders
-		      WHERE outlet_id = $1 AND customer_id IS NOT NULL
-		        AND created_at >= now() - make_interval(days => $2)
-		   GROUP BY customer_id
-		   ORDER BY last_seen DESC
-		      LIMIT $3
-		   ) recent ON recent.customer_id = c.id
-		  WHERE c.merged_into IS NULL
-		  ORDER BY recent.last_seen DESC`,
-		outletID, days, limit)
-	return rows, err
-}
-
 func (r *Repo) Customer(ctx context.Context, id string) (api.Customer, error) {
 	return oneJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObjWithTags+` FROM customers WHERE id=$1 AND merged_into IS NULL`, id)
@@ -870,6 +841,17 @@ func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
 		   'createdAt',created_at) FROM promotions ORDER BY created_at DESC`)
+}
+
+// WithoutCustomerNames returns a copy of the codes with the holder's name removed
+// (customerId is kept). Used for every consumer that lacks manage_promotions (A30).
+func WithoutCustomerNames(in []api.DiscountCode) []api.DiscountCode {
+	out := make([]api.DiscountCode, len(in))
+	for i, c := range in {
+		c.CustomerName = nil
+		out[i] = c
+	}
+	return out
 }
 
 func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, error) {

@@ -97,6 +97,12 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 			"00000000-0000-4000-8f20-0000000000d"+string(rune('1'+i)), n, time.Date(2026, 2, 1+i, 0, 0, 0, 0, time.UTC))
 	}
 
+	// An order by Alice at this outlet (the old pull bundle shipped her as a "recent customer"),
+	// and a discount code assigned to her.
+	exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,customer_id,customer_name,subtotal,total,payment_method,status)
+	      VALUES('00000000-0000-4000-8f20-0000000000e1','00000000-0000-4000-8f20-0000000000e2','CP-ORD-0001','cp-dev:e2',$1,$2,'cp-cashier',$3,'Alice Priv',100000,100000,'cash','completed')`, outlet, uCashier, custA)
+	exec(`INSERT INTO discount_codes(id,code,type,value,customer_id) VALUES('00000000-0000-4000-8f20-0000000000f1','VIP-ALICE','fixed',5000,$1)`, custA)
+
 	rd, wr, svc := read.New(pool), write.New(pool), service.NewOrderService(pool)
 	// A disabled (no Redis) cache still carries the in-memory rate-limit window.
 	cc, err := cache.Connect(ctx, "", cache.Options{})
@@ -119,6 +125,7 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		"cashier": issue(uCashier, "cashier", "create_order"),
 		"cashMC":  issue(uCashMC, "cashier", "create_order", "manage_customers"),
 		"cashRL":  issue(uCashRL, "cashier", "create_order"),
+		"promo":   issue(uMgrNo, "manager", "manage_promotions"),
 	}
 	authWrap := mw.RequireAuth(&config.Config{AccessSecret: secret})
 	router := chi.NewRouter()
@@ -126,6 +133,8 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 	router.Group(func(r chi.Router) {
 		r.Use(authWrap)
 		r.Get("/sync/customers/lookup", h.CustomersLookup)
+		r.Get("/sync/pull", h.SyncPull)
+		r.Get("/discount-codes", h.DiscountCodes)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireCustomerReader())
 			r.Get("/customers", h.Customers)
@@ -287,6 +296,57 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		// Another terminal account is not affected (limit is per user, not per IP).
 		if code, _, _ := lookup("cashier", "phone=081234567890"); code != http.StatusOK {
 			t.Errorf("other account throttled: %d", code)
+		}
+	})
+
+	t.Run("pull bundle ships no customers and no discount-code customer names", func(t *testing.T) {
+		for _, who := range []string{"cashier", "cashMC", "mgrMC", "admin"} {
+			code, _, body := get(tok[who], "/sync/pull")
+			if code != http.StatusOK {
+				t.Fatalf("%s pull = %d %s", who, code, body)
+			}
+			var env struct {
+				Data struct {
+					Customers     []any            `json:"customers"`
+					DiscountCodes []map[string]any `json:"discountCodes"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(body), &env); err != nil {
+				t.Fatal(err)
+			}
+			if env.Data.Customers == nil || len(env.Data.Customers) != 0 {
+				t.Errorf("%s pull customers must be an empty array, got %v", who, env.Data.Customers)
+			}
+			if len(env.Data.DiscountCodes) != 1 {
+				t.Fatalf("%s pull discountCodes = %s", who, body)
+			}
+			dc := env.Data.DiscountCodes[0]
+			if _, has := dc["customerName"]; has {
+				t.Errorf("%s pull leaks customerName: %v", who, dc)
+			}
+			if dc["customerId"] != custA {
+				t.Errorf("%s pull must keep customerId for the wrong_customer rule: %v", who, dc)
+			}
+			if strings.Contains(body, "Alice") || strings.Contains(body, "alice@") {
+				t.Errorf("%s pull leaks customer data: %s", who, body)
+			}
+		}
+	})
+
+	t.Run("discount-codes list names the customer only for manage_promotions", func(t *testing.T) {
+		for who, wantName := range map[string]bool{"admin": true, "promo": true, "cashier": false, "mgrMC": false} {
+			code, _, body := get(tok[who], "/discount-codes")
+			got := decode(body)
+			if code != http.StatusOK || len(got) != 1 {
+				t.Fatalf("%s discount-codes = %d %s", who, code, body)
+			}
+			_, has := got[0]["customerName"]
+			if has != wantName {
+				t.Errorf("%s customerName present=%v want %v: %s", who, has, wantName, body)
+			}
+			if got[0]["customerId"] != custA {
+				t.Errorf("%s lost customerId: %s", who, body)
+			}
 		}
 	})
 }

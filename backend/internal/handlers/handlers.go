@@ -203,11 +203,24 @@ func (h *Handlers) Promotions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// discountCodesCacheKey splits the cache by the one thing that changes the body: whether
+// the caller may see which customer a code is assigned to (manage_promotions, A30).
+func discountCodesCacheKey(r *http.Request) string {
+	if auth.HasPermission(r.Context(), "manage_promotions") {
+		return ckey(r) + ":p=1"
+	}
+	return ckey(r) + ":p=0"
+}
+
 func (h *Handlers) DiscountCodes(w http.ResponseWriter, r *http.Request) {
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	showNames := auth.HasPermission(r.Context(), "manage_promotions")
+	h.cached(w, r, discountCodesCacheKey(r), func() (any, int, error) {
 		rows, _, err := h.Repo.DiscountCodes(r.Context())
 		if err != nil {
 			return nil, 500, err
+		}
+		if !showNames {
+			rows = read.WithoutCustomerNames(rows)
 		}
 		return api.DiscountCodeListResponse{Data: rows}, 200, nil
 	})
