@@ -39,7 +39,7 @@ export const reviewResolveFlow = async (page: ScenarioPage) => {
   await page.evaluate(() => {
     localStorage.clear()
     localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toISOString().slice(0, 10))
+    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
   })
   await page.reload()
   await page.setViewportSize({ width: 1440, height: 1000 })

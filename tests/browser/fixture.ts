@@ -51,7 +51,7 @@ export const test = base.extend<{ isolatedNetwork: void }>({
       const name = location.port === '5183' ? 'pos' : location.port === '5184' ? 'backoffice' : null
       if (!name) return
       localStorage.setItem(`mandalika.${name}.refresh`, 'SYNTHETIC-NON-TOKEN')
-      if (name === 'backoffice') localStorage.setItem('mandalika.backoffice.loginDate', new Date().toISOString().slice(0, 10))
+      if (name === 'backoffice') localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
     })
     try { await use() }
     finally {
