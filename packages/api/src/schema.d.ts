@@ -2031,7 +2031,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** On-demand customer lookup (cashier) */
+        /**
+         * On-demand customer lookup (cashier)
+         * @description Two modes, chosen by the caller's customer access (A30). Never cached.
+         *
+         *     Customer readers (admin, or a non-cashier with manage_customers) get the
+         *     backoffice typeahead: a name or phone substring in `q`, full customer objects.
+         *
+         *     Everyone else, and cashiers always, is phone-only: the phone goes in `phone`
+         *     (legacy clients send it as `q`), is normalized (+62/62 folds to 0, digits only,
+         *     at least 8 digits) and matched exactly. Input that is not a plausible phone
+         *     returns an empty list and is not counted. At most 3 rows, oldest first, merged-away
+         *     customers excluded, reduced fields (id, name, phone, points, totalSpent,
+         *     visitCount, createdAt, segment; no email, birthday, anniversary, notes or tags).
+         *     Rate limited per user: 30 per minute and 400 per day (429 with Retry-After).
+         */
         get: operations["lookupCustomers"];
         put?: never;
         post?: never;
@@ -3134,6 +3148,7 @@ export interface components {
             usageLimit?: number | null;
             perCustomerLimit?: number | null;
             customerId?: string | null;
+            /** @description Holder name. Only returned to callers with manage_promotions; absent in the POS pull bundle (A30). */
             customerName?: string | null;
             usageCount: number;
             isActive: boolean;
@@ -3680,6 +3695,10 @@ export interface components {
             products?: components["schemas"]["Product"][];
             categories?: components["schemas"]["Category"][];
             bundles?: components["schemas"]["Bundle"][];
+            /**
+             * @deprecated
+             * @description Always empty (A30). Kept so older POS bundles still parse; cashiers find customers by phone via lookupCustomers.
+             */
             customers?: components["schemas"]["Customer"][];
             promotions?: components["schemas"]["Promotion"][];
             discountCodes?: components["schemas"]["DiscountCode"][];
@@ -4812,6 +4831,7 @@ export interface operations {
                     "application/json": components["schemas"]["CustomerListResponse"];
                 };
             };
+            403: components["responses"]["Forbidden"];
         };
     };
     createCustomer: {
@@ -4880,6 +4900,7 @@ export interface operations {
                     "application/json": components["schemas"]["CustomerResponse"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -8434,7 +8455,11 @@ export interface operations {
     lookupCustomers: {
         parameters: {
             query?: {
+                /** @description Phone number in any common format (phone-only mode) */
+                phone?: string;
+                /** @description Typeahead text (customer readers); legacy phone input for phone-only callers */
                 q?: string;
+                /** @description Typeahead only; ignored in phone-only mode */
                 limit?: number;
             };
             header?: never;
@@ -8450,6 +8475,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerListResponse"];
+                };
+            };
+            /** @description phone-only lookup budget exceeded; wait Retry-After seconds */
+            429: {
+                headers: {
+                    /** @description seconds until the exhausted window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

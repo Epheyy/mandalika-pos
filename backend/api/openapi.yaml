@@ -1287,6 +1287,7 @@ components:
         customerName:
           type: string
           nullable: true
+          description: Holder name. Only returned to callers with manage_promotions; absent in the POS pull bundle (A30).
         usageCount: { type: integer }
         isActive: { type: boolean }
         startDate: { type: string, nullable: true }
@@ -1872,7 +1873,11 @@ components:
         products: { type: array, items: { $ref: '#/components/schemas/Product' } }
         categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
         bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }
-        customers: { type: array, items: { $ref: '#/components/schemas/Customer' } }
+        customers:
+          type: array
+          deprecated: true
+          description: Always empty (A30). Kept so older POS bundles still parse; cashiers find customers by phone via lookupCustomers.
+          items: { $ref: '#/components/schemas/Customer' }
         promotions: { type: array, items: { $ref: '#/components/schemas/Promotion' } }
         discountCodes: { type: array, items: { $ref: '#/components/schemas/DiscountCode' } }
         loyaltyConditions: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
@@ -2805,6 +2810,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/customers/by-phone:
     get:
       operationId: getCustomersByPhone
@@ -2861,6 +2867,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/customers/reminders:
     get:
@@ -4918,15 +4925,36 @@ paths:
       operationId: lookupCustomers
       tags: [sync]
       summary: On-demand customer lookup (cashier)
+      description: |
+        Two modes, chosen by the caller's customer access (A30). Never cached.
+
+        Customer readers (admin, or a non-cashier with manage_customers) get the
+        backoffice typeahead: a name or phone substring in `q`, full customer objects.
+
+        Everyone else, and cashiers always, is phone-only: the phone goes in `phone`
+        (legacy clients send it as `q`), is normalized (+62/62 folds to 0, digits only,
+        at least 8 digits) and matched exactly. Input that is not a plausible phone
+        returns an empty list and is not counted. At most 3 rows, oldest first, merged-away
+        customers excluded, reduced fields (id, name, phone, points, totalSpent,
+        visitCount, createdAt, segment; no email, birthday, anniversary, notes or tags).
+        Rate limited per user: 30 per minute and 400 per day (429 with Retry-After).
       parameters:
-        - { in: query, name: q, schema: { type: string } }
-        - { in: query, name: limit, schema: { type: integer } }
+        - { in: query, name: phone, schema: { type: string }, description: 'Phone number in any common format (phone-only mode)' }
+        - { in: query, name: q, schema: { type: string }, description: 'Typeahead text (customer readers); legacy phone input for phone-only callers' }
+        - { in: query, name: limit, schema: { type: integer }, description: 'Typeahead only; ignored in phone-only mode' }
       responses:
         '200':
           description: customers
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerListResponse' }
+        '429':
+          description: phone-only lookup budget exceeded; wait Retry-After seconds
+          headers:
+            Retry-After: { schema: { type: integer }, description: seconds until the exhausted window resets }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/v1/sync/loyalty-preview:
     post:
       operationId: loyaltyPreview
