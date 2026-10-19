@@ -40,7 +40,7 @@ describe('flush-only engine in a terminal mismatch', () => {
 
     // capture and optimistic credits are refused, nothing is stored
     await expect(engine.enqueue('order', { total: 2 })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
-    await expect(engine.enqueueTransferReceive({ transferId: 't', items: [{ productId: 'p', variantSize: 'M', receivedQty: 1 }], approverUserId: 'a', pin: '1' })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
+    await expect(engine.enqueueTransferReceive({ orderUuid: 'u', transferId: 't', items: [{ productId: 'p', variantSize: 'M', receivedQty: 1 }], approvalGrantId: 'g' })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
     expect(engine.outbox.all()).toHaveLength(1)
     expect(engine.pending.list()).toHaveLength(0)
 

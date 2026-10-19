@@ -33,8 +33,7 @@ import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, pr
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
-import { PinStepUpModal } from './receive/PinStepUpModal'
-import { receiveApprovers } from './receive/receiveTypes'
+import { ReceiveApprovalModal } from './receive/ReceiveApprovalModal'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { RefundDialog } from './RefundDialog'
@@ -190,7 +189,7 @@ export default function CashierScreen() {
   const [showMenu, setShowMenu] = useState(false)
   const [showReceive, setShowReceive] = useState(false)
   const [showTransferHistory, setShowTransferHistory] = useState(false)
-  const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string }>(null)
+  const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
   const [shiftPrompt, setShiftPrompt] = useState(false)
@@ -232,7 +231,6 @@ export default function CashierScreen() {
 
   const snapshot = engine.getSnapshot()
   const inbound = engine.getInboundTransfers()
-  const approvers = receiveApprovers(snapshot)
   const products = (snapshot.products ?? []).filter((p) => p.isActive)
   const pendingStockDeltas = engine.pendingStockDeltas()
   const displayProducts = useMemo(
@@ -877,17 +875,18 @@ export default function CashierScreen() {
     showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
   }
 
-  const handleReceiveApproved = async (approverUserId: string, pin: string) => {
+  // A08: only called after the server minted a grant; the queued receive carries its id, never a PIN.
+  const handleReceiveApproved = async (approvalGrantId: string) => {
     if (!pendingReceive) return
     const outcome = await receiveGate.current.run(() => engine.enqueueTransferReceive({
+      orderUuid: pendingReceive.orderUuid,
       transferId: pendingReceive.transferId,
       items: pendingReceive.items,
       discrepancyReason: pendingReceive.reason,
-      approverUserId,
-      pin,
+      approvalGrantId,
     }))
     if (outcome.status === 'busy') return
-    // The PIN modal stays open and shows the error so the receive can be retried.
+    // The approval modal stays open and shows the error so the receive can be retried.
     if (outcome.status === 'failed') throw outcome.error
     setPendingReceive(null)
     showToast('Diterima — akan disinkronkan')
@@ -1228,7 +1227,9 @@ export default function CashierScreen() {
           onClose={() => setShowReceive(false)}
           onConfirm={(transferId, items, reason) => {
             setShowReceive(false)
-            setPendingReceive({ transferId, items, reason })
+            // The receipt key exists before the approval is asked for and survives retries.
+            const key = engine.newReceiveKey()
+            setPendingReceive({ transferId, items, reason, orderUuid: key.orderUuid, receiptKey: key.idempotencyKey })
           }}
           onReprintTandaTerima={(t) => { setShowReceive(false); setPendingTT(t) }}
         />
@@ -1242,8 +1243,13 @@ export default function CashierScreen() {
       )}
 
       {pendingReceive && (
-        <PinStepUpModal
-          approvers={approvers}
+        <ReceiveApprovalModal
+          receiptKey={pendingReceive.receiptKey}
+          transferId={pendingReceive.transferId}
+          items={pendingReceive.items}
+          reason={pendingReceive.reason}
+          listApprovers={() => engine.listReceiveApprovers()}
+          requestApproval={(input) => engine.requestReceiveApproval(input)}
           onCancel={() => setPendingReceive(null)}
           onApproved={handleReceiveApproved}
         />
