@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
@@ -12,28 +13,53 @@ import (
 
 var errBatchEnvelope = errors.New("invalid body")
 
+// A29: bounds sit well above the client chunk (BATCH_MAX_ITEMS=25) because older
+// tablets still send the whole queue; they fall back to per-item isolation on 413.
+const (
+	maxSyncBatchItems  = 200
+	syncBatchBodyLimit = 8 << 20
+)
+
+var errBatchTooLarge = errors.New("batch too large")
+
+// A MaxBytesReader overflow must stay distinguishable from a malformed body.
+func isBodyTooLarge(err error) bool {
+	var tooLarge *http.MaxBytesError
+	return errors.As(err, &tooLarge)
+}
+
+func batchDecodeErr(err error) error {
+	if isBodyTooLarge(err) {
+		return errBatchTooLarge
+	}
+	return errBatchEnvelope
+}
+
 // Read command-defining members before ordinary unmarshaling can discard a
 // duplicate. Token unescaping and EqualFold preserve supported single aliases.
 // Business payload bytes remain opaque for their per-command validators.
 func batchObject(r io.Reader, consumed ...string) (map[string]json.RawMessage, error) {
 	d := json.NewDecoder(r)
 	token, err := d.Token()
-	if err != nil || token != json.Delim('{') {
+	if err != nil {
+		return nil, batchDecodeErr(err)
+	}
+	if token != json.Delim('{') {
 		return nil, errBatchEnvelope
 	}
 	fields := make(map[string]json.RawMessage)
 	for d.More() {
 		token, err = d.Token()
 		if err != nil {
-			return nil, errBatchEnvelope
+			return nil, batchDecodeErr(err)
 		}
 		key, ok := token.(string)
 		if !ok {
 			return nil, errBatchEnvelope
 		}
 		var raw json.RawMessage
-		if d.Decode(&raw) != nil {
-			return nil, errBatchEnvelope
+		if err := d.Decode(&raw); err != nil {
+			return nil, batchDecodeErr(err)
 		}
 		for _, name := range consumed {
 			if strings.EqualFold(key, name) {
@@ -45,11 +71,16 @@ func batchObject(r io.Reader, consumed ...string) (map[string]json.RawMessage, e
 			}
 		}
 	}
-	if token, err = d.Token(); err != nil || token != json.Delim('}') {
+	if token, err = d.Token(); err != nil {
+		return nil, batchDecodeErr(err)
+	} else if token != json.Delim('}') {
 		return nil, errBatchEnvelope
 	}
 	var tail json.RawMessage
-	if d.Decode(&tail) != io.EOF {
+	if err := d.Decode(&tail); err != io.EOF {
+		if err != nil {
+			return nil, batchDecodeErr(err)
+		}
 		return nil, errBatchEnvelope
 	}
 	return fields, nil
@@ -70,6 +101,10 @@ func decodeBatchEnvelope(r io.Reader) ([]syncpkg.BatchItem, error) {
 	var entries []json.RawMessage
 	if json.Unmarshal(raw, &entries) != nil {
 		return nil, errBatchEnvelope
+	}
+	// Before any per-item decode or dispatch.
+	if len(entries) > maxSyncBatchItems {
+		return nil, errBatchTooLarge
 	}
 	items := make([]syncpkg.BatchItem, 0, len(entries))
 	for _, entry := range entries {

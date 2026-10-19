@@ -138,3 +138,48 @@ func TestSyncBatchPassesStoredIdentityAndEnvelope(t *testing.T) {
 		t.Fatalf("status=%d caller=%+v items=%+v", w.Code, gotCaller, gotItems)
 	}
 }
+
+// A29: the server bounds both the body size and the array length before any
+// per-item decode or dispatch. Old clients (APK 2.1) fall back to isolation on 413.
+func runBatchCap(t *testing.T, body string) (code, calls, resolves int) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	(&Handlers{}).syncBatch(w, httptest.NewRequest("POST", "/sync/batch", strings.NewReader(body)),
+		func(*http.Request) (callerID, error) { resolves++; return callerID{outletID: "synthetic"}, nil },
+		func(context.Context, syncpkg.Caller, []syncpkg.BatchItem) (syncpkg.BatchResult, error) {
+			calls++
+			return syncpkg.BatchResult{}, nil
+		})
+	return w.Code, calls, resolves
+}
+
+func batchBodyWithItems(n int) string {
+	items := make([]string, n)
+	for i := range items {
+		items[i] = fmt.Sprintf(`{"type":"shift_open","idempotencyKey":"k-%d","payload":{"startingCash":0}}`, i)
+	}
+	return `{"items":[` + strings.Join(items, ",") + `]}`
+}
+
+func TestSyncBatchRejectsTooManyItems(t *testing.T) {
+	code, calls, resolves := runBatchCap(t, batchBodyWithItems(maxSyncBatchItems+1))
+	if code != http.StatusRequestEntityTooLarge || calls != 0 || resolves != 0 {
+		t.Fatalf("201 items: status=%d dispatch=%d caller=%d", code, calls, resolves)
+	}
+}
+
+func TestSyncBatchAcceptsExactlyMaxItems(t *testing.T) {
+	code, calls, _ := runBatchCap(t, batchBodyWithItems(maxSyncBatchItems))
+	if code != http.StatusOK || calls != 1 {
+		t.Fatalf("200 items: status=%d dispatch=%d", code, calls)
+	}
+}
+
+func TestSyncBatchRejectsOversizedBody(t *testing.T) {
+	big := `{"items":[{"type":"shift_open","idempotencyKey":"k","payload":{"pad":"` +
+		strings.Repeat("x", syncBatchBodyLimit) + `"}}]}`
+	code, calls, resolves := runBatchCap(t, big)
+	if code != http.StatusRequestEntityTooLarge || calls != 0 || resolves != 0 {
+		t.Fatalf("oversized body: status=%d dispatch=%d caller=%d", code, calls, resolves)
+	}
+}
