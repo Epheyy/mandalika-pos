@@ -3185,6 +3185,14 @@ export interface components {
             stockWarning?: boolean;
             tenderWarning?: boolean;
             tenderWarningReason?: string | null;
+            /**
+             * Format: double
+             * @description Total the cashier showed; present only for a real quote (one stored with a receipt snapshot), else null
+             */
+            quotedTotal?: number | null;
+            quoteWarning?: boolean;
+            /** @description quote_mismatch (more than Rp1 off the server total) or quote_invalid (unusable quote, stored NULL) */
+            quoteWarningReason?: string | null;
             surchargeType?: string | null;
             /** Format: double */
             surchargeValue?: number | null;
@@ -3566,6 +3574,12 @@ export interface components {
             discountBreakdown?: components["schemas"]["DiscountComponent"][] | null;
             notes?: string | null;
             shiftId?: string | null;
+            /** Format: double */
+            quotedTotal?: number | null;
+            /** @description Printed receipt (v, refVersion, money fields, lines). No customer name or phone. */
+            receiptSnapshot?: {
+                [key: string]: unknown;
+            } | null;
         };
         RefundRequest: {
             reason: string;

@@ -1332,6 +1332,10 @@ components:
         stockWarning: { type: boolean }
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
+        # A10: the total the POS showed/printed (null = no real quote). Flag-only.
+        quotedTotal: { type: number, format: double, nullable: true, description: 'Total the cashier showed; present only for a real quote (one stored with a receipt snapshot), else null' }
+        quoteWarning: { type: boolean }
+        quoteWarningReason: { type: string, nullable: true, description: 'quote_mismatch (more than Rp1 off the server total) or quote_invalid (unusable quote, stored NULL)' }
         surchargeType: { type: string, nullable: true }
         surchargeValue: { type: number, format: double, nullable: true }
         surchargeAmount: { type: number, format: double, nullable: true }
@@ -1750,6 +1754,14 @@ components:
           items: { $ref: '#/components/schemas/DiscountComponent' }
         notes: { type: string, nullable: true }
         shiftId: { type: string, nullable: true }
+        # A10: what the cashier showed and printed. Stored unchanged; the server total
+        # stays authoritative and a difference only raises quoteWarning (never rejects).
+        quotedTotal: { type: number, format: double, nullable: true }
+        receiptSnapshot:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Printed receipt (v, refVersion, money fields, lines). No customer name or phone.
     RefundRequest:
       type: object
       required: [reason]

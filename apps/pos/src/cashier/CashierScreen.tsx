@@ -42,6 +42,7 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
 import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
+import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { calcPromoDiscount, bxgyRewardDue } from './pricing'
@@ -655,6 +656,7 @@ export default function CashierScreen() {
       // Client-authoritative number: receipt == history, generated on-device.
       // The number is reserved durably inside the sale gate, right before the enqueue.
       let orderNo = ''
+      const quoteHolder: { current: ReceiptQuote | null } = { current: null }
       const promotionMetadata = buildPromotionMetadata(state, derived)
       // The sale only counts once it is durably queued: await the outbox write
       // BEFORE any success state, cart reset or receipt print.
@@ -665,6 +667,10 @@ export default function CashierScreen() {
         if (reserved.error !== undefined) {
           void reportErrors([{ source: 'runtime', kind: 'order_seq_write', action: `Simpan nomor struk ${orderNo}`, message: reserved.error instanceof Error ? reserved.error.message : 'penyimpanan nomor struk gagal', outletName: snapshot.outletName }])
         }
+        // A10: the receipt money and lines are built ONCE here; the same object is
+        // queued as the quote and printed below (printed == quoted by construction).
+        const quote = buildReceiptQuote({ cart: state.cart, derived, tender, refVersion: engine.referenceVersion() })
+        quoteHolder.current = quote
         return engine.enqueue('order', {
         orderNumber: orderNo,
         items: state.cart,
@@ -682,6 +688,8 @@ export default function CashierScreen() {
         pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
         notes: state.orderNotes.trim() || null,
         shiftId: shift.currentShift?.id || null, // '' = open not yet synced
+        quotedTotal: quote.quotedTotal,
+        receiptSnapshot: quote.receiptSnapshot,
       })
       })
       if (outcome.status === 'busy') return
@@ -694,28 +702,15 @@ export default function CashierScreen() {
         return
       }
       const { orderUuid } = outcome.value
-      const receipt: ReceiptData = {
+      // A saved sale always built its quote inside the gate (outcome.status 'ok').
+      const receipt: ReceiptData = receiptFromQuote(quoteHolder.current!, {
         orderRef: orderNo,
-        pending: false, // client-authoritative number; matches history
         dateTime: new Date(),
-        lines: state.cart.map((i) => ({
-          name: i.productName,
-          variant: variantLabel(i.variantSize) || undefined,
-          qty: i.quantity,
-          unitPrice: i.price,
-          amount: i.subtotal,
-        })),
-        subtotal: derived.subtotal,
-        discountAmount: derived.discountAmount,
-        taxAmount: derived.taxAmount,
-        total: derived.total,
         paymentLabel: PAYMENT_LABELS[state.paymentMethod] ?? state.paymentMethod,
-        amountPaid: tender.amountPaid,
-        change: tender.change,
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
-      }
+      })
       lastReceipt.current = receipt
       setPrintError(null)
       dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid, orderNumber: orderNo })
