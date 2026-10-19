@@ -11,6 +11,7 @@ import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS } from './refundView'
+import { PAGE_SIZE, businessToday, orderHistoryQuery } from './orderHistoryQuery'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -33,6 +34,8 @@ interface OrderHistoryPanelProps {
   queuedRefundOrderIds: ReadonlySet<string>
   /** Orders whose refund already synced from this tablet (stale cached rows may still say completed). */
   syncedRefundOrderIds?: ReadonlySet<string>
+  /** Outlet timezone from the sync bundle (A28); absent = Asia/Jakarta. Decides "today". */
+  timezone?: string | null
 }
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', refunded: 'Refund', cancelled: 'Batal',
@@ -42,15 +45,10 @@ const STATUS_STYLES: Record<string, string> = {
   refunded: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
 }
-const PAGE_SIZE = 20
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds }: OrderHistoryPanelProps) {
-  const [from, setFrom] = useState(() => today())
-  const [to, setTo] = useState(() => today())
+export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, timezone }: OrderHistoryPanelProps) {
+  const [from, setFrom] = useState(() => businessToday(new Date(), timezone))
+  const [to, setTo] = useState(() => businessToday(new Date(), timezone))
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])
@@ -65,13 +63,8 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
     setIsLoading(true)
     setError(null)
     const term = search.trim()
-    const cacheKey = `orders:${from}:${to}:${page}:${term}`
+    const { qs, cacheKey } = orderHistoryQuery(from, to, page, term)
     try {
-      const params: Record<string, string> = {
-        from, to, page: String(page), limit: String(PAGE_SIZE),
-      }
-      if (term) params.q = term
-      const qs = new URLSearchParams(params).toString()
       const r = await api.request<OrderListResponse>('GET', `/api/v1/orders?${qs}`)
       const data = r.data ?? []
       const t = r.meta?.total ?? 0
@@ -146,7 +139,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             <label htmlFor="history-to" className="block text-[10px] text-gray-500 font-semibold mb-1">Sampai</label>
             <input
               id="history-to"
-              type="date" value={to} min={from} max={today()}
+              type="date" value={to} min={from} max={businessToday(new Date(), timezone)}
               onChange={(e) => setTo(e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
