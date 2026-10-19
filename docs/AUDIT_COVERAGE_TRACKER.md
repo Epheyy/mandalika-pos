@@ -15,6 +15,8 @@ owner choice, A38 dependency blockers. A34 parent: Partial → mostly implemente
 `/sync/batch` item results now carry `code` + `retryable` (commits `5612012`, `cde9765`,
 `249fd35`; live rev `00086-pac`). Prerequisite for the A02/A03 client states (P0 slices 4–5).
 Whole-batch 400s and direct HTTP routes still return raw text (A29 parent remains open).
+2026-10-19: batch cap merged locally (client chunks of 25; server 200 items / 8 MiB → 413). Still open under A29: Retry-After,
+default deadline for non-batch calls, sanitised direct-handler errors, work budget. See `docs/plans/2026-10-19-a29-batch-cap.md`.
 
 ## A34e15 client-IP trust — FIXED 2026-10-10 (Claude workflow)
 
