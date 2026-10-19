@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 
 describe('reviewLabels', () => {
   it('maps reason codes to plain Indonesian', () => {
@@ -7,6 +7,7 @@ describe('reviewLabels', () => {
     expect(reasonLabel('actor_mismatch')).toBe('Dibuat oleh akun lain')
     expect(reasonLabel('competing_receipt')).toBe('Transfer sudah diterima tablet lain')
     expect(reasonLabel('conflict')).toBe('Ditolak server')
+    expect(reasonLabel('offline_expired')).toBe('Offline lebih dari 12 jam')
     expect(reasonLabel('batch_rejected')).toBe('Kiriman ditolak')
     expect(reasonLabel(null)).toBe('Gagal berulang (versi lama)')
     expect(reasonLabel('weird')).toBe('Ditolak (weird)')
@@ -38,5 +39,8 @@ describe('shouldStepBack', () => {
     expect(shouldStepBack({ ...base, loading: true })).toBe(false)
     expect(shouldStepBack({ ...base, error: 'gagal' })).toBe(false)
     expect(shouldStepBack({ ...base, rowCount: 3 })).toBe(false)
+  })
+  it('offers offline_expired as a review filter', () => {
+    expect(REASON_FILTERS).toContainEqual({ id: 'offline_expired', label: 'Offline lebih dari 12 jam' })
   })
 })
