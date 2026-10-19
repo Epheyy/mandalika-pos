@@ -128,8 +128,6 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/promotions", h.Promotions)
 			r.Get("/discount-codes", h.DiscountCodes)
 			r.Get("/loyalty-conditions", h.LoyaltyConditions)
-			r.Get("/customers", h.Customers)
-			r.Get("/customers/{id}", h.Customer)
 			r.Get("/settings/app", h.AppSettings)
 			r.Get("/settings/loyalty", h.LoyaltySettings)
 
@@ -181,7 +179,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/uploads/sign", h.SignUpload)
 			})
 			r.Group(func(r chi.Router) {
-				r.Use(mw.RequirePermission("manage_customers"))
+				// A30: customer data beyond an exact phone lookup. Admin, or manage_customers for a
+				// non-cashier; cashiers use /sync/customers/lookup (phone-only) instead.
+				r.Use(handlers.RequireCustomerReader())
+				r.Get("/customers", h.Customers)
+				r.Get("/customers/{id}", h.Customer)
 				r.Get("/customers/by-phone", h.CustomersByPhone)
 				r.Post("/customers/import", h.ImportCustomers)
 				r.Post("/customers", h.CreateCustomer)
