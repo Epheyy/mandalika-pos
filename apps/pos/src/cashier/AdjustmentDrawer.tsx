@@ -19,6 +19,7 @@ interface AdjustmentDrawerProps {
   discountCodes: DiscountCode[]
   subtotal: number
   outletId: string
+  timezone?: string | null
   isValidatingCode: boolean
   onSelectPromotion: (promo: Promotion) => void
   onApplyPromoCode: () => void
@@ -35,6 +36,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
   discountCodes,
   subtotal,
   outletId,
+  timezone,
   isValidatingCode,
   onSelectPromotion,
   onApplyPromoCode,
@@ -146,6 +148,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
       isValidating={isValidatingCode}
       subtotal={subtotal}
       outletId={outletId}
+      timezone={timezone}
       hasCustomer={state.selectedCustomer !== null}
       onSelectPromotion={onSelectPromotion}
       onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}

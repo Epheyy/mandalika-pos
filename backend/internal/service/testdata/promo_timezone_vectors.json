@@ -1,0 +1,18 @@
+[
+  { "name": "hours 10-12 at 02:30Z inside for Makassar (10:30 WITA)", "kind": "promo", "tz": "Asia/Makassar", "at": "2026-10-19T02:30:00Z", "row": { "activeFromHour": "10:00", "activeToHour": "12:00" }, "want": [] },
+  { "name": "hours 10-12 at 02:30Z outside for Jakarta (09:30 WIB)", "kind": "promo", "tz": "Asia/Jakarta", "at": "2026-10-19T02:30:00Z", "row": { "activeFromHour": "10:00", "activeToHour": "12:00" }, "want": ["outside_hours"] },
+  { "name": "hours 10-12 at 02:30Z inside for Jayapura (11:30 WIT)", "kind": "promo", "tz": "Asia/Jayapura", "at": "2026-10-19T02:30:00Z", "row": { "activeFromHour": "10:00", "activeToHour": "12:00" }, "want": [] },
+  { "name": "empty zone behaves as Jakarta", "kind": "promo", "tz": "", "at": "2026-10-19T02:30:00Z", "row": { "activeFromHour": "10:00", "activeToHour": "12:00" }, "want": ["outside_hours"] },
+  { "name": "end date 10-19 still valid 23:30 WIB", "kind": "promo", "tz": "Asia/Jakarta", "at": "2026-10-19T16:30:00Z", "row": { "endDate": "2026-10-19" }, "want": [] },
+  { "name": "end date 10-19 expired at 00:30 WITA 10-20", "kind": "promo", "tz": "Asia/Makassar", "at": "2026-10-19T16:30:00Z", "row": { "endDate": "2026-10-19" }, "want": ["expired"] },
+  { "name": "end date 10-19 valid at 23:30 WITA", "kind": "promo", "tz": "Asia/Makassar", "at": "2026-10-19T15:30:00Z", "row": { "endDate": "2026-10-19" }, "want": [] },
+  { "name": "end date 10-19 expired at 00:30 WIT 10-20", "kind": "promo", "tz": "Asia/Jayapura", "at": "2026-10-19T15:30:00Z", "row": { "endDate": "2026-10-19" }, "want": ["expired"] },
+  { "name": "start date 10-20 not started 23:30 WIB 10-19", "kind": "promo", "tz": "Asia/Jakarta", "at": "2026-10-19T16:30:00Z", "row": { "startDate": "2026-10-20" }, "want": ["not_started"] },
+  { "name": "start date 10-20 started at 00:30 WITA 10-20", "kind": "promo", "tz": "Asia/Makassar", "at": "2026-10-19T16:30:00Z", "row": { "startDate": "2026-10-20" }, "want": [] },
+  { "name": "Monday-only promo valid Monday 23:30 WIB", "kind": "promo", "tz": "Asia/Jakarta", "at": "2026-10-19T16:30:00Z", "row": { "activeDays": [1] }, "want": [] },
+  { "name": "Monday-only promo wrong day at 00:30 WITA Tuesday", "kind": "promo", "tz": "Asia/Makassar", "at": "2026-10-19T16:30:00Z", "row": { "activeDays": [1] }, "want": ["wrong_day"] },
+  { "name": "code end date 10-19 valid 23:30 WIB", "kind": "code", "tz": "Asia/Jakarta", "at": "2026-10-19T16:30:00Z", "row": { "endDate": "2026-10-19" }, "want": [] },
+  { "name": "code end date 10-19 expired at 00:30 WITA 10-20", "kind": "code", "tz": "Asia/Makassar", "at": "2026-10-19T16:30:00Z", "row": { "endDate": "2026-10-19" }, "want": ["expired"] },
+  { "name": "code start date 10-20 started at 00:30 WITA", "kind": "code", "tz": "Asia/Makassar", "at": "2026-10-19T16:30:00Z", "row": { "startDate": "2026-10-20" }, "want": [] },
+  { "name": "code start date 10-20 not started 23:30 WIB", "kind": "code", "tz": "Asia/Jakarta", "at": "2026-10-19T16:30:00Z", "row": { "startDate": "2026-10-20" }, "want": ["not_started"] }
+]

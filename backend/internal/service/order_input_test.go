@@ -55,6 +55,8 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 				*d[4].(*[]byte) = tx.paymentMethods
 			}
 			return nil
+		case strings.Contains(sql, "FROM outlets"):
+			return pgx.ErrNoRows // outletZone: unknown outlet = Asia/Jakarta
 		case strings.Contains(sql, "FROM loyalty_settings"):
 			*d[0].(*bool) = false
 			*d[1].(*float64) = 0

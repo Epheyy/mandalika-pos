@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -224,4 +225,171 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 			t.Fatalf("linked code_only status=%d total=%v discount=%v warning=%v body=%s", l.status, l.total, l.discount, l.warning, l.body)
 		}
 	})
+
+	// A28 Phase B: gating runs on the ORDER OUTLET's local clock. The vectors are the same
+	// file the TS twin (promoValidate.test.ts) and the Go unit test read; an online order is
+	// accepted exactly when the twin returns no violation, else rejected with those codes.
+	t.Run("outlet-local-clock-vectors", func(t *testing.T) {
+		raw, err := os.ReadFile(filepath.Join("..", "service", "testdata", "promo_timezone_vectors.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var vectors []struct {
+			Name, Kind, Tz, At string
+			Row                struct {
+				StartDate, EndDate, ActiveFromHour, ActiveToHour string
+				ActiveDays                                       []int
+			}
+			Want []string
+		}
+		if err = json.Unmarshal(raw, &vectors); err != nil {
+			t.Fatal(err)
+		}
+		zoneOutlet := map[string]string{
+			"": outlet, "Asia/Jakarta": outlet,
+			"Asia/Makassar": "00000000-0000-4000-8500-0000000000a1",
+			"Asia/Jayapura": "00000000-0000-4000-8500-0000000000a2",
+		}
+		for tz, id := range zoneOutlet {
+			if tz == "" || tz == "Asia/Jakarta" {
+				continue
+			}
+			exec(t, `INSERT INTO outlets(id,name,timezone) VALUES($1,$2,$3)`, id, "PL zone "+tz, tz)
+			exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',1000)`, id, p2)
+		}
+		// B2: the pull bundle carries the outlet's zone to the POS twin (Jakarta outlet = Jakarta, omitted never).
+		eng := syncpkg.New(pool, rd, svc, wr)
+		for tz, id := range zoneOutlet {
+			b, perr := eng.Pull(ctx, read.Scope{OutletID: id}, id)
+			want := tz
+			if want == "" {
+				want = "Asia/Jakarta"
+			}
+			if perr != nil || b.OutletTimezone != want {
+				t.Fatalf("pull outletTimezone for %q = %q err=%v want %q", tz, b.OutletTimezone, perr, want)
+			}
+		}
+		for i, v := range vectors {
+			t.Run(v.Name, func(t *testing.T) {
+				id := fmt.Sprintf("00000000-0000-4000-8502-%012d", i)
+				code := ""
+				if v.Kind == "promo" {
+					exec(t, `INSERT INTO promotions(id,name,type,value,combinable,code_only,start_date,end_date,active_from_hour,active_to_hour,active_days)
+					      VALUES($1,$2,'percentage',10,true,false,NULLIF($3,'')::date,NULLIF($4,'')::date,NULLIF($5,''),NULLIF($6,''),NULLIF($7,'')::jsonb)`,
+						id, "tz "+v.Name, v.Row.StartDate, v.Row.EndDate, v.Row.ActiveFromHour, v.Row.ActiveToHour, activeDaysJSON(v.Row.ActiveDays))
+				} else {
+					code = fmt.Sprintf("TZ-VEC-%d", i)
+					exec(t, `INSERT INTO discount_codes(code,type,value,combinable,start_date,end_date) VALUES($1,'percentage',10,true,NULLIF($2,'')::date,NULLIF($3,'')::date)`,
+						code, v.Row.StartDate, v.Row.EndDate)
+				}
+				at, err := time.Parse(time.RFC3339, v.At)
+				if err != nil {
+					t.Fatal(err)
+				}
+				in := service.CreateOrderInput{
+					IdempotencyKey: id, OrderUUID: id, OutletID: zoneOutlet[v.Tz], CashierID: cashier, CashierName: "PL",
+					Items:         []service.OrderItem{{ProductID: p2, ProductName: p2, VariantSize: "M", Price: 50000, Quantity: 1, Subtotal: 50000}},
+					PaymentMethod: "cash", AmountPaid: 50000, ClientCreated: &at,
+				}
+				if v.Kind == "promo" {
+					in.PromotionIDs = []string{id}
+				} else {
+					in.DiscountCodes = []string{code}
+				}
+				_, _, _, err = svc.CreateOrder(ctx, in)
+				var rej *service.ErrDiscountRejected
+				switch {
+				case len(v.Want) == 0 && err != nil:
+					t.Fatalf("want accepted, got %v", err)
+				case len(v.Want) > 0 && !errors.As(err, &rej):
+					t.Fatalf("want rejected %v, got %v", v.Want, err)
+				case len(v.Want) > 0:
+					got := make([]string, len(rej.Violations))
+					for k, x := range rej.Violations {
+						got[k] = string(x)
+					}
+					if strings.Join(got, ",") != strings.Join(v.Want, ",") {
+						t.Fatalf("violations %v want %v", got, v.Want)
+					}
+				}
+			})
+		}
+	})
+
+	// A28 Phase B: loyalty date triggers use the order outlet's local day, on both the order
+	// commit path (orders.points_earned) and the checkout preview (PreviewRewards). Birthday is
+	// 10-19: 15:30Z is 23:30 WITA on 10-19 (match) and 16:30Z is 00:30 WITA on 10-20 (no match)
+	// while the same 16:30Z is still 23:30 WIB on 10-19 at a Jakarta outlet (match).
+	t.Run("loyalty-outlet-local-date", func(t *testing.T) {
+		const outletM = "00000000-0000-4000-8500-0000000000a1"
+		exec(t, `UPDATE loyalty_settings SET enabled=true, points_per_thousand=0`)
+		defer exec(t, `UPDATE loyalty_settings SET enabled=false`)
+		const cust = "00000000-0000-4000-8503-000000000001"
+		exec(t, `INSERT INTO customers(id,name,phone,birthday) VALUES($1,'Bday','0800000001','1990-10-19')`, cust)
+		exec(t, `INSERT INTO loyalty_conditions(name,type,trigger,reward_type,reward_value) VALUES('bday pts','always_on','birthday','set_points',777)`)
+		seq := 0
+		earned := func(outletID, atStr string) int {
+			t.Helper()
+			seq++
+			id := fmt.Sprintf("00000000-0000-4000-8503-1%011d", seq)
+			at, err := time.Parse(time.RFC3339, atStr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			oid, _, _, err := svc.CreateOrder(ctx, service.CreateOrderInput{
+				IdempotencyKey: id, OrderUUID: id, OutletID: outletID, CashierID: cashier, CashierName: "PL", CustomerID: cust,
+				Items:         []service.OrderItem{{ProductID: p2, ProductName: p2, VariantSize: "M", Price: 50000, Quantity: 1, Subtotal: 50000}},
+				PaymentMethod: "cash", AmountPaid: 50000, ClientCreated: &at,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err = pool.QueryRow(ctx, `SELECT points_earned FROM orders WHERE id=$1`, oid).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		for _, c := range []struct {
+			name, outlet, at string
+			want             int
+		}{
+			{"commit WITA 23:30 same day matches", outletM, "2026-10-19T15:30:00Z", 777},
+			{"commit WITA 00:30 next day does not match", outletM, "2026-10-19T16:30:00Z", 0},
+			{"commit WIB 23:30 same day matches", outlet, "2026-10-19T16:30:00Z", 777},
+		} {
+			if got := earned(c.outlet, c.at); got != c.want {
+				t.Errorf("%s: points_earned=%d want %d", c.name, got, c.want)
+			}
+		}
+		exec(t, `INSERT INTO loyalty_conditions(name,type,trigger,reward_type,reward_product_ids) VALUES('bday gift','always_on','birthday','product_reward',$1::jsonb)`, `["`+p1+`"]`)
+		items := []service.OrderItem{{ProductID: p2, ProductName: p2, VariantSize: "M", Price: 50000, Quantity: 1, Subtotal: 50000}}
+		for _, c := range []struct {
+			name, outlet, at string
+			want             bool
+		}{
+			{"preview WITA 23:30 same day offers the gift", outletM, "2026-10-19T15:30:00Z", true},
+			{"preview WITA 00:30 next day offers nothing", outletM, "2026-10-19T16:30:00Z", false},
+			{"preview WIB 23:30 same day offers the gift", outlet, "2026-10-19T16:30:00Z", true},
+			{"preview with no outlet defaults to WIB", "", "2026-10-19T16:30:00Z", true},
+		} {
+			at, _ := time.Parse(time.RFC3339, c.at)
+			rw, err := svc.PreviewRewards(ctx, cust, items, 50000, &at, c.outlet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(rw) > 0) != c.want {
+				t.Errorf("%s: rewards=%d want offered=%v", c.name, len(rw), c.want)
+			}
+		}
+	})
+}
+
+// activeDaysJSON renders active_days for the fixture insert; empty means no constraint.
+func activeDaysJSON(days []int) string {
+	if len(days) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(days)
+	return string(b)
 }

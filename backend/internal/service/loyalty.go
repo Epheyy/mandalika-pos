@@ -33,7 +33,7 @@ type EvalContext struct {
 	Total      float64         // res.Total (pre-redemption)
 	BasePoints int             // res.EarnedPoints — flat base, used for multiply attribution
 	ProductIDs map[string]bool // set of order item product IDs
-	SaleDate   time.Time       // already converted to WIB by the caller
+	SaleDate   time.Time       // already converted to the order outlet's zone by the caller
 	Customer   EvalCustomer
 }
 

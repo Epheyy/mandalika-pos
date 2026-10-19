@@ -3635,6 +3635,11 @@ export interface components {
             version: number;
             outletCode?: string | null;
             outletName?: string | null;
+            /**
+             * @description The outlet's timezone; promo hours, active days and start/end dates are evaluated on this clock. Absent (older servers) means Asia/Jakarta.
+             * @enum {string}
+             */
+            outletTimezone?: "Asia/Jakarta" | "Asia/Makassar" | "Asia/Jayapura";
             products?: components["schemas"]["Product"][];
             categories?: components["schemas"]["Category"][];
             bundles?: components["schemas"]["Bundle"][];

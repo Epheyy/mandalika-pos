@@ -1818,6 +1818,10 @@ components:
         version: { type: integer, format: int64 }
         outletCode: { type: string, nullable: true }
         outletName: { type: string, nullable: true }
+        outletTimezone:
+          type: string
+          enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
+          description: The outlet's timezone; promo hours, active days and start/end dates are evaluated on this clock. Absent (older servers) means Asia/Jakarta.
         products: { type: array, items: { $ref: '#/components/schemas/Product' } }
         categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
         bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }

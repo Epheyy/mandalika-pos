@@ -20,6 +20,8 @@ interface PromoPanelProps {
   isValidating: boolean
   subtotal: number
   outletId: string
+  /** Outlet timezone (A28): promo hours/dates are evaluated on this clock. */
+  timezone?: string | null
   hasCustomer: boolean
   onSelectPromotion: (promo: Promotion) => void
   onRemovePromotion: (id: string) => void
@@ -98,6 +100,7 @@ export const PromoPanel = memo(function PromoPanel({
   isValidating,
   subtotal,
   outletId,
+  timezone,
   hasCustomer,
   onSelectPromotion,
   onRemovePromotion,
@@ -110,7 +113,7 @@ export const PromoPanel = memo(function PromoPanel({
   onClearPromoCodeError,
 }: PromoPanelProps) {
   const now = new Date()
-  const evalCtx = { now, outletId, subtotal, hasCustomer }
+  const evalCtx = { now, outletId, subtotal, hasCustomer, timezone }
   // code_only promotions are hidden from the browse panel — they are only
   // reachable by typing the linked discount code (SP-Promo-3c).
   const activePromos = promotions.flatMap((promo) =>

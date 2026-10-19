@@ -37,11 +37,11 @@ const (
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
 type PromoEvalContext struct {
-	SaleTimeWIB time.Time // already in the wib zone
-	OutletID    string
-	Subtotal    float64 // pre-discount sum of line subtotals
-	HasCustomer bool
-	CustomerID  string
+	SaleTimeLocal time.Time // already in the order outlet's zone (bizday.Zone)
+	OutletID      string
+	Subtotal      float64 // pre-discount sum of line subtotals
+	HasCustomer   bool
+	CustomerID    string
 }
 
 // PromoRow / CodeRow are the loaded gating columns (nil/empty = no constraint).
@@ -83,7 +83,7 @@ func JoinViolations(v []PromoViolation) string {
 }
 
 // promoDateOnly normalizes any instant to a date-only value stamped in the fixed
-// WIB business zone, so a WIB sale time and a UTC-midnight `date` column (how pgx
+// fixed zone, so a sale time in any outlet zone and a UTC-midnight `date` column (how pgx
 // returns DATE) compare purely by calendar date. (Distinct from loyalty.go's
 // dateOnly, which stamps UTC for birthday/anniversary math.)
 func promoDateOnly(t time.Time) time.Time {
@@ -108,7 +108,7 @@ func containsStrV(xs []string, x string) bool {
 
 func ValidatePromo(p PromoRow, ec PromoEvalContext) []PromoViolation {
 	var v []PromoViolation
-	d := promoDateOnly(ec.SaleTimeWIB)
+	d := promoDateOnly(ec.SaleTimeLocal)
 	if p.StartDate != nil && d.Before(promoDateOnly(*p.StartDate)) {
 		v = append(v, ViolationNotStarted)
 	}
@@ -118,13 +118,13 @@ func ValidatePromo(p PromoRow, ec PromoEvalContext) []PromoViolation {
 	if p.MinPurchase != nil && ec.Subtotal < *p.MinPurchase {
 		v = append(v, ViolationBelowMin)
 	}
-	if len(p.ActiveDays) > 0 && !containsInt(p.ActiveDays, int(ec.SaleTimeWIB.Weekday())) {
+	if len(p.ActiveDays) > 0 && !containsInt(p.ActiveDays, int(ec.SaleTimeLocal.Weekday())) {
 		v = append(v, ViolationWrongDay)
 	}
 	// Both bounds required to gate (a half-set window is treated as no constraint),
 	// mirroring the loyalty campaign "needs both dates" rule.
 	if p.ActiveFromHour != "" && p.ActiveToHour != "" {
-		hm := ec.SaleTimeWIB.Format("15:04")
+		hm := ec.SaleTimeLocal.Format("15:04")
 		if hm < p.ActiveFromHour || hm > p.ActiveToHour {
 			v = append(v, ViolationOutsideHours)
 		}
@@ -137,7 +137,7 @@ func ValidatePromo(p PromoRow, ec PromoEvalContext) []PromoViolation {
 
 func ValidateCode(c CodeRow, ec PromoEvalContext) []PromoViolation {
 	var v []PromoViolation
-	d := promoDateOnly(ec.SaleTimeWIB)
+	d := promoDateOnly(ec.SaleTimeLocal)
 	if c.StartDate != nil && d.Before(promoDateOnly(*c.StartDate)) {
 		v = append(v, ViolationNotStarted)
 	}

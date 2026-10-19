@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import type { components } from '@mandalika/api'
 import {
@@ -228,5 +229,31 @@ describe('decideApplyCode — linked codes', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.code.combinable).toBe(true)
+  })
+})
+
+// A28 Phase B: gating follows the OUTLET's local clock. Same fixture is read by Go
+// TestPromoTimezoneVectors (service/promo_timezone_test.go) and the PG order gate.
+type TzVector = { name: string; kind: 'promo' | 'code'; tz: string; at: string; row: Record<string, unknown>; want: Violation[] }
+const tzVectors: TzVector[] = JSON.parse(
+  readFileSync(new URL('../../../../backend/internal/service/testdata/promo_timezone_vectors.json', import.meta.url), 'utf8'),
+)
+
+describe('outlet-local promo clock (shared Go/TS vectors)', () => {
+  it('fixture is pinned', () => expect(tzVectors).toHaveLength(16))
+  for (const tc of tzVectors) {
+    it(tc.name, () => {
+      const ctx = { now: new Date(tc.at), outletId: 'outlet-a', subtotal: 100000, hasCustomer: false, timezone: tc.tz }
+      const got = tc.kind === 'promo' ? validatePromo(promo(tc.row as Partial<Promotion>), ctx) : validateCode(code(tc.row as Partial<DiscountCode>), ctx)
+      expect(got).toEqual(tc.want)
+    })
+  }
+  it('absent timezone defaults to Asia/Jakarta (old server bundle)', () => {
+    const ctx = { now: new Date('2026-10-19T02:30:00Z'), outletId: 'o', subtotal: 1, hasCustomer: false }
+    expect(validatePromo(promo({ activeFromHour: '10:00', activeToHour: '12:00' }), ctx)).toEqual(['outside_hours'])
+  })
+  it('unknown timezone falls back to Asia/Jakarta, never throws', () => {
+    const ctx = { now: new Date('2026-10-19T02:30:00Z'), outletId: 'o', subtotal: 1, hasCustomer: false, timezone: 'Europe/London' }
+    expect(validatePromo(promo({ activeFromHour: '10:00', activeToHour: '12:00' }), ctx)).toEqual(['outside_hours'])
   })
 })

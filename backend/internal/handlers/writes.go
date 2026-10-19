@@ -1060,7 +1060,10 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "customerId required")
 		return
 	}
-	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt)
+	// Same outlet resolution as CreateOrder (caller falls back to the user's home outlet), so the
+	// preview's clock matches the commit's.
+	c, _ := h.caller(r)
+	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt, c.outletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
