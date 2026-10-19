@@ -21,3 +21,16 @@ func TestDiscountCodesCacheKeyDiffersByPermission(t *testing.T) {
 		t.Errorf("key must be stable: %q vs %q", again, without)
 	}
 }
+
+// /orders is cached too, and its q result depends on customerScope: a manager's
+// customer-name hit must never be served to a cashier at the same outlet (A30).
+func TestOrdersCacheKeyDiffersByCustomerScope(t *testing.T) {
+	all := ordersCacheKey(scopeReq("manager", "manage_customers"))
+	phoneOnly := ordersCacheKey(scopeReq("cashier", "manage_customers"))
+	if all == phoneOnly {
+		t.Fatalf("keys must differ by customer scope: %q", all)
+	}
+	if mgrNo := ordersCacheKey(scopeReq("manager", "view_reports")); mgrNo != phoneOnly {
+		t.Errorf("phone-only callers share one key: %q vs %q", mgrNo, phoneOnly)
+	}
+}

@@ -311,12 +311,21 @@ func (h *Handlers) Customer(w http.ResponseWriter, r *http.Request) {
 
 // ── Sales (outlet-scoped) ─────────────────────────────────
 
+// ordersCacheKey splits the cached order list by customer scope, because q reaches
+// customer names only for callers who may browse customers (A30).
+func ordersCacheKey(r *http.Request) string {
+	if customerScope(r) == CustomerAll {
+		return ckey(r) + ":cs=1"
+	}
+	return ckey(r) + ":cs=0"
+}
+
 func (h *Handlers) Orders(w http.ResponseWriter, r *http.Request) {
 	f, ok := ordersFilter(w, r)
 	if !ok {
 		return
 	}
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	h.cached(w, r, ordersCacheKey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
 		rows, total, err := h.Repo.Orders(r.Context(), f, p, l)
 		if err != nil {
@@ -427,7 +436,7 @@ func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	h.cached(w, r, ordersCacheKey(r), func() (any, int, error) {
 		v, err := h.Repo.ReportSummary(r.Context(), f)
 		if err != nil {
 			return nil, 500, err

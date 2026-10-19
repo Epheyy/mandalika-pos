@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/mandalika/pos-backend/internal/phone"
 )
 
 // OrderFilter is the single filter shared by the orders list and the report
@@ -21,8 +23,12 @@ type OrderFilter struct {
 	// stays on the raw value.
 	PaymentMethod string
 	Q             string
-	ShiftID       string
-	CustomerID    string
+	// CustomerSearch lets Q also match customer names and phone substrings (callers with
+	// customer access to everyone). The zero value is the restricted form (A30): Q matches
+	// the order number, the cashier name, or the exact normalized phone of the linked customer.
+	CustomerSearch bool
+	ShiftID        string
+	CustomerID     string
 	// LegacyFrom/LegacyTo keep the POS /orders contract byte-for-byte: a plain
 	// created_at >= from, and created_at < to::date + 1 day (UTC-day semantics).
 	LegacyFrom, LegacyTo string
@@ -91,12 +97,21 @@ func appendOrderWhere(f OrderFilter, args []any) (string, []any) {
 	}
 	if f.Q != "" {
 		n := add("%" + f.Q + "%")
-		// Match order number, cashier name, the order's stored customer name, or the
-		// linked customer's phone/name.
-		where += strings.ReplaceAll(` AND (o.order_number ILIKE $N OR o.cashier_name ILIKE $N
+		if f.CustomerSearch {
+			// Order number, cashier name, the order's stored customer name, or the
+			// linked customer's phone/name.
+			where += strings.ReplaceAll(` AND (o.order_number ILIKE $N OR o.cashier_name ILIKE $N
 		  OR o.customer_name ILIKE $N
 		  OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
 		    AND (c.phone ILIKE $N OR c.name ILIKE $N)))`, "$N", fmt.Sprintf("$%d", n))
+		} else {
+			clause := ` AND (o.order_number ILIKE $N OR o.cashier_name ILIKE $N`
+			if norm := phone.Normalize(f.Q); norm != "" {
+				clause += fmt.Sprintf(` OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
+		    AND c.phone_norm = $%d)`, add(norm))
+			}
+			where += strings.ReplaceAll(clause+`)`, "$N", fmt.Sprintf("$%d", n))
+		}
 	}
 	return where, args
 }

@@ -135,6 +135,7 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		r.Get("/sync/customers/lookup", h.CustomersLookup)
 		r.Get("/sync/pull", h.SyncPull)
 		r.Get("/discount-codes", h.DiscountCodes)
+		r.Get("/orders", h.Orders)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireCustomerReader())
 			r.Get("/customers", h.Customers)
@@ -346,6 +347,39 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 			}
 			if got[0]["customerId"] != custA {
 				t.Errorf("%s lost customerId: %s", who, body)
+			}
+		}
+	})
+
+	t.Run("orders q: customer name and phone substring only for customer readers", func(t *testing.T) {
+		count := func(who, q string) int {
+			t.Helper()
+			code, _, body := get(tok[who], "/orders?q="+q)
+			if code != http.StatusOK {
+				t.Fatalf("%s /orders?q=%s = %d %s", who, q, code, body)
+			}
+			return len(decode(body))
+		}
+		// All scope: name and phone substring still search the order's customer.
+		for _, who := range []string{"admin", "mgrMC"} {
+			for _, q := range []string{"Alice", "0812-3456"} {
+				if n := count(who, q); n != 1 {
+					t.Errorf("%s q=%s = %d orders, want 1", who, q, n)
+				}
+			}
+		}
+		// PhoneOnly: the customer name and a phone substring find nothing.
+		for _, who := range []string{"cashier", "cashMC", "mgrNo"} {
+			for _, q := range []string{"Alice", "0812-3456", "Priv"} {
+				if n := count(who, q); n != 0 {
+					t.Errorf("%s q=%s = %d orders, want 0", who, q, n)
+				}
+			}
+			// Order number, cashier name and the full phone in any format still work.
+			for _, q := range []string{"CP-ORD", "cp-cashier", "%2B62%20812-3456-7890", "081234567890"} {
+				if n := count(who, q); n != 1 {
+					t.Errorf("%s q=%s = %d orders, want 1", who, q, n)
+				}
 			}
 		}
 	})

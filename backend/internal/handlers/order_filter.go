@@ -62,6 +62,8 @@ func ordersFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, boo
 		Status:        q.Get("status"),
 		PaymentMethod: q.Get("paymentMethod"),
 		Q:             q.Get("q"),
+		// Customer-name and phone-substring search only for callers who may browse customers (A30).
+		CustomerSearch: customerScope(r) == CustomerAll,
 	}, true
 }
 
@@ -84,6 +86,8 @@ func summaryFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, bo
 		Status:        q.Get("status"),
 		PaymentMethod: q.Get("paymentMethod"),
 		Q:             q.Get("q"),
+		// Customer-name and phone-substring search only for callers who may browse customers (A30).
+		CustomerSearch: customerScope(r) == CustomerAll,
 	}
 	for param, dst := range map[string]**time.Time{"from": &f.FromInstant, "to": &f.ToInstant} {
 		v := q.Get(param)
