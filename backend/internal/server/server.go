@@ -162,6 +162,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
 			r.Get("/sync/customers/lookup", h.CustomersLookup)
 			r.Post("/sync/loyalty-preview", h.LoyaltyPreview)
+			// A08 online step-up for transfer receive. The mint has its own coarse per-IP
+			// bucket (each call costs an argon2 hash); the real brake is the server-side
+			// per-user lockout in Postgres.
+			r.Get("/sync/receive-approvers", h.ListReceiveApprovers)
+			r.With(mw.RateLimit(c, "pinstep", 20, time.Minute)).
+				Post("/sync/transfer-receive-approvals", h.CreateTransferReceiveApproval)
 
 			// ── Reference-data writes (Backoffice; permission-gated, bump
 			// content_version → POS sync wall) ──
@@ -328,6 +334,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/users/{id}", h.GetUser)
 				r.Put("/users/{id}", h.UpdateUser)
 				r.Put("/users/{id}/receive-pin", h.SetUserReceivePin)
+				r.Delete("/users/{id}/receive-pin-lockout", h.ClearUserReceivePinLockout)
 				r.Post("/users/{id}/reset-password", ah.AdminResetPassword)
 				r.Delete("/users/{id}", h.DeleteUser)
 				r.Get("/custom-roles", h.CustomRoles)

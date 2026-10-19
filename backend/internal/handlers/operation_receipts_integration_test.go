@@ -450,7 +450,7 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		exec(t, `INSERT INTO users(id,email,password_hash,display_name,role,receive_pin_hash) VALUES($1,'ec-admin@example.invalid','x','EC admin','admin',$2)`, approver, hash)
+		exec(t, `INSERT INTO users(id,email,password_hash,display_name,role,receive_pin_hash,receive_pin_set_at) VALUES($1,'ec-admin@example.invalid','x','EC admin','admin',$2,now())`, approver, hash)
 		const ecProduct = "00000000-0000-4000-8a02-0000000000e1"
 		exec(t, `INSERT INTO products(id,name) VALUES($1,'EC product')`, ecProduct)
 		inTransit := func(t *testing.T) string {
@@ -470,41 +470,55 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 			}
 			return id
 		}
-		recvPayload := func(id string, pinText string) string {
-			return fmt.Sprintf(`{"transferId":%q,"items":[],"approverUserId":%q,"pin":%q}`, id, approver, pinText)
+		// A08: the approval is minted online first; the batch item carries only its id.
+		grantFor := func(t *testing.T, id, key string) string {
+			t.Helper()
+			g, err := wr.MintReceiveApproval(ctx, write.MintInput{OutletID: outletA, RequesterID: userA,
+				TransferID: id, ReceiptKey: key, ApproverID: approver, PIN: pin})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return g.GrantID
+		}
+		recvPayload := func(id, grantID string) string {
+			return fmt.Sprintf(`{"transferId":%q,"items":[],"approverUserId":%q,"approvalGrantId":%q}`, id, approver, grantID)
 		}
 		destStock := func(t *testing.T) int {
 			return count(t, `SELECT COALESCE((SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'),0)`, outletA, ecProduct)
 		}
 
-		t.Run("wrong-pin-is-forbidden", func(t *testing.T) {
+		t.Run("legacy-pin-item-is-forbidden", func(t *testing.T) {
 			id := inTransit(t)
-			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-badpin", recvPayload(id, "0000")), "forbidden", false)
+			legacy := fmt.Sprintf(`{"transferId":%q,"items":[],"approverUserId":%q,"pin":%q}`, id, approver, pin)
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-legacy", legacy), "forbidden", false)
 		})
 		t.Run("unknown-transfer-is-not-found", func(t *testing.T) {
-			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-nf", recvPayload("00000000-0000-4000-8a05-0000000000ff", pin)), "not_found", false)
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-nf",
+				recvPayload("00000000-0000-4000-8a05-0000000000ff", "00000000-0000-4000-8a05-0000000000fe")), "not_found", false)
 		})
 		t.Run("competing-receive-different-key-vs-same-key", func(t *testing.T) {
 			id := inTransit(t)
 			before := destStock(t)
-			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, pin)))
+			g1, g2 := grantFor(t, id, "or-dev:ec-recv-1"), grantFor(t, id, "or-dev:ec-recv-2")
+			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, g1)))
 			if got := destStock(t); got != before+3 {
 				t.Fatalf("dest stock %d, want %d", got, before+3)
 			}
 			// The same key is the existing no-op success.
-			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, pin)))
+			wantOK(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-1", recvPayload(id, g1)))
 			// A different key lost the race: needs review, never retried.
-			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-2", recvPayload(id, pin)), "competing_receipt", false)
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-recv-2", recvPayload(id, g2)), "competing_receipt", false)
 			if got := destStock(t); got != before+3 {
 				t.Fatalf("competing receive changed stock: %d, want %d", got, before+3)
 			}
 		})
 		t.Run("cancelled-transfer-is-conflict", func(t *testing.T) {
 			id := inTransit(t)
+			g := grantFor(t, id, "or-dev:ec-cancelled")
 			if err := wr.CancelTransfer(ctx, id); err != nil {
 				t.Fatal(err)
 			}
-			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-cancelled", recvPayload(id, pin)), "conflict", false)
+			wantCode(t, one(t, tokenA, "transfer_receive", "or-dev:ec-cancelled", recvPayload(id, g)), "conflict", false)
 		})
 	})
 

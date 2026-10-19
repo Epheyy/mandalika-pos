@@ -2007,6 +2007,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/receive-approvers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users who may approve a transfer receive at the caller's outlet (A08; no PIN hash) */
+        get: operations["listReceiveApprovers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/transfer-receive-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Online step-up. Verify an approver PIN on the server and mint a single-use grant for one receipt (A08) */
+        post: operations["createTransferReceiveApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/outlet-transfers": {
         parameters: {
             query?: never;
@@ -2103,6 +2137,23 @@ export interface paths {
         /** Admin sets a new password for a user and revokes their sessions */
         post: operations["resetUserPassword"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/receive-pin-lockout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Clear the approver and requester receive-PIN lockouts of a user without changing the PIN (A08) */
+        delete: operations["clearUserReceivePinLockout"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3708,6 +3759,7 @@ export interface components {
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
             users?: components["schemas"]["User"][];
+            /** @description Always empty since A08 (kept so older bundles still parse). Approvers come from GET /sync/receive-approvers and no PIN hash is shipped. */
             receiveApprovers?: components["schemas"]["ReceiveApprover"][];
         };
         SyncPullResponse: {
@@ -3717,6 +3769,7 @@ export interface components {
             /** @enum {string} */
             type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
+            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. */
             payload: {
                 [key: string]: unknown;
             };
@@ -4062,7 +4115,45 @@ export interface components {
             /** Format: uuid */
             userId: string;
             displayName: string;
-            receivePinHash: string;
+        };
+        ReceiveApproverListResponse: {
+            data: components["schemas"]["ReceiveApprover"][];
+        };
+        TransferReceiveApprovalItem: {
+            productId: string;
+            variantSize: string;
+            receivedQty: number;
+        };
+        TransferReceiveApprovalRequest: {
+            /** Format: uuid */
+            transferId: string;
+            /** @description The receipt key the later transfer_receive batch item will use. */
+            idempotencyKey: string;
+            items: components["schemas"]["TransferReceiveApprovalItem"][];
+            discrepancyReason?: string;
+            /** Format: uuid */
+            approverUserId: string;
+            pin: string;
+            deviceId?: string;
+        };
+        TransferReceiveApproval: {
+            /** Format: uuid */
+            approvalGrantId: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            approverUserId: string;
+            approverName: string;
+        };
+        ReceiveApprovalLocked: {
+            error: string;
+            /** @description Remaining soft-lock time; 0 on a hard lock. */
+            retryAfterSeconds: number;
+            /** @description Only an admin action clears a hard lock. */
+            hardLocked: boolean;
+        };
+        TransferReceiveApprovalResponse: {
+            data: components["schemas"]["TransferReceiveApproval"];
         };
         ResetUserPasswordRequest: {
             /** Format: password */
@@ -8430,6 +8521,114 @@ export interface operations {
             };
         };
     };
+    listReceiveApprovers: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description eligible approvers with a PIN set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveApproverListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createTransferReceiveApproval: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferReceiveApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description grant minted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferReceiveApprovalResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description same body for unknown, ineligible, no-PIN and wrong-PIN approver, or the transfer is not for this outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description transfer not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description transfer not in transit, or this receipt key was already used */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveApprovalLocked"];
+                };
+            };
+            /** @description lock wait timed out or the database is busy; nothing was verified, retry after Retry-After */
+            503: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getOutletTransfers: {
         parameters: {
             query: {
@@ -8581,6 +8780,55 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    clearUserReceivePinLockout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description lockouts cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid user id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description user not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description database error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     setUserReceivePin: {

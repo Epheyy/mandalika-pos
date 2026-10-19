@@ -1884,7 +1884,10 @@ components:
         loyaltySettings: { $ref: '#/components/schemas/LoyaltySettings' }
         appSettings: { $ref: '#/components/schemas/AppSettings' }
         users: { type: array, items: { $ref: '#/components/schemas/User' } }
-        receiveApprovers: { type: array, items: { $ref: '#/components/schemas/ReceiveApprover' } }
+        receiveApprovers:
+          type: array
+          description: Always empty since A08 (kept so older bundles still parse). Approvers come from GET /sync/receive-approvers and no PIN hash is shipped.
+          items: { $ref: '#/components/schemas/ReceiveApprover' }
     SyncPullResponse:
       type: object
       required: [data]
@@ -1896,7 +1899,15 @@ components:
       properties:
         type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive] }
         idempotencyKey: { type: string }
-        payload: { type: object, additionalProperties: true }
+        payload:
+          type: object
+          additionalProperties: true
+          description: >-
+            Per-type body. For transfer_receive (A08) it carries transferId, items,
+            discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it
+            never carries a pin, and the server ignores any approverUserId (the approver is the
+            grant's). An item without a
+            usable grant is refused as forbidden and goes to review.
         # Optional and NOT nullable: openapi-typescript drops nullable on $ref schemas, so
         # "absent" is the only legacy/unset form (A04). Sibling of payload, never inside it.
         envelope: { $ref: '#/components/schemas/SyncEnvelope' }
@@ -2311,11 +2322,53 @@ components:
           description: Optional. Absent keeps the current zone (new outlets default to Asia/Jakarta). Changing it never rewrites the business date of existing sales.
     ReceiveApprover:
       type: object
-      required: [userId, displayName, receivePinHash]
+      required: [userId, displayName]
       properties:
         userId: { type: string, format: uuid }
         displayName: { type: string }
-        receivePinHash: { type: string }
+    ReceiveApproverListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ReceiveApprover' } }
+    TransferReceiveApprovalItem:
+      type: object
+      required: [productId, variantSize, receivedQty]
+      properties:
+        productId: { type: string }
+        variantSize: { type: string }
+        receivedQty: { type: integer, minimum: 0 }
+    TransferReceiveApprovalRequest:
+      type: object
+      required: [transferId, idempotencyKey, items, approverUserId, pin]
+      properties:
+        transferId: { type: string, format: uuid }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 200, description: The receipt key the later transfer_receive batch item will use. }
+        items: { type: array, items: { $ref: '#/components/schemas/TransferReceiveApprovalItem' } }
+        discrepancyReason: { type: string }
+        approverUserId: { type: string, format: uuid }
+        pin: { type: string, minLength: 4, maxLength: 8 }
+        deviceId: { type: string }
+    TransferReceiveApproval:
+      type: object
+      required: [approvalGrantId, expiresAt, approverUserId, approverName]
+      properties:
+        approvalGrantId: { type: string, format: uuid }
+        expiresAt: { type: string, format: date-time }
+        approverUserId: { type: string, format: uuid }
+        approverName: { type: string }
+    ReceiveApprovalLocked:
+      type: object
+      required: [error, retryAfterSeconds, hardLocked]
+      properties:
+        error: { type: string }
+        retryAfterSeconds: { type: integer, minimum: 0, description: Remaining soft-lock time; 0 on a hard lock. }
+        hardLocked: { type: boolean, description: Only an admin action clears a hard lock. }
+    TransferReceiveApprovalResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TransferReceiveApproval' }
     ResetUserPasswordRequest:
       type: object
       required: [password]
@@ -4900,6 +4953,53 @@ paths:
                 required: [data]
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/Transfer' } }
+  /api/v1/sync/receive-approvers:
+    get:
+      operationId: listReceiveApprovers
+      tags: [sync]
+      summary: Users who may approve a transfer receive at the caller's outlet (A08; no PIN hash)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: eligible approvers with a PIN set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiveApproverListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/sync/transfer-receive-approvals:
+    post:
+      operationId: createTransferReceiveApproval
+      tags: [sync]
+      summary: Online step-up. Verify an approver PIN on the server and mint a single-use grant for one receipt (A08)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferReceiveApprovalRequest' }
+      responses:
+        '201':
+          description: grant minted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferReceiveApprovalResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "same body for unknown, ineligible, no-PIN and wrong-PIN approver, or the transfer is not for this outlet", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: transfer not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "transfer not in transit, or this receipt key was already used", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429':
+          description: locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReceiveApprovalLocked' } } }
+        '503':
+          description: lock wait timed out or the database is busy; nothing was verified, retry after Retry-After
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
   /api/v1/sync/outlet-transfers:
     get:
       operationId: getOutletTransfers
@@ -5007,6 +5107,20 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/users/{id}/receive-pin-lockout:
+    delete:
+      operationId: clearUserReceivePinLockout
+      tags: [users]
+      summary: Clear the approver and requester receive-PIN lockouts of a user without changing the PIN (A08)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: lockouts cleared }
+        '400': { description: invalid user id, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: user not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '500': { description: database error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/users/{id}/receive-pin:
     put:
       operationId: setUserReceivePin

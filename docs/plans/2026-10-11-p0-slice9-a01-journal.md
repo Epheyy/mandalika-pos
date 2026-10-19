@@ -62,7 +62,7 @@ Journal store exposes a meta-backed KV facade (whitelist `mandalika.pos.syncedRe
 
 ## 3. Migration (`packages/sync/src/journalBoot.ts` `initJournal()`)
 Called in `main.tsx` right after `initSecureKV()` inside the same BootError try; boot blocks → no sale mid-migration.
-- Sentinel replaces `mandalika.pos.outbox` after verify: `{"movedTo":"journal","v":1,"at":…,"count":n,"sha256":…}` (non-array → old JS quarantines + banner; `readQueueState` readable:false → login/release locked; visible, never silent). Key never removed (stops hydrate lifting localStorage outbox). Verbatim backup `mandalika.outbox.legacy.<ts>`.
+- Sentinel replaces `mandalika.pos.outbox` after verify: `{"movedTo":"journal","v":1,"at":…,"count":n,"sha256":…}` (non-array → old JS quarantines + banner; `readQueueState` readable:false → login/release locked; visible, never silent). Key never removed (stops hydrate lifting localStorage outbox). Verbatim backup `mandalika.outbox.legacy.<ts>` (A08 amendment: verbatim minus raw transfer-receive approver PINs, which are stripped from the backup, other legacy/corrupt copies and journal quarantine rows).
 
 P = plugin available; M = journal `meta.migration`; K = Preferences `OUTBOX_KEY`.
 

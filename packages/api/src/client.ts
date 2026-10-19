@@ -96,6 +96,9 @@ export type OutletConfigItemInput = S['OutletConfigItemInput']
 export type CreateUserRequest = S['CreateUserRequest']
 export type UpdateUserRequest = S['UpdateUserRequest']
 export type SetReceivePinRequest = S['SetReceivePinRequest']
+export type ReceiveApprover = S['ReceiveApprover']
+export type TransferReceiveApprovalRequest = S['TransferReceiveApprovalRequest']
+export type TransferReceiveApproval = S['TransferReceiveApproval']
 export type ResetUserPasswordRequest = S['ResetUserPasswordRequest']
 export type UploadSignature = S['UploadSignature']
 export type WarehouseInput = S['WarehouseInput']
@@ -268,6 +271,11 @@ export interface Api {
     clientCreatedAt?: string,
   ) => Promise<LoyaltyPreviewReward[]>
 
+  /** A08: online-only. Eligible receive approvers at the caller's outlet (no PIN hash). */
+  listReceiveApprovers: () => Promise<ReceiveApprover[]>
+  /** A08: online-only step-up. Verifies the approver PIN on the server and mints a single-use grant. A 429 body carries retryAfterSeconds. */
+  createTransferReceiveApproval: (input: TransferReceiveApprovalRequest) => Promise<TransferReceiveApproval>
+
   /** Receipt-number device code of this install at the caller's outlet (idempotent per device and outlet). */
   registerDevice: (deviceId: string) => Promise<{ code: string }>
 
@@ -391,6 +399,8 @@ export interface Api {
   createUser: (input: CreateUserRequest) => Promise<User>
   updateUser: (id: string, input: UpdateUserRequest) => Promise<User>
   setUserReceivePin: (id: string, input: SetReceivePinRequest) => Promise<void>
+  /** Admin-only: clear the receive-PIN lockouts of a user without changing the PIN (A08). */
+  clearUserReceivePinLockout: (id: string) => Promise<void>
   deleteUser: (id: string) => Promise<void>
   /** Admin-only: set a new password for the user and revoke their sessions. */
   resetUserPassword: (id: string, input: ResetUserPasswordRequest) => Promise<void>
@@ -667,6 +677,9 @@ export function createClient(opts: ClientOptions): Api {
       data<{ balanceAfter: number }>('POST', `${API}/customers/${customerId}/points/adjust`, input),
     listRewardGrants: (customerId) =>
       data<RewardGrant[]>('GET', `${API}/customers/${customerId}/reward-grants`),
+    listReceiveApprovers: () => data<ReceiveApprover[]>('GET', `${API}/sync/receive-approvers`),
+    createTransferReceiveApproval: (input) =>
+      data<TransferReceiveApproval>('POST', `${API}/sync/transfer-receive-approvals`, input),
     loyaltyPreview: (customerId, items, total, clientCreatedAt) =>
       data<LoyaltyPreviewReward[]>('POST', `${API}/sync/loyalty-preview`, {
         customerId,
@@ -918,6 +931,9 @@ export function createClient(opts: ClientOptions): Api {
     updateUser: (id, input) => data<User>('PUT', `${API}/users/${id}`, input),
     setUserReceivePin: async (id, input) => {
       await request('PUT', `${API}/users/${id}/receive-pin`, input)
+    },
+    clearUserReceivePinLockout: async (id) => {
+      await request('DELETE', `${API}/users/${id}/receive-pin-lockout`)
     },
     deleteUser: async (id) => {
       await request('DELETE', `${API}/users/${id}`)

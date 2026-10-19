@@ -55,7 +55,7 @@ describe('capture-time envelope (A04)', () => {
     for (const actor of [() => null, () => ({ outletId: '', userId: 'u' }), () => ({ outletId: 'o', userId: '' })]) {
       const { engine, store, ctl } = make(request, actor)
       await expect(engine.enqueue('order', { total: 1 })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
-      await expect(engine.enqueueTransferReceive({ transferId: 't', items: [], approverUserId: 'a', pin: '1' })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
+      await expect(engine.enqueueTransferReceive({ orderUuid: 'u', transferId: 't', items: [], approvalGrantId: 'g' })).rejects.toThrow(ENVELOPE_REFUSED_MESSAGE)
       expect(engine.outbox.all()).toHaveLength(0)
       expect(ctl.attempts).toHaveLength(0)
       expect(store.get('mandalika.pos.outbox')).toBeUndefined()

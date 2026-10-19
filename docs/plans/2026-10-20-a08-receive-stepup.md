@@ -52,7 +52,7 @@ Owner policy (HANDOFF 'Decisions (owner)' 2026-10-17 item 6): receiving is NOT a
 - PG gate: `("RA", "TestReceiveApprovalPostgres", 56466, "ra")` in `scripts/ci/postgres_gate.py` (RA free prefix; 56465 is the highest port in use); test file `backend/internal/handlers/receive_approval_integration_test.go` with `gatePool(t,"RA",56466)`.
 - OTA vs APK: POS web-layer only -> `make ota-release`, no APK. Backoffice unlock button deploys with the first non-skip push.
 - Release order: backend first (tablets at 0 pending, 0062 applied; 0063 only with the owner's yes), then push (backoffice), then OTA; fold into the held release batch.
-- Compatibility: old server + new POS: approver list and step-up return 404 -> modal says it needs connection/server version, receiving blocked; a queued grant item on an old server gets "PIN salah" (forbidden) -> review. New server + old POS: blocked as in section 4; PIN items go to review. Safe both ways.
+- Compatibility: old server + new POS: approver list and step-up return 404 -> modal says it needs connection/server version, receiving blocked; a queued grant item on an old server has no `approverUserId` (the new POS no longer sends it), so the old `UserAuth` lookup of an empty id fails with SQLSTATE 22P02, which the old `isMissing` reports as `not_found` ("penyetuju tidak ditemukan", non-retryable) -> review with counts kept, credit removed. The toast wording is the generic rejected-receive text, not "PIN salah". New server + old POS: blocked as in section 4; PIN items go to review. Safe both ways.
 - Rollback: redeploy the old backend; 0062 tables ignored; the 0063 wipe cannot be undone (admins re-set PINs, old servers accept them).
 
 ## 6. Test plan

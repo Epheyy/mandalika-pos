@@ -16,7 +16,8 @@ const offlineExpiredMessage = "Transaksi dicatat lebih dari 12 jam setelah table
 
 // cappedTypes are the operations the cap refuses. Shift open/close are exempt (the
 // drawer must always close), customer_create too (a refused customer would trap its
-// order in a retry loop), and transfer_receive is left to A08.
+// order in a retry loop), and transfer_receive is bounded by A08 instead: its approval
+// grant expires 12 h after it is minted (write.ReceiveApprovalTTL), measured on the server clock.
 func cappedType(t string) bool {
 	switch t {
 	case "order", "refund", "cash_flow":

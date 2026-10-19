@@ -166,7 +166,9 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 }
 
 // SetReceivePin hashes and stores a user's receive-approval PIN (argon2id, same
-// format as the password). Empty pin clears it.
+// format as the password). Empty pin clears it. Either way (A08) the user's PIN
+// lockouts are cleared in the same transaction, and outstanding approval grants are
+// revoked implicitly because receive_pin_set_at changes.
 func (s *Store) SetReceivePin(ctx context.Context, userID, pin string) error {
 	if pin == "" {
 		return s.ClearReceivePin(ctx, userID)
@@ -175,16 +177,57 @@ func (s *Store) SetReceivePin(ctx context.Context, userID, pin string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.Pool.Exec(ctx,
-		`UPDATE users SET receive_pin_hash=$1, receive_pin_set_at=now() WHERE id=$2`,
-		hash, userID)
-	return err
+	return s.updatePinClearingLockouts(ctx, userID,
+		`UPDATE users SET receive_pin_hash=$1, receive_pin_set_at=now() WHERE id=$2`, hash, userID)
 }
 
 func (s *Store) ClearReceivePin(ctx context.Context, userID string) error {
-	_, err := s.Pool.Exec(ctx,
+	return s.updatePinClearingLockouts(ctx, userID,
 		`UPDATE users SET receive_pin_hash=NULL, receive_pin_set_at=NULL WHERE id=$1`, userID)
+}
+
+func (s *Store) updatePinClearingLockouts(ctx context.Context, userID, sql string, args ...any) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, sql, args...); err != nil {
+		return err
+	}
+	if err := clearReceiveLockouts(ctx, tx, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func clearReceiveLockouts(ctx context.Context, tx pgx.Tx, userID string) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM receive_pin_lockouts WHERE user_id=$1`, userID); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO receive_pin_attempts(approver_id, outcome) VALUES($1,'reset')`, userID)
 	return err
+}
+
+// ClearReceiveLockouts clears both the approver and requester receive-PIN lockouts of
+// a user without touching the PIN (admin unlock). ErrNotFound when the user is gone.
+func (s *Store) ClearReceiveLockouts(ctx context.Context, userID string) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var one int
+	if err := tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1`, userID).Scan(&one); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if err := clearReceiveLockouts(ctx, tx, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // DeleteUser removes a user (cascades permissions/outlets/refresh tokens).

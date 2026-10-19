@@ -419,7 +419,7 @@ describe('transfer_receive competing receipt', () => {
     vi.stubGlobal('navigator', { onLine: false }) // enqueue must not auto-flush
     const engine = new SyncEngine(api(request), { onReceiveRejected }, kv, { actor: null })
     await engine.enqueueTransferReceive({
-      transferId: 't1', approverUserId: 'u1', pin: '1234', discrepancyReason: 'rusak 1',
+      orderUuid: 'o-1', transferId: 't1', approvalGrantId: 'g1', discrepancyReason: 'rusak 1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }],
     })
     expect(engine.pending.list()).toHaveLength(1)
@@ -458,7 +458,7 @@ describe('transfer_receive competing receipt', () => {
     vi.stubGlobal('navigator', { onLine: false })
     const engine = new SyncEngine(api(request), {}, kv, { actor: null })
     await engine.enqueueTransferReceive({
-      transferId: 't1', approverUserId: 'u1', pin: '1234',
+      orderUuid: 'o-2', transferId: 't1', approvalGrantId: 'g1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 4 }],
     })
     vi.stubGlobal('navigator', { onLine: true })

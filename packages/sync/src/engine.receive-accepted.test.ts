@@ -109,8 +109,8 @@ describe('SyncEngine — onReceiveAccepted', () => {
     await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
-      approverUserId: 'u1',
-      pin: '1234',
+      orderUuid: 'o-1',
+      approvalGrantId: 'g1',
     })
 
     // enqueue() fires `void this.flush()` internally. Since ONLINE is now true,
@@ -134,8 +134,8 @@ describe('SyncEngine — onReceiveAccepted', () => {
     await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
-      approverUserId: 'u1',
-      pin: '1234',
+      orderUuid: 'o-1',
+      approvalGrantId: 'g1',
     })
 
     await engine.flush()
@@ -155,8 +155,8 @@ describe('SyncEngine — onReceiveAccepted', () => {
     await engine.enqueueTransferReceive({
       transferId: 't1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
-      approverUserId: 'u1',
-      pin: '1234',
+      orderUuid: 'o-1',
+      approvalGrantId: 'g1',
     })
 
     await engine.flush()

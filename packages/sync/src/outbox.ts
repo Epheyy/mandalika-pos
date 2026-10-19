@@ -481,6 +481,23 @@ export class Outbox {
     })
   }
 
+  /** A08: remove a raw approver PIN from EVERY queued transfer_receive row, in any status (acked
+   *  rows not yet pruned included). Older code queued the PIN in the payload; the new flow never
+   *  does. Nothing else changes (seq, status, attempts, key). One write, none when already clean.
+   *  Best-effort like {@link mutate}: a failed write is logged, the queue is left as it was, and the
+   *  scrub runs again the next time the app starts (the engine runs it once per start). */
+  scrubLegacySecrets(): Promise<void> {
+    return this.mutate((items) => {
+      let changed = false
+      const next = items.map((i) => {
+        const clean = stripSecrets(i)
+        if (clean !== i) changed = true
+        return clean
+      })
+      return changed ? next : null
+    })
+  }
+
   /** Resolves when every mutation queued so far has settled (tests/diagnostics). */
   idle(): Promise<void> {
     return this.tail
