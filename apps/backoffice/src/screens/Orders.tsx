@@ -21,6 +21,7 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
+import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
   cash_short: 'Tunai kurang dari total',
@@ -253,6 +254,14 @@ export function OrdersPanel() {
                         ⚠ Bayar
                       </span>
                     )}
+                    {o.quoteWarning && (
+                      <span
+                        title={quoteWarningTitle(o, BRAND.currency.format)}
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                      >
+                        ⚠ Struk
+                      </span>
+                    )}
                     <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                     {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -291,6 +300,9 @@ export function OrdersPanel() {
                         )}
                         <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>
+                        {receiptTotalLine(o, BRAND.currency.format) && (
+                          <div className="flex justify-between text-sm text-amber-700"><span>Total di struk</span><span>{receiptTotalLine(o, BRAND.currency.format)}</span></div>
+                        )}
                         {o.change > 0 && (
                           <div className="flex justify-between text-sm text-green-600 font-bold"><span>Kembalian</span><span>{BRAND.currency.format(o.change)}</span></div>
                         )}
