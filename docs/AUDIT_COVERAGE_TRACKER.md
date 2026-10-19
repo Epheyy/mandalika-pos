@@ -967,7 +967,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust resolved 2026-10-10 (RealIP removed); OpenPGP/rgbcolor unresolved | T33 |
 | A39 | P2 | S0j | Built 2026-10-16 on a local branch (server-side import, PG gate IM, formula-safe export); not pushed or deployed | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
-| A41 | P1 | S2 | Needs current behavioral revalidation; source matches audit | T30 |
+| A41 | P1 | S2 | Fixed locally 2026-10-20 (merge `a163d61`, NO migration; local receipt archive + linked offline refunds + backend uuid resolution; PG gate OF); NOT pushed or deployed; see docs/plans/2026-10-20-a41-local-receipts.md | T30 |
 | A42 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T34 |
 | A43 | P1 | S0d-shift-decode / batch-envelope | Open; outer-envelope correction scoped accepted; readback/broader intake remain | T25 |
 | A44 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |

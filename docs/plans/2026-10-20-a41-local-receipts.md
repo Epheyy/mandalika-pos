@@ -71,3 +71,8 @@ Q1 refund requires a shift opened online: keep (no). Q2 local reprints/list omit
 
 ## 9. Residual risks for the reviewer
 Device clock decides "older than 7 days" (the newest-500 floor limits damage); archive is one value rewritten per ack batch (~1 MB through the bridge; split into day buckets later if slow); a uuid refund whose sale is in neither outbox nor archive is sent and at worst becomes a review item; cashier name on local reprints is "-".
+
+## Result (2026-10-20)
+- Merged to `prod-hardening` as `a163d61` (commits `2a8a3e0`..`3156a83`), NOT pushed or deployed. No migration, no OpenAPI change.
+- Gates on the branch tip: PG gate OF (port 56465, prefix OF instead of OR, since OR was taken by operation receipts) 27/27; `quality:ci`; `browser:ci` 29/29 (fixture UTC-vs-local-day fix in `b9c31a7`); both gen checks. Opus review Ship-with-minors, fixed.
+- Deviations from the plan: gate prefix OF/56465 instead of OR; device ids compared case-insensitively; a second pass in the same flush sends a held linked refund, and the shift op behind it, once its sale is acked; the archive keeps the newest 500 per outlet; `localReceipts` lists an acked row not yet archived as synced.

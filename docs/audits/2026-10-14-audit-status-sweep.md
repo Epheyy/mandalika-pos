@@ -6,7 +6,7 @@ A33 (refresh-token validity lives in Redis) and A36 (no backup workflow). P0s A0
 are done and not repeated here. Statuses: Resolved / Mostly / Partial / Open / Policy-blocked.
 
 Totals: Resolved 1 (A24) · Mostly 11 (A05 A12 A23 A26 A27 A29 A32 A34 A35 A40 A43) · Partial 9 (A07 A10 A18 A25 A28 A30 A37 A38 A42)
-· Open 13 (A08 A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A41 A44) · Policy-blocked 1 (A20).
+· Open 12 (A08 A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A44) · Policy-blocked 1 (A20) · A41 fixed locally 2026-10-20 (merge `a163d61`, not deployed).
 
 
 ---
@@ -195,7 +195,7 @@ Repo HEAD 33557cb (prod-hardening). Read-only; status judged from code, not trac
 - **Go-live blocker?**: no, assuming the owner accepts "refund then re-sell" as the interim procedure for exchanges. It is a business-process gap, not a data-integrity risk, provided staff use the refund path.
 
 ### A41 — An outbox is not a durable local receipt and return-history ledger
-- **Status**: Open
+- **Status**: Fixed locally 2026-10-20 (merge `a163d61`, NOT pushed or deployed; no migration). Plan `docs/plans/2026-10-20-a41-local-receipts.md`. The evidence below is the 2026-10-14 snapshot.
 - **Evidence**:
   - The latest receipt is still only in a ref: `CashierScreen.tsx:176` (`lastReceipt = useRef`), set at `:699` and reprinted from `:716-726`. It is lost on restart.
   - Order history reads `GET /api/v1/orders` with an online-snapshot cache (`OrderHistoryPanel.tsx:68-88`, `lib/offlineCache`). It has no tie to the durable journal; queued sales are not shown.
