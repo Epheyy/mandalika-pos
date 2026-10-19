@@ -18,6 +18,7 @@ import { Badge } from '../../ui/Badge'
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { OutletFormModal } from '../inventory/OutletFormModal'
+import { outletToggleBody } from '../inventory/outletBody'
 import { WarehouseFormModal } from '../inventory/WarehouseFormModal'
 
 export function LocationsSection() {
@@ -78,14 +79,7 @@ export function LocationsSection() {
   const toggleOutlet = async (o: Outlet) => {
     try {
       setToggleErr(null)
-      await api.updateOutlet(o.id, {
-        name: o.name,
-        code: o.code || '',
-        address: o.address || '',
-        phone: o.phone || '',
-        logoUrl: o.logoUrl ?? null,
-        isActive: !o.isActive,
-      })
+      await api.updateOutlet(o.id, outletToggleBody(o))
       await ouq.refetch()
       refreshOutlets()
     } catch (e: unknown) {
