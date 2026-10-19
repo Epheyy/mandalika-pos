@@ -1904,8 +1904,9 @@ components:
           additionalProperties: true
           description: >-
             Per-type body. For transfer_receive (A08) it carries transferId, items,
-            discrepancyReason, approverUserId and approvalGrantId (from
-            createTransferReceiveApproval); it never carries a pin. An item without a
+            discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it
+            never carries a pin, and the server ignores any approverUserId (the approver is the
+            grant's). An item without a
             usable grant is refused as forbidden and goes to review.
         # Optional and NOT nullable: openapi-typescript drops nullable on $ref schemas, so
         # "absent" is the only legacy/unset form (A04). Sibling of payload, never inside it.
@@ -2356,6 +2357,13 @@ components:
         expiresAt: { type: string, format: date-time }
         approverUserId: { type: string, format: uuid }
         approverName: { type: string }
+    ReceiveApprovalLocked:
+      type: object
+      required: [error, retryAfterSeconds, hardLocked]
+      properties:
+        error: { type: string }
+        retryAfterSeconds: { type: integer, minimum: 0, description: Remaining soft-lock time; 0 on a hard lock. }
+        hardLocked: { type: boolean, description: Only an admin action clears a hard lock. }
     TransferReceiveApprovalResponse:
       type: object
       required: [data]
@@ -4983,7 +4991,12 @@ paths:
         '404': { description: transfer not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: "transfer not in transit, or this receipt key was already used", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429':
-          description: locked out after repeated wrong PINs; see Retry-After (seconds)
+          description: locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReceiveApprovalLocked' } } }
+        '503':
+          description: lock wait timed out or the database is busy; nothing was verified, retry after Retry-After
           headers:
             Retry-After: { schema: { type: integer } }
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
@@ -5106,6 +5119,8 @@ paths:
         '400': { description: invalid user id, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: user not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '500': { description: database error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/users/{id}/receive-pin:
     put:
       operationId: setUserReceivePin

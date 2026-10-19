@@ -3769,7 +3769,7 @@ export interface components {
             /** @enum {string} */
             type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
-            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason, approverUserId and approvalGrantId (from createTransferReceiveApproval); it never carries a pin. An item without a usable grant is refused as forbidden and goes to review. */
+            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. */
             payload: {
                 [key: string]: unknown;
             };
@@ -4144,6 +4144,13 @@ export interface components {
             /** Format: uuid */
             approverUserId: string;
             approverName: string;
+        };
+        ReceiveApprovalLocked: {
+            error: string;
+            /** @description Remaining soft-lock time; 0 on a hard lock. */
+            retryAfterSeconds: number;
+            /** @description Only an admin action clears a hard lock. */
+            hardLocked: boolean;
         };
         TransferReceiveApprovalResponse: {
             data: components["schemas"]["TransferReceiveApproval"];
@@ -8600,8 +8607,18 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description locked out after repeated wrong PINs; see Retry-After (seconds) */
+            /** @description locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body */
             429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveApprovalLocked"];
+                };
+            };
+            /** @description lock wait timed out or the database is busy; nothing was verified, retry after Retry-After */
+            503: {
                 headers: {
                     "Retry-After"?: number;
                     [name: string]: unknown;
@@ -8794,6 +8811,24 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            /** @description user not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description database error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     setUserReceivePin: {
