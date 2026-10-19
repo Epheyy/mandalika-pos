@@ -1,4 +1,4 @@
-import { readJSON, type KV } from './storage'
+import type { KV } from './storage'
 import type { OutboxItem } from './outbox'
 
 /** Durable key: receipts of sales made on this tablet that the server has acknowledged (A41). */
@@ -108,35 +108,49 @@ export function prunable(entries: readonly ReceiptEntry[], ctx: ReceiptContext, 
 export class ReceiptArchive {
   /** Serializes {@link addMany}: each call reads the stored list only after the previous write landed. */
   private chain: Promise<unknown> = Promise.resolve()
+  /** The parsed list for the raw stored value it was parsed from: a read does not re-parse an unchanged value
+   *  (the archive can hold ~500 receipts and the POS asks for it on every render of the receipt surfaces). */
+  private cacheRaw: string | null = null
+  private cacheList: readonly ReceiptEntry[] = []
 
   constructor(private kv: KV) {}
 
-  entries(): ReceiptEntry[] {
-    const raw = readJSON<unknown>(this.kv, RECEIPT_ARCHIVE_KEY, [])
-    if (!Array.isArray(raw)) return []
-    return raw.filter(
-      (e): e is ReceiptEntry =>
-        !!e && typeof e.orderUuid === 'string' && e.orderUuid !== '' && typeof e.orderNumber === 'string' && typeof e.capturedAt === 'string',
-    )
+  /** Read only: the returned list is shared with the cache. */
+  entries(): readonly ReceiptEntry[] {
+    const raw = this.kv.get(RECEIPT_ARCHIVE_KEY)
+    if (raw === this.cacheRaw) return this.cacheList
+    const list = parseEntries(raw)
+    this.cacheRaw = raw
+    this.cacheList = list
+    return list
   }
 
-  /** Merge `incoming` (dedupe by orderUuid; a known server id is kept), prune, and write if anything
-   *  changed. `context` is read inside the serialized chain so the prune sees the live outbox. */
+  /** Merge `incoming` (dedupe by orderUuid), prune, and write only if the result differs from what is stored.
+   *  An entry already archived keeps its archivedAt and a known server id, so folding the same acked row again
+   *  is not a change. `context` is read inside the serialized chain so the prune sees the live outbox. */
   addMany(incoming: readonly ReceiptEntry[], context: () => ReceiptContext, now: number = Date.now()): Promise<void> {
     const run = this.chain.then(() => {
+      const raw = this.kv.get(RECEIPT_ARCHIVE_KEY)
       const before = this.entries()
       const byUuid = new Map(before.map((e) => [e.orderUuid, e]))
       for (const e of incoming) {
         const prev = byUuid.get(e.orderUuid)
-        byUuid.delete(e.orderUuid)
-        byUuid.set(e.orderUuid, prev && !e.serverOrderId && prev.serverOrderId ? { ...e, serverOrderId: prev.serverOrderId } : e)
+        if (!prev) {
+          byUuid.set(e.orderUuid, e)
+          continue
+        }
+        const serverOrderId = e.serverOrderId ?? prev.serverOrderId
+        // Same position in the map (the entry was already there), same archivedAt: only real news changes the value.
+        byUuid.set(e.orderUuid, { ...e, archivedAt: prev.archivedAt, ...(serverOrderId ? { serverOrderId } : {}) })
       }
       const merged = [...byUuid.values()]
       const drop = prunable(merged, context(), now)
       const next = drop.size ? merged.filter((e) => !drop.has(e.orderUuid)) : merged
       const json = JSON.stringify(next)
-      if (json === JSON.stringify(before)) return undefined
+      if (json === (raw ?? '[]')) return undefined
       return this.kv.setDurable(RECEIPT_ARCHIVE_KEY, json).then(() => {
+        this.cacheRaw = json
+        this.cacheList = next
         // Q3: there is no hard cap, so the size is logged for the owner to watch (about 1-2 kB a receipt).
         console.info(`[sync] receipt archive: ${next.length} receipts, ${json.length} bytes`)
       })
@@ -149,4 +163,19 @@ export class ReceiptArchive {
   idle(): Promise<unknown> {
     return this.chain
   }
+}
+
+function parseEntries(raw: string | null): ReceiptEntry[] {
+  if (!raw) return []
+  let list: unknown
+  try {
+    list = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(list)) return []
+  return list.filter(
+    (e): e is ReceiptEntry =>
+      !!e && typeof e.orderUuid === 'string' && e.orderUuid !== '' && typeof e.orderNumber === 'string' && typeof e.capturedAt === 'string',
+  )
 }

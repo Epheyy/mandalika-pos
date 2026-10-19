@@ -199,6 +199,52 @@ describe('ReceiptArchive', () => {
     expect(info).toHaveBeenCalledTimes(1)
   })
 
+  it('M2: entries() parses the stored value once, not on every call, until the raw value changes', async () => {
+    const { kv } = controllableKV()
+    const a = new ReceiptArchive(kv)
+    await a.addMany([entry(1, DAY)], () => noCtx)
+    const reader = new ReceiptArchive(kv)
+    const parse = vi.spyOn(JSON, 'parse')
+    const first = reader.entries()
+    const calls = parse.mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+    for (let i = 0; i < 5; i++) expect(reader.entries()).toBe(first)
+    expect(parse.mock.calls.length).toBe(calls)
+    await a.addMany([entry(2, DAY)], () => noCtx) // the stored value changed: parsed again
+    expect(reader.entries().map((e) => e.orderUuid)).toEqual(['u1', 'u2'])
+    expect(parse.mock.calls.length).toBeGreaterThan(calls)
+  })
+
+  it('M2: a write needs no second parse of the archive and one stringify when nothing changed', async () => {
+    const { kv } = controllableKV()
+    const a = new ReceiptArchive(kv)
+    await a.addMany([entry(1, DAY)], () => noCtx)
+    const stringify = vi.spyOn(JSON, 'stringify')
+    await a.addMany([entry(1, DAY)], () => noCtx)
+    expect(stringify.mock.calls.length).toBeLessThanOrEqual(1)
+  })
+
+  it('L4: re-adding an unchanged receipt later keeps its archivedAt and does not rewrite the archive', async () => {
+    const { kv, ctl } = controllableKV()
+    const a = new ReceiptArchive(kv)
+    await a.addMany([entry(1, DAY, { archivedAt: NOW })], () => noCtx)
+    const writes = ctl.attempts.length
+    vi.setSystemTime(NOW + 60_000)
+    await a.addMany([entry(1, DAY, { archivedAt: NOW + 60_000 })], () => noCtx)
+    expect(ctl.attempts.length).toBe(writes)
+    expect(a.entries()[0].archivedAt).toBe(NOW)
+  })
+
+  it('L4: new information (a server id) is written, still keeping the original archivedAt', async () => {
+    const { kv, ctl } = controllableKV()
+    const a = new ReceiptArchive(kv)
+    await a.addMany([entry(1, DAY, { archivedAt: NOW })], () => noCtx)
+    const writes = ctl.attempts.length
+    await a.addMany([entry(1, DAY, { archivedAt: NOW + 5, serverOrderId: 'srv-1' })], () => noCtx)
+    expect(ctl.attempts.length).toBe(writes + 1)
+    expect(a.entries()[0]).toMatchObject({ serverOrderId: 'srv-1', archivedAt: NOW })
+  })
+
   it('is empty and safe on corrupt storage', () => {
     const { kv } = controllableKV({ [RECEIPT_ARCHIVE_KEY]: '{broken' })
     expect(new ReceiptArchive(kv).entries()).toEqual([])
