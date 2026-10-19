@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, createClient } from '@mandalika/api'
+import { SyncEngine } from '@mandalika/sync'
+import { controllableKV } from '../../../../packages/sync/src/testFixtures/controllableKV'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -157,13 +159,35 @@ describe('401 goes through the refresh path', () => {
 
   // A05: only a 401 from the refresh endpoint ends the session. Any other refusal
   // (proxy 400/403/404/407, a 200 without tokens) is an outage, not a revoked credential.
-  it.each([400, 403, 404, 407])('a refresh answered %i keeps the session (typed http, no logout)', async (status) => {
+  it.each([400, 403, 404, 407, 413, 422])('a refresh answered %i is no verdict: transient, session kept', async (status) => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json(401, { error: 'expired' }))
       .mockResolvedValueOnce(json(status, { error: 'proxy' }))
     const { api, onUnauthorized } = client()
-    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'http', status })
+    // Never the refresh endpoint's own status: callers would read 400/413/422 as "this body is bad".
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'invalid_response', status: 0 })
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  // End to end through the engine: the refresh endpoint's status must never be held against the queue.
+  it.each([400, 403, 404, 407, 413, 422])('a /sync/batch whose refresh answers %i keeps every item pending', async (status) => {
+    vi.stubGlobal('navigator', { onLine: true })
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      String(url).endsWith('/auth/refresh') ? json(status, { error: 'proxy' }) : json(401, { error: 'expired' }))
+    const { api, onUnauthorized } = client()
+    const kv = controllableKV().kv
+    const engine = new SyncEngine(api, {}, kv, { actor: null })
+    vi.stubGlobal('navigator', { onLine: false })
+    await engine.enqueue('order', { total: 1 })
+    await engine.enqueue('order', { total: 2 })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flush()
+    expect(engine.outbox.all()).toHaveLength(2)
+    expect(engine.reviewItems()).toHaveLength(0)
+    expect(engine.outbox.all().every((i) => i.status !== 'failed' || (i.attempts ?? 0) === 0)).toBe(true)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+    vi.stubGlobal('fetch', vi.fn())
   })
 
   it('a refresh answered 200 without an access token keeps the session (invalid_response)', async () => {
