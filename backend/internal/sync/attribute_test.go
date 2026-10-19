@@ -300,3 +300,12 @@ func TestBatchRefundForwardsAttributedShiftAndUser(t *testing.T) {
 		t.Fatalf("refund input %+v", got)
 	}
 }
+
+func TestAttributeAcceptsOfflineEvidenceAndUnknownKeys(t *testing.T) {
+	e := &Engine{Lookup: &fakeLookup{}}
+	raw := json.RawMessage(`{"v":1,"outletId":"X","userId":"u1","deviceId":"dev","capturedAt":"2026-10-19T08:00:00Z",` +
+		`"contact":{"at":"2026-10-19T07:00:00Z","sig":"s"},"contactDeviceAt":1,"offlineMs":2,"futureKey":{"a":1}}`)
+	if _, err := e.attribute(context.Background(), cashier(), BatchItem{IdempotencyKey: "dev:1", Envelope: raw}); err != nil {
+		t.Fatalf("new and unknown envelope keys must attribute: %v", err)
+	}
+}

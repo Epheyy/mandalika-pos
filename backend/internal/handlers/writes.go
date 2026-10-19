@@ -1049,6 +1049,19 @@ type loyaltyPreviewBody struct {
 	Items           []service.OrderItem `json:"items"`
 }
 
+// previewClock bounds the client-supplied preview time (A05): the preview is online-only,
+// so a clock more than the sync tolerance away from the server's is not trusted and the
+// server's time is used instead.
+func previewClock(c *time.Time, now time.Time) *time.Time {
+	if c == nil {
+		return nil
+	}
+	if d := c.Sub(now); d > syncpkg.ClockTolerance || d < -syncpkg.ClockTolerance {
+		return &now
+	}
+	return c
+}
+
 // LoyaltyPreview returns the product_reward free-item menus a customer qualifies
 // for on the current cart (online-only checkout preview; read-only).
 func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
@@ -1063,7 +1076,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 	// Same outlet resolution as CreateOrder (caller falls back to the user's home outlet), so the
 	// preview's clock matches the commit's.
 	c, _ := h.caller(r)
-	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, body.ClientCreatedAt, c.outletID)
+	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, previewClock(body.ClientCreatedAt, time.Now()), c.outletID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -1475,6 +1488,9 @@ func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	// A05: a 2xx here is the tablet's "last successful online contact"; sign it for the
+	// device so the offline cap does not trust the tablet's own clock.
+	v.Contact = h.Sync.ContactFor(r.URL.Query().Get("deviceId"))
 	writeJSON(w, http.StatusOK, map[string]any{"data": v})
 }
 

@@ -100,7 +100,36 @@ type CreateOrderInput struct {
 	Notes             string
 	ShiftID           string
 	ClientCreated     *time.Time
-	Offline           bool
+	// EvalTime and ClockSkew are set by the sync batch only (A05): the bounded time promo
+	// and loyalty rules run at when ClientCreated disagrees with the server's evidence.
+	// ClientCreated stays the recorded fact; EvalTime only changes the evaluation.
+	EvalTime  *time.Time
+	ClockSkew bool
+	Offline   bool
+}
+
+// pickSaleTime is the time promo and loyalty rules evaluate at: the bounded EvalTime,
+// else the client's capture time, else now.
+func pickSaleTime(evalTime, clientCreated *time.Time) time.Time {
+	switch {
+	case evalTime != nil:
+		return *evalTime
+	case clientCreated != nil:
+		return *clientCreated
+	}
+	return time.Now()
+}
+
+// withClockSkewWarning appends clock_skew to the discount warning reason when the sale's
+// clock was bounded and a promo or code was applied. It never removes a discount.
+func withClockSkewWarning(reason string, skew, promoApplied bool) string {
+	if !skew || !promoApplied {
+		return reason
+	}
+	if reason == "" {
+		return string(ViolationClockSkew)
+	}
+	return reason + "," + string(ViolationClockSkew)
 }
 
 // pendingStockException is a sale line found short of stock (or unresolved) while
@@ -223,10 +252,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	for _, it := range in.Items {
 		promoSubtotal += it.Subtotal
 	}
-	saleTime := time.Now()
-	if in.ClientCreated != nil {
-		saleTime = *in.ClientCreated
-	}
+	saleTime := pickSaleTime(in.EvalTime, in.ClientCreated)
 	// A28 Phase B: promo hours/days/dates and loyalty date triggers run on the ORDER OUTLET's
 	// clock. Unknown or missing outlet = Asia/Jakarta (the former fixed WIB).
 	saleZone, err := outletZone(ctx, tx, in.OutletID)
@@ -253,6 +279,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 	if err != nil {
 		return "", false, false, err
 	}
+	discountWarnReason = withClockSkewWarning(discountWarnReason, in.ClockSkew, len(promos) > 0 || len(appliedCodes) > 0)
 	discountWarning := discountWarnReason != ""
 
 	settings, err := loadAppSettings(ctx, tx)
@@ -577,7 +604,7 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 			VariantSize: it.VariantSize, Kind: x.kind, Quantity: it.Quantity,
 			StockBefore: x.stockBefore, StockAfter: x.stockAfter, Shortfall: x.shortfall,
 			Channel: channel, CashierID: in.CashierID, CashierName: in.CashierName,
-			ShiftID: in.ShiftID, DeviceID: in.DeviceID, SoldAt: saleTime,
+			ShiftID: in.ShiftID, DeviceID: in.DeviceID, SoldAt: pickSaleTime(nil, in.ClientCreated),
 		}); e != nil {
 			return "", false, false, e
 		}

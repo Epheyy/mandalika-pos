@@ -37,6 +37,10 @@ type Engine struct {
 	Now func() time.Time
 	// Lookup is injectable for tests; nil = queries on Pool.
 	Lookup attributionLookup
+	// ContactKey signs and verifies offline contacts (A05), derived from the access
+	// secret by DeriveContactKey. Empty = no signed contacts: /sync/version issues none
+	// and the cap uses the device-reported elapsed time alone.
+	ContactKey []byte
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -46,6 +50,9 @@ func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Rep
 type VersionInfo struct {
 	Version  int64           `json:"version"`
 	Manifest json.RawMessage `json:"dataManifest"`
+	// Contact is the signed online-contact proof, set by the handler when the request
+	// carried a device id (A05). Absent otherwise (omitempty: old clients unaffected).
+	Contact *ContactToken `json:"contact,omitempty"`
 }
 
 // Version returns the outlet content version, lazily seeding the row.
@@ -306,6 +313,31 @@ func (e *Engine) keyed(ctx context.Context, c Caller, it BatchItem, effect func(
 	return out.OrderID, nil
 }
 
+// replay is the already-applied probe shared by the attribution and offline-cap
+// refusals: an item whose key already landed returns the first attempt's result. A
+// failed probe is a retryable error, never a refusal.
+func (e *Engine) replay(ctx context.Context, c Caller, it BatchItem, r ItemResult, fail func(error) ItemResult) (ItemResult, bool) {
+	id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+	if aerr != nil {
+		return fail(aerr), true
+	}
+	if !applied {
+		return r, false
+	}
+	r.Status, r.OrderID = status, id
+	return r, true
+}
+
+// decodeEnvelope returns the item's envelope, or the zero value when absent or
+// unparseable (attribute has already refused unparseable ones).
+func decodeEnvelope(it BatchItem) Envelope {
+	var env Envelope
+	if len(it.Envelope) > 0 {
+		_ = json.Unmarshal(it.Envelope, &env)
+	}
+	return env
+}
+
 // Keep the refund mutation boundary injectable for isolated authorization tests.
 func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund refundFunc) ItemResult {
 	return e.processOneWithCommands(ctx, c, it, refund, e.Orders.CreateOrder)
@@ -332,16 +364,25 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 	c, err := e.attribute(ctx, c, it)
 	if err != nil {
 		if code, _ := apperr.CodeOf(err); code == apperr.ActorMismatch {
-			id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
-			if aerr != nil {
-				return fail(aerr)
-			}
-			if applied {
-				r.Status, r.OrderID = status, id
-				return r
+			if res, replayed := e.replay(ctx, c, it, r, fail); replayed {
+				return res
 			}
 		}
 		return fail(err)
+	}
+
+	// Offline cap (A05): an item captured more than 12 h after the tablet's last online
+	// contact is refused into review. The replay probe runs first, so a key that already
+	// landed replays as ok/duplicate and never becomes a review item. Never dropped.
+	env := decodeEnvelope(it)
+	if refuse, warn := capVerdict(it.Type, env, e.now(), e.ContactKey); refuse {
+		err := apperr.New(apperr.OfflineExpired, offlineExpiredMessage)
+		if res, replayed := e.replay(ctx, c, it, r, fail); replayed {
+			return res
+		}
+		return fail(err)
+	} else if warn != "" {
+		slog.Warn(warn, "type", it.Type, "idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
 	}
 
 	switch it.Type {
@@ -353,6 +394,11 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		shiftID, err := e.payloadShift(ctx, c, it, p.ShiftID)
 		if err != nil {
 			return fail(err)
+		}
+		evalTime, skew := boundSaleTime(readEvidence(env, e.now(), e.ContactKey), p.ClientCreatedAt, e.now())
+		if skew {
+			slog.Warn("sale clock disagrees with offline evidence; promo/loyalty evaluated at a bounded time",
+				"idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
 		}
 		in := service.CreateOrderInput{
 			IdempotencyKey:    it.IdempotencyKey,
@@ -385,6 +431,8 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			Notes:             p.Notes,
 			ShiftID:           shiftID,
 			ClientCreated:     p.ClientCreatedAt,
+			EvalTime:          evalTime,
+			ClockSkew:         skew,
 			Offline:           true,
 		}
 		id, dup, warn, err := createOrder(ctx, in)

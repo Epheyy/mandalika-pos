@@ -27,6 +27,12 @@ type Envelope struct {
 	CapturedAt time.Time `json:"capturedAt"`
 	ShiftID    string    `json:"shiftId"`
 	AppVersion string    `json:"appVersion"`
+	// Offline-cap evidence (A05), all optional so older bundles still attribute.
+	// Contact is the last server-signed online contact; ContactDeviceAt the device
+	// clock (ms) at that contact; OfflineMs the device-measured time offline at capture.
+	Contact         *ContactToken `json:"contact,omitempty"`
+	ContactDeviceAt *int64        `json:"contactDeviceAt,omitempty"`
+	OfflineMs       *int64        `json:"offlineMs,omitempty"`
 }
 
 const envelopeVersion = 1

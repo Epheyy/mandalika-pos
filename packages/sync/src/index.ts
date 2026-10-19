@@ -28,3 +28,5 @@ export { canAttempt, recordFailure, reset as resetLockout, MAX_PIN_ATTEMPTS, LOC
 export type { Lockout } from './lockout'
 export { redactForLogs, redactSecrets, redactString, REDACTED } from './redact'
 export type { RedactTier } from './redact'
+export { OfflineContact, offlineCapState, OFFLINE_CAP_MS, OFFLINE_WARN_MS } from './offlineContact'
+export type { OfflineCapState, OfflineLevel, ContactRecord } from './offlineContact'

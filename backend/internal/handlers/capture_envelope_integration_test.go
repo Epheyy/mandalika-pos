@@ -297,6 +297,14 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 			t.Fatalf("unknown shift stored as %v err=%v", got, err)
 		}
 	})
+	sub("6b an envelope with A05 evidence and unknown extra keys is accepted (v stays 1)", func(t *testing.T) {
+		e := envelope(outX, userX, device, "")
+		e["contact"] = map[string]any{"at": time.Now().UTC().Format(time.RFC3339Nano), "sig": "not-verified-here"}
+		e["contactDeviceAt"] = time.Now().Add(-time.Minute).UnixMilli()
+		e["offlineMs"] = 60000
+		e["someFutureKey"] = map[string]any{"a": 1}
+		wantOK("extra keys", flush(tokX, "", item("order", "extra-keys", orderPayload(nil), e)))
+	})
 	sub("7 every operation type is attributed to the envelope outlet", func(t *testing.T) {
 		// Admin flushes with header Y; everything was captured at X.
 		wantOK("order", flush(tokAdmin, outY, item("order", "op-order", orderPayload(nil), envelope(outX, adminU, device, ""))))

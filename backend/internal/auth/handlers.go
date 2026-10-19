@@ -212,8 +212,8 @@ type refreshReq struct {
 
 // Refresh answers only 200, 401 (a definitive no), 429 (limiter), or 5xx (no
 // verdict; the client keeps the session) -- plus 400 for a malformed body the
-// client never sends. The client treats any other non-OK status as "rejected"
-// and logs the tablet out.
+// client never sends. The client logs the tablet out on 401 alone (A05); any other
+// non-OK status is no verdict and keeps the session.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
 	r.Body = http.MaxBytesReader(w, r.Body, maxRefreshBody)

@@ -19,6 +19,7 @@ const (
 	Busy             Code = "busy"              // lock conflict; nothing applied, retry later
 	Internal         Code = "internal"          // unclassified; treat as retryable
 	ActorMismatch    Code = "actor_mismatch"    // capture-time envelope does not match the caller (A04)
+	OfflineExpired   Code = "offline_expired"   // captured more than 12 h after the last online contact (A05)
 )
 
 // Coded is implemented by errors that carry an outcome code.

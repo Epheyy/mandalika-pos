@@ -4,6 +4,7 @@ import { id } from 'date-fns/locale'
 const REASONS: Record<string, string> = {
   forbidden: 'Ditolak: tidak berwenang / PIN salah',
   actor_mismatch: 'Dibuat oleh akun lain',
+  offline_expired: 'Offline lebih dari 12 jam',
   competing_receipt: 'Transfer sudah diterima tablet lain',
   rejected: 'Ditolak server',
   conflict: 'Ditolak server',
@@ -15,6 +16,7 @@ export const REASON_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: '', label: 'Semua alasan' },
   { id: 'forbidden', label: REASONS.forbidden },
   { id: 'actor_mismatch', label: REASONS.actor_mismatch },
+  { id: 'offline_expired', label: REASONS.offline_expired },
   { id: 'competing_receipt', label: REASONS.competing_receipt },
   { id: 'rejected', label: 'Ditolak server (rejected)' },
   { id: 'conflict', label: 'Ditolak server (conflict)' },
