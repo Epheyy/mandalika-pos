@@ -18,8 +18,8 @@ const (
 
 // evaluateQuote judges a client quote against the server total. A nil quote is
 // "no quote" (old outbox items): stored NULL, no flag. An unusable quote (NaN,
-// infinite, negative, over numeric(14,2), snapshot over 64 KB or not a JSON
-// object) is stored NULL with QuoteInvalid. Comparison is in whole cents with the
+// infinite, negative, over numeric(14,2), snapshot missing/null, over 64 KB or not a
+// JSON object) is stored NULL with QuoteInvalid. Comparison is in whole cents with the
 // same Rp1 tolerance as the tender rules.
 func evaluateQuote(quoted *float64, snap json.RawMessage, finalTotal float64) (stored *float64, reason string) {
 	if quoted == nil {
@@ -29,7 +29,9 @@ func evaluateQuote(quoted *float64, snap json.RawMessage, finalTotal float64) (s
 	if math.IsNaN(q) || math.IsInf(q, 0) || q < 0 || math.Round(q*100) > quoteMaxCents {
 		return nil, QuoteInvalid
 	}
-	if len(snap) > 0 && !validSnapshot(snap) {
+	// A real quote always carries a valid snapshot object, so receipt_snapshot IS NOT NULL
+	// means "real quote" everywhere. JSON null counts as absent.
+	if !validSnapshot(snap) {
 		return nil, QuoteInvalid
 	}
 	diff := int64(math.Round(q*100)) - int64(math.Round(finalTotal*100))

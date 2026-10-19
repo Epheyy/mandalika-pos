@@ -3185,7 +3185,10 @@ export interface components {
             stockWarning?: boolean;
             tenderWarning?: boolean;
             tenderWarningReason?: string | null;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Total the cashier showed; present only for a real quote (one stored with a receipt snapshot), else null
+             */
             quotedTotal?: number | null;
             quoteWarning?: boolean;
             /** @description quote_mismatch (more than Rp1 off the server total) or quote_invalid (unusable quote, stored NULL) */

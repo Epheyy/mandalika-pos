@@ -231,6 +231,8 @@ func TestQuotedReceiptPostgres(t *testing.T) {
 				{"quotedTotal": -5, "receiptSnapshot": snapshot(100000)},
 				{"quotedTotal": 1e13},
 				{"quotedTotal": 100000, "receiptSnapshot": []int{1}},
+				{"quotedTotal": 100000},
+				{"quotedTotal": 100000, "receiptSnapshot": nil},
 			} {
 				key := fmt.Sprintf("invalid-%s-%d", route, i)
 				if code, st := send(route, key, payload(bad)); !accepted(route, code, st) {
@@ -294,6 +296,29 @@ func TestQuotedReceiptPostgres(t *testing.T) {
 		after := load(key)
 		if after.snap == nil || *after.snap != *before.snap || *after.quoted != *before.quoted || after.warn != before.warn {
 			t.Fatalf("refund touched the quote: %+v vs %+v", before, after)
+		}
+	})
+
+	sub("read API returns quotedTotal only for a real quote", func(t *testing.T) {
+		// A pre-0058 row (or one written by the old revision) has quoted_total == total and no snapshot.
+		send("batch", "read-legacy", payload(nil))
+		exec(`UPDATE orders SET quoted_total=total WHERE idempotency_key='read-legacy'`)
+		send("batch", "read-real", payload(map[string]any{"quotedTotal": 100000, "receiptSnapshot": snapshot(100000)}))
+		for key, want := range map[string]any{"read-legacy": nil, "read-real": float64(100000)} {
+			var id string
+			if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE idempotency_key=$1`, key).Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			w := do(router, "GET", "/orders/"+id, "", nil)
+			var out struct {
+				Data map[string]any `json:"data"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 {
+				t.Fatalf("%d %s", w.Code, w.Body.String())
+			}
+			if got, ok := out.Data["quotedTotal"]; !ok || got != want {
+				t.Fatalf("%s: quotedTotal=%v present=%v, want %v", key, got, ok, want)
+			}
 		}
 	})
 

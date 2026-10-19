@@ -3,8 +3,9 @@
 -- quoted_total already exists (migration 0002). Before this migration it was written
 -- with the server's OWN recomputed total, so every pre-0058 row has quoted_total == total
 -- and carries no real quote. This migration deliberately does NOT rewrite those rows:
--- receipt_snapshot IS NULL is what marks "no real quote" (a real quote always has a
--- snapshot, or is NULL when the client sent none / an invalid one).
+-- receipt_snapshot IS NOT NULL is what marks a real quote: the server stores a quote only
+-- together with a valid snapshot object (otherwise quoted_total is NULL, quote_invalid),
+-- and the read API returns quotedTotal only when a snapshot exists.
 --
 -- receipt_snapshot: the client's printed receipt (money + lines, no customer name or
 -- phone), stored exactly as sent. Never exposed in list JSON, never changed by a refund.

@@ -1332,8 +1332,8 @@ components:
         stockWarning: { type: boolean }
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
-        # A10: the total the POS showed/printed (NULL = no real quote). Flag-only.
-        quotedTotal: { type: number, format: double, nullable: true }
+        # A10: the total the POS showed/printed (null = no real quote). Flag-only.
+        quotedTotal: { type: number, format: double, nullable: true, description: 'Total the cashier showed; present only for a real quote (one stored with a receipt snapshot), else null' }
         quoteWarning: { type: boolean }
         quoteWarningReason: { type: string, nullable: true, description: 'quote_mismatch (more than Rp1 off the server total) or quote_invalid (unusable quote, stored NULL)' }
         surchargeType: { type: string, nullable: true }
