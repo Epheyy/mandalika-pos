@@ -154,4 +154,25 @@ describe('401 goes through the refresh path', () => {
     expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ status: 401, kind: 'http' })
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
+
+  // A05: only a 401 from the refresh endpoint ends the session. Any other refusal
+  // (proxy 400/403/404/407, a 200 without tokens) is an outage, not a revoked credential.
+  it.each([400, 403, 404, 407])('a refresh answered %i keeps the session (typed http, no logout)', async (status) => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'expired' }))
+      .mockResolvedValueOnce(json(status, { error: 'proxy' }))
+    const { api, onUnauthorized } = client()
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'http', status })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('a refresh answered 200 without an access token keeps the session (invalid_response)', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'expired' }))
+      .mockResolvedValueOnce(json(200, { data: {} }))
+    const { api, onUnauthorized, onTokens } = client()
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ kind: 'invalid_response', status: 0 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    expect(onTokens).not.toHaveBeenCalled()
+  })
 })

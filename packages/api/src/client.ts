@@ -428,13 +428,13 @@ export function createClient(opts: ClientOptions): Api {
             body: JSON.stringify({ refresh: rt }),
             signal: controller.signal,
           })
-          if (res.status >= 500 || res.status === 429) {
-            return new ApiError(res.status, `pembaruan sesi belum tersedia (${res.status})`)
-          }
-          if (!res.ok) return 'rejected'
+          // A05: only a 401 is the server refusing the refresh token. Any other non-OK
+          // answer (5xx/429, a proxy's 400/403/404/407) is no verdict on the session.
+          if (res.status === 401) return 'rejected'
+          if (!res.ok) return new ApiError(res.status, `pembaruan sesi belum tersedia (${res.status})`)
           const j = await res.json()
           const d = (j?.data ?? j) as AuthData
-          if (!d?.access) return 'rejected'
+          if (!d?.access) return new ApiError(0, 'respons pembaruan sesi tidak valid', 'invalid_response')
           opts.onTokens?.(d)
           return 'ok'
         } catch (e) {
