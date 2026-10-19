@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -89,7 +90,7 @@ func (e *Engine) refundSaleID(ctx context.Context, tx pgx.Tx, outletID, orderID,
 	if err != nil {
 		return "", err
 	}
-	if saleDevice != deviceID || deviceID == "" {
+	if deviceID == "" || !strings.EqualFold(saleDevice, deviceID) {
 		return "", service.ErrRefundSaleOtherDevice
 	}
 	if orderID != "" && orderID != id {
