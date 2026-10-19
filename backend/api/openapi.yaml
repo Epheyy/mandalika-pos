@@ -1292,9 +1292,9 @@ components:
         productId: { type: string }
         productName: { type: string }
         variantSize: { type: string }
-        price: { type: number }
+        price: { type: number, format: double }
         quantity: { type: integer }
-        subtotal: { type: number }
+        subtotal: { type: number, format: double }
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
@@ -1315,10 +1315,10 @@ components:
         customerId: { type: string, nullable: true }
         customerName: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/CartItem' } }
-        subtotal: { type: number }
-        discountAmount: { type: number }
+        subtotal: { type: number, format: double }
+        discountAmount: { type: number, format: double }
         discountType: { type: string, nullable: true }
-        discountValue: { type: number, nullable: true }
+        discountValue: { type: number, format: double, nullable: true }
         discountCode: { type: string, nullable: true }
         # Human-readable discount source (promotion name / promo code / "Manual").
         discountLabel: { type: string, nullable: true }
@@ -1333,13 +1333,13 @@ components:
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
-        surchargeValue: { type: number, nullable: true }
-        surchargeAmount: { type: number, nullable: true }
-        taxAmount: { type: number }
-        total: { type: number }
+        surchargeValue: { type: number, format: double, nullable: true }
+        surchargeAmount: { type: number, format: double, nullable: true }
+        taxAmount: { type: number, format: double }
+        total: { type: number, format: double }
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
-        amountPaid: { type: number }
-        change: { type: number }
+        amountPaid: { type: number, format: double }
+        change: { type: number, format: double }
         status: { type: string, enum: [completed, refunded, cancelled] }
         notes: { type: string, nullable: true }
         refundReason: { type: string, nullable: true }
@@ -1357,8 +1357,8 @@ components:
       properties:
         label: { type: string }
         kind: { type: string, nullable: true }
-        value: { type: number, nullable: true }
-        amount: { type: number }
+        value: { type: number, format: double, nullable: true }
+        amount: { type: number, format: double }
     ErrorBreadcrumb:
       type: object
       required: [at, label]
@@ -1438,30 +1438,30 @@ components:
         status: { type: string, enum: [open, closed] }
         openedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time, nullable: true }
-        startingCash: { type: number }
-        closingCash: { type: number, nullable: true }
-        totalSales: { type: number }
+        startingCash: { type: number, format: double }
+        closingCash: { type: number, format: double, nullable: true }
+        totalSales: { type: number, format: double }
         totalOrders: { type: integer }
-        totalRefunds: { type: number }
-        cashSales: { type: number }
-        cardSales: { type: number }
-        transferSales: { type: number }
-        qrisSales: { type: number }
+        totalRefunds: { type: number, format: double }
+        cashSales: { type: number, format: double }
+        cardSales: { type: number, format: double }
+        transferSales: { type: number, format: double }
+        qrisSales: { type: number, format: double }
         # Per-method counted cash entered by the cashier at close (reconciliation
         # "Terhitung"). Keys are payment-method ids; null when not reconciled.
         countedByMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
           nullable: true
         # A06: refunds this shift paid out for sales of OTHER shifts. Live while the
         # shift is open, a close-time snapshot afterwards (null on shifts closed
         # before the field existed). cashRefundsPaid is its cash part by the isCash rule:
         # computed live while open, the snapshot once closed, null when closed before
         # the field existed.
-        cashRefundsPaid: { type: number, nullable: true }
+        cashRefundsPaid: { type: number, format: double, nullable: true }
         refundsPaidByMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
           nullable: true
     ShiftListResponse:
       type: object
@@ -1527,7 +1527,7 @@ components:
         outletId: { type: string, format: uuid }
         shiftId: { type: string, nullable: true }
         type: { type: string }
-        amount: { type: number }
+        amount: { type: number, format: double }
         description: { type: string }
         cashierId: { type: string, nullable: true }
         cashierName: { type: string, nullable: true }

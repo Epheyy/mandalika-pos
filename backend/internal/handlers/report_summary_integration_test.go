@@ -413,6 +413,22 @@ func TestReportSummaryPostgres(t *testing.T) {
 				}
 			}
 		})
+		t.Run("order-total-above-2^24-round-trips-exactly", func(t *testing.T) {
+			exec(`DELETE FROM order_items`)
+			exec(`DELETE FROM orders`)
+			id := "00000000-0000-4000-8703-000000000001"
+			exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,created_at) VALUES($1,$1,'A26-BIG','A26-BIG',$2,$3,'Kasir Ani',20000001,20000001,'cash','completed','2026-03-02T05:00:00Z')`, id, outletA, cashier)
+			code, body := get(t, "admin", "", "/api/v1/orders?outletId="+outletA)
+			if code != 200 {
+				t.Fatalf("%d %s", code, body)
+			}
+			var r struct {
+				Data []struct{ Total, Subtotal float64 }
+			}
+			if err := json.Unmarshal(body, &r); err != nil || len(r.Data) != 1 || r.Data[0].Total != 20000001 || r.Data[0].Subtotal != 20000001 {
+				t.Fatalf("Rp 20,000,001 did not round-trip: %v %s", err, body)
+			}
+		})
 	})
 	if path := os.Getenv("MANDALIKA_A27_TEST_OUTPUT"); path != "" {
 		raw, err := json.MarshalIndent(evidence, "", "  ")

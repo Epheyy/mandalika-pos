@@ -1072,7 +1072,7 @@ func (r *Repo) fillOpenCashRefunds(ctx context.Context, shifts []api.Shift) erro
 				}
 			}
 		}
-		shifts[i].CashRefundsPaid = nullable.NewNullableWithValue(float32(cash))
+		shifts[i].CashRefundsPaid = nullable.NewNullableWithValue(cash)
 	}
 	return nil
 }

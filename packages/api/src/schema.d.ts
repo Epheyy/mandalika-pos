@@ -3145,8 +3145,10 @@ export interface components {
             productId: string;
             productName: string;
             variantSize: string;
+            /** Format: double */
             price: number;
             quantity: number;
+            /** Format: double */
             subtotal: number;
             isBundle?: boolean;
             isReward?: boolean;
@@ -3168,9 +3170,12 @@ export interface components {
             customerId?: string | null;
             customerName?: string | null;
             items: components["schemas"]["CartItem"][];
+            /** Format: double */
             subtotal: number;
+            /** Format: double */
             discountAmount: number;
             discountType?: string | null;
+            /** Format: double */
             discountValue?: number | null;
             discountCode?: string | null;
             discountLabel?: string | null;
@@ -3181,13 +3186,19 @@ export interface components {
             tenderWarning?: boolean;
             tenderWarningReason?: string | null;
             surchargeType?: string | null;
+            /** Format: double */
             surchargeValue?: number | null;
+            /** Format: double */
             surchargeAmount?: number | null;
+            /** Format: double */
             taxAmount: number;
+            /** Format: double */
             total: number;
             /** @description configured payment method id (free-form since migration 0005) */
             paymentMethod: string;
+            /** Format: double */
             amountPaid: number;
+            /** Format: double */
             change: number;
             /** @enum {string} */
             status: "completed" | "refunded" | "cancelled";
@@ -3205,7 +3216,9 @@ export interface components {
         DiscountComponent: {
             label: string;
             kind?: string | null;
+            /** Format: double */
             value?: number | null;
+            /** Format: double */
             amount: number;
         };
         ErrorBreadcrumb: {
@@ -3277,18 +3290,27 @@ export interface components {
             openedAt: string;
             /** Format: date-time */
             closedAt?: string | null;
+            /** Format: double */
             startingCash: number;
+            /** Format: double */
             closingCash?: number | null;
+            /** Format: double */
             totalSales: number;
             totalOrders: number;
+            /** Format: double */
             totalRefunds: number;
+            /** Format: double */
             cashSales: number;
+            /** Format: double */
             cardSales: number;
+            /** Format: double */
             transferSales: number;
+            /** Format: double */
             qrisSales: number;
             countedByMethod?: {
                 [key: string]: number;
             } | null;
+            /** Format: double */
             cashRefundsPaid?: number | null;
             refundsPaidByMethod?: {
                 [key: string]: number;
@@ -3358,6 +3380,7 @@ export interface components {
             outletId: string;
             shiftId?: string | null;
             type: string;
+            /** Format: double */
             amount: number;
             description: string;
             cashierId?: string | null;
