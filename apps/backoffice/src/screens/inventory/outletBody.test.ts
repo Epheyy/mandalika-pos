@@ -15,11 +15,19 @@ describe('outletFormBody', () => {
   })
 })
 
+describe('outletFormBody without a timezone', () => {
+  it('omits the key', () => {
+    const body = outletFormBody({ name: 'A', code: 'AA', address: '', phone: '', isActive: true, logoUrl: undefined, timezone: undefined }, 'AA')
+    expect('timezone' in body).toBe(false)
+  })
+})
+
 describe('outletToggleBody', () => {
   it('keeps the outlet timezone when only the active flag flips', () => {
     expect(outletToggleBody(outlet())).toMatchObject({ isActive: false, timezone: 'Asia/Makassar' })
   })
-  it('falls back to Asia/Jakarta for an older cached outlet without a timezone', () => {
-    expect(outletToggleBody(outlet({ timezone: undefined as unknown as Outlet['timezone'] })).timezone).toBe('Asia/Jakarta')
+  it('omits the timezone key for an older cached outlet without one (server keeps its zone)', () => {
+    const body = outletToggleBody(outlet({ timezone: undefined as unknown as Outlet['timezone'] }))
+    expect('timezone' in body).toBe(false)
   })
 })

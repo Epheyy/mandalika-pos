@@ -38,7 +38,7 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
           phone: editing.phone || '',
           isActive: editing.isActive,
           logoUrl: editing.logoUrl ?? undefined,
-          timezone: editing.timezone ?? DEFAULT_TIMEZONE,
+          timezone: editing.timezone,
         }
       : EMPTY_FORM,
   )
@@ -156,7 +156,7 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
         <div>
           <Select
             label="Zona Waktu"
-            value={form.timezone}
+            value={form.timezone ?? DEFAULT_TIMEZONE}
             onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value as OutletTimezone }))}
           >
             {OUTLET_TIMEZONES.map((z) => (

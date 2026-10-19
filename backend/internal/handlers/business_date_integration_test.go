@@ -267,7 +267,11 @@ func TestBusinessDatePostgres(t *testing.T) {
 		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,$3,'BD','closed','2026-10-12T01:00:00Z','2026-10-12T15:00:00Z',0)`, shiftClosedW, outW, userW)
 		shiftCols := `SELECT concat_ws('|',status,total_sales,total_orders,total_refunds,cash_sales,closing_cash) FROM shifts WHERE id=$1`
 		shiftBefore := str(shiftCols, shiftClosedW)
-		key := batch("late-closed", payload(map[string]any{"shiftId": shiftClosedW, "clientCreatedAt": "2026-10-12T13:00:00Z"}), envelope(shiftClosedW))
+		key := batch("late-closed", payload(map[string]any{"shiftId": shiftClosedW, "clientCreatedAt": "2026-10-14T05:00:00Z"}), envelope(shiftClosedW))
+		// The device time is on 10-14 (never the shift's day), so only the stored shift id can give 10-12.
+		if got := str(`SELECT shift_id::text FROM orders WHERE idempotency_key=$1`, key); got != shiftClosedW {
+			t.Fatalf("sync must keep the closed shift id on the order, got %s", got)
+		}
 		if got := bd(key); got != "2026-10-12" {
 			t.Fatalf("late sale on a closed shift: business_date=%s want 2026-10-12", got)
 		}
@@ -334,6 +338,12 @@ func TestBusinessDatePostgres(t *testing.T) {
 		}
 		if got := str(`SELECT refund_business_date::text FROM orders WHERE idempotency_key='w-1715'`); got != "<null>" {
 			t.Errorf("an unrefunded sale must have no refund date: %s", got)
+		}
+		// A row inserted already refunded (import path) is stamped by the INSERT trigger.
+		exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,created_at,refunded_at)
+			VALUES('00000000-0000-4000-8b01-000000009001','00000000-0000-4000-8b01-000000009001','m-ins-ref','m-ins-ref',$1,$2,'BD',5,5,'cash','refunded','2026-10-18T03:00:00Z','2026-10-19T16:50:00Z')`, outM, userW)
+		if got := str(`SELECT refund_business_date::text FROM orders WHERE idempotency_key='m-ins-ref'`); got != "2026-10-20" {
+			t.Errorf("insert-as-refunded at the WITA outlet: refund_business_date=%s want 2026-10-20", got)
 		}
 		// The real refund route stamps it too.
 		id := order("w-refund-route", outW, "", 10, "2026-10-19T03:00:00Z", "")

@@ -69,6 +69,13 @@ BEGIN
   IF NEW.business_date IS NULL THEN
     NEW.business_date := order_business_date(NEW.outlet_id, NEW.shift_id, NEW.client_created_at, NEW.created_at);
   END IF;
+  -- A row inserted already refunded (Firestore import, fixtures) gets its refund date the way
+  -- the UPDATE trigger below would give it.
+  IF NEW.status = 'refunded' AND NEW.refund_business_date IS NULL THEN
+    NEW.refund_business_date := COALESCE(
+      (SELECT s.business_date FROM shifts s WHERE s.id = NEW.refund_shift_id),
+      business_date_at(NEW.outlet_id, COALESCE(NEW.refunded_at, NEW.created_at)));
+  END IF;
   RETURN NEW;
 END
 $$;
