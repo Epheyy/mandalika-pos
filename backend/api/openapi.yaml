@@ -29,6 +29,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    WIBDateFrom:
+      name: dateFrom
+      in: query
+      required: false
+      description: Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      schema: { type: string, format: date }
+    WIBDateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      schema: { type: string, format: date }
+    OrderStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema: { type: string, enum: [completed, refunded, cancelled] }
+    OrderPaymentMethodFilter:
+      name: paymentMethod
+      in: query
+      required: false
+      description: Matched case-insensitively after trimming whitespace.
+      schema: { type: string }
+    OrderSearch:
+      name: q
+      in: query
+      required: false
+      description: Substring match on order number, cashier name, customer name, or linked customer phone/name.
+      schema: { type: string }
     OutletHeader:
       name: X-Outlet-Id
       in: header
@@ -1622,29 +1651,33 @@ components:
         productId: { type: string }
         productName: { type: string }
         quantity: { type: integer }
-        revenue: { type: number }
+        revenue: { type: number, format: double }
     DailySalesRow:
       type: object
       required: [date, sales, orders]
       properties:
         date: { type: string }
-        sales: { type: number }
+        sales: { type: number, format: double }
         orders: { type: integer }
     ReportSummary:
       type: object
-      required: [from, to, totalSales, totalOrders, totalRefunds, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      required: [totalSales, totalOrders, totalRefunds, refundedOrders, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      description: |
+        Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
+        `from`/`to` echo the lower/upper instant actually applied; null when that side is unbounded.
       properties:
-        from: { type: string, format: date-time }
-        to: { type: string, format: date-time }
+        from: { type: string, format: date-time, nullable: true }
+        to: { type: string, format: date-time, nullable: true }
         outletId: { type: string, nullable: true }
-        totalSales: { type: number }
+        totalSales: { type: number, format: double }
         totalOrders: { type: integer }
-        totalRefunds: { type: number }
-        netSales: { type: number }
-        avgOrderValue: { type: number }
+        totalRefunds: { type: number, format: double }
+        refundedOrders: { type: integer }
+        netSales: { type: number, format: double }
+        avgOrderValue: { type: number, format: double }
         byPaymentMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
         topProducts: { type: array, items: { $ref: '#/components/schemas/ProductSalesRow' } }
         dailySales: { type: array, items: { $ref: '#/components/schemas/DailySalesRow' } }
     ReportSummaryResponse:
@@ -4079,12 +4112,26 @@ paths:
         - name: customerId
           in: query
           schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          description: Legacy (POS) lower bound, a YYYY-MM-DD read as a UTC day. Meaning unchanged; prefer dateFrom.
+          schema: { type: string }
+        - name: to
+          in: query
+          description: Legacy (POS) inclusive upper day (YYYY-MM-DD, UTC day). Meaning unchanged; prefer dateTo.
+          schema: { type: string }
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
+        - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/OrderPaymentMethodFilter'
+        - $ref: '#/components/parameters/OrderSearch'
       responses:
         '200':
           description: orders
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderListResponse' }
+        '400': { description: invalid date or status filter }
   /api/v1/orders/{id}:
     parameters:
       - name: id
@@ -4130,12 +4177,15 @@ paths:
         - $ref: '#/components/parameters/OutletHeader'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
       responses:
         '200':
-          description: shifts
+          description: shifts (dateFrom/dateTo bound opened_at by WIB calendar day)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftListResponse' }
+        '400': { description: invalid date filter }
   /api/v1/shifts/current:
     get:
       operationId: currentShift
@@ -4369,16 +4419,24 @@ paths:
         - $ref: '#/components/parameters/OutletQuery'
         - name: from
           in: query
+          description: Legacy lower bound instant (inclusive). Prefer dateFrom.
           schema: { type: string, format: date-time }
         - name: to
           in: query
+          description: Legacy upper bound instant (exclusive). Prefer dateTo.
           schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
+        - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/OrderPaymentMethodFilter'
+        - $ref: '#/components/parameters/OrderSearch'
       responses:
         '200':
-          description: summary
+          description: summary over created_at and current status; with no date parameter the range is unbounded
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReportSummaryResponse' }
+        '400': { description: invalid date or status filter }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/categories/{id}:
     parameters:

@@ -3455,23 +3455,34 @@ export interface components {
             productId: string;
             productName: string;
             quantity: number;
+            /** Format: double */
             revenue: number;
         };
         DailySalesRow: {
             date: string;
+            /** Format: double */
             sales: number;
             orders: number;
         };
+        /**
+         * @description Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
+         *     `from`/`to` echo the lower/upper instant actually applied; null when that side is unbounded.
+         */
         ReportSummary: {
             /** Format: date-time */
-            from: string;
+            from?: string | null;
             /** Format: date-time */
-            to: string;
+            to?: string | null;
             outletId?: string | null;
+            /** Format: double */
             totalSales: number;
             totalOrders: number;
+            /** Format: double */
             totalRefunds: number;
+            refundedOrders: number;
+            /** Format: double */
             netSales: number;
+            /** Format: double */
             avgOrderValue: number;
             byPaymentMethod: {
                 [key: string]: number;
@@ -4052,6 +4063,15 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+        WIBDateFrom: string;
+        /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+        WIBDateTo: string;
+        OrderStatusFilter: "completed" | "refunded" | "cancelled";
+        /** @description Matched case-insensitively after trimming whitespace. */
+        OrderPaymentMethodFilter: string;
+        /** @description Substring match on order number, cashier name, customer name, or linked customer phone/name. */
+        OrderSearch: string;
         /** @description Active outlet override (admin only, or must match token outlet). */
         OutletHeader: string;
         /** @description Required when dryRun=false (generated once per preview, reused on retry). */
@@ -7119,6 +7139,19 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 shiftId?: string;
                 customerId?: string;
+                /** @description Legacy (POS) lower bound, a YYYY-MM-DD read as a UTC day. Meaning unchanged; prefer dateFrom. */
+                from?: string;
+                /** @description Legacy (POS) inclusive upper day (YYYY-MM-DD, UTC day). Meaning unchanged; prefer dateTo. */
+                to?: string;
+                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateFrom?: components["parameters"]["WIBDateFrom"];
+                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateTo?: components["parameters"]["WIBDateTo"];
+                status?: components["parameters"]["OrderStatusFilter"];
+                /** @description Matched case-insensitively after trimming whitespace. */
+                paymentMethod?: components["parameters"]["OrderPaymentMethodFilter"];
+                /** @description Substring match on order number, cashier name, customer name, or linked customer phone/name. */
+                q?: components["parameters"]["OrderSearch"];
             };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
@@ -7137,6 +7170,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OrderListResponse"];
                 };
+            };
+            /** @description invalid date or status filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7216,6 +7256,10 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
+                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateFrom?: components["parameters"]["WIBDateFrom"];
+                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateTo?: components["parameters"]["WIBDateTo"];
             };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
@@ -7226,7 +7270,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description shifts */
+            /** @description shifts (dateFrom/dateTo bound opened_at by WIB calendar day) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7234,6 +7278,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ShiftListResponse"];
                 };
+            };
+            /** @description invalid date filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7621,8 +7672,19 @@ export interface operations {
             query?: {
                 /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
                 outletId?: components["parameters"]["OutletQuery"];
+                /** @description Legacy lower bound instant (inclusive). Prefer dateFrom. */
                 from?: string;
+                /** @description Legacy upper bound instant (exclusive). Prefer dateTo. */
                 to?: string;
+                /** @description Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateFrom?: components["parameters"]["WIBDateFrom"];
+                /** @description Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable. */
+                dateTo?: components["parameters"]["WIBDateTo"];
+                status?: components["parameters"]["OrderStatusFilter"];
+                /** @description Matched case-insensitively after trimming whitespace. */
+                paymentMethod?: components["parameters"]["OrderPaymentMethodFilter"];
+                /** @description Substring match on order number, cashier name, customer name, or linked customer phone/name. */
+                q?: components["parameters"]["OrderSearch"];
             };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
@@ -7633,7 +7695,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description summary */
+            /** @description summary over created_at and current status; with no date parameter the range is unbounded */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7641,6 +7703,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ReportSummaryResponse"];
                 };
+            };
+            /** @description invalid date or status filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: components["responses"]["Forbidden"];
         };
