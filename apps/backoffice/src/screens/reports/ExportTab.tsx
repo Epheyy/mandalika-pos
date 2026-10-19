@@ -56,6 +56,7 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
         all.map((o) => ({
           'No. Order': o.orderNumber,
           Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
+          'Hari Bisnis': o.businessDate ?? '',
           Kasir: o.cashierName,
           Salesman: o.salesmanName || '-',
           Pelanggan: o.customerName || '-',
