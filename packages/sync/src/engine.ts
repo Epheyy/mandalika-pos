@@ -840,23 +840,28 @@ export class SyncEngine {
     try {
       const typeByKey = new Map(pending.map((i) => [i.idempotencyKey, i.type]))
       let merged: BatchResult | null = null
+      // Mirrors processBatch/onBatchFailure: after a retryable result, a later shift_close/shift_open must
+      // not go out in another request (the server hold only sees the same request), so those stay pending
+      // and unsent. Every other item keeps draining, so one stuck item cannot block the rest of the queue.
+      let earlierRetryable = false
       for (let at = 0; at < pending.length; at += BATCH_MAX_ITEMS) {
         if (at > 0 && (this.disposed || !ONLINE())) break
-        const chunk = pending.slice(at, at + BATCH_MAX_ITEMS)
+        let chunk = pending.slice(at, at + BATCH_MAX_ITEMS)
+        if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+        if (chunk.length === 0) continue
         let data: BatchResult
         try {
           data = await this.post(chunk)
         } catch (err) {
           if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
-          // Stop after a failed chunk, whether or not isolation settled it: later items may depend on it.
+          // Stop after a thrown chunk (and its isolation pass): the next tick continues. The result
+          // returned covers the chunks already sent plus whatever isolation settled.
           return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
         }
         if (this.disposed) return null
         await this.applyBatch(data, typeByKey)
         merged = mergeBatch(merged, data)
-        // The server holds a shift_close/shift_open only behind a retryable failure in the SAME request,
-        // so never send a later chunk past one.
-        if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) break
+        if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) earlierRetryable = true
       }
       return merged
     } finally {
