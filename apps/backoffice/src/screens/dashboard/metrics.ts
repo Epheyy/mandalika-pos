@@ -10,6 +10,7 @@ import {
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
+import { reportTotals } from '../reports/reportTotals'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
 
@@ -89,6 +90,69 @@ export function completedIn(orders: Order[], iv: Interval): Order[] {
   })
 }
 
+/** Sales (completed + refunded, never cancelled) whose SALE business day falls in the interval. */
+export function salesIn(orders: readonly Order[], iv: Interval): Order[] {
+  const from = localDay(iv.start)
+  const to = localDay(iv.end)
+  return orders.filter((o) => {
+    if (o.status !== 'completed' && o.status !== 'refunded') return false
+    const day = businessDayOf(o)
+    return day !== '' && day >= from && day <= to
+  })
+}
+
+/**
+ * The business day a refund is recognised on (A27): the server's refundBusinessDate, else the
+ * browser-local day of refundedAt. Empty when neither exists.
+ */
+export function refundBusinessDayOf(o: Order): string {
+  if (o.refundBusinessDate) return o.refundBusinessDate
+  if (!o.refundedAt) return ''
+  try {
+    return localDay(parseISO(o.refundedAt))
+  } catch {
+    return ''
+  }
+}
+
+/** Refunded rows whose REFUND business day falls in the interval. */
+export function refundsIn(orders: readonly Order[], iv: Interval): Order[] {
+  const from = localDay(iv.start)
+  const to = localDay(iv.end)
+  return orders.filter((o) => {
+    if (o.status !== 'refunded') return false
+    const day = refundBusinessDayOf(o)
+    return day !== '' && day >= from && day <= to
+  })
+}
+
+/**
+ * Validates the `dateBasis=refund` response. A backend that predates A27 ignores the parameter and
+ * returns ordinary rows (not all refunded, no refundBusinessDate key); using them would corrupt the
+ * net, so the caller falls back to completed-only numbers when this returns null.
+ */
+export function refundSideOrNull(rows: readonly Order[]): Order[] | null {
+  for (const o of rows) {
+    if (o.status !== 'refunded' || o.refundBusinessDate === undefined) return null
+  }
+  return [...rows]
+}
+
+export interface NetKpis {
+  gross: number
+  grossCount: number
+  refunds: number
+  refundedCount: number
+  /** gross - refunds; may be negative. */
+  net: number
+}
+
+/** Net sales for the interval: sales by sale day minus refunds by refund day (same as Ekspor "Bersih"). */
+export function netKpis(saleRows: readonly Order[], refundRows: readonly Order[], iv: Interval): NetKpis {
+  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv))
+  return { gross: t.gross, grossCount: t.grossCount, refunds: t.refunds, refundedCount: t.refundedCount, net: t.net }
+}
+
 export interface Kpis {
   revenue: number
   orders: number
@@ -108,10 +172,10 @@ export function computeKpis(completed: Order[]): Kpis {
   return { revenue, orders: completed.length, itemsSold, customers: customers.size }
 }
 
-/** Percent change cur vs prev; null when prev is 0 or unavailable. */
+/** Percent change cur vs prev; null when prev is 0 or unavailable. Uses |prev| so a rise from a negative net is positive. */
 export function delta(cur: number, prev: number | null): number | null {
   if (prev === null || prev === 0) return null
-  return ((cur - prev) / prev) * 100
+  return ((cur - prev) / Math.abs(prev)) * 100
 }
 
 export interface TrendPoint {
@@ -120,8 +184,17 @@ export interface TrendPoint {
   orders: number
 }
 
-/** Buckets sized to the period: hourly (today), daily (7d/30d), monthly (all). */
-export function buildTrend(completed: Order[], period: Period, now = new Date()): TrendPoint[] {
+/**
+ * Buckets sized to the period: hourly (today), daily (7d/30d), monthly (all). `completed` are the
+ * sale rows (bucketed by sale day); `refunds` are subtracted from their REFUND day (hour of
+ * refundedAt in the hourly view), so a point can be negative.
+ */
+export function buildTrend(
+  completed: Order[],
+  period: Period,
+  now = new Date(),
+  refunds: readonly Order[] = [],
+): TrendPoint[] {
   if (period === 'today') {
     const buckets: TrendPoint[] = Array.from({ length: 24 }, (_, h) => ({
       label: String(h).padStart(2, '0'),
@@ -133,15 +206,18 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
       buckets[h].revenue += o.total
       buckets[h].orders += 1
     }
+    for (const o of refunds) buckets[parseISO(o.refundedAt ?? o.createdAt).getHours()].revenue -= o.total
     return buckets
   }
 
   if (period === 'all') {
-    if (completed.length === 0) return []
-    let min = parseISO(businessDayOf(completed[0]))
-    for (const o of completed) {
-      const d = parseISO(businessDayOf(o))
-      if (d < min) min = d
+    if (completed.length === 0 && refunds.length === 0) return []
+    const days = [...completed.map(businessDayOf), ...refunds.map(refundBusinessDayOf)].filter((d) => d !== '')
+    if (days.length === 0) return []
+    let min = parseISO(days[0])
+    for (const d of days) {
+      const pd = parseISO(d)
+      if (pd < min) min = pd
     }
     const months = eachMonthOfInterval({ start: startOfMonth(min), end: now })
     const byMonth = new Map<string, TrendPoint>()
@@ -156,6 +232,10 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
         p.revenue += o.total
         p.orders += 1
       }
+    }
+    for (const o of refunds) {
+      const p = byMonth.get(refundBusinessDayOf(o).slice(0, 7))
+      if (p) p.revenue -= o.total
     }
     return points
   }
@@ -178,6 +258,10 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
       p.revenue += o.total
       p.orders += 1
     }
+  }
+  for (const o of refunds) {
+    const p = byDay.get(refundBusinessDayOf(o))
+    if (p) p.revenue -= o.total
   }
   return points
 }
@@ -288,6 +372,23 @@ export function paymentBreakdown(completed: Order[]): PayRow[] {
       method,
       label: PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1),
       amount,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+}
+
+/** Payment mix as NET money (gross by sale day minus refunds by refund day, per original method). */
+export function netPaymentBreakdown(
+  saleRows: readonly Order[],
+  refundRows: readonly Order[],
+  iv: Interval,
+): PayRow[] {
+  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv))
+  const methods = new Set([...Object.keys(t.grossByPay), ...Object.keys(t.refundsByPay)])
+  return [...methods]
+    .map((method) => ({
+      method,
+      label: PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1),
+      amount: (t.grossByPay[method] ?? 0) - (t.refundsByPay[method] ?? 0),
     }))
     .sort((a, b) => b.amount - a.amount)
 }

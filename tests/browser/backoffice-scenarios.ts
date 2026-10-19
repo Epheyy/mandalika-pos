@@ -13,7 +13,9 @@ const wibDay = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3600_000)
 const filterOrders = (list: any[], query: Record<string, string>) => {
   const dec = (v?: string) => (v === undefined ? '' : decodeURIComponent(v.replace(/\+/g, ' ')))
   const pay = dec(query.paymentMethod).trim().toLowerCase(), q = dec(query.q).toLowerCase()
+  // dateBasis=refund (A27) returns only refunded rows, bounded by the refund day (mock rows are never refunded).
   return list.filter(o =>
+    (query.dateBasis !== 'refund' || o.status === 'refunded') &&
     (!query.status || o.status === query.status) &&
     (!pay || o.paymentMethod.trim().toLowerCase() === pay) &&
     (!query.dateFrom || wibDay(o.createdAt) >= query.dateFrom) &&
@@ -46,7 +48,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/,'').split('?')[0];
     const query=Object.fromEntries((req.url().split('?')[1]||'').split('&').filter(Boolean).map(s=>s.split('=')));
     const n=Number(query.page)||1, requested=Number(query.limit)||50, limit=requested>200||requested<1?50:requested;
-    const state=page.__a26;state.calls.push({path,page:n,requested,limit});
+    const state=page.__a26;state.calls.push({path,page:n,requested,limit,dateBasis:query.dateBasis});
     if(state.fail===path && n===2) return route.fulfill({status:503,json:{error:'A26 synthetic page 2 failure'}});
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
@@ -79,8 +81,14 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   for(const n of [51,201,1000]) {
     page.__a26.count=n;page.__a26.calls=[];
     await page.getByRole('button',{name:'Dashboard',exact:true}).click();
-    await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
+    // T7: the revenue KPI is net; its subtitle shows Kotor / Refund (was "N transaksi"), proving the refund side loaded.
+    const money=(n*1000).toLocaleString('id-ID');
+    await page.getByText(new RegExp('^Kotor Rp\\s*'+money.replace(/\./g,'\\.')+'\\s*/ Refund Rp\\s*0$')).waitFor();
+    const kpiValue=(await page.locator('p',{hasText:/^Penjualan$/}).locator('xpath=preceding-sibling::p[1]').innerText()).replace(/\s/g,'');
+    check(kpiValue===`Rp${money}`,'dashboard net KPI value');
     const dashboard=await page.locator('main').innerText();
+    check(dashboard.includes('Tren Penjualan (Bersih)'),'dashboard net trend heading');
+    check(page.__a26.calls.some(c=>c.path.endsWith('/orders')&&c.dateBasis==='refund'),'dashboard refund-basis request');
     check(dashboard.includes(`Rp ${(n*1000).toLocaleString('id-ID')}`)||dashboard.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'dashboard total');
     check(dashboard.includes('Product 200'),'last-page low stock missing');
     await page.getByRole('button',{name:'Laporan',exact:true}).click();
