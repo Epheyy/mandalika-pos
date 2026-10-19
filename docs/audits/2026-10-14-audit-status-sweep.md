@@ -67,7 +67,8 @@ Repo HEAD 33557cb (prod-hardening). Read-only; status judged from code, not trac
 - **Go-live blocker?**: no, conditionally. The exposure is argon2id hashes of 4-8 digit PINs on managed shared tablets, which is offline-crackable. Judge it a pre-go-live hardening item if tablets are physically uncontrolled, otherwise it can be scheduled after launch.
 
 ### A10 — The original offline quote is not retained independently of recalculation
-- **Status**: Partial
+- **Update 2026-10-19 (merged locally `f925a59`, NOT released): quoted receipt total built.** POS sends `quotedTotal` + `receiptSnapshot` (built once in the sale gate, printed from the same object; no name/phone); server stores both (migration 0058: `receipt_snapshot`, `quote_warning`, `quote_warning_reason`), compares in cents (+-Rp1), FLAGS drift (`quote_mismatch`, `quote_invalid`) on both routes and never rejects; absent quote = NULL no flag (old outbox flushes byte-identical); a real quote always has a snapshot, API `quotedTotal` is null for pre-0058 rows; backoffice "Struk" badge. PG gate QT (port 56461), full gate 22/22, Opus Ship-with-minors. OTA only (no APK). Plan `docs/plans/2026-10-19-a10-quoted-receipt-total.md`. NOT done: promotion version stamp (`promotions.version`) and per-promotion id/version in discountBreakdown (A23 handover, still open); reprint from history (A41); snapshot not exposed in the API. Owner default: reports keep the server total.
+- **Status**: Partial (see update above)
 - **Evidence**:
   - `quoted_total` is still populated with the recalculated `finalTotal` (`service/order.go:432`, the INSERT column list at `:420`). No client `quotedTotal` is sent or read anywhere (grep over apps, packages and backend).
   - Lines are recomputed server-side (`order.go:~135-300`) with current promotion and loyalty settings. No immutable captured-lines or price/rule-version snapshot exists, and none of migrations 0045-0050 add one.
