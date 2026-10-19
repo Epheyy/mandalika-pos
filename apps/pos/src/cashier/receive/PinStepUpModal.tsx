@@ -56,7 +56,9 @@ export function PinStepUpModal({ approvers, onCancel, onApproved }: Props) {
     setBusy(true)
     setErr(null)
     const outcome = await submitGate.current.run(async () => {
-      const ok = await verifyPin(pin, approver.receivePinHash)
+      // A08 (T7/T8 replace this modal with the online step-up): the server no longer ships
+      // PIN hashes and always returns receiveApprovers [], so this local check can't match.
+      const ok = await verifyPin(pin, (approver as { receivePinHash?: string }).receivePinHash ?? '')
       if (!ok) return false
       const cleared = resetLockout()
       setLock(cleared)
