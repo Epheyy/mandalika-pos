@@ -53,4 +53,30 @@ describe('snapshot customer purge', () => {
     expect(kv.get(SNAP_KEY)).not.toContain('Alice')
     expect(new Snapshot(kv).get().version).toBe(9)
   })
+
+  it('drops discountCodes[].customerName on load but keeps customerId and the rest', () => {
+    const stored = {
+      version: 5,
+      customers: [],
+      discountCodes: [{ id: 'd1', code: 'VIP', customerId: 'c1', customerName: 'Alice', value: 10 }],
+    }
+    const { kv } = controllableKV({ [SNAP_KEY]: JSON.stringify(stored) })
+
+    const snap = new Snapshot(kv)
+
+    expect(snap.get().discountCodes).toEqual([{ id: 'd1', code: 'VIP', customerId: 'c1', value: 10 }])
+    expect(kv.get(SNAP_KEY)).not.toContain('Alice')
+    expect(JSON.parse(kv.get(SNAP_KEY) ?? '{}').version).toBe(5)
+  })
+
+  it('replace() drops holder names even if an older server still sends them', () => {
+    const { kv } = controllableKV()
+    const snap = new Snapshot(kv)
+    snap.replace({
+      version: 6, products: [], categories: [], bundles: [], customers: [], promotions: [], loyaltyConditions: [],
+      discountCodes: [{ id: 'd1', code: 'VIP', customerId: 'c1', customerName: 'Alice' } as never],
+    })
+    expect(snap.get().discountCodes?.[0]).toEqual({ id: 'd1', code: 'VIP', customerId: 'c1' })
+    expect(kv.get(SNAP_KEY)).not.toContain('Alice')
+  })
 })
