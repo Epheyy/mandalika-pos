@@ -16,7 +16,8 @@ Totals: Resolved 1 (A24) · Mostly 11 (A05 A12 A23 A26 A27 A29 A32 A34 A35 A40 A
 Repo HEAD 33557cb (prod-hardening). Read-only; status judged from code, not tracker/HANDOFF text. No tests were run.
 
 ### A05 — Authentication startup conflicts with offline shift recovery
-- **Status**: Mostly
+- **Update 2026-10-19 (merged locally `8310855`, NOT released)**: **Fixed locally.** 12 h offline cap enforced server-side (signed contact token, `offline_expired` routed to sync review) and POS-side (warn 10 h / locked 12 h); promo/loyalty clock bounded with a clock_skew flag. Plan `docs/plans/2026-10-19-a05-offline-cap.md`.
+- **Status (before the update above)**: Mostly
 - **Evidence**:
   - The module-load KV capture is gone. `apps/pos/src/authBoot.ts:58-66` resolves `getKV()` at call time, and `auth.tsx:33` comments on it. `apps/pos/src/authBoot.wiring.test.ts` covers this, and `main.tsx:14-25` awaits `bootStorage()` before React mounts.
   - Invalid versus temporary refresh failure is now distinguished. `authBoot.ts:16-18` treats only an HTTP 401 as `rejected`. `bootSession` (`authBoot.ts:107-124`) returns `offline` with the cached user and keeps the token for any other failure. `auth.tsx:128-141` restores the user on `offline`. Tests: `authBoot.test.ts`.

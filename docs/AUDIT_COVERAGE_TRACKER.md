@@ -1056,6 +1056,7 @@ safeguard is removed, and shared terminal identity is not fresh TL approval.
 ### A05 — Authentication startup conflicts with offline shift recovery
 
 - **Original priority / evidence:** P1; historical class: Confirmed static.
+- **Update 2026-10-19 (merged locally `8310855`, NOT pushed/deployed): fixed locally.** 12 h offline cap (contact token via `/sync/version`, `offline_expired` review routing in `/sync/batch`), promo/loyalty bounded clock with clock_skew flag, POS ok/warn/locked gating; backoffice label. Owner action: lock tablet date/time settings.
 - **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
 - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `apps/pos/src/auth.tsx:14-17`; `apps/pos/src/auth.tsx:55-75`; `apps/pos/src/main.tsx:1-26`; `apps/pos/src/hooks/useShift.ts:1-102`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
 - **Authority / decision:** AUDIT_REPORT A05 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: Q01,Q03.
