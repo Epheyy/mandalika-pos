@@ -8,6 +8,7 @@ import { SyncedRefunds } from './syncedRefunds'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine } from './settlingDebits'
 import { redactForLogs, redactSecrets, redactString } from './redact'
+import { OfflineContact, type OfflineCapState } from './offlineContact'
 
 const SYNC_LOG_KEY = 'mandalika.pos.synclog'
 const INBOUND_KEY = 'mandalika.pos.inboundTransfers'
@@ -91,7 +92,7 @@ function isReceiveConflict(code: string | undefined): boolean {
  *  goes straight to review; anything else keeps the attempt counting. */
 const KNOWN_ERROR_CODES = new Set([
   'rejected', 'forbidden', 'not_found', 'conflict', 'competing_receipt',
-  'key_conflict', 'busy', 'internal', 'actor_mismatch',
+  'key_conflict', 'busy', 'internal', 'actor_mismatch', 'offline_expired',
 ])
 
 /** The whole /sync/batch request is aborted after this long so a hung connection
@@ -278,6 +279,10 @@ export class SyncEngine {
   private reachable: boolean = ONLINE()
 
   private readonly kv: KV
+  /** Last successful online contact (A05): drives the 12 h soft block and the item evidence. */
+  private readonly contacts: OfflineContact
+  private newestCapture = 0
+  private newestScanned = false
   private actorProvider: ActorProvider | null
 
   constructor(
@@ -289,6 +294,7 @@ export class SyncEngine {
     this.kv = kv
     this.actorProvider = options.actor
     this.deviceId = getDeviceId(kv)
+    this.contacts = new OfflineContact(kv)
     const store = options.outboxStore ?? new KVOutboxStore(kv)
     this.outbox = new Outbox(store)
     this.snapshot = new Snapshot(kv)
@@ -390,6 +396,7 @@ export class SyncEngine {
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
     if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
+    this.contacts.contact() // a 2xx pull is a contact (unsigned: the pull carries no token)
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
     // A response older than one already applied would roll the snapshot (and stock) back.
@@ -427,9 +434,11 @@ export class SyncEngine {
     try {
       const r = await this.api.request<{ data: VersionInfo }>(
         'GET',
-        '/api/v1/sync/version',
+        `/api/v1/sync/version?deviceId=${encodeURIComponent(this.deviceId)}`,
       )
       this.setReachable(true)
+      // A05: only a 2xx counts as contact (the 4xx branch below never does).
+      this.contacts.contact(r.data.contact)
       const server = r.data.version ?? 0
       const local = this.snapshot.localVersion()
       this.wall = {
@@ -440,6 +449,7 @@ export class SyncEngine {
       this.events.onWall?.(this.wall)
       this.accountProblemMsg = null // the account/outlet is fine again (e.g. a terminal outlet was picked)
     } catch (err) {
+      this.contacts.state(this.newestCaptureMs()) // time passes offline: advance the high-water mark
       const failure = classifyFailure(err, true)
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
         // A 4xx means the server ANSWERED: reachable, but this account/outlet is refused
@@ -484,7 +494,33 @@ export class SyncEngine {
     }
     if (a.shiftId) env.shiftId = a.shiftId
     if (a.appVersion) env.appVersion = a.appVersion
+    // A05 evidence for the server's offline cap; omitted until a contact is known.
+    const ev = this.contacts.evidence(this.newestCaptureMs())
+    if (ev) {
+      env.contactDeviceAt = ev.contactDeviceAt
+      env.offlineMs = ev.offlineMs
+      if (ev.contact) env.contact = ev.contact
+    }
     return env
+  }
+
+  /** Latest capture time (ms) of anything in the outbox; holds the offline window open
+   *  after a clock set back. Scanned once, then kept current by commitOutbox. */
+  private newestCaptureMs(): number {
+    if (!this.newestScanned) {
+      this.newestScanned = true
+      for (const i of this.outbox.all()) {
+        const t = Date.parse(i.envelope?.capturedAt ?? String(i.payload.clientCreatedAt ?? ''))
+        if (Number.isFinite(t)) this.newestCapture = Math.max(this.newestCapture, t)
+      }
+    }
+    return this.newestCapture
+  }
+
+  /** Where the tablet stands against the 12 h offline cap (A05). The UI gates new sales,
+   *  refunds and cash in/out on `locked`; the engine itself never refuses to enqueue. */
+  offlineState(): OfflineCapState {
+    return this.contacts.state(this.newestCaptureMs())
   }
 
   /** Durably commit a mutation without triggering a flush. Resolves only once
@@ -503,6 +539,7 @@ export class SyncEngine {
       deviceId: this.deviceId,
       clientCreatedAt: capturedAt,
     }, envelope)
+    this.newestCapture = Math.max(this.newestCapture, Date.parse(capturedAt))
     return idempotencyKey
   }
 

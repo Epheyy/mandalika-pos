@@ -27,7 +27,7 @@ describe('flush-only engine in a terminal mismatch', () => {
     const calls: string[] = []
     const request = vi.fn(async (method: string, path: string, body?: unknown) => {
       calls.push(`${method} ${path}`)
-      if (path.endsWith('/sync/version')) return { data: { version: 0 } }
+      if (path.split('?')[0].endsWith('/sync/version')) return { data: { version: 0 } }
       const key = (body as { items: { idempotencyKey: string }[] }).items[0].idempotencyKey
       return {
         data: { processed: 0, version: 0, results: [{ idempotencyKey: key, status: 'error', code: 'actor_mismatch', retryable: false, error: 'Akun ini tidak berwenang untuk outlet pada transaksi ini' }] },
@@ -56,7 +56,7 @@ describe('flush-only engine in a terminal mismatch', () => {
 
   it('an already-applied stamped item replays as duplicate and leaves the queue', async () => {
     const request = vi.fn(async (_m: string, path: string, body?: unknown) => {
-      if (path.endsWith('/sync/version')) return { data: { version: 0 } }
+      if (path.split('?')[0].endsWith('/sync/version')) return { data: { version: 0 } }
       const key = (body as { items: { idempotencyKey: string }[] }).items[0].idempotencyKey
       return { data: { processed: 1, version: 0, results: [{ idempotencyKey: key, status: 'duplicate', orderId: 'o1' }] } }
     })
