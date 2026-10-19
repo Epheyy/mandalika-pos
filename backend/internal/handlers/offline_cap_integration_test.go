@@ -249,7 +249,7 @@ func TestOfflineCapPostgres(t *testing.T) {
 
 	sub("6 clock skew evaluates the promo at a bounded time and only flags it", func(t *testing.T) {
 		now := time.Now().UTC()
-		c := now.Add(-6 * time.Hour)
+		c := now.Add(-6 * time.Hour).Truncate(time.Microsecond) // Postgres keeps microseconds: an exact-equality check needs the same precision
 		wib := time.FixedZone("WIB", 7*3600)
 		if c.In(wib).Hour() == 23 {
 			c = c.Add(-time.Hour)
