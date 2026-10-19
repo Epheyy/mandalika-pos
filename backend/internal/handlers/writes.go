@@ -1475,6 +1475,9 @@ func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	// A05: a 2xx here is the tablet's "last successful online contact"; sign it for the
+	// device so the offline cap does not trust the tablet's own clock.
+	v.Contact = h.Sync.ContactFor(r.URL.Query().Get("deviceId"))
 	writeJSON(w, http.StatusOK, map[string]any{"data": v})
 }
 

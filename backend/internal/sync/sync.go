@@ -37,6 +37,10 @@ type Engine struct {
 	Now func() time.Time
 	// Lookup is injectable for tests; nil = queries on Pool.
 	Lookup attributionLookup
+	// ContactKey signs and verifies offline contacts (A05), derived from the access
+	// secret by DeriveContactKey. Empty = no signed contacts: /sync/version issues none
+	// and the cap uses the device-reported elapsed time alone.
+	ContactKey []byte
 }
 
 func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Repo) *Engine {
@@ -46,6 +50,9 @@ func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Rep
 type VersionInfo struct {
 	Version  int64           `json:"version"`
 	Manifest json.RawMessage `json:"dataManifest"`
+	// Contact is the signed online-contact proof, set by the handler when the request
+	// carried a device id (A05). Absent otherwise (omitempty: old clients unaffected).
+	Contact *ContactToken `json:"contact,omitempty"`
 }
 
 // Version returns the outlet content version, lazily seeding the row.

@@ -80,6 +80,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	}
 	syncEngine := syncpkg.New(database.Pool, rd, os, wr)
 	syncEngine.LegacyEnvelopeUntil = cfg.SyncLegacyEnvelopeUntil
+	syncEngine.ContactKey = syncpkg.DeriveContactKey(cfg.AccessSecret)
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
