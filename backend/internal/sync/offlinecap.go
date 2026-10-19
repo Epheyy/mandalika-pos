@@ -70,10 +70,16 @@ func capVerdict(typ string, env Envelope, arrival time.Time, key []byte) (refuse
 		slog.Info("no offline evidence on capped sync item", "type", typ, "deviceId", env.DeviceID)
 		return false, ""
 	}
+	// Evidence that does not add up is flagged (never refused) before any early return, so a
+	// device with a clock set forward is logged even on the fast path.
+	inconsistent := ""
+	if ev.HasE && (ev.E < -ClockTolerance || (ev.LOK && ev.L.Add(ev.E).After(arrival.Add(ClockTolerance)))) {
+		inconsistent = "offline evidence inconsistent"
+	}
 	// Fast path: a server-signed contact within the cap of arrival, independent of the
 	// tablet's clock.
 	if ev.LOK && arrival.Sub(ev.L) <= OfflineCap+ClockTolerance {
-		return false, ""
+		return false, inconsistent
 	}
 	if !ev.HasE {
 		return false, ""
@@ -81,10 +87,7 @@ func capVerdict(typ string, env Envelope, arrival time.Time, key []byte) (refuse
 	if ev.E > OfflineCap+ClockTolerance {
 		return true, ""
 	}
-	if ev.E < -ClockTolerance || (ev.LOK && ev.L.Add(ev.E).After(arrival.Add(ClockTolerance))) {
-		return false, "offline evidence inconsistent"
-	}
-	return false, ""
+	return false, inconsistent
 }
 
 // boundSaleTime bounds the time promo and loyalty rules evaluate at (A05). It never

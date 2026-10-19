@@ -41,7 +41,8 @@ func TestOfflineCapVerdict(t *testing.T) {
 		warn   bool
 	}{
 		{"fast path: signed contact 11h ago", "order", capEnv(11*time.Hour, nil), false, false},
-		{"fast path ignores a lying device clock", "order", capEnv(11*time.Hour, func(e *Envelope) { e.OfflineMs = ms(30 * time.Hour) }), false, false},
+		{"fast path ignores a lying device clock", "order", capEnv(11*time.Hour, func(e *Envelope) { e.OfflineMs = ms(30 * time.Hour) }), false, true},
+		// verdict unchanged (accepted), but the inconsistency is logged before the fast path returns
 		{"fast path at exactly cap+tol", "order", capEnv(OfflineCap+ClockTolerance, nil), false, false},
 		{"signed contact too old, offlineMs over cap", "order", capEnv(13*time.Hour, func(e *Envelope) { e.OfflineMs = ms(over) }), true, false},
 		{"signed contact too old, offlineMs within cap, consistent", "order", capEnv(13*time.Hour, func(e *Envelope) { e.OfflineMs = ms(10 * time.Minute) }), false, false},
@@ -55,7 +56,7 @@ func TestOfflineCapVerdict(t *testing.T) {
 		{"unsigned: contactDeviceAt over cap", "refund", Envelope{DeviceID: "dev1", CapturedAt: capA, ContactDeviceAt: ptr(capA.Add(-over).UnixMilli())}, true, false},
 		{"wrong device signature does not fast-path", "order", capEnv(time.Minute, func(e *Envelope) { e.DeviceID = "dev2"; e.OfflineMs = ms(over) }), true, false},
 		{"negative elapsed flags only", "order", Envelope{DeviceID: "dev1", OfflineMs: ms(-time.Hour)}, false, true},
-		{"fast path wins while the signed contact is recent", "order", capEnv(time.Hour, func(e *Envelope) { e.OfflineMs = ms(3 * time.Hour); e.ContactDeviceAt = nil }), false, false},
+		{"fast path wins while the signed contact is recent", "order", capEnv(time.Hour, func(e *Envelope) { e.OfflineMs = ms(3 * time.Hour); e.ContactDeviceAt = nil }), false, true},
 		{"signed contact too old and offlineMs 14h", "order", capEnv(13*time.Hour, func(e *Envelope) { e.OfflineMs = ms(14 * time.Hour) }), true, false},
 		{"no evidence: accept", "order", Envelope{DeviceID: "dev1", CapturedAt: capA}, false, false},
 		{"exempt shift_close over cap", "shift_close", Envelope{DeviceID: "dev1", OfflineMs: ms(over)}, false, false},

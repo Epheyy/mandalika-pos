@@ -221,6 +221,10 @@ func TestOfflineCapPostgres(t *testing.T) {
 		if n := str(`SELECT count(*)::text FROM cash_flows WHERE outlet_id=$1`, outW); n != "0" {
 			t.Errorf("refused cash flow was stored: %s", n)
 		}
+		// A refused item stores no receipt either: the same key must be free to run later.
+		if n := str(`SELECT count(*)::text FROM operation_receipts WHERE idempotency_key IN ($1,$2)`, device+":refund-over", device+":flow-over"); n != "0" {
+			t.Errorf("refused refund/cash_flow left an operation receipt: %s", n)
+		}
 	})
 
 	sub("4 shift_close and customer_create are exempt", func(t *testing.T) {
