@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
-import { fetchAllPages } from '@mandalika/api'
+import { fetchAllPages, type ListOrdersParams } from '@mandalika/api'
 import type { Order, Product, Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -70,7 +70,7 @@ export default function Dashboard() {
   const oq = usePolledQuery<Order[]>(
     () => {
       const w = dashboardFetchWindow(period)
-      const params: Record<string, string> = { status: 'completed' }
+      const params: ListOrdersParams = { status: 'completed' }
       if (w.dateFrom) params.dateFrom = w.dateFrom
       if (w.dateTo) params.dateTo = w.dateTo
       return fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit }))

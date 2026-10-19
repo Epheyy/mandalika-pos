@@ -1,5 +1,5 @@
 import { fetchAllPages } from '@mandalika/api'
-import type { Outlet, Shift } from '@mandalika/api'
+import type { ListShiftsParams, Outlet, Shift } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Download, ShoppingBag } from 'lucide-react'
@@ -23,7 +23,7 @@ interface ShiftsTabProps {
  * opened_at), fetched only while this tab is active. */
 export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProps) {
   const sq = usePolledQuery<Shift[]>(() => {
-    const params: Record<string, string> = {}
+    const params: ListShiftsParams = {}
     if (dateFrom) params.dateFrom = dateFrom
     if (dateTo) params.dateTo = dateTo
     return fetchAllPages((page, limit) => api.listShifts({ ...params, page, limit }))

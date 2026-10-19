@@ -1,3 +1,4 @@
+import type { ListOrdersParams, ReportSummaryParams } from '@mandalika/api'
 import { format, subDays } from 'date-fns'
 
 /** Filters shared by the order list, the report summary and the CSV export. */
@@ -11,11 +12,12 @@ export interface OrderFilters {
 }
 
 /** Query params for /orders and /reports/summary; empty filters are omitted. */
-export function orderFilterParams(f: OrderFilters): Record<string, string> {
-  const p: Record<string, string> = {}
+export function orderFilterParams(f: OrderFilters): ListOrdersParams & ReportSummaryParams {
+  const p: ListOrdersParams & ReportSummaryParams = {}
   if (f.dateFrom) p.dateFrom = f.dateFrom
   if (f.dateTo) p.dateTo = f.dateTo
-  if (f.status) p.status = f.status
+  // The UI only offers the contract's statuses; the server answers 400 otherwise.
+  if (f.status) p.status = f.status as ListOrdersParams['status']
   if (f.payment.trim()) p.paymentMethod = f.payment.trim()
   if (f.q.trim()) p.q = f.q.trim()
   return p

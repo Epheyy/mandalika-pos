@@ -184,6 +184,10 @@ func TestPaginationPostgres(t *testing.T) {
 		verify(t, "foreign-shift", "/api/v1/orders?shiftId="+shiftID(1000), 201, 0, true)
 	})
 	t.Run("a26-server-side-filters", func(t *testing.T) {
+		// verify() appends to records, which feeds the A26 vitest golden test with an exact
+		// name list; these extra checks must not change that evidence file.
+		keep := len(records)
+		defer func() { records = records[:keep] }()
 		// WIB day params (dateFrom/dateTo) and the new order filters. The 201 fixture
 		// orders are completed, cash, cashier "A26", created 2026-09-21T02:00Z (09:00 WIB).
 		verify(t, "wib-day-hit", "/api/v1/orders?dateFrom=2026-09-21&dateTo=2026-09-21", 201, 201, true)

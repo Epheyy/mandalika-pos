@@ -249,6 +249,8 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     else if(path.endsWith('/reports/summary')){
       const sales=scope==='A'?201*1000:scope==='B'?7000:0,count=scope==='A'?201:scope==='B'?1:0;
       data={from:null,to:null,outletId:null,totalSales:sales,totalOrders:count,totalRefunds:0,refundedOrders:0,netSales:sales,avgOrderValue:count?sales/count:0,byPaymentMethod:count?{cash:sales}:{},topProducts:[],dailySales:[]};
+      // Hold A's summary too: both polled queries of the tab must ignore a late A response.
+      if(scope==='A'){held.push(()=>route.fulfill({json:{data,meta:{total:1,page:1,limit:50}}}));return;}
     }
     const total=Array.isArray(data)?data.length:1;
     if(path.endsWith('/orders'))data=data.slice((n-1)*limit,n*limit);
