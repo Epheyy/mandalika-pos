@@ -45,8 +45,14 @@ func ordersFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, boo
 		httpx.Err(w, http.StatusBadRequest, "status tidak valid")
 		return read.OrderFilter{}, false
 	}
+	basis := q.Get("dateBasis")
+	if basis != "" && basis != "sale" && basis != "refund" {
+		httpx.Err(w, http.StatusBadRequest, "dateBasis tidak valid")
+		return read.OrderFilter{}, false
+	}
 	return read.OrderFilter{
 		Scope:         scope(r),
+		DateBasis:     basis,
 		ShiftID:       q.Get("shiftId"),
 		CustomerID:    q.Get("customerId"),
 		LegacyFrom:    q.Get("from"),

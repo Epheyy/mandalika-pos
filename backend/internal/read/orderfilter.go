@@ -28,12 +28,25 @@ type OrderFilter struct {
 	LegacyFrom, LegacyTo string
 	// FromInstant/ToInstant are the legacy /reports/summary instants: [from, to).
 	FromInstant, ToInstant *time.Time
+	// DateBasis selects which day DateFrom/DateTo (and the summary's instants) bound:
+	// "" or "sale" = the sale (business_date / created_at); "refund" = the refund
+	// (refund_business_date / refunded_at), and then only refunded rows match (A27).
+	// LegacyFrom/LegacyTo always stay on created_at (POS contract).
+	DateBasis string
 }
+
+// refundBasis reports whether the filter reads the refund side.
+func (f OrderFilter) refundBasis() bool { return f.DateBasis == "refund" }
 
 // buildOrderWhere returns a WHERE clause over `orders o` and its positional args.
 func buildOrderWhere(f OrderFilter) (string, []any) {
+	return appendOrderWhere(f, []any{})
+}
+
+// appendOrderWhere builds the same clause but numbers its placeholders after the args
+// already collected, so two clauses (sale set and refund set) share one statement.
+func appendOrderWhere(f OrderFilter, args []any) (string, []any) {
 	where := "WHERE 1=1"
-	args := []any{}
 	add := func(v any) int {
 		args = append(args, v)
 		return len(args)
@@ -53,17 +66,22 @@ func buildOrderWhere(f OrderFilter) (string, []any) {
 	if f.LegacyTo != "" {
 		where += fmt.Sprintf(" AND o.created_at < ($%d::date + interval '1 day')", add(f.LegacyTo))
 	}
+	instantCol, dayCol := "o.created_at", "o.business_date"
+	if f.refundBasis() {
+		instantCol, dayCol = "o.refunded_at", "o.refund_business_date"
+		where += " AND o.status='refunded'"
+	}
 	if f.FromInstant != nil {
-		where += fmt.Sprintf(" AND o.created_at >= $%d", add(*f.FromInstant))
+		where += fmt.Sprintf(" AND %s >= $%d", instantCol, add(*f.FromInstant))
 	}
 	if f.ToInstant != nil {
-		where += fmt.Sprintf(" AND o.created_at < $%d", add(*f.ToInstant))
+		where += fmt.Sprintf(" AND %s < $%d", instantCol, add(*f.ToInstant))
 	}
 	if f.DateFrom != "" {
-		where += fmt.Sprintf(" AND o.business_date >= $%d::text::date", add(f.DateFrom))
+		where += fmt.Sprintf(" AND %s >= $%d::text::date", dayCol, add(f.DateFrom))
 	}
 	if f.DateTo != "" {
-		where += fmt.Sprintf(" AND o.business_date <= $%d::text::date", add(f.DateTo))
+		where += fmt.Sprintf(" AND %s <= $%d::text::date", dayCol, add(f.DateTo))
 	}
 	if f.Status != "" {
 		where += fmt.Sprintf(" AND o.status=$%d", add(f.Status))
