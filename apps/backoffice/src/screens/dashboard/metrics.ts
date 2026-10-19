@@ -172,10 +172,10 @@ export function computeKpis(completed: Order[]): Kpis {
   return { revenue, orders: completed.length, itemsSold, customers: customers.size }
 }
 
-/** Percent change cur vs prev; null when prev is 0 or unavailable. */
+/** Percent change cur vs prev; null when prev is 0 or unavailable. Uses |prev| so a rise from a negative net is positive. */
 export function delta(cur: number, prev: number | null): number | null {
   if (prev === null || prev === 0) return null
-  return ((cur - prev) / prev) * 100
+  return ((cur - prev) / Math.abs(prev)) * 100
 }
 
 export interface TrendPoint {

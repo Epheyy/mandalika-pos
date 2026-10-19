@@ -48,7 +48,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/,'').split('?')[0];
     const query=Object.fromEntries((req.url().split('?')[1]||'').split('&').filter(Boolean).map(s=>s.split('=')));
     const n=Number(query.page)||1, requested=Number(query.limit)||50, limit=requested>200||requested<1?50:requested;
-    const state=page.__a26;state.calls.push({path,page:n,requested,limit});
+    const state=page.__a26;state.calls.push({path,page:n,requested,limit,dateBasis:query.dateBasis});
     if(state.fail===path && n===2) return route.fulfill({status:503,json:{error:'A26 synthetic page 2 failure'}});
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
@@ -82,10 +82,13 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     page.__a26.count=n;page.__a26.calls=[];
     await page.getByRole('button',{name:'Dashboard',exact:true}).click();
     // T7: the revenue KPI is net; its subtitle shows Kotor / Refund (was "N transaksi"), proving the refund side loaded.
-    await page.getByText(/^Kotor .* \/ Refund /).waitFor();
+    const money=(n*1000).toLocaleString('id-ID');
+    await page.getByText(new RegExp('^Kotor Rp\\s*'+money.replace(/\./g,'\\.')+'\\s*/ Refund Rp\\s*0$')).waitFor();
+    const kpiValue=(await page.locator('p',{hasText:/^Penjualan$/}).locator('xpath=preceding-sibling::p[1]').innerText()).replace(/\s/g,'');
+    check(kpiValue===`Rp${money}`,'dashboard net KPI value');
     const dashboard=await page.locator('main').innerText();
     check(dashboard.includes('Tren Penjualan (Bersih)'),'dashboard net trend heading');
-    check(page.__a26.calls.some(c=>c.path.endsWith('/orders')),'dashboard orders request');
+    check(page.__a26.calls.some(c=>c.path.endsWith('/orders')&&c.dateBasis==='refund'),'dashboard refund-basis request');
     check(dashboard.includes(`Rp ${(n*1000).toLocaleString('id-ID')}`)||dashboard.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'dashboard total');
     check(dashboard.includes('Product 200'),'last-page low stock missing');
     await page.getByRole('button',{name:'Laporan',exact:true}).click();

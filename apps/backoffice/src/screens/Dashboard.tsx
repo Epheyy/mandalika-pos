@@ -89,9 +89,10 @@ export default function Dashboard() {
       if (w.dateTo) params.dateTo = w.dateTo
       const [sale, refund] = await Promise.all([
         fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit })),
+        // A request failure is NOT swallowed (keeps the previous data / shows the error); only an
+        // unsupported response (old backend) maps to null via refundSideOrNull.
         fetchAllPages((page, limit) => api.listOrders({ ...params, dateBasis: 'refund', page, limit })).then(
           refundSideOrNull,
-          () => null,
         ),
       ])
       return { sale, refund }
@@ -138,7 +139,7 @@ export default function Dashboard() {
   const trend = refundRows
     ? buildTrend(salesIn(orders, iv), period, now, refundsInWindow(refundRows, iv))
     : buildTrend(completed, period, now)
-  const trendEmpty = trend.every((t) => t.revenue === 0)
+  const trendEmpty = trend.every((t) => t.revenue === 0 && t.orders === 0) && !(refundRows && refundsInWindow(refundRows, iv).length > 0)
   const ranking = productRanking(completed)
   const top = ranking.slice(0, 10)
   const bottom = [...ranking].reverse().slice(0, 10)

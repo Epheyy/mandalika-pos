@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Order } from '@mandalika/api'
 import {
   buildTrend,
+  delta,
   netKpis,
   netPaymentBreakdown,
   refundBusinessDayOf,
@@ -43,7 +44,7 @@ describe('netKpis (D1/D3 golden)', () => {
     expect([k.gross, k.refunds, k.net]).toEqual([gross, refunds, net])
   })
 
-  it('equals the Ekspor oracle (reportTotals) for every window', () => {
+  it('agrees with reportTotals on the interval-filtered rows for every window (wiring check; golden table above is the proof)', () => {
     for (const iv of [day(10), day(11), day(12), span(10, 12)]) {
       const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv))
       const k = netKpis(saleRows, refundRows, iv)
@@ -81,6 +82,8 @@ describe('refundSideOrNull (old-backend safety)', () => {
   it('accepts refunded rows that carry refundBusinessDate (null allowed)', () => {
     expect(refundSideOrNull([sale])).toEqual([sale])
     expect(refundSideOrNull([])).toEqual([])
+    const unset = { ...sale, refundBusinessDate: null } as unknown as Order
+    expect(refundSideOrNull([unset])).toEqual([unset])
   })
   it('rejects a response that ignored dateBasis (non-refunded rows)', () => {
     expect(refundSideOrNull([order({ status: 'completed' })])).toBeNull()
@@ -118,5 +121,24 @@ describe('netPaymentBreakdown', () => {
     const qris = order({ id: 'q', paymentMethod: 'qris', total: 250, businessDate: '2026-03-12' as BD })
     const rows = netPaymentBreakdown([sale, qris], [sale], day(12))
     expect(rows.map((r) => [r.method, r.amount])).toEqual([['qris', 250], ['cash', -100]])
+  })
+})
+
+describe('delta', () => {
+  it('rise from a negative previous net is positive (-100 -> -50 is +50%)', () => {
+    expect(delta(-50, -100)).toBe(50)
+  })
+  it('fall further below a negative previous net is negative (-100 -> -150 is -50%)', () => {
+    expect(delta(-150, -100)).toBe(-50)
+  })
+  it('crossing from negative to positive is positive', () => {
+    expect(delta(100, -100)).toBe(200)
+  })
+  it('is null when prev is 0 or unavailable', () => {
+    expect(delta(10, 0)).toBeNull()
+    expect(delta(10, null)).toBeNull()
+  })
+  it('keeps the normal positive-prev behaviour', () => {
+    expect(delta(150, 100)).toBe(50)
   })
 })
