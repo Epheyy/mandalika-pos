@@ -23,7 +23,7 @@ Backoffice shows a "Struk" warning badge. Old queued orders with no quote keep s
 
 ## Steps (fresh worktree off prod-hardening with A23 merged first; tests first)
 1 Go unit tests (red) `service/quote_test.go` table over evaluateQuote: nil/equal/+-Rp1/+Rp2/-Rp2/NaN/negative/oversized/oversized snapshot. [Opus]
-2 PG gate test (red) `backend/internal/handlers/quoted_receipt_integration_test.go` `TestQuotedReceiptPostgres`, register in scripts/ci/postgres_gate.py as ("QT", ..., 56460, "qt") (check the highest port on the base first). Cases: legacy batch payload -> NULL, no flag; matching quote -> stored, no flag;
+2 PG gate test (red) `backend/internal/handlers/quoted_receipt_integration_test.go` `TestQuotedReceiptPostgres`, register in scripts/ci/postgres_gate.py as ("QT", ..., 56461, "qt") (56460 is taken by gate PL from A23; check the highest port on the base first). Cases: legacy batch payload -> NULL, no flag; matching quote -> stored, no flag;
    catalog/tax drift -> total = server value, quoted_total = captured, `quote_mismatch`, amount_paid = captured; same-key replay not re-judged, no second flag; POST /orders mismatch -> 200 + flagged (not 422); invalid quote -> accepted + `quote_invalid`; receipt_snapshot unchanged after a refund.
    Also flip sale_input_integration_test.go:308 from `quoted != 110000` to `quoted IS NULL` (that assertion exposed this gap). [Opus]
 3 Backend [Opus]: migration, quote.go, createOrder wiring (INSERT columns/placeholders/reasons), `orderPayload`, `createOrderBody`, both CreateOrderInput builders (sync.go:352, writes.go:980), orderObj.
