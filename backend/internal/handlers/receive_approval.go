@@ -119,6 +119,7 @@ func mintError(w http.ResponseWriter, err error) {
 	case apperr.Conflict:
 		httpx.Err(w, http.StatusConflict, err.Error())
 	case apperr.Busy:
+		w.Header().Set("Retry-After", "2")
 		httpx.Err(w, http.StatusServiceUnavailable, err.Error())
 	default:
 		slog.Error("receive approval mint failed", "err", err)

@@ -147,15 +147,18 @@ func approverRoles(ctx context.Context, q interface {
 // MintReceiveApproval verifies the approver's PIN under the server-side lockout and
 // stores a single-use grant. Refusals: ErrApprovalRefused (uniform), *LockedError,
 // ErrNotFound, apperr.Forbidden (transfer not for this outlet), apperr.Conflict.
+//
+// Not wrapped in retryBusy: a mint waits for the lockout row locks at most
+// mintLockTimeout (a connection is held meanwhile), then fails fast as ErrBusy so a burst
+// from one requester cannot pin the pool. Lock order is fixed (approver row, then requester
+// row), so there is no deadlock to retry.
 func (r *Repo) MintReceiveApproval(ctx context.Context, in MintInput) (MintResult, error) {
-	var res MintResult
-	err := retryBusy(ctx, func() error {
-		var e error
-		res, e = r.mintReceiveApproval(ctx, in)
-		return e
-	})
-	return res, err
+	res, err := r.mintReceiveApproval(ctx, in)
+	return res, mapBusy(err)
 }
+
+// mintLockTimeout bounds every lock wait inside a mint (lockout rows, grant row).
+const mintLockTimeout = "2s"
 
 func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResult, error) {
 	var zero MintResult
@@ -170,6 +173,9 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		return zero, err
 	}
 	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout = '`+mintLockTimeout+`'`); err != nil {
+		return zero, err
+	}
 
 	// Read the transfer WITHOUT a row lock; redemption re-checks its state anyway.
 	var status string
@@ -214,9 +220,13 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		return zero, err
 	}
 
-	// Lockout rows exist only for real users (FK), so an unknown approver counts
-	// against the requester alone. Lock order: approver, then requester.
-	if exists {
+	// The approver counter only exists for, and only moves for, an approver who may approve
+	// at THIS outlet. An unknown or ineligible approver counts against the requester alone,
+	// so a cashier elsewhere cannot lock another outlet's approver, and an approver's lock
+	// state never shows to someone who could not use that approver anyway.
+	authorized := exists && ApproverAllowed(role, roles) && ReceiveScope(in.OutletID, dest, role, apprOutlet) == ""
+	// Lockout rows exist only for real users (FK). Lock order: approver, then requester.
+	if authorized {
 		if err := ensureLockout(ctx, tx, "approver", in.ApproverID); err != nil {
 			return zero, err
 		}
@@ -225,7 +235,7 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		return zero, err
 	}
 	var apprLock, reqLock lockRow
-	if exists {
+	if authorized {
 		if apprLock, err = loadLockout(ctx, tx, "approver", in.ApproverID); err != nil {
 			return zero, err
 		}
@@ -252,8 +262,7 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		return zero, le
 	}
 
-	eligible := exists && hash != nil && *hash != "" && setAt != nil &&
-		ApproverAllowed(role, roles) && ReceiveScope(in.OutletID, dest, role, apprOutlet) == ""
+	eligible := authorized && hash != nil && *hash != "" && setAt != nil
 	toCheck := dummyPinHash()
 	if eligible {
 		toCheck = *hash
@@ -296,11 +305,13 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		   device_id=EXCLUDED.device_id, approver_id=EXCLUDED.approver_id, pin_set_at=EXCLUDED.pin_set_at,
 		   issued_at=now(), expires_at=EXCLUDED.expires_at
 		   WHERE transfer_receive_approvals.consumed_at IS NULL
+		     AND transfer_receive_approvals.requested_by = EXCLUDED.requested_by
 		 RETURNING id::text, expires_at`,
 		in.OutletID, in.TransferID, in.ReceiptKey, ReceiveFingerprint(in.TransferID, in.Items, in.Reason),
 		in.RequesterID, in.DeviceID, in.ApproverID, *setAt, ReceiveApprovalTTL.Seconds()).Scan(&out.GrantID, &out.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		// The key's grant was already spent: a re-mint must never clear consumed_at.
+		// The key's grant was already spent, or belongs to another user: a re-mint must
+		// never clear consumed_at nor rebind someone else's grant.
 		return zero, apperr.New(apperr.Conflict, "kunci penerimaan sudah dipakai")
 	}
 	if err != nil {

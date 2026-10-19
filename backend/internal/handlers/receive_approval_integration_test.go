@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
@@ -565,6 +566,135 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("outsider-guesses-do-not-lock-another-outlets-approver", func(t *testing.T) {
+		resetLocks(t)
+		// A transfer to outlet B: cashier B asks, naming the outlet A manager (ineligible for B).
+		exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',100)
+			ON CONFLICT (outlet_id,product_id,variant_size) DO UPDATE SET stock=100`, outletA, product)
+		tidB, err := wr.CreateTransfer(ctx, "", write.TransferCreate{
+			Source: write.TransferLoc{Kind: "outlet", ID: outletA},
+			Dest:   write.TransferLoc{Kind: "outlet", ID: outletB},
+			Items:  []write.TransferItemInput{{ProductID: product, VariantSize: "M", Qty: 3}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := wr.SendTransfer(ctx, tidB); err != nil {
+			t.Fatal(err)
+		}
+		var first string
+		for i := 0; i < 7; i++ {
+			code, _, body := call("POST", "/sync/transfer-receive-approvals", tokCashB, mintBody(tidB, nextKey(), mgrA, "0000", 3, ""))
+			got := fmt.Sprintf("%d %s", code, body)
+			if i == 0 {
+				first = got
+			}
+			if code != 403 || got != first {
+				t.Fatalf("attempt %d must stay the uniform 403 (the approver lock state must not leak): %q", i, got)
+			}
+		}
+		if n := count(t, `SELECT count(*) FROM receive_pin_lockouts WHERE subject_kind='approver' AND user_id=$1 AND (failures>0 OR locked_until IS NOT NULL OR hard_locked)`, mgrA); n != 0 {
+			t.Fatal("an outsider advanced another outlet's approver counter")
+		}
+		// The requester IS throttled (10 failures lock), and the real approver is untouched.
+		tidA := newTransfer(t)
+		mintOK(t, tokCashA2, tidA, nextKey(), mgrA, 3, "")
+	})
+
+	t.Run("remint-never-rebinds-another-users-grant", func(t *testing.T) {
+		resetLocks(t)
+		tid, key := newTransfer(t), nextKey()
+		g := mintOK(t, tokCashA, tid, key, adminU, 3, "")
+		if code, _, _ := call("POST", "/sync/transfer-receive-approvals", tokCashA2, mintBody(tid, key, adminU, pin, 3, "")); code != 409 {
+			t.Fatalf("another user re-minting the key must be refused, got %d", code)
+		}
+		if n := count(t, `SELECT count(*) FROM transfer_receive_approvals WHERE receipt_key=$1 AND requested_by=$2`, key, cashA); n != 1 {
+			t.Fatal("the grant was rebound to another user")
+		}
+		wantRefused(t, batch(t, tokCashA2, key, redeemPayload(tid, adminU, g, 3, "")), "forbidden")
+		wantOK(t, batch(t, tokCashA, key, redeemPayload(tid, adminU, g, 3, "")))
+	})
+
+	t.Run("burst-from-one-requester-does-not-exhaust-a-small-pool", func(t *testing.T) {
+		resetLocks(t)
+		cfg, err := pgxpool.ParseConfig(os.Getenv("MANDALIKA_RA_TEST_DSN"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.MaxConns = 4
+		small, err := pgxpool.NewWithConfig(ctx, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer small.Close()
+		rd4, wr4, svc4 := read.New(small), write.New(small), service.NewOrderService(small)
+		h4 := New(rd4, nil, auth.NewStore(small), wr4, svc4, syncpkg.New(small, rd4, svc4, wr4), nil)
+		r4 := chi.NewRouter()
+		r4.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}))
+		r4.Post("/sync/transfer-receive-approvals", h4.CreateTransferReceiveApproval)
+		tid := newTransfer(t)
+		start := time.Now()
+		codes := make([]int, 16)
+		var wg sync.WaitGroup
+		for i := range codes {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				b, _ := json.Marshal(mintBody(tid, nextKey(), mgrA, "0000", 3, ""))
+				req := httptest.NewRequest("POST", "/sync/transfer-receive-approvals", strings.NewReader(string(b)))
+				req.Header.Set("Authorization", "Bearer "+tokCashA)
+				w := httptest.NewRecorder()
+				r4.ServeHTTP(w, req)
+				codes[i] = w.Code
+			}(i)
+		}
+		// Other work through the same small pool must keep finishing while the burst runs.
+		done := make(chan error, 1)
+		go func() {
+			var one int
+			done <- small.QueryRow(ctx, `SELECT 1`).Scan(&one)
+		}()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(8 * time.Second):
+			t.Fatal("an unrelated query starved behind the burst")
+		}
+		wg.Wait()
+		for _, c := range codes {
+			if c != 403 && c != 429 && c != 503 {
+				t.Fatalf("unexpected status %v", codes)
+			}
+		}
+		if time.Since(start) > 30*time.Second {
+			t.Fatal("burst took too long")
+		}
+		if n := small.Stat().AcquiredConns(); n != 0 {
+			t.Fatalf("%d connections still held after the burst", n)
+		}
+	})
+
+	t.Run("held-lockout-row-fails-fast-as-503", func(t *testing.T) {
+		resetLocks(t)
+		tid := newTransfer(t)
+		call("POST", "/sync/transfer-receive-approvals", tokCashA, mintBody(tid, nextKey(), adminU, "0000", 3, "")) // creates the rows
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM receive_pin_lockouts WHERE subject_kind='requester' AND user_id=$1 FOR UPDATE`, cashA); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Now()
+		code, hdr, _ := call("POST", "/sync/transfer-receive-approvals", tokCashA, mintBody(tid, nextKey(), adminU, pin, 3, ""))
+		if code != 503 || hdr.Get("Retry-After") == "" || time.Since(start) > 6*time.Second {
+			t.Fatalf("want a quick 503 with Retry-After, got %d after %v", code, time.Since(start))
+		}
+	})
+
 	// Keep this LAST: it clears every receive PIN of the fixture. The gate migrates a fresh
 	// database, so the file is executed here against rows that do carry a PIN.
 	t.Run("migration-0063-wipes-every-receive-pin", func(t *testing.T) {
@@ -575,12 +705,20 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		snapshot := func() string {
+			var out string
+			if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(u) - 'receive_pin_hash' - 'receive_pin_set_at' ORDER BY id)::text FROM users u`).Scan(&out); err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+		before := snapshot()
 		exec(t, string(sqlBytes))
 		if n := count(t, `SELECT count(*) FROM users WHERE receive_pin_hash IS NOT NULL OR receive_pin_set_at IS NOT NULL`); n != 0 {
 			t.Fatalf("%d users still carry a receive PIN", n)
 		}
-		if n := count(t, `SELECT count(*) FROM users WHERE password_hash IS NULL OR email IS NULL`); n != 0 {
-			t.Fatal("the wipe must not touch other columns")
+		if after := snapshot(); after != before {
+			t.Fatal("the wipe changed a column other than the two PIN columns")
 		}
 		exec(t, string(sqlBytes)) // idempotent
 		if code, _, body := call("GET", "/sync/receive-approvers", tokCashA, nil); code != 200 || strings.Contains(body, adminU) {
