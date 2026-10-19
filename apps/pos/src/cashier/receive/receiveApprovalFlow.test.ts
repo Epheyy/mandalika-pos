@@ -68,7 +68,12 @@ describe('requestReceiveGrant', () => {
     expect(r.kind).toBe('failed')
   })
 
-  it('an old server (404) says it needs a newer server', async () => {
+  it('a real transfer not found (404 with that text) is not reported as an old server', async () => {
+    const request = vi.fn().mockRejectedValue(new ApiError(404, 'transfer tidak ditemukan', 'http'))
+    expect(await requestReceiveGrant({ isOnline: online, request }, input)).toEqual({ kind: 'failed', message: 'Transfer tidak ditemukan. Muat ulang daftar penerimaan.' })
+  })
+
+  it('an old server (404 route miss) says it needs a newer server', async () => {
     const request = vi.fn().mockRejectedValue(new ApiError(404, 'not found', 'http'))
     const r = await requestReceiveGrant({ isOnline: online, request }, input)
     expect(r.kind).toBe('failed')

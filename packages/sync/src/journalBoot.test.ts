@@ -7,6 +7,7 @@ import { JournalOutboxStore } from './journalOutboxStore'
 import { KVOutboxStore } from './outboxStore'
 import { adoptOutboxStore, getOutboxStore } from './storage'
 import { parseSentinel } from './journalSentinel'
+import { scrubPinFromRawQueue } from './scrubStoredCopies'
 import {
   initJournal,
   quarantineCorruptRows,
@@ -169,7 +170,9 @@ describe('first migration: copy, verify, backup, seal', () => {
     const backups = legacyKeys(store)
     expect(backups).toHaveLength(1)
     expect(backups[0]).toBe(LEGACY_BACKUP_PREFIX + NOW.toISOString())
-    expect(store.get(backups[0])).toBe(raw)
+    // Verbatim except the A08 scrub, which removes a raw approver PIN from the backup copy.
+    expect(store.get(backups[0])).toBe(scrubPinFromRawQueue(raw) ?? raw)
+    expect(store.get(backups[0])).not.toContain('"1234"')
     expect(getOutboxStore()).toBe(j)
     expect(getJournalBootNotice()).toBeNull()
   })

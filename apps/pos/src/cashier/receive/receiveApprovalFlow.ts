@@ -8,6 +8,7 @@ export const OFFLINE_MESSAGE = 'Persetujuan penerimaan butuh koneksi internet.'
 export const REFUSED_MESSAGE = 'PIN salah atau penyetuju tidak berwenang'
 const UNREACHABLE_MESSAGE = 'Tidak bisa menghubungi server. Periksa koneksi lalu coba lagi.'
 const OLD_SERVER_MESSAGE = 'Persetujuan penerimaan butuh koneksi internet dan server versi terbaru.'
+const TRANSFER_MISSING_MESSAGE = 'Transfer tidak ditemukan. Muat ulang daftar penerimaan.'
 const DEFAULT_LOCK_SECONDS = 60
 
 export interface ReceiveGrantInput {
@@ -53,7 +54,10 @@ export async function requestReceiveGrant(deps: GrantDeps, input: ReceiveGrantIn
       if (e.status === 403) {
         return e.message === REFUSED_MESSAGE ? { kind: 'refused', message: REFUSED_MESSAGE } : { kind: 'failed', message: e.message }
       }
-      if (e.status === 404) return { kind: 'failed', message: OLD_SERVER_MESSAGE }
+      if (e.status === 404) {
+        // The mint's own 404 (unknown transfer) versus a server without the route at all.
+        return { kind: 'failed', message: e.message === 'transfer tidak ditemukan' ? TRANSFER_MISSING_MESSAGE : OLD_SERVER_MESSAGE }
+      }
       if (e.status >= 500) return { kind: 'failed', message: UNREACHABLE_MESSAGE }
       return { kind: 'failed', message: e.message }
     }

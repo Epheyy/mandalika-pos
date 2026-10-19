@@ -14,6 +14,7 @@ import { makeSentinel, parseSentinel, SENTINEL_VERSION, type JournalSentinel } f
 import { SYNCED_REFUNDS_KEY } from './syncedRefunds'
 import { RECEIPT_ARCHIVE_KEY } from './receiptArchive'
 import { adoptOutboxStore, getKV, type KV } from './storage'
+import { scrubQuarantineMeta, scrubQueueCopies } from './scrubStoredCopies'
 
 /** Verbatim copy of the pre-migration queue (never deleted by the app; owner Q7). */
 export const LEGACY_BACKUP_PREFIX = 'mandalika.outbox.legacy.'
@@ -129,6 +130,31 @@ const digestItems = (items: readonly OutboxItem[]): Promise<string> => digestJso
 const digestRows = (rows: readonly JournalRow[]): Promise<string> => digestJson(bySeq(rows).map((r) => r.json))
 
 export async function initJournal(deps: InitJournalDeps = {}): Promise<JournalBootResult> {
+  const result = await initJournalCore(deps)
+  await scrubStoredCopies(deps.kv ?? getKV(), result)
+  return result
+}
+
+/** A08: after the takeover decision, strip any raw approver PIN from the stored queue copies that
+ *  older code left (legacy backup, corrupt queue copies, journal quarantine rows). In place, never
+ *  deleted; unparseable copies stay untouched and are reported by key. Best effort: any failure is
+ *  logged and the scrub simply runs again at the next boot. */
+async function scrubStoredCopies(kv: KV, result: JournalBootResult): Promise<void> {
+  try {
+    const report = await scrubQueueCopies(kv)
+    if (result.kind === 'journal') {
+      const updates = scrubQuarantineMeta((await result.store.readDisk()).meta)
+      if (Object.keys(updates).length) await result.store.applyBoot({ upserts: [], deletes: [], meta: updates })
+    }
+    if (report.unparseable.length) {
+      console.warn('[outbox] unparseable stored queue copies left untouched (A08 PIN scrub)', report.unparseable)
+    }
+  } catch (err) {
+    console.warn('[outbox] stored queue copy scrub failed; it runs again at the next boot', errMsg(err))
+  }
+}
+
+async function initJournalCore(deps: InitJournalDeps): Promise<JournalBootResult> {
   notice = null
   const kv = deps.kv ?? getKV()
   const available = (deps.isPluginAvailable ?? (() => Capacitor.isPluginAvailable('OutboxJournal')))()

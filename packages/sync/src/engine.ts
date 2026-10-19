@@ -1475,10 +1475,11 @@ export class SyncEngine {
     this.settling.revive()
     this.outbox.revive()
     this.autoCheckIn = !opts.flushOnly
-    // A08: drop any raw approver PIN that older code queued. Best effort, retried at the next start.
+    // A08: drop any raw approver PIN that older code queued. Best effort and once per engine: a
+    // failed write is logged inside the outbox and the scrub runs again at the next app start.
     if (!this.legacyScrubbed) {
       this.legacyScrubbed = true
-      void this.outbox.scrubLegacySecrets().catch(() => { this.legacyScrubbed = false })
+      void this.outbox.scrubLegacySecrets()
     }
     // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
     // fresh, but never read outlet data (no inbound-transfer cache) for an outlet that is not
