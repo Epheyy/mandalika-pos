@@ -6,7 +6,7 @@ A33 (refresh-token validity lives in Redis) and A36 (no backup workflow). P0s A0
 are done and not repeated here. Statuses: Resolved / Mostly / Partial / Open / Policy-blocked.
 
 Totals: Resolved 1 (A24) · Mostly 11 (A05 A12 A23 A26 A27 A29 A32 A34 A35 A40 A43) · Partial 9 (A07 A10 A18 A25 A28 A30 A37 A38 A42)
-· Open 12 (A08 A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A44) · Policy-blocked 1 (A20) · A41 fixed locally 2026-10-20 (merge `a163d61`, not deployed).
+· Open 11 (A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A44) · Policy-blocked 1 (A20) · A41 fixed locally 2026-10-20 (merge `a163d61`, not deployed) · A08 fixed locally 2026-10-20 (merge `d794fdb`, not deployed).
 
 
 ---
@@ -52,7 +52,7 @@ Repo HEAD 33557cb (prod-hardening). Read-only; status judged from code, not trac
 - **Go-live blocker?**: no. It is a real durability and consistency gap, but it fails safe (re-login) rather than granting access. Fix the silent insert error before go-live because it is a one-line change.
 
 ### A08 — Offline approval distributes reusable PIN verification material
-- **Status**: Open
+- **Status**: Fixed locally 2026-10-20 (merge `d794fdb`, NOT pushed or deployed; plan `docs/plans/2026-10-20-a08-receive-stepup.md`). Original evidence below is historical.
 - **Evidence**:
   - `read/repo.go:918-927` still ships `receivePinHash` (argon2id) for every approving user in the sync bundle (`receiveApprovers`).
   - The POS verifies locally: `PinStepUpModal.tsx:59` calls `verifyPin(pin, approver.receivePinHash)`, and `packages/sync/src/pin.ts` is unchanged.

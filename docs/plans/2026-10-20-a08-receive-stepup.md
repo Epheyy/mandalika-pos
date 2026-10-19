@@ -69,3 +69,8 @@ Widening eligibility (multi-outlet managers via `user_outlets`, brand scoping); 
 
 ## 9. Owner questions: defaults taken (decisions)
 Q1 clear all existing receive PINs (hashes were exposed): yes, as a SEPARATE migration 0063 the owner approves at release. Q2 lockout thresholds: approver 5 -> 15 min doubling to 24 h, hard lock after 3 cycles until admin acts; requester 10, same schedule, no hard lock. Q3 approval TTL 12 h (same as A05 cap). Q4 requesting cashier may also be the approver if eligible (as today). Q5 no offline draft of counts.
+
+## Result (2026-10-20)
+- Built and merged locally as `d794fdb` on `prod-hardening` (slice commits `e683c7c`..`ccc8094`). NOT pushed or deployed; release on hold. Migrations 0062 and 0063 (PIN wipe, owner decision at release).
+- Gates: full PG gate 28/28 including RA (port 56466); A05 OC gate flake fixed (`da48864`); browser gate fixture fix (`b9c31a7`). Opus review was Ship-with-minors twice, with the fixes applied.
+- Deviations from the plan: a wrong-length PIN returns 400 and is not counted as an attempt; unknown approvers run a dummy hash check so the response time and the uniform 403 match; replay-first returns ok and fills the transfer snapshot; the 0063 wipe has a gate subtest that must stay last.

@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-20 by Claude (Haiku 5.5) — A41 merged locally (`a163d61`, prod-hardening head), NOT pushed/deployed; see Next.
+Last updated: 2026-10-20 by Claude (Haiku 5.5) — A08 merged locally (`d794fdb`, prod-hardening head), NOT pushed/deployed; see Next.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -229,7 +229,10 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 - **A41 local receipts + offline returns DONE LOCALLY (merge `a163d61`, commits `2a8a3e0`..`3156a83`, NOT pushed/deployed; release on hold).** Plan `docs/plans/2026-10-20-a41-local-receipts.md`; NO migration, NO OpenAPI change. Backend: refund may carry `saleOrderUuid` + `deviceId`; sync resolves the sale inside the keyed transaction, scoped to outlet and same device; old payloads unchanged. POS (OTA only): ack stores the server id (`ackedOrderId`); `ReceiptArchive` keeps receipts 7 days OR newest 500 per outlet; linked refunds held until their sale is acked (a held refund also holds shift close, A06/M3); 'Struk di Tablet Ini' panel (reprint never enqueues); typed order-history searches no longer cached. PG gate OF (port 56465) 27/27; quality:ci, browser:ci 29/29, both gen checks green; Opus Ship-with-minors, fixed.
   RELEASE additions: backend first (tablets at 0 pending; old servers turn uuid-only refunds into review items), then `make ota-release`; no APK.
   Follow-ups (not built): SyncedRefunds window ~250 linked refunds/30 days; `orders:last` cache alias may keep an older build's last search; archive is one ~1-2 MB value (on-device timing unverified); refund in a shift opened offline stays blocked (Q1).
-- **NEXT = A08** (A27 T7 is already merged: `3a469c7`).
+- **A08 transfer-receive PIN DONE LOCALLY (merge `d794fdb`, commits `e683c7c`..`ccc8094`, NOT pushed/deployed; release on hold).** Plan `docs/plans/2026-10-20-a08-receive-stepup.md`; migrations 0062 (approval grants, lockouts, attempts, content version bump) and separate 0063 PIN wipe. Receiving needs an online step-up: server PIN check with Postgres lockout mints a single-use 12 h grant; the queued item carries `approvalGrantId` only, no PIN; sync no longer ships PIN hashes. POS (OTA only): ReceiveApprovalModal, legacy PINs scrubbed. PG gate RA (port 56466); full PG gate 28/28.
+  RELEASE additions: backend first (tablets at 0 pending; 0062 always). **OWNER DECISION: apply 0063?** It clears every receive PIN hash (recommended yes; the hashes sat on tablets). It cannot be undone, so set new admin PINs before tablets need to receive. Then push, then OTA. Old POS bundles lose receive approval until the OTA lands.
+  Follow-ups (not built): retention of attempts and expired grants; any outlet's cashier can hard-lock the global admin's receive PIN (admin can unlock); approver lock events not shown in backoffice.
+- **NEXT:** the answered-policy builds are all done locally (A28, A27 incl. T7, A05, A30, A41, A08). Next items are the release (owner go-ahead needed), A15 Phase B (0057), A33 Task 9 on/after 2026-10-30, A36, and the Fable re-audit only on the owner's ask. Migrations are now through 0063 locally; the highest PG gate port is 56466.
 
 **NEXT SESSION — START HERE (written 2026-10-19, supersedes the 2026-10-17 block below; its Task 1/Task 2 are DONE, see their result lines further down):**
 - State: `prod-hardening` = `41d0e55`, 30 commits AHEAD of `origin/prod-hardening`, NOTHING pushed, nothing deployed. Merged locally: A29 batch cap (`36beb48`), A26 reports aggregation (`350f2f7`), A23 promo parity tests (`32049dc`), A10 quoted receipt total (`f925a59`, migration 0058, gate QT 56461).
