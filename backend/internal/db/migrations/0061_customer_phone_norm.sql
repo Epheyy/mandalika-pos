@@ -13,7 +13,7 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
                 THEN CASE WHEN s LIKE '62%' THEN '0' || substr(s, 3) ELSE s END
                 ELSE '' END AS n
     FROM (
-      SELECT regexp_replace(regexp_replace(btrim(raw, E' \t\r\n'), '[-. ()]', '', 'g'), '^\+', '') AS s
+      SELECT regexp_replace(regexp_replace(regexp_replace(raw, '^[\t\n\v\f\r \u0085\u00a0\ufeff\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\ufeff\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$', '', 'g'), '[-. ()]', '', 'g'), '^\+', '') AS s
     ) a
   ) b
 $$;
