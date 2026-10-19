@@ -80,6 +80,12 @@
       "source": "apps/pos/tests/refund-permission/main.tsx"
     },
     {
+      "id": "POS-OFFLINE-RETURN",
+      "finding": "A41",
+      "description": "Offline sale survives a reload, is found by receipt number under Struk di tablet ini, reprinted once without a new outbox entry, refunded by uuid, blocked from a second refund, then synced sale-before-refund and shown as Sudah direfund",
+      "source": "apps/pos/tests/offline-return/main.tsx"
+    },
+    {
       "id": "HOOK-01",
       "finding": "A31",
       "description": "01 B success then A success",

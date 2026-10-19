@@ -184,3 +184,73 @@ test('S0B-REFUND-RETENTION denied original refund survives export reconstruction
   expect(final.deliveries.at(-1)[0].idempotencyKey).toBe(parked.retained[0].idempotencyKey)
   await evidence(info, { original, parked, final })
 })
+
+test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted once, refunded by uuid and synced in order', async ({ page }, info) => {
+  await page.goto(`${POS}/tests/offline-return/`)
+  const current = async () => JSON.parse(await page.getByLabel('Offline return evidence').innerText())
+  expect(await current()).toMatchObject({ net: false, pending: 0, outboxOrders: 0 })
+
+  // Offline sale, then a real reload: the receipt must survive on the tablet.
+  await page.getByRole('button', { name: 'Jual offline (simulasi)', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(1)
+  await page.reload()
+  const afterReload = await current()
+  expect(afterReload).toMatchObject({ net: false, pending: 1, outboxOrders: 1, batches: [] })
+
+  // "Struk di tablet ini": search by number only, never by customer.
+  await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click()
+  const panel = page.getByTestId('local-receipts')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByTestId('local-receipt-row')).toHaveCount(1)
+  await panel.getByLabel('Cari nomor struk').fill('Budi')
+  await expect(panel.getByTestId('local-receipt-row')).toHaveCount(0)
+  await panel.getByLabel('Cari nomor struk').fill('har-0001')
+  const row = panel.getByTestId('local-receipt-row')
+  await expect(row).toHaveCount(1)
+  await expect(row).toContainText('HAR-0001')
+  await expect(row).toContainText('Belum tersinkron')
+  expect(await panel.innerText()).not.toMatch(/Budi|cust-secret/)
+
+  // Reprint: one print, no new outbox entry.
+  await row.getByRole('button', { name: 'Cetak Ulang', exact: true }).click()
+  await expect.poll(async () => (await current()).prints.length).toBe(1)
+  const printed = await current()
+  expect(printed.prints[0]).toEqual({ orderRef: 'HAR-0001', reprint: true, customer: null })
+  expect(printed).toMatchObject({ pending: 1, outboxOrders: 1, outboxRefunds: [] })
+
+  // Refund the unsynced sale: it queues by uuid with an empty server id.
+  await row.getByRole('button', { name: 'Refund Transaksi Ini', exact: true }).click()
+  await page.getByLabel('Alasan Refund *').fill('salah beli')
+  await page.getByRole('button', { name: 'Konfirmasi Refund', exact: true }).click()
+  await expect.poll(async () => (await current()).outboxRefunds.length).toBe(1)
+  const queued = await current()
+  expect(queued.outboxRefunds[0]).toMatchObject({ orderId: '', reason: 'salah beli' })
+  expect(typeof queued.outboxRefunds[0].saleOrderUuid).toBe('string')
+  expect(queued).toMatchObject({ pending: 2, outboxOrders: 1 })
+
+  // A second refund of the same sale is blocked while the first waits.
+  await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click()
+  await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund menunggu')
+  await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
+  await expect(panel).toContainText('Refund menunggu sinkronisasi')
+  await panel.getByRole('button', { name: 'Tutup', exact: true }).click()
+
+  // Online: the sale goes first, then the refund; the server refunds the sale once.
+  await page.getByRole('button', { name: 'Sambungkan jaringan', exact: true }).click()
+  await page.getByRole('button', { name: 'Kirim sekarang', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(0)
+  const synced = await current()
+  expect(synced.batches).toEqual([['order'], ['refund']])
+  expect(synced.serverStatuses).toEqual(['refunded'])
+  expect(synced.serverRefunds).toHaveLength(1)
+  expect(synced.serverRefunds[0]).toMatchObject({ viaUuid: true, sentOrderId: '' })
+  expect(synced.receipts).toEqual([{ number: 'HAR-0001', state: 'synced', refundQueued: false, refunded: true }])
+
+  // The receipt stays on the tablet after the ack, marked as refunded, and cannot be refunded again.
+  await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click()
+  await expect(panel.getByTestId('local-receipt-row')).toHaveCount(1)
+  await expect(panel.getByTestId('local-receipt-row')).toContainText('Sudah direfund')
+  await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
+  await evidence(info, { afterReload, printed, queued, synced })
+})
+
