@@ -221,7 +221,7 @@ describe('SyncEngine durable enqueue', () => {
     const { kv, ctl } = controllableKV()
     const { engine } = makeEngine(kv)
     const input = {
-      transferId: 't1', approverUserId: 'u1', pin: '1234',
+      orderUuid: 'o-1', transferId: 't1', approvalGrantId: 'g1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
     }
     ctl.mode = 'reject'

@@ -750,3 +750,48 @@ describe.each([
     expect(b.stored()).toEqual([])
   })
 })
+
+// A08: a raw approver PIN may still sit in queued transfer_receive rows written by older code. The
+// scrub removes it from EVERY such row in any status (acked rows included) and touches nothing else.
+describe.each([
+  ['kv', kvBackend],
+  ['journal', journalBackend],
+] as const)('Outbox.scrubLegacySecrets over the %s store', (_name, create) => {
+  it('strips payload.pin from every transfer_receive row, keeping seq, status, attempts and key', async () => {
+    const b = await create()
+    const outbox = b.newOutbox()
+    await outbox.add('transfer_receive', 'dev:pending', { transferId: 't1', pin: '1234', approverUserId: 'a' })
+    await outbox.add('transfer_receive', 'dev:acked', { transferId: 't2', pin: '1234' })
+    await outbox.add('transfer_receive', 'dev:failed', { transferId: 't3', pin: '1234' })
+    await outbox.add('order', 'dev:order', { total: 1, pin: 'not-a-secret-here' })
+    await outbox.settle([
+      { key: 'dev:acked', op: 'ack' },
+      { key: 'dev:failed', op: 'fail', error: 'boom' },
+    ])
+    const before = outbox.all().map((i) => ({ seq: i.seq, status: i.status, attempts: i.attempts, key: i.idempotencyKey }))
+
+    await outbox.scrubLegacySecrets()
+
+    for (const rows of [outbox.all(), b.stored()]) {
+      for (const i of rows.filter((r) => r.type === 'transfer_receive')) expect(i.payload).not.toHaveProperty('pin')
+      expect(JSON.stringify(rows)).not.toContain('"1234"')
+      expect(rows.map((i) => ({ seq: i.seq, status: i.status, attempts: i.attempts, key: i.idempotencyKey }))).toEqual(before)
+    }
+    expect(outbox.all().find((i) => i.idempotencyKey === 'dev:pending')!.payload).toMatchObject({ transferId: 't1', approverUserId: 'a' })
+    expect(outbox.all().find((i) => i.idempotencyKey === 'dev:order')!.payload).toHaveProperty('pin') // other types untouched
+  })
+
+  it('writes nothing when no row carries a PIN, and is idempotent', async () => {
+    const b = await create()
+    const outbox = b.newOutbox()
+    await outbox.add('transfer_receive', 'dev:clean', { transferId: 't1', approvalGrantId: 'g1' })
+    const writes = b.ctl.writes()
+    await outbox.scrubLegacySecrets()
+    expect(b.ctl.writes()).toBe(writes)
+    await outbox.add('transfer_receive', 'dev:old', { transferId: 't2', pin: '9999' })
+    await outbox.scrubLegacySecrets()
+    const after = b.ctl.writes()
+    await outbox.scrubLegacySecrets()
+    expect(b.ctl.writes()).toBe(after)
+  })
+})

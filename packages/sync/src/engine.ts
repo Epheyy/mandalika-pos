@@ -23,6 +23,8 @@ type Bundle = components['schemas']['SyncPullBundle']
 type BatchResult = components['schemas']['SyncBatchResult']
 type VersionInfo = components['schemas']['SyncVersion']
 type Transfer = components['schemas']['Transfer']
+type ReceiveApprover = components['schemas']['ReceiveApprover']
+type TransferReceiveApproval = components['schemas']['TransferReceiveApproval']
 type ReviewReport = components['schemas']['SyncReviewReport']
 type ReviewReportRequest = components['schemas']['SyncReviewReportRequest']
 type ReviewReportResult = components['schemas']['SyncReviewReportResult']
@@ -308,6 +310,8 @@ export class SyncEngine {
   private disposed = false
   /** How many times an acked order was held back from ack because its settling-debit write failed. */
   private readonly settlingHolds = new Map<string, number>()
+  private legacyScrubbed = false
+
   /** Bumped by every dispose(); lets an in-flight pull tell it was retired even if start() revived the engine. */
   private disposeEpoch = 0
   // Review check-in (head-office resolve). Key -> last time it was sent in a successful check-in.
@@ -661,17 +665,53 @@ export class SyncEngine {
     return { idempotencyKey, orderUuid }
   }
 
-  /** Enqueue a POS transfer receive and optimistically credit the counted qty.
-   *  The PIN is validated by the UI before this; it rides in the payload for
-   *  server re-validation and is dropped from the outbox when the item acks. */
-  async enqueueTransferReceive(input: {
+  /** A08: the receipt key is created BEFORE the approval is requested and reused across retries,
+   *  so a lost mint response can never become a second receipt. */
+  newReceiveKey(): { orderUuid: string; idempotencyKey: string } {
+    const orderUuid = uuid()
+    return { orderUuid, idempotencyKey: this.key(orderUuid) }
+  }
+
+  /** A08, online only: who may approve a receive at this outlet (never includes a PIN hash). */
+  async listReceiveApprovers(): Promise<ReceiveApprover[]> {
+    const r = await this.api.request<{ data: ReceiveApprover[] }>('GET', '/api/v1/sync/receive-approvers')
+    return r.data
+  }
+
+  /** A08, online only: the server verifies the approver PIN (with its own lockout) and returns a
+   *  single-use grant bound to this receipt key, outlet, requester and these counts. The PIN is
+   *  sent once and never stored; an ApiError (403 uniform text, 429 with retryAfterSeconds, ...)
+   *  propagates to the caller. */
+  async requestReceiveApproval(input: {
+    idempotencyKey: string
     transferId: string
     items: { productId: string; variantSize: string; receivedQty: number }[]
     discrepancyReason?: string
     approverUserId: string
     pin: string
+  }): Promise<TransferReceiveApproval> {
+    const r = await this.api.request<{ data: TransferReceiveApproval }>('POST', '/api/v1/sync/transfer-receive-approvals', {
+      transferId: input.transferId,
+      idempotencyKey: input.idempotencyKey,
+      items: input.items,
+      discrepancyReason: input.discrepancyReason ?? '',
+      approverUserId: input.approverUserId,
+      pin: input.pin,
+      deviceId: this.deviceId,
+    })
+    return r.data
+  }
+
+  /** Enqueue a POS transfer receive and optimistically credit the counted qty. Only called after
+   *  a successful {@link requestReceiveApproval}: the payload carries the grant id, never a PIN. */
+  async enqueueTransferReceive(input: {
+    orderUuid: string
+    transferId: string
+    items: { productId: string; variantSize: string; receivedQty: number }[]
+    discrepancyReason?: string
+    approvalGrantId: string
   }): Promise<{ idempotencyKey: string }> {
-    const orderUuid = uuid()
+    const orderUuid = input.orderUuid
     const idempotencyKey = this.key(orderUuid)
     const lines: CreditLine[] = input.items
       .filter((it) => it.receivedQty > 0)
@@ -684,8 +724,7 @@ export class SyncEngine {
       transferId: input.transferId,
       items: input.items,
       discrepancyReason: input.discrepancyReason ?? '',
-      approverUserId: input.approverUserId,
-      pin: input.pin,
+      approvalGrantId: input.approvalGrantId,
     }, orderUuid)
     this.pending.add({ idempotencyKey, lines, ackVersion: null })
     this.recomputeCredited()
@@ -1436,6 +1475,11 @@ export class SyncEngine {
     this.settling.revive()
     this.outbox.revive()
     this.autoCheckIn = !opts.flushOnly
+    // A08: drop any raw approver PIN that older code queued. Best effort, retried at the next start.
+    if (!this.legacyScrubbed) {
+      this.legacyScrubbed = true
+      void this.outbox.scrubLegacySecrets().catch(() => { this.legacyScrubbed = false })
+    }
     // flushOnly (a terminal/outlet mismatch): drain the existing queue and keep reachability
     // fresh, but never read outlet data (no inbound-transfer cache) for an outlet that is not
     // the terminal's.

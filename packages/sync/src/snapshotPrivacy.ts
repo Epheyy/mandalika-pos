@@ -1,18 +1,21 @@
 // A30: the tablet must not keep a browsable customer list, nor which customer a discount code
 // belongs to. These helpers drop that from a stored or incoming pull bundle. They keep every other
 // field (including discountCodes[].customerId, which the POS wrong_customer rule needs).
+// A08: also receiveApprovers, which used to carry receive-PIN hashes; the server now ships none and
+// approvers are fetched online, so the stored list is forced empty.
 
 type Loose = Record<string, unknown>
 
-/** True when the bundle carries a customer list or a discount-code holder name. */
+/** True when the bundle carries a customer list, a discount-code holder name or receive approvers (hashes). */
 export function hasSnapshotPii(bundle: Loose): boolean {
+  if (Array.isArray(bundle.receiveApprovers) && bundle.receiveApprovers.length > 0) return true
   if (Array.isArray(bundle.customers) && bundle.customers.length > 0) return true
   return Array.isArray(bundle.discountCodes) && bundle.discountCodes.some((c) => !!c && typeof c === 'object' && 'customerName' in c)
 }
 
-/** A copy of the bundle with customers [] and no discount-code customerName. */
+/** A copy of the bundle with customers [], receiveApprovers [] and no discount-code customerName. */
 export function stripSnapshotPii<T extends Loose>(bundle: T): T {
-  const out: Loose = { ...bundle, customers: [] }
+  const out: Loose = { ...bundle, customers: [], receiveApprovers: [] }
   if (Array.isArray(bundle.discountCodes)) {
     out.discountCodes = bundle.discountCodes.map((c) => {
       if (!c || typeof c !== 'object') return c

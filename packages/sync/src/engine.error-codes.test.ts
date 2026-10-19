@@ -22,7 +22,7 @@ async function setup(result: Result, type: 'transfer_receive' | 'order' = 'trans
   vi.stubGlobal('navigator', { onLine: false }) // enqueue must not auto-flush
   if (type === 'transfer_receive') {
     await engine.enqueueTransferReceive({
-      transferId: 't1', approverUserId: 'u1', pin: '1234',
+      orderUuid: 'o-1', transferId: 't1', approvalGrantId: 'g1',
       items: [{ productId: 'p1', variantSize: '10ml', receivedQty: 5 }],
     })
   } else {
