@@ -1,10 +1,11 @@
 import type { components } from '@mandalika/api'
-import { Outbox, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
+import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine } from './settlingDebits'
 import { redactForLogs, redactSecrets, redactString } from './redact'
@@ -150,6 +151,12 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
 
 /** An acked order is kept queued at most this many times when its settling-debit write fails. */
 const SETTLING_HOLD_MAX = 3
+/** Consecutive failed receipt-archive writes (A41) after which acked rows that are NOT sales stop being held back. */
+export const ARCHIVE_HOLD_MAX = 5
+/** ...and after which even an acked sale row that could not be archived is dropped. Its sale is already
+ *  acknowledged server side, so what is lost is only the tablet's local receipt copy (the history still has it
+ *  online); keeping rows forever behind a write that never succeeds would grow the outbox without bound. */
+export const ARCHIVE_DROP_MAX = 50
 
 /** Backoff after a transient whole-batch failure: base * 2^n, capped, with jitter. */
 export const BACKOFF_BASE_MS = 20_000
@@ -211,7 +218,8 @@ export interface SyncEngineOptions {
 /** A refund not yet acknowledged by the server, as the POS gate and shift recap see it. */
 export interface QueuedRefund {
   idempotencyKey: string
-  /** '' when a legacy item carries no usable orderId. */
+  /** '' when a legacy item carries no usable orderId, or a linked refund (saleOrderUuid) whose sale has not synced yet.
+   *  Once that sale synced, its server id is resolved here (the stored payload keeps its empty orderId). */
   orderId: string
   /** Shift stamped on the item at capture (envelope); null when unknown (offline-opened shift, legacy). */
   shiftId: string | null
@@ -219,6 +227,35 @@ export interface QueuedRefund {
   parked: boolean
   readonly payload: Readonly<Record<string, unknown>>
 }
+
+/** A sale made on this tablet, as the local receipt book shows it (A41). Receipt facts only: no customer,
+ *  notes or salesman data. */
+export interface LocalReceipt {
+  orderUuid: string
+  idempotencyKey: string
+  /** Known once the server acknowledged the sale and returned its id. */
+  serverOrderId?: string
+  orderNumber: string
+  capturedAt: string
+  outletId: string
+  shiftId: string | null
+  paymentMethod: string
+  quotedTotal: number | null
+  /** The A10 receipt snapshot, verbatim. */
+  receiptSnapshot: unknown
+  /** queued = still in the outbox (queued or retrying); parked = needs review; synced = acknowledged. */
+  state: 'queued' | 'parked' | 'synced'
+  /** An unacknowledged refund (queued or parked) names this sale. */
+  refundQueued: boolean
+  /** This tablet saw the server acknowledge a refund of this sale. */
+  refunded: boolean
+}
+
+/** Where a refund's sale stands for the send rule. */
+type SaleState = 'acked' | 'queued' | 'parked' | 'unknown'
+
+const SALE_IN_REVIEW_MESSAGE =
+  'Penjualan asal refund ini sedang ditinjau, jadi refund ditahan dan tidak dikirim. Jangan bayar ulang. Hubungi admin untuk meninjau penjualan ini.'
 
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
 export interface PendingShiftOp {
@@ -253,6 +290,11 @@ export class SyncEngine {
   private readonly settling: SettlingDebits
   private readonly syncedRefunds: SyncedRefunds
   private refundMemory: Promise<boolean> = Promise.resolve(true)
+  /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
+  private readonly receiptArchive: ReceiptArchive
+  private receiptMemory: Promise<boolean> = Promise.resolve(true)
+  /** Consecutive failed archive writes; reset by any successful fold. */
+  private archiveFailures = 0
   private creditedView: Bundle | null = null
   private flushing = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
@@ -301,9 +343,11 @@ export class SyncEngine {
     this.pending = new PendingCredits(kv)
     this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
+    this.receiptArchive = new ReceiptArchive(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
     // synced-refund write; fold it into the memory now.
     this.refundMemory = this.foldAckedRefunds()
+    this.receiptMemory = this.foldAckedReceipts()
     this.recomputeCredited()
     this.wall = { raised: false, localVersion: this.snapshot.localVersion(), serverVersion: this.snapshot.localVersion() }
   }
@@ -313,7 +357,8 @@ export class SyncEngine {
   private foldAckedRefunds(extra: readonly string[] = []): Promise<boolean> {
     const ids = new Set(extra)
     for (const i of this.outbox.all()) {
-      if (i.type === 'refund' && i.status === 'acked' && typeof i.payload.orderId === 'string') ids.add(i.payload.orderId)
+      if (i.type !== 'refund' || i.status !== 'acked') continue
+      for (const id of [i.payload.orderId, i.payload.saleOrderUuid, i.ackedOrderId]) if (typeof id === 'string') ids.add(id)
     }
     ids.delete('')
     if (!ids.size) return Promise.resolve(true)
@@ -326,13 +371,54 @@ export class SyncEngine {
     )
   }
 
-  /** Resolves when this engine has nothing queued to write (outbox, refund memory). Call on the
+  /** What the archive prune must respect, read from the live outbox: the unacknowledged sales (they
+   *  count toward the newest 500) and the sales named by refunds that are not yet acknowledged. */
+  private receiptContext(): ReceiptContext {
+    const unsynced: ReceiptContext['unsynced'][number][] = []
+    const referenced = new Set<string>()
+    for (const i of this.outbox.all()) {
+      if (i.status === 'acked') continue
+      if (i.type === 'order' && typeof i.payload.orderUuid === 'string') {
+        unsynced.push({ orderUuid: i.payload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
+      } else if (i.type === 'refund') {
+        for (const k of [i.payload.saleOrderUuid, i.payload.orderId]) if (typeof k === 'string' && k) referenced.add(k)
+      }
+    }
+    return { unsynced, referenced }
+  }
+
+  /** Durably archive the receipts of acked sales (those still sitting in the queue as acked rows) and
+   *  prune the archive. Idempotent. Resolves false, never rejects, when the write failed: the caller must
+   *  then keep the acked rows, which stay the only copy. */
+  private foldAckedReceipts(): Promise<boolean> {
+    const incoming: ReceiptEntry[] = []
+    for (const i of this.outbox.all()) {
+      if (i.status !== 'acked') continue
+      const e = receiptEntryFromItem(i)
+      if (e) incoming.push(e)
+    }
+    return this.receiptArchive.addMany(incoming, () => this.receiptContext()).then(
+      () => {
+        this.archiveFailures = 0
+        return true
+      },
+      (err) => {
+        this.archiveFailures += 1
+        console.error('[sync] receipt archive write failed; acked sale rows are kept', err)
+        return false
+      },
+    )
+  }
+
+  /** Resolves when this engine has nothing queued to write (outbox, refund memory, receipt archive). Call on the
    *  old engine before building its replacement (journal wiring rule). */
   async idle(): Promise<void> {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
+    await this.receiptArchive.idle()
     await this.settling.idle()
     await this.refundMemory
+    await this.receiptMemory
   }
 
   /** Re-read the committed queue from the store and re-fold acked refunds. Only after the previous
@@ -344,7 +430,9 @@ export class SyncEngine {
     await this.settling.idle()
     this.settling.reload() // the predecessor's last writes landed after this engine's constructor read the key
     this.refundMemory = this.foldAckedRefunds()
+    this.receiptMemory = this.foldAckedReceipts()
     await this.refundMemory
+    await this.receiptMemory
   }
 
   /** Retire this engine (SyncProvider unmounted / replaced after logout): stop
@@ -689,11 +777,21 @@ export class SyncEngine {
       .sort((a, b) => a.seq - b.seq)
       .map((i) => ({
         idempotencyKey: i.idempotencyKey,
-        orderId: typeof i.payload.orderId === 'string' ? i.payload.orderId : '',
+        orderId: this.refundOrderId(i.payload),
         shiftId: i.envelope?.shiftId ?? null,
         parked: parked.has(i.idempotencyKey),
         payload: i.payload,
       }))
+  }
+
+  /** The server order id a queued refund applies to: its own, or (linked refund) that of its sale once synced. */
+  private refundOrderId(payload: Readonly<Record<string, unknown>>): string {
+    if (typeof payload.orderId === 'string' && payload.orderId !== '') return payload.orderId
+    const uuid = payload.saleOrderUuid
+    if (typeof uuid !== 'string' || uuid === '') return ''
+    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === uuid)
+    if (row?.ackedOrderId) return row.ackedOrderId
+    return this.receiptArchive.entries().find((e) => e.orderUuid === uuid)?.serverOrderId ?? ''
   }
 
   /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */
@@ -704,6 +802,80 @@ export class SyncEngine {
   /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
   queuedRefundOrderIds(): Set<string> {
     return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
+  }
+
+  /** Sales (by client orderUuid) that already have an unacknowledged refund (incl. parked). */
+  queuedRefundSaleUuids(): Set<string> {
+    const out = new Set<string>()
+    for (const r of this.queuedRefunds()) {
+      const u = r.payload.saleOrderUuid
+      if (typeof u === 'string' && u) out.add(u)
+    }
+    return out
+  }
+
+  /** Where the sale named by a linked refund stands. An acked row not yet pruned counts as acked. */
+  private saleState(orderUuid: string): SaleState {
+    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === orderUuid)
+    if (row) {
+      if (row.status === 'acked') return 'acked'
+      return row.status === 'failed' && (row.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued'
+    }
+    return this.receiptArchive.entries().some((e) => e.orderUuid === orderUuid) ? 'acked' : 'unknown'
+  }
+
+  /** Sales made on this tablet at the outlet in effect: the ones still in the outbox plus the archived
+   *  receipts, newest first. A derived view; nothing here is stored twice. */
+  localReceipts(): LocalReceipt[] {
+    const outlet = this.actorProvider?.()?.outletId
+    const inScope = (o: string | undefined) => !outlet || !o || o === outlet
+    const refunded = this.syncedRefunds.ids()
+    const queuedRefunds = new Set<string>()
+    for (const r of this.queuedRefunds()) {
+      if (r.orderId) queuedRefunds.add(r.orderId)
+      const u = r.payload.saleOrderUuid
+      if (typeof u === 'string' && u) queuedRefunds.add(u)
+    }
+    const flags = (orderUuid: string, serverOrderId?: string) => ({
+      refundQueued: queuedRefunds.has(orderUuid) || (!!serverOrderId && queuedRefunds.has(serverOrderId)),
+      refunded: refunded.has(orderUuid) || (!!serverOrderId && refunded.has(serverOrderId)),
+    })
+    const byUuid = new Map<string, { r: LocalReceipt; order: number }>()
+    this.receiptArchive.entries().forEach((e, index) => {
+      if (!inScope(e.outletId)) return
+      byUuid.set(e.orderUuid, {
+        order: index,
+        r: {
+          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, ...(e.serverOrderId ? { serverOrderId: e.serverOrderId } : {}),
+          orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
+          paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
+          ...flags(e.orderUuid, e.serverOrderId),
+        },
+      })
+    })
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
+      const e = receiptEntryFromItem(i)
+      if (!e) continue
+      const acked = i.status === 'acked'
+      // An acked row the archive does not hold yet (its write failed) is the only copy of that sale.
+      if (acked && byUuid.has(e.orderUuid)) continue
+      byUuid.set(e.orderUuid, {
+        order: i.seq,
+        r: {
+          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, ...(e.serverOrderId ? { serverOrderId: e.serverOrderId } : {}),
+          orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
+          paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot,
+          state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
+          ...flags(e.orderUuid, e.serverOrderId),
+        },
+      })
+    }
+    const at = (r: LocalReceipt) => {
+      const t = Date.parse(r.capturedAt)
+      return Number.isFinite(t) ? t : 0
+    }
+    return [...byUuid.values()].sort((a, b) => at(b.r) - at(a.r) || b.order - a.order).map((x) => x.r)
   }
 
   /** Items needing review: explicit server/client verdicts plus legacy attempt-count
@@ -902,24 +1074,47 @@ export class SyncEngine {
       // not go out in another request (the server hold only sees the same request), so those stay pending
       // and unsent. Every other item keeps draining, so one stuck item cannot block the rest of the queue.
       let earlierRetryable = false
-      for (let at = 0; at < pending.length; at += BATCH_MAX_ITEMS) {
-        if (at > 0 && (this.disposed || !ONLINE())) break
-        let chunk = pending.slice(at, at + BATCH_MAX_ITEMS)
-        if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
-        if (chunk.length === 0) continue
-        let data: BatchResult
-        try {
-          data = await this.post(chunk)
-        } catch (err) {
-          if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
-          // Stop after a thrown chunk (and its isolation pass): the next tick continues. The result
-          // returned covers the chunks already sent plus whatever isolation settled.
-          return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
+      // A41: a refund that names its sale by uuid is held (with every later shift open/close) until that sale
+      // is acknowledged. Held items stay pending; a second pass sends them once their sale was acked by this
+      // same flush, so sale and refund do not need two ticks.
+      let work: readonly OutboxItem[] = pending
+      const held = new Set<string>()
+      for (let pass = 0; pass < 2; pass++) {
+        if (pass === 1) {
+          if (held.size === 0 || this.disposed || !ONLINE()) break
+          const keys = new Set(held)
+          held.clear()
+          work = this.outbox.pending().filter((i) => keys.has(i.idempotencyKey))
         }
-        if (this.disposed) return null
-        await this.applyBatch(data, typeByKey)
-        merged = mergeBatch(merged, data)
-        if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) earlierRetryable = true
+        let linkedHold = false
+        for (let at = 0; at < work.length; at += BATCH_MAX_ITEMS) {
+          if (at > 0 && (this.disposed || !ONLINE())) break
+          let chunk = work.slice(at, at + BATCH_MAX_ITEMS)
+          if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          if (linkedHold) {
+            for (const i of chunk) if (i.type === 'shift_close' || i.type === 'shift_open') held.add(i.idempotencyKey)
+            chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          }
+          const gated = await this.gateLinkedRefunds(chunk)
+          for (const k of gated.held) held.add(k)
+          if (gated.held.size) linkedHold = true
+          chunk = gated.send
+          if (this.disposed) return null
+          if (chunk.length === 0) continue
+          let data: BatchResult
+          try {
+            data = await this.post(chunk)
+          } catch (err) {
+            if (this.disposed) return null // replaced mid-flight: the live engine owns the queue
+            // Stop after a thrown chunk (and its isolation pass): the next tick continues. The result
+            // returned covers the chunks already sent plus whatever isolation settled.
+            return mergeBatch(merged, await this.onBatchFailure(err, chunk, typeByKey))
+          }
+          if (this.disposed) return null
+          await this.applyBatch(data, typeByKey)
+          merged = mergeBatch(merged, data)
+          if (data.results.some((r) => r.status === 'error' && r.retryable !== false)) earlierRetryable = true
+        }
       }
       return merged
     } finally {
@@ -928,6 +1123,42 @@ export class SyncEngine {
       this.emitStuckRetrying()
       if (this.autoCheckIn) void this.checkInReviews()
     }
+  }
+
+  /** Apply the send rule to the linked refunds of a chunk, in order. A refund whose sale is acknowledged (or
+   *  unknown here: the server decides) goes out; one whose sale is queued is held together with every later
+   *  shift open/close (A06/M3); one whose sale is parked is parked too (sale_in_review): never sent, never
+   *  deleted, and it does not hold anything back. */
+  private async gateLinkedRefunds(chunk: readonly OutboxItem[]): Promise<{ send: OutboxItem[]; held: Set<string> }> {
+    const send: OutboxItem[] = []
+    const held = new Set<string>()
+    const toPark: string[] = []
+    let holding = false
+    for (const i of chunk) {
+      if (holding && (i.type === 'shift_close' || i.type === 'shift_open')) {
+        held.add(i.idempotencyKey)
+        continue
+      }
+      const sale = i.type === 'refund' ? i.payload.saleOrderUuid : undefined
+      if (typeof sale !== 'string' || !sale) {
+        send.push(i)
+        continue
+      }
+      const state = this.saleState(sale)
+      if (state === 'queued') {
+        held.add(i.idempotencyKey)
+        holding = true
+      } else if (state === 'parked') {
+        toPark.push(i.idempotencyKey)
+      } else {
+        send.push(i)
+      }
+    }
+    if (toPark.length) {
+      await this.outbox.settle(toPark.map((key) => ({ key, op: 'review' as const, code: 'sale_in_review', reason: SALE_IN_REVIEW_MESSAGE })))
+      this.events.onOutboxChange?.(this.outbox.count())
+    }
+    return { send, held }
   }
 
   private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
@@ -1037,11 +1268,14 @@ export class SyncEngine {
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
-        updates.push({ key: res.idempotencyKey, op: 'ack' })
+        // Only order/refund results carry an order id; other types return their own ids (shift, customer...).
+        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId ? { orderId: res.orderId } : {}) })
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          if (typeof acked?.payload.orderId === 'string') ackedRefundOrderIds.push(acked.payload.orderId)
+          for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
+            if (typeof id === 'string') ackedRefundOrderIds.push(id)
+          }
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         if (type === 'order') {
@@ -1111,7 +1345,19 @@ export class SyncEngine {
     this.recomputeCredited()
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
-    if (await this.foldAckedRefunds(ackedRefundOrderIds)) await this.outbox.prune()
+    // Both folds always run; the acked rows are dropped only when both facts are durable.
+    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds), this.foldAckedReceipts()])
+    if (refundsOk && receiptsOk) await this.outbox.prune()
+    else if (refundsOk && this.archiveFailures >= ARCHIVE_HOLD_MAX) {
+      // The archive keeps failing: do not let acked rows pile up behind it. Rows that are not sales never needed
+      // the archive and go now; acked sales (their only receipt copy) stay until the drop cap.
+      const dropSales = this.archiveFailures >= ARCHIVE_DROP_MAX
+      if (dropSales) {
+        const n = this.outbox.all().filter((i) => i.status === 'acked' && i.type === 'order').length
+        console.error(`[sync] receipt archive failed ${this.archiveFailures} times in a row; dropping ${n} acked sale row(s) without a local receipt copy`)
+      }
+      await this.outbox.prune((i) => i.type === 'order' && !dropSales)
+    }
     this.accountProblemMsg = null
     this.resetBackoff()
     this.events.onOutboxChange?.(this.outbox.count())

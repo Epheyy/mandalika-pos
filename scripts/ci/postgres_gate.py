@@ -55,6 +55,7 @@ GATES = (
     ("BD", "TestBusinessDatePostgres", 56462, "bd"),
     ("OC", "TestOfflineCapPostgres", 56463, "oc"),
     ("CP", "TestCustomerPrivacyPostgres", 56464, "cp"),
+    ("OF", "TestOfflineReturnPostgres", 56465, "of"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 

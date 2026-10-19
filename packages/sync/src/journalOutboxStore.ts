@@ -2,10 +2,13 @@ import type { OutboxItem } from './outbox'
 import type { OutboxLoad, OutboxStore } from './outboxStore'
 import type { JournalApplyRequest, JournalReadAllResult, JournalRow, OutboxJournalPlugin } from './journalPlugin'
 import type { KV } from './storage'
+import { RECEIPT_ARCHIVE_KEY } from './receiptArchive'
 
-/** The only meta key the facade serves (synced-refund memory, plan §2.3). Everything else in
- *  `meta` (e.g. migration state) is the journal's own business. */
+/** The meta key of the synced-refund memory (plan §2.3). */
 export const JOURNAL_KV_KEY = 'mandalika.pos.syncedRefunds'
+/** The only meta keys the facade serves: synced-refund memory and the local receipt archive (A41).
+ *  Everything else in `meta` (e.g. migration state) is the journal's own business. */
+const FACADE_KEYS: ReadonlySet<string> = new Set([JOURNAL_KV_KEY, RECEIPT_ARCHIVE_KEY])
 
 /** SQLite `PRAGMA synchronous`: 2 = FULL, 3 = EXTRA. Anything lower can lose a commit on power loss. */
 const SYNCHRONOUS_FULL = 2
@@ -287,7 +290,7 @@ export class JournalOutboxStore implements OutboxStore {
 
   private makeKV(): KV {
     const refuse = (op: string, key: string): never => {
-      throw new Error(`journal kv: ${op} of ${key} is not supported (only ${JOURNAL_KV_KEY})`)
+      throw new Error(`journal kv: ${op} of ${key} is not supported (only ${[...FACADE_KEYS].join(', ')})`)
     }
     const nextGen = (key: string): number => {
       const gen = (this.metaGen.get(key) ?? 0) + 1
@@ -306,9 +309,9 @@ export class JournalOutboxStore implements OutboxStore {
         onFail: failure,
       })
     return {
-      get: (key) => (key === JOURNAL_KV_KEY ? this.meta.get(key) ?? null : null),
+      get: (key) => (FACADE_KEYS.has(key) ? this.meta.get(key) ?? null : null),
       set: (key, value) => {
-        if (key !== JOURNAL_KV_KEY) return refuse('set', key)
+        if (!FACADE_KEYS.has(key)) return refuse('set', key)
         // Fire-and-forget like Preferences.set: visible immediately, persisted in the background.
         // If the write fails it is logged and the value falls back to what is on disk.
         const gen = nextGen(key)
@@ -322,7 +325,7 @@ export class JournalOutboxStore implements OutboxStore {
       },
       remove: (key) => refuse('remove', key),
       setDurable: (key, value) =>
-        key === JOURNAL_KV_KEY
+        FACADE_KEYS.has(key)
           ? write(key, value, nextGen(key), () => {})
           : Promise.reject(new Error(`journal kv: setDurable of ${key} is not supported`)),
       removeDurable: (key) => Promise.reject(new Error(`journal kv: removeDurable of ${key} is not supported`)),

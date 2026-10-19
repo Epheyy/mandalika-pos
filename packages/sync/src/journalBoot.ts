@@ -12,6 +12,7 @@ import { JournalOutboxStore, JournalUnavailableError, rowProblem, type JournalUn
 import { OutboxJournal, type JournalReadAllResult, type JournalRow, type OutboxJournalPlugin } from './journalPlugin'
 import { makeSentinel, parseSentinel, SENTINEL_VERSION, type JournalSentinel } from './journalSentinel'
 import { SYNCED_REFUNDS_KEY } from './syncedRefunds'
+import { RECEIPT_ARCHIVE_KEY } from './receiptArchive'
 import { adoptOutboxStore, getKV, type KV } from './storage'
 
 /** Verbatim copy of the pre-migration queue (never deleted by the app; owner Q7). */
@@ -267,6 +268,8 @@ async function copyAll(store: JournalOutboxStore, items: readonly OutboxItem[], 
   }
   const refunds = kv.get(SYNCED_REFUNDS_KEY)
   if (refunds !== null) meta[SYNCED_REFUNDS_KEY] = refunds
+  const archive = kv.get(RECEIPT_ARCHIVE_KEY)
+  if (archive !== null) meta[RECEIPT_ARCHIVE_KEY] = archive
   const upserts = items.map((i) => ({ key: i.idempotencyKey, seq: i.seq, json: JSON.stringify(i) }))
   await store.applyBoot({ upserts, deletes: [], meta, replaceAll: true })
 }
@@ -298,6 +301,7 @@ async function verifyCopy(
   }
   if ((await digestRows(disk.rows)) !== sourceSha) return 'sha256 differs'
   if ((disk.meta[SYNCED_REFUNDS_KEY] ?? null) !== kv.get(SYNCED_REFUNDS_KEY)) return 'synced refunds differ'
+  if ((disk.meta[RECEIPT_ARCHIVE_KEY] ?? null) !== kv.get(RECEIPT_ARCHIVE_KEY)) return 'receipt archive differs'
   return null
 }
 
@@ -322,9 +326,36 @@ async function mergeLateWrites(
   const meta: Record<string, string> = { [MERGED_SHA_KEY]: sourceSha }
   const refunds = unionRefunds(disk.meta[SYNCED_REFUNDS_KEY], kv.get(SYNCED_REFUNDS_KEY))
   if (refunds !== null) meta[SYNCED_REFUNDS_KEY] = refunds
+  const archive = unionArchive(disk.meta[RECEIPT_ARCHIVE_KEY], kv.get(RECEIPT_ARCHIVE_KEY))
+  if (archive !== null) meta[RECEIPT_ARCHIVE_KEY] = archive
   await store.applyBoot({ upserts, deletes: [], meta })
   const after = await store.readDisk()
   return { count: after.rows.length, sha256: await digestRows(after.rows) }
+}
+
+/** Merge the journal's archive (`a`) and the KV's (`b`) by orderUuid; on the same uuid the journal entry wins
+ *  (it is the newer copy). Null when neither side has a value. A side that is empty or not a JSON array
+ *  contributes no entries: when exactly one side parses, the result is built from that side alone (the other
+ *  side's unreadable text is replaced, not preserved); when neither parses, the journal's raw text (else the
+ *  KV's) is returned as it is. The archive is only a local copy of receipts, so replacing an unreadable copy
+ *  loses no money fact. */
+function unionArchive(a: string | undefined, b: string | null): string | null {
+  const parse = (raw: string | null | undefined): { orderUuid: string }[] | null => {
+    if (!raw) return null
+    try {
+      const list: unknown = JSON.parse(raw)
+      return Array.isArray(list) ? (list as { orderUuid: string }[]).filter((e) => e && typeof e.orderUuid === 'string') : null
+    } catch {
+      return null
+    }
+  }
+  const disk = parse(a)
+  const kvList = parse(b)
+  if (!disk && !kvList) return a ?? b
+  const merged = new Map<string, { orderUuid: string }>()
+  for (const e of kvList ?? []) merged.set(e.orderUuid, e)
+  for (const e of disk ?? []) merged.set(e.orderUuid, e)
+  return JSON.stringify([...merged.values()])
 }
 
 function unionRefunds(a: string | undefined, b: string | null): string | null {

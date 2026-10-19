@@ -8,6 +8,7 @@ import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
 import { BootError } from './BootError'
 import { bootStorage } from './bootStorage'
+import { sweepOrderHistoryCache } from './lib/offlineCache'
 
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
@@ -24,6 +25,8 @@ async function boot(): Promise<void> {
   }
   await bootNativeShell()
   installGlobalErrorHandler()
+  // A30: drop history-cache keys older builds wrote per typed search term, and bound the rest.
+  sweepOrderHistoryCache()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

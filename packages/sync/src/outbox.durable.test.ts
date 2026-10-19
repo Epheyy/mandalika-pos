@@ -240,3 +240,24 @@ describe('SyncEngine durable enqueue', () => {
     expect(engine.outboxCorruption()?.quarantineKey.startsWith(OUTBOX_QUARANTINE_PREFIX)).toBe(true)
   })
 })
+
+describe('Outbox ack carries the server id (A41)', () => {
+  it('stores ackedOrderId as an additive top-level field and leaves the payload untouched', async () => {
+    const { kv, store } = controllableKV()
+    const outbox = new Outbox(kv)
+    const item = await outbox.add('order', 'dev:1', { total: 1 })
+    await outbox.settle([{ key: 'dev:1', op: 'ack', orderId: 'srv-1' }])
+    const [row] = stored(store)
+    expect(row.status).toBe('acked')
+    expect((row as OutboxItem & { ackedOrderId?: string }).ackedOrderId).toBe('srv-1')
+    expect(row.payload).toEqual(item.payload)
+  })
+
+  it('an ack without an id (older server) stores no ackedOrderId', async () => {
+    const { kv, store } = controllableKV()
+    const outbox = new Outbox(kv)
+    await outbox.add('order', 'dev:1', { total: 1 })
+    await outbox.settle([{ key: 'dev:1', op: 'ack' }])
+    expect('ackedOrderId' in stored(store)[0]).toBe(false)
+  })
+})

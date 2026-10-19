@@ -81,11 +81,14 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
       setOrders(data)
       setTotal(t)
       setIsStale(false)
-      cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
+      // A search is never cached (A30); only the plain day listing is.
+      if (cacheKey) cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
     } catch (e: unknown) {
       // Offline / transient: fall back to the last data seen while online so
       // the cashier still sees their history instead of "Failed to fetch".
-      const cached = cacheRead<{ orders: Order[]; total: number }>(cacheKey, 'orders:last')
+      const cached = cacheKey
+        ? cacheRead<{ orders: Order[]; total: number }>(cacheKey, 'orders:last')
+        : cacheRead<{ orders: Order[]; total: number }>('orders:last')
       if (cached) {
         setOrders(cached.orders)
         setTotal(cached.total)

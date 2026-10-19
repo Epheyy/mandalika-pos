@@ -9,6 +9,7 @@ const REASONS: Record<string, string> = {
   rejected: 'Ditolak server',
   conflict: 'Ditolak server',
   batch_rejected: 'Kiriman ditolak',
+  sale_in_review: 'Penjualan asal refund sedang ditinjau',
 }
 
 /** Reason filter options; 'none' = parked by old attempt counting (server filter value). */
@@ -21,6 +22,7 @@ export const REASON_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'rejected', label: 'Ditolak server (rejected)' },
   { id: 'conflict', label: 'Ditolak server (conflict)' },
   { id: 'batch_rejected', label: REASONS.batch_rejected },
+  { id: 'sale_in_review', label: REASONS.sale_in_review },
   { id: 'none', label: 'Gagal berulang (versi lama)' },
 ]
 

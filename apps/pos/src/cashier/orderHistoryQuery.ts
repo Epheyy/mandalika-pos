@@ -24,8 +24,10 @@ export function defaultHistoryDay(now: Date, timezone?: string | null, shiftOpen
   return businessToday(now, timezone)
 }
 
-export function orderHistoryQuery(from: string, to: string, page: number, term: string): { qs: string; cacheKey: string } {
+/** `cacheKey` is null for a search: what the cashier typed (a phone or a name) is never written into storage, in a key or
+ *  through the rows it returns (A30). Only the plain day listing is cached. */
+export function orderHistoryQuery(from: string, to: string, page: number, term: string): { qs: string; cacheKey: string | null } {
   const params: Record<string, string> = { dateFrom: from, dateTo: to, page: String(page), limit: String(PAGE_SIZE) }
   if (term) params.q = term
-  return { qs: new URLSearchParams(params).toString(), cacheKey: `orders:bd:${from}:${to}:${page}:${term}` }
+  return { qs: new URLSearchParams(params).toString(), cacheKey: term ? null : `orders:bd:${from}:${to}:${page}:` }
 }

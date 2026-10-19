@@ -3,7 +3,7 @@
 // POST /sync/batch, read-only reference snapshot, content_version sync wall.
 
 export { SyncEngine, RECEIVE_CONFLICT_CODES, BATCH_TIMEOUT_MS, REVIEW_CHECKIN_MS, REVIEW_CHECKIN_NEW_MS, REVIEW_CHECKIN_MAX_ITEMS, BACKOFF_BASE_MS, BACKOFF_CAP_MS, ACCOUNT_PROBLEM_MESSAGE, ENVELOPE_REFUSED_MESSAGE } from './engine'
-export type { ApiLike, ReviewResolvedNotice, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund } from './engine'
+export type { ApiLike, ReviewResolvedNotice, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund, LocalReceipt } from './engine'
 export { Outbox, OUTBOX_KEY, MAX_ATTEMPTS, summarizeQueue } from './outbox'
 export type { QueueSummary, OutboxItem, OutboxEnvelope, OutboxType, OutboxStatus, OutboxCorruption, ReviewItem } from './outbox'
 export { KVOutboxStore, isOutboxStore } from './outboxStore'
@@ -17,6 +17,8 @@ export type { JournalBootResult, JournalBootNotice, InitJournalDeps } from './jo
 export { parseSentinel } from './journalSentinel'
 export type { JournalSentinel } from './journalSentinel'
 export { SyncedRefunds, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
+export { ReceiptArchive, RECEIPT_ARCHIVE_KEY, RECEIPT_RETENTION_MS, RECEIPT_KEEP_NEWEST, prunable, receiptEntryFromItem } from './receiptArchive'
+export type { ReceiptEntry, ReceiptContext, UnsyncedSale } from './receiptArchive'
 export { Snapshot } from './snapshot'
 export { normalizePhone, PHONE_MIN_DIGITS } from './phone'
 export { KnownCustomers, KNOWN_CUSTOMERS_KEY, KNOWN_CUSTOMERS_MAX, KNOWN_CUSTOMERS_TTL_MS } from './knownCustomers'

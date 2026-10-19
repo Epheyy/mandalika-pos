@@ -9,6 +9,7 @@ describe('reviewLabels', () => {
     expect(reasonLabel('conflict')).toBe('Ditolak server')
     expect(reasonLabel('offline_expired')).toBe('Offline lebih dari 12 jam')
     expect(reasonLabel('batch_rejected')).toBe('Kiriman ditolak')
+    expect(reasonLabel('sale_in_review')).toBe('Penjualan asal refund sedang ditinjau')
     expect(reasonLabel(null)).toBe('Gagal berulang (versi lama)')
     expect(reasonLabel('weird')).toBe('Ditolak (weird)')
   })
@@ -42,5 +43,6 @@ describe('shouldStepBack', () => {
   })
   it('offers offline_expired as a review filter', () => {
     expect(REASON_FILTERS).toContainEqual({ id: 'offline_expired', label: 'Offline lebih dari 12 jam' })
+    expect(REASON_FILTERS).toContainEqual({ id: 'sale_in_review', label: 'Penjualan asal refund sedang ditinjau' })
   })
 })
