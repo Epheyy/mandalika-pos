@@ -19,6 +19,7 @@ import { PERMS, PermissionPicker } from './users/PermissionPicker'
 import { AddUserModal } from './users/AddUserModal'
 import { RoleModal } from './users/RoleModal'
 import { ResetPasswordModal } from './users/ResetPasswordModal'
+import { UNLOCK_PIN_NOTE, unlockReceivePin } from './users/unlockPin'
 
 type Role = 'admin' | 'manager' | 'cashier'
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
@@ -107,6 +108,8 @@ export default function Users() {
   const [busy, setBusy] = useState(false)
   const [resetTarget, setResetTarget] = useState<User | null>(null)
   const [resetNotice, setResetNotice] = useState<string | null>(null)
+  const [unlockNote, setUnlockNote] = useState<{ ok: boolean; message: string } | null>(null)
+  const [unlocking, setUnlocking] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
   const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: [] as string[] })
@@ -130,6 +133,17 @@ export default function Users() {
       await uq.refetch()
     } finally {
       setBusy(false)
+    }
+  }
+
+  const unlockPin = async () => {
+    if (!editingUser || unlocking) return
+    setUnlocking(true)
+    setUnlockNote(null)
+    try {
+      setUnlockNote(await unlockReceivePin(api, editingUser.id))
+    } finally {
+      setUnlocking(false)
     }
   }
 
@@ -245,7 +259,7 @@ export default function Users() {
                   {me?.role === 'admin' && u.id !== me?.id && (
                     <>
                       <IconButton aria-label={`Reset kata sandi ${u.displayName}`} title="Reset kata sandi" onClick={() => setResetTarget(u)}><KeyRound className="w-4 h-4" /></IconButton>
-                      <IconButton aria-label={`Edit ${u.displayName}`} title="Edit" onClick={() => dispatch({ type: 'OPEN_EDIT', user: u })}><Edit2 className="w-4 h-4" /></IconButton>
+                      <IconButton aria-label={`Edit ${u.displayName}`} title="Edit" onClick={() => { setUnlockNote(null); dispatch({ type: 'OPEN_EDIT', user: u }) }}><Edit2 className="w-4 h-4" /></IconButton>
                     </>
                   )}
                 </div>
@@ -334,6 +348,15 @@ export default function Users() {
               <input type="checkbox" checked={clearPin} onChange={(e) => dispatch({ type: 'SET_CLEAR_PIN', value: e.target.checked })} />
               Hapus PIN
             </label>
+            <div className="mt-2 flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => void unlockPin()} disabled={unlocking}>
+                {unlocking ? 'Membuka…' : 'Buka kunci PIN'}
+              </Button>
+              {unlockNote && (
+                <span role="status" className={`text-xs ${unlockNote.ok ? 'text-green-700' : 'text-red-600'}`}>{unlockNote.message}</span>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-gray-500">{UNLOCK_PIN_NOTE}</p>
           </Field>
           {editRole !== 'admin' && roles.length > 0 && (
             <Field label="Terapkan Template">
