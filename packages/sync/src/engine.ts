@@ -212,7 +212,8 @@ export interface SyncEngineOptions {
 /** A refund not yet acknowledged by the server, as the POS gate and shift recap see it. */
 export interface QueuedRefund {
   idempotencyKey: string
-  /** '' when a legacy item carries no usable orderId. */
+  /** '' when a legacy item carries no usable orderId, or a linked refund (saleOrderUuid) whose sale has not synced yet.
+   *  Once that sale synced, its server id is resolved here (the stored payload keeps its empty orderId). */
   orderId: string
   /** Shift stamped on the item at capture (envelope); null when unknown (offline-opened shift, legacy). */
   shiftId: string | null
@@ -764,11 +765,21 @@ export class SyncEngine {
       .sort((a, b) => a.seq - b.seq)
       .map((i) => ({
         idempotencyKey: i.idempotencyKey,
-        orderId: typeof i.payload.orderId === 'string' ? i.payload.orderId : '',
+        orderId: this.refundOrderId(i.payload),
         shiftId: i.envelope?.shiftId ?? null,
         parked: parked.has(i.idempotencyKey),
         payload: i.payload,
       }))
+  }
+
+  /** The server order id a queued refund applies to: its own, or (linked refund) that of its sale once synced. */
+  private refundOrderId(payload: Readonly<Record<string, unknown>>): string {
+    if (typeof payload.orderId === 'string' && payload.orderId !== '') return payload.orderId
+    const uuid = payload.saleOrderUuid
+    if (typeof uuid !== 'string' || uuid === '') return ''
+    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === uuid)
+    if (row?.ackedOrderId) return row.ackedOrderId
+    return this.receiptArchive.entries().find((e) => e.orderUuid === uuid)?.serverOrderId ?? ''
   }
 
   /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */

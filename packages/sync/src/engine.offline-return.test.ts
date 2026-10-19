@@ -187,6 +187,45 @@ describe('queued and acknowledged refund memory', () => {
   })
 })
 
+describe('queuedRefunds resolves the server id of a sale that has since synced (recap input)', () => {
+  const archived = (serverOrderId?: string): ReceiptEntry => ({
+    orderUuid: 'sale-1', idempotencyKey: 'dev:sale-1', orderNumber: 'O1', capturedAt: NOW, outletId: 'out1', shiftId: 's1',
+    paymentMethod: 'cash', quotedTotal: 1, receiptSnapshot: null, archivedAt: Date.parse(NOW), ...(serverOrderId ? { serverOrderId } : {}),
+  })
+
+  it('uses the archive server id; the stored payload keeps its empty orderId', async () => {
+    const e = engineOf(fakeApi().api, controllableKV({ [RECEIPT_ARCHIVE_KEY]: JSON.stringify([archived('srv-1')]) }).kv)
+    await e.enqueue('refund', refundOf('sale-1'))
+    const [q] = e.queuedRefunds()
+    expect(q.orderId).toBe('srv-1')
+    expect(q.payload).toMatchObject({ orderId: '', saleOrderUuid: 'sale-1' })
+    expect([...e.queuedRefundOrderIds()]).toEqual(['srv-1'])
+  })
+
+  it('uses the acked sale row ackedOrderId while the archive write has not landed', async () => {
+    const ackedRow = {
+      idempotencyKey: 'dev:sale-1', type: 'order', seq: 1, status: 'acked', ackedOrderId: 'srv-9', clientCreatedAt: NOW,
+      payload: { ...sale(1), orderUuid: 'sale-1', orderNumber: 'O1' },
+    }
+    const e = engineOf(fakeApi().api, controllableKV({ [OUTBOX_KEY]: JSON.stringify([ackedRow]) }).kv)
+    await e.enqueue('refund', refundOf('sale-1'))
+    expect(e.queuedRefunds()[0].orderId).toBe('srv-9')
+  })
+
+  it('stays empty for a sale that has not synced, or an archived sale without a server id', async () => {
+    const e = engineOf(fakeApi().api, controllableKV({ [RECEIPT_ARCHIVE_KEY]: JSON.stringify([archived()]) }).kv)
+    await e.enqueue('refund', refundOf('sale-1'))
+    await e.enqueue('refund', refundOf('never-seen'))
+    expect(e.queuedRefunds().map((q) => q.orderId)).toEqual(['', ''])
+  })
+
+  it('an explicit payload orderId always wins', async () => {
+    const e = engineOf(fakeApi().api, controllableKV({ [RECEIPT_ARCHIVE_KEY]: JSON.stringify([archived('srv-1')]) }).kv)
+    await e.enqueue('refund', refundOf('sale-1', { orderId: 'srv-explicit' }))
+    expect(e.queuedRefunds()[0].orderId).toBe('srv-explicit')
+  })
+})
+
 describe('localReceipts() view', () => {
   const pendingSale = (e: SyncEngine, n: number) => e.enqueue('order', sale(n))
 

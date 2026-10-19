@@ -133,6 +133,16 @@ describe('shift recap with a refund that has no server order id yet', () => {
     expect(refundRecap(shift(), [linked('S0')])).toMatchObject({ crossByMethod: { cash: 100000 }, crossTotal: 100000 })
   })
 
+  it('M1: a linked refund whose sale has synced follows the loaded/completed rule (the engine hands it the server id)', () => {
+    // Cash sale S of THIS shift, refunded offline (R), then S synced while R is still queued.
+    const resolved = linked('S', { orderId: 'srv-1' })
+    const loaded = [{ id: 'srv-1', status: 'completed' as const, total: 100000, paymentMethod: 'cash' }]
+    const r = refundRecap(shift(), [resolved], loaded)
+    expect(r).toMatchObject({ ownPendingByMethod: { cash: 100000 }, ownPendingTotal: 100000, crossTotal: 0 })
+    // already refunded on the server: already out of the figures
+    expect(refundRecap(shift(), [resolved], [{ ...loaded[0], status: 'refunded' as const }]).ownPendingTotal).toBe(0)
+  })
+
   it('a sale without a shift counts as another shift', () => {
     expect(refundRecap(shift(), [linked(null)]).crossTotal).toBe(100000)
   })
