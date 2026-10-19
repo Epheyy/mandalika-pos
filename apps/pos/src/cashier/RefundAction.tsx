@@ -9,8 +9,8 @@ interface RefundActionProps extends RefundAvailabilityInput {
 }
 
 /** "Refund Transaksi Ini" for a completed order, or a muted line saying why it is not offered. */
-export function RefundAction({ order, canRefund, hasOpenShift, shiftUnsynced, queuedOrderIds, syncedRefundOrderIds, onRefund }: RefundActionProps) {
-  const a = refundAvailability({ order, canRefund, hasOpenShift, shiftUnsynced, queuedOrderIds, syncedRefundOrderIds })
+export function RefundAction({ order, onRefund, ...gate }: RefundActionProps) {
+  const a = refundAvailability({ order, ...gate })
   if (a.kind === 'hidden') return null
   if (a.kind === 'blocked') {
     return <p className="mt-2 text-center text-[11px] text-gray-400">{a.reason}</p>
