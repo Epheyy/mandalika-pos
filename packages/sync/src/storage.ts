@@ -3,6 +3,7 @@
 // swaps the implementation for Capacitor SQLite behind this interface.
 
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
+import { stripSnapshotPiiJson } from './snapshotPrivacy'
 
 export interface KV {
   get(key: string): string | null
@@ -91,6 +92,8 @@ export function writeJSON(kv: KV, key: string, value: unknown): void {
 // close the process-kill window — that needs the SQLite journal (A01).
 
 const KEY_PREFIX = 'mandalika.'
+// The reference snapshot. Older code stored a browsable customer list in it (A30).
+const SNAPSHOT_KEY = 'mandalika.pos.snapshot'
 
 class CapacitorPreferencesKV implements KV {
   private mem = new Map<string, string>()
@@ -103,7 +106,12 @@ class CapacitorPreferencesKV implements KV {
     for (const k of keys as string[]) {
       if (!k.startsWith(KEY_PREFIX)) continue
       const { value } = await this.prefs.get({ key: k })
-      if (value != null) this.mem.set(k, value)
+      if (value == null) continue
+      // A30: a snapshot written by older code still carries customers; clear them on the way in
+      // and rewrite the stored value (best effort: the mirror is already clean either way).
+      const clean = k === SNAPSHOT_KEY ? stripSnapshotPiiJson(value) : value
+      this.mem.set(k, clean)
+      if (clean !== value) await this.prefs.set({ key: k, value: clean }).catch(() => undefined)
     }
     // One-time migration: lift any pre-native localStorage state. A missing
     // localStorage is fine; a failed Preferences write is NOT (the app would
@@ -119,7 +127,16 @@ class CapacitorPreferencesKV implements KV {
     } catch {
       /* no localStorage on this platform — nothing to migrate */
     }
-    for (const [k, v] of legacy) await this.setDurable(k, v)
+    for (const [k, v] of legacy) await this.setDurable(k, k === SNAPSHOT_KEY ? stripSnapshotPiiJson(v) : v)
+    // A30: once Preferences holds the snapshot, the localStorage copy (with its customer list) must
+    // not linger in the WebView. Only removed after the durable copy above succeeded.
+    if (this.mem.has(SNAPSHOT_KEY)) {
+      try {
+        localStorage.removeItem(SNAPSHOT_KEY)
+      } catch {
+        /* no localStorage on this platform */
+      }
+    }
   }
 
   get(key: string): string | null {
