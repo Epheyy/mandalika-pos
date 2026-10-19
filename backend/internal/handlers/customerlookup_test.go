@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/cache"
 )
 
 func TestLookupLimitDecision(t *testing.T) {
@@ -26,5 +32,33 @@ func TestLookupLimitDecision(t *testing.T) {
 	}
 	if retry, limited = lookupLimitDecision(lookupPerMinute+1, lookupPerDay+1, now); !limited || retry != wantRetry {
 		t.Errorf("both exceeded must report the longer wait, got %d", retry)
+	}
+}
+
+// Requests already refused by the minute window must not eat the daily budget, or a cashier who
+// hammers the button for one minute would lose most of the day's lookups.
+func TestLookupMinuteRefusalDoesNotBurnDayBudget(t *testing.T) {
+	cc, err := cache.Connect(context.Background(), "", cache.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &Handlers{Cache: cc}
+	const uid = "00000000-0000-4000-8f20-0000000000aa"
+	req := httptest.NewRequest(http.MethodGet, "/sync/customers/lookup", nil)
+	req = req.WithContext(context.WithValue(req.Context(), auth.CtxUserID, uid))
+	now := time.Date(2026, 10, 19, 10, 0, 20, 0, time.UTC)
+
+	allowed := 0
+	for i := 0; i < lookupPerMinute+25; i++ {
+		if _, ok := h.lookupAllowedAt(req, now); ok {
+			allowed++
+		}
+	}
+	if allowed != lookupPerMinute {
+		t.Fatalf("allowed %d lookups in one minute, want %d", allowed, lookupPerMinute)
+	}
+	_, dayKey := lookupKeys(uid, now)
+	if n := cc.IncrWindow(context.Background(), dayKey, 24*time.Hour); n != lookupPerMinute+1 {
+		t.Errorf("day counter after the probe = %d, want %d (refused requests must not count)", n, lookupPerMinute+1)
 	}
 }

@@ -37,13 +37,27 @@ func lookupLimitDecision(minuteCount, dayCount int64, now time.Time) (retryAfter
 	return retryAfter, limited
 }
 
+// lookupKeys are the per-user minute and day counter keys for the window containing now.
+func lookupKeys(uid string, now time.Time) (minuteKey, dayKey string) {
+	return "rl:custlookup:m:" + uid + ":" + strconv.FormatInt(now.Unix()/60, 10),
+		"rl:custlookup:d:" + uid + ":" + now.UTC().Format("20060102")
+}
+
 // lookupAllowed counts one real lookup against the caller's minute and day windows.
 func (h *Handlers) lookupAllowed(r *http.Request) (retryAfter int, ok bool) {
+	return h.lookupAllowedAt(r, time.Now())
+}
+
+// lookupAllowedAt is lookupAllowed at a given instant. A request the minute window already
+// refuses does not touch the day counter: hammering the button must not eat the day's budget.
+func (h *Handlers) lookupAllowedAt(r *http.Request, now time.Time) (retryAfter int, ok bool) {
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
-	now := time.Now()
-	minuteKey := "rl:custlookup:m:" + uid + ":" + strconv.FormatInt(now.Unix()/60, 10)
-	dayKey := "rl:custlookup:d:" + uid + ":" + now.UTC().Format("20060102")
+	minuteKey, dayKey := lookupKeys(uid, now)
 	m := h.Cache.IncrWindow(r.Context(), minuteKey, time.Minute)
+	if m > lookupPerMinute {
+		retryAfter, _ = lookupLimitDecision(m, 0, now)
+		return retryAfter, false
+	}
 	d := h.Cache.IncrWindow(r.Context(), dayKey, 24*time.Hour)
 	retryAfter, limited := lookupLimitDecision(m, d, now)
 	return retryAfter, !limited
