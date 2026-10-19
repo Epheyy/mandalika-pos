@@ -954,7 +954,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
 | A26 | P1 | A26-pagination-completeness | Open; E26 scoped ChatGPT acceptance; remaining inventory/qualification | T23 |
 | A27 | P1 | A27-summary-double-subtraction | Open; E28 scoped ChatGPT acceptance of E27; Q09/A28 separate | T24 |
-| A28 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T24 |
+| A28 | P1 | S1 | Mostly: per-outlet timezone + stored business date (shift opening date) built and merged locally 2026-10-19 (mig 0059, gate BD), NOT released; no return deadline by owner policy; see docs/plans/2026-10-19-a28-outlet-timezone.md | T24 |
 | A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
 | A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T04a–T04e,T06 |
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
