@@ -6,6 +6,30 @@ import path from 'node:path'
 const xlsxRequire = createRequire(path.resolve('apps/backoffice/package.json'))
 const workbookReader = xlsxRequire('xlsx')
 
+// Mirrors the backend's shared order filter (WIB day bounds, status, case-insensitive
+// trimmed payment method, q over order number/cashier/customer) so the browser scenarios
+// exercise the real request contract instead of client-side filtering.
+const wibDay = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3600_000).toISOString().slice(0, 10)
+const filterOrders = (list: any[], query: Record<string, string>) => {
+  const dec = (v?: string) => (v === undefined ? '' : decodeURIComponent(v.replace(/\+/g, ' ')))
+  const pay = dec(query.paymentMethod).trim().toLowerCase(), q = dec(query.q).toLowerCase()
+  return list.filter(o =>
+    (!query.status || o.status === query.status) &&
+    (!pay || o.paymentMethod.trim().toLowerCase() === pay) &&
+    (!query.dateFrom || wibDay(o.createdAt) >= query.dateFrom) &&
+    (!query.dateTo || wibDay(o.createdAt) <= query.dateTo) &&
+    (!q || o.orderNumber.toLowerCase().includes(q) || o.cashierName.toLowerCase().includes(q) || (o.customerName || '').toLowerCase().includes(q)))
+}
+const summaryOf = (list: any[]) => {
+  const completed = list.filter(o => o.status === 'completed'), refunded = list.filter(o => o.status === 'refunded')
+  const byPaymentMethod: Record<string, number> = {}
+  for (const o of completed) byPaymentMethod[o.paymentMethod] = (byPaymentMethod[o.paymentMethod] || 0) + o.total
+  const totalSales = completed.reduce((a, o) => a + o.total, 0)
+  return {from: null, to: null, outletId: null, totalSales, totalOrders: completed.length,
+    totalRefunds: refunded.reduce((a, o) => a + o.total, 0), refundedOrders: refunded.length, netSales: totalSales,
+    avgOrderValue: completed.length ? totalSales / completed.length : 0, byPaymentMethod, topProducts: [], dailySales: []}
+}
+
 export const setupBackoffice = async (page: ScenarioPage) => {
   await page.unrouteAll({behavior:'wait'});
   const now = new Date().toISOString();
@@ -21,8 +45,10 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
     else if(path.endsWith('/outlets')) data=[{id:'outlet-a',name:'A26 Outlet',isActive:true}];
-    else if(path.endsWith('/orders')) data=Array.from({length:state.count},(_,i)=>state.order(i));
-    else if(path.endsWith('/shifts')) data=Array.from({length:state.count},(_,i)=>({id:`shift-${i}`,outletId:'outlet-a',cashierName:`Cashier ${i}`,status:'closed',openedAt:now,closedAt:now,startingCash:0,closingCash:1000,totalSales:1000,totalOrders:1,cashSales:1000,cardSales:0,transferSales:0,qrisSales:0}));
+    else if(path.endsWith('/settings/app')) data={paymentMethods:[{id:'cash',label:'Tunai'},{id:'qris',label:'QRIS'}]};
+    else if(path.endsWith('/reports/summary')) data=summaryOf(filterOrders(Array.from({length:state.count},(_,i)=>state.order(i)),query));
+    else if(path.endsWith('/orders')) data=filterOrders(Array.from({length:state.count},(_,i)=>state.order(i)),query);
+    else if(path.endsWith('/shifts')) data=Array.from({length:state.count},(_,i)=>({id:`shift-${i}`,outletId:'outlet-a',cashierName:`Cashier ${i}`,status:'closed',openedAt:now,closedAt:now,startingCash:0,closingCash:1000,totalSales:1000,totalOrders:1,cashSales:1000,cardSales:0,transferSales:0,qrisSales:0})).filter(sh=>(!query.dateFrom||wibDay(sh.openedAt)>=query.dateFrom)&&(!query.dateTo||wibDay(sh.openedAt)<=query.dateTo));
     else if(path.endsWith('/products')) data=Array.from({length:201},(_,i)=>({id:`p-${i}`,name:`Product ${i}`,isActive:true,variants:[{size:'M',price:1000,stock:i===200?0:100}]}));
     const total=Array.isArray(data)?data.length:1;
     if(['/orders','/shifts','/products'].some(s=>path.endsWith(s))) data=data.slice((n-1)*limit,n*limit);
@@ -43,7 +69,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
 export const backofficeChecks = async (page: ScenarioPage) => {
   const results: any[]=[];
   const check=(ok,msg)=>{if(!ok)throw new Error(msg);};
-  const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Export CSV',exact:true}).click();return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
+  const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Export CSV',exact:true}).click();await page.waitForFunction(()=>window.__a26csv.length>0);return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
   for(const n of [51,201,1000]) {
     page.__a26.count=n;page.__a26.calls=[];
     await page.getByRole('button',{name:'Dashboard',exact:true}).click();
@@ -54,6 +80,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     await page.getByRole('button',{name:'Laporan',exact:true}).click();
     await page.getByRole('button',{name:'Ekspor',exact:true}).click();
     await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
+    await page.getByText('Total Penjualan',{exact:true}).waitFor();
     const csv=await capture();const csvRows=csv.split('\n').length-1;
     check(csvRows===n,`CSV ${csvRows} expected ${n}`);
     const report=await page.locator('main').innerText();
@@ -74,11 +101,15 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     results.push({n,csvRows,shiftCsvRows:n,reportTotal:n*1000,filteredQris:Math.floor(n/2),dashboard,requests:page.__a26.calls});
   }
   await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await page.getByText('1000 transaksi',{exact:true}).waitFor();
+  // The list/summary only request one page; a later page can only fail inside the full export.
   page.__a26.fail='/api/v1/orders';
-  await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor({timeout:20000});
-  check(await page.getByRole('button',{name:'Export CSV',exact:true}).isDisabled(),'failed export enabled');
+  await page.evaluate(()=>{window.__a26csv=[]});
+  await page.getByRole('button',{name:'Export CSV',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'synthetic page 2 failure'}).waitFor({timeout:20000});
+  check((await page.evaluate(()=>window.__a26csv.length))===0,'partial CSV produced after a later page failure');
   check((await page.locator('main').innerText()).includes('1000 transaksi'),'complete snapshot lost');
-  results.push({laterPageFailure:'visible error; original1000 snapshot retained; export disabled'});
+  results.push({laterPageFailure:'visible error; no partial CSV; list snapshot retained'});
   await page.getByRole('button',{name:'Dashboard',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor();
   results.push({dashboardInitialFailure:'error instead of prefix KPIs'});
@@ -150,15 +181,17 @@ export const transactionsChecks = async (page: ScenarioPage) => {
     await page.getByLabel('Filter status').selectOption('refunded');
     if(!await page.getByRole('button',{name:'Export',exact:true}).isDisabled())throw Error('empty/status export enabled');
     await page.getByLabel('Filter status').selectOption('');
+    // Totals now load from the server after each filter change; wait for the unfiltered figure.
+    await page.waitForFunction(([count,total])=>{const t=document.querySelector('main')!.innerText.replace(/\s/g,'');return t.includes(`${count}transaksi·Total:Rp${total}`)},[n,(n*1000).toLocaleString('id-ID')]);
     const body=(await page.locator('main').innerText()).replace(/\s/g,'');
     if(!body.includes(`Rp${(n*1000).toLocaleString('id-ID')}`))throw Error('rendered total changed');
     results.push({n,xlsxRows:rows.length,total:rows.reduce((sum,row)=>sum+row.Total,0),filename,bytes,browserVersion,readerVersion:workbookReader.version,readerEntry:xlsxRequire.resolve('xlsx'),cells,qrisRows:qris.rows.length,singleRows:single.rows.length,emptyDisabled:true});
   }
   page.__a26.fail='/api/v1/orders';
-  await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor({timeout:20000});
-  if(!await page.getByRole('button',{name:'Export',exact:true}).isDisabled())throw Error('failure enabled export');
+  await page.getByRole('button',{name:'Export',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'synthetic page 2 failure'}).waitFor({timeout:20000});
   if(downloads!==9)throw Error('unexpected/partial download count');
-  results.push({laterFailure:'visible error; real XLSX download disabled; complete snapshot retained',downloads});
+  results.push({laterFailure:'visible error; no partial XLSX download after a later page failure',downloads});
   page.__a26.fail=null;
   return results;
 }
@@ -211,7 +244,11 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     else if(path.endsWith('/orders')){
       if(scope==='B'&&failB)return route.fulfill({status:503,json:{error:'A31 B synthetic failure'}});
       data=scope==='A'?Array.from({length:201},(_,i)=>order('A',i)):scope==='B'?[order('B',0)]:[];
-      if(scope==='A'&&n===2){held.push(()=>route.fulfill({json:{data:data.slice(200),meta:{page:2,limit:200,total:201}}}));signal();return;}
+      if(scope==='A'){held.push(()=>route.fulfill({json:{data:data.slice(0,limit),meta:{page:1,limit,total:201}}}));signal();return;}
+    }
+    else if(path.endsWith('/reports/summary')){
+      const sales=scope==='A'?201*1000:scope==='B'?7000:0,count=scope==='A'?201:scope==='B'?1:0;
+      data={from:null,to:null,outletId:null,totalSales:sales,totalOrders:count,totalRefunds:0,refundedOrders:0,netSales:sales,avgOrderValue:count?sales/count:0,byPaymentMethod:count?{cash:sales}:{},topProducts:[],dailySales:[]};
     }
     const total=Array.isArray(data)?data.length:1;
     if(path.endsWith('/orders'))data=data.slice((n-1)*limit,n*limit);
@@ -227,7 +264,7 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
   for(const scenario of [errorCase]){
     failB=scenario;reached=new Promise<void>(resolve=>signal=resolve);
     await outlet.selectOption('A');await reached;await outlet.selectOption('B');
-    if(errorCase)await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor();
+    if(errorCase)await page.getByRole('alert').filter({hasText:'Gagal memuat data'}).waitFor();
     else await page.getByText('1 transaksi',{exact:true}).waitFor();
     const before=await page.locator('main').innerText();const count=held.length;
     await Promise.all(held.splice(0).map(fn=>fn()));await flush();

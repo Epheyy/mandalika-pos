@@ -102,7 +102,8 @@ export function OrdersPanel() {
     setExportBusy(true)
     setExportError(null)
     try {
-      const params = orderFilterParams(filters)
+      // The live search text, not the 300 ms debounced one, so Export matches what was typed.
+      const params = orderFilterParams({ ...filters, q: query })
       const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
       const rows = all.map((o) => ({
         'No. Order': o.orderNumber,
@@ -124,7 +125,7 @@ export function OrdersPanel() {
         Total: o.total,
       }))
       const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
-      const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, debouncedQuery || undefined])
+      const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query.trim() || undefined])
       exportToXLSX(rows, name)
     } catch (e: unknown) {
       setExportError(e instanceof Error ? e.message : 'Gagal mengekspor data lengkap.')
