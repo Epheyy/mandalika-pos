@@ -333,9 +333,12 @@ async function mergeLateWrites(
   return { count: after.rows.length, sha256: await digestRows(after.rows) }
 }
 
-/** Receipt archive entries by orderUuid; the journal's entry wins (it is the newer copy). Null when
- *  neither side has one. An unparseable side contributes nothing and is never overwritten silently:
- *  the other side is kept, and with no other side the raw text stays. */
+/** Merge the journal's archive (`a`) and the KV's (`b`) by orderUuid; on the same uuid the journal entry wins
+ *  (it is the newer copy). Null when neither side has a value. A side that is empty or not a JSON array
+ *  contributes no entries: when exactly one side parses, the result is built from that side alone (the other
+ *  side's unreadable text is replaced, not preserved); when neither parses, the journal's raw text (else the
+ *  KV's) is returned as it is. The archive is only a local copy of receipts, so replacing an unreadable copy
+ *  loses no money fact. */
 function unionArchive(a: string | undefined, b: string | null): string | null {
   const parse = (raw: string | null | undefined): { orderUuid: string }[] | null => {
     if (!raw) return null
