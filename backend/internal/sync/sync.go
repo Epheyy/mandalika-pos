@@ -70,6 +70,7 @@ type PullBundle struct {
 	Version           int64  `json:"version"`
 	OutletCode        string `json:"outletCode"`
 	OutletName        string `json:"outletName"`
+	OutletTimezone    string `json:"outletTimezone,omitempty"`
 	Products          any    `json:"products"`
 	Categories        any    `json:"categories"`
 	Bundles           any    `json:"bundles"`
@@ -92,8 +93,12 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	b.Version = vi.Version
 	// Outlet code → POS so it can build {OUTLET}-{DEV}{SEQ} order numbers offline.
 	// Outlet name → POS so the recap/print read the active outlet, not a constant.
-	var code, name *string
-	if e := e.Pool.QueryRow(ctx, `SELECT code, name FROM outlets WHERE id=$1`, outletID).Scan(&code, &name); e == nil {
+	// Outlet timezone -> POS so its promo twin gates hours/dates on the outlet clock (A28).
+	var code, name, tz *string
+	if e := e.Pool.QueryRow(ctx, `SELECT code, name, timezone FROM outlets WHERE id=$1`, outletID).Scan(&code, &name, &tz); e == nil {
+		if tz != nil {
+			b.OutletTimezone = *tz
+		}
 		if code != nil {
 			b.OutletCode = *code
 		}

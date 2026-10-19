@@ -257,6 +257,18 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 			exec(t, `INSERT INTO outlets(id,name,timezone) VALUES($1,$2,$3)`, id, "PL zone "+tz, tz)
 			exec(t, `INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',1000)`, id, p2)
 		}
+		// B2: the pull bundle carries the outlet's zone to the POS twin (Jakarta outlet = Jakarta, omitted never).
+		eng := syncpkg.New(pool, rd, svc, wr)
+		for tz, id := range zoneOutlet {
+			b, perr := eng.Pull(ctx, read.Scope{OutletID: id}, id)
+			want := tz
+			if want == "" {
+				want = "Asia/Jakarta"
+			}
+			if perr != nil || b.OutletTimezone != want {
+				t.Fatalf("pull outletTimezone for %q = %q err=%v want %q", tz, b.OutletTimezone, perr, want)
+			}
+		}
 		for i, v := range vectors {
 			t.Run(v.Name, func(t *testing.T) {
 				id := fmt.Sprintf("00000000-0000-4000-8502-%012d", i)
