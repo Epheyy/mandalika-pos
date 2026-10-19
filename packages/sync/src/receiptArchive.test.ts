@@ -188,6 +188,17 @@ describe('ReceiptArchive', () => {
     expect(ids).not.toContain('u2')
   })
 
+  it('logs the archive size (receipts and bytes) after each write, none when nothing changed', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const { kv } = controllableKV()
+    const a = new ReceiptArchive(kv)
+    await a.addMany([entry(1, DAY), entry(2, DAY)], () => noCtx)
+    expect(info).toHaveBeenCalledTimes(1)
+    expect(String(info.mock.calls[0][0])).toMatch(/receipt archive: 2 receipts, \d+ bytes/)
+    await a.addMany([], () => noCtx)
+    expect(info).toHaveBeenCalledTimes(1)
+  })
+
   it('is empty and safe on corrupt storage', () => {
     const { kv } = controllableKV({ [RECEIPT_ARCHIVE_KEY]: '{broken' })
     expect(new ReceiptArchive(kv).entries()).toEqual([])

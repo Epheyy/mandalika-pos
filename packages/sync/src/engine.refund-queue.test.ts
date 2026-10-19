@@ -77,6 +77,27 @@ describe('queuedRefundOrderIds', () => {
   })
 })
 
+describe('linked refund (A41): empty orderId plus saleOrderUuid', () => {
+  it('is listed by queuedRefunds and queuedRefundSaleUuids but never by queuedRefundOrderIds', async () => {
+    const engine = make(vi.fn())
+    await engine.enqueue('refund', { orderId: '', saleOrderUuid: 'sale-1', reason: 'rusak', orderNumber: 'N1', total: 1000, paymentMethod: 'cash' })
+    const rows = engine.queuedRefunds()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ orderId: '', parked: false, payload: { saleOrderUuid: 'sale-1', total: 1000 } })
+    expect([...engine.queuedRefundSaleUuids()]).toEqual(['sale-1'])
+    expect(engine.queuedRefundOrderIds().size).toBe(0)
+  })
+
+  it('keeps a parked linked refund in queuedRefundSaleUuids (not settled)', async () => {
+    const engine = make(denyAll())
+    await engine.enqueue('refund', { orderId: '', saleOrderUuid: 'sale-1', reason: 'rusak' })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(engine.reviewItems()).toHaveLength(1)
+    expect([...engine.queuedRefundSaleUuids()]).toEqual(['sale-1'])
+  })
+})
+
 describe('queuedRefunds (recap input)', () => {
   it('reports the capture-time shift, parked flag and payload of each unacknowledged refund', async () => {
     const engine = make(denyAll(), 'shift-1')

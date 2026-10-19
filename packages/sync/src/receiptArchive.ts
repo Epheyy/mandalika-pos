@@ -136,7 +136,10 @@ export class ReceiptArchive {
       const next = drop.size ? merged.filter((e) => !drop.has(e.orderUuid)) : merged
       const json = JSON.stringify(next)
       if (json === JSON.stringify(before)) return undefined
-      return this.kv.setDurable(RECEIPT_ARCHIVE_KEY, json)
+      return this.kv.setDurable(RECEIPT_ARCHIVE_KEY, json).then(() => {
+        // Q3: there is no hard cap, so the size is logged for the owner to watch (about 1-2 kB a receipt).
+        console.info(`[sync] receipt archive: ${next.length} receipts, ${json.length} bytes`)
+      })
     })
     this.chain = run.catch(() => {})
     return run

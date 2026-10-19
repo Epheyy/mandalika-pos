@@ -208,3 +208,53 @@ describe('older bundle over a newer bundle journal (A35 rollback tolerance)', ()
     expect(stored.lastError).toBe('x') // the rewrite really happened
   })
 })
+
+describe('receipt archive over the journal store (A41)', () => {
+  const ARCHIVE_KEY = 'mandalika.pos.receiptArchive'
+  const okWithIds = vi.fn(async (_m: string, _p: string, body: Body) => ({
+    data: { processed: body.items.length, version: 0, results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'ok', orderId: `srv-${i.idempotencyKey}` })) },
+  }))
+  const saleBody = { orderNumber: 'ORD-1', paymentMethod: 'cash', quotedTotal: 1000, customerName: 'Budi', receiptSnapshot: { total: 1000 } }
+  const archived = (fj: FakeJournal) => JSON.parse(fj.persisted.meta.get(ARCHIVE_KEY) ?? '[]') as { orderUuid: string; serverOrderId?: string }[]
+  const rowStatuses = (fj: FakeJournal) => [...fj.persisted.rows.values()].map((r) => JSON.parse(r.json).status)
+
+  it('archives an acked sale in the journal meta and prunes its row', async () => {
+    const fj = createFakeJournal()
+    const { engine } = await engineOver(fj, undefined, okWithIds)
+    const { orderUuid } = await engine.enqueue('order', saleBody)
+    online()
+    await engine.flushNow()
+    expect(fj.persisted.rows.size).toBe(0)
+    expect(archived(fj)).toMatchObject([{ orderUuid, serverOrderId: expect.stringContaining('srv-') }])
+    expect(fj.persisted.meta.get(ARCHIVE_KEY)).not.toContain('Budi')
+  })
+
+  it('keeps the acked row when the archive write fails; the next engine start archives it, a later batch prunes it', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fj = createFakeJournal()
+    let failArchive = true
+    const apply = fj.plugin.apply.bind(fj.plugin)
+    fj.plugin.apply = (req) =>
+      failArchive && req.meta && ARCHIVE_KEY in req.meta ? Promise.reject(new Error('archive write failed (synthetic)')) : apply(req)
+    const { engine } = await engineOver(fj, undefined, okWithIds)
+    const { orderUuid } = await engine.enqueue('order', saleBody)
+    online()
+    await engine.flushNow()
+    expect(archived(fj)).toEqual([])
+    expect(rowStatuses(fj)).toEqual(['acked'])
+
+    failArchive = false
+    const fj2 = fj.restart()
+    const { engine: again } = await engineOver(fj2, undefined, okWithIds)
+    await again.idle()
+    expect(archived(fj2).map((e) => e.orderUuid)).toEqual([orderUuid])
+    expect(rowStatuses(fj2)).toEqual(['acked'])
+    vi.stubGlobal('navigator', { onLine: false })
+    await again.enqueue('order', { ...saleBody, orderNumber: 'ORD-2' })
+    online()
+    await again.flushNow()
+    await again.idle()
+    expect(fj2.persisted.rows.size).toBe(0)
+    expect(archived(fj2)).toHaveLength(2)
+  })
+})

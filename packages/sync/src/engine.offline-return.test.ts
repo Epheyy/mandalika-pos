@@ -240,6 +240,18 @@ describe('localReceipts() view', () => {
     expect(e.localReceipts().map((r) => r.orderUuid).sort()).toEqual(['a-mine', 'o1', 'o3'])
   })
 
+  it('still lists a sale whose archive write failed (the acked row is its only copy)', async () => {
+    const { api } = fakeApi()
+    const kv = controllableKV()
+    kv.ctl.modeFor = (k) => (k === RECEIPT_ARCHIVE_KEY ? 'reject' : undefined)
+    const e = engineOf(api, kv.kv)
+    const sold = await pendingSale(e, 1)
+    online()
+    await e.flushNow()
+    expect(JSON.parse(kv.store.get(RECEIPT_ARCHIVE_KEY) ?? '[]')).toEqual([])
+    expect(e.localReceipts().map((r) => [r.orderUuid, r.state, r.serverOrderId?.startsWith('srv-')])).toEqual([[sold.orderUuid, 'synced', true]])
+  })
+
   it('lists a sale only once while its acked row has not been pruned yet', async () => {
     const entry: ReceiptEntry = {
       orderUuid: 'dup', idempotencyKey: 'dev:dup', orderNumber: 'D', capturedAt: NOW, outletId: 'out1', shiftId: null,

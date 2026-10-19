@@ -831,16 +831,20 @@ export class SyncEngine {
       })
     })
     for (const i of this.outbox.all()) {
-      if (i.status === 'acked' || i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
+      if (i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
       const e = receiptEntryFromItem(i)
       if (!e) continue
+      const acked = i.status === 'acked'
+      // An acked row the archive does not hold yet (its write failed) is the only copy of that sale.
+      if (acked && byUuid.has(e.orderUuid)) continue
       byUuid.set(e.orderUuid, {
         order: i.seq,
         r: {
-          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, orderNumber: e.orderNumber, capturedAt: e.capturedAt,
-          outletId: e.outletId, shiftId: e.shiftId, paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal,
-          receiptSnapshot: e.receiptSnapshot, state: i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
-          ...flags(e.orderUuid),
+          orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, ...(e.serverOrderId ? { serverOrderId: e.serverOrderId } : {}),
+          orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
+          paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot,
+          state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
+          ...flags(e.orderUuid, e.serverOrderId),
         },
       })
     }
