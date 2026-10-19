@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { fetchAllPages, type AppSettings, type Order } from '@mandalika/api'
+import { useEffect, useState } from 'react'
+import { fetchAllPages, type AppSettings } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -13,10 +13,13 @@ import { BRAND } from '../lib/brand'
 import { paymentFilterOptions } from '../lib/paymentOptions'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
-import { Select, Textarea, fieldClass } from '../ui/Field'
+import { Input, Select, Textarea, fieldClass } from '../ui/Field'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
+import { Pagination } from '../ui/Pagination'
+import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
+import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
@@ -36,33 +39,36 @@ export function OrdersPanel() {
   const { user } = useAuth()
   const { outletId, outlets: ctxOutlets } = useOutlet()
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
+  // Default window: last 30 days; "Semua tanggal" lifts the date bounds (search then
+  // spans all dates).
+  const [range, setRange] = useState(() => lastDaysRange(30))
+  const [allDates, setAllDates] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [refundingId, setRefundingId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
-  const q = usePolledQuery<Order[]>(
-    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
-    [outletId],
-  )
-  const orders = q.data ?? []
-  const sq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
-  const payOptions = paymentFilterOptions(sq.data?.paymentMethods, orders)
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedQuery(query); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [query])
 
-  const filtered = orders.filter((o) => {
-    const s = query.toLowerCase()
-    const mS =
-      o.orderNumber.toLowerCase().includes(s) ||
-      o.cashierName.toLowerCase().includes(s) ||
-      (o.customerName || '').toLowerCase().includes(s)
-    return mS && (!fStatus || o.status === fStatus) && (!fPay || o.paymentMethod.trim().toLowerCase() === fPay.trim().toLowerCase())
-  })
-  const revenue = filtered
-    .filter((o) => o.status === 'completed')
-    .reduce((s, o) => s + o.total, 0)
+  const filters = transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: debouncedQuery })
+  const showSummary = canViewSummary(user?.role === 'admin', user?.permissions ?? [])
+  const { summary: sq, list: q } = useOrderReport(filters, page, pageSize, outletId, showSummary)
+  const orders = q.data?.data ?? []
+  const total = q.data?.meta?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const settingsQ = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
+  const payOptions = paymentFilterOptions(settingsQ.data?.paymentMethods, orders)
 
   const refund = async (orderId: string) => {
     if (!note.trim()) {
@@ -76,7 +82,7 @@ export function OrdersPanel() {
       setRefundingId(null)
       setNote('')
       setExpanded(null)
-      await q.refetch()
+      await Promise.all([q.refetch(), sq.refetch()])
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal memproses refund.')
     } finally {
@@ -84,38 +90,53 @@ export function OrdersPanel() {
     }
   }
 
-  // Detailed export for analysts — one row per order with the discount source
-  // (promotion name / code / manual) and structured discount fields.
-  const handleExport = () => {
-    if (q.loading || q.error || !q.data) return
-    const rows = filtered.map((o) => ({
-      'No. Order': o.orderNumber,
-      Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
-      Status: label(o.status),
-      Pembayaran: o.paymentMethod,
-      Kasir: o.cashierName,
-      Pelanggan: o.customerName ?? '',
-      'Jumlah Item': o.items.reduce((s, it) => s + it.quantity, 0),
-      Subtotal: o.subtotal,
-      Diskon: o.discountAmount,
-      'Sumber Diskon': o.discountLabel ?? o.discountCode ?? '',
-      'Tipe Diskon': o.discountType ?? '',
-      'Nilai Diskon': o.discountValue ?? '',
-      'Rincian Diskon': (o.discountBreakdown ?? [])
-        .map((d) => `${d.label}: ${d.amount}`)
-        .join('; '),
-      Pajak: o.taxAmount,
-      Total: o.total,
-    }))
-    const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
-    const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query || undefined])
-    exportToXLSX(rows, name)
+  // Detailed export for analysts: one row per order with the discount source
+  // (promotion name / code / manual) and structured discount fields. Pages the whole
+  // filtered set on click.
+  const handleExport = async () => {
+    setExportBusy(true)
+    setExportError(null)
+    try {
+      // The live search text, not the 300 ms debounced one, so Export matches what was typed.
+      const params = orderFilterParams(transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: query }))
+      const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
+      const rows = all.map((o) => ({
+        'No. Order': o.orderNumber,
+        Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
+        Status: label(o.status),
+        Pembayaran: o.paymentMethod,
+        Kasir: o.cashierName,
+        Pelanggan: o.customerName ?? '',
+        'Jumlah Item': o.items.reduce((s, it) => s + it.quantity, 0),
+        Subtotal: o.subtotal,
+        Diskon: o.discountAmount,
+        'Sumber Diskon': o.discountLabel ?? o.discountCode ?? '',
+        'Tipe Diskon': o.discountType ?? '',
+        'Nilai Diskon': o.discountValue ?? '',
+        'Rincian Diskon': (o.discountBreakdown ?? [])
+          .map((d) => `${d.label}: ${d.amount}`)
+          .join('; '),
+        Pajak: o.taxAmount,
+        Total: o.total,
+      }))
+      const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
+      const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query.trim() || undefined])
+      exportToXLSX(rows, name)
+    } catch (e: unknown) {
+      setExportError(e instanceof Error ? e.message : 'Gagal mengekspor data lengkap.')
+    } finally {
+      setExportBusy(false)
+    }
   }
 
   return (
     <div className="space-y-5">
-      {q.error && <p role="alert" className="text-sm text-red-600">Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {q.error}</p>}
-      <p className="text-sm text-gray-500">{filtered.length} transaksi · Total: {BRAND.currency.format(revenue)}</p>
+      {(q.error || sq.error) && <p role="alert" className="text-sm text-red-600">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
+      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
+      <p className="text-sm text-gray-500">
+        {transaksiHeader(q.data ? total : undefined, showSummary ? sq.data?.totalSales : undefined, (n) => BRAND.currency.format(n))}
+        {debouncedQuery.trim() !== '' && !allDates && ' · pencarian mencakup semua tanggal'}
+      </p>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
@@ -129,20 +150,40 @@ export function OrdersPanel() {
             className={`${fieldClass} pl-9`}
           />
         </div>
-        <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-auto" aria-label="Filter status">
+        <Input
+          type="date"
+          aria-label="Dari tanggal"
+          value={range.dateFrom}
+          disabled={allDates}
+          onChange={(e) => { setRange({ ...range, dateFrom: e.target.value }); setPage(1) }}
+          className="w-auto"
+        />
+        <Input
+          type="date"
+          aria-label="Sampai tanggal"
+          value={range.dateTo}
+          disabled={allDates}
+          onChange={(e) => { setRange({ ...range, dateTo: e.target.value }); setPage(1) }}
+          className="w-auto"
+        />
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={allDates} onChange={(e) => { setAllDates(e.target.checked); setPage(1) }} />
+          Semua tanggal
+        </label>
+        <Select value={fStatus} onChange={(e) => { setFStatus(e.target.value); setPage(1) }} className="w-auto" aria-label="Filter status">
           <option value="">Semua Status</option>
           <option value="completed">Selesai</option>
           <option value="refunded">Refund</option>
           <option value="cancelled">Dibatalkan</option>
         </Select>
-        <Select value={fPay} onChange={(e) => setFPay(e.target.value)} className="w-auto" aria-label="Filter pembayaran">
+        <Select value={fPay} onChange={(e) => { setFPay(e.target.value); setPage(1) }} className="w-auto" aria-label="Filter pembayaran">
           <option value="">Semua Pembayaran</option>
           {payOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </Select>
         <Button
           variant="secondary"
-          onClick={handleExport}
-          disabled={q.loading || !!q.error || !q.data || filtered.length === 0}
+          onClick={() => void handleExport()}
+          disabled={exportBusy || q.loading || !!q.error || total === 0}
           icon={<Download className="w-4 h-4" />}
         >
           Export
@@ -152,11 +193,11 @@ export function OrdersPanel() {
       <Card className="overflow-hidden">
         {q.loading ? (
           <TableSkeleton />
-        ) : filtered.length === 0 ? (
+        ) : orders.length === 0 ? (
           <EmptyState icon={<ShoppingBag />} title="Tidak ada transaksi" />
         ) : (
           <div className="divide-y divide-gray-50">
-            {filtered.map((o) => (
+            {orders.map((o) => (
               <div key={o.id}>
                 <div
                   className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer"
@@ -322,6 +363,18 @@ export function OrdersPanel() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+        {total > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+            />
           </div>
         )}
       </Card>

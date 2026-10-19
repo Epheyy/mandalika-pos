@@ -1,6 +1,12 @@
-import type { components } from './schema'
+import type { components, operations } from './schema'
 
 type S = components['schemas']
+type Query<K extends keyof operations> = NonNullable<operations[K]['parameters']['query']>
+
+/** Query params of the order list, shift list and report summary, generated from the OpenAPI contract. */
+export type ListOrdersParams = Query<'listOrders'>
+export type ListShiftsParams = Query<'listShifts'>
+export type ReportSummaryParams = Query<'reportSummary'>
 
 export type User = S['User']
 export type AuthData = S['AuthData']
@@ -283,10 +289,10 @@ export interface Api {
   deleteDiscountCode: (id: string) => Promise<void>
 
   // orders / shifts
-  listOrders: (params?: Record<string, string | number>) => Promise<ListResult<Order>>
+  listOrders: (params?: ListOrdersParams) => Promise<ListResult<Order>>
   getOrder: (id: string) => Promise<Order>
   refundOrder: (id: string, reason: string) => Promise<Order>
-  listShifts: (params?: Record<string, string | number>) => Promise<ListResult<Shift>>
+  listShifts: (params?: ListShiftsParams) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
   listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
   resolveSyncReviewItem: (key: string, note: string) => Promise<SyncReviewResolution>
@@ -394,7 +400,7 @@ export interface Api {
   // settings / reports / uploads
   getAppSettings: () => Promise<AppSettings>
   updateAppSettings: (input: AppSettings) => Promise<AppSettings>
-  reportSummary: (params?: Record<string, string>) => Promise<ReportSummary>
+  reportSummary: (params?: ReportSummaryParams) => Promise<ReportSummary>
   signUpload: (folder?: string) => Promise<UploadSignature>
 }
 

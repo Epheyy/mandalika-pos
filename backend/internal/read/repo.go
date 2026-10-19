@@ -983,38 +983,8 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
      'subtotal',it.subtotal,'isBundle',it.is_bundle))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
 
-func (r *Repo) Orders(ctx context.Context, sc Scope, shiftID, customerID, from, to, q string, page, limit int) ([]api.Order, int, error) {
-	where := "WHERE 1=1"
-	args := []any{}
-	if !sc.CrossAll {
-		args = append(args, sc.OutletID)
-		where += fmt.Sprintf(" AND o.outlet_id=$%d", len(args))
-	}
-	if shiftID != "" {
-		args = append(args, shiftID)
-		where += fmt.Sprintf(" AND o.shift_id=$%d", len(args))
-	}
-	if customerID != "" {
-		args = append(args, customerID)
-		where += fmt.Sprintf(" AND o.customer_id=$%d", len(args))
-	}
-	if from != "" {
-		args = append(args, from)
-		where += fmt.Sprintf(" AND o.created_at >= $%d", len(args))
-	}
-	if to != "" {
-		args = append(args, to)
-		where += fmt.Sprintf(" AND o.created_at < ($%d::date + interval '1 day')", len(args))
-	}
-	if q != "" {
-		args = append(args, "%"+q+"%")
-		// Match order number, the order's stored customer name, or the
-		// linked customer's phone/name.
-		where += fmt.Sprintf(` AND (o.order_number ILIKE $%d OR o.customer_name ILIKE $%d
-		  OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
-		    AND (c.phone ILIKE $%d OR c.name ILIKE $%d)))`,
-			len(args), len(args), len(args), len(args))
-	}
+func (r *Repo) Orders(ctx context.Context, f OrderFilter, page, limit int) ([]api.Order, int, error) {
+	where, args := buildOrderWhere(f)
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s
 	  ORDER BY o.created_at DESC, o.id DESC LIMIT $%d OFFSET $%d`,
@@ -1050,12 +1020,22 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
        WHERE o.refund_shift_id=s.id AND o.status='refunded' AND o.shift_id IS DISTINCT FROM s.id
        GROUP BY o.payment_method) x) END)`
 
-func (r *Repo) Shifts(ctx context.Context, sc Scope, page, limit int) ([]api.Shift, int, error) {
-	where := ""
+// Shifts lists shifts newest first. dateFrom/dateTo are WIB calendar days applied to
+// opened_at (the business day of a shift is its opening date, owner rule A28).
+func (r *Repo) Shifts(ctx context.Context, sc Scope, dateFrom, dateTo string, page, limit int) ([]api.Shift, int, error) {
+	where := "WHERE 1=1"
 	args := []any{}
 	if !sc.CrossAll {
 		args = append(args, sc.OutletID)
-		where = "WHERE s.outlet_id=$1"
+		where += fmt.Sprintf(" AND s.outlet_id=$%d", len(args))
+	}
+	if dateFrom != "" {
+		args = append(args, dateFrom)
+		where += fmt.Sprintf(" AND s.opened_at >= %s", wibDayStart(len(args)))
+	}
+	if dateTo != "" {
+		args = append(args, dateTo)
+		where += fmt.Sprintf(" AND s.opened_at < %s", wibDayEnd(len(args)))
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM shifts s %s
@@ -1092,7 +1072,7 @@ func (r *Repo) fillOpenCashRefunds(ctx context.Context, shifts []api.Shift) erro
 				}
 			}
 		}
-		shifts[i].CashRefundsPaid = nullable.NewNullableWithValue(float32(cash))
+		shifts[i].CashRefundsPaid = nullable.NewNullableWithValue(cash)
 	}
 	return nil
 }

@@ -183,6 +183,29 @@ func TestPaginationPostgres(t *testing.T) {
 		verify(t, "empty-date", "/api/v1/orders?from=2026-09-22", 201, 0, true)
 		verify(t, "foreign-shift", "/api/v1/orders?shiftId="+shiftID(1000), 201, 0, true)
 	})
+	t.Run("a26-server-side-filters", func(t *testing.T) {
+		// verify() appends to records, which feeds the A26 vitest golden test with an exact
+		// name list; these extra checks must not change that evidence file.
+		keep := len(records)
+		defer func() { records = records[:keep] }()
+		// WIB day params (dateFrom/dateTo) and the new order filters. The 201 fixture
+		// orders are completed, cash, cashier "A26", created 2026-09-21T02:00Z (09:00 WIB).
+		verify(t, "wib-day-hit", "/api/v1/orders?dateFrom=2026-09-21&dateTo=2026-09-21", 201, 201, true)
+		verify(t, "wib-day-after", "/api/v1/orders?dateFrom=2026-09-22", 201, 0, true)
+		verify(t, "wib-day-before", "/api/v1/orders?dateTo=2026-09-20", 201, 0, true)
+		verify(t, "status-hit", "/api/v1/orders?status=completed", 201, 201, true)
+		verify(t, "status-miss", "/api/v1/orders?status=refunded", 201, 0, true)
+		verify(t, "pay-case-insensitive", "/api/v1/orders?paymentMethod=%20CASH", 201, 201, true)
+		verify(t, "pay-miss", "/api/v1/orders?paymentMethod=card", 201, 0, true)
+		verify(t, "q-miss", "/api/v1/orders?q=no-such-text-zzz", 201, 0, true)
+		// Shifts: business day = opening date in WIB (A28 rule). Outlet 1000 has 250
+		// closed shifts opened 2026-09-20T01:00Z and one open shift on 2026-09-21.
+		verify(t, "shifts-day-20", "/api/v1/shifts?dateFrom=2026-09-20&dateTo=2026-09-20", 1000, 250, true)
+		verify(t, "shifts-from-21", "/api/v1/shifts?dateFrom=2026-09-21", 1000, 1, true)
+		verify(t, "shifts-to-19", "/api/v1/shifts?dateTo=2026-09-19", 1000, 0, true)
+		// Legacy from/to keep their meaning (POS contract): UTC-day on created_at.
+		verify(t, "legacy-from-to-utc-day", "/api/v1/orders?from=2026-09-21&to=2026-09-21", 201, 201, true)
+	})
 	if path := os.Getenv("MANDALIKA_A26_TEST_OUTPUT"); path != "" {
 		raw, err := json.Marshal(records)
 		if err != nil {

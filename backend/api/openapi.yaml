@@ -29,6 +29,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    WIBDateFrom:
+      name: dateFrom
+      in: query
+      required: false
+      description: Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      schema: { type: string, format: date }
+    WIBDateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      schema: { type: string, format: date }
+    OrderStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema: { type: string, enum: [completed, refunded, cancelled] }
+    OrderPaymentMethodFilter:
+      name: paymentMethod
+      in: query
+      required: false
+      description: Matched case-insensitively after trimming whitespace.
+      schema: { type: string }
+    OrderSearch:
+      name: q
+      in: query
+      required: false
+      description: Substring match on order number, cashier name, customer name, or linked customer phone/name.
+      schema: { type: string }
     OutletHeader:
       name: X-Outlet-Id
       in: header
@@ -1263,9 +1292,9 @@ components:
         productId: { type: string }
         productName: { type: string }
         variantSize: { type: string }
-        price: { type: number }
+        price: { type: number, format: double }
         quantity: { type: integer }
-        subtotal: { type: number }
+        subtotal: { type: number, format: double }
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
@@ -1286,10 +1315,10 @@ components:
         customerId: { type: string, nullable: true }
         customerName: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/CartItem' } }
-        subtotal: { type: number }
-        discountAmount: { type: number }
+        subtotal: { type: number, format: double }
+        discountAmount: { type: number, format: double }
         discountType: { type: string, nullable: true }
-        discountValue: { type: number, nullable: true }
+        discountValue: { type: number, format: double, nullable: true }
         discountCode: { type: string, nullable: true }
         # Human-readable discount source (promotion name / promo code / "Manual").
         discountLabel: { type: string, nullable: true }
@@ -1304,13 +1333,13 @@ components:
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
         surchargeType: { type: string, nullable: true }
-        surchargeValue: { type: number, nullable: true }
-        surchargeAmount: { type: number, nullable: true }
-        taxAmount: { type: number }
-        total: { type: number }
+        surchargeValue: { type: number, format: double, nullable: true }
+        surchargeAmount: { type: number, format: double, nullable: true }
+        taxAmount: { type: number, format: double }
+        total: { type: number, format: double }
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
-        amountPaid: { type: number }
-        change: { type: number }
+        amountPaid: { type: number, format: double }
+        change: { type: number, format: double }
         status: { type: string, enum: [completed, refunded, cancelled] }
         notes: { type: string, nullable: true }
         refundReason: { type: string, nullable: true }
@@ -1328,8 +1357,8 @@ components:
       properties:
         label: { type: string }
         kind: { type: string, nullable: true }
-        value: { type: number, nullable: true }
-        amount: { type: number }
+        value: { type: number, format: double, nullable: true }
+        amount: { type: number, format: double }
     ErrorBreadcrumb:
       type: object
       required: [at, label]
@@ -1409,30 +1438,30 @@ components:
         status: { type: string, enum: [open, closed] }
         openedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time, nullable: true }
-        startingCash: { type: number }
-        closingCash: { type: number, nullable: true }
-        totalSales: { type: number }
+        startingCash: { type: number, format: double }
+        closingCash: { type: number, format: double, nullable: true }
+        totalSales: { type: number, format: double }
         totalOrders: { type: integer }
-        totalRefunds: { type: number }
-        cashSales: { type: number }
-        cardSales: { type: number }
-        transferSales: { type: number }
-        qrisSales: { type: number }
+        totalRefunds: { type: number, format: double }
+        cashSales: { type: number, format: double }
+        cardSales: { type: number, format: double }
+        transferSales: { type: number, format: double }
+        qrisSales: { type: number, format: double }
         # Per-method counted cash entered by the cashier at close (reconciliation
         # "Terhitung"). Keys are payment-method ids; null when not reconciled.
         countedByMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
           nullable: true
         # A06: refunds this shift paid out for sales of OTHER shifts. Live while the
         # shift is open, a close-time snapshot afterwards (null on shifts closed
         # before the field existed). cashRefundsPaid is its cash part by the isCash rule:
         # computed live while open, the snapshot once closed, null when closed before
         # the field existed.
-        cashRefundsPaid: { type: number, nullable: true }
+        cashRefundsPaid: { type: number, format: double, nullable: true }
         refundsPaidByMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
           nullable: true
     ShiftListResponse:
       type: object
@@ -1498,7 +1527,7 @@ components:
         outletId: { type: string, format: uuid }
         shiftId: { type: string, nullable: true }
         type: { type: string }
-        amount: { type: number }
+        amount: { type: number, format: double }
         description: { type: string }
         cashierId: { type: string, nullable: true }
         cashierName: { type: string, nullable: true }
@@ -1622,29 +1651,33 @@ components:
         productId: { type: string }
         productName: { type: string }
         quantity: { type: integer }
-        revenue: { type: number }
+        revenue: { type: number, format: double }
     DailySalesRow:
       type: object
       required: [date, sales, orders]
       properties:
         date: { type: string }
-        sales: { type: number }
+        sales: { type: number, format: double }
         orders: { type: integer }
     ReportSummary:
       type: object
-      required: [from, to, totalSales, totalOrders, totalRefunds, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      required: [totalSales, totalOrders, totalRefunds, refundedOrders, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      description: |
+        Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
+        `from`/`to` echo the lower/upper instant actually applied; null when that side is unbounded.
       properties:
-        from: { type: string, format: date-time }
-        to: { type: string, format: date-time }
+        from: { type: string, format: date-time, nullable: true }
+        to: { type: string, format: date-time, nullable: true }
         outletId: { type: string, nullable: true }
-        totalSales: { type: number }
+        totalSales: { type: number, format: double }
         totalOrders: { type: integer }
-        totalRefunds: { type: number }
-        netSales: { type: number }
-        avgOrderValue: { type: number }
+        totalRefunds: { type: number, format: double }
+        refundedOrders: { type: integer }
+        netSales: { type: number, format: double }
+        avgOrderValue: { type: number, format: double }
         byPaymentMethod:
           type: object
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
         topProducts: { type: array, items: { $ref: '#/components/schemas/ProductSalesRow' } }
         dailySales: { type: array, items: { $ref: '#/components/schemas/DailySalesRow' } }
     ReportSummaryResponse:
@@ -4079,12 +4112,26 @@ paths:
         - name: customerId
           in: query
           schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          description: Legacy (POS) lower bound, a YYYY-MM-DD read as a UTC day. Meaning unchanged; prefer dateFrom.
+          schema: { type: string }
+        - name: to
+          in: query
+          description: Legacy (POS) inclusive upper day (YYYY-MM-DD, UTC day). Meaning unchanged; prefer dateTo.
+          schema: { type: string }
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
+        - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/OrderPaymentMethodFilter'
+        - $ref: '#/components/parameters/OrderSearch'
       responses:
         '200':
           description: orders
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderListResponse' }
+        '400': { description: invalid date or status filter }
   /api/v1/orders/{id}:
     parameters:
       - name: id
@@ -4130,12 +4177,15 @@ paths:
         - $ref: '#/components/parameters/OutletHeader'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
       responses:
         '200':
-          description: shifts
+          description: shifts (dateFrom/dateTo bound opened_at by WIB calendar day)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftListResponse' }
+        '400': { description: invalid date filter }
   /api/v1/shifts/current:
     get:
       operationId: currentShift
@@ -4369,16 +4419,24 @@ paths:
         - $ref: '#/components/parameters/OutletQuery'
         - name: from
           in: query
+          description: Legacy lower bound instant (inclusive). Prefer dateFrom.
           schema: { type: string, format: date-time }
         - name: to
           in: query
+          description: Legacy upper bound instant (exclusive). Prefer dateTo.
           schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
+        - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/OrderPaymentMethodFilter'
+        - $ref: '#/components/parameters/OrderSearch'
       responses:
         '200':
-          description: summary
+          description: summary over created_at and current status; with no date parameter the range is unbounded
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReportSummaryResponse' }
+        '400': { description: invalid date or status filter }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/categories/{id}:
     parameters:

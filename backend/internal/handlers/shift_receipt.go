@@ -52,7 +52,7 @@ func openShiftReceipt(id, outletID, cashierID, cashierName, outletName string, s
 	s := api.Shift{
 		Id: parseUUIDLoose(id), OutletId: parseUUIDLoose(outletID),
 		CashierId: cashierID, CashierName: cashierName,
-		Status: api.ShiftStatusOpen, OpenedAt: openedAt, StartingCash: float32(startingCash),
+		Status: api.ShiftStatusOpen, OpenedAt: openedAt, StartingCash: startingCash,
 	}
 	if outletName != "" {
 		s.OutletName = nullable.NewNullableWithValue(outletName)
@@ -65,7 +65,7 @@ func closedShiftReceipt(id, outletID string, closingCash float64, closedAt time.
 		Id: parseUUIDLoose(id), OutletId: parseUUIDLoose(outletID),
 		Status:      api.ShiftStatusClosed,
 		ClosedAt:    nullable.NewNullableWithValue(closedAt),
-		ClosingCash: nullable.NewNullableWithValue(float32(closingCash)),
+		ClosingCash: nullable.NewNullableWithValue(closingCash),
 	}
 }
 

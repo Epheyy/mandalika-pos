@@ -4,6 +4,7 @@ import {
   startOfDay,
   endOfDay,
   subDays,
+  addDays,
   isWithinInterval,
   format,
   eachMonthOfInterval,
@@ -52,6 +53,25 @@ export function prevInterval(period: Period, now = new Date()): Interval | null 
     case 'all':
       return null
   }
+}
+
+const wibDayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' })
+
+/** The Asia/Jakarta calendar day (YYYY-MM-DD) an instant falls on, as the server reads dateFrom/dateTo. */
+export function wibDay(d: Date): string {
+  return wibDayFormat.format(d)
+}
+
+/**
+ * Server date window that covers the current AND previous interval, so the dashboard
+ * downloads only what it renders. Padded by one day each side so a browser in WITA/WIT
+ * still receives every row; `completedIn` then trims to the exact local interval.
+ * `all` stays unbounded (the owner asked for "Semua").
+ */
+export function dashboardFetchWindow(period: Period, now = new Date()): { dateFrom?: string; dateTo?: string } {
+  if (period === 'all') return {}
+  const start = (prevInterval(period, now) ?? periodInterval(period, now)).start
+  return { dateFrom: wibDay(subDays(start, 1)), dateTo: wibDay(addDays(now, 1)) }
 }
 
 function inInterval(iso: string, iv: Interval): boolean {

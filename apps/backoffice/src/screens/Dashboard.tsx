@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
-import { fetchAllPages } from '@mandalika/api'
+import { fetchAllPages, type ListOrdersParams } from '@mandalika/api'
 import type { Order, Product, Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -28,6 +28,7 @@ import { KpiCard, RankedList } from './dashboard/components'
 import {
   type Period,
   PERIOD_TABS,
+  dashboardFetchWindow,
   periodInterval,
   prevInterval,
   completedIn,
@@ -63,9 +64,18 @@ export default function Dashboard() {
   const { outletId } = useOutlet()
   const [period, setPeriod] = useState<Period>('7d')
 
+  // Only completed orders inside the period (+ previous period for deltas) are fetched.
+  // The window is recomputed per fetch so the 12 s poll slides past midnight.
+  const win = dashboardFetchWindow(period)
   const oq = usePolledQuery<Order[]>(
-    () => fetchAllPages((page, limit) => api.listOrders({ page, limit })),
-    [outletId],
+    () => {
+      const w = dashboardFetchWindow(period)
+      const params: ListOrdersParams = { status: 'completed' }
+      if (w.dateFrom) params.dateFrom = w.dateFrom
+      if (w.dateTo) params.dateTo = w.dateTo
+      return fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit }))
+    },
+    [outletId, period, win.dateFrom, win.dateTo],
   )
   const pq = usePolledQuery<Product[]>(
     () => fetchAllPages((page, limit) => api.listProducts(page, limit)),
