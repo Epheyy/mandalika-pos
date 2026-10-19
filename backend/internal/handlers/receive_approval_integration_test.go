@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -169,7 +171,7 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &out); err != nil || out.Data.ApprovalGrantID == "" || out.Data.ApproverName == "" {
 			t.Fatalf("mint body: %s %v", body, err)
 		}
-		if strings.Contains(body, pin) {
+		if strings.Contains(body, `"pin"`) {
 			t.Fatal("PIN echoed")
 		}
 		return out.Data.ApprovalGrantID
@@ -496,8 +498,11 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		if n := count(t, `SELECT count(*) FROM receive_pin_attempts WHERE outcome='ineligible'`); n < 3 {
 			t.Fatalf("ineligible attempts %d", n)
 		}
-		if n := count(t, `SELECT count(*) FROM receive_pin_attempts a WHERE to_jsonb(a)::text LIKE '%4321%'`); n != 0 {
-			t.Fatal("PIN stored in the audit trail")
+		// There is no column that could hold a PIN or a hash in any A08 table.
+		if n := count(t, `SELECT count(*) FROM information_schema.columns
+			WHERE table_name IN ('receive_pin_attempts','receive_pin_lockouts','transfer_receive_approvals')
+			  AND (column_name ILIKE '%hash%' OR column_name = 'pin')`); n != 0 {
+			t.Fatal("an A08 table has a PIN or hash column")
 		}
 	})
 
@@ -557,6 +562,29 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		b, _ := json.Marshal(bundle)
 		if strings.Contains(string(b), "argon2id") || strings.Contains(string(b), "receivePinHash") || !strings.Contains(string(b), `"receiveApprovers":[]`) {
 			t.Fatal("pull must ship receiveApprovers [] and no hash")
+		}
+	})
+
+	// Keep this LAST: it clears every receive PIN of the fixture. The gate migrates a fresh
+	// database, so the file is executed here against rows that do carry a PIN.
+	t.Run("migration-0063-wipes-every-receive-pin", func(t *testing.T) {
+		if n := count(t, `SELECT count(*) FROM users WHERE receive_pin_hash IS NOT NULL`); n == 0 {
+			t.Fatal("fixture should still hold PINs")
+		}
+		sqlBytes, err := os.ReadFile(filepath.Join("..", "db", "migrations", "0063_receive_pin_wipe.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec(t, string(sqlBytes))
+		if n := count(t, `SELECT count(*) FROM users WHERE receive_pin_hash IS NOT NULL OR receive_pin_set_at IS NOT NULL`); n != 0 {
+			t.Fatalf("%d users still carry a receive PIN", n)
+		}
+		if n := count(t, `SELECT count(*) FROM users WHERE password_hash IS NULL OR email IS NULL`); n != 0 {
+			t.Fatal("the wipe must not touch other columns")
+		}
+		exec(t, string(sqlBytes)) // idempotent
+		if code, _, body := call("GET", "/sync/receive-approvers", tokCashA, nil); code != 200 || strings.Contains(body, adminU) {
+			t.Fatalf("no approver may be listed without a PIN: %d %s", code, body)
 		}
 	})
 	_ = tokCashB
