@@ -20,6 +20,9 @@ import (
 // by sale day; gross = all of sb; refunds = all of rb; net = gross - refunds. NEVER
 // totalSales - totalRefunds: a refunded sale is already missing from totalSales, so that would
 // subtract it twice. Cancelled rows are never money; status=completed empties rb.
+// sb/rb select only the columns the CTEs below use (full rows are ~800 bytes each).
+// sum(dailySales[].netSales) == netSales depends on migration 0060 having filled
+// refund_business_date for every refunded row (rd skips NULL days, ragg does not).
 func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSummary, error) {
 	sf, rf := f, f
 	sf.DateBasis, rf.DateBasis = "sale", "refund"
@@ -28,10 +31,10 @@ func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSumm
 	refundWhere, args := appendOrderWhere(rf, args)
 	sql := fmt.Sprintf(`
 WITH sb AS (
-  SELECT o.* FROM orders o %s
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date FROM orders o %s
 ),
 rb AS (
-  SELECT o.* FROM orders o %s
+  SELECT o.total, o.payment_method, o.refund_business_date FROM orders o %s
 ),
 agg AS (
   SELECT

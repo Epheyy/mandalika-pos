@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { BRAND } from '../../lib/brand'
-import { breakdownRows, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
+import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
 
 it('renders a negative net with a minus sign and flags it', () => {
   expect(BRAND.currency.format(-100)).toContain('-')
@@ -23,6 +23,20 @@ it('builds the breakdown from the union of gross and refund methods', () => {
     { method: 'card', gross: 0, refunds: 10, net: -10 },
   ])
   expect(breakdownRows({})).toEqual([])
+})
+
+it('guards the refund basis on grossSales, not totalRefunds (old backend)', () => {
+  expect(hasRefundBasis(undefined)).toBe(false)
+  expect(hasRefundBasis(null)).toBe(false)
+  expect(hasRefundBasis({} as { grossSales: number })).toBe(false)
+  expect(hasRefundBasis({ grossSales: 0 })).toBe(true)
+})
+
+it('disables the refund CSV without a refund basis or without refunds', () => {
+  expect(canExportRefunds({ refundedOrders: 3 } as { grossSales: number; refundedOrders: number })).toBe(false)
+  expect(canExportRefunds({ grossSales: 100, refundedOrders: 0 })).toBe(false)
+  expect(canExportRefunds({ grossSales: 100, refundedOrders: 2 })).toBe(true)
+  expect(canExportRefunds(null)).toBe(false)
 })
 
 it('computes shares of gross', () => {

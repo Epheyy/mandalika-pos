@@ -5,6 +5,19 @@ export function moneyOrDash(n: number | undefined, format: (n: number) => string
   return n === undefined ? '–' : format(n)
 }
 
+/**
+ * An older backend always sends totalRefunds but ignores dateBasis and has no grossSales, so the
+ * refund figures are only trustworthy when grossSales is present.
+ */
+export function hasRefundBasis(s: Pick<ReportSummary, 'grossSales'> | null | undefined): boolean {
+  return !!s && s.grossSales !== undefined
+}
+
+/** The refund CSV is pointless (a silent no-op) without a refund-day basis or refunds to export. */
+export function canExportRefunds(s: Pick<ReportSummary, 'grossSales' | 'refundedOrders'> | null | undefined): boolean {
+  return hasRefundBasis(s) && (s?.refundedOrders ?? 0) > 0
+}
+
 /** Net is red when negative (a refund day can exceed its sales). */
 export function isNegative(n: number | undefined): boolean {
   return n !== undefined && n < 0

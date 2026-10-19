@@ -13,7 +13,7 @@ import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
-import { breakdownRows, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
+import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
 import { useOrderReport } from './useOrderReport'
 
 const statusBadge = (st: string) =>
@@ -110,7 +110,7 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
         <Button
           variant="secondary"
           onClick={() => void runExport('refund')}
-          disabled={exporting || !!lq.error || !summary || summary.totalRefunds === undefined}
+          disabled={exporting || !!lq.error || !canExportRefunds(summary)}
           icon={<Download className="w-4 h-4" />}
         >
           {exporting ? 'Menyiapkan…' : 'Export Refund CSV'}
@@ -130,7 +130,7 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Penjualan Kotor', value: moneyOrDash(summary.grossSales, BRAND.currency.format), sub: summary.grossOrders === undefined ? undefined : `${summary.grossOrders} penjualan`, icon: <TrendingUp className="w-5 h-5" /> },
-              { label: 'Refund (hari refund)', value: BRAND.currency.format(summary.totalRefunds), sub: `${summary.refundedOrders} refund`, icon: <RotateCcw className="w-5 h-5" /> },
+              { label: 'Refund (hari refund)', value: hasRefundBasis(summary) ? BRAND.currency.format(summary.totalRefunds) : '–', sub: hasRefundBasis(summary) ? `${summary.refundedOrders} refund` : undefined, icon: <RotateCcw className="w-5 h-5" /> },
               { label: 'Penjualan Bersih', value: moneyOrDash(summary.netSales, BRAND.currency.format), negative: isNegative(summary.netSales), icon: <TrendingUp className="w-5 h-5" /> },
               { label: 'Jumlah Transaksi', value: String(summary.totalOrders), icon: <ShoppingBag className="w-5 h-5" /> },
             ].map((c) => (

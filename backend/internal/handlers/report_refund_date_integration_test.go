@@ -363,7 +363,8 @@ func runRefundDateBasis(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h
 				t.Errorf("index %s missing", ix)
 			}
 		}
-		// Backfill: a legacy refunded row with no refunded_at and no refund date (the 0059 gap).
+		// Backfill: a legacy refunded row with no refunded_at and no refund date (the 0059 gap). It was captured
+		// at 00:30 WIB on 05-02 inside a shift opened 22:00 on 05-01, so business_date != the WIB day of created_at.
 		raw, err := os.ReadFile("../db/migrations/" + name)
 		if err != nil {
 			t.Fatal(err)
@@ -371,7 +372,7 @@ func runRefundDateBasis(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h
 		reset()
 		exec(`ALTER TABLE orders DISABLE TRIGGER trg_orders_business_date`)
 		const legacyID = "00000000-0000-4000-8803-000000000001"
-		exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,created_at,business_date,refunded_at,refund_business_date) VALUES($1,$1,'RD-LEGACY','RD-LEGACY',$2,$3,'RD',10,10,'cash','refunded','2026-05-01T05:00:00Z','2026-05-01',NULL,NULL)`, legacyID, outA, cashier)
+		exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,created_at,business_date,refunded_at,refund_business_date) VALUES($1,$1,'RD-LEGACY','RD-LEGACY',$2,$3,'RD',10,10,'cash','refunded','2026-05-01T17:30:00Z','2026-05-01',NULL,NULL)`, legacyID, outA, cashier)
 		exec(`ALTER TABLE orders ENABLE TRIGGER trg_orders_business_date`)
 		for i := 0; i < 2; i++ { // twice: the body must be idempotent
 			if _, err := pool.Exec(ctx, string(raw)); err != nil {
@@ -380,7 +381,7 @@ func runRefundDateBasis(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h
 		}
 		var got *string
 		if err := pool.QueryRow(ctx, `SELECT to_char(refund_business_date,'YYYY-MM-DD') FROM orders WHERE id=$1`, legacyID).Scan(&got); err != nil || got == nil || *got != "2026-05-01" {
-			t.Errorf("backfill refund_business_date=%v err=%v want the sale day 2026-05-01", got, err)
+			t.Errorf("backfill refund_business_date=%v err=%v want the row business_date 2026-05-01 (not the 05-02 WIB day of created_at)", got, err)
 		}
 		if strings.Contains(string(raw), "DROP ") {
 			t.Error("0060 must stay additive")
