@@ -1,0 +1,994 @@
+[
+ {
+  "name": "scoped_percentage_hit",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 50000,
+    "quantity": 1,
+    "subtotal": 50000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 10,
+    "combinable": true,
+    "applicableProductIds": [
+     "A"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 10000,
+   "discountAmount": 10000,
+   "taxAmount": 0,
+   "total": 140000
+  }
+ },
+ {
+  "name": "scoped_percentage_miss",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 50000,
+    "quantity": 1,
+    "subtotal": 50000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 10,
+    "combinable": true,
+    "applicableProductIds": [
+     "Z"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 150000
+  }
+ },
+ {
+  "name": "unscoped_percentage",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 50000,
+    "quantity": 1,
+    "subtotal": 50000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 15,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 22500,
+   "discountAmount": 22500,
+   "taxAmount": 0,
+   "total": 127500
+  }
+ },
+ {
+  "name": "scoped_fixed_hit",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 10000,
+    "quantity": 1,
+    "subtotal": 10000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 10000,
+    "quantity": 1,
+    "subtotal": 10000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "fixed",
+    "value": 5000,
+    "combinable": true,
+    "applicableProductIds": [
+     "A"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 5000,
+   "discountAmount": 5000,
+   "taxAmount": 0,
+   "total": 15000
+  }
+ },
+ {
+  "name": "fixed_above_subtotal",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 30000,
+    "quantity": 1,
+    "subtotal": 30000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "fixed",
+    "value": 50000,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 30000,
+   "discountAmount": 30000,
+   "taxAmount": 0,
+   "total": 0
+  }
+ },
+ {
+  "name": "bogo_cheapest_unit",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 40000,
+    "quantity": 2,
+    "subtotal": 80000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 25000,
+    "quantity": 1,
+    "subtotal": 25000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "bogo",
+    "value": 0,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 25000,
+   "discountAmount": 25000,
+   "taxAmount": 0,
+   "total": 80000
+  }
+ },
+ {
+  "name": "bogo_scoped_single_unit",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 40000,
+    "quantity": 1,
+    "subtotal": 40000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 25000,
+    "quantity": 3,
+    "subtotal": 75000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "bogo",
+    "value": 0,
+    "combinable": true,
+    "applicableProductIds": [
+     "A"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 115000
+  }
+ },
+ {
+  "name": "bxgy_same_set_max_applications_1",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 30000,
+    "quantity": 6,
+    "subtotal": 180000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "buy_x_get_y",
+    "value": 0,
+    "combinable": true,
+    "bxgyConfig": {
+     "buyQuantity": 2,
+     "getQuantity": 1,
+     "buyProductIds": [
+      "A"
+     ],
+     "getProductIds": [],
+     "getDiscountKind": "percentage",
+     "getDiscountValue": 100,
+     "maxApplications": 1
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 30000,
+   "discountAmount": 30000,
+   "taxAmount": 0,
+   "total": 150000
+  }
+ },
+ {
+  "name": "bxgy_same_set_uncapped",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 30000,
+    "quantity": 6,
+    "subtotal": 180000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "buy_x_get_y",
+    "value": 0,
+    "combinable": true,
+    "bxgyConfig": {
+     "buyQuantity": 2,
+     "getQuantity": 1,
+     "buyProductIds": [
+      "A"
+     ],
+     "getProductIds": [],
+     "getDiscountKind": "percentage",
+     "getDiscountValue": 100,
+     "maxApplications": 0
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 60000,
+   "discountAmount": 60000,
+   "taxAmount": 0,
+   "total": 120000
+  }
+ },
+ {
+  "name": "bxgy_same_set_variant_key",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml",
+    "price": 20000,
+    "quantity": 3,
+    "subtotal": 60000
+   },
+   {
+    "productId": "A",
+    "variantSize": "60ml",
+    "price": 10000,
+    "quantity": 3,
+    "subtotal": 30000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "buy_x_get_y",
+    "value": 0,
+    "combinable": true,
+    "bxgyConfig": {
+     "buyQuantity": 1,
+     "getQuantity": 1,
+     "buyProductIds": [
+      "A|120ml"
+     ],
+     "getProductIds": [],
+     "getDiscountKind": "percentage",
+     "getDiscountValue": 50,
+     "maxApplications": 0
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 10000,
+   "discountAmount": 10000,
+   "taxAmount": 0,
+   "total": 80000
+  }
+ },
+ {
+  "name": "bxgy_separate_set_contributes_zero",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 20000,
+    "quantity": 2,
+    "subtotal": 40000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 10000,
+    "quantity": 1,
+    "subtotal": 10000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "buy_x_get_y",
+    "value": 0,
+    "combinable": true,
+    "bxgyConfig": {
+     "buyQuantity": 1,
+     "getQuantity": 1,
+     "buyProductIds": [
+      "A"
+     ],
+     "getProductIds": [
+      "B"
+     ],
+     "getDiscountKind": "percentage",
+     "getDiscountValue": 100,
+     "maxApplications": 0
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 50000
+  }
+ },
+ {
+  "name": "bundle_contributes_zero",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 20000,
+    "quantity": 1,
+    "subtotal": 20000
+   },
+   {
+    "productId": "B",
+    "variantSize": "",
+    "price": 10000,
+    "quantity": 1,
+    "subtotal": 10000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "bundle",
+    "value": 0,
+    "combinable": true,
+    "bundleConfig": {
+     "slots": [
+      {
+       "productKeys": [
+        "A"
+       ],
+       "quantity": 1
+      },
+      {
+       "productKeys": [
+        "B"
+       ],
+       "quantity": 1
+      }
+     ],
+     "bundlePrice": 25000,
+     "maxApplications": 0
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 30000
+  }
+ },
+ {
+  "name": "tiered_plus_percentage_combinable",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 200000,
+    "quantity": 1,
+    "subtotal": 200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "tiered",
+    "value": 0,
+    "combinable": true,
+    "tieredConfig": {
+     "tiers": [
+      {
+       "minSubtotal": 100000,
+       "kind": "percentage",
+       "value": 10
+      },
+      {
+       "minSubtotal": 300000,
+       "kind": "fixed",
+       "value": 50000
+      }
+     ]
+    }
+   },
+   {
+    "id": "p2",
+    "type": "percentage",
+    "value": 5,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 30000,
+   "discountAmount": 30000,
+   "taxAmount": 0,
+   "total": 170000
+  }
+ },
+ {
+  "name": "tiered_highest_tier_fixed_wins",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 350000,
+    "quantity": 1,
+    "subtotal": 350000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "tiered",
+    "value": 0,
+    "combinable": true,
+    "tieredConfig": {
+     "tiers": [
+      {
+       "minSubtotal": 100000,
+       "kind": "percentage",
+       "value": 10
+      },
+      {
+       "minSubtotal": 300000,
+       "kind": "fixed",
+       "value": 50000
+      }
+     ]
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 50000,
+   "discountAmount": 50000,
+   "taxAmount": 0,
+   "total": 300000
+  }
+ },
+ {
+  "name": "manual_plus_promo_capped_at_subtotal",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "fixed",
+    "value": 50000,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 80000
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 50000,
+   "discountAmount": 100000,
+   "taxAmount": 0,
+   "total": 0
+  }
+ },
+ {
+  "name": "manual_percentage_plus_promo_percentage",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 20,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "percentage",
+   "value": 10
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 20000,
+   "discountAmount": 30000,
+   "taxAmount": 0,
+   "total": 70000
+  }
+ },
+ {
+  "name": "tax_11_nearest_500",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 95200,
+    "quantity": 1,
+    "subtotal": 95200
+   }
+  ],
+  "promotions": [],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": true,
+   "taxRate": 11,
+   "roundingEnabled": true,
+   "roundingType": "nearest_500"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 10472,
+   "total": 105500
+  }
+ },
+ {
+  "name": "tax_11_nearest_1000",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 95200,
+    "quantity": 1,
+    "subtotal": 95200
+   }
+  ],
+  "promotions": [],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": true,
+   "taxRate": 11,
+   "roundingEnabled": true,
+   "roundingType": "nearest_1000"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 10472,
+   "total": 106000
+  }
+ },
+ {
+  "name": "half_rounding_percentage_500_5",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 10010,
+    "quantity": 1,
+    "subtotal": 10010
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 5,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 501,
+   "discountAmount": 501,
+   "taxAmount": 0,
+   "total": 9509
+  }
+ },
+ {
+  "name": "half_rounding_total_nearest_500",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 1250,
+    "quantity": 1,
+    "subtotal": 1250
+   }
+  ],
+  "promotions": [],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": true,
+   "roundingType": "nearest_500"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 1500
+  }
+ },
+ {
+  "name": "promo_tax_surcharge_rounding",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "",
+    "price": 100000,
+    "quantity": 1,
+    "subtotal": 100000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "type": "percentage",
+    "value": 10,
+    "combinable": true
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "percentage",
+   "value": 10
+  },
+  "settings": {
+   "taxEnabled": true,
+   "taxRate": 11,
+   "roundingEnabled": true,
+   "roundingType": "nearest_1000"
+  },
+  "expected": {
+   "promoDiscount": 10000,
+   "discountAmount": 10000,
+   "taxAmount": 9900,
+   "total": 110000
+  }
+ }
+]
