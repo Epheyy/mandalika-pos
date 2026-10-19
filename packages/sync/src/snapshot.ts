@@ -1,6 +1,7 @@
 import type { components } from '@mandalika/api'
 import type { KV } from './storage'
 import { readJSON, writeJSON } from './storage'
+import { hasSnapshotPii, stripSnapshotPii } from './snapshotPrivacy'
 
 const SNAP_KEY = 'mandalika.pos.snapshot'
 const VERSION_KEY = 'mandalika.pos.contentVersion'
@@ -24,11 +25,21 @@ export class Snapshot {
   private data: Bundle
 
   constructor(private kv: KV) {
-    this.data = readJSON<Bundle>(kv, SNAP_KEY, EMPTY)
+    const stored = readJSON<Bundle>(kv, SNAP_KEY, EMPTY)
+    // A30: tablets must not keep a browsable customer list or discount-code holder names. One-time
+    // purge of a bundle stored by older code: rewrite it clean, and never copy the old list anywhere.
+    if (hasSnapshotPii(stored as Record<string, unknown>)) {
+      this.data = stripSnapshotPii(stored)
+      writeJSON(kv, SNAP_KEY, this.data)
+    } else {
+      this.data = stored
+    }
   }
 
-  /** Atomically swap the whole snapshot in (Resync) and record its version. */
-  replace(bundle: Bundle): void {
+  /** Atomically swap the whole snapshot in (Resync) and record its version. Customers and
+   *  discount-code holder names are never stored (A30), even if an older server still sends them. */
+  replace(incoming: Bundle): void {
+    const bundle: Bundle = stripSnapshotPii(incoming)
     this.data = bundle
     writeJSON(this.kv, SNAP_KEY, bundle)
     this.kv.set(VERSION_KEY, String(bundle.version ?? 0))

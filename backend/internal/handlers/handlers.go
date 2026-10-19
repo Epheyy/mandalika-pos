@@ -203,11 +203,24 @@ func (h *Handlers) Promotions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// discountCodesCacheKey splits the cache by the one thing that changes the body: whether
+// the caller may see which customer a code is assigned to (manage_promotions, A30).
+func discountCodesCacheKey(r *http.Request) string {
+	if auth.HasPermission(r.Context(), "manage_promotions") {
+		return ckey(r) + ":p=1"
+	}
+	return ckey(r) + ":p=0"
+}
+
 func (h *Handlers) DiscountCodes(w http.ResponseWriter, r *http.Request) {
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	showNames := auth.HasPermission(r.Context(), "manage_promotions")
+	h.cached(w, r, discountCodesCacheKey(r), func() (any, int, error) {
 		rows, _, err := h.Repo.DiscountCodes(r.Context())
 		if err != nil {
 			return nil, 500, err
+		}
+		if !showNames {
+			rows = read.WithoutCustomerNames(rows)
 		}
 		return api.DiscountCodeListResponse{Data: rows}, 200, nil
 	})
@@ -286,21 +299,6 @@ func (h *Handlers) CustomersByPhone(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
 }
 
-// CustomersLookup is the search-as-you-type helper for the customer picker.
-// Unlike the by-phone dup-check it stays cached: brief staleness on a typeahead
-// list is acceptable, whereas the dup-check requires freshness.
-func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
-	h.cached(w, r, ckey(r), func() (any, int, error) {
-		q := strings.TrimSpace(r.URL.Query().Get("q"))
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		rows, err := h.Repo.CustomerLookup(r.Context(), q, limit)
-		if err != nil {
-			return nil, 500, err
-		}
-		return api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))}, 200, nil
-	})
-}
-
 func (h *Handlers) Customer(w http.ResponseWriter, r *http.Request) {
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		v, err := h.Repo.Customer(r.Context(), chi.URLParam(r, "id"))
@@ -313,12 +311,21 @@ func (h *Handlers) Customer(w http.ResponseWriter, r *http.Request) {
 
 // ── Sales (outlet-scoped) ─────────────────────────────────
 
+// ordersCacheKey splits the cached order list by customer scope, because q reaches
+// customer names only for callers who may browse customers (A30).
+func ordersCacheKey(r *http.Request) string {
+	if customerScope(r) == CustomerAll {
+		return ckey(r) + ":cs=1"
+	}
+	return ckey(r) + ":cs=0"
+}
+
 func (h *Handlers) Orders(w http.ResponseWriter, r *http.Request) {
 	f, ok := ordersFilter(w, r)
 	if !ok {
 		return
 	}
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	h.cached(w, r, ordersCacheKey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
 		rows, total, err := h.Repo.Orders(r.Context(), f, p, l)
 		if err != nil {
@@ -429,7 +436,7 @@ func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.cached(w, r, ckey(r), func() (any, int, error) {
+	h.cached(w, r, ordersCacheKey(r), func() (any, int, error) {
 		v, err := h.Repo.ReportSummary(r.Context(), f)
 		if err != nil {
 			return nil, 500, err

@@ -225,6 +225,8 @@ export interface Api {
   getCustomer: (id: string) => Promise<Customer>
   getCustomersByPhone: (phone: string) => Promise<Customer[]>
   lookupCustomers: (q: string, limit?: number) => Promise<Customer[]>
+  /** Cashier finder (A30): exact phone match online, any common format; at most 3 reduced rows. Throws ApiError 429 when the per-account budget is spent. */
+  lookupCustomerByPhone: (phone: string) => Promise<Customer[]>
   createCustomer: (input: CustomerInput) => Promise<Customer>
   updateCustomer: (id: string, input: CustomerInput) => Promise<Customer>
   deleteCustomer: (id: string) => Promise<void>
@@ -615,6 +617,8 @@ export function createClient(opts: ClientOptions): Api {
       list<Customer>(`${API}/customers/by-phone`, { phone }).then((r) => r.data),
     lookupCustomers: (q, limit = 20) =>
       list<Customer>(`${API}/sync/customers/lookup`, { q, limit }).then((r) => r.data),
+    lookupCustomerByPhone: (phone) =>
+      list<Customer>(`${API}/sync/customers/lookup`, { phone }).then((r) => r.data),
     createCustomer: (input) => data<Customer>('POST', `${API}/customers`, input),
     updateCustomer: (id, input) => data<Customer>('PUT', `${API}/customers/${id}`, input),
     deleteCustomer: async (id) => {

@@ -125,15 +125,18 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	if b.Bundles, _, err = e.Read.Bundles(ctx); err != nil {
 		return b, err
 	}
-	if b.Customers, err = e.Read.RecentCustomersForOutlet(ctx, sc.OutletID, 90, 1000); err != nil {
-		return b, err
-	}
+	// A30: the tablet no longer carries a browsable customer list. The field stays (empty)
+	// so an old POS bundle parses; cashiers find customers by exact phone online.
+	b.Customers = []api.Customer{}
 	if b.Promotions, _, err = e.Read.Promotions(ctx); err != nil {
 		return b, err
 	}
-	if b.DiscountCodes, _, err = e.Read.DiscountCodes(ctx); err != nil {
+	codes, _, err := e.Read.DiscountCodes(ctx)
+	if err != nil {
 		return b, err
 	}
+	// customerId stays (the POS wrong_customer rule needs it); the name is PII.
+	b.DiscountCodes = read.WithoutCustomerNames(codes)
 	if b.LoyaltyConditions, _, err = e.Read.LoyaltyConditions(ctx); err != nil {
 		return b, err
 	}

@@ -69,6 +69,9 @@ func TestUpdateUserRejectsPasswordField(t *testing.T) {
 
 const adminUID = "33333333-3333-3333-3333-333333333333"
 
+// routeHarnessSecret signs the harness tokens; tests that need tokens with permissions mint their own.
+var routeHarnessSecret = []byte("RESET-ROUTE-SYNTHETIC-KEY-NOT-A-PRODUCTION-SECRET")
+
 func send(router http.Handler, method, path, token, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	if token != "" {
@@ -81,7 +84,7 @@ func send(router http.Handler, method, path, token, body string) *httptest.Respo
 
 func newRouteHarness(t *testing.T) (http.Handler, func(role, uid string) string) {
 	t.Helper()
-	secret := []byte("RESET-ROUTE-SYNTHETIC-KEY-NOT-A-PRODUCTION-SECRET")
+	secret := routeHarnessSecret
 	mr := miniredis.RunT(t)
 	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rc.Close() })

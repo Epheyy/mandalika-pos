@@ -13,6 +13,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/ota"
+	"github.com/mandalika/pos-backend/internal/phone"
 	"github.com/mandalika/pos-backend/internal/service"
 )
 
@@ -640,8 +641,8 @@ func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.Ingredi
 
 // segmentMatch: the RFM rule predicate. Correlates via BARE columns (last_visit,
 // visit_count, total_spent) NOT customers.<col> — because customerObj is also used
-// by RecentCustomersForOutlet which aliases `customers c`. Bare cols resolve to the
-// outer customers row whatever its alias.
+// by queries that alias the table. Bare cols resolve to the outer customers row
+// whatever its alias.
 const segmentMatch = `s.is_active
   AND (s.r_min IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) >= s.r_min))
   AND (s.r_max IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) <= s.r_max))
@@ -708,11 +709,37 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, s
 	return listJSON[api.Customer](ctx, r.Pool, sql, args...)
 }
 
-// CustomerByPhone returns 0+ customers with this exact (trimmed) phone — backs
-// the backoffice soft dup-check via idx_customers_phone.
-func (r *Repo) CustomerByPhone(ctx context.Context, phone string) ([]api.Customer, error) {
+// CustomerByPhone returns 0+ live customers whose phone matches this one in any
+// format (normalized key, A30), falling back to the exact raw value when the input
+// does not normalize. Backs the backoffice soft dup-check via idx_customers_phone_norm.
+func (r *Repo) CustomerByPhone(ctx context.Context, rawPhone string) ([]api.Customer, error) {
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers WHERE phone = $1 AND merged_into IS NULL`, phone)
+		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
+		  WHERE merged_into IS NULL AND (($2 <> '' AND phone_norm = $2) OR phone = $1)
+		  ORDER BY created_at, id`, rawPhone, phone.Normalize(rawPhone))
+	return rows, err
+}
+
+// customerPosObj is the reduced customer the cashier may see: what the POS needs to
+// attach a customer and show points. No email, birthday, anniversary, notes or tags.
+const customerPosObj = `json_build_object('id',id,'name',name,'phone',phone,
+  'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'createdAt',created_at,'segment', ` + segmentSel + `)`
+
+// CustomerByPhoneNorm is the cashier lookup: live (not merged-away) customers whose
+// normalized phone equals norm exactly, oldest first, at most limit rows, reduced fields.
+func (r *Repo) CustomerByPhoneNorm(ctx context.Context, norm string, limit int) ([]api.Customer, error) {
+	if norm == "" {
+		return []api.Customer{}, nil
+	}
+	if limit < 1 || limit > 20 {
+		limit = 3
+	}
+	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
+		`SELECT `+customerPosObj+`, count(*) OVER() AS total FROM customers
+		  WHERE phone_norm = $1 AND merged_into IS NULL
+		  ORDER BY created_at, id
+		  LIMIT $2`, norm, limit)
 	return rows, err
 }
 
@@ -728,35 +755,6 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 		    AND merged_into IS NULL
 		  ORDER BY (phone = $1) DESC, name
 		  LIMIT $2`, q, limit)
-	return rows, err
-}
-
-// RecentCustomersForOutlet returns the bounded set of customers who transacted
-// at outletID within the last `days`, most-recent-first, capped at `limit`. This
-// replaces the global bulk customer sync (SP-CRM-3 Phase 2). Reuses customerObj.
-// (`limit`, not `cap`, to avoid shadowing the Go builtin.)
-func (r *Repo) RecentCustomersForOutlet(ctx context.Context, outletID string, days, limit int) ([]api.Customer, error) {
-	if days < 1 {
-		days = 90
-	}
-	if limit < 1 || limit > 5000 {
-		limit = 1000
-	}
-	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
-		`SELECT `+customerObj+`, count(*) OVER() AS total
-		   FROM customers c
-		   JOIN (
-		     SELECT customer_id, max(created_at) AS last_seen
-		       FROM orders
-		      WHERE outlet_id = $1 AND customer_id IS NOT NULL
-		        AND created_at >= now() - make_interval(days => $2)
-		   GROUP BY customer_id
-		   ORDER BY last_seen DESC
-		      LIMIT $3
-		   ) recent ON recent.customer_id = c.id
-		  WHERE c.merged_into IS NULL
-		  ORDER BY recent.last_seen DESC`,
-		outletID, days, limit)
 	return rows, err
 }
 
@@ -843,6 +841,17 @@ func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
 		   'createdAt',created_at) FROM promotions ORDER BY created_at DESC`)
+}
+
+// WithoutCustomerNames returns a copy of the codes with the holder's name removed
+// (customerId is kept). Used for every consumer that lacks manage_promotions (A30).
+func WithoutCustomerNames(in []api.DiscountCode) []api.DiscountCode {
+	out := make([]api.DiscountCode, len(in))
+	for i, c := range in {
+		c.CustomerName = nil
+		out[i] = c
+	}
+	return out
 }
 
 func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, error) {

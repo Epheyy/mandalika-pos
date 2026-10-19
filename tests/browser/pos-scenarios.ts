@@ -41,6 +41,7 @@ export const setupPos = async (page: ScenarioPage) => {
     else if(path.includes('/promotions/')) {if(method!=='GET')page.__a24.writes.push({path,method,body:req.postDataJSON()});data={id:'saved-synthetic'};}
     else if(path.endsWith('/discount-codes')) data=codes;
     else if(path.endsWith('/sync/loyalty-preview')) data=[{conditionId:'loyalty-one',conditionName:'Customer gift',rewardProductIds:[R],products:[products[1]]}];
+    else if(path.endsWith('/sync/customers/lookup')) data=[customer]; // A30: phone-only cashier lookup
     else if(path.endsWith('/customers')) data=[customer];
     else if(path.endsWith('/outlets')) data=[{id:user.outletId,name:'Synthetic Outlet',isActive:true}];
     else if(path.endsWith('/settings')) data=settings;
@@ -153,7 +154,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  const results: any[]=[]; const assert=(v,m)=>{if(!v)throw Error(m)};
  const box=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')||'[]'));
  const fresh=async()=>{await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');};
- const select=async()=>{await page.getByRole('textbox',{name:'Cari nama atau nomor telepon pelanggan'}).fill('Synthetic');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
+ const select=async()=>{await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).fill(page.__a24.customer.phone);await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).press('Enter');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
  const clear=async()=>{await page.getByText('Synthetic Customer',{exact:true}).first().locator('../..').getByRole('button',{name:'×',exact:true}).click();};
  const panel=()=>page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();
  const closePanel=()=>page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();

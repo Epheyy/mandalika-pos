@@ -85,3 +85,42 @@ func TestBuildOrderWherePlaceholdersMatchArgs(t *testing.T) {
 		t.Errorf("placeholder beyond args in %q", where)
 	}
 }
+
+// A30: a free-text q reaches customer names and phone substrings only when the filter
+// opts in (CustomerSearch); the zero value is the restricted, phone-exact form.
+func TestBuildOrderWhereQRestrictedByDefault(t *testing.T) {
+	where, args := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, Q: "Alice"})
+	for _, banned := range []string{"customer_name", "c.name", "c.phone ILIKE", "c.phone_norm"} {
+		if strings.Contains(where, banned) {
+			t.Errorf("restricted q must not reach %q: %s", banned, where)
+		}
+	}
+	if !strings.Contains(where, "o.order_number ILIKE") || !strings.Contains(where, "o.cashier_name ILIKE") {
+		t.Errorf("restricted q keeps order number and cashier name: %s", where)
+	}
+	if len(args) != 1 || args[0] != "%Alice%" {
+		t.Errorf("args=%v", args)
+	}
+}
+
+func TestBuildOrderWhereQRestrictedMatchesNormalizedPhoneExactly(t *testing.T) {
+	where, args := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, Q: "+62 812-3456-7890"})
+	if !strings.Contains(where, "c.phone_norm = $2") || strings.Contains(where, "c.phone ILIKE") {
+		t.Errorf("phone must match phone_norm exactly: %s", where)
+	}
+	if len(args) != 2 || args[1] != "081234567890" {
+		t.Errorf("args=%v", args)
+	}
+}
+
+func TestBuildOrderWhereQUnrestrictedKeepsCustomerSearch(t *testing.T) {
+	where, args := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, Q: "Alice", CustomerSearch: true})
+	for _, want := range []string{"o.customer_name ILIKE", "c.phone ILIKE", "c.name ILIKE"} {
+		if !strings.Contains(where, want) {
+			t.Errorf("unrestricted q lost %q: %s", want, where)
+		}
+	}
+	if len(args) != 1 || args[0] != "%Alice%" {
+		t.Errorf("args=%v", args)
+	}
+}

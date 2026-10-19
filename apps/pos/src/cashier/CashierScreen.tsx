@@ -5,6 +5,7 @@
 
 import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
+import { normalizePhone } from '@mandalika/sync'
 import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
@@ -28,6 +29,7 @@ import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { cashTender } from './tender'
 import { CustomerPicker } from './CustomerPicker'
+import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, prefillFromSearch } from './customerFinder'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
@@ -121,29 +123,41 @@ export default function CashierScreen() {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
   const [localCustomers, setLocalCustomers] = useState<Customer[]>([])
-  // SP-CRM-3: on-demand online lookup. Customers are no longer bulk-synced;
-  // search hits come from the server (online only) and merge with the cache.
+  // A30: customers are found by full phone number only. The online lookup runs only when the
+  // cashier asks (Cari / Enter), never while typing, so it cannot drain the shared per-account
+  // budget. Offline (or on a failure) the tablet memory and "add new" still work.
   const [lookupResults, setLookupResults] = useState<Customer[]>([])
+  const [lookupPending, setLookupPending] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookupRequest, setLookupRequest] = useState<{ text: string; n: number } | null>(null)
+  const searchPhone = normalizePhone(state.customerSearch)
   useEffect(() => {
-    const q = state.customerSearch.trim()
-    if (!offlineData.isOnline || q.length < 2) {
+    setLookupError(null)
+    if (!lookupRequest || !offlineData.isOnline || !normalizePhone(lookupRequest.text)) {
       setLookupResults([])
+      setLookupPending(false)
       return
     }
     let ignore = false
-    const t = setTimeout(async () => {
+    setLookupPending(true)
+    void (async () => {
       try {
-        const res = await api.lookupCustomers(q)
-        if (!ignore) setLookupResults(res)
-      } catch {
-        if (!ignore) setLookupResults([])
+        const res = await api.lookupCustomerByPhone(lookupRequest.text)
+        if (ignore) return
+        res.forEach((c) => getKnownCustomers().refresh(c))
+        setLookupResults(res)
+      } catch (e) {
+        if (ignore) return
+        setLookupResults([])
+        setLookupError(lookupFailureMessage(e))
+      } finally {
+        if (!ignore) setLookupPending(false)
       }
-    }, 300)
+    })()
     return () => {
-      clearTimeout(t)
       ignore = true
     }
-  }, [state.customerSearch, offlineData.isOnline])
+  }, [lookupRequest, offlineData.isOnline])
   // Single-flight gates for actions that mean "durably queued on this device".
   // A ref flips synchronously, unlike the isProcessing/disabled render state.
   const saleGate = useRef(createSubmitGate())
@@ -222,20 +236,14 @@ export default function CashierScreen() {
   )
   const scanIndex = useMemo(() => buildScanIndex(products), [products])
   const categories = snapshot.categories ?? []
-  // Customers created on this device this session aren't in the synced
-  // snapshot yet (snapshot only refreshes on resync). Merge them in so the
-  // cashier can immediately find/select them.
-  // Local session creates first, then the offline cache, then online lookup
-  // hits (online only). Dedup by id; the picker filters/slices this list.
-  const snapCustomers = snapshot.customers ?? []
-  const seenCustomerIds = new Set<string>()
-  const customers: Customer[] = []
-  for (const c of [...localCustomers, ...snapCustomers, ...lookupResults]) {
-    if (!seenCustomerIds.has(c.id)) {
-      seenCustomerIds.add(c.id)
-      customers.push(c)
-    }
-  }
+  // A30: offered customers are exactly those matching the typed phone: online hits, customers
+  // created this session, and the tablet memory (so a known customer still sells offline).
+  const customers: Customer[] = finderHits(
+    state.customerSearch,
+    searchPhone ? getKnownCustomers().findByPhone(state.customerSearch) : [],
+    lookupResults,
+    localCustomers,
+  )
   const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
   const discountCodes = snapshot.discountCodes ?? []
@@ -505,20 +513,16 @@ export default function CashierScreen() {
       createdAt: new Date().toISOString(),
     }
     setLocalCustomers((prev) => [created, ...prev])
+    getKnownCustomers().remember(created)
     dispatch({ type: 'SET_CUSTOMER', customer: created })
     setIsAddingCustomer(false)
     setNewCustomerForm({ name: '', phone: '', email: '' })
   }
 
-  // Unified search → add-new: numeric query becomes the phone, otherwise the
-  // name. Switches the picker into add mode with the field prefilled.
+  // Search → add-new: the typed phone prefills the form (never a name). Switches the picker
+  // into add mode.
   const handleAddNewFromSearch = (q: string) => {
-    const isPhone = /^[+0-9][0-9\s-]*$/.test(q)
-    setNewCustomerForm({
-      name: isPhone ? '' : q,
-      phone: isPhone ? q.replace(/[\s-]/g, '') : '',
-      email: '',
-    })
+    setNewCustomerForm(prefillFromSearch(q))
     setCustomerError(null)
     setIsAddingCustomer(true)
     dispatch({ type: 'SET_CUSTOMER_SEARCH', search: '' })
@@ -1000,7 +1004,7 @@ export default function CashierScreen() {
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
             newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
             onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-            onSelect={(c) => dispatch({ type: 'SET_CUSTOMER', customer: c })}
+            onSelect={(c) => { getKnownCustomers().remember(c); dispatch({ type: 'SET_CUSTOMER', customer: c }) }}
             onClear={() => dispatch({ type: 'SET_CUSTOMER', customer: null })}
             onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
             onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
@@ -1009,6 +1013,9 @@ export default function CashierScreen() {
             onAddNewFromSearch={handleAddNewFromSearch}
             errorText={customerError}
             loyaltyEnabled={loyalty.enabled}
+            isSearching={lookupPending} lookupError={lookupError}
+            awaitingSearch={awaitingSearch(state.customerSearch, offlineData.isOnline, lookupRequest?.text ?? null)}
+            onSubmitSearch={() => setLookupRequest((prev) => ({ text: state.customerSearch.trim(), n: (prev?.n ?? 0) + 1 }))}
           />
           <ProductGrid
             products={displayProducts} categories={categories}
