@@ -3656,6 +3656,13 @@ export interface components {
             dataManifest: {
                 [key: string]: unknown;
             };
+            contact?: components["schemas"]["OfflineContact"];
+        };
+        /** @description Server-signed proof of the tablet's last successful online contact (A05). at is server time (RFC 3339, kept verbatim); sig binds it to the device id. A client cannot mint a later contact. */
+        OfflineContact: {
+            /** Format: date-time */
+            at: string;
+            sig: string;
         };
         SyncVersionResponse: {
             data: components["schemas"]["SyncVersion"];
@@ -3705,6 +3712,17 @@ export interface components {
             capturedAt: string;
             shiftId?: string;
             appVersion?: string;
+            contact?: components["schemas"]["OfflineContact"];
+            /**
+             * Format: int64
+             * @description Device clock (ms) at the last online contact.
+             */
+            contactDeviceAt?: number;
+            /**
+             * Format: int64
+             * @description Device-measured time offline (ms) at capture.
+             */
+            offlineMs?: number;
         };
         SyncReviewReport: {
             idempotencyKey: string;
@@ -3798,10 +3816,10 @@ export interface components {
             stockWarning?: boolean;
             error?: string;
             /**
-             * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04).
+             * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04). offline_expired = the item was captured more than 12 h after the tablet's last online contact (A05); it goes to review.
              * @enum {string}
              */
-            code?: "rejected" | "forbidden" | "not_found" | "conflict" | "competing_receipt" | "key_conflict" | "busy" | "internal" | "actor_mismatch";
+            code?: "rejected" | "forbidden" | "not_found" | "conflict" | "competing_receipt" | "key_conflict" | "busy" | "internal" | "actor_mismatch" | "offline_expired";
             /** @description Present exactly when status is "error" (false is still sent). true = nothing was applied and a later retry may succeed (busy, internal); false = the server refused the item and it needs review. */
             retryable?: boolean;
             tandaTerimaNo?: string | null;
@@ -8190,7 +8208,10 @@ export interface operations {
     };
     syncVersion: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description POS device id; when a valid uuid the response carries a signed contact (A05). */
+                deviceId?: string;
+            };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];

@@ -1840,6 +1840,19 @@ components:
       properties:
         version: { type: integer, format: int64 }
         dataManifest: { type: object, additionalProperties: true }
+        # Optional and NOT nullable ($ref + nullable is dropped by openapi-typescript).
+        # Present only when the request carried a valid deviceId (A05).
+        contact: { $ref: '#/components/schemas/OfflineContact' }
+    OfflineContact:
+      type: object
+      description: >-
+        Server-signed proof of the tablet's last successful online contact (A05).
+        at is server time (RFC 3339, kept verbatim); sig binds it to the device id.
+        A client cannot mint a later contact.
+      required: [at, sig]
+      properties:
+        at: { type: string, format: date-time }
+        sig: { type: string }
     SyncVersionResponse:
       type: object
       required: [data]
@@ -1897,6 +1910,11 @@ components:
         capturedAt: { type: string, format: date-time }
         shiftId: { type: string }
         appVersion: { type: string }
+        # A05 offline-cap evidence. All optional; v stays 1 so a rolled-back server still
+        # accepts the envelope. contact is NOT nullable ($ref codegen gotcha).
+        contact: { $ref: '#/components/schemas/OfflineContact' }
+        contactDeviceAt: { type: integer, format: int64, description: Device clock (ms) at the last online contact. }
+        offlineMs: { type: integer, format: int64, minimum: 0, description: Device-measured time offline (ms) at capture. }
     SyncReviewReport:
       type: object
       required: [idempotencyKey, type, clientCreatedAt, payload]
@@ -2014,11 +2032,11 @@ components:
         error: { type: string }
         code:
           type: string
-          enum: [rejected, forbidden, not_found, conflict, competing_receipt, key_conflict, busy, internal, actor_mismatch]
+          enum: [rejected, forbidden, not_found, conflict, competing_receipt, key_conflict, busy, internal, actor_mismatch, offline_expired]
           description: >-
             Machine-readable outcome, present exactly when status is "error". Clients must
             treat a missing or unknown code as the pre-contract behaviour (an older server,
-            e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04).
+            e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04). offline_expired = the item was captured more than 12 h after the tablet's last online contact (A05); it goes to review.
         retryable:
           type: boolean
           description: >-
@@ -4771,6 +4789,11 @@ paths:
       summary: Per-outlet content version (sync wall, plan §5a)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
+        - name: deviceId
+          in: query
+          required: false
+          description: POS device id; when a valid uuid the response carries a signed contact (A05).
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: version
