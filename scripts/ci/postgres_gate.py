@@ -52,6 +52,7 @@ GATES = (
     ("EL", "TestErrorLogsPostgres", 56459, "el"),
     ("PL", "TestPromoLinkedParityPostgres", 56460, "pl"),
     ("QT", "TestQuotedReceiptPostgres", 56461, "qt"),
+    ("BD", "TestBusinessDatePostgres", 56462, "bd"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 

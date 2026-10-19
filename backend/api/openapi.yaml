@@ -33,13 +33,13 @@ components:
       name: dateFrom
       in: query
       required: false
-      description: Inclusive lower bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      description: Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable.
       schema: { type: string, format: date }
     WIBDateTo:
       name: dateTo
       in: query
       required: false
-      description: Inclusive upper bound, a YYYY-MM-DD calendar day in Asia/Jakarta (WIB). 400 when unparseable.
+      description: Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable.
       schema: { type: string, format: date }
     OrderStatusFilter:
       name: status
@@ -153,7 +153,7 @@ components:
         permissions: { type: array, items: { type: string } }
     Outlet:
       type: object
-      required: [id, name, isActive, createdAt]
+      required: [id, name, isActive, timezone, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -162,6 +162,10 @@ components:
         phone: { type: string, nullable: true }
         logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
+        timezone:
+          type: string
+          enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
+          description: Outlet timezone (WIB, WITA, WIT). Decides the business day of its sales.
         createdAt: { type: string, format: date-time }
     OutletListResponse:
       type: object
@@ -1308,6 +1312,7 @@ components:
         id: { type: string, format: uuid }
         orderNumber: { type: string }
         outletId: { type: string, format: uuid }
+        businessDate: { type: string, format: date, description: "The business day of the sale in its outlet's zone (a shift's sales take the shift's opening date). Optional because POS builds local Order objects." }
         cashierId: { type: string }
         cashierName: { type: string }
         salesmanId: { type: string, nullable: true }
@@ -1436,6 +1441,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         outletId: { type: string, format: uuid }
+        businessDate: { type: string, format: date, description: "The shift's opening date in its outlet's zone. Optional because POS builds local Shift objects." }
         outletName: { type: string, nullable: true }
         cashierId: { type: string }
         cashierName: { type: string }
@@ -1668,10 +1674,13 @@ components:
       required: [totalSales, totalOrders, totalRefunds, refundedOrders, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
       description: |
         Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
-        `from`/`to` echo the lower/upper instant actually applied; null when that side is unbounded.
+        `from`/`to` echo only the legacy instant parameters; null when that side is not given.
+        `dateFrom`/`dateTo` echo the business days applied; null when that side is unbounded.
       properties:
         from: { type: string, format: date-time, nullable: true }
         to: { type: string, format: date-time, nullable: true }
+        dateFrom: { type: string, format: date, nullable: true }
+        dateTo: { type: string, format: date, nullable: true }
         outletId: { type: string, nullable: true }
         totalSales: { type: number, format: double }
         totalOrders: { type: integer }
@@ -2235,6 +2244,10 @@ components:
         phone: { type: string }
         logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
+        timezone:
+          type: string
+          enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
+          description: Optional. Absent keeps the current zone (new outlets default to Asia/Jakarta). Changing it never rewrites the business date of existing sales.
     ReceiveApprover:
       type: object
       required: [userId, displayName, receivePinHash]
@@ -3108,8 +3121,8 @@ paths:
       tags: [promotions]
       summary: Promo reward giveaway report (grants)
       parameters:
-        - { name: dateFrom, in: query, schema: { type: string } }
-        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: dateFrom, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
         - { name: outletId, in: query, schema: { type: string } }
         - { name: promotionId, in: query, schema: { type: string } }
         - { name: productId, in: query, schema: { type: string } }
@@ -3127,8 +3140,8 @@ paths:
       tags: [promotions]
       summary: Discount-code redemption report
       parameters:
-        - { name: dateFrom, in: query, schema: { type: string } }
-        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: dateFrom, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
         - { name: page, in: query, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer } }
       responses:
@@ -3143,8 +3156,8 @@ paths:
       tags: [reports]
       summary: Oversold sale lines (Stok Minus) report, view_reports
       parameters:
-        - { name: dateFrom, in: query, schema: { type: string } }
-        - { name: dateTo, in: query, schema: { type: string } }
+        - { name: dateFrom, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive business day (YYYY-MM-DD, the day in the outlet's timezone). 400 when unparseable.", schema: { type: string } }
         - { name: outletId, in: query, schema: { type: string } }
         - { name: productId, in: query, schema: { type: string } }
         - { name: variantSize, in: query, schema: { type: string } }
@@ -4193,7 +4206,7 @@ paths:
         - $ref: '#/components/parameters/WIBDateTo'
       responses:
         '200':
-          description: shifts (dateFrom/dateTo bound opened_at by WIB calendar day)
+          description: shifts (dateFrom/dateTo bound the shift's business date, its opening day in the outlet's zone)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftListResponse' }

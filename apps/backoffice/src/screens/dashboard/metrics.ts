@@ -4,13 +4,12 @@ import {
   startOfDay,
   endOfDay,
   subDays,
-  addDays,
-  isWithinInterval,
   format,
   eachMonthOfInterval,
   startOfMonth,
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { localDay } from '../../lib/businessDay'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
 
@@ -55,36 +54,39 @@ export function prevInterval(period: Period, now = new Date()): Interval | null 
   }
 }
 
-const wibDayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' })
-
-/** The Asia/Jakarta calendar day (YYYY-MM-DD) an instant falls on, as the server reads dateFrom/dateTo. */
-export function wibDay(d: Date): string {
-  return wibDayFormat.format(d)
+/**
+ * The business day (YYYY-MM-DD) of an order: the server stamps it in the OUTLET's zone (a shift's
+ * sales take the shift's opening day). Falls back to the browser-local day of createdAt for rows
+ * without it (older cached data).
+ */
+export function businessDayOf(o: Order): string {
+  if (o.businessDate) return o.businessDate
+  try {
+    return localDay(parseISO(o.createdAt))
+  } catch {
+    return ''
+  }
 }
 
 /**
- * Server date window that covers the current AND previous interval, so the dashboard
- * downloads only what it renders. Padded by one day each side so a browser in WITA/WIT
- * still receives every row; `completedIn` then trims to the exact local interval.
- * `all` stays unbounded (the owner asked for "Semua").
+ * Server date window (business days) that covers the current AND previous interval, so the
+ * dashboard downloads only what it renders. `all` stays unbounded (the owner asked for "Semua").
  */
 export function dashboardFetchWindow(period: Period, now = new Date()): { dateFrom?: string; dateTo?: string } {
   if (period === 'all') return {}
   const start = (prevInterval(period, now) ?? periodInterval(period, now)).start
-  return { dateFrom: wibDay(subDays(start, 1)), dateTo: wibDay(addDays(now, 1)) }
+  return { dateFrom: localDay(start), dateTo: localDay(now) }
 }
 
-function inInterval(iso: string, iv: Interval): boolean {
-  try {
-    return isWithinInterval(parseISO(iso), { start: iv.start, end: iv.end })
-  } catch {
-    return false
-  }
-}
-
-/** Completed orders whose createdAt falls in the interval. */
+/** Completed orders whose business day falls in the interval (inclusive of both end days). */
 export function completedIn(orders: Order[], iv: Interval): Order[] {
-  return orders.filter((o) => o.status === 'completed' && inInterval(o.createdAt, iv))
+  const from = localDay(iv.start)
+  const to = localDay(iv.end)
+  return orders.filter((o) => {
+    if (o.status !== 'completed') return false
+    const day = businessDayOf(o)
+    return day !== '' && day >= from && day <= to
+  })
 }
 
 export interface Kpis {
@@ -136,9 +138,9 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
 
   if (period === 'all') {
     if (completed.length === 0) return []
-    let min = parseISO(completed[0].createdAt)
+    let min = parseISO(businessDayOf(completed[0]))
     for (const o of completed) {
-      const d = parseISO(o.createdAt)
+      const d = parseISO(businessDayOf(o))
       if (d < min) min = d
     }
     const months = eachMonthOfInterval({ start: startOfMonth(min), end: now })
@@ -149,7 +151,7 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
       return p
     })
     for (const o of completed) {
-      const p = byMonth.get(o.createdAt.slice(0, 7))
+      const p = byMonth.get(businessDayOf(o).slice(0, 7))
       if (p) {
         p.revenue += o.total
         p.orders += 1
@@ -171,7 +173,7 @@ export function buildTrend(completed: Order[], period: Period, now = new Date())
     return p
   })
   for (const o of completed) {
-    const p = byDay.get(o.createdAt.slice(0, 10))
+    const p = byDay.get(businessDayOf(o))
     if (p) {
       p.revenue += o.total
       p.orders += 1

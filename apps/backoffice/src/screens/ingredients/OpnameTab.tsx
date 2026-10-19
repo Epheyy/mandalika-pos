@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api } from '../../api'
+import { localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
@@ -179,7 +180,7 @@ export default function OpnameTab() {
   const [form, setForm] = useState({
     name: '',
     locationKey: '',
-    plannedDate: new Date().toISOString().slice(0, 10),
+    plannedDate: localDay(),
     notes: '',
   })
 
@@ -199,7 +200,7 @@ export default function OpnameTab() {
         notes: form.notes.trim() || null,
       })
       setOpen(false)
-      setForm({ name: '', locationKey: '', plannedDate: new Date().toISOString().slice(0, 10), notes: '' })
+      setForm({ name: '', locationKey: '', plannedDate: localDay(), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal membuat opname.')

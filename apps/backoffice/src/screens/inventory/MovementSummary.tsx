@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Outlet, Warehouse, MovementSummaryResponse } from '@mandalika/api'
 import { BarChart2 } from 'lucide-react'
 import { api } from '../../api'
+import { DEFAULT_TIMEZONE, dayEndIso, dayStartIso, localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Select, fieldClass } from '../../ui/Field'
@@ -9,26 +10,16 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 
-// ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
-function toFromIso(date: string): string {
-  return `${date}T00:00:00Z`
-}
-
-// ISO date string "YYYY-MM-DD" → next day at midnight UTC (exclusive end)
-function toToIso(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
-}
-
+// The picked days are calendar days in the LOCATION's zone: an outlet uses its own timezone,
+// a warehouse stays on Asia/Jakarta (A28).
 function todayDate(): string {
-  return new Date().toISOString().slice(0, 10)
+  return localDay()
 }
 
 function daysAgoDate(n: number): string {
   const d = new Date()
-  d.setUTCDate(d.getUTCDate() - n)
-  return d.toISOString().slice(0, 10)
+  d.setDate(d.getDate() - n)
+  return localDay(d)
 }
 
 function parseLocationKey(key: string): { kind: 'outlet' | 'warehouse'; id: string } | null {
@@ -83,8 +74,9 @@ export function MovementSummary() {
   const kind = parsed?.kind ?? 'outlet'
   const locationId = parsed?.id ?? ''
 
-  const fromIso = toFromIso(fromDate)
-  const toIso = toToIso(toDate)
+  const locationZone = kind === 'outlet' ? (outlets.find((o) => o.id === locationId)?.timezone ?? DEFAULT_TIMEZONE) : DEFAULT_TIMEZONE
+  const fromIso = dayStartIso(fromDate, locationZone)
+  const toIso = dayEndIso(toDate, locationZone)
 
   const q = usePolledQuery<MovementSummaryResponse>(
     () =>

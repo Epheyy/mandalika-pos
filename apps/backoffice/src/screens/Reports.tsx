@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { AppSettings, Outlet } from '@mandalika/api'
-import { format } from 'date-fns'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
+import { localDay } from '../lib/businessDay'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { paymentFilterOptions } from '../lib/paymentOptions'
 import { OrdersPanel } from './Orders'
@@ -45,9 +45,10 @@ export default function Reports() {
 
   const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
   const [tab, setTab] = useState<ReportTab>(defaultTab)
-  // Local calendar date; the server reads dateFrom/dateTo as Asia/Jakarta days.
-  const [dateFrom, setDateFrom] = useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  // Local calendar date; the server reads dateFrom/dateTo as business days (the day in each
+  // outlet's own timezone, a shift's sales on its opening day).
+  const [dateFrom, setDateFrom] = useState(() => localDay())
+  const [dateTo, setDateTo] = useState(() => localDay())
   const [fStatus, setFStatus] = useState('')
   const [fPay, setFPay] = useState('')
 

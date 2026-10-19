@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mandalika/pos-backend/internal/bizday"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
 )
@@ -12,11 +13,22 @@ func validOrderStatus(s string) bool {
 	return s == "" || s == "completed" || s == "refunded" || s == "cancelled"
 }
 
-// wibDayRange validates the WIB day pair shared by /orders, /shifts and the summary.
+// dayRange validates the business-day pair shared by /orders, /shifts, the summary and the
+// day-filtered reports (A28: a business day is the day in the outlet's zone, decided in SQL).
 // It writes the 400 itself and reports whether the request may continue.
-func wibDayRange(w http.ResponseWriter, from, to string) bool {
-	if !validWIBDay(from) || !validWIBDay(to) {
+func dayRange(w http.ResponseWriter, from, to string) bool {
+	if !bizday.ValidDay(from) || !bizday.ValidDay(to) {
 		httpx.Err(w, http.StatusBadRequest, "tanggal tidak valid (YYYY-MM-DD)")
+		return false
+	}
+	return true
+}
+
+// validOutletTimezone accepts an empty value (not sent) or an allowed zone; it writes the
+// 400 itself otherwise. The DB CHECK is the second guard.
+func validOutletTimezone(w http.ResponseWriter, tz string) bool {
+	if tz != "" && !bizday.Valid(tz) {
+		httpx.Err(w, http.StatusBadRequest, "zona waktu tidak valid")
 		return false
 	}
 	return true
@@ -26,7 +38,7 @@ func wibDayRange(w http.ResponseWriter, from, to string) bool {
 // passed through untouched (POS contract); the outlet comes from scope(r) only.
 func ordersFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, bool) {
 	q := r.URL.Query()
-	if !wibDayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
 		return read.OrderFilter{}, false
 	}
 	if !validOrderStatus(q.Get("status")) {
@@ -52,7 +64,7 @@ func ordersFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, boo
 // silently to the last 30 days). With no date parameter the range is unbounded.
 func summaryFilter(w http.ResponseWriter, r *http.Request) (read.OrderFilter, bool) {
 	q := r.URL.Query()
-	if !wibDayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
 		return read.OrderFilter{}, false
 	}
 	if !validOrderStatus(q.Get("status")) {

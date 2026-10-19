@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/bizday"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
 )
@@ -17,14 +17,6 @@ const (
 	oversellNoteMax    = 500
 	oversellAckBodyMax = 16 << 10
 )
-
-func validWIBDay(s string) bool {
-	if s == "" {
-		return true
-	}
-	_, err := time.Parse("2006-01-02", s)
-	return err == nil
-}
 
 func validOptionalUUID(s string) bool {
 	if s == "" {
@@ -40,7 +32,7 @@ func (h *Handlers) OversellReport(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	kind, status := q.Get("kind"), q.Get("status")
 	switch {
-	case !validWIBDay(q.Get("dateFrom")) || !validWIBDay(q.Get("dateTo")):
+	case !bizday.ValidDay(q.Get("dateFrom")) || !bizday.ValidDay(q.Get("dateTo")):
 		httpx.Err(w, http.StatusBadRequest, "tanggal tidak valid (YYYY-MM-DD)")
 		return
 	case !validOptionalUUID(q.Get("productId")) || !validOptionalUUID(q.Get("cashierId")):

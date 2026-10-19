@@ -9,11 +9,12 @@ import {
 } from 'react'
 import type { User } from '@mandalika/api'
 import { api, authStore } from './api'
+import { localDay } from './lib/businessDay'
 
 const REFRESH_KEY = 'mandalika.backoffice.refresh'
 // Backoffice sessions are day-bound: a new calendar day forces re-login.
 const LOGIN_DATE_KEY = 'mandalika.backoffice.loginDate'
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => localDay()
 
 // Backoffice is Admin/Manager only. Cashiers must use the POS app.
 const ALLOWED_ROLES = new Set(['admin', 'manager'])

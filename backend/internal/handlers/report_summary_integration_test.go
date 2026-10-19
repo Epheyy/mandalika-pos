@@ -170,7 +170,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
+			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "dateFrom", "dateTo", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
 			if !reflect.DeepEqual(keys, wantKeys) {
 				t.Errorf("API shape changed: %v", keys)
 			}
@@ -204,6 +204,21 @@ func TestReportSummaryPostgres(t *testing.T) {
 			if c.orders == 0 {
 				if len(products) != 0 || len(daily) != 0 {
 					t.Errorf("non-completed product/daily rows: %v %v", products, daily)
+				}
+			} else if c.name == "created-at-half-open-boundaries" {
+				// A28: dailySales buckets are business days (Asia/Jakarta here), no longer UTC dates:
+				// 23:59:59.999999Z on 01-02 is 06:59 WIB on 01-03.
+				if len(products) != 1 || len(daily) != 2 {
+					t.Fatalf("unexpected aggregate rows: %v %v", products, daily)
+				}
+				for i, want := range []struct {
+					date  string
+					sales float64
+				}{{"2026-01-02", 10}, {"2026-01-03", 20}} {
+					d := daily[i].(map[string]any)
+					if d["date"] != want.date || d["sales"] != want.sales || d["orders"] != float64(1) {
+						t.Errorf("daily[%d] %v want %v", i, d, want)
+					}
 				}
 			} else {
 				if len(products) != 1 || len(daily) != 1 {

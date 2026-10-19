@@ -5,16 +5,19 @@ import { Upload, X } from 'lucide-react'
 import { api } from '../../api'
 import { uploadImage, getThumbnailUrl } from '../../lib/uploadImage'
 import { Button } from '../../ui/Button'
-import { Input, Textarea, Field } from '../../ui/Field'
+import { Input, Textarea, Field, Select } from '../../ui/Field'
+import { DEFAULT_TIMEZONE, OUTLET_TIMEZONES, type OutletTimezone } from '../../lib/businessDay'
+import { outletFormBody, type OutletFormValues } from './outletBody'
 import { Modal } from '../../ui/Modal'
 
-const EMPTY_FORM = {
+const EMPTY_FORM: OutletFormValues = {
   name: '',
   code: '',
   address: '',
   phone: '',
   isActive: true,
-  logoUrl: undefined as string | undefined,
+  logoUrl: undefined,
+  timezone: DEFAULT_TIMEZONE,
 }
 
 interface Props {
@@ -26,7 +29,7 @@ interface Props {
 // Mounted only while open and keyed by the edited outlet at the call site, so
 // the form seeds fresh on every open without an adjust-state-on-prop effect.
 export function OutletFormModal({ editing, onClose, onDone }: Props) {
-  const [form, setForm] = useState(() =>
+  const [form, setForm] = useState<OutletFormValues>(() =>
     editing
       ? {
           name: editing.name,
@@ -35,6 +38,7 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
           phone: editing.phone || '',
           isActive: editing.isActive,
           logoUrl: editing.logoUrl ?? undefined,
+          timezone: editing.timezone,
         }
       : EMPTY_FORM,
   )
@@ -71,14 +75,7 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
     setBusy(true)
     setErr(null)
     try {
-      const body = {
-        name: form.name.trim(),
-        code,
-        address: form.address.trim(),
-        phone: form.phone.trim(),
-        isActive: form.isActive,
-        logoUrl: form.logoUrl ?? null,
-      }
+      const body = outletFormBody(form, code)
       if (editing) {
         await api.updateOutlet(editing.id, body)
       } else {
@@ -155,6 +152,22 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
           />
           <p className="text-xs text-gray-500 mt-1">Juga muncul di surat jalan / tanda terima.</p>
+        </div>
+        <div>
+          <Select
+            label="Zona Waktu"
+            value={form.timezone ?? DEFAULT_TIMEZONE}
+            onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value as OutletTimezone }))}
+          >
+            {OUTLET_TIMEZONES.map((z) => (
+              <option key={z.value} value={z.value}>
+                {z.label} ({z.value})
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-gray-500 mt-1">
+            Menentukan hari bisnis penjualan outlet ini. Mengubah zona waktu tidak mengubah hari bisnis transaksi lama.
+          </p>
         </div>
         <Field label="Logo (opsional, ditampilkan di surat jalan / tanda terima)">
           <div className="flex items-center gap-3">

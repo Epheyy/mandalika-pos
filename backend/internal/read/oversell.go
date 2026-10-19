@@ -7,8 +7,8 @@ import (
 )
 
 // OversellFilters bounds the A44 oversell report. Every field is optional
-// ("" = no filter). DateFrom/DateTo are WIB (Asia/Jakarta) calendar days applied
-// to sold_at (the business time, not the sync time). OutletID must come from the
+// ("" = no filter). DateFrom/DateTo are business days compared with the sale's
+// orders.business_date (the day in the outlet's zone, not the sync time). OutletID must come from the
 // caller's scope, never from a raw query parameter.
 type OversellFilters struct {
 	DateFrom, DateTo, OutletID, ProductID, VariantSize, CashierID, Kind, Status string
@@ -20,8 +20,8 @@ const oversellFrom = `FROM sale_stock_exceptions x
 		JOIN orders o ON o.id = x.order_id`
 
 const oversellFilter = `
-		WHERE ($1 = '' OR x.sold_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta')
-		  AND ($2 = '' OR x.sold_at <  (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'))
+		WHERE ($1 = '' OR o.business_date >= $1::date)
+		  AND ($2 = '' OR o.business_date <= $2::date)
 		  AND ($3 = '' OR x.outlet_id::text = $3)
 		  AND ($4 = '' OR x.product_id::text = $4)
 		  AND ($5 = '' OR x.variant_size = $5)
