@@ -405,6 +405,11 @@ export class SyncEngine {
     this.events.onWall?.(this.wall)
   }
 
+  /** Read-only: version of the reference data (catalog, prices, rules) this device sells against. */
+  referenceVersion(): number {
+    return this.snapshot.localVersion()
+  }
+
   getSnapshot(): Bundle {
     return this.creditedView ?? this.snapshot.get()
   }
