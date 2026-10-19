@@ -15,6 +15,8 @@ import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
+import { useOfflineCap } from '../hooks/useOfflineCap'
+import { offlineLockMessage } from '../lib/offlineCap'
 import { useShift } from '../hooks/useShift'
 import { useTerminalLabel } from '../hooks/useTerminalLabel'
 import { useCart } from '../hooks/useCart'
@@ -303,6 +305,11 @@ export default function CashierScreen() {
     return false
   }
 
+  // A05: past 12 h without an online contact, new sales/refunds are locked until the tablet
+  // reconnects. Evaluated at action time (never cached) and the engine itself never refuses.
+  const offlineCap = useOfflineCap(engine)
+  const offlineLock = (): string | null => offlineLockMessage(engine.offlineState())
+
   // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
   // added and the cashier is warned; the server records the oversell. Returns true when
   // the add passes the (pending-adjusted) stock so scan can pick the right toast.
@@ -311,6 +318,11 @@ export default function CashierScreen() {
     variantQtys: Record<string, number>,
   ): boolean => {
     if (!ensureShift()) return false
+    const lockedMsg = offlineLock()
+    if (lockedMsg) {
+      showToast(lockedMsg)
+      return false
+    }
     track(`Tambah ${product.name}`)
     const inCart = (size: string) => state.cart
       .filter((i) => i.productId === product.id && i.variantSize === size)
@@ -548,6 +560,12 @@ export default function CashierScreen() {
 
   const handleConfirmPayment = async () => {
     if (state.isProcessing || saleGate.current.isBusy()) return
+    // A cart built at 11h59 can be confirmed at 12h01: the lock is checked at confirm too.
+    const lockedMsg = offlineLock()
+    if (lockedMsg) {
+      showToast(lockedMsg)
+      return
+    }
     // Re-confirm a clean total if a stale customer benefit survives a UI transition.
     if (!state.selectedCustomer && (state.pointsToRedeem > 0 || state.cart.some(c => c.isReward && c.rewardConditionId))) {
       dispatch({ type: 'SET_CUSTOMER', customer: null })
@@ -795,6 +813,11 @@ export default function CashierScreen() {
 
   const handleRefundConfirm = async (orderId: string, reason: string) => {
     if (refundGate.current.isBusy()) return
+    const lockedMsg = offlineLock()
+    if (lockedMsg) {
+      setRefundError(lockedMsg)
+      return
+    }
     setRefundError(null)
     // Defensive guards (the panel already hides the button): permission, an open synced shift, a valid
     // reason. The display snapshot is built here, once; nothing rewrites the payload after it is queued.
@@ -927,7 +950,7 @@ export default function CashierScreen() {
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
-            isResyncing={offlineData.isResyncing}
+            offlineCap={offlineCap} isResyncing={offlineData.isResyncing}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />

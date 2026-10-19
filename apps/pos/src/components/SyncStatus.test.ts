@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { ReviewRow, SyncStatus } from './SyncStatus'
+import { OfflineCapNotice, ReviewRow, SyncStatus } from './SyncStatus'
 
 const item = (k: string) => ({ idempotencyKey: k, type: 'order', lastError: 'x' })
 const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStaticMarkup(createElement(SyncStatus, {
@@ -66,5 +66,26 @@ describe('review row reported label', () => {
     const base = { idempotencyKey: 'd:1', type: 'refund', lastError: 'denied' }
     expect(renderToStaticMarkup(createElement(ReviewRow, { f: { ...base, reported: true } }))).toContain('Dilaporkan ke kantor pusat')
     expect(renderToStaticMarkup(createElement(ReviewRow, { f: base }))).not.toContain('Dilaporkan')
+  })
+})
+
+describe('SyncStatus offline cap (A05)', () => {
+  it('shows the offline hours on the chip once the tablet nears the cap', () => {
+    const html = render({ isOnline: false, offlineCap: { level: 'warn', offlineMs: 10.5 * 3_600_000 } })
+    expect(html).toContain('Offline 10 jam')
+  })
+  it('shows a locked chip at the cap', () => {
+    const html = render({ isOnline: false, offlineCap: { level: 'locked', offlineMs: 12.2 * 3_600_000 } })
+    expect(html).toContain('Offline · terkunci')
+  })
+  it('is unchanged while ok or unknown', () => {
+    expect(render({ isOnline: false, offlineCap: { level: 'ok', offlineMs: 3_600_000 } })).toContain('>Offline<')
+    expect(render({ isOnline: false, offlineCap: { level: 'unknown', offlineMs: null } })).toContain('>Offline<')
+  })
+  it('renders the warning text in the notice', () => {
+    const html = renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'warn', offlineMs: 10.2 * 3_600_000 } }))
+    expect(html).toContain('Sambungkan internet sebelum 12 jam')
+    expect(renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'locked', offlineMs: 13 * 3_600_000 } }))).toContain('dikunci')
+    expect(renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'ok', offlineMs: 1 } }))).toBe('')
   })
 })

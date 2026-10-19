@@ -9,8 +9,9 @@
  * Selling is never blocked; the cashier decides when to sync.
  */
 import { memo, useState } from 'react'
-import type { WallState } from '@mandalika/sync'
+import type { OfflineCapState, WallState } from '@mandalika/sync'
 import type { FailedItem } from '../hooks/useOfflineData'
+import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
 
 const TYPE_LABELS: Record<string, string> = {
   order: 'Penjualan',
@@ -54,6 +55,17 @@ export function ReviewRow({ f }: { f: FailedItem }) {
   )
 }
 
+/** The 12 h offline-cap note (A05): a nudge from 10 h, the lock explanation at 12 h. */
+export function OfflineCapNotice({ cap }: { cap: OfflineCapState }) {
+  if (cap.level === 'warn') {
+    return <p className="bg-amber-50 text-amber-800 rounded-lg px-2 py-1.5 font-semibold">{offlineWarnMessage(cap)}</p>
+  }
+  if (cap.level === 'locked') {
+    return <p className="bg-red-50 text-red-700 rounded-lg px-2 py-1.5 font-semibold">{OFFLINE_LOCKED_MESSAGE}</p>
+  }
+  return null
+}
+
 interface SyncStatusProps {
   isOnline: boolean
   pendingCount: number
@@ -64,6 +76,8 @@ interface SyncStatusProps {
   /** Account/session-level refusal of the whole queue; nothing was parked. */
   accountProblem?: string | null
   wall: WallState
+  /** Where the tablet stands against the 12 h offline cap (A05). */
+  offlineCap?: OfflineCapState
   isResyncing: boolean
   onResync: () => void
   onFlush: () => void
@@ -79,6 +93,7 @@ export const SyncStatus = memo(function SyncStatus({
   stuck,
   accountProblem = null,
   wall,
+  offlineCap,
   isResyncing,
   onResync,
   onFlush,
@@ -97,6 +112,11 @@ export const SyncStatus = memo(function SyncStatus({
   if (!isOnline) {
     label = hasFailed ? `Offline · ${review.length} perlu ditinjau` : 'Offline'
     tone = 'bg-amber-100 text-amber-700'
+    if (offlineCap?.level === 'warn') label = `Offline ${offlineHours(offlineCap)} jam`
+    if (offlineCap?.level === 'locked') {
+      label = 'Offline · terkunci'
+      tone = 'bg-red-100 text-red-700'
+    }
   } else if (hasFailed) {
     label = `Perlu ditinjau (${review.length})`
     tone = 'bg-red-100 text-red-700'
@@ -147,6 +167,8 @@ export const SyncStatus = memo(function SyncStatus({
                 lokal {wall.localVersion} · server {wall.serverVersion}
               </span>
             </div>
+
+            {offlineCap && <OfflineCapNotice cap={offlineCap} />}
 
             {updateAvailable && (
               <button type="button"

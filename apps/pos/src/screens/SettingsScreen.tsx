@@ -16,6 +16,7 @@ import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
 import { usePrinter } from '../printer'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
+import { offlineLockMessage } from '../lib/offlineCap'
 import { TerminalSection } from './TerminalSection'
 
 type AppSettings = components['schemas']['AppSettings']
@@ -149,6 +150,12 @@ export const SettingsScreen = memo(function SettingsScreen({
     }
     if (!cashFlowDesc.trim()) {
       setCashFlowMsg('Deskripsi wajib diisi')
+      return
+    }
+    // A05: cash in/out locks past 12 h offline; the engine never refuses, so the UI gates here.
+    const lockedMsg = offlineLockMessage(engine.offlineState())
+    if (lockedMsg) {
+      setCashFlowMsg(lockedMsg)
       return
     }
     setIsSavingCashFlow(true)
