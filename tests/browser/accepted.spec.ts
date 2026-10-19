@@ -11,7 +11,7 @@ test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate t
   await p.evaluate(() => {
     localStorage.clear()
     localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toISOString().slice(0, 10))
+    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
   })
   await p.reload()
   const result = await qualifyBackoffice(p)

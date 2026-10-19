@@ -63,7 +63,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     return route.fulfill({json:{data,meta:{total,page:n,limit}}});
   });
   await page.goto('http://127.0.0.1:5184');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toISOString().slice(0,10));});
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toLocaleDateString('sv-SE'));});
   await page.reload();
   await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Laporan',exact:true}).click();
@@ -271,7 +271,7 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     await route.fulfill({json:{data,meta:{total,page:n,limit}}});
   });
   await page.goto('http://127.0.0.1:5184');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toISOString().slice(0,10));});
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toLocaleDateString('sv-SE'));});
   await page.reload();await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Laporan',exact:true}).click();await page.getByRole('button',{name:'Ekspor',exact:true}).click();
   const outlet=page.locator('select').filter({has:page.locator('option[value="A"]')});
