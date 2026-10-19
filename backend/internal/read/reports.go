@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/mandalika/pos-backend/internal/api"
 )
@@ -47,7 +48,7 @@ prod AS (
 daily AS (
   SELECT COALESCE(json_agg(json_build_object(
            'date',d,'sales',s,'orders',n) ORDER BY d),'[]'::json) AS rows
-  FROM (SELECT to_char(created_at,'YYYY-MM-DD') AS d,
+  FROM (SELECT to_char(business_date,'YYYY-MM-DD') AS d,
                SUM(total) AS s, COUNT(*) AS n
         FROM base WHERE status='completed'
         GROUP BY 1 ORDER BY 1) g
@@ -65,11 +66,22 @@ FROM agg, pay, prod, daily`, where)
 		return v, err
 	}
 	// Echo the applied window and scope; null where a side is unbounded / cross-outlet.
-	from, to, err := f.appliedWindow()
-	if err != nil {
-		return v, err
-	}
+	from, to := f.appliedWindow()
 	v.From, v.To, v.OutletId = nullable.NewNullNullable[time.Time](), nullable.NewNullNullable[time.Time](), nullable.NewNullNullable[string]()
+	v.DateFrom, v.DateTo = nullable.NewNullNullable[openapi_types.Date](), nullable.NewNullNullable[openapi_types.Date]()
+	for _, b := range []struct {
+		day string
+		dst *nullable.Nullable[openapi_types.Date]
+	}{{f.DateFrom, &v.DateFrom}, {f.DateTo, &v.DateTo}} {
+		if b.day == "" {
+			continue
+		}
+		d, err := time.Parse("2006-01-02", b.day)
+		if err != nil {
+			return v, err
+		}
+		*b.dst = nullable.NewNullableWithValue(openapi_types.Date{Time: d})
+	}
 	if from != nil {
 		v.From = nullable.NewNullableWithValue(*from)
 	}

@@ -31,14 +31,14 @@ func TestBuildOrderWhereLegacyFromToUnchanged(t *testing.T) {
 	}
 }
 
-func TestBuildOrderWhereWIBDayBounds(t *testing.T) {
+func TestBuildOrderWhereBusinessDayBounds(t *testing.T) {
 	where, args := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, DateFrom: "2026-01-02", DateTo: "2026-01-03"})
 	if len(args) != 2 || args[0] != "2026-01-02" || args[1] != "2026-01-03" {
 		t.Fatalf("args=%v", args)
 	}
 	for _, frag := range []string{
-		"o.created_at >= ($1::text::date)::timestamp AT TIME ZONE 'Asia/Jakarta'",
-		"o.created_at < (($2::text::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta')",
+		"o.business_date >= $1::text::date",
+		"o.business_date <= $2::text::date",
 	} {
 		if !strings.Contains(where, frag) {
 			t.Errorf("missing %q in %q", frag, where)

@@ -170,7 +170,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
+			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "dateFrom", "dateTo", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
 			if !reflect.DeepEqual(keys, wantKeys) {
 				t.Errorf("API shape changed: %v", keys)
 			}

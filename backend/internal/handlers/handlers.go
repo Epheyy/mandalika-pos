@@ -340,7 +340,7 @@ func (h *Handlers) Order(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Shifts(w http.ResponseWriter, r *http.Request) {
 	dateFrom, dateTo := r.URL.Query().Get("dateFrom"), r.URL.Query().Get("dateTo")
-	if !wibDayRange(w, dateFrom, dateTo) {
+	if !dayRange(w, dateFrom, dateTo) {
 		return
 	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
@@ -444,6 +444,9 @@ func (h *Handlers) ReportSummary(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	q := r.URL.Query()
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+		return
+	}
 	sc := scope(r)
 	f := read.GrantReportFilters{
 		DateFrom:    q.Get("dateFrom"),
@@ -470,6 +473,9 @@ func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) DiscountCodeReport(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	q := r.URL.Query()
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+		return
+	}
 	sc := scope(r)
 	f := read.CodeReportFilters{
 		DateFrom: q.Get("dateFrom"),

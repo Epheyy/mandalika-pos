@@ -219,7 +219,7 @@ func (r *Repo) Bundles(ctx context.Context) ([]api.Bundle, int, error) {
 func (r *Repo) Outlets(ctx context.Context) ([]api.Outlet, int, error) {
 	return listJSON[api.Outlet](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'name',name,'code',code,'address',address,
-		   'phone',phone,'logoUrl',logo_url,'isActive',is_active,'createdAt',created_at)
+		   'phone',phone,'logoUrl',logo_url,'isActive',is_active,'timezone',timezone,'createdAt',created_at)
 		   FROM outlets ORDER BY name`)
 }
 
@@ -643,8 +643,8 @@ func (r *Repo) IngredientStockCount(ctx context.Context, id string) (api.Ingredi
 // by RecentCustomersForOutlet which aliases `customers c`. Bare cols resolve to the
 // outer customers row whatever its alias.
 const segmentMatch = `s.is_active
-  AND (s.r_min IS NULL OR (last_visit IS NOT NULL AND (now()::date - last_visit::date) >= s.r_min))
-  AND (s.r_max IS NULL OR (last_visit IS NOT NULL AND (now()::date - last_visit::date) <= s.r_max))
+  AND (s.r_min IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) >= s.r_min))
+  AND (s.r_max IS NULL OR (last_visit IS NOT NULL AND ((now() AT TIME ZONE 'Asia/Jakarta')::date - (last_visit AT TIME ZONE 'Asia/Jakarta')::date) <= s.r_max))
   AND (s.f_min IS NULL OR visit_count >= s.f_min)
   AND (s.f_max IS NULL OR visit_count <= s.f_max)
   AND (s.m_min IS NULL OR total_spent >= s.m_min)
@@ -975,7 +975,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'taxAmount',o.tax_amount,'total',o.total,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
-  'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,
+  'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,'businessDate',o.business_date,
   'refundShiftId',o.refund_shift_id,'refundedBy',o.refunded_by,'refundedByName',o.refunded_by_name,
   'pointsRedeemed',o.points_redeemed,
   'items',COALESCE((SELECT json_agg(json_build_object(
@@ -1004,7 +1004,7 @@ func (r *Repo) Order(ctx context.Context, sc Scope, id string) (api.Order, error
 		`SELECT `+orderObj+` FROM orders o WHERE o.id=$1`+cond, args...)
 }
 
-const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
+const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDate',s.business_date,
   'outletName',s.outlet_name,'cashierId',s.cashier_id,'cashierName',s.cashier_name,
   'status',s.status,'openedAt',s.opened_at,'closedAt',s.closed_at,
   'startingCash',s.starting_cash,'closingCash',s.closing_cash,
@@ -1021,8 +1021,8 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,
        WHERE o.refund_shift_id=s.id AND o.status='refunded' AND o.shift_id IS DISTINCT FROM s.id
        GROUP BY o.payment_method) x) END)`
 
-// Shifts lists shifts newest first. dateFrom/dateTo are WIB calendar days applied to
-// opened_at (the business day of a shift is its opening date, owner rule A28).
+// Shifts lists shifts newest first. dateFrom/dateTo are business days compared with
+// shifts.business_date (a shift's opening day in its outlet's zone, owner rule A28).
 func (r *Repo) Shifts(ctx context.Context, sc Scope, dateFrom, dateTo string, page, limit int) ([]api.Shift, int, error) {
 	where := "WHERE 1=1"
 	args := []any{}
@@ -1032,11 +1032,11 @@ func (r *Repo) Shifts(ctx context.Context, sc Scope, dateFrom, dateTo string, pa
 	}
 	if dateFrom != "" {
 		args = append(args, dateFrom)
-		where += fmt.Sprintf(" AND s.opened_at >= %s", wibDayStart(len(args)))
+		where += fmt.Sprintf(" AND s.business_date >= $%d::text::date", len(args))
 	}
 	if dateTo != "" {
 		args = append(args, dateTo)
-		where += fmt.Sprintf(" AND s.opened_at < %s", wibDayEnd(len(args)))
+		where += fmt.Sprintf(" AND s.business_date <= $%d::text::date", len(args))
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM shifts s %s
@@ -1856,7 +1856,7 @@ func (r *Repo) RewardGrantsByOrder(ctx context.Context, orderID string) ([]Promo
 
 // GrantReportFilters holds the fixed $1..$5 filter params for the
 // promo-reward-grant report. All fields are optional ("" = no filter).
-// DateFrom/DateTo are WIB (Asia/Jakarta) calendar days.
+// DateFrom/DateTo are business days (orders.business_date of the granting sale).
 type GrantReportFilters struct {
 	DateFrom, DateTo, OutletID, PromotionID, ProductID string
 }
@@ -1866,18 +1866,15 @@ type GrantReportFilters struct {
 // by-product breakdowns aggregated over the full filtered set). It returns
 // (summary, page of groups, total group count, error).
 //
-// Day bounds are WIB (Asia/Jakarta): g.created_at is timestamptz/UTC while
-// DateFrom/DateTo are WIB calendar days, so the bounds interpret the bare date
-// as midnight WIB via `AT TIME ZONE 'Asia/Jakarta'`. (This differs from the
-// older Orders report, which compares against the server session tz; WIB is
-// used here so the financial report lines up with local business days.)
+// Day bounds are business days: the granting sale's orders.business_date, so a giveaway
+// lands on the same day as its sale in every report (A28).
 func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters, page, limit int) (api.PromoGrantSummary, []api.PromoRewardGrantGroup, int, error) {
 	var sum api.PromoGrantSummary
 	where := `FROM promo_reward_grants g
 		JOIN orders o     ON o.id = g.order_id AND o.status = 'completed'
 		JOIN promotions p ON p.id = g.promotion_id
-		WHERE ($1 = '' OR g.created_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta')
-		  AND ($2 = '' OR g.created_at <  (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'))
+		WHERE ($1 = '' OR o.business_date >= $1::date)
+		  AND ($2 = '' OR o.business_date <= $2::date)
 		  AND ($3 = '' OR o.outlet_id::text = $3)
 		  AND ($4 = '' OR g.promotion_id::text = $4)
 		  AND ($5 = '' OR g.product_id::text = $5)`
@@ -1949,9 +1946,7 @@ type CodeReportFilters struct{ DateFrom, DateTo, OutletID string }
 // DiscountCodeReport attributes discount VALUE per code from the unnested
 // orders.discount_breakdown components whose label matches a real
 // discount_codes.code — NOT orders.discount_amount. Completed orders only.
-// Day bounds are WIB (Asia/Jakarta): o.created_at is timestamptz/UTC while
-// DateFrom/DateTo are WIB calendar days, so the bare date is interpreted as
-// midnight WIB via `AT TIME ZONE 'Asia/Jakarta'`. Status is derived in SQL.
+// Day bounds are business days (orders.business_date). Status is derived in SQL.
 func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page, limit int) (api.DiscountCodeReportSummary, []api.DiscountCodeReportRow, int, error) {
 	var sum api.DiscountCodeReportSummary
 	where := `FROM orders o
@@ -1960,8 +1955,8 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 		LEFT JOIN promotions p ON p.id = dc.promotion_id
 		WHERE o.status = 'completed'
 		  AND ($3 = '' OR o.outlet_id::text = $3)
-		  AND ($1 = '' OR o.created_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta')
-		  AND ($2 = '' OR o.created_at <  (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'))`
+		  AND ($1 = '' OR o.business_date >= $1::date)
+		  AND ($2 = '' OR o.business_date <= $2::date)`
 	args := []any{f.DateFrom, f.DateTo, f.OutletID}
 
 	// Summary over the full filtered set. Fields are pointers, so scan into
