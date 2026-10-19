@@ -395,6 +395,11 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 		if err != nil {
 			return fail(err)
 		}
+		evalTime, skew := boundSaleTime(readEvidence(env, e.now(), e.ContactKey), p.ClientCreatedAt, e.now())
+		if skew {
+			slog.Warn("sale clock disagrees with offline evidence; promo/loyalty evaluated at a bounded time",
+				"idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
+		}
 		in := service.CreateOrderInput{
 			IdempotencyKey:    it.IdempotencyKey,
 			OrderUUID:         p.OrderUUID,
@@ -426,6 +431,8 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			Notes:             p.Notes,
 			ShiftID:           shiftID,
 			ClientCreated:     p.ClientCreatedAt,
+			EvalTime:          evalTime,
+			ClockSkew:         skew,
 			Offline:           true,
 		}
 		id, dup, warn, err := createOrder(ctx, in)

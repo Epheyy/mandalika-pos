@@ -86,3 +86,37 @@ func capVerdict(typ string, env Envelope, arrival time.Time, key []byte) (refuse
 	}
 	return false, ""
 }
+
+// boundSaleTime bounds the time promo and loyalty rules evaluate at (A05). It never
+// changes the stored client_created_at; it returns the evaluation time to use (nil =
+// keep the client's) and whether the clock disagreed with the evidence.
+//
+// With a verified contact L the sale must lie in [L-tol, A+tol]; otherwise the time is
+// clamp(L+E, L, A) (clamp(C, L, A) when E is unknown). Without one, only a future C is
+// bounded (to A): a late sync is legitimate, so there is no lower bound.
+func boundSaleTime(ev offlineEvidence, c *time.Time, arrival time.Time) (*time.Time, bool) {
+	if c == nil {
+		return nil, false
+	}
+	if !ev.LOK {
+		if c.After(arrival.Add(ClockTolerance)) {
+			a := arrival
+			return &a, true
+		}
+		return nil, false
+	}
+	if !c.Before(ev.L.Add(-ClockTolerance)) && !c.After(arrival.Add(ClockTolerance)) {
+		return nil, false
+	}
+	t := *c
+	if ev.HasE {
+		t = ev.L.Add(ev.E)
+	}
+	if t.Before(ev.L) {
+		t = ev.L
+	}
+	if t.After(arrival) {
+		t = arrival
+	}
+	return &t, true
+}

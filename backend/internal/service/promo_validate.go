@@ -33,6 +33,9 @@ const (
 	ViolationPerCustomerCapReached PromoViolation = "per_customer_cap_reached"
 	// SP-Code-4: a customer-assigned code requires the order's chosen customer to match.
 	ViolationWrongCustomer PromoViolation = "wrong_customer"
+	// A05: the tablet's clock disagreed with the server's evidence, so promo/loyalty rules
+	// ran on a bounded time. Only ever a flag: the discount is kept (offline convention).
+	ViolationClockSkew PromoViolation = "clock_skew"
 )
 
 // PromoEvalContext is the order-time situation a promo/code is validated against.
