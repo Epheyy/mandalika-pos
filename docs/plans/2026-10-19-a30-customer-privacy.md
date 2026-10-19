@@ -80,3 +80,9 @@ Review: one Opus review of the whole branch (auth, pull bundle, generated types,
 - Q2 Cashier with `manage_customers` stays phone-only: default taken (yes).
 - Q3 Tablet remembers last 300 customers, forgotten 30 days after last use: default taken.
 - Q4 Lookup limit 30/min and 400/day per terminal account: default taken.
+
+## Result (2026-10-19)
+- Merged locally as `c093157` on prod-hardening (commits `9ae85b7`..`44cf506`). NOT pushed or deployed. Migration 0061.
+- Gates: PG gate 26/26 (port 56464), quality:ci, browser:ci, both gen checks re-run on the branch tip. Opus review Fix-first (All-scope branch ignored `?phone=`), fixed.
+- Deviations from plan: customer scope also applied to `/reports/summary`; order-q flag inverted so a zero value is restricted; cache-key suffixes on `/orders` and `/reports/summary`; `RequireCustomerReader` lives in handlers, not middleware; lookup runs only on explicit submit (Enter or Cari), never while typing.
+- Open owner questions and follow-ups: see HANDOFF.md A30 bullet.

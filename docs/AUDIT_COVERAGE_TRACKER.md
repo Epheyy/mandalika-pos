@@ -1384,6 +1384,7 @@ S3b movement intervals/revisions/receipts; S3c concurrency, POS projection and E
 ### A30 — The permission model needs an operation-by-scope matrix, not UI assumptions
 
 - **Original priority / evidence:** P1; historical class: Confirmed inconsistencies; some intended scope is unresolved.
+- **Update 2026-10-19 (merged locally `c093157`, NOT pushed/deployed): fixed locally.** Customer privacy: cashier phone-only lookup, customer read scope by role, rate-limited phone lookup (migration 0061); POS OTA and backoffice discount-code hint. Owner action: Neon pre-check for phones with no digits.
 - **Current disposition:** Needs current behavioral revalidation; source matches audit. E02 establishes file continuity only; historical diagnostics were not rerun.
 - **Current evidence:** E01/E02 (2026-09-19, local HEAD above); `backend/internal/server/server.go:100-143`; `backend/internal/handlers/handlers.go:53-68`; `apps/pos/src/components/OutletSwitcher.tsx:32-58`; `backend/internal/write/stockcount.go:133-152`; `backend/internal/handlers/writes.go:25-62`. No relevant uncommitted application changes at entry. See E03 for selectively re-read paths.
 - **Authority / decision:** AUDIT_REPORT A30 and PLAN_ADDENDUM are analysis/proposed mechanisms; existing user-approved draft policies remain authoritative. Review packet: Q01,Q04.
