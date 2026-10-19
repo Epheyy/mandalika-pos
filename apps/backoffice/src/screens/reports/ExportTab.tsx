@@ -13,6 +13,7 @@ import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
+import { breakdownRows, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
 import { useOrderReport } from './useOrderReport'
 
 const statusBadge = (st: string) =>
@@ -46,39 +47,46 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
-  const exportTx = async () => {
+  const csvRows = (all: Order[]) =>
+    all.map((o) => ({
+      'No. Order': o.orderNumber,
+      Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
+      'Hari Bisnis': o.businessDate ?? '',
+      'Waktu Refund': o.refundedAt ? format(parseISO(o.refundedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '',
+      'Hari Refund': o.refundBusinessDate ?? '',
+      Kasir: o.cashierName,
+      Salesman: o.salesmanName || '-',
+      Pelanggan: o.customerName || '-',
+      Item: o.items.map((i) => `${i.productName} ${i.variantSize} x${i.quantity}`).join('; '),
+      Subtotal: o.subtotal,
+      Diskon: o.discountAmount,
+      Pajak: o.taxAmount,
+      Total: o.total,
+      'Metode Bayar': o.paymentMethod,
+      Status: o.status,
+      Catatan: o.notes || '',
+      'Alasan Refund': o.refundReason || '',
+      Outlet: outletName(o.outletId),
+    }))
+
+  const exportName = (prefix: string) =>
+    buildExportName(prefix, [
+      outletId ? outletName(outletId) : 'semua-outlet',
+      filters.status || undefined,
+      filters.payment || undefined,
+      filters.dateFrom ? `dari-${filters.dateFrom}` : 'semua-tanggal',
+      filters.dateTo ? `sd-${filters.dateTo}` : undefined,
+    ])
+
+  /** Pages the whole filtered set (sale day, or refund day for the refund CSV) and downloads it. */
+  const runExport = async (basis: 'sale' | 'refund') => {
     setExporting(true)
     setExportError(null)
     try {
-      const params = orderFilterParams(filters)
+      const base = orderFilterParams(filters)
+      const params = basis === 'refund' ? refundExportParams(base) : base
       const all: Order[] = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
-      exportToCSV(
-        all.map((o) => ({
-          'No. Order': o.orderNumber,
-          Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
-          'Hari Bisnis': o.businessDate ?? '',
-          Kasir: o.cashierName,
-          Salesman: o.salesmanName || '-',
-          Pelanggan: o.customerName || '-',
-          Item: o.items.map((i) => `${i.productName} ${i.variantSize} x${i.quantity}`).join('; '),
-          Subtotal: o.subtotal,
-          Diskon: o.discountAmount,
-          Pajak: o.taxAmount,
-          Total: o.total,
-          'Metode Bayar': o.paymentMethod,
-          Status: o.status,
-          Catatan: o.notes || '',
-          'Alasan Refund': o.refundReason || '',
-          Outlet: outletName(o.outletId),
-        })),
-        buildExportName('laporan-transaksi', [
-          outletId ? outletName(outletId) : 'semua-outlet',
-          filters.status || undefined,
-          filters.payment || undefined,
-          filters.dateFrom ? `dari-${filters.dateFrom}` : 'semua-tanggal',
-          filters.dateTo ? `sd-${filters.dateTo}` : undefined,
-        ]),
-      )
+      exportToCSV(csvRows(all), exportName(basis === 'refund' ? 'laporan-refund' : 'laporan-transaksi'))
     } catch (e: unknown) {
       setExportError(e instanceof Error ? e.message : 'Gagal mengekspor data lengkap.')
     } finally {
@@ -87,8 +95,7 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
   }
 
   const error = sq.error || lq.error
-  const revenue = summary?.totalSales ?? 0
-  const byPay = summary?.byPaymentMethod ?? {}
+  const rows = summary ? breakdownRows(summary) : []
 
   return (
     <>
@@ -99,10 +106,18 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
       )}
       {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
       {(sq.loading || lq.loading) && <p role="status">Memuat data…</p>}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button
           variant="secondary"
-          onClick={() => void exportTx()}
+          onClick={() => void runExport('refund')}
+          disabled={exporting || !!lq.error || !summary || summary.totalRefunds === undefined}
+          icon={<Download className="w-4 h-4" />}
+        >
+          {exporting ? 'Menyiapkan…' : 'Export Refund CSV'}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void runExport('sale')}
           disabled={exporting || lq.loading || !!lq.error || total === 0}
           icon={<Download className="w-4 h-4" />}
         >
@@ -114,30 +129,36 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Penjualan', value: BRAND.currency.format(revenue), icon: <TrendingUp className="w-5 h-5" /> },
+              { label: 'Penjualan Kotor', value: moneyOrDash(summary.grossSales, BRAND.currency.format), sub: summary.grossOrders === undefined ? undefined : `${summary.grossOrders} transaksi`, icon: <TrendingUp className="w-5 h-5" /> },
+              { label: 'Refund (hari refund)', value: BRAND.currency.format(summary.totalRefunds), sub: `${summary.refundedOrders} transaksi`, icon: <RotateCcw className="w-5 h-5" /> },
+              { label: 'Penjualan Bersih', value: moneyOrDash(summary.netSales, BRAND.currency.format), negative: isNegative(summary.netSales), icon: <TrendingUp className="w-5 h-5" /> },
               { label: 'Jumlah Transaksi', value: String(summary.totalOrders), icon: <ShoppingBag className="w-5 h-5" /> },
-              { label: 'Total Refund', value: BRAND.currency.format(summary.totalRefunds), icon: <RotateCcw className="w-5 h-5" /> },
-              { label: 'Transaksi Direfund', value: String(summary.refundedOrders), icon: <RotateCcw className="w-5 h-5" /> },
             ].map((c) => (
               <Card key={c.label} className="p-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 bg-gold-50 text-gold-600">
                   {c.icon}
                 </div>
-                <p className="text-xl font-black text-gray-900">{c.value}</p>
+                <p className={`text-xl font-black ${c.negative ? 'text-red-600' : 'text-gray-900'}`}>{c.value}</p>
                 <p className="text-xs text-gray-400">{c.label}</p>
+                {c.sub && <p className="text-xs text-gray-400">{c.sub}</p>}
               </Card>
             ))}
           </div>
+          <p className="text-xs text-gray-400">
+            Refund dihitung pada hari refund, bukan hari penjualan. Daftar di bawah memakai hari penjualan.
+          </p>
 
-          {Object.keys(byPay).length > 0 && (
+          {rows.length > 0 && (
             <Card className="p-5">
               <h3 className="font-black text-gray-900 mb-3">Breakdown Pembayaran</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {Object.entries(byPay).map(([m, a]) => (
-                  <div key={m} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-bold text-gray-500 capitalize mb-1">{m}</p>
-                    <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(a)}</p>
-                    <p className="text-xs text-gray-400">{revenue > 0 ? Math.round((a / revenue) * 100) : 0}%</p>
+                {rows.map((r) => (
+                  <div key={r.method} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs font-bold text-gray-500 capitalize mb-1">{r.method}</p>
+                    <p className="text-xs text-gray-500">Kotor <span className="font-black text-gray-900 text-sm">{BRAND.currency.format(r.gross)}</span></p>
+                    <p className="text-xs text-gray-500">Refund <span className="font-black text-red-600 text-sm">{BRAND.currency.format(r.refunds)}</span></p>
+                    <p className="text-xs text-gray-500">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-red-600' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>
+                    <p className="text-xs text-gray-400">{sharePercent(r.gross, summary.grossSales ?? 0)}%</p>
                   </div>
                 ))}
               </div>
