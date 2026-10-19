@@ -85,29 +85,44 @@ func TestReportSummaryPostgres(t *testing.T) {
 	cancelled := sale{"cancelled", 900, "cash", outletA, "2026-01-02T14:00:00Z", ""}
 	card := sale{"completed", 60, "card", outletA, "2026-01-02T15:00:00Z", ""}
 	other := sale{"completed", 200, "qris", outletB, "2026-01-02T16:00:00Z", ""}
+	type dailyWant struct {
+		date                                                            string
+		sales, orders, gross, grossOrders, refunds, refundedOrders, net float64
+	}
+	// A27: sales are recognised on the SALE day (gross = completed + refunded rows), refunds on
+	// the REFUND day; net = gross - refunds. totalSales is still-completed rows only. The default
+	// window is 2026-01-02 (sale day); the fixture refund is on 2026-01-10, outside it.
 	type scenario struct {
 		name                          string
 		rows                          []sale
 		role, outlet, query, from, to string
 		sales, refunds, orders        int
+		gross, grossOrders, net       int
+		refundedOrders                int
 		payments                      map[string]float64
+		grossPay, refundPay           map[string]float64
+		daily                         []dailyWant
 	}
 	cases := []scenario{
 		{name: "empty", payments: map[string]float64{}},
-		{name: "completed-only", rows: []sale{completed}, sales: 100, orders: 1, payments: map[string]float64{"cash": 100}},
-		{name: "refunded-only", rows: []sale{refunded}, refunds: 30, payments: map[string]float64{}},
-		{name: "completed100-refunded30", rows: []sale{completed, refunded}, sales: 100, refunds: 30, orders: 1, payments: map[string]float64{"cash": 100}},
+		{name: "completed-only", rows: []sale{completed}, sales: 100, orders: 1, gross: 100, grossOrders: 1, net: 100, payments: map[string]float64{"cash": 100}, grossPay: map[string]float64{"cash": 100}},
+		// FLIPPED (A27): a later refund no longer removes the sale from its own day.
+		{name: "refunded-only", rows: []sale{refunded}, gross: 30, grossOrders: 1, net: 30, payments: map[string]float64{}, grossPay: map[string]float64{"cash": 30}},
+		{name: "completed100-refunded30", rows: []sale{completed, refunded}, sales: 100, orders: 1, gross: 130, grossOrders: 2, net: 130, payments: map[string]float64{"cash": 100}, grossPay: map[string]float64{"cash": 130}},
 		{name: "cancelled-only", rows: []sale{cancelled}, payments: map[string]float64{}},
-		{name: "payments-products-daily", rows: []sale{completed, card, refunded, cancelled}, sales: 160, refunds: 30, orders: 2, payments: map[string]float64{"cash": 100, "card": 60}},
-		{name: "outlet-A", rows: []sale{completed, refunded, other}, sales: 100, refunds: 30, orders: 1, payments: map[string]float64{"cash": 100}},
-		{name: "cashier-cannot-cross-all", rows: []sale{completed, other}, query: "&outletId=all", sales: 100, orders: 1, payments: map[string]float64{"cash": 100}},
-		{name: "admin-outlet-B", rows: []sale{completed, other}, role: "admin", query: "&outletId=" + outletB, sales: 200, orders: 1, payments: map[string]float64{"qris": 200}},
-		{name: "admin-cross-all", rows: []sale{completed, refunded, other}, role: "admin", query: "&outletId=all", sales: 300, refunds: 30, orders: 2, payments: map[string]float64{"cash": 100, "qris": 200}},
-		{name: "admin-default-bound-outlet", rows: []sale{completed, other}, role: "admin", sales: 100, orders: 1, payments: map[string]float64{"cash": 100}},
-		{name: "admin-unbound-cross-all", rows: []sale{completed, other}, role: "admin", outlet: "none", sales: 300, orders: 2, payments: map[string]float64{"cash": 100, "qris": 200}},
-		{name: "created-at-half-open-boundaries", rows: []sale{{"completed", 10, "cash", outletA, "2026-01-02T00:00:00Z", ""}, {"completed", 20, "cash", outletA, "2026-01-02T23:59:59.999999Z", ""}, {"completed", 40, "cash", outletA, "2026-01-03T00:00:00Z", ""}, {"completed", 80, "cash", outletA, "2026-01-01T23:59:59.999999Z", ""}}, sales: 30, orders: 2, payments: map[string]float64{"cash": 30}},
-		{name: "late-refund-purchase-period", rows: []sale{refunded}, refunds: 30, payments: map[string]float64{}},
-		{name: "late-refund-settlement-period-not-posted", rows: []sale{refunded}, from: "2026-01-10T00:00:00Z", to: "2026-01-11T00:00:00Z", payments: map[string]float64{}},
+		{name: "payments-products-daily", rows: []sale{completed, card, refunded, cancelled}, sales: 160, orders: 2, gross: 190, grossOrders: 3, net: 190, payments: map[string]float64{"cash": 100, "card": 60}, grossPay: map[string]float64{"cash": 130, "card": 60}},
+		{name: "outlet-A", rows: []sale{completed, refunded, other}, sales: 100, orders: 1, gross: 130, grossOrders: 2, net: 130, payments: map[string]float64{"cash": 100}, grossPay: map[string]float64{"cash": 130}},
+		{name: "cashier-cannot-cross-all", rows: []sale{completed, other}, query: "&outletId=all", sales: 100, orders: 1, gross: 100, grossOrders: 1, net: 100, payments: map[string]float64{"cash": 100}, grossPay: map[string]float64{"cash": 100}},
+		{name: "admin-outlet-B", rows: []sale{completed, other}, role: "admin", query: "&outletId=" + outletB, sales: 200, orders: 1, gross: 200, grossOrders: 1, net: 200, payments: map[string]float64{"qris": 200}, grossPay: map[string]float64{"qris": 200}},
+		{name: "admin-cross-all", rows: []sale{completed, refunded, other}, role: "admin", query: "&outletId=all", sales: 300, orders: 2, gross: 330, grossOrders: 3, net: 330, payments: map[string]float64{"cash": 100, "qris": 200}, grossPay: map[string]float64{"cash": 130, "qris": 200}},
+		{name: "admin-default-bound-outlet", rows: []sale{completed, other}, role: "admin", sales: 100, orders: 1, gross: 100, grossOrders: 1, net: 100, payments: map[string]float64{"cash": 100}, grossPay: map[string]float64{"cash": 100}},
+		{name: "admin-unbound-cross-all", rows: []sale{completed, other}, role: "admin", outlet: "none", sales: 300, orders: 2, gross: 300, grossOrders: 2, net: 300, payments: map[string]float64{"cash": 100, "qris": 200}, grossPay: map[string]float64{"cash": 100, "qris": 200}},
+		{name: "created-at-half-open-boundaries", rows: []sale{{"completed", 10, "cash", outletA, "2026-01-02T00:00:00Z", ""}, {"completed", 20, "cash", outletA, "2026-01-02T23:59:59.999999Z", ""}, {"completed", 40, "cash", outletA, "2026-01-03T00:00:00Z", ""}, {"completed", 80, "cash", outletA, "2026-01-01T23:59:59.999999Z", ""}}, sales: 30, orders: 2, gross: 30, grossOrders: 2, net: 30, payments: map[string]float64{"cash": 30}, grossPay: map[string]float64{"cash": 30},
+			daily: []dailyWant{{"2026-01-02", 10, 1, 10, 1, 0, 0, 10}, {"2026-01-03", 20, 1, 20, 1, 0, 0, 20}}},
+		{name: "late-refund-purchase-period", rows: []sale{refunded}, gross: 30, grossOrders: 1, net: 30, payments: map[string]float64{}, grossPay: map[string]float64{"cash": 30}},
+		// FLIPPED (A27): the refund is posted on the REFUND day (the legacy instants map to refunded_at).
+		{name: "late-refund-settlement-period-posted", rows: []sale{refunded}, from: "2026-01-10T00:00:00Z", to: "2026-01-11T00:00:00Z", refunds: 30, refundedOrders: 1, net: -30, payments: map[string]float64{}, refundPay: map[string]float64{"cash": 30},
+			daily: []dailyWant{{"2026-01-10", 0, 0, 0, 0, 30, 1, -30}}},
 	}
 	snapshot := func(t *testing.T) string {
 		t.Helper()
@@ -170,7 +185,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "dateFrom", "dateTo", "from", "netSales", "outletId", "refundedOrders", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
+			wantKeys := []string{"avgOrderValue", "byPaymentMethod", "dailySales", "dateFrom", "dateTo", "from", "grossByPaymentMethod", "grossOrders", "grossSales", "netSales", "outletId", "refundedOrders", "refundsByPaymentMethod", "to", "topProducts", "totalOrders", "totalRefunds", "totalSales"}
 			if !reflect.DeepEqual(keys, wantKeys) {
 				t.Errorf("API shape changed: %v", keys)
 			}
@@ -178,7 +193,8 @@ func TestReportSummaryPostgres(t *testing.T) {
 			if c.orders > 0 {
 				avg = float64(c.sales) / float64(c.orders)
 			}
-			for k, want := range map[string]float64{"totalSales": float64(c.sales), "totalRefunds": float64(c.refunds), "totalOrders": float64(c.orders), "netSales": float64(c.sales), "avgOrderValue": avg} {
+			// netSales is gross (sale day) minus refunds (refund day), NEVER totalSales - totalRefunds.
+			for k, want := range map[string]float64{"totalSales": float64(c.sales), "totalRefunds": float64(c.refunds), "totalOrders": float64(c.orders), "grossSales": float64(c.gross), "grossOrders": float64(c.grossOrders), "refundedOrders": float64(c.refundedOrders), "netSales": float64(c.net), "avgOrderValue": avg} {
 				if data[k] != want {
 					t.Errorf("%s=%v want %v", k, data[k], want)
 				}
@@ -190,55 +206,73 @@ func TestReportSummaryPostgres(t *testing.T) {
 					t.Errorf("window instant changed: %s=%v", key, data[key])
 				}
 			}
-			pay := data["byPaymentMethod"].(map[string]any)
-			if len(pay) != len(c.payments) {
-				t.Errorf("payment entries: %v", pay)
-			}
-			for k, v := range c.payments {
-				if pay[k] != v {
-					t.Errorf("payment %s=%v want%v", k, pay[k], v)
+			for key, want := range map[string]map[string]float64{"byPaymentMethod": c.payments, "grossByPaymentMethod": c.grossPay, "refundsByPaymentMethod": c.refundPay} {
+				got, _ := data[key].(map[string]any)
+				if got == nil || len(got) != len(want) {
+					t.Errorf("%s entries: %v want %v", key, data[key], want)
+				}
+				for k, v := range want {
+					if got[k] != v {
+						t.Errorf("%s %s=%v want%v", key, k, got[k], v)
+					}
 				}
 			}
 			products := data["topProducts"].([]any)
 			daily := data["dailySales"].([]any)
-			if c.orders == 0 {
-				if len(products) != 0 || len(daily) != 0 {
-					t.Errorf("non-completed product/daily rows: %v %v", products, daily)
-				}
-			} else if c.name == "created-at-half-open-boundaries" {
-				// A28: dailySales buckets are business days (Asia/Jakarta here), no longer UTC dates:
-				// 23:59:59.999999Z on 01-02 is 06:59 WIB on 01-03.
-				if len(products) != 1 || len(daily) != 2 {
-					t.Fatalf("unexpected aggregate rows: %v %v", products, daily)
-				}
-				for i, want := range []struct {
-					date  string
-					sales float64
-				}{{"2026-01-02", 10}, {"2026-01-03", 20}} {
-					d := daily[i].(map[string]any)
-					if d["date"] != want.date || d["sales"] != want.sales || d["orders"] != float64(1) {
-						t.Errorf("daily[%d] %v want %v", i, d, want)
-					}
-				}
-			} else {
-				if len(products) != 1 || len(daily) != 1 {
-					t.Fatalf("unexpected aggregate rows: %v %v", products, daily)
-				}
+			wantDaily := c.daily
+			if wantDaily == nil && (c.gross != 0 || c.refunds != 0) {
+				wantDaily = []dailyWant{{"2026-01-02", float64(c.sales), float64(c.orders), float64(c.gross), float64(c.grossOrders), 0, 0, float64(c.net)}}
+			}
+			wantProducts := 0
+			if c.orders > 0 {
+				wantProducts = 1
+			}
+			if len(products) != wantProducts || len(daily) != len(wantDaily) {
+				t.Fatalf("unexpected aggregate rows: %v %v", products, daily)
+			}
+			if wantProducts == 1 && c.name != "created-at-half-open-boundaries" {
 				p := products[0].(map[string]any)
-				d := daily[0].(map[string]any)
 				if p["productId"] != product || p["quantity"] != float64(c.orders) || p["revenue"] != float64(c.sales) {
 					t.Errorf("product aggregate %v", p)
 				}
-				if d["date"] != "2026-01-02" || d["orders"] != float64(c.orders) || d["sales"] != float64(c.sales) {
-					t.Errorf("daily aggregate %v", d)
+			}
+			// A28: dailySales buckets are business days (Asia/Jakarta here), no longer UTC dates.
+			for i, w := range wantDaily {
+				d := daily[i].(map[string]any)
+				for k, want := range map[string]float64{"sales": w.sales, "orders": w.orders, "grossSales": w.gross, "grossOrders": w.grossOrders, "refunds": w.refunds, "refundedOrders": w.refundedOrders, "netSales": w.net} {
+					if d[k] != want {
+						t.Errorf("daily[%d].%s=%v want %v (%v)", i, k, d[k], want, d)
+					}
+				}
+				if d["date"] != w.date {
+					t.Errorf("daily[%d].date=%v want %s", i, d["date"], w.date)
+				}
+			}
+			// Invariants: the per-day nets add up to the total, the maps add up to their totals.
+			dailyNet := 0.0
+			for _, d := range daily {
+				n, _ := d.(map[string]any)["netSales"].(float64)
+				dailyNet += n
+			}
+			if dailyNet != data["netSales"] {
+				t.Errorf("sum(daily net)=%v != netSales=%v", dailyNet, data["netSales"])
+			}
+			for key, total := range map[string]string{"grossByPaymentMethod": "grossSales", "refundsByPaymentMethod": "totalRefunds"} {
+				sum := 0.0
+				m, _ := data[key].(map[string]any)
+				for _, v := range m {
+					sum += v.(float64)
+				}
+				if sum != data[total] {
+					t.Errorf("sum(%s)=%v != %s=%v", key, sum, total, data[total])
 				}
 			}
 			after := snapshot(t)
 			if before != after {
 				t.Error("report mutated orders/items")
 			}
-			evidence = append(evidence, map[string]any{"scenario": c.name, "request": path, "role": role, "tokenOutlet": outlet, "httpStatus": w.Code, "response": json.RawMessage(w.Body.Bytes()), "expectedNetSales": c.sales, "snapshotBefore": json.RawMessage(before), "snapshotAfter": json.RawMessage(after), "beforeSHA256": fmt.Sprintf("%x", sha256.Sum256([]byte(before))), "afterSHA256": fmt.Sprintf("%x", sha256.Sum256([]byte(after))), "unchanged": before == after})
-			t.Logf("sales=%v refunds=%v net=%v expectedNet=%d; orders/items unchanged=%v", data["totalSales"], data["totalRefunds"], data["netSales"], c.sales, before == after)
+			evidence = append(evidence, map[string]any{"scenario": c.name, "request": path, "role": role, "tokenOutlet": outlet, "httpStatus": w.Code, "response": json.RawMessage(w.Body.Bytes()), "expectedNetSales": c.net, "snapshotBefore": json.RawMessage(before), "snapshotAfter": json.RawMessage(after), "beforeSHA256": fmt.Sprintf("%x", sha256.Sum256([]byte(before))), "afterSHA256": fmt.Sprintf("%x", sha256.Sum256([]byte(after))), "unchanged": before == after})
+			t.Logf("sales=%v refunds=%v net=%v expectedNet=%d; orders/items unchanged=%v", data["totalSales"], data["totalRefunds"], data["netSales"], c.net, before == after)
 		})
 	}
 	t.Run("permission-boundary", func(t *testing.T) {
@@ -445,6 +479,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 			}
 		})
 	})
+	runRefundDateBasis(t, ctx, pool, h, secret, exec)
 	if path := os.Getenv("MANDALIKA_A27_TEST_OUTPUT"); path != "" {
 		raw, err := json.MarshalIndent(evidence, "", "  ")
 		if err != nil {

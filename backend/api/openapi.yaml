@@ -46,6 +46,15 @@ components:
       in: query
       required: false
       schema: { type: string, enum: [completed, refunded, cancelled] }
+    OrderDateBasis:
+      name: dateBasis
+      in: query
+      required: false
+      description: |
+        `sale` (default) bounds dateFrom/dateTo on the sale business day. `refund` bounds them on the
+        refund business day, returns only refunded rows and orders them by refundedAt (newest first).
+        Legacy from/to are unaffected. 400 for any other value.
+      schema: { type: string, enum: [sale, refund], default: sale }
     OrderPaymentMethodFilter:
       name: paymentMethod
       in: query
@@ -1353,6 +1362,8 @@ components:
         notes: { type: string, nullable: true }
         refundReason: { type: string, nullable: true }
         refundedAt: { type: string, format: date-time, nullable: true }
+        # A27: the refund's business day (refund shift's opening day, else the outlet-zone day of refundedAt).
+        refundBusinessDate: { type: string, format: date, nullable: true }
         shiftId: { type: string, nullable: true }
         # A06: the shift whose drawer paid the refund (null for direct/backoffice or
         # unattributable refunds) and who refunded.
@@ -1664,15 +1675,30 @@ components:
         revenue: { type: number, format: double }
     DailySalesRow:
       type: object
-      required: [date, sales, orders]
+      required: [date, sales, orders, grossSales, grossOrders, refunds, refundedOrders, netSales]
+      description: |
+        One row per business day that has a sale or a refund. sales/orders are still-completed rows
+        by SALE day; grossSales/grossOrders are completed+refunded rows by sale day; refunds/refundedOrders
+        are refunds by REFUND day; netSales = grossSales - refunds.
       properties:
         date: { type: string }
         sales: { type: number, format: double }
         orders: { type: integer }
+        grossSales: { type: number, format: double }
+        grossOrders: { type: integer }
+        refunds: { type: number, format: double }
+        refundedOrders: { type: integer }
+        netSales: { type: number, format: double }
     ReportSummary:
       type: object
-      required: [totalSales, totalOrders, totalRefunds, refundedOrders, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales]
+      required: [totalSales, totalOrders, totalRefunds, refundedOrders, netSales, avgOrderValue, byPaymentMethod, topProducts, dailySales, grossSales, grossOrders, grossByPaymentMethod, refundsByPaymentMethod]
       description: |
+        A27: sales are recognised on the SALE business day, refunds on the REFUND business day.
+        totalSales/totalOrders/byPaymentMethod/avgOrderValue/topProducts = still-completed rows by sale day.
+        grossSales/grossOrders = completed+refunded rows by sale day. totalRefunds/refundedOrders = refunded
+        rows by refund day. netSales = grossSales - totalRefunds (may be negative; NOT totalSales - totalRefunds).
+        grossByPaymentMethod groups gross, refundsByPaymentMethod groups refunds by the ORIGINAL payment method.
+        status=completed empties the refund side; cancelled rows are never money.
         Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
         `from`/`to` echo only the legacy instant parameters; null when that side is not given.
         `dateFrom`/`dateTo` echo the business days applied; null when that side is unbounded.
@@ -1687,8 +1713,16 @@ components:
         totalRefunds: { type: number, format: double }
         refundedOrders: { type: integer }
         netSales: { type: number, format: double }
+        grossSales: { type: number, format: double }
+        grossOrders: { type: integer }
         avgOrderValue: { type: number, format: double }
         byPaymentMethod:
+          type: object
+          additionalProperties: { type: number, format: double }
+        grossByPaymentMethod:
+          type: object
+          additionalProperties: { type: number, format: double }
+        refundsByPaymentMethod:
           type: object
           additionalProperties: { type: number, format: double }
         topProducts: { type: array, items: { $ref: '#/components/schemas/ProductSalesRow' } }
@@ -4152,6 +4186,7 @@ paths:
         - $ref: '#/components/parameters/WIBDateFrom'
         - $ref: '#/components/parameters/WIBDateTo'
         - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/OrderDateBasis'
         - $ref: '#/components/parameters/OrderPaymentMethodFilter'
         - $ref: '#/components/parameters/OrderSearch'
       responses:
@@ -4461,7 +4496,7 @@ paths:
         - $ref: '#/components/parameters/OrderSearch'
       responses:
         '200':
-          description: summary over created_at and current status; with no date parameter the range is unbounded
+          description: sales by sale business day, refunds by refund business day; with no date parameter the range is unbounded
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReportSummaryResponse' }

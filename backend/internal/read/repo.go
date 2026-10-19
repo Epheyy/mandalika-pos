@@ -975,7 +975,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'taxAmount',o.tax_amount,'total',o.total,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
-  'refundedAt',o.refunded_at,'shiftId',o.shift_id,'createdAt',o.created_at,'businessDate',o.business_date,
+  'refundedAt',o.refunded_at,'refundBusinessDate',o.refund_business_date,'shiftId',o.shift_id,'createdAt',o.created_at,'businessDate',o.business_date,
   'refundShiftId',o.refund_shift_id,'refundedBy',o.refunded_by,'refundedByName',o.refunded_by_name,
   'pointsRedeemed',o.points_redeemed,
   'items',COALESCE((SELECT json_agg(json_build_object(
@@ -987,9 +987,13 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
 func (r *Repo) Orders(ctx context.Context, f OrderFilter, page, limit int) ([]api.Order, int, error) {
 	where, args := buildOrderWhere(f)
 	args = append(args, limit, off(page, limit))
+	order := "o.created_at DESC, o.id DESC"
+	if f.refundBasis() {
+		order = "o.refunded_at DESC NULLS LAST, o.id DESC"
+	}
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s
-	  ORDER BY o.created_at DESC, o.id DESC LIMIT $%d OFFSET $%d`,
-		orderObj, where, len(args)-1, len(args))
+	  ORDER BY %s LIMIT $%d OFFSET $%d`,
+		orderObj, where, order, len(args)-1, len(args))
 	return listJSON[api.Order](ctx, r.Pool, sql, args...)
 }
 

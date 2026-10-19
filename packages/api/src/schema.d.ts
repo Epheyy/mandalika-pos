@@ -3224,6 +3224,8 @@ export interface components {
             refundReason?: string | null;
             /** Format: date-time */
             refundedAt?: string | null;
+            /** Format: date */
+            refundBusinessDate?: string | null;
             shiftId?: string | null;
             refundShiftId?: string | null;
             refundedBy?: string | null;
@@ -3504,14 +3506,33 @@ export interface components {
             /** Format: double */
             revenue: number;
         };
+        /**
+         * @description One row per business day that has a sale or a refund. sales/orders are still-completed rows
+         *     by SALE day; grossSales/grossOrders are completed+refunded rows by sale day; refunds/refundedOrders
+         *     are refunds by REFUND day; netSales = grossSales - refunds.
+         */
         DailySalesRow: {
             date: string;
             /** Format: double */
             sales: number;
             orders: number;
+            /** Format: double */
+            grossSales: number;
+            grossOrders: number;
+            /** Format: double */
+            refunds: number;
+            refundedOrders: number;
+            /** Format: double */
+            netSales: number;
         };
         /**
-         * @description Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
+         * @description A27: sales are recognised on the SALE business day, refunds on the REFUND business day.
+         *     totalSales/totalOrders/byPaymentMethod/avgOrderValue/topProducts = still-completed rows by sale day.
+         *     grossSales/grossOrders = completed+refunded rows by sale day. totalRefunds/refundedOrders = refunded
+         *     rows by refund day. netSales = grossSales - totalRefunds (may be negative; NOT totalSales - totalRefunds).
+         *     grossByPaymentMethod groups gross, refundsByPaymentMethod groups refunds by the ORIGINAL payment method.
+         *     status=completed empties the refund side; cancelled rows are never money.
+         *     Money fields are `format: double` so totals above 2^24 stay exact (float32 rounded them).
          *     `from`/`to` echo only the legacy instant parameters; null when that side is not given.
          *     `dateFrom`/`dateTo` echo the business days applied; null when that side is unbounded.
          */
@@ -3534,8 +3555,17 @@ export interface components {
             /** Format: double */
             netSales: number;
             /** Format: double */
+            grossSales: number;
+            grossOrders: number;
+            /** Format: double */
             avgOrderValue: number;
             byPaymentMethod: {
+                [key: string]: number;
+            };
+            grossByPaymentMethod: {
+                [key: string]: number;
+            };
+            refundsByPaymentMethod: {
                 [key: string]: number;
             };
             topProducts: components["schemas"]["ProductSalesRow"][];
@@ -4135,6 +4165,12 @@ export interface components {
         /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
         WIBDateTo: string;
         OrderStatusFilter: "completed" | "refunded" | "cancelled";
+        /**
+         * @description `sale` (default) bounds dateFrom/dateTo on the sale business day. `refund` bounds them on the
+         *     refund business day, returns only refunded rows and orders them by refundedAt (newest first).
+         *     Legacy from/to are unaffected. 400 for any other value.
+         */
+        OrderDateBasis: "sale" | "refund";
         /** @description Matched case-insensitively after trimming whitespace. */
         OrderPaymentMethodFilter: string;
         /** @description Substring match on order number, cashier name, customer name, or linked customer phone/name. */
@@ -7221,6 +7257,12 @@ export interface operations {
                 /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
                 status?: components["parameters"]["OrderStatusFilter"];
+                /**
+                 * @description `sale` (default) bounds dateFrom/dateTo on the sale business day. `refund` bounds them on the
+                 *     refund business day, returns only refunded rows and orders them by refundedAt (newest first).
+                 *     Legacy from/to are unaffected. 400 for any other value.
+                 */
+                dateBasis?: components["parameters"]["OrderDateBasis"];
                 /** @description Matched case-insensitively after trimming whitespace. */
                 paymentMethod?: components["parameters"]["OrderPaymentMethodFilter"];
                 /** @description Substring match on order number, cashier name, customer name, or linked customer phone/name. */
@@ -7768,7 +7810,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description summary over created_at and current status; with no date parameter the range is unbounded */
+            /** @description sales by sale business day, refunds by refund business day; with no date parameter the range is unbounded */
             200: {
                 headers: {
                     [name: string]: unknown;

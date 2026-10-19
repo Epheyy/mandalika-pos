@@ -25,9 +25,15 @@ const summaryOf = (list: any[]) => {
   const byPaymentMethod: Record<string, number> = {}
   for (const o of completed) byPaymentMethod[o.paymentMethod] = (byPaymentMethod[o.paymentMethod] || 0) + o.total
   const totalSales = completed.reduce((a, o) => a + o.total, 0)
+  // A27: gross = completed + refunded by sale day, refunds on the refund day, net = gross - refunds.
+  const grossSales = totalSales + refunded.reduce((a, o) => a + o.total, 0), totalRefunds = refunded.reduce((a, o) => a + o.total, 0)
+  const grossByPaymentMethod: Record<string, number> = {}
+  for (const o of [...completed, ...refunded]) grossByPaymentMethod[o.paymentMethod] = (grossByPaymentMethod[o.paymentMethod] || 0) + o.total
   return {from: null, to: null, outletId: null, totalSales, totalOrders: completed.length,
-    totalRefunds: refunded.reduce((a, o) => a + o.total, 0), refundedOrders: refunded.length, netSales: totalSales,
-    avgOrderValue: completed.length ? totalSales / completed.length : 0, byPaymentMethod, topProducts: [], dailySales: []}
+    grossSales, grossOrders: completed.length + refunded.length,
+    totalRefunds, refundedOrders: refunded.length, netSales: grossSales - totalRefunds,
+    avgOrderValue: completed.length ? totalSales / completed.length : 0, byPaymentMethod, grossByPaymentMethod,
+    refundsByPaymentMethod: {}, topProducts: [], dailySales: []}
 }
 
 export const setupBackoffice = async (page: ScenarioPage) => {
@@ -80,7 +86,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     await page.getByRole('button',{name:'Laporan',exact:true}).click();
     await page.getByRole('button',{name:'Ekspor',exact:true}).click();
     await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
-    await page.getByText('Total Penjualan',{exact:true}).waitFor();
+    await page.getByText('Penjualan Kotor',{exact:true}).waitFor();
     const csv=await capture();const csvRows=csv.split('\n').length-1;
     check(csvRows===n,`CSV ${csvRows} expected ${n}`);
     const report=await page.locator('main').innerText();
@@ -248,7 +254,7 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     }
     else if(path.endsWith('/reports/summary')){
       const sales=scope==='A'?201*1000:scope==='B'?7000:0,count=scope==='A'?201:scope==='B'?1:0;
-      data={from:null,to:null,outletId:null,totalSales:sales,totalOrders:count,totalRefunds:0,refundedOrders:0,netSales:sales,avgOrderValue:count?sales/count:0,byPaymentMethod:count?{cash:sales}:{},topProducts:[],dailySales:[]};
+      data={from:null,to:null,outletId:null,totalSales:sales,totalOrders:count,totalRefunds:0,refundedOrders:0,netSales:sales,grossSales:sales,grossOrders:count,avgOrderValue:count?sales/count:0,byPaymentMethod:count?{cash:sales}:{},grossByPaymentMethod:count?{cash:sales}:{},refundsByPaymentMethod:{},topProducts:[],dailySales:[]};
       // Hold A's summary too: both polled queries of the tab must ignore a late A response.
       if(scope==='A'){held.push(()=>route.fulfill({json:{data,meta:{total:1,page:1,limit:50}}}));return;}
     }

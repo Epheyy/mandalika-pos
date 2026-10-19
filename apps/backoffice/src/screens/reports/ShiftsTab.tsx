@@ -29,6 +29,8 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
     return fetchAllPages((page, limit) => api.listShifts({ ...params, page, limit }))
   }, [outletId, dateFrom, dateTo])
   const shifts = sq.data ?? []
+  const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
+  const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Ekspor menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   const exportSh = () =>
@@ -42,7 +44,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
         'Kas Awal': s.startingCash,
         'Kas Akhir': s.closingCash || 0,
         'Total Penjualan': s.totalSales,
-        'Total Refund': s.totalRefunds || 0,
+        [REFUND_SHIFT_LABEL]: s.totalRefunds || 0,
         [CASH_REFUNDS_PAID_HEADER]: cashRefundsPaidCell(s),
         'Jumlah Transaksi': s.totalOrders,
         Tunai: s.cashSales,
@@ -81,12 +83,12 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
             {[
               { label: 'Total Penjualan', value: BRAND.currency.format(shifts.reduce((s, sh) => s + sh.totalSales, 0)) },
               { label: 'Total Transaksi', value: String(shifts.reduce((s, sh) => s + sh.totalOrders, 0)) },
-              { label: 'Total Refund', value: BRAND.currency.format(shifts.reduce((s, sh) => s + (sh.totalRefunds || 0), 0)) },
+              { label: REFUND_SHIFT_LABEL, hint: REFUND_SHIFT_HINT, value: BRAND.currency.format(shifts.reduce((s, sh) => s + (sh.totalRefunds || 0), 0)) },
               { label: 'Jumlah Shift', value: String(shifts.length) },
             ].map((c) => (
               <Card key={c.label} className="p-4">
                 <p className="text-xl font-black text-gray-900">{c.value}</p>
-                <p className="text-xs text-gray-400">{c.label}</p>
+                <p className="text-xs text-gray-400" title={'hint' in c ? c.hint : undefined}>{c.label}</p>
               </Card>
             ))}
           </div>
@@ -98,8 +100,8 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {['Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Transaksi', 'Refund', CASH_REFUNDS_PAID_HEADER, 'Penjualan', 'Tunai', 'QRIS', 'Transfer', 'Kartu'].map((h) => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      {['Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Transaksi', REFUND_SHIFT_LABEL, CASH_REFUNDS_PAID_HEADER, 'Penjualan', 'Tunai', 'QRIS', 'Transfer', 'Kartu'].map((h) => (
+                        <th key={h} title={h === REFUND_SHIFT_LABEL ? REFUND_SHIFT_HINT : undefined} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
