@@ -336,6 +336,9 @@ export class SyncEngine {
    *  be compared with the snapshot's only if a pull was applied after the post (the snapshot was read later). */
   private pullsApplied = 0
   private pullsAtPost = 0
+  /** The snapshot's counter when the last batch request went out (undefined = not bound then). A fresh commit is
+   *  always above it, so a response seq at or below it is proof of a restore even if a pull landed meanwhile. */
+  private seqAtPost: number | undefined
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -1424,6 +1427,7 @@ export class SyncEngine {
   private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
     this.lastPostOutlet = this.actorOutlet()
     this.pullsAtPost = this.pullsApplied
+    this.seqAtPost = this.seqBound() ? this.snapshot.localStockSeq() : undefined
     const r = await this.api.request<{ data: BatchResult }>(
       'POST',
       '/api/v1/sync/batch',
@@ -1534,13 +1538,17 @@ export class SyncEngine {
     // (the counter never goes down): the old snapshot's seq says nothing about these sales. Keep every debit
     // unstamped and unskipped, and let noteServerSeq/pullWanted schedule the pull.
     const pullSincePost = this.pullsApplied !== this.pullsAtPost
-    const localSeq = this.snapshot.localStockSeq()
-    if (!pullSincePost && localSeq !== undefined && this.seqBound()) {
-      const seen = [data.stockSeq, ...data.results.map((r) => r.stockSeq)].filter((x): x is number => typeof x === 'number')
-      if (seen.some((x) => x < localSeq)) this.seqRegressed = true
+    const postedAsCurrent = this.lastPostOutlet !== undefined && this.lastPostOutlet === outlet
+    // Only for the outlet the request was sent for (after a switch the counter is another outlet's). The batch
+    // counter is read after the items, so it may equal the seq read before the post only if nothing committed
+    // (strict <); an item's own commit is always above it (<=).
+    const seqPre = this.seqAtPost
+    if (postedAsCurrent && seqPre !== undefined) {
+      const itemSeqs = data.results.map((r) => r.stockSeq).filter((x): x is number => typeof x === 'number')
+      if (itemSeqs.some((x) => x <= seqPre) || (typeof data.stockSeq === 'number' && data.stockSeq < seqPre)) this.seqRegressed = true
     }
     const stampSeq = this.autoPullActive && typeof data.stockSeq === 'number' && outlet !== undefined &&
-      this.lastPostOutlet === outlet && this.seqRulesOn()
+      postedAsCurrent && this.seqRulesOn()
     let needsFollowUp = false
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
@@ -1656,7 +1664,7 @@ export class SyncEngine {
     this.events.onReconcile?.(data)
     // Server returns its version on every ack — refresh wall state.
     const local = this.snapshot.localVersion()
-    this.noteServerSeq(data.stockSeq) // after the entries above are recorded, so an own sale is "explained"
+    if (postedAsCurrent) this.noteServerSeq(data.stockSeq) // another outlet's counter says nothing here; after the entries above are recorded, so an own sale is "explained"
     if (needsFollowUp) this.followUpPull = true
     this.wall = {
       raised: (data.version ?? 0) > local,
