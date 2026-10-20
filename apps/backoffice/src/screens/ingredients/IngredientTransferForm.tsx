@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Ingredient, Outlet, Warehouse, IngredientTransferCreateInput } from '@mandalika/api'
 import { Save } from 'lucide-react'
 import { api } from '../../api'
+import { loadAllIngredients } from '../../lib/loadAll'
 import { Button } from '../../ui/Button'
 import { Field, Textarea, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -49,7 +50,7 @@ export function IngredientTransferForm({ onClose, onCreated }: IngredientTransfe
     Promise.all([
       api.listOutlets(),
       api.listWarehouses(),
-      api.listIngredients({ limit: 200 }).then((r) => r.data.filter((i) => i.isActive)),
+      loadAllIngredients((page, limit) => api.listIngredients({ page, limit })).then((r) => r.filter((i) => i.isActive)),
     ])
       .then(([outs, whs, ings]) => {
         setOutlets(outs)

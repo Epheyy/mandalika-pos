@@ -15,6 +15,7 @@ import {
   ToggleLeft, ToggleRight, Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
+import { loadAllProducts } from '../lib/loadAll'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
@@ -115,7 +116,7 @@ export default function Customers() {
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
   const pq = usePolledQuery<Product[]>(
-    () => api.listProducts().then((r) => r.data.filter((p) => p.isActive)),
+    () => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)),
     [outletId],
   )
   const loyalty = lq.data ?? DEFAULT_LOYALTY
