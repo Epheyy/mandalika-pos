@@ -3,6 +3,7 @@
  * online status, resync, and bootstraps engine on mount.
  */
 
+import { isResyncingNow, nextLastSyncedAt } from './autoPullStatus'
 import { useCallback, use, useEffect, useState } from 'react'
 import type { SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -38,6 +39,8 @@ export interface OfflineDataState {
   accountProblem: string | null
   lastSyncedAt: string | null
   isResyncing: boolean
+  /** Background pulls can still happen (not suspended by a 4xx, not at the hourly cap). */
+  autoPullAvailable: boolean
   resync: () => Promise<void>
   flush: () => void
   /** Re-queue parked items. Rejects if the reset could not be stored (items stay parked). */
@@ -90,7 +93,9 @@ export function useOfflineData(): OfflineDataState {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
-  const [isResyncing, setIsResyncing] = useState(false)
+  const [manualResyncing, setManualResyncing] = useState(false)
+  const [enginePulling, setEnginePulling] = useState(() => engine.isPulling())
+  const [autoPullAvailable, setAutoPullAvailable] = useState(() => engine.autoPullAvailable())
 
   useEffect(() => {
     // Browser online/offline events are only hints here — on a connectivity
@@ -119,7 +124,7 @@ export function useOfflineData(): OfflineDataState {
   }, [engine])
 
   const resync = useCallback(async () => {
-    setIsResyncing(true)
+    setManualResyncing(true)
     try {
       await engine.resync()
       const now = new Date().toISOString()
@@ -127,7 +132,7 @@ export function useOfflineData(): OfflineDataState {
       localStorage.setItem('mandalika.pos.lastSyncedAt', now)
       setWall(engine.getWall())
     } finally {
-      setIsResyncing(false)
+      setManualResyncing(false)
     }
   }, [engine])
 
@@ -146,6 +151,15 @@ export function useOfflineData(): OfflineDataState {
       })
       setAccountProblem(engine.accountProblem())
       setIsOnline(engine.isReachable())
+      // Background pulls: show them as syncing and keep "last synced" honest.
+      setEnginePulling(engine.isPulling())
+      setAutoPullAvailable(engine.autoPullAvailable())
+      setLastSyncedAt((prev) => {
+        const next = nextLastSyncedAt(prev, engine.lastPulledAt())
+        if (next === null) return prev
+        localStorage.setItem('mandalika.pos.lastSyncedAt', next)
+        return next
+      })
     }, 2000)
     return () => clearInterval(interval)
   }, [engine])
@@ -169,7 +183,8 @@ export function useOfflineData(): OfflineDataState {
     stuck: attn.stuck,
     accountProblem,
     lastSyncedAt,
-    isResyncing,
+    isResyncing: isResyncingNow(manualResyncing, enginePulling),
+    autoPullAvailable,
     resync,
     flush,
     retryFailed,

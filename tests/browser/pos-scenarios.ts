@@ -25,15 +25,15 @@ export const setupPos = async (page: ScenarioPage) => {
   const settings={taxEnabled:false,taxRate:0,roundingEnabled:false,roundingType:'none',allowNegativeStock:true,autoOpenShift:false,paymentMethods:[{id:'cash',label:'Tunai',isEnabled:true},{id:'qris',label:'QRIS',isEnabled:true}],receipt:{headerText:'Synthetic receipt',footerText:'Test only',showTax:false,showCashier:true}};
   const user={id:'00000000-0000-4000-8300-000000000091',displayName:'Synthetic Cashier',role:'admin',outletId:'00000000-0000-4000-8300-000000000090',permissions:['create_order','manage_promotions']};
   const snapshot={version:1,products,categories:[],bundles:[],customers:[customer],promotions,discountCodes:codes,loyaltyConditions:[],loyaltySettings:{enabled:true,tierEnabled:false,pointsPerThousand:1,redemptionRate:100},appSettings:settings,outletName:'Synthetic Outlet',outletCode:'SYN',salesmen:[]};
-  page.__a24={products,promotions,codes,customer,snapshot,calls:[],writes:[],unexpected:[]};
+  page.__a24={products,promotions,codes,customer,snapshot,version:1,calls:[],writes:[],unexpected:[]};
   await page.unrouteAll({behavior:'wait'});
   await page.route('http://127.0.0.1:59999/api/v1/**',async route=>{
     const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0], method=req.method();
     page.__a24.calls.push({path,method});
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
-    else if(path.endsWith('/sync/pull')) data=snapshot;
-    else if(path.split('?')[0].endsWith('/sync/version')) data={version:1};
+    else if(path.endsWith('/sync/pull')) data={...snapshot,version:page.__a24.version};
+    else if(path.split('?')[0].endsWith('/sync/version')) data={version:page.__a24.version};
     else if(path.endsWith('/sync/batch')) {page.__a24.writes.push(req.postDataJSON()); return route.fulfill({status:503,json:{error:'Synthetic retain-only transport'}});}
     else if(path.endsWith('/shifts/current')) data={id:'00000000-0000-4000-8300-000000000080',status:'open',startingCash:1100000,cashierId:user.id,outletId:user.outletId,openedAt:new Date().toISOString()};
     else if(path.endsWith('/products')) {const q=new URL(req.url()).searchParams;const n=Number(q.get('page'))||1,lim=Number(q.get('limit'))||50;return route.fulfill({status:200,json:{data:products.slice((n-1)*lim,n*lim),meta:{total:products.length,page:n,limit:lim}}});}
@@ -251,3 +251,57 @@ export const posRecap = async (page: ScenarioPage) =>{
   if(JSON.stringify(cache)!==JSON.stringify(finalCache))throw new Error('failed/offline reads modified cache');
   return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};
 }
+
+// Auto-pull: a version bump is pulled by itself, but only while the cart is empty. Time is driven with
+// page.clock; each step lets the real (intercepted) fetches settle before the fake clock moves on.
+export const posAutoPull = async (page: ScenarioPage) => {
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) };
+  const count = (suffix: string) => page.__a24.calls.filter((c: any) => c.path.endsWith(suffix)).length;
+  const pulls = () => count('/sync/pull');
+  const body = () => page.locator('body').innerText();
+  await page.evaluate(() => { localStorage.setItem('pos_cardStock', '1'); });
+  await page.clock.install({ time: Date.now() });
+  await page.reload();
+  await page.getByRole('button', { name: /Synthetic Scent/ }).first().waitFor(); // the stock line changes the card's accessible name
+  const advance = async (seconds: number, until: () => Promise<boolean> | boolean = () => false) => {
+    for (let i = 0; i < seconds; i++) {
+      if (await until()) return true;
+      await page.clock.runFor(1000);
+      await page.waitForTimeout(40);
+    }
+    return until();
+  };
+  const out: any[] = [];
+
+  // 1. Empty cart: a bump raises the chip, then exactly one pull clears it by itself.
+  const n0 = pulls();
+  assert(!(await body()).includes('77'), 'new stock is not on screen before the pull');
+  page.__a24.products[0].variants[0].stock = 77; // real data change in the pull body
+  page.__a24.version = 2;
+  assert(await advance(60, async () => (await body()).includes('Pembaruan tersedia')), 'the chip shows the raised wall');
+  assert(await advance(90, () => pulls() === n0 + 1), 'one automatic pull for the bump');
+  assert(await advance(30, async () => (await body()).includes('Tersinkron')), 'the chip clears after the pull');
+  assert((await body()).includes('77'), 'the new stock reaches the screen after the pull');
+  await advance(180);
+  assert(pulls() === n0 + 1, 'no further pulls once synced');
+  out.push({ step: 'bump with empty cart', pulls: pulls() - n0 });
+
+  // 2. A cart line blocks the pull however long we wait.
+  await page.getByRole('searchbox').fill('SYN-M');
+  await page.getByRole('searchbox').press('Enter');
+  const n1 = pulls();
+  page.__a24.version = 3;
+  assert(await advance(60, async () => (await body()).includes('Pembaruan tersedia')), 'the chip shows the second bump');
+  await advance(240);
+  assert(pulls() === n1, 'no pull while the cart has an item');
+  assert((await body()).includes('Pembaruan tersedia'), 'the chip stays raised while deferred');
+  out.push({ step: 'bump with item in cart', pulls: pulls() - n1 });
+
+  // 3. Clearing the cart lets it through.
+  await page.getByRole('button', { name: 'Hapus semua', exact: true }).click();
+  assert(await advance(60, () => pulls() === n1 + 1), 'one pull after the cart is cleared');
+  assert(await advance(30, async () => (await body()).includes('Tersinkron')), 'the chip clears after the deferred pull');
+  out.push({ step: 'cart cleared', pulls: pulls() - n1 });
+  return out;
+};
+

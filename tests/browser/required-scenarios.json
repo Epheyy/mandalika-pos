@@ -68,6 +68,12 @@
       "source": "scripts/a26-browser/pos-recap.js"
     },
     {
+      "id": "POS-AUTOPULL",
+      "finding": "AUTOPULL",
+      "description": "A version bump raises the chip and is pulled once by itself; with an item in the cart no pull happens; clearing the cart lets exactly one pull through",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",

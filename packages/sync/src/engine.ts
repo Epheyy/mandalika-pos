@@ -8,6 +8,7 @@ import { SyncedRefunds } from './syncedRefunds'
 import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine } from './settlingDebits'
+import { AutoPullScheduler, AUTO_PULL } from './autoPull'
 import { redactForLogs, redactSecrets, redactString } from './redact'
 import { OfflineContact, type OfflineCapState } from './offlineContact'
 
@@ -272,6 +273,9 @@ export interface PendingShiftOp {
 export const ENVELOPE_REFUSED_MESSAGE =
   'Akun atau outlet terminal belum terverifikasi. Masuk ulang atau hubungi admin.'
 
+/** What a resync did: swapped the snapshot, lost to a newer pull / retirement, or was held back by the gate. */
+export type ResyncStatus = 'applied' | 'stale' | 'deferred'
+
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
 
 /** Every element must be an object with string idempotencyKey and note (name defaults to ''). */
@@ -299,6 +303,25 @@ export class SyncEngine {
   private archiveFailures = 0
   private creditedView: Bundle | null = null
   private flushing = false
+  private resyncFlight: Promise<ResyncStatus> | null = null
+  // Background pull (auto-pull plan): the engine owns the timing, the app supplies the gate.
+  private readonly autoPull = new AutoPullScheduler({
+    now: () => Date.now(),
+    random: () => Math.random(),
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    run: () => { void this.autoPullRun() },
+    log: (m) => console.warn(m),
+  })
+  /** The app's "safe to swap reference data now" check. No gate registered = never auto-pull. */
+  private autoPullGate: (() => boolean) | null = null
+  /** On between start() and stop(), and never in flushOnly (A04 mismatch) mode. */
+  private autoPullActive = false
+  /** Highest server version the scheduler has been armed for (a higher one restarts the jitter). */
+  private autoPullSeenVersion = 0
+  private pulledAt: number | null = null
+  /** An order acked inside the pull window may be counted twice (pulled stock + kept debit): pull once more. */
+  private followUpPull = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -447,6 +470,7 @@ export class SyncEngine {
     this.disposed = true
     this.disposeEpoch += 1
     this.settling.dispose()
+    this.autoPull.cancel()
     this.stopTimers?.()
     this.stopTimers = null
     this.outbox.dispose()
@@ -479,20 +503,47 @@ export class SyncEngine {
 
   // ── Reference snapshot ──────────────────────────────────
 
-  /** Initial/refresh pull when online; atomically swaps the local snapshot. */
-  async resync(): Promise<void> {
+  /** Initial/refresh pull when online; atomically swaps the local snapshot.
+   *  Single-flight: concurrent callers share one request. `shouldApply` (auto-pull gate) is asked again
+   *  after the response arrives; false discards the response and answers 'deferred'. A caller without a
+   *  gate that joins a gated pull which ends 'deferred' runs a fresh ungated pull (manual always applies). */
+  resync(opts: { shouldApply?: () => boolean } = {}): Promise<ResyncStatus> {
+    const inflight = this.resyncFlight
+    if (inflight) {
+      if (opts.shouldApply) return inflight
+      return inflight.then((s) => (s === 'deferred' ? this.resync() : s))
+    }
+    const p: Promise<ResyncStatus> = this.pullOnce(opts.shouldApply)
+      .then((status) => {
+        this.afterWallUpdate() // every outcome: applied clears the wall, deferred/stale may need a re-arm
+        return status
+      })
+      .finally(() => {
+        if (this.resyncFlight === p) this.resyncFlight = null
+      })
+    this.resyncFlight = p
+    return p
+  }
+
+  private async pullOnce(shouldApply?: () => boolean): Promise<ResyncStatus> {
     // A15: number the pull before it is sent. Debits acked before this number was taken are in what the
     // server answers; anything acked after (or while) it is in flight stays until a later pull.
     const epoch = this.disposeEpoch
     const pullNo = await this.settling.beginPull()
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
-    if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
+    if (this.disposeEpoch !== epoch) return 'stale' // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
     this.noteContact() // a 2xx pull is a contact (unsigned: the pull carries no token)
+    this.autoPull.succeeded() // any 2xx pull resets the backoff and lifts a 4xx suspension
+    // Gate re-check BEFORE anything is applied: the cashier may have started a sale while the pull was in
+    // flight. The pull number used is harmless (`applied` does not move).
+    if (shouldApply && !shouldApply()) return 'deferred'
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
     // A response older than one already applied would roll the snapshot (and stock) back.
-    if (!this.settling.applyPull(pullNo, known)) return
+    if (!this.settling.applyPull(pullNo, known)) return 'stale'
+    // NO await from here to the end of the method: applyPull -> replace -> retire -> recomputeCredited
+    // -> wall is one synchronous block, so React can never render a half-swapped state (A15/A30).
     this.snapshot.replace(r.data)
     this.pending.retire(r.data.version ?? 0)
     this.recomputeCredited()
@@ -502,6 +553,86 @@ export class SyncEngine {
       serverVersion: r.data.version ?? 0,
     }
     this.events.onWall?.(this.wall)
+    this.pulledAt = Date.now()
+    // An entry this pull did not retire was acked after its number was taken; the server read may already
+    // include that sale, and sales never bump the version, so nothing else would heal it.
+    this.followUpPull = this.settling.list().some((e) => e.gen >= pullNo)
+    return 'applied'
+  }
+
+  /** True while a pull (manual or automatic) is in flight. */
+  isPulling(): boolean {
+    return this.resyncFlight !== null
+  }
+
+  /** When the last pull (manual or automatic) was applied, epoch ms; null before the first. */
+  lastPulledAt(): number | null {
+    return this.pulledAt
+  }
+
+  /** The app says when a background pull may swap reference data (it is asked again after the response
+   *  arrives). `null` removes it. Without a gate nothing is ever pulled automatically. */
+  setAutoPullGate(gate: (() => boolean) | null): void {
+    this.autoPullGate = gate
+    if (gate) this.afterWallUpdate()
+  }
+
+  /** The gate went busy -> idle: a pull that was waiting for it may go ahead (2-5 s later). */
+  nudgeAutoPull(): void {
+    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull) || !this.gateAllows()) return
+    this.autoPull.nudge()
+  }
+
+  /** True while background pulls can still happen: running, gated by the app, not suspended by a 4xx and
+   *  not at the hourly cap. The UI uses it to stop promising an automatic update. */
+  autoPullAvailable(): boolean {
+    return this.autoPullActive && this.autoPullGate !== null && !this.autoPull.isSuspended() && !this.autoPull.isCapped()
+  }
+
+  private gateAllows(): boolean {
+    const gate = this.autoPullGate
+    if (!gate) return false
+    try { return gate() } catch { return false }
+  }
+
+  /** Called whenever the wall may have changed (poll, batch ack, any resync outcome). */
+  private afterWallUpdate(): void {
+    if (!this.wall.raised && !this.followUpPull) {
+      this.autoPull.cancel() // nothing left to pull (e.g. the cashier tapped sync)
+      return
+    }
+    if (this.disposed || !this.autoPullActive || !this.autoPullGate) return
+    const rose = this.wall.raised && this.wall.serverVersion > this.autoPullSeenVersion
+    this.autoPullSeenVersion = Math.max(this.autoPullSeenVersion, this.wall.serverVersion)
+    if (!this.gateAllows()) {
+      this.autoPull.markWaiting() // no timer: re-evaluated on the next poll or a nudge
+      return
+    }
+    this.autoPull.wantPull(rose)
+  }
+
+  /** The scheduler timer fired: re-check every precondition, then pull. */
+  private async autoPullRun(): Promise<void> {
+    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull)) return
+    if (!ONLINE() || !this.reachable) return // offline is always a no-op; the next poll / online event re-arms
+    if (!this.gateAllows()) { this.autoPull.markWaiting(); return }
+    // A sale flush is running: a pull in flight across its ack would leave stock LOW until the next
+    // pull, and sales never bump the version. Do NOT wait for an empty outbox (parked items would starve
+    // pulls): pendingStockDeltas() keeps subtracting unacked and parked orders.
+    if (this.flushing) { this.autoPull.retryIn(AUTO_PULL.FLUSHING_RECHECK_MS); return }
+    this.autoPull.attemptStarted()
+    try {
+      const status = await this.resync({ shouldApply: () => this.gateAllows() })
+      if (status === 'deferred') this.autoPull.markWaiting()
+    } catch (err) {
+      const failure = classifyFailure(err, ONLINE())
+      if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
+        this.autoPull.suspend() // refused: stay quiet until a later version poll succeeds
+      } else {
+        this.autoPull.failed()
+      }
+    }
+    this.afterWallUpdate()
   }
 
   /** Read-only: version of the reference data (catalog, prices, rules) this device sells against. */
@@ -540,6 +671,8 @@ export class SyncEngine {
       }
       this.events.onWall?.(this.wall)
       this.accountProblemMsg = null // the account/outlet is fine again (e.g. a terminal outlet was picked)
+      this.autoPull.resume() // a version 2xx lifts a 4xx suspension of the background pull
+      this.afterWallUpdate()
     } catch (err) {
       this.contacts.state(this.newestCaptureMs()) // time passes offline: advance the high-water mark
       const failure = classifyFailure(err, true)
@@ -1409,6 +1542,7 @@ export class SyncEngine {
       serverVersion: data.version ?? 0,
     }
     this.events.onWall?.(this.wall)
+    this.afterWallUpdate() // the ack can raise the wall too (own transfer receive): arm from here as well
   }
 
   /** Report (once each) items stuck in retryable failures; they keep retrying. */
@@ -1475,6 +1609,7 @@ export class SyncEngine {
     this.settling.revive()
     this.outbox.revive()
     this.autoCheckIn = !opts.flushOnly
+    this.autoPullActive = !opts.flushOnly // flushOnly must never read the account's outlet data
     // A08: drop any raw approver PIN that older code queued. Best effort and once per engine: a
     // failed write is logged inside the outbox and the scrub runs again at the next app start.
     if (!this.legacyScrubbed) {
@@ -1487,6 +1622,7 @@ export class SyncEngine {
     const inbound = () => { if (!opts.flushOnly) void this.pollInbound() }
     const onOnline = () => {
       this.resetBackoff()
+      this.autoPull.resetBackoff()
       void this.flush()
       void this.checkVersion()
       inbound()
@@ -1512,6 +1648,8 @@ export class SyncEngine {
       }
       clearInterval(timer)
       this.autoCheckIn = false
+      this.autoPullActive = false
+      this.autoPull.cancel()
     }
     this.stopTimers = stop
     return stop

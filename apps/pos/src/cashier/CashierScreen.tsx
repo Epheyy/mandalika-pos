@@ -9,6 +9,7 @@ import { normalizePhone, type LocalReceipt } from '@mandalika/sync'
 import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
+import { useAutoPullGate } from './autoPullGate'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
 import { buildTandaTerimaData } from './transfers/buildTandaTerimaData'
 import { TransferHistoryPanel } from './TransferHistoryPanel'
@@ -271,6 +272,17 @@ export default function CashierScreen() {
 
   // Pending picker context has no effect on the sale until confirmed.
   const [pendingFulfillment, setPendingFulfillment] = useState<(Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: components['schemas']['Product'][] }) | null>(null)
+  // Background reference pull (auto-pull): the engine may swap the catalog only while nothing is in flight.
+  useAutoPullGate(engine, {
+    cartCount: state.cart.length, isCheckoutOpen: state.isCheckoutOpen, isProcessing: state.isProcessing,
+    isSuccessOpen: state.isSuccessOpen, hasRefundOrder: !!refundOrder, hasRefundSale: !!refundSale, isRefunding,
+    showReceive, hasPendingReceive: !!pendingReceive, hasPendingTT: !!pendingTT, hasPendingFulfillment: !!pendingFulfillment,
+    isAddingCustomer, isSavingCustomer, hasActiveAdjustment: !!state.activeAdjustment, showHistory, showLocalReceipts,
+    showRecap, showTransferHistory, showSettings, showMenu, shiftPrompt, closeIntent,
+    hasSelectedCustomer: !!state.selectedCustomer, hasSelectedSalesman: !!state.selectedSalesman,
+    appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
+    pointsToRedeem: state.pointsToRedeem,
+  })
 
   useEffect(() => {
     if (
@@ -993,7 +1005,7 @@ export default function CashierScreen() {
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
-            offlineCap={offlineCap} isResyncing={offlineData.isResyncing}
+            offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />

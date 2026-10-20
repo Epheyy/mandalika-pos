@@ -12,6 +12,27 @@ const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStat
 }))
 
 describe('SyncStatus chip', () => {
+  const raised = { raised: true, localVersion: 1, serverVersion: 2 }
+
+  it('shows "Memperbarui..." while a pull is in flight and the wall is raised', () => {
+    expect(render({ wall: raised, isResyncing: true })).toContain('Memperbarui...')
+  })
+
+  it('keeps "Pembaruan tersedia" as the status while the wall is raised and idle', () => {
+    expect(render({ wall: raised })).toContain('Pembaruan tersedia')
+  })
+
+  it('"Memperbarui..." ranks below review, account, stuck and pending', () => {
+    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).toContain('Perlu ditinjau (1)')
+    expect(render({ wall: raised, isResyncing: true, accountProblem: 'x' })).toContain('Masalah akun/outlet')
+    expect(render({ wall: raised, isResyncing: true, stuck: [item('a')], pendingCount: 1 })).toContain('Tertunda (1)')
+    expect(render({ wall: raised, isResyncing: true, pendingCount: 2 })).toContain('Menyinkronkan 2')
+    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).not.toContain('Memperbarui...')
+  })
+
+  it('a manual-only sync with no raised wall does not claim an update', () => {
+    expect(render({ isResyncing: true })).not.toContain('Pembaruan tersedia')
+  })
   it('shows "Perlu ditinjau (n)" for parked items', () => {
     expect(render({ review: [item('a'), item('b')] })).toContain('Perlu ditinjau (2)')
   })
@@ -89,3 +110,22 @@ describe('SyncStatus offline cap (A05)', () => {
     expect(renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'ok', offlineMs: 1 } }))).toBe('')
   })
 })
+
+describe('SyncStatus automatic-update note', () => {
+  it('is shown by default only while the wall is raised and auto-pull is available (source pin: the panel is client-side state)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('./SyncStatus.tsx', import.meta.url), 'utf8')
+    expect(src).toContain('updateAvailable && autoUpdate &&')
+    expect(src).toContain('autoUpdate = true')
+  })
+})
+
+describe('SyncStatus panel note', () => {
+  it('explains the automatic update when the wall is raised (panel open state is client-side, so check the source)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('./SyncStatus.tsx', import.meta.url), 'utf8')
+    expect(src).toContain('Diperbarui otomatis saat keranjang kosong.')
+    expect(src).not.toContain('the cashier decides when to sync')
+  })
+})
+
