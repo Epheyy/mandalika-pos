@@ -5,8 +5,8 @@ controller spot-checked A14 (confirmed: `write/stockcount.go` CompleteStockCount
 A33 (refresh-token validity lives in Redis) and A36 (no backup workflow). P0s A01–A04/A06/A09/A11/A13 and A31
 are done and not repeated here. Statuses: Resolved / Mostly / Partial / Open / Policy-blocked.
 
-Totals: Resolved 1 (A24) · Mostly 11 (A05 A12 A23 A26 A27 A29 A32 A34 A35 A40 A43) · Partial 9 (A07 A10 A18 A25 A28 A30 A37 A38 A42)
-· Open 11 (A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A44) · Policy-blocked 1 (A20) · A41 fixed locally 2026-10-20 (merge `a163d61`, not deployed) · A08 fixed locally 2026-10-20 (merge `d794fdb`, not deployed).
+Totals superseded by 2026-10-20-pre-reaudit-status.md (this table is stale)
+Previous totals (stale): Resolved 1 (A24) · Mostly 11 (A05 A12 A23 A26 A27 A29 A32 A34 A35 A40 A43) · Partial 9 (A07 A10 A18 A25 A28 A30 A37 A38 A42) · Open 11 (A14 A15 A16 A17 A19 A21 A22 A33 A36 A39 A44) · Policy-blocked 1 (A20) · A41 fixed locally 2026-10-20 (merge `a163d61`, not deployed) · A08 fixed locally 2026-10-20 (merge `d794fdb`, not deployed).
 
 
 ---

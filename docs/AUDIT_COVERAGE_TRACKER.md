@@ -1,5 +1,7 @@
 # Canonical audit coverage tracker — A01–A44
 
+> **2026-10-20:** release 8 is live (A28, A27 incl. T7, A05, A30, A41, A08 + A29/A26/A10/A23). Where a row below still says 'revalidation' or 'NOT pushed/released', it is stale. Current truth: `docs/audits/2026-10-20-pre-reaudit-status.md`.
+
 ## A34 release gates — implemented 2026-10-12 (Claude workflow)
 
 APK: `release_type` test|production; production fails on debug settings (`scripts/ci/release_debug_gate*.mjs`, 12 tests;
@@ -931,10 +933,10 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A02 | P0 | S0a | Open; A02-export scoped review accepted; retry/retention gaps remain | T02 (export subset only verified) |
 | A03 | P0 | S1 | Source-confirmed open; runtime unverified | T03 |
 | A04 | P0 | S1 | Needs current behavioral revalidation; source matches audit; clarified design / owner decisions pending | T04a–T04e |
-| A05 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T05 |
+| A05 | P1 | S1 | Needs current behavioral revalidation; source matches audit see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T05 |
 | A06 | P0 | S0b | Open; permission-parity subtask reviewed/accepted within E08 limits | T06 (containment subset only) |
 | A07 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T05 |
-| A08 | P1 | S1 | Fixed locally 2026-10-20 (merge `d794fdb`, migrations 0062 + 0063 PIN wipe, PG gate RA; NOT pushed or deployed); see docs/plans/2026-10-20-a08-receive-stepup.md | T06 |
+| A08 | P1 | S1 | Fixed locally 2026-10-20 (merge `d794fdb`, migrations 0062 + 0063 PIN wipe, PG gate RA; NOT pushed or deployed); see docs/plans/2026-10-20-a08-receive-stepup.md see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T06 |
 | A09 | P0 | S0c | Open; input/numeric containment scoped review accepted | T07 (C01–C12 bounded evidence) |
 | A10 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
 | A11 | P0 | S1 | FIXED for /sync/batch 2026-10-10 (`03bc7e7`,`7c432ec`; rev 00084-rav; mig 0045): operation receipts; PG gate OR fails on old code. Direct HTTP routes + orders' processed_keys fingerprint not covered | T08 |
@@ -953,10 +955,10 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A24 | P1 | A24 guest-sale containment (S0e) | Locally verified; scoped accepted E24; parent/attachment/release open | T22 |
 | A25 | P1 | S5 | Needs current behavioral revalidation; source matches audit | T22 |
 | A26 | P1 | A26-pagination-completeness | Open; E26 scoped ChatGPT acceptance; remaining inventory/qualification | T23 |
-| A27 | P1 | A27-summary-double-subtraction | Mostly: refund-date basis (gross minus refunds on refund business day) built and merged locally 2026-10-19 (mig 0060), NOT released; Dashboard net (T7) pending owner answer; see docs/plans/2026-10-19-a27-refund-date-basis.md | T24 |
-| A28 | P1 | S1 | Mostly: per-outlet timezone + stored business date (shift opening date) built and merged locally 2026-10-19 (mig 0059, gate BD), NOT released; no return deadline by owner policy; see docs/plans/2026-10-19-a28-outlet-timezone.md | T24 |
+| A27 | P1 | A27-summary-double-subtraction | Mostly: refund-date basis (gross minus refunds on refund business day) built and merged locally 2026-10-19 (mig 0060), NOT released; Dashboard net (T7) pending owner answer; see docs/plans/2026-10-19-a27-refund-date-basis.md see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T24 |
+| A28 | P1 | S1 | Mostly: per-outlet timezone + stored business date (shift opening date) built and merged locally 2026-10-19 (mig 0059, gate BD), NOT released; no return deadline by owner policy; see docs/plans/2026-10-19-a28-outlet-timezone.md see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T24 |
 | A29 | P1 | S1 / promotion-resource-safety | Open; resource/error direction recorded, implementation unverified | T25 |
-| A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T04a–T04e,T06 |
+| A30 | P1 | S1 | Needs current behavioral revalidation; source matches audit see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T04a–T04e,T06 |
 | A31 | P2 | A31-polling containment (S0g) | Resolved; E30 ChatGPT acceptance of original stale-scope race | T26 |
 | A32 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T27 |
 | A33 | P1 | S6 | Needs current behavioral revalidation; source matches audit | T28 |
@@ -967,7 +969,7 @@ original audit paragraph plus the refined A04/A14 contracts, not just test IDs.
 | A38 | P2 | A34e–e14c scoped progress; e15b design accepted only; e15c facts | Open; active6/4 retained, no fresh scan; chi trust resolved 2026-10-10 (RealIP removed); OpenPGP/rgbcolor unresolved | T33 |
 | A39 | P2 | S0j | Built 2026-10-16 on a local branch (server-side import, PG gate IM, formula-safe export); not pushed or deployed | T32 |
 | A40 | P3 | S0docs | Documentation improved; broader documentation acceptance not closed | A40 audit acceptance (no dedicated T ID) |
-| A41 | P1 | S2 | Fixed locally 2026-10-20 (merge `a163d61`, NO migration; local receipt archive + linked offline refunds + backend uuid resolution; PG gate OF); NOT pushed or deployed; see docs/plans/2026-10-20-a41-local-receipts.md | T30 |
+| A41 | P1 | S2 | Fixed locally 2026-10-20 (merge `a163d61`, NO migration; local receipt archive + linked offline refunds + backend uuid resolution; PG gate OF); NOT pushed or deployed; see docs/plans/2026-10-20-a41-local-receipts.md see docs/audits/2026-10-20-pre-reaudit-status.md (2026-10-20). | T30 |
 | A42 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T34 |
 | A43 | P1 | S0d-shift-decode / batch-envelope | Open; outer-envelope correction scoped accepted; readback/broader intake remain | T25 |
 | A44 | P1 | S1 | Needs current behavioral revalidation; source matches audit | T07 |
