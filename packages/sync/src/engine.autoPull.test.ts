@@ -23,6 +23,7 @@ function makeServer() {
     pullGate: null as Promise<void> | null,
     pullFail: null as { status: number } | null,
     batchGate: null as Promise<void> | null,
+    batchFail: false,
   }
   const request = vi.fn(async (method: string, path: string, body?: { items: { idempotencyKey: string }[] }) => {
     if (method === 'GET' && path.includes('/sync/pull')) {
@@ -45,6 +46,7 @@ function makeServer() {
     if (method === 'POST' && path.includes('/sync/review-items')) return { data: { resolved: [] } }
     if (method === 'POST' && path.includes('/sync/batch') && body) {
       if (s.batchGate) await s.batchGate
+      if (s.batchFail) throw Object.assign(new Error('busy'), { status: 503, kind: 'http' })
       return {
         data: {
           processed: body.items.length,
@@ -78,6 +80,8 @@ async function until<T>(p: Promise<T>): Promise<T> {
   while (!done) await advance(1)
   return p
 }
+// Test-only peek at the settling counters (no public accessor on purpose).
+const applied = (e: SyncEngine) => (e as unknown as { settling: { state: { applied: number } } }).settling.state.applied
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms)
 
 beforeEach(() => {
@@ -184,6 +188,9 @@ describe.each(['kv', 'journal'] as const)('engine auto-pull over the %s store', 
     s.stock = 9
     const g = gate()
     s.pullGate = g.p
+    const appliedBefore = applied(engine)
+    const snapBefore = engine.getSnapshot()
+    const creditsBefore = engine.pending.list()
     await advance(POLL + 5_000) // request is now in flight
     expect(s.pulls).toBe(1)
     expect(engine.isPulling()).toBe(true)
@@ -194,6 +201,9 @@ describe.each(['kv', 'journal'] as const)('engine auto-pull over the %s store', 
     expect(engine.referenceVersion()).toBe(1)
     expect(stockOf(engine)).toBe(5)
     expect(engine.getWall().raised).toBe(true)
+    expect(applied(engine)).toBe(appliedBefore) // settling counters untouched by the discarded response
+    expect(engine.getSnapshot()).toBe(snapBefore)
+    expect(engine.pending.list()).toEqual(creditsBefore)
     s.pullGate = null
     gateState.open = true
     engine.nudgeAutoPull()
@@ -254,6 +264,40 @@ describe.each(['kv', 'journal'] as const)('engine auto-pull over the %s store', 
     expect(shown(engine)).toBe(3)
   })
 
+  it('M1: an order acked inside a pull window is not left double-counted; one follow-up pull converges', async () => {
+    const { s, engine } = await setup(kind)
+    await queue(engine, 2)
+    s.batchFail = true // the poll-tick flush fails, so the ack can land inside the pull window
+    s.version = 2
+    s.stock = 3 // the server already holds the sale
+    const g = gate()
+    s.pullGate = g.p
+    await advance(POLL + 5_000) // pull in flight: reads stock 3
+    expect(s.pulls).toBe(1)
+    s.pullGate = null
+    s.batchFail = false
+    await until(engine.flushNow()) // the ack lands while that pull is in flight: debit kept (gen >= pull number)
+    g.open()
+    await advance(1)
+    expect(stockOf(engine)).toBe(3)
+    expect(shown(engine)).toBe(1) // the transient: pulled value already had the sale, the kept debit subtracts again
+    await advance(5 * 60_000) // one follow-up pull (60 s floor), not a loop
+    expect(s.pulls).toBe(2)
+    expect(engine.pendingStockDeltas()).toEqual({})
+    expect(shown(engine)).toBe(3)
+  })
+
+  it('M1: no follow-up when the pull retired every settling debit', async () => {
+    const { s, engine } = await setup(kind)
+    await queue(engine, 2)
+    s.stock = 3
+    s.version = 2
+    await until(engine.flushNow()) // ack first, pull afterwards: the pull is sent after the ack and retires it
+    await advance(10 * 60_000)
+    expect(s.pulls).toBe(1)
+    expect(shown(engine)).toBe(3)
+  })
+
   it('a credit acked during a pull is kept by it and heals, without double counting, at the next auto-pull', async () => {
     const { s, engine } = await setup(kind)
     engine.pending.add({ idempotencyKey: 'k1', lines: [{ productId: 'p1', variantSize: '10ml', qty: 2 }], ackVersion: null })
@@ -292,20 +336,29 @@ describe.each(['kv', 'journal'] as const)('engine auto-pull over the %s store', 
     expect(s.pulls).toBeLessThanOrEqual(8) // 60 s floor and backoff bound the rate
   })
 
+  it('autoPullAvailable is false without a gate, in flushOnly, and after a 4xx; true otherwise', async () => {
+    expect((await setup(kind, { noGate: true })).engine.autoPullAvailable()).toBe(false)
+    expect((await setup(kind, { flushOnly: true })).engine.autoPullAvailable()).toBe(false)
+    const { s, engine } = await setup(kind)
+    expect(engine.autoPullAvailable()).toBe(true)
+    s.version = 2
+    s.pullFail = { status: 403 }
+    await advance(POLL + 5_000)
+    expect(engine.autoPullAvailable()).toBe(false)
+  })
+
   it('a 4xx on the pull suspends auto-pull until a later version 2xx, then respects the floor', async () => {
     const { s, engine } = await setup(kind)
     s.version = 2
     s.pullFail = { status: 403 }
     await advance(POLL + 5_000)
     expect(s.pulls).toBe(1)
-    const firstAt = Date.now()
     s.pullFail = null
     await advance(POLL - 6_000) // before the next poll: still suspended
     expect(s.pulls).toBe(1)
     await advance(10 * 60_000)
     expect(s.pulls).toBe(2) // resumed by the poll's 2xx, spaced by the 60 s floor
     expect(engine.getWall().raised).toBe(false)
-    expect(firstAt).toBeGreaterThan(0)
   })
 
   it('storm: 50 version bumps in 10 minutes produce at most 10 pulls', async () => {

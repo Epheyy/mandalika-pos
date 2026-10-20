@@ -121,7 +121,7 @@ describe('A15 settling debits', () => {
 
   it('4: overlapping resyncs share one pull, so an older read can never land after a newer one', async () => {
     // Single-flight (auto-pull T1): the out-of-order guard is still unit-tested in settlingDebits.test.ts.
-    const { s, engine } = await setup()
+    const { s, engine, api } = await setup()
     await engine.enqueue('order', order())
     s.stock = 3
     await send(engine)
@@ -131,6 +131,8 @@ describe('A15 settling debits', () => {
     const joined = engine.resync() // joins the in-flight pull instead of sending a second request
     g.open()
     await Promise.all([slow, joined])
+    const pullCalls = (api.request as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter((c) => String(c[1]).includes('/sync/pull'))
+    expect(pullCalls).toHaveLength(2) // boot pull + the single shared one
     expect(engine.getSnapshot().products?.[0]?.variants[0].stock).toBe(3)
     expect(shown(engine)).toBe(3)
   })

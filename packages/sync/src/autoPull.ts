@@ -49,6 +49,11 @@ export class AutoPullScheduler {
   isScheduled(): boolean { return this.timer !== null }
   isWaiting(): boolean { return this.waiting }
   isSuspended(): boolean { return this.suspended }
+  /** The rolling-hour cap is used up (manual sync still works). */
+  isCapped(): boolean {
+    this.pruneAttempts(this.deps.now())
+    return this.attempts.length >= AUTO_PULL.HOURLY_CAP
+  }
   /** Epoch ms before which no auto pull may start because of failures (0 = none). */
   backoffUntil(): number { return this.backoffAt }
 

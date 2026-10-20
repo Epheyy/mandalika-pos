@@ -320,6 +320,8 @@ export class SyncEngine {
   /** Highest server version the scheduler has been armed for (a higher one restarts the jitter). */
   private autoPullSeenVersion = 0
   private pulledAt: number | null = null
+  /** An order acked inside the pull window may be counted twice (pulled stock + kept debit): pull once more. */
+  private followUpPull = false
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -552,6 +554,9 @@ export class SyncEngine {
     }
     this.events.onWall?.(this.wall)
     this.pulledAt = Date.now()
+    // An entry this pull did not retire was acked after its number was taken; the server read may already
+    // include that sale, and sales never bump the version, so nothing else would heal it.
+    this.followUpPull = this.settling.list().some((e) => e.gen >= pullNo)
     return 'applied'
   }
 
@@ -574,8 +579,14 @@ export class SyncEngine {
 
   /** The gate went busy -> idle: a pull that was waiting for it may go ahead (2-5 s later). */
   nudgeAutoPull(): void {
-    if (this.disposed || !this.autoPullActive || !this.wall.raised || !this.gateAllows()) return
+    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull) || !this.gateAllows()) return
     this.autoPull.nudge()
+  }
+
+  /** True while background pulls can still happen: running, gated by the app, not suspended by a 4xx and
+   *  not at the hourly cap. The UI uses it to stop promising an automatic update. */
+  autoPullAvailable(): boolean {
+    return this.autoPullActive && this.autoPullGate !== null && !this.autoPull.isSuspended() && !this.autoPull.isCapped()
   }
 
   private gateAllows(): boolean {
@@ -586,12 +597,12 @@ export class SyncEngine {
 
   /** Called whenever the wall may have changed (poll, batch ack, any resync outcome). */
   private afterWallUpdate(): void {
-    if (!this.wall.raised) {
+    if (!this.wall.raised && !this.followUpPull) {
       this.autoPull.cancel() // nothing left to pull (e.g. the cashier tapped sync)
       return
     }
     if (this.disposed || !this.autoPullActive || !this.autoPullGate) return
-    const rose = this.wall.serverVersion > this.autoPullSeenVersion
+    const rose = this.wall.raised && this.wall.serverVersion > this.autoPullSeenVersion
     this.autoPullSeenVersion = Math.max(this.autoPullSeenVersion, this.wall.serverVersion)
     if (!this.gateAllows()) {
       this.autoPull.markWaiting() // no timer: re-evaluated on the next poll or a nudge
@@ -602,7 +613,7 @@ export class SyncEngine {
 
   /** The scheduler timer fired: re-check every precondition, then pull. */
   private async autoPullRun(): Promise<void> {
-    if (this.disposed || !this.autoPullActive || !this.wall.raised) return
+    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull)) return
     if (!ONLINE() || !this.reachable) return // offline is always a no-op; the next poll / online event re-arms
     if (!this.gateAllows()) { this.autoPull.markWaiting(); return }
     // A sale flush is running: a pull in flight across its ack would leave stock LOW until the next

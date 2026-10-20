@@ -141,6 +141,7 @@ describe('AutoPullScheduler', () => {
       s.attemptStarted()
       vi.advanceTimersByTime(61_000)
     }
+    expect(s.isCapped()).toBe(true)
     s.wantPull()
     s.wantPull()
     vi.advanceTimersByTime(30_000)
