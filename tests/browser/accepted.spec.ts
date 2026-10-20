@@ -72,7 +72,7 @@ test('POS-STOCKDRIFT a foreign stock bump is pulled once, silently, without a ve
   const p = page as ScenarioPage
   await setupPos(p)
   const result = await posStockDrift(p)
-  expect(result).toHaveLength(1)
+  expect(result).toHaveLength(2)
   await evidence(info, result)
 })
 

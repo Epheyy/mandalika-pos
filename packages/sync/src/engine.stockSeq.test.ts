@@ -399,6 +399,55 @@ describe.each(['kv', 'journal'] as const)('A15 phase B stock seq over the %s sto
     expect(engine.getSnapshot().stockSeq).toBe(s.seq)
   })
 
+  it('a restore first seen in a BATCH response keeps the debit and pulls once', async () => {
+    const { s, engine } = await setup(kind)
+    s.seq = 105
+    await until(engine.resync()) // local seq 105
+    s.pulls = 0
+    s.seq = 50 // database restored; no poll has seen it yet
+    await queue(engine, 2)
+    await until(engine.flushNow()) // item seq 51 <= 105: must not be taken as "already in the snapshot"
+    expect(peek(engine).settling.list()).toMatchObject([{ lines: [{ qty: 2 }] }])
+    expect(peek(engine).settling.list()[0].seq).toBeUndefined()
+    expect(engine.pendingStockDeltas()[SKU]).toBe(2)
+    await advance(5_000)
+    expect(s.pulls).toBe(1)
+    expect(engine.pendingStockDeltas()).toEqual({})
+    await advance(10 * 60_000)
+    expect(s.pulls).toBe(1)
+  })
+
+  it('a deferred stock pull waits as a stock pull and a nudge re-arms it under the stock kind', async () => {
+    const { s, engine, gateState } = await setup(kind)
+    s.foreignSale(1)
+    const g = gate()
+    s.pullGate = g.p
+    await advance(POLL + 5_000) // the stock pull is in flight
+    expect(s.pulls).toBe(1)
+    gateState.open = false // cashier adds an item meanwhile
+    s.pullGate = null
+    g.open()
+    await advance(1)
+    expect(stockOf(engine)).toBe(5) // deferred: nothing applied
+    gateState.open = true
+    engine.nudgeAutoPull()
+    expect(peek(engine).autoPull.armedKind()).toBe('stock')
+  })
+
+  it('a raised wall with the data budget spent still lets pending stock drift get its own stock pull', async () => {
+    const { s, engine } = await setup(kind)
+    const sched = peek(engine).autoPull as unknown as { attemptStarted(k: string): void }
+    for (let i = 0; i < 20; i++) sched.attemptStarted('data') // data cap used up
+    s.version = 2
+    s.foreignSale(2)
+    await advance(POLL + 5_000)
+    expect(engine.getWall().raised).toBe(true) // the chip stays
+    expect(peek(engine).autoPull.armedKind()).toBe('stock')
+    await advance(STOCK_FLOOR + 5_000)
+    expect(s.pulls).toBe(1)
+    expect(stockOf(engine)).toBe(3)
+  })
+
   it('upgrade: an old-server snapshot has no binding, the first seq from the server causes exactly one pull', async () => {
     const { s, engine, kv } = await setup(kind, { withSeq: false })
     expect(kv.store.get(PULLED_FOR_OUTLET_KEY)).toBeUndefined()

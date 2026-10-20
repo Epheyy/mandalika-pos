@@ -34,6 +34,7 @@ export const setupPos = async (page: ScenarioPage) => {
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
     else if(path.endsWith('/sync/pull')) data={...snapshot,version:page.__a24.version,...(page.__a24.stockSeq===undefined?{}:{stockSeq:page.__a24.stockSeq})};
     else if(path.split('?')[0].endsWith('/sync/version')) data={version:page.__a24.version,...(page.__a24.stockSeq===undefined?{}:{stockSeq:page.__a24.stockSeq})};
+    else if(path.endsWith('/sync/batch')&&page.__a24.ackBatch) {const sent=req.postDataJSON(); page.__a24.writes.push(sent); const results=sent.items.map((i:any)=>({idempotencyKey:i.idempotencyKey,status:'ok',stockSeq:++page.__a24.stockSeq})); return route.fulfill({status:200,json:{data:{processed:results.length,version:page.__a24.version,stockSeq:page.__a24.stockSeq,results}}});}
     else if(path.endsWith('/sync/batch')) {page.__a24.writes.push(req.postDataJSON()); return route.fulfill({status:503,json:{error:'Synthetic retain-only transport'}});}
     else if(path.endsWith('/shifts/current')) data={id:'00000000-0000-4000-8300-000000000080',status:'open',startingCash:1100000,cashierId:user.id,outletId:user.outletId,openedAt:new Date().toISOString()};
     else if(path.endsWith('/products')) {const q=new URL(req.url()).searchParams;const n=Number(q.get('page'))||1,lim=Number(q.get('limit'))||50;return route.fulfill({status:200,json:{data:products.slice((n-1)*lim,n*lim),meta:{total:products.length,page:n,limit:lim}}});}
@@ -327,13 +328,29 @@ export const posStockDrift = async (page: ScenarioPage) => {
   };
   let sawChip = false;
   const n0 = pulls();
-  assert(!(await body()).includes('55'), 'the foreign stock is not on screen before the pull');
-  page.__a24.products[0].variants[0].stock = 55;
+  // The card's own "Stok N" figure (the sum over the product's variants), compared as a whole number.
+  const card = () => page.getByRole('button', { name: /Synthetic Scent/ }).first().innerText();
+  const figure = async () => Number(/Stok (\d+)/.exec(await card())?.[1]);
+  const before = page.__a24.products[0].variants.reduce((t: number, v: any) => t + v.stock, 0);
+  assert((await figure()) === before, 'the card shows the old stock figure before the pull');
+  page.__a24.products[0].variants[0].stock -= 3;
   page.__a24.stockSeq = 11; // another tablet sold; version unchanged
   assert(await advance(120, async () => { const t = await body(); if (t.includes('Pembaruan tersedia')) sawChip = true; return pulls() === n0 + 1; }), 'one automatic stock pull');
-  assert(await advance(30, async () => (await body()).includes('55')), 'the new stock reaches the screen');
+  assert(await advance(30, async () => (await figure()) === before - 3), 'the card shows exactly the new stock figure after the pull');
   await advance(420, async () => { if ((await body()).includes('Pembaruan tersedia')) sawChip = true; return false; });
   assert(!sawChip, 'a stock-only pull never raises the update chip');
   assert(pulls() === n0 + 1, 'no further pulls once the counter is covered');
-  return [{ step: 'foreign stock bump', pulls: pulls() - n0 }];
+  // An own sale acked at local seq + 1 is explained by its settling entry: no pull.
+  const n1 = pulls();
+  page.__a24.ackBatch = true;
+  await page.getByRole('searchbox').fill('SYN-M');
+  await page.getByRole('searchbox').press('Enter');
+  await page.getByRole('button', { name: 'Bayar', exact: true }).click();
+  await page.getByRole('button', { name: 'QRIS', exact: true }).click();
+  await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click();
+  await page.getByRole('heading', { name: 'Pembayaran Berhasil', exact: true }).waitFor();
+  assert(await advance(60, () => page.__a24.stockSeq === 12), 'the sale was acked with the next counter value');
+  await advance(420);
+  assert(pulls() === n1, 'an own sale acked at local seq + 1 causes no pull');
+  return [{ step: 'foreign stock bump', pulls: n1 - n0 }, { step: 'own sale ack', pulls: pulls() - n1 }];
 };

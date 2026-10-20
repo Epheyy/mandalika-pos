@@ -332,6 +332,10 @@ export class SyncEngine {
   private seqRegressed = false
   /** Outlet in effect when the last batch request was sent (a seq is only trusted for that outlet). */
   private lastPostOutlet: string | undefined
+  /** Applied pulls so far, and the count when the last batch request went out: a seq in a batch response may
+   *  be compared with the snapshot's only if a pull was applied after the post (the snapshot was read later). */
+  private pullsApplied = 0
+  private pullsAtPost = 0
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -567,6 +571,7 @@ export class SyncEngine {
     this.serverStockSeq = bundleSeq === undefined ? null
       : this.seqRegressed || this.serverStockSeq === null ? bundleSeq : Math.max(this.serverStockSeq, bundleSeq)
     this.seqRegressed = false // this pull is the fresh start after a restore
+    this.pullsApplied += 1
     this.wall = {
       raised: false,
       localVersion: r.data.version ?? 0,
@@ -646,7 +651,14 @@ export class SyncEngine {
   /** What kind of background pull is wanted right now, if any. 'data': the wall is raised. 'stock': only stock
    *  may be stale. With no seq signal this is exactly the pre-phase-B rule (wall or follow-up, 'data' timing). */
   private pullWanted(): PullKind | null {
-    if (this.wall.raised) return 'data'
+    const rest = this.nonWallPullWanted()
+    if (!this.wall.raised) return rest
+    // The wall wins (chip, data budget), unless that budget is spent and stock drift is pending: then the stock
+    // kind keeps its own timer and cap (a stock pull is a full pull and clears the wall too).
+    return rest === 'stock' && this.autoPull.isCapped('data') ? 'stock' : 'data'
+  }
+
+  private nonWallPullWanted(): PullKind | null {
     const server = this.serverStockSeq
     const outlet = this.actorOutlet()
     const signal = server !== null && outlet !== undefined
@@ -694,7 +706,7 @@ export class SyncEngine {
     this.autoPull.attemptStarted(kind)
     try {
       const status = await this.resync({ shouldApply: () => this.gateAllows() })
-      if (status === 'deferred') this.autoPull.markWaiting()
+      if (status === 'deferred') this.autoPull.markWaiting(kind)
     } catch (err) {
       const failure = classifyFailure(err, ONLINE())
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
@@ -1411,6 +1423,7 @@ export class SyncEngine {
 
   private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
     this.lastPostOutlet = this.actorOutlet()
+    this.pullsAtPost = this.pullsApplied
     const r = await this.api.request<{ data: BatchResult }>(
       'POST',
       '/api/v1/sync/batch',
@@ -1517,6 +1530,15 @@ export class SyncEngine {
     // A15 phase B: a sale's seq is trusted only while every seq rule is on, the batch carried a counter, and the
     // outlet in effect is the one the request was sent for (never in flush-only mode).
     const outlet = this.actorOutlet()
+    // A counter below the snapshot's, with no pull applied since this request went out, is proof of a restore
+    // (the counter never goes down): the old snapshot's seq says nothing about these sales. Keep every debit
+    // unstamped and unskipped, and let noteServerSeq/pullWanted schedule the pull.
+    const pullSincePost = this.pullsApplied !== this.pullsAtPost
+    const localSeq = this.snapshot.localStockSeq()
+    if (!pullSincePost && localSeq !== undefined && this.seqBound()) {
+      const seen = [data.stockSeq, ...data.results.map((r) => r.stockSeq)].filter((x): x is number => typeof x === 'number')
+      if (seen.some((x) => x < localSeq)) this.seqRegressed = true
+    }
     const stampSeq = this.autoPullActive && typeof data.stockSeq === 'number' && outlet !== undefined &&
       this.lastPostOutlet === outlet && this.seqRulesOn()
     let needsFollowUp = false
@@ -1597,7 +1619,7 @@ export class SyncEngine {
     try {
       // Retire-on-record: a pull already applied may cover a sale acked now.
       const local = this.snapshot.localStockSeq()
-      const covered: PulledSeq | undefined = this.seqRulesOn() && local !== undefined && outlet !== undefined ? { seq: local, outlet } : undefined
+      const covered: PulledSeq | undefined = pullSincePost && this.seqRulesOn() && local !== undefined && outlet !== undefined ? { seq: local, outlet } : undefined
       await this.settling.recordMany(ackedOrders, covered)
       for (const o of ackedOrders) this.settlingHolds.delete(o.key)
     } catch (err) {
