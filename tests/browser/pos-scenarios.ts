@@ -259,9 +259,10 @@ export const posAutoPull = async (page: ScenarioPage) => {
   const count = (suffix: string) => page.__a24.calls.filter((c: any) => c.path.endsWith(suffix)).length;
   const pulls = () => count('/sync/pull');
   const body = () => page.locator('body').innerText();
+  await page.evaluate(() => { localStorage.setItem('pos_cardStock', '1'); });
   await page.clock.install({ time: Date.now() });
   await page.reload();
-  await page.getByRole('button', { name: 'S Synthetic Scent', exact: true }).waitFor();
+  await page.getByRole('button', { name: /Synthetic Scent/ }).first().waitFor(); // the stock line changes the card's accessible name
   const advance = async (seconds: number, until: () => Promise<boolean> | boolean = () => false) => {
     for (let i = 0; i < seconds; i++) {
       if (await until()) return true;
@@ -274,10 +275,13 @@ export const posAutoPull = async (page: ScenarioPage) => {
 
   // 1. Empty cart: a bump raises the chip, then exactly one pull clears it by itself.
   const n0 = pulls();
+  assert(!(await body()).includes('77'), 'new stock is not on screen before the pull');
+  page.__a24.products[0].variants[0].stock = 77; // real data change in the pull body
   page.__a24.version = 2;
   assert(await advance(60, async () => (await body()).includes('Pembaruan tersedia')), 'the chip shows the raised wall');
   assert(await advance(90, () => pulls() === n0 + 1), 'one automatic pull for the bump');
   assert(await advance(30, async () => (await body()).includes('Tersinkron')), 'the chip clears after the pull');
+  assert((await body()).includes('77'), 'the new stock reaches the screen after the pull');
   await advance(180);
   assert(pulls() === n0 + 1, 'no further pulls once synced');
   out.push({ step: 'bump with empty cart', pulls: pulls() - n0 });
