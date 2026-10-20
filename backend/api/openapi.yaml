@@ -1844,6 +1844,13 @@ components:
         # Optional and NOT nullable ($ref + nullable is dropped by openapi-typescript).
         # Present only when the request carried a valid deviceId (A05).
         contact: { $ref: '#/components/schemas/OfflineContact' }
+        stockSeq:
+          type: integer
+          format: int64
+          description: >-
+            The outlet's stock change counter (A15 Phase B), read in the same statement as
+            version. Optional and NOT nullable: absent means "no signal" (older server or
+            SYNC_STOCK_SEQ=off), never 0; a real 0 is sent.
     OfflineContact:
       type: object
       description: >-
@@ -1864,6 +1871,13 @@ components:
       required: [version]
       properties:
         version: { type: integer, format: int64 }
+        stockSeq:
+          type: integer
+          format: int64
+          description: >-
+            The outlet stock counter as of the moment version was read, BEFORE the products
+            were read: the stock in this bundle covers every change up to stockSeq. Optional
+            and NOT nullable; absent = no signal.
         outletCode: { type: string, nullable: true }
         outletName: { type: string, nullable: true }
         outletTimezone:
@@ -2059,6 +2073,14 @@ components:
             Present exactly when status is "error" (false is still sent). true = nothing was
             applied and a later retry may succeed (busy, internal); false = the server refused
             the item and it needs review.
+        stockSeq:
+          type: integer
+          format: int64
+          description: >-
+            The outlet stock counter value this sale produced (A15 Phase B). Present only for
+            a fresh (status ok) order attributed to the batch caller's own outlet; a duplicate,
+            a refund, an error or an order attributed to another outlet carries none. Optional
+            and NOT nullable.
         tandaTerimaNo: { type: string, nullable: true }   # set on transfer_receive ok
         transfer:                                          # full completed snapshot on transfer_receive ok
           $ref: '#/components/schemas/Transfer'
@@ -2070,6 +2092,12 @@ components:
         processed: { type: integer }
         results: { type: array, items: { $ref: '#/components/schemas/SyncItemResult' } }
         version: { type: integer, format: int64 }
+        stockSeq:
+          type: integer
+          format: int64
+          description: >-
+            The caller outlet's stock counter from the read after the items ran (A15 Phase B).
+            Optional and NOT nullable; absent = no signal.
     SyncBatchResponse:
       type: object
       required: [data]

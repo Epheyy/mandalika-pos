@@ -206,4 +206,5 @@ func TestStockSeqPostgres(t *testing.T) {
 
 	f.initWriters(t)
 	f.runWriterCases(t)
+	f.runExposeCases(t)
 }

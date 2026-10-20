@@ -56,6 +56,10 @@ type Config struct {
 	// syncLegacyUntilBad is set when SYNC_LEGACY_ENVELOPE_UNTIL did not parse;
 	// Validate fails fast so a typo can never silently mean "no cutoff".
 	syncLegacyUntilBad bool
+	// SyncStockSeqOff is the SYNC_STOCK_SEQ=off kill switch (A15 Phase B): the server stops
+	// sending stockSeq on /sync/version, /sync/pull and batch results (the counter keeps
+	// counting); tablets fall back to Phase A plus auto-pull. Any other value = on.
+	SyncStockSeqOff bool
 	// DBMaxConns is the pgxpool size PER INSTANCE (env DB_MAX_CONNS, default
 	// DefaultDBMaxConns). Budget: Cloud Run max-instances x DBMaxConns client
 	// connections must fit the Neon pooled endpoint (deploy-backend.sh: 4 x 10 = 40).
@@ -191,8 +195,12 @@ func Load() *Config {
 
 		SyncLegacyEnvelopeUntil: legacyUntil,
 		syncLegacyUntilBad:      !legacyOK,
+		SyncStockSeqOff:         parseStockSeqOff(os.Getenv("SYNC_STOCK_SEQ")),
 	}
 }
+
+// parseStockSeqOff reports whether SYNC_STOCK_SEQ is exactly "off" (any case).
+func parseStockSeqOff(v string) bool { return strings.EqualFold(strings.TrimSpace(v), "off") }
 
 func (c *Config) IsProd() bool { return strings.EqualFold(c.Env, "production") }
 

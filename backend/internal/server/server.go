@@ -80,6 +80,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	}
 	syncEngine := syncpkg.New(database.Pool, rd, os, wr)
 	syncEngine.LegacyEnvelopeUntil = cfg.SyncLegacyEnvelopeUntil
+	syncEngine.StockSeqOff = cfg.SyncStockSeqOff
 	syncEngine.ContactKey = syncpkg.DeriveContactKey(cfg.AccessSecret)
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 

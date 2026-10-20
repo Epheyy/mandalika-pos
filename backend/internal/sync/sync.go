@@ -44,6 +44,10 @@ type Engine struct {
 	// SaleResolver maps a sale's client orderUuid to its server id and device (A41);
 	// nil = a query on the refund's transaction. Injectable for tests.
 	SaleResolver saleResolver
+	// StockSeqOff is the SYNC_STOCK_SEQ=off kill switch (A15 Phase B): every stockSeq is
+	// omitted from /sync/version, /sync/pull and the batch result, and tablets fall back
+	// to Phase A plus auto-pull. The counter itself keeps counting.
+	StockSeqOff bool
 }
 
 // saleResolver resolves a sale by order_uuid within one outlet. A missing sale must
@@ -108,28 +112,51 @@ type VersionInfo struct {
 	// Contact is the signed online-contact proof, set by the handler when the request
 	// carried a device id (A05). Absent otherwise (omitempty: old clients unaffected).
 	Contact *ContactToken `json:"contact,omitempty"`
+	// StockSeq is the outlet's stock change counter (outlet_stock_seq) read in the same
+	// statement as Version. A pointer so a real 0 survives omitempty; nil = no signal
+	// (kill switch). Never nullable on the wire.
+	StockSeq *int64 `json:"stockSeq,omitempty"`
 }
 
-// Version returns the outlet content version, lazily seeding the row.
+// Version returns the outlet content version and stock counter, lazily seeding the row.
+// Both are read by ONE statement (one snapshot), so a caller never sees a version from
+// one moment and a counter from another.
 func (e *Engine) Version(ctx context.Context, outletID string) (VersionInfo, error) {
 	var v VersionInfo
+	var seq int64
 	err := e.Pool.QueryRow(ctx,
-		`SELECT version, data_manifest FROM content_versions WHERE outlet_id=$1`,
-		outletID).Scan(&v.Version, &v.Manifest)
+		`SELECT version, data_manifest,
+		        COALESCE((SELECT seq FROM outlet_stock_seq WHERE outlet_id=$1), 0)
+		   FROM content_versions WHERE outlet_id=$1`,
+		outletID).Scan(&v.Version, &v.Manifest, &seq)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_, _ = e.Pool.Exec(ctx,
 			`INSERT INTO content_versions (outlet_id) VALUES ($1)
 			 ON CONFLICT DO NOTHING`, outletID)
-		return VersionInfo{Version: 1, Manifest: json.RawMessage("{}")}, nil
+		if err = e.Pool.QueryRow(ctx,
+			`SELECT COALESCE((SELECT seq FROM outlet_stock_seq WHERE outlet_id=$1), 0)`,
+			outletID).Scan(&seq); err != nil {
+			return VersionInfo{}, err
+		}
+		v = VersionInfo{Version: 1, Manifest: json.RawMessage("{}")}
+	} else if err != nil {
+		return v, err
 	}
-	return v, err
+	if !e.StockSeqOff {
+		v.StockSeq = &seq
+	}
+	return v, nil
 }
 
 // PullBundle is the full reference snapshot POS swaps in on Resync. Sending the
 // whole snapshot keeps the swap atomic and conflict-free (POS is read-only on
 // reference data — plan §5a).
 type PullBundle struct {
-	Version           int64  `json:"version"`
+	Version int64 `json:"version"`
+	// StockSeq is the outlet stock counter as of the moment Version() was read, which
+	// is BEFORE the products below are read: the stock in this bundle covers every
+	// change up to StockSeq (a change committing in between only causes one extra pull).
+	StockSeq          *int64 `json:"stockSeq,omitempty"`
 	OutletCode        string `json:"outletCode"`
 	OutletName        string `json:"outletName"`
 	OutletTimezone    string `json:"outletTimezone,omitempty"`
@@ -148,11 +175,17 @@ type PullBundle struct {
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
 	var b PullBundle
+	// A15 Phase B: Version() MUST stay the FIRST query. The stock counter it returns
+	// has to be read before e.Read.Products below, so the bundle's stock is at least as
+	// new as its stockSeq; read it later and a pull could claim a sequence number whose
+	// stock change it does not contain. Do not cache anything between the two reads
+	// (the handler-layer product cache is bypassed here on purpose).
 	vi, err := e.Version(ctx, outletID)
 	if err != nil {
 		return b, err
 	}
 	b.Version = vi.Version
+	b.StockSeq = vi.StockSeq
 	// Outlet code → POS so it can build {OUTLET}-{DEV}{SEQ} order numbers offline.
 	// Outlet name → POS so the recap/print read the active outlet, not a constant.
 	// Outlet timezone -> POS so its promo twin gates hours/dates on the outlet clock (A28).
@@ -235,12 +268,22 @@ type ItemResult struct {
 	Retryable     *bool         `json:"retryable,omitempty"`
 	TandaTerimaNo string        `json:"tandaTerimaNo,omitempty"`
 	Transfer      *api.Transfer `json:"transfer,omitempty"`
+	// StockSeq is the outlet stock counter value THIS sale produced (A15 Phase B). Set
+	// only for a fresh, successful order whose attributed outlet is the batch caller's
+	// outlet; a duplicate, a refund, an error or an order attributed elsewhere carries
+	// none. A pointer so a real 0 survives omitempty.
+	StockSeq *int64 `json:"stockSeq,omitempty"`
+	// attributedOutlet is the outlet StockSeq counts (the item's attributed outlet);
+	// processBatch compares it with the caller's outlet. Never serialised.
+	attributedOutlet string
 }
 
 type BatchResult struct {
 	Processed int          `json:"processed"`
 	Results   []ItemResult `json:"results"`
 	Version   int64        `json:"version"`
+	// StockSeq is the caller outlet's counter from the post-items Version() read.
+	StockSeq *int64 `json:"stockSeq,omitempty"`
 }
 
 // Identity from the authenticated caller (never trusted from payload).
@@ -312,6 +355,11 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 		if res.Status == "error" && res.Retryable != nil && *res.Retryable {
 			earlierRetryable = true
 		}
+		// The per-item counter belongs to the attributed outlet's counter; the batch
+		// caller's outlet counter can only explain it when they are the same outlet.
+		if res.StockSeq != nil && !strings.EqualFold(res.attributedOutlet, c.OutletID) {
+			res.StockSeq = nil
+		}
 		out.Results = append(out.Results, res)
 		if res.Status != "error" {
 			out.Processed++
@@ -322,6 +370,7 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 		return out, err
 	}
 	out.Version = vi.Version
+	out.StockSeq = vi.StockSeq
 	return out, nil
 }
 
@@ -396,12 +445,28 @@ func decodeEnvelope(it BatchItem) Envelope {
 
 // Keep the refund mutation boundary injectable for isolated authorization tests.
 func (e *Engine) processOneWithRefund(ctx context.Context, c Caller, it BatchItem, refund refundFunc) ItemResult {
-	return e.processOneWithCommands(ctx, c, it, refund, e.Orders.CreateOrder)
+	return e.processOneWithSeq(ctx, c, it, refund, e.Orders.CreateOrderSeq)
 }
 
+// processOneWithCommands is processOneWithSeq for seams that know nothing of the stock
+// counter (the command-boundary tests); their sales carry no per-item counter.
 func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchItem,
 	refund refundFunc,
 	createOrder func(context.Context, service.CreateOrderInput) (string, bool, bool, error),
+) ItemResult {
+	var withSeq func(context.Context, service.CreateOrderInput) (service.CreateOrderResult, error)
+	if createOrder != nil {
+		withSeq = func(ctx context.Context, in service.CreateOrderInput) (service.CreateOrderResult, error) {
+			id, dup, warn, err := createOrder(ctx, in)
+			return service.CreateOrderResult{OrderID: id, Duplicate: dup, StockWarning: warn}, err
+		}
+	}
+	return e.processOneWithSeq(ctx, c, it, refund, withSeq)
+}
+
+func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
+	refund refundFunc,
+	createOrder func(context.Context, service.CreateOrderInput) (service.CreateOrderResult, error),
 ) ItemResult {
 	r := ItemResult{IdempotencyKey: it.IdempotencyKey}
 	fail := func(err error) ItemResult {
@@ -491,15 +556,21 @@ func (e *Engine) processOneWithCommands(ctx context.Context, c Caller, it BatchI
 			ClockSkew:         skew,
 			Offline:           true,
 		}
-		id, dup, warn, err := createOrder(ctx, in)
+		res, err := createOrder(ctx, in)
 		if err != nil {
 			return fail(err)
 		}
-		r.OrderID, r.StockWarning = id, warn
-		if dup {
-			r.Status = "duplicate"
+		r.OrderID, r.StockWarning = res.OrderID, res.StockWarning
+		if res.Duplicate {
+			r.Status = "duplicate" // a replay moved nothing: no counter value
 		} else {
 			r.Status = "ok"
+			if res.StockSeq != nil && !e.StockSeqOff {
+				// c is the ATTRIBUTED identity here; processBatch drops the value
+				// unless that outlet is also the batch caller's.
+				seq := *res.StockSeq
+				r.StockSeq, r.attributedOutlet = &seq, c.OutletID
+			}
 		}
 		return r
 	case "refund":
