@@ -119,18 +119,19 @@ describe('A15 settling debits', () => {
     expect(shown(engine)).toBe(3)
   })
 
-  it('4: a pull response older than the last applied one is ignored', async () => {
+  it('4: overlapping resyncs share one pull, so an older read can never land after a newer one', async () => {
+    // Single-flight (auto-pull T1): the out-of-order guard is still unit-tested in settlingDebits.test.ts.
     const { s, engine } = await setup()
     await engine.enqueue('order', order())
     s.stock = 3
     await send(engine)
     const g = gate()
-    s.pullPlans.push({ gate: g.p, stock: 5 }) // old read
+    s.pullPlans.push({ gate: g.p, stock: 3 })
     const slow = engine.resync()
-    await engine.resync() // newer pull reads 3 and is applied first
+    const joined = engine.resync() // joins the in-flight pull instead of sending a second request
     g.open()
-    await slow
-    expect(engine.getSnapshot().products?.[0]?.variants[0].stock).toBe(3) // not rolled back to 5
+    await Promise.all([slow, joined])
+    expect(engine.getSnapshot().products?.[0]?.variants[0].stock).toBe(3)
     expect(shown(engine)).toBe(3)
   })
 
