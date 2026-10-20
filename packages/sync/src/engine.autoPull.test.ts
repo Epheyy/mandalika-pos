@@ -254,6 +254,31 @@ describe.each(['kv', 'journal'] as const)('engine auto-pull over the %s store', 
     expect(shown(engine)).toBe(3)
   })
 
+  it('a credit acked during a pull is kept by it and heals, without double counting, at the next auto-pull', async () => {
+    const { s, engine } = await setup(kind)
+    engine.pending.add({ idempotencyKey: 'k1', lines: [{ productId: 'p1', variantSize: '10ml', qty: 2 }], ackVersion: null })
+    s.version = 2
+    s.stock = 5 // what this pull reads: the receive has not committed yet
+    const g = gate()
+    s.pullGate = g.p
+    await advance(POLL + 5_000) // pull in flight at version 2
+    expect(s.pulls).toBe(1)
+    engine.pending.stampAck('k1', 3) // the receive acks while the pull is in flight
+    s.version = 3
+    s.stock = 7 // now includes the receive
+    s.pullGate = null
+    g.open()
+    await advance(1)
+    expect(engine.referenceVersion()).toBe(2)
+    expect(stockOf(engine)).toBe(7) // 5 pulled + 2 credit: high never, exact
+    expect(engine.pending.list()).toHaveLength(1) // ackVersion 3 > pulled 2: kept
+    await advance(2 * 60_000) // poll sees 3; the next auto-pull follows the 60 s floor
+    expect(s.pulls).toBe(2)
+    expect(engine.referenceVersion()).toBe(3)
+    expect(engine.pending.list()).toHaveLength(0)
+    expect(stockOf(engine)).toBe(7) // 7 pulled, credit retired: not 9
+  })
+
   it('a failing pull backs off instead of looping', async () => {
     const { s } = await setup(kind)
     s.version = 2
