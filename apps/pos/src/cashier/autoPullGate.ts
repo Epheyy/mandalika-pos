@@ -1,7 +1,7 @@
 // Auto-pull gate (plan 2.6): the engine pulls reference data in the background only when this says the
 // cashier has nothing in flight. A cart line carries the price captured when it was added and a receipt
 // stamps the reference version at sale time, so a mid-cart swap would mix versions.
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { SyncEngine } from '@mandalika/sync'
 
 export interface AutoPullFlags {
@@ -28,6 +28,12 @@ export interface AutoPullFlags {
   showMenu: boolean
   shiftPrompt: boolean
   closeIntent: boolean
+  /** Selections made with an empty cart still hold values captured under the current data. */
+  hasSelectedCustomer: boolean
+  hasSelectedSalesman: boolean
+  appliedPromotionCount: number
+  appliedPromoCodeCount: number
+  pointsToRedeem: number
 }
 
 export const AUTO_PULL_IDLE: AutoPullFlags = {
@@ -53,6 +59,11 @@ export const AUTO_PULL_IDLE: AutoPullFlags = {
   showMenu: false,
   shiftPrompt: false,
   closeIntent: false,
+  hasSelectedCustomer: false,
+  hasSelectedSalesman: false,
+  appliedPromotionCount: 0,
+  appliedPromoCodeCount: 0,
+  pointsToRedeem: 0,
 }
 
 export function isSafeToAutoPull(f: AutoPullFlags): boolean {
@@ -79,7 +90,9 @@ export function createIdleNudger(engine: NudgeTarget): (safe: boolean) => void {
 
 export function useAutoPullGate(engine: SyncEngine, flags: AutoPullFlags): void {
   const flagsRef = useRef(flags)
-  useEffect(() => { flagsRef.current = flags }) // after every commit: the gate reads the screen as rendered
+  // Layout effect: runs synchronously at commit, before paint and before any async result (lookup, rewards)
+  // can resolve and ask the gate, so the gate never reads flags from a previous render.
+  useLayoutEffect(() => { flagsRef.current = flags })
   useEffect(() => bindAutoPullGate(engine, () => flagsRef.current), [engine])
   const nudgerRef = useRef<((safe: boolean) => void) | null>(null)
   useEffect(() => { nudgerRef.current = createIdleNudger(engine) }, [engine])

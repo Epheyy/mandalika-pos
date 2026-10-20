@@ -80,6 +80,8 @@ interface SyncStatusProps {
   /** Where the tablet stands against the 12 h offline cap (A05). */
   offlineCap?: OfflineCapState
   isResyncing: boolean
+  /** False while background pulls are suspended or capped: stop promising an automatic update. */
+  autoUpdate?: boolean
   onResync: () => void
   onFlush: () => void
   onRetryFailed: () => void
@@ -96,6 +98,7 @@ export const SyncStatus = memo(function SyncStatus({
   wall,
   offlineCap,
   isResyncing,
+  autoUpdate = true,
   onResync,
   onFlush,
   onRetryFailed,
@@ -174,7 +177,7 @@ export const SyncStatus = memo(function SyncStatus({
 
             {offlineCap && <OfflineCapNotice cap={offlineCap} />}
 
-            {updateAvailable && (
+            {updateAvailable && autoUpdate && (
               <p className="text-gray-500">Diperbarui otomatis saat keranjang kosong.</p>
             )}
 

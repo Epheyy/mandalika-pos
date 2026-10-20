@@ -111,6 +111,15 @@ describe('SyncStatus offline cap (A05)', () => {
   })
 })
 
+describe('SyncStatus automatic-update note', () => {
+  it('is shown by default only while the wall is raised and auto-pull is available (source pin: the panel is client-side state)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('./SyncStatus.tsx', import.meta.url), 'utf8')
+    expect(src).toContain('updateAvailable && autoUpdate &&')
+    expect(src).toContain('autoUpdate = true')
+  })
+})
+
 describe('SyncStatus panel note', () => {
   it('explains the automatic update when the wall is raised (panel open state is client-side, so check the source)', async () => {
     const { readFileSync } = await import('node:fs')

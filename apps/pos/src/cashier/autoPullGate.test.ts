@@ -18,7 +18,8 @@ describe('isSafeToAutoPull', () => {
   it('covers every flag the plan lists', () => {
     for (const k of ['cartCount', 'isCheckoutOpen', 'isProcessing', 'isSuccessOpen', 'hasRefundOrder', 'hasRefundSale',
       'isRefunding', 'showReceive', 'hasPendingReceive', 'hasPendingTT', 'hasPendingFulfillment', 'isAddingCustomer',
-      'hasActiveAdjustment']) expect(Object.keys(AUTO_PULL_IDLE)).toContain(k)
+      'hasActiveAdjustment', 'hasSelectedCustomer', 'hasSelectedSalesman', 'appliedPromotionCount', 'appliedPromoCodeCount',
+      'pointsToRedeem']) expect(Object.keys(AUTO_PULL_IDLE)).toContain(k)
   })
 })
 
@@ -55,15 +56,27 @@ describe('createIdleNudger', () => {
   })
 })
 
+describe('useAutoPullGate hook source', () => {
+  // The POS test setup has no DOM, so effects cannot run here: pin the wiring in the source instead.
+  const src = readFileSync(new URL('./autoPullGate.ts', import.meta.url), 'utf8')
+  it('refreshes the flags ref in a layout effect (before any async result can be read) and binds with null cleanup', () => {
+    expect(src).toContain('useLayoutEffect(() => { flagsRef.current = flags })')
+    expect(src).toContain('bindAutoPullGate(engine, () => flagsRef.current)')
+    expect(src).toContain('engine.setAutoPullGate(null)')
+  })
+})
+
 describe('CashierScreen wiring', () => {
   const src = readFileSync(new URL('./CashierScreen.tsx', import.meta.url), 'utf8')
   it('feeds the hook with the screen state and every overlay flag', () => {
     expect(src).toContain('useAutoPullGate(engine,')
+    const call = src.slice(src.indexOf('useAutoPullGate(engine,'), src.indexOf('})', src.indexOf('useAutoPullGate(engine,')))
     for (const needle of ['state.cart.length', 'state.isCheckoutOpen', 'state.isProcessing', 'state.isSuccessOpen',
       'refundOrder', 'refundSale', 'isRefunding', 'showReceive', 'pendingReceive', 'pendingTT', 'pendingFulfillment',
       'isAddingCustomer', 'state.activeAdjustment', 'showHistory', 'showLocalReceipts', 'showRecap',
-      'showTransferHistory', 'showSettings', 'showMenu', 'shiftPrompt', 'closeIntent', 'isSavingCustomer']) {
-      expect(src).toContain(needle)
+      'showTransferHistory', 'showSettings', 'showMenu', 'shiftPrompt', 'closeIntent', 'isSavingCustomer',
+      'state.selectedCustomer', 'state.selectedSalesman', 'state.appliedPromotions', 'state.appliedPromoCodes', 'state.pointsToRedeem']) {
+      expect(call).toContain(needle) // fed from live state inside the hook call, not merely used elsewhere
     }
   })
 })

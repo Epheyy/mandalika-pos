@@ -279,6 +279,9 @@ export default function CashierScreen() {
     showReceive, hasPendingReceive: !!pendingReceive, hasPendingTT: !!pendingTT, hasPendingFulfillment: !!pendingFulfillment,
     isAddingCustomer, isSavingCustomer, hasActiveAdjustment: !!state.activeAdjustment, showHistory, showLocalReceipts,
     showRecap, showTransferHistory, showSettings, showMenu, shiftPrompt, closeIntent,
+    hasSelectedCustomer: !!state.selectedCustomer, hasSelectedSalesman: !!state.selectedSalesman,
+    appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
+    pointsToRedeem: state.pointsToRedeem,
   })
 
   useEffect(() => {
@@ -1002,7 +1005,7 @@ export default function CashierScreen() {
           <SyncStatus
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
-            offlineCap={offlineCap} isResyncing={offlineData.isResyncing}
+            offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />

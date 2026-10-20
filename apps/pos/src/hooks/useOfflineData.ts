@@ -39,6 +39,8 @@ export interface OfflineDataState {
   accountProblem: string | null
   lastSyncedAt: string | null
   isResyncing: boolean
+  /** Background pulls can still happen (not suspended by a 4xx, not at the hourly cap). */
+  autoPullAvailable: boolean
   resync: () => Promise<void>
   flush: () => void
   /** Re-queue parked items. Rejects if the reset could not be stored (items stay parked). */
@@ -93,6 +95,7 @@ export function useOfflineData(): OfflineDataState {
   )
   const [manualResyncing, setManualResyncing] = useState(false)
   const [enginePulling, setEnginePulling] = useState(() => engine.isPulling())
+  const [autoPullAvailable, setAutoPullAvailable] = useState(() => engine.autoPullAvailable())
 
   useEffect(() => {
     // Browser online/offline events are only hints here — on a connectivity
@@ -150,6 +153,7 @@ export function useOfflineData(): OfflineDataState {
       setIsOnline(engine.isReachable())
       // Background pulls: show them as syncing and keep "last synced" honest.
       setEnginePulling(engine.isPulling())
+      setAutoPullAvailable(engine.autoPullAvailable())
       setLastSyncedAt((prev) => {
         const next = nextLastSyncedAt(prev, engine.lastPulledAt())
         if (next === null) return prev
@@ -180,6 +184,7 @@ export function useOfflineData(): OfflineDataState {
     accountProblem,
     lastSyncedAt,
     isResyncing: isResyncingNow(manualResyncing, enginePulling),
+    autoPullAvailable,
     resync,
     flush,
     retryFailed,
