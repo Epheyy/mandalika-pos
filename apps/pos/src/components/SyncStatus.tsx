@@ -6,7 +6,8 @@
  *  - items needing review ("Perlu ditinjau") → type, time, reason + a manual retry;
  *    they are kept, never auto-retried and never deleted
  *  - items still retrying after repeated server failures → listed separately
- * Selling is never blocked; the cashier decides when to sync.
+ * Selling is never blocked. Reference data is pulled automatically while the cart is empty and no flow is
+ * open (see the engine's auto-pull); the manual sync button stays as a fallback.
  */
 import { memo, useState } from 'react'
 import type { OfflineCapState, WallState } from '@mandalika/sync'
@@ -129,6 +130,9 @@ export const SyncStatus = memo(function SyncStatus({
   } else if (pendingCount > 0) {
     label = `Menyinkronkan ${pendingCount}…`
     tone = 'bg-amber-100 text-amber-700'
+  } else if (isResyncing) {
+    label = 'Memperbarui...'
+    tone = 'bg-blue-100 text-blue-700'
   } else if (updateAvailable) {
     label = 'Pembaruan tersedia'
     tone = 'bg-blue-100 text-blue-700'
@@ -169,6 +173,10 @@ export const SyncStatus = memo(function SyncStatus({
             </div>
 
             {offlineCap && <OfflineCapNotice cap={offlineCap} />}
+
+            {updateAvailable && (
+              <p className="text-gray-500">Diperbarui otomatis saat keranjang kosong.</p>
+            )}
 
             {updateAvailable && (
               <button type="button"
