@@ -73,6 +73,8 @@ need the pull to report which idempotency keys of this device it already contain
 
 ### Phase B — recommended hardening
 
+> **SUPERSEDED by `2026-10-20-a15-phase-b-outlet-stock-seq.md`.** The per-row `stock_seq` below is not built. Phase B was rebuilt as a per-outlet `outlet_stock_seq` counter (built locally 2026-10-20, unreleased).
+
 Purpose: exact on in-flight pulls, and robust to a future read cache or replica.
 
 - **Per-row sequence.** New column `outlet_variant_stock.stock_seq bigint`, fed from one global SEQUENCE by a trigger:

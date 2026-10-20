@@ -178,6 +178,7 @@ handled, by the previous bundle and by the APK's builtin.
   `TARGET_DATABASE_URL=<target> ./scripts/db-restore.sh <dump>`. Compare the
   printed row counts. Backups hold PII and stay out of git.
 - `db-restore.sh` logs only host/port/database for a URL DSN and a fixed placeholder for anything else, never the connection string (`scripts/dsn-label.test.sh` proves it with fake DSNs).
+- **After ANY database restore, advance `outlet_stock_seq` past its pre-restore maximum** (A15 Phase B, migration 0057). A restore that lowers the counter makes clients turn seq rules off and pull once, but a counter that climbs back past an old tablet value could still retire a low-range own sale wrongly.
 - Off-host, scheduled, locked backups are **not built yet**: see
   `docs/plans/2026-10-15-a36-backup-build-plan.md`.
 
