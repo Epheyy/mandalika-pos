@@ -417,6 +417,73 @@ describe.each(['kv', 'journal'] as const)('A15 phase B stock seq over the %s sto
     expect(s.pulls).toBe(1)
   })
 
+  it('a restore landing exactly at local-1 (item seq == local) keeps the debit and pulls once', async () => {
+    const { s, engine } = await setup(kind)
+    s.seq = 105
+    await until(engine.resync())
+    s.pulls = 0
+    s.seq = 104
+    await queue(engine, 2)
+    await until(engine.flushNow()) // item seq 105 == local: a fresh commit is always above the seq read before the post
+    expect(peek(engine).settling.list()).toHaveLength(1)
+    expect(peek(engine).settling.list()[0].seq).toBeUndefined()
+    await advance(5_000)
+    expect(s.pulls).toBe(1)
+    await advance(10 * 60_000)
+    expect(s.pulls).toBe(1)
+  })
+
+  it('a pull applied between the post and its response cannot mask a restore', async () => {
+    const { s, engine } = await setup(kind)
+    s.seq = 105
+    await until(engine.resync())
+    s.pulls = 0
+    const g2 = gate()
+    s.pullGate = g2.p
+    const pull = engine.resync() // reads seq 105 on the pre-restore database; response held
+    await advance(1)
+    s.pullGate = null
+    s.seq = 50 // restored
+    await queue(engine, 2)
+    const g1 = gate()
+    s.batchGate = g1.p
+    const flushing = engine.flushNow() // commits at 51, response held
+    await advance(1)
+    g2.open()
+    await until(pull) // the old-space bundle (seq 105) is applied before the response
+    s.batchGate = null
+    g1.open()
+    await until(flushing)
+    expect(peek(engine).settling.list()).toHaveLength(1) // kept, not skipped as "covered"
+    expect(peek(engine).settling.list()[0].seq).toBeUndefined()
+    await advance(5_000)
+    expect(s.pulls).toBe(2) // the held pull plus one stock pull
+    await advance(10 * 60_000)
+    expect(s.pulls).toBe(2)
+  })
+
+  it('a batch posted for outlet B is not compared with outlet A counter after a switch', async () => {
+    const { s, engine, actor } = await setup(kind)
+    actor.outlet = 'B'
+    await queue(engine, 1)
+    const g1 = gate()
+    s.batchGate = g1.p
+    const flushing = engine.flushNow() // posted as B, commits at seq 11
+    await advance(1)
+    actor.outlet = 'A'
+    s.seq = 200 // outlet A's own counter
+    await until(engine.resync()) // binds A at 200
+    s.pulls = 0
+    s.batchGate = null
+    g1.open()
+    await until(flushing) // response seq 11 belongs to B: no regression, no stamp
+    expect(peek(engine).settling.list().every((e) => e.seq === undefined)).toBe(true)
+    await advance(10 * 60_000)
+    expect(s.pulls).toBe(0)
+  })
+
+  // Note: this also passes without the explicit markWaiting(kind), because afterWallUpdate re-marks the kind at the
+  // end of every run. It guards the observable behaviour (a nudge re-arms under the stock kind), not that line.
   it('a deferred stock pull waits as a stock pull and a nudge re-arms it under the stock kind', async () => {
     const { s, engine, gateState } = await setup(kind)
     s.foreignSale(1)
