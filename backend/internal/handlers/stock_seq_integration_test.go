@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"net/http"
 	"sort"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mandalika/pos-backend/internal/service"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -22,8 +24,13 @@ const (
 )
 
 type stFixture struct {
-	ctx  context.Context
-	pool *pgxpool.Pool
+	ctx    context.Context
+	pool   *pgxpool.Pool
+	repo   *write.Repo
+	svc    *service.OrderService
+	h      *Handlers
+	router http.Handler
+	token  string
 }
 
 func (f *stFixture) exec(t *testing.T, sql string, args ...any) {
@@ -196,4 +203,7 @@ func TestStockSeqPostgres(t *testing.T) {
 			t.Fatalf("A %d->%d B %d->%d", a0, f.seq(t, stOutletA), b0, f.seq(t, stOutletB))
 		}
 	})
+
+	f.initWriters(t)
+	f.runWriterCases(t)
 }

@@ -107,6 +107,28 @@ func (r *Repo) bumpOutletTx(ctx context.Context, outletID string, fn func(pgx.Tx
 	return t.Commit(ctx)
 }
 
+// stockOutletTx is bumpOutletTx for writers that CHANGE the outlet's on-hand stock
+// (goods receipt, adjust): after the content version it also advances the outlet's
+// stock change counter, LAST (A15 Phase B). SetOutletPar keeps bumpOutletTx: a par
+// level changes no stock and must not move the counter.
+func (r *Repo) stockOutletTx(ctx context.Context, outletID string, fn func(pgx.Tx) error) error {
+	t, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer t.Rollback(ctx)
+	if err := fn(t); err != nil {
+		return err
+	}
+	if err := bumpVersionOutlets(ctx, t, "products", []string{outletID}); err != nil {
+		return fmt.Errorf("bump version: %w", err)
+	}
+	if _, err := BumpStockSeq(ctx, t, outletID); err != nil {
+		return err
+	}
+	return t.Commit(ctx)
+}
+
 // CreateLocationGoodsReceipt records a goods-in for an outlet OR warehouse and
 // INCREMENTS that location's stock per line. Outlet writes bump the outlet's
 // content_version; warehouse writes do not.
@@ -170,7 +192,7 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 	if kind == "warehouse" {
 		return r.noBumpTx(ctx, work)
 	}
-	return r.bumpOutletTx(ctx, locID, work)
+	return r.stockOutletTx(ctx, locID, work)
 }
 
 // AdjustLocationStock SETS the absolute on-hand qty for an outlet OR warehouse +
@@ -213,7 +235,7 @@ func (r *Repo) AdjustLocationStock(ctx context.Context, kind, locID, createdBy s
 	if kind == "warehouse" {
 		return r.noBumpTx(ctx, work)
 	}
-	return r.bumpOutletTx(ctx, locID, work)
+	return r.stockOutletTx(ctx, locID, work)
 }
 
 // SetOutletPar upserts ONLY par_level for one (outlet, product, variant),

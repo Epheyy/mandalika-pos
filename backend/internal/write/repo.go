@@ -81,6 +81,30 @@ func (r *Repo) tx(ctx context.Context, resource string, fn func(pgx.Tx) error) e
 	return t.Commit(ctx)
 }
 
+// txStock is tx for a writer that also changes outlet stock. fn returns the outlets
+// whose stock it wrote (none = nothing to announce); after the content version bump the
+// outlets' stock change counters advance, LAST (A15 Phase B).
+func (r *Repo) txStock(ctx context.Context, resource string, fn func(pgx.Tx) ([]string, error)) error {
+	t, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer t.Rollback(ctx)
+	changed, err := fn(t)
+	if err != nil {
+		return err
+	}
+	if err := bumpVersion(ctx, t, resource); err != nil {
+		return fmt.Errorf("bump version: %w", err)
+	}
+	if len(changed) > 0 {
+		if _, err := BumpStockSeq(ctx, t, changed...); err != nil {
+			return err
+		}
+	}
+	return t.Commit(ctx)
+}
+
 func jsonb(v any) ([]byte, error) {
 	if v == nil {
 		return []byte("null"), nil
@@ -163,7 +187,7 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 		return "", e
 	}
 	var id string
-	err := r.tx(ctx, "products", func(t pgx.Tx) error {
+	err := r.txStock(ctx, "products", func(t pgx.Tx) ([]string, error) {
 		imgs, main := productImages(p)
 		if e := t.QueryRow(ctx, `
 			INSERT INTO products (name, brand, category_id, description, image_url,
@@ -172,20 +196,26 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
 			nullStr(main), imgs, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive).
 			Scan(&id); e != nil {
-			return e
+			return nil, e
 		}
 		if e := insertVariants(ctx, t, id, p.Variants); e != nil {
-			return e
+			return nil, e
 		}
-		return seedOutletStock(ctx, t, id, seedOutletID, p.Variants)
+		seeded, e := seedOutletStock(ctx, t, id, seedOutletID, p.Variants)
+		if e != nil || seeded == "" {
+			return nil, e
+		}
+		return []string{seeded}, nil
 	})
 	return id, barcodeConflict(err)
 }
 
 // seedOutletStock writes a new product's initial per-variant stock to one outlet:
 // seedOutletID when set, else the primary outlet (most completed orders, tie-break
-// oldest active). Variants with 0 are skipped; other outlets start empty.
-func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID string, vs []Variant) error {
+// oldest active). Variants with 0 are skipped; other outlets start empty. It returns
+// the outlet it wrote stock rows to, or "" when no row was written (no active outlet,
+// or every variant is 0), so the caller announces a change only when one happened.
+func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID string, vs []Variant) (string, error) {
 	outlet := seedOutletID
 	if outlet == "" {
 		if e := t.QueryRow(ctx, `
@@ -195,11 +225,12 @@ func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID stri
 			WHERE o.is_active
 			ORDER BY COALESCE(oc.n,0) DESC, o.created_at ASC LIMIT 1`).Scan(&outlet); e != nil {
 			if errors.Is(e, pgx.ErrNoRows) {
-				return nil // no active outlet to seed
+				return "", nil // no active outlet to seed
 			}
-			return e
+			return "", e
 		}
 	}
+	wrote := false
 	for _, v := range vs {
 		if v.Stock == 0 {
 			continue
@@ -209,10 +240,14 @@ func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID stri
 			VALUES ($1,$2,$3,$4)
 			ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
 			outlet, productID, v.Size, v.Stock); e != nil {
-			return e
+			return "", e
 		}
+		wrote = true
 	}
-	return nil
+	if !wrote {
+		return "", nil
+	}
+	return outlet, nil
 }
 
 // UpdateProduct preserves variant identity instead of delete+reinsert: each

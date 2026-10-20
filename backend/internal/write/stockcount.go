@@ -450,6 +450,13 @@ func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, item
 		if e := bumpVersion(ctx, t, "products"); e != nil {
 			return fmt.Errorf("bump version: %w", e)
 		}
+		// A15 Phase B: the count rewrote this outlet's stock. Only the count's own
+		// outlet moves its counter (the content bump above touches every outlet, which
+		// is wasteful but changes no stock elsewhere). LAST, once; replays and
+		// warehouse counts return before here.
+		if _, e := BumpStockSeq(ctx, t, c.loc.outletID); e != nil {
+			return e
+		}
 	}
 	return t.Commit(ctx)
 }

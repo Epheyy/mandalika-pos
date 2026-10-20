@@ -8,6 +8,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,6 +186,15 @@ func resolveMergedCustomer(ctx context.Context, tx pgx.Tx, id string) (string, e
 //	discount codes by code -> customer -> stock rows by (product_id, variant_size)
 //	  -> new order row (create) / existing order row (refund, which reads the
 //	     order, codes and customer UNLOCKED first so it can enter the same order)
+//	  -> [content_versions rows] -> outlet_stock_seq row(s) in outlet_id order, LAST
+//
+// The last two steps (A15 Phase B) are shared by every stock writer, not only the
+// sale and refund: whoever bumps content_versions does so BEFORE outlet_stock_seq,
+// and write.BumpStockSeq is the last stock/version statement before Commit. Sale
+// and refund take no content_versions row at all. A writer that bumped the seq in
+// the middle (a trigger would) and took more stock rows afterwards would close a
+// lock cycle with transfer send/receive/cancel and stock-count apply, which lock
+// stock rows one per line; stockseq_guard_test.go enforces "bump is last".
 //
 // Merge locks both customers by id and then re-points orders (customer -> order
 // rows, the refund order too). Transfers lock the transfer row, then stock rows
@@ -203,8 +213,40 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (or
 	return s.createOrder(ctx, in, s.Pool.Begin)
 }
 
+// CreateOrderResult is CreateOrder's outcome plus the outlet stock counter value this
+// sale produced (A15 Phase B). StockSeq is nil for a duplicate (a replay moves nothing,
+// so it carries no counter value) and for the unit-test seams that bypass the bump.
+type CreateOrderResult struct {
+	OrderID      string
+	Duplicate    bool
+	StockWarning bool
+	StockSeq     *int64
+}
+
+// CreateOrderSeq is CreateOrder that also returns the sale's outlet stock counter value,
+// for the sync batch ack. The direct handler keeps using CreateOrder.
+func (s *OrderService) CreateOrderSeq(ctx context.Context, in CreateOrderInput) (CreateOrderResult, error) {
+	var seq int64
+	id, dup, warn, err := s.createOrderCore(ctx, in, s.Pool.Begin, &seq)
+	if err != nil {
+		return CreateOrderResult{}, err
+	}
+	res := CreateOrderResult{OrderID: id, Duplicate: dup, StockWarning: warn}
+	if !dup && seq > 0 {
+		res.StockSeq = &seq
+	}
+	return res, nil
+}
+
 // The transaction seam keeps command-boundary regression tests isolated.
 func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, begin func(context.Context) (pgx.Tx, error)) (orderID string, dup bool, stockWarning bool, err error) {
+	return s.createOrderCore(ctx, in, begin, nil)
+}
+
+// createOrderCore is the checkout body. seqOut (nil allowed) receives the outlet stock
+// counter value after the bump; an out-parameter keeps the many return sites below as
+// they were. It stays 0 on every non-committing path (replay, rollback).
+func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput, begin func(context.Context) (pgx.Tx, error), seqOut *int64) (orderID string, dup bool, stockWarning bool, err error) {
 	if len(in.Items) == 0 {
 		return "", false, false, ErrNoItems
 	}
@@ -732,8 +774,21 @@ func (s *OrderService) createOrder(ctx context.Context, in CreateOrderInput, beg
 		return "", false, false, fmt.Errorf("record idempotency: %w", e)
 	}
 
+	// A15 Phase B: tell every tablet at this outlet that its stock changed. Exactly once
+	// per committed sale (a sale that moved no stock still counts, so one own sale is
+	// always one bump), as the LAST statement: after the processed_keys claim, so a
+	// lost same-key race above rolls back with no gap, and after all stock rows.
+	outletKey := strings.ToLower(strings.TrimSpace(in.OutletID)) // BumpStockSeq's map key
+	seqs, e := write.BumpStockSeq(ctx, tx, in.OutletID)
+	if e != nil {
+		return "", false, false, e
+	}
+
 	if e := tx.Commit(ctx); e != nil {
 		return "", false, false, fmt.Errorf("commit: %w", e)
+	}
+	if seqOut != nil {
+		*seqOut = seqs[outletKey]
 	}
 	return orderID, false, stockWarning, nil
 }
@@ -1001,6 +1056,13 @@ func (s *OrderService) RefundTx(ctx context.Context, tx pgx.Tx, in RefundInput) 
 		}
 	}
 
+	// A15 Phase B: the restock above is stock changing under every tablet at this
+	// outlet. Exactly once per refund transaction, LAST (the caller's receipt UPDATE
+	// afterwards touches no stock or version row). Counted even when every line was
+	// skipped: the refund committed, and a stray extra pull is harmless.
+	if _, e := write.BumpStockSeq(ctx, tx, outletID); e != nil {
+		return e
+	}
 	return nil
 }
 
