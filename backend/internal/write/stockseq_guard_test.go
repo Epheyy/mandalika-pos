@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -285,5 +286,126 @@ func TestStockSeqNoSqlObjectWritesStock(t *testing.T) {
 		if hasObject && strings.Contains(low, stockTable) {
 			t.Errorf("%s defines a trigger/function/procedure that mentions %s: it must bump outlet_stock_seq in its own writer and be added to this guard deliberately", filepath.Base(f), stockTable)
 		}
+	}
+}
+
+// ---- Per-file and per-caller pins (the allowlist above is per FILE; these close the gaps) ----
+//
+// A new stock writer inside an already-allowlisted file, a function that reaches stock
+// only through a helper, or an outlet writer copy-pasted onto bumpOutletTx would pass the
+// file-level checks. Pinning counts and callers makes every such addition fail HERE, so
+// the next developer must decide: add the BumpStockSeq call (as the LAST statement, see
+// stockseq.go) or, for a change that truly leaves stock unchanged, update the pin with a
+// comment saying why.
+
+const pinHint = "add a write.BumpStockSeq call as the LAST statement of the new writer's transaction (see write/stockseq.go), or, if stock is really unchanged, update this pin and say why in a comment"
+
+var stockWriteSQL = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+outlet_variant_stock\b`)
+
+// stockSQLPins: per file, the number of literal stock-write statements on
+// outlet_variant_stock plus the dynamic-table references ("outlet_variant_stock" as a Go
+// string value, used to build SQL for the outlet leg).
+var stockSQLPins = map[string][2]int{
+	"internal/service/order.go":         {3, 0}, // lazy row, decrement, refund restock
+	"internal/service/lockorder.go":     {1, 0}, // lazy zero row (no bump)
+	"internal/write/transfer.go":        {2, 0}, // addStockDelta, deductStockGuarded
+	"internal/write/warehouse.go":       {2, 1}, // goods receipt (dynamic), adjust, par
+	"internal/write/stockcount.go":      {0, 1}, // countLoc.stock()
+	"internal/write/repo.go":            {5, 0}, // seed, rename, delete variant, availability, cleanup
+	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change)
+}
+
+// stockHelperCallers: every stock-changing helper and the only functions allowed to call it.
+var stockHelperCallers = map[string][]string{
+	"addStockDelta":      {"cancelTransfer", "receiveTransfer"},
+	"deductStockGuarded": {"sendTransfer"},
+	"applyCountDeltas":   {"completeStockCount"},
+	"seedOutletStock":    {"CreateProduct"},
+	"bumpOutletTx":       {"SetOutletPar"}, // par level only: it must NOT carry a stock change
+}
+
+func countStockSQL(src string) (literal, dynamic int) {
+	return len(stockWriteSQL.FindAllString(src, -1)), strings.Count(src, `"outlet_variant_stock"`)
+}
+
+// helperCallers returns "Func" names (sorted, deduped) that call any helper in names.
+func helperCallers(name, src string, names map[string]bool) map[string][]string {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, name, src, 0)
+	out := map[string][]string{}
+	if err != nil {
+		return out
+	}
+	for _, d := range file.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		seen := map[string]bool{}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if c, ok := n.(*ast.CallExpr); ok && names[calleeName(c)] && !seen[calleeName(c)] {
+				seen[calleeName(c)] = true
+				out[calleeName(c)] = append(out[calleeName(c)], fn.Name.Name)
+			}
+			return true
+		})
+	}
+	return out
+}
+
+func TestStockSeqStockSQLCountsArePinned(t *testing.T) {
+	srcs := goSources(t, backendRoot(t))
+	for n, src := range srcs {
+		lit, dyn := countStockSQL(src)
+		if lit == 0 && dyn == 0 {
+			continue
+		}
+		pin, ok := stockSQLPins[n]
+		if !ok {
+			t.Errorf("%s has %d stock-write statements / %d dynamic references but no pin: %s", n, lit, dyn, pinHint)
+			continue
+		}
+		if lit != pin[0] || dyn != pin[1] {
+			t.Errorf("%s: stock-write SQL changed (literal %d, dynamic %d; pinned %d, %d): %s", n, lit, dyn, pin[0], pin[1], pinHint)
+		}
+	}
+	for n := range stockSQLPins {
+		if _, ok := srcs[n]; !ok {
+			t.Errorf("stockSQLPins names %s, which does not exist", n)
+		}
+	}
+}
+
+func TestStockSeqHelperCallersArePinned(t *testing.T) {
+	names := map[string]bool{}
+	for h := range stockHelperCallers {
+		names[h] = true
+	}
+	got := map[string][]string{}
+	for n, src := range goSources(t, backendRoot(t)) {
+		for h, fns := range helperCallers(n, src, names) {
+			got[h] = append(got[h], fns...)
+		}
+	}
+	for h, want := range stockHelperCallers {
+		g := append([]string(nil), got[h]...)
+		sort.Strings(g)
+		if strings.Join(g, ",") != strings.Join(want, ",") {
+			t.Errorf("callers of %s are %v, pinned %v: %s", h, g, want, pinHint)
+		}
+	}
+}
+
+func TestStockSeqPinsRejectBadShapes(t *testing.T) {
+	if lit, dyn := countStockSQL("x := `UPDATE outlet_variant_stock SET stock=1`\ny := \"outlet_variant_stock\""); lit != 1 || dyn != 1 {
+		t.Fatalf("count lit=%d dyn=%d", lit, dyn)
+	}
+	src := `package p
+func newWriter(ctx C, tx T) error { return addStockDelta(ctx, tx) }
+func parCopy(r R) error { return r.bumpOutletTx(ctx, "o", nil) }
+func ok() { other() }`
+	got := helperCallers("x.go", src, map[string]bool{"addStockDelta": true, "bumpOutletTx": true})
+	if len(got["addStockDelta"]) != 1 || got["addStockDelta"][0] != "newWriter" || len(got["bumpOutletTx"]) != 1 {
+		t.Fatalf("callers %v", got)
 	}
 }

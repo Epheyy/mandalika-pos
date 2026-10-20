@@ -20,8 +20,11 @@ import (
 //   - Lock order: content_versions rows, then outlet_stock_seq rows in outlet_id order
 //     (this helper sorts), never the other way round. Stock rows are always locked
 //     before both (see the A42 note in service/order.go).
-//   - Call it only when stock really changed. Lazy zero rows, par level, availability,
-//     renames, deletes and warehouse-only legs must not bump.
+//   - Writers that change stock bump. Lazy zero rows, par level, availability, renames,
+//     deletes and warehouse-only legs must not. EXCEPTION BY DESIGN: a sale and a refund
+//     always bump once per committed transaction, even if no line moved stock (all
+//     bundle or unresolved lines): the client counts "one own sale = exactly one bump"
+//     to tell its own sales from foreign stock changes, so do not "fix" that.
 //
 // The upsert covers outlets created after migration 0057 seeded the table.
 func BumpStockSeq(ctx context.Context, tx pgx.Tx, outletIDs ...string) (map[string]int64, error) {
