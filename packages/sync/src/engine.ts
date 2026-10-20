@@ -272,6 +272,9 @@ export interface PendingShiftOp {
 export const ENVELOPE_REFUSED_MESSAGE =
   'Akun atau outlet terminal belum terverifikasi. Masuk ulang atau hubungi admin.'
 
+/** What a resync did: swapped the snapshot, lost to a newer pull / retirement, or was held back by the gate. */
+export type ResyncStatus = 'applied' | 'stale' | 'deferred'
+
 const ONLINE = () => typeof navigator === 'undefined' || navigator.onLine
 
 /** Every element must be an object with string idempotencyKey and note (name defaults to ''). */
@@ -299,6 +302,7 @@ export class SyncEngine {
   private archiveFailures = 0
   private creditedView: Bundle | null = null
   private flushing = false
+  private resyncFlight: Promise<ResyncStatus> | null = null
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -479,20 +483,41 @@ export class SyncEngine {
 
   // ── Reference snapshot ──────────────────────────────────
 
-  /** Initial/refresh pull when online; atomically swaps the local snapshot. */
-  async resync(): Promise<void> {
+  /** Initial/refresh pull when online; atomically swaps the local snapshot.
+   *  Single-flight: concurrent callers share one request. `shouldApply` (auto-pull gate) is asked again
+   *  after the response arrives; false discards the response and answers 'deferred'. A caller without a
+   *  gate that joins a gated pull which ends 'deferred' runs a fresh ungated pull (manual always applies). */
+  resync(opts: { shouldApply?: () => boolean } = {}): Promise<ResyncStatus> {
+    const inflight = this.resyncFlight
+    if (inflight) {
+      if (opts.shouldApply) return inflight
+      return inflight.then((s) => (s === 'deferred' ? this.resync() : s))
+    }
+    const p: Promise<ResyncStatus> = this.pullOnce(opts.shouldApply).finally(() => {
+      if (this.resyncFlight === p) this.resyncFlight = null
+    })
+    this.resyncFlight = p
+    return p
+  }
+
+  private async pullOnce(shouldApply?: () => boolean): Promise<ResyncStatus> {
     // A15: number the pull before it is sent. Debits acked before this number was taken are in what the
     // server answers; anything acked after (or while) it is in flight stays until a later pull.
     const epoch = this.disposeEpoch
     const pullNo = await this.settling.beginPull()
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
-    if (this.disposeEpoch !== epoch) return // disposed mid-flight: the live engine owns the snapshot and the settling state
+    if (this.disposeEpoch !== epoch) return 'stale' // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
     this.noteContact() // a 2xx pull is a contact (unsigned: the pull carries no token)
+    // Gate re-check BEFORE anything is applied: the cashier may have started a sale while the pull was in
+    // flight. The pull number used is harmless (`applied` does not move).
+    if (shouldApply && !shouldApply()) return 'deferred'
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
     // A response older than one already applied would roll the snapshot (and stock) back.
-    if (!this.settling.applyPull(pullNo, known)) return
+    if (!this.settling.applyPull(pullNo, known)) return 'stale'
+    // NO await from here to the end of the method: applyPull -> replace -> retire -> recomputeCredited
+    // -> wall is one synchronous block, so React can never render a half-swapped state (A15/A30).
     this.snapshot.replace(r.data)
     this.pending.retire(r.data.version ?? 0)
     this.recomputeCredited()
@@ -502,6 +527,12 @@ export class SyncEngine {
       serverVersion: r.data.version ?? 0,
     }
     this.events.onWall?.(this.wall)
+    return 'applied'
+  }
+
+  /** True while a pull (manual or automatic) is in flight. */
+  isPulling(): boolean {
+    return this.resyncFlight !== null
   }
 
   /** Read-only: version of the reference data (catalog, prices, rules) this device sells against. */
