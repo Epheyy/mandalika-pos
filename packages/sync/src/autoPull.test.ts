@@ -25,6 +25,7 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(1_000_000); rnd = 0.5; m
 afterEach(() => { s.cancel(); vi.useRealTimers() })
 
 const T0 = 1_000_000
+const BIG = 1_000 * 3_600_000 // a base far from epoch 0, so setting the clock back never goes negative
 
 describe('AutoPullScheduler', () => {
   it('a raise fires exactly once inside the 5-15 s jitter window', () => {
@@ -207,4 +208,55 @@ describe('AutoPullScheduler', () => {
     expect(fired.length).toBeLessThanOrEqual(10)
     expect(fired.length).toBeGreaterThan(0)
   })
+
+  it('a backward clock jump does not starve past the 60 s floor', () => {
+    vi.setSystemTime(BIG)
+    rnd = 0
+    s.attemptStarted()
+    vi.setSystemTime(BIG - 2 * 3_600_000) // clock set back two hours
+    s.wantPull()
+    vi.advanceTimersByTime(60_000)
+    expect(fired).toHaveLength(1)
+  })
+
+  it('a backward jump cannot leave a failure backoff beyond its 10 min cap', () => {
+    vi.setSystemTime(BIG)
+    rnd = 1
+    s.failed()
+    s.failed()
+    s.failed()
+    s.failed()
+    s.failed()
+    s.failed() // capped step
+    vi.setSystemTime(BIG - 5 * 3_600_000)
+    s.wantPull()
+    vi.advanceTimersByTime(AUTO_PULL.BACKOFF_CAP_MS)
+    expect(fired).toHaveLength(1)
+  })
+
+  it('never arms a timer longer than one hour', () => {
+    vi.setSystemTime(BIG)
+    s.attemptStarted()
+    vi.setSystemTime(BIG - 10 * 3_600_000)
+    s.failed()
+    vi.setSystemTime(BIG + 50 * 3_600_000)
+    s.wantPull()
+    const spy = vi.spyOn(globalThis, 'setTimeout')
+    s.cancel()
+    s.wantPull()
+    for (const call of spy.mock.calls) expect(Number(call[1])).toBeLessThanOrEqual(3_600_000)
+    expect(Number.isFinite(Number(spy.mock.calls.at(-1)?.[1]))).toBe(true)
+  })
+
+  it('a forward jump of 3 days arms a bounded timer and does not loop', () => {
+    rnd = 0
+    s.attemptStarted()
+    vi.setSystemTime(T0 + 3 * 86_400_000)
+    s.wantPull()
+    vi.advanceTimersByTime(15_000)
+    expect(fired).toHaveLength(1)
+    vi.advanceTimersByTime(60_000)
+    expect(fired).toHaveLength(1)
+  })
 })
+

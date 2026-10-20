@@ -19,6 +19,8 @@ export const AUTO_PULL = {
   HOUR_MS: 3_600_000,
   /** Re-check delay while a sale flush is running. */
   FLUSHING_RECHECK_MS: 3_000,
+  /** No timer is ever armed longer than this (setTimeout overflows past 2^31-1 ms). */
+  MAX_DELAY_MS: 3_600_000,
 } as const
 
 export interface AutoPullDeps {
@@ -127,6 +129,7 @@ export class AutoPullScheduler {
 
   private arm(target: number): void {
     const now = this.deps.now()
+    this.clampToClock(now)
     this.pruneAttempts(now)
     if (this.attempts.length >= AUTO_PULL.HOURLY_CAP) {
       if (!this.capLogged) {
@@ -141,7 +144,15 @@ export class AutoPullScheduler {
     this.timer = this.deps.setTimeout(() => {
       this.timer = null
       this.deps.run()
-    }, Math.max(0, at - now))
+    }, Math.min(AUTO_PULL.MAX_DELAY_MS, Math.max(0, at - now)))
+  }
+
+  /** The wall clock can jump back (manual change, NTP): stored times in the future would starve the pull. */
+  private clampToClock(now: number): void {
+    if (this.lastAttemptAt !== null) this.lastAttemptAt = Math.min(this.lastAttemptAt, now)
+    this.attempts = this.attempts.map((t) => Math.min(t, now))
+    this.backoffAt = Math.min(this.backoffAt, now + AUTO_PULL.BACKOFF_CAP_MS)
+    this.firstDetectAt = Math.min(this.firstDetectAt, now)
   }
 
   private pruneAttempts(now: number): void {
