@@ -9,6 +9,7 @@ import type {
   Reminder,
   DupCandidate,
 } from '@mandalika/api'
+import { fetchAllPages } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
   ToggleLeft, ToggleRight, Gift, Cake,
@@ -67,8 +68,8 @@ const EMPTY_COND: CondForm = {
 }
 
 const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
-  const result = await api.listCustomers(1, 10000)
-  const rows = result.data.map((c) => ({
+  const all = await fetchAllPages((page, limit) => api.listCustomers(page, limit))
+  const rows = all.map((c) => ({
     Nama: c.name,
     Telepon: c.phone,
     Email: c.email ?? '',

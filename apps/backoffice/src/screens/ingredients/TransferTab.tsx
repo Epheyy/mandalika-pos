@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { IngredientTransfer, Outlet, Warehouse } from '@mandalika/api'
+import { fetchAllPages, type IngredientTransfer, type Outlet, type Warehouse } from '@mandalika/api'
 import { Plus, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -85,15 +85,15 @@ export default function TransferTab() {
   }
 
   const exportIngredientTransfers = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listIngredientTransfers({
+    const all = await fetchAllPages((page, limit) => api.listIngredientTransfers({
       ...(filterStatus ? { status: filterStatus } : {}),
       ...(fromDate ? { from: toFromIso(fromDate) } : {}),
       ...(toDate ? { to: toToIso(toDate) } : {}),
       ...(locKind && locId ? { locKind, locId } : {}),
-      page: 1,
-      limit: 10000,
-    })
-    const exportRows = result.data.map((t) => ({
+      page,
+      limit,
+    }))
+    const exportRows = all.map((t) => ({
       No: t.transferNo,
       Sumber: t.source.name ?? t.source.id,
       Tujuan: t.dest.name ?? t.dest.id,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Ingredient, IngredientCategory, ListResult } from '@mandalika/api'
+import { fetchAllPages, type Ingredient, type IngredientCategory, type ListResult } from '@mandalika/api'
 import { Edit2, Search, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -22,8 +22,8 @@ const formatIDR = (n: number | null | undefined) => {
 
 const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
   // Fetch ALL ingredients for export (not just the current page)
-  const all = await api.listIngredients({ page: 1, limit: 10000 })
-  const rows = all.data.map((i) => ({
+  const all = await fetchAllPages((page, limit) => api.listIngredients({ page, limit }))
+  const rows = all.map((i) => ({
     Nama: i.name,
     SKU: i.sku || '',
     Satuan: i.unit,
