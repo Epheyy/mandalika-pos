@@ -4,6 +4,8 @@
 
 export { SyncEngine, RECEIVE_CONFLICT_CODES, BATCH_TIMEOUT_MS, REVIEW_CHECKIN_MS, REVIEW_CHECKIN_NEW_MS, REVIEW_CHECKIN_MAX_ITEMS, BACKOFF_BASE_MS, BACKOFF_CAP_MS, ACCOUNT_PROBLEM_MESSAGE, ENVELOPE_REFUSED_MESSAGE } from './engine'
 export type { ApiLike, ResyncStatus, ReviewResolvedNotice, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund, LocalReceipt } from './engine'
+export { AutoPullScheduler, AUTO_PULL } from './autoPull'
+export type { AutoPullDeps } from './autoPull'
 export { Outbox, OUTBOX_KEY, MAX_ATTEMPTS, summarizeQueue } from './outbox'
 export type { QueueSummary, OutboxItem, OutboxEnvelope, OutboxType, OutboxStatus, OutboxCorruption, ReviewItem } from './outbox'
 export { KVOutboxStore, isOutboxStore } from './outboxStore'
