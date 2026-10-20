@@ -302,6 +302,11 @@ func (r *Repo) sendTransfer(ctx context.Context, id string) error {
 		if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.srcOutlet}); e != nil {
 			return e
 		}
+		// A15 Phase B: the source outlet's stock just dropped. LAST, once (a warehouse
+		// source has no outlet counter).
+		if _, e := BumpStockSeq(ctx, tx, *t.srcOutlet); e != nil {
+			return e
+		}
 	}
 	return tx.Commit(ctx)
 }
@@ -424,6 +429,14 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		return e
 	}
 
+	// A15 Phase B: the destination outlet's stock just rose. LAST, once, after the TT
+	// stamp so the counter row lock is held for the shortest time. The replay branch
+	// above returns before this and so never bumps.
+	if t.dstOutlet != nil {
+		if _, e := BumpStockSeq(ctx, tx, *t.dstOutlet); e != nil {
+			return e
+		}
+	}
 	return tx.Commit(ctx)
 }
 
@@ -466,6 +479,13 @@ func (r *Repo) cancelTransfer(ctx context.Context, id string) error {
 	if e := guardedStatusUpdate(ctx, tx, t.status,
 		`UPDATE transfers SET status='cancelled', cancelled_at=now() WHERE id=$1 AND status=$2`, id); e != nil {
 		return e
+	}
+	// A15 Phase B: only an in-transit cancel put stock back (a draft moved none), and
+	// only into an outlet source. LAST, once.
+	if t.status == "in_transit" && t.srcOutlet != nil {
+		if _, e := BumpStockSeq(ctx, tx, *t.srcOutlet); e != nil {
+			return e
+		}
 	}
 	return tx.Commit(ctx)
 }

@@ -175,3 +175,16 @@ func TestValidateWarnsWhenProdRedisURLUnset(t *testing.T) {
 		t.Fatal("development must not warn")
 	}
 }
+
+// A15 Phase B kill switch: only an explicit "off" (any case) disables stockSeq; unset,
+// empty and every other value leave it on, so a typo can never silently disable it.
+func TestParseStockSeqOff(t *testing.T) {
+	for in, want := range map[string]bool{
+		"off": true, "OFF": true, " Off ": true,
+		"": false, "on": false, "false": false, "0": false, "of": false,
+	} {
+		if got := parseStockSeqOff(in); got != want {
+			t.Errorf("parseStockSeqOff(%q)=%v want %v", in, got, want)
+		}
+	}
+}

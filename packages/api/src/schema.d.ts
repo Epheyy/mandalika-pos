@@ -3725,6 +3725,11 @@ export interface components {
                 [key: string]: unknown;
             };
             contact?: components["schemas"]["OfflineContact"];
+            /**
+             * Format: int64
+             * @description The outlet's stock change counter (A15 Phase B), read in the same statement as version. Optional and NOT nullable: absent means "no signal" (older server or SYNC_STOCK_SEQ=off), never 0; a real 0 is sent.
+             */
+            stockSeq?: number;
         };
         /** @description Server-signed proof of the tablet's last successful online contact (A05). at is server time (RFC 3339, kept verbatim); sig binds it to the device id. A client cannot mint a later contact. */
         OfflineContact: {
@@ -3738,6 +3743,11 @@ export interface components {
         SyncPullBundle: {
             /** Format: int64 */
             version: number;
+            /**
+             * Format: int64
+             * @description The outlet stock counter as of the moment version was read, BEFORE the products were read: the stock in this bundle covers every change up to stockSeq. Optional and NOT nullable; absent = no signal.
+             */
+            stockSeq?: number;
             outletCode?: string | null;
             outletName?: string | null;
             /**
@@ -3896,6 +3906,11 @@ export interface components {
             code?: "rejected" | "forbidden" | "not_found" | "conflict" | "competing_receipt" | "key_conflict" | "busy" | "internal" | "actor_mismatch" | "offline_expired";
             /** @description Present exactly when status is "error" (false is still sent). true = nothing was applied and a later retry may succeed (busy, internal); false = the server refused the item and it needs review. */
             retryable?: boolean;
+            /**
+             * Format: int64
+             * @description The outlet stock counter value this sale produced (A15 Phase B). Present only for a fresh (status ok) order attributed to the batch caller's own outlet; a duplicate, a refund, an error or an order attributed to another outlet carries none. Optional and NOT nullable.
+             */
+            stockSeq?: number;
             tandaTerimaNo?: string | null;
             transfer?: components["schemas"]["Transfer"];
         };
@@ -3904,6 +3919,11 @@ export interface components {
             results: components["schemas"]["SyncItemResult"][];
             /** Format: int64 */
             version: number;
+            /**
+             * Format: int64
+             * @description The caller outlet's stock counter from the read after the items ran (A15 Phase B). Optional and NOT nullable; absent = no signal.
+             */
+            stockSeq?: number;
         };
         SyncBatchResponse: {
             data: components["schemas"]["SyncBatchResult"];

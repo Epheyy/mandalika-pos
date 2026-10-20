@@ -68,6 +68,9 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 			}
 			*d[0].(*int) = tx.stock
 			return nil
+		case strings.Contains(sql, "INSERT INTO outlet_stock_seq"):
+			*d[0].(*int64) = 1 // A15 Phase B: the sale's last statement, the outlet stock counter bump
+			return nil
 		case strings.Contains(sql, "nextval('order_no_seq')"):
 			*d[0].(*int64) = 1
 			return nil
@@ -476,5 +479,43 @@ func TestSaleBundleLineWithoutVariantWritesNoException(t *testing.T) {
 	_, _, warn, err := (&OrderService{}).createOrder(context.Background(), in, func(context.Context) (pgx.Tx, error) { return tx, nil })
 	if err != nil || len(tx.exceptions) != 0 || warn {
 		t.Fatalf("bundle line: err=%v rows=%d warn=%v", err, len(tx.exceptions), warn)
+	}
+}
+
+// A15 Phase B: a committed sale bumps the outlet stock counter exactly once, as the
+// last query, and reports it; a replay of the same key bumps nothing and reports none.
+func TestSaleBumpsOutletStockSeqOnceAndLast(t *testing.T) {
+	in := ordinaryInput()
+	in.AmountPaid = 110000
+	tx := &inputTestTx{allowWrites: true, stock: 5, taxRate: 10}
+	begin := func(context.Context) (pgx.Tx, error) { return tx, nil }
+	var seq int64
+	id, dup, _, err := (&OrderService{}).createOrderCore(context.Background(), in, begin, &seq)
+	if err != nil || dup || id == "" || tx.commits != 1 {
+		t.Fatalf("id=%q dup=%v err=%v commits=%d", id, dup, err, tx.commits)
+	}
+	bumps := 0
+	for _, q := range tx.queries {
+		if strings.Contains(q, "INSERT INTO outlet_stock_seq") {
+			bumps++
+		}
+	}
+	if bumps != 1 || !strings.Contains(tx.queries[len(tx.queries)-1], "INSERT INTO outlet_stock_seq") {
+		t.Fatalf("bumps=%d, last query must be the bump: %q", bumps, tx.queries[len(tx.queries)-1])
+	}
+	if seq != 1 {
+		t.Fatalf("seq=%d, want the bumped value 1", seq)
+	}
+	// replay of the committed key: nothing moves, no counter value
+	var replaySeq int64
+	before := len(tx.queries)
+	_, dup, _, err = (&OrderService{}).createOrderCore(context.Background(), in, begin, &replaySeq)
+	if err != nil || !dup || replaySeq != 0 {
+		t.Fatalf("replay dup=%v err=%v seq=%d", dup, err, replaySeq)
+	}
+	for _, q := range tx.queries[before:] {
+		if strings.Contains(q, "outlet_stock_seq") {
+			t.Fatal("a replay must not touch outlet_stock_seq")
+		}
 	}
 }

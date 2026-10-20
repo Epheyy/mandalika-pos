@@ -7,8 +7,8 @@ import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
 import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
-import { SettlingDebits, type DebitLine } from './settlingDebits'
-import { AutoPullScheduler, AUTO_PULL } from './autoPull'
+import { SettlingDebits, type DebitLine, type PulledSeq } from './settlingDebits'
+import { AutoPullScheduler, AUTO_PULL, type PullKind } from './autoPull'
 import { redactForLogs, redactSecrets, redactString } from './redact'
 import { OfflineContact, type OfflineCapState } from './offlineContact'
 
@@ -154,6 +154,8 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
 
 /** An acked order is kept queued at most this many times when its settling-debit write fails. */
 const SETTLING_HOLD_MAX = 3
+/** A15 phase B housekeeping: this many settling entries (a quiet outlet that never pulls) trigger a stock pull. */
+const SETTLING_HOUSEKEEPING_AT = 200
 /** Consecutive failed receipt-archive writes (A41) after which acked rows that are NOT sales stop being held back. */
 export const ARCHIVE_HOLD_MAX = 5
 /** ...and after which even an acked sale row that could not be archived is dropped. Its sale is already
@@ -310,7 +312,7 @@ export class SyncEngine {
     random: () => Math.random(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
-    run: () => { void this.autoPullRun() },
+    run: (kind) => { void this.autoPullRun(kind) },
     log: (m) => console.warn(m),
   })
   /** The app's "safe to swap reference data now" check. No gate registered = never auto-pull. */
@@ -322,6 +324,21 @@ export class SyncEngine {
   private pulledAt: number | null = null
   /** An order acked inside the pull window may be counted twice (pulled stock + kept debit): pull once more. */
   private followUpPull = false
+  /** A15 phase B: the outlet stock counter last reported by the server (version poll, batch, pull).
+   *  null = no signal (old server, kill switch): never 0. Meaningful only through seqRulesOn(). */
+  private serverStockSeq: number | null = null
+  /** The server counter fell below the snapshot's (database restore), or stopped being sent mid-session: every
+   *  seq rule stays off until the next applied pull. */
+  private seqRegressed = false
+  /** Outlet in effect when the last batch request was sent (a seq is only trusted for that outlet). */
+  private lastPostOutlet: string | undefined
+  /** Applied pulls so far, and the count when the last batch request went out: a seq in a batch response may
+   *  be compared with the snapshot's only if a pull was applied after the post (the snapshot was read later). */
+  private pullsApplied = 0
+  private pullsAtPost = 0
+  /** The snapshot's counter when the last batch request went out (undefined = not bound then). A fresh commit is
+   *  always above it, so a response seq at or below it is proof of a restore even if a pull landed meanwhile. */
+  private seqAtPost: number | undefined
   // idempotencyKeys already surfaced via onDeadLetter — emit each once.
   private reportedDead = new Set<string>()
   private reportedStuck = new Set<string>()
@@ -530,6 +547,7 @@ export class SyncEngine {
     // server answers; anything acked after (or while) it is in flight stays until a later pull.
     const epoch = this.disposeEpoch
     const pullNo = await this.settling.beginPull()
+    const outletAtSend = this.actorOutlet()
     const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
     if (this.disposeEpoch !== epoch) return 'stale' // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
@@ -540,13 +558,23 @@ export class SyncEngine {
     if (shouldApply && !shouldApply()) return 'deferred'
     const known = new Set<string>()
     for (const p of r.data.products ?? []) for (const v of p.variants) known.add(`${p.id}|${v.size}`)
+    // A15 phase B: bind the snapshot to the outlet it was pulled for, and only when that outlet is still the one
+    // in effect. A bundle without a seq carries no signal: no binding, no seq retirement.
+    const boundOutlet = outletAtSend !== undefined && outletAtSend === this.actorOutlet() ? outletAtSend : undefined
+    const bundleSeq = typeof r.data.stockSeq === 'number' ? r.data.stockSeq : undefined
+    const pulled: PulledSeq | undefined =
+      boundOutlet !== undefined && bundleSeq !== undefined && !this.seqRegressed ? { seq: bundleSeq, outlet: boundOutlet } : undefined
     // A response older than one already applied would roll the snapshot (and stock) back.
-    if (!this.settling.applyPull(pullNo, known)) return 'stale'
+    if (!this.settling.applyPull(pullNo, known, pulled)) return 'stale'
     // NO await from here to the end of the method: applyPull -> replace -> retire -> recomputeCredited
     // -> wall is one synchronous block, so React can never render a half-swapped state (A15/A30).
-    this.snapshot.replace(r.data)
+    this.snapshot.replace(r.data, boundOutlet)
     this.pending.retire(r.data.version ?? 0)
     this.recomputeCredited()
+    this.serverStockSeq = bundleSeq === undefined ? null
+      : this.seqRegressed || this.serverStockSeq === null ? bundleSeq : Math.max(this.serverStockSeq, bundleSeq)
+    this.seqRegressed = false // this pull is the fresh start after a restore
+    this.pullsApplied += 1
     this.wall = {
       raised: false,
       localVersion: r.data.version ?? 0,
@@ -579,7 +607,7 @@ export class SyncEngine {
 
   /** The gate went busy -> idle: a pull that was waiting for it may go ahead (2-5 s later). */
   nudgeAutoPull(): void {
-    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull) || !this.gateAllows()) return
+    if (this.disposed || !this.autoPullActive || this.pullWanted() === null || !this.gateAllows()) return
     this.autoPull.nudge()
   }
 
@@ -595,35 +623,93 @@ export class SyncEngine {
     try { return gate() } catch { return false }
   }
 
+  /** The outlet in effect (non-empty), or undefined when there is no actor: seq rules cannot apply then. */
+  private actorOutlet(): string | undefined {
+    const o = this.actorProvider?.()?.outletId
+    return typeof o === 'string' && o !== '' ? o : undefined
+  }
+
+  /** The snapshot was pulled for the outlet now in effect and carries a counter. */
+  private seqBound(): boolean {
+    const outlet = this.actorOutlet()
+    return outlet !== undefined && this.snapshot.pulledForOutlet() === outlet && this.snapshot.localStockSeq() !== undefined
+  }
+
+  /** The ONE gate for every A15 phase B rule (retire by seq, retire on record, drift, housekeeping, the new
+   *  follow-ups): bound to the current outlet, a counter in the snapshot, no restore seen. Absent means "no
+   *  signal", so an engine without an actor outlet can never turn a rule on. */
+  private seqRulesOn(): boolean {
+    return this.seqBound() && !this.seqRegressed
+  }
+
+  /** Record what the server reported (poll or batch). A response without a seq clears it: no signal. */
+  private noteServerSeq(seq: number | undefined): void {
+    // The field vanished after the server had sent it (kill switch, rollback): off until a pull brings a seq again.
+    if (seq === undefined && this.serverStockSeq !== null) this.seqRegressed = true
+    this.serverStockSeq = typeof seq === 'number' ? seq : null
+    const local = this.snapshot.localStockSeq()
+    if (typeof seq === 'number' && local !== undefined && this.seqBound() && seq < local) this.seqRegressed = true
+  }
+
+  /** What kind of background pull is wanted right now, if any. 'data': the wall is raised. 'stock': only stock
+   *  may be stale. With no seq signal this is exactly the pre-phase-B rule (wall or follow-up, 'data' timing). */
+  private pullWanted(): PullKind | null {
+    const rest = this.nonWallPullWanted()
+    if (!this.wall.raised) return rest
+    // The wall wins (chip, data budget), unless that budget is spent and stock drift is pending: then the stock
+    // kind keeps its own timer and cap (a stock pull is a full pull and clears the wall too).
+    return rest === 'stock' && this.autoPull.isCapped('data') ? 'stock' : 'data'
+  }
+
+  private nonWallPullWanted(): PullKind | null {
+    const server = this.serverStockSeq
+    const outlet = this.actorOutlet()
+    const signal = server !== null && outlet !== undefined
+    if (this.followUpPull) return signal && this.seqRulesOn() ? 'stock' : 'data'
+    if (!signal) return null
+    const local = this.snapshot.localStockSeq()
+    // Unbound (older snapshot, another outlet, no counter) or a restore: a pull is needed to start over.
+    if (!this.seqBound() || this.seqRegressed || local === undefined || server < local) return 'stock'
+    // The counter moves by exactly one per stock transaction, so this tablet's own acked sales in the window
+    // (local, server] account for that many bumps; anything beyond is another tablet, a refund or a backoffice sale.
+    if (server - local > this.settling.explainedCount(outlet, local, server)) return 'stock'
+    if (this.settling.list().length >= SETTLING_HOUSEKEEPING_AT) return 'stock'
+    return null
+  }
+
   /** Called whenever the wall may have changed (poll, batch ack, any resync outcome). */
   private afterWallUpdate(): void {
-    if (!this.wall.raised && !this.followUpPull) {
+    const kind = this.pullWanted()
+    if (kind === null) {
       this.autoPull.cancel() // nothing left to pull (e.g. the cashier tapped sync)
       return
     }
     if (this.disposed || !this.autoPullActive || !this.autoPullGate) return
-    const rose = this.wall.raised && this.wall.serverVersion > this.autoPullSeenVersion
+    const rose = kind === 'data' && this.wall.raised && this.wall.serverVersion > this.autoPullSeenVersion
     this.autoPullSeenVersion = Math.max(this.autoPullSeenVersion, this.wall.serverVersion)
     if (!this.gateAllows()) {
-      this.autoPull.markWaiting() // no timer: re-evaluated on the next poll or a nudge
+      this.autoPull.markWaiting(kind) // no timer: re-evaluated on the next poll or a nudge
       return
     }
-    this.autoPull.wantPull(rose)
+    this.autoPull.wantPull(rose, kind)
   }
 
-  /** The scheduler timer fired: re-check every precondition, then pull. */
-  private async autoPullRun(): Promise<void> {
-    if (this.disposed || !this.autoPullActive || (!this.wall.raised && !this.followUpPull)) return
+  /** The scheduler timer fired for `armed`: re-check every precondition (the kind included), then pull. */
+  private async autoPullRun(armed: PullKind): Promise<void> {
+    const kind = this.pullWanted()
+    if (this.disposed || !this.autoPullActive || kind === null) return
     if (!ONLINE() || !this.reachable) return // offline is always a no-op; the next poll / online event re-arms
-    if (!this.gateAllows()) { this.autoPull.markWaiting(); return }
+    if (kind !== armed) { this.afterWallUpdate(); return } // the want changed kind: re-arm under that kind's floor and cap
+    if (!this.gateAllows()) { this.autoPull.markWaiting(kind); return }
     // A sale flush is running: a pull in flight across its ack would leave stock LOW until the next
     // pull, and sales never bump the version. Do NOT wait for an empty outbox (parked items would starve
-    // pulls): pendingStockDeltas() keeps subtracting unacked and parked orders.
-    if (this.flushing) { this.autoPull.retryIn(AUTO_PULL.FLUSHING_RECHECK_MS); return }
-    this.autoPull.attemptStarted()
+    // pulls): pendingStockDeltas() keeps subtracting unacked and parked orders. This also keeps a poll that
+    // lands between the server commit of this device's sale and its ack from costing a pull.
+    if (this.flushing) { this.autoPull.retryIn(AUTO_PULL.FLUSHING_RECHECK_MS, kind); return }
+    this.autoPull.attemptStarted(kind)
     try {
       const status = await this.resync({ shouldApply: () => this.gateAllows() })
-      if (status === 'deferred') this.autoPull.markWaiting()
+      if (status === 'deferred') this.autoPull.markWaiting(kind)
     } catch (err) {
       const failure = classifyFailure(err, ONLINE())
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
@@ -664,6 +750,7 @@ export class SyncEngine {
       this.noteContact(r.data.contact)
       const server = r.data.version ?? 0
       const local = this.snapshot.localVersion()
+      this.noteServerSeq(r.data.stockSeq)
       this.wall = {
         raised: server > local,
         localVersion: local,
@@ -1179,11 +1266,15 @@ export class SyncEngine {
       if (parkedBefore.size === 0) return
       // A15: a resolved sale may not be in the snapshot yet. Keep its debit (it can only err LOW) until a
       // later pull; the entry is hidden while the item is still parked, so recording first never double counts.
+      const resolvedOrders = [...parkedBefore.values()].filter((i) => i.type === 'order')
       await this.settling.recordMany(
-        [...parkedBefore.values()].filter((i) => i.type === 'order').map((i) => ({
-          key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i),
-        })),
+        resolvedOrders.map((i) => ({ key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i) })),
       ).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
+      // A15 phase B: head office may or may not have applied the sale and the entry has no seq: one pull settles it.
+      if (resolvedOrders.length > 0 && this.serverStockSeq !== null && this.seqRulesOn()) {
+        this.followUpPull = true
+        this.afterWallUpdate()
+      }
       let removed: readonly Pick<OutboxItem, 'idempotencyKey' | 'type'>[]
       try {
         removed = await this.outbox.resolveReviewed([...parkedBefore.keys()])
@@ -1334,6 +1425,9 @@ export class SyncEngine {
   }
 
   private async post(items: readonly OutboxItem[]): Promise<BatchResult> {
+    this.lastPostOutlet = this.actorOutlet()
+    this.pullsAtPost = this.pullsApplied
+    this.seqAtPost = this.seqBound() ? this.snapshot.localStockSeq() : undefined
     const r = await this.api.request<{ data: BatchResult }>(
       'POST',
       '/api/v1/sync/batch',
@@ -1436,7 +1530,26 @@ export class SyncEngine {
   private async applyBatch(data: BatchResult, typeByKey: Map<string, OutboxType>): Promise<void> {
     const updates: OutboxSettle[] = []
     const ackedRefundOrderIds: string[] = []
-    const ackedOrders: { key: string; outletId?: string; lines: DebitLine[] }[] = []
+    const ackedOrders: { key: string; outletId?: string; lines: DebitLine[]; seq?: number; seqOutlet?: string }[] = []
+    // A15 phase B: a sale's seq is trusted only while every seq rule is on, the batch carried a counter, and the
+    // outlet in effect is the one the request was sent for (never in flush-only mode).
+    const outlet = this.actorOutlet()
+    // A counter below the snapshot's, with no pull applied since this request went out, is proof of a restore
+    // (the counter never goes down): the old snapshot's seq says nothing about these sales. Keep every debit
+    // unstamped and unskipped, and let noteServerSeq/pullWanted schedule the pull.
+    const pullSincePost = this.pullsApplied !== this.pullsAtPost
+    const postedAsCurrent = this.lastPostOutlet !== undefined && this.lastPostOutlet === outlet
+    // Only for the outlet the request was sent for (after a switch the counter is another outlet's). The batch
+    // counter is read after the items, so it may equal the seq read before the post only if nothing committed
+    // (strict <); an item's own commit is always above it (<=).
+    const seqPre = this.seqAtPost
+    if (postedAsCurrent && seqPre !== undefined) {
+      const itemSeqs = data.results.map((r) => r.stockSeq).filter((x): x is number => typeof x === 'number')
+      if (itemSeqs.some((x) => x <= seqPre) || (typeof data.stockSeq === 'number' && data.stockSeq < seqPre)) this.seqRegressed = true
+    }
+    const stampSeq = this.autoPullActive && typeof data.stockSeq === 'number' && outlet !== undefined &&
+      postedAsCurrent && this.seqRulesOn()
+    let needsFollowUp = false
     for (const res of data.results) {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
@@ -1454,7 +1567,19 @@ export class SyncEngine {
           // A15: keep the debit visible once the ack prunes the row; written before settle, so a crash
           // between the two can only leave a duplicate that the key-skip in pendingStockDeltas absorbs.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          if (acked) ackedOrders.push({ key: acked.idempotencyKey, outletId: acked.envelope?.outletId, lines: orderDebitLines(acked) })
+          if (acked) {
+            const entry: (typeof ackedOrders)[number] = { key: acked.idempotencyKey, outletId: acked.envelope?.outletId, lines: orderDebitLines(acked) }
+            const inOutlet = !acked.envelope?.outletId || acked.envelope.outletId === outlet
+            if (stampSeq && inOutlet) {
+              if (res.status === 'ok' && typeof res.stockSeq === 'number') {
+                entry.seq = res.stockSeq
+                entry.seqOutlet = outlet
+              } else if (!this.settling.hasSeq(entry.key)) {
+                needsFollowUp = true // a duplicate (or an ack without a seq): the pull may or may not have it
+              }
+            }
+            ackedOrders.push(entry)
+          }
         }
         // SP4: surface the completed transfer to the UI so the tanda-terima
         // prompt can render. Only on a fresh 'ok' (a 'duplicate' replay means
@@ -1500,7 +1625,10 @@ export class SyncEngine {
     // a persistently failing settling key can never block the queue and the terminal-release guard.
     let toSettle = updates
     try {
-      await this.settling.recordMany(ackedOrders)
+      // Retire-on-record: a pull already applied may cover a sale acked now.
+      const local = this.snapshot.localStockSeq()
+      const covered: PulledSeq | undefined = pullSincePost && this.seqRulesOn() && local !== undefined && outlet !== undefined ? { seq: local, outlet } : undefined
+      await this.settling.recordMany(ackedOrders, covered)
       for (const o of ackedOrders) this.settlingHolds.delete(o.key)
     } catch (err) {
       const held = new Set<string>()
@@ -1536,6 +1664,8 @@ export class SyncEngine {
     this.events.onReconcile?.(data)
     // Server returns its version on every ack — refresh wall state.
     const local = this.snapshot.localVersion()
+    if (postedAsCurrent) this.noteServerSeq(data.stockSeq) // another outlet's counter says nothing here; after the entries above are recorded, so an own sale is "explained"
+    if (needsFollowUp) this.followUpPull = true
     this.wall = {
       raised: (data.version ?? 0) > local,
       localVersion: local,

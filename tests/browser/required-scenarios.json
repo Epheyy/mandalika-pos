@@ -74,6 +74,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-STOCKDRIFT",
+      "finding": "A15",
+      "description": "A stock counter bump with an unchanged content version is pulled once by itself with no update chip and no further pull",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",
