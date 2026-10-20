@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -65,6 +65,14 @@ test('POS-AUTOPULL a version bump is pulled automatically only while the cart is
   await setupPos(p)
   const result = await posAutoPull(p)
   expect(result).toHaveLength(3)
+  await evidence(info, result)
+})
+
+test('POS-STOCKDRIFT a foreign stock bump is pulled once, silently, without a version change', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p)
+  const result = await posStockDrift(p)
+  expect(result).toHaveLength(1)
   await evidence(info, result)
 })
 
