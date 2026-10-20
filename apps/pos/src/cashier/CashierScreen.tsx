@@ -9,6 +9,7 @@ import { normalizePhone, type LocalReceipt } from '@mandalika/sync'
 import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
+import { useAutoPullGate } from './autoPullGate'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
 import { buildTandaTerimaData } from './transfers/buildTandaTerimaData'
 import { TransferHistoryPanel } from './TransferHistoryPanel'
@@ -271,6 +272,14 @@ export default function CashierScreen() {
 
   // Pending picker context has no effect on the sale until confirmed.
   const [pendingFulfillment, setPendingFulfillment] = useState<(Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: components['schemas']['Product'][] }) | null>(null)
+  // Background reference pull (auto-pull): the engine may swap the catalog only while nothing is in flight.
+  useAutoPullGate(engine, {
+    cartCount: state.cart.length, isCheckoutOpen: state.isCheckoutOpen, isProcessing: state.isProcessing,
+    isSuccessOpen: state.isSuccessOpen, hasRefundOrder: !!refundOrder, hasRefundSale: !!refundSale, isRefunding,
+    showReceive, hasPendingReceive: !!pendingReceive, hasPendingTT: !!pendingTT, hasPendingFulfillment: !!pendingFulfillment,
+    isAddingCustomer, isSavingCustomer, hasActiveAdjustment: !!state.activeAdjustment, showHistory, showLocalReceipts,
+    showRecap, showTransferHistory, showSettings, showMenu, shiftPrompt, closeIntent,
+  })
 
   useEffect(() => {
     if (
