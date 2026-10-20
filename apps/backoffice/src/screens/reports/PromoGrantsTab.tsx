@@ -8,7 +8,7 @@ import { Select } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Button } from '../../ui/Button'
-import type { components } from '@mandalika/api'
+import { fetchAllPages, type components } from '@mandalika/api'
 
 type Report = components['schemas']['PromoRewardGrantReport']
 type Promotion = components['schemas']['Promotion']
@@ -43,7 +43,7 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   useEffect(() => setPage(1), [dateFrom, dateTo, outletId])
 
   const pq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
-  const prq = usePolledQuery<Product[]>(() => api.listProducts(1, 500).then((r) => r.data), [outletId])
+  const prq = usePolledQuery<Product[]>(() => fetchAllPages((page, limit) => api.listProducts(page, limit)), [outletId])
   const rq = usePolledQuery<Report>(
     () =>
       api.listPromoRewardGrants({

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import { SINGLE_UNIT_SIZE } from '@mandalika/types'
 import { api } from '../../api'
+import { loadAllProducts } from '../../lib/loadAll'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { uploadImage } from '../../lib/uploadImage'
@@ -19,7 +20,7 @@ export function useProductsData() {
   const { outletId, outlets: ctxOutlets } = useOutlet()
   // Refetch the list when the admin switches outlet so stock/price/availability
   // reflect that outlet (the API client sends X-Outlet-Id from the switcher).
-  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data), [outletId])
+  const pq = usePolledQuery<Product[]>(() => loadAllProducts((p, l) => api.listProducts(p, l)), [outletId])
   const cq = usePolledQuery<Category[]>(() => api.listCategories(), [])
   const bq = usePolledQuery<Bundle[]>(() => api.listBundles(), [])
   const products = pq.data ?? []

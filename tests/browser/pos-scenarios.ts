@@ -36,7 +36,7 @@ export const setupPos = async (page: ScenarioPage) => {
     else if(path.split('?')[0].endsWith('/sync/version')) data={version:1};
     else if(path.endsWith('/sync/batch')) {page.__a24.writes.push(req.postDataJSON()); return route.fulfill({status:503,json:{error:'Synthetic retain-only transport'}});}
     else if(path.endsWith('/shifts/current')) data={id:'00000000-0000-4000-8300-000000000080',status:'open',startingCash:1100000,cashierId:user.id,outletId:user.outletId,openedAt:new Date().toISOString()};
-    else if(path.endsWith('/products')) data=products;
+    else if(path.endsWith('/products')) {const q=new URL(req.url()).searchParams;const n=Number(q.get('page'))||1,lim=Number(q.get('limit'))||50;return route.fulfill({status:200,json:{data:products.slice((n-1)*lim,n*lim),meta:{total:products.length,page:n,limit:lim}}});}
     else if(path.endsWith('/promotions')) {if(method!=='GET')page.__a24.writes.push({path,method,body:req.postDataJSON()});data=promotions;}
     else if(path.includes('/promotions/')) {if(method!=='GET')page.__a24.writes.push({path,method,body:req.postDataJSON()});data={id:'saved-synthetic'};}
     else if(path.endsWith('/discount-codes')) data=codes;

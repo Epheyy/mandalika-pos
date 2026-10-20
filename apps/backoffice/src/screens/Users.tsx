@@ -1,5 +1,5 @@
 import { useReducer, useState } from 'react'
-import type { User, CustomRole, Outlet } from '@mandalika/api'
+import { fetchAllPages, type User, type CustomRole, type Outlet } from '@mandalika/api'
 import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Store, KeyRound, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -94,7 +94,7 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
 
 export default function Users() {
   const { user: me } = useAuth()
-  const uq = usePolledQuery<User[]>(() => api.listUsers().then((r) => r.data), [])
+  const uq = usePolledQuery<User[]>(() => fetchAllPages((page, limit) => api.listUsers(page, limit)), [])
   const rq = usePolledQuery<CustomRole[]>(() => api.listCustomRoles(), [])
   const oq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const users = uq.data ?? []

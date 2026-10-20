@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { IngredientStockCount, IngredientStockCountItem, Outlet, Warehouse } from '@mandalika/api'
+import { fetchAllPages, type IngredientStockCount, type IngredientStockCountItem, type Outlet, type Warehouse } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
@@ -117,8 +117,8 @@ const parseLocationKey = (key: string): { kind: 'outlet' | 'warehouse'; id: stri
 }
 
 const exportIngredientStockCounts = async (fmt: 'csv' | 'xlsx') => {
-  const result = await api.listIngredientStockCounts({ page: 1, limit: 10000 })
-  const exportRows = result.data.map((sc) => ({
+  const all = await fetchAllPages((page, limit) => api.listIngredientStockCounts({ page, limit }))
+  const exportRows = all.map((sc) => ({
     Nama: sc.name,
     Lokasi: sc.location.name ?? sc.location.id,
     'Tipe Lokasi': sc.location.kind === 'outlet' ? 'Outlet' : 'Gudang',

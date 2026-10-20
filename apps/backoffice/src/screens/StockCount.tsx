@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import type { StockCount, StockCountItem, Product, Outlet, Warehouse, ListResult } from '@mandalika/api'
+import { fetchAllPages, type StockCount, type StockCountItem, type Product, type Outlet, type Warehouse, type ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api, authStore } from '../api'
+import { loadAllProducts } from '../lib/loadAll'
 import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -35,7 +36,7 @@ export default function StockCount() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, pageSize), [outletId, page, pageSize])
-  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [outletId])
+  const pq = usePolledQuery<Product[]>(() => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const stockCounts = scq.data?.data ?? []
@@ -236,8 +237,8 @@ export default function StockCount() {
   }
 
   const exportStockCounts = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listStockCounts(1, 10000)
-    const exportRows = result.data.map((sc) => ({
+    const all = await fetchAllPages((page, limit) => api.listStockCounts(page, limit))
+    const exportRows = all.map((sc) => ({
       Nama: sc.name,
       Lokasi: locName(sc),
       'Tipe Lokasi': locKind(sc),

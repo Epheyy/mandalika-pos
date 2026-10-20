@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Edit2, Trash2, Tag, Copy, Layers } from 'lucide-react'
 import { api } from '../api'
+import { loadAllProducts } from '../lib/loadAll'
 import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
 import { useAuth } from '../auth'
@@ -109,7 +110,7 @@ export default function Promotions() {
   const { outletId } = useOutlet()
   const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const dcq = usePolledQuery<DiscountCode[]>(() => api.listDiscountCodes(), [])
-  const pq = usePolledQuery<Product[]>(() => api.listProducts().then((r) => r.data.filter((p) => p.isActive)), [outletId])
+  const pq = usePolledQuery<Product[]>(() => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const promotions = prq.data ?? []
   const codes = dcq.data ?? []

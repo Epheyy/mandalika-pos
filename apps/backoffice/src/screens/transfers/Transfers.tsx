@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Outlet, Transfer, Warehouse } from '@mandalika/api'
+import { fetchAllPages, type Outlet, type Transfer, type Warehouse } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { Plus, ArrowLeft, Send, Ban, PackageCheck } from 'lucide-react'
 import { api } from '../../api'
@@ -112,15 +112,15 @@ function TransferList({ outlets, warehouses, onCreate, onOpen }: TransferListPro
   }
 
   const exportTransfers = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listTransfers({
+    const all = await fetchAllPages((page, limit) => api.listTransfers({
       ...(filterStatus ? { status: filterStatus } : {}),
       ...(fromDate ? { from: toFromIso(fromDate) } : {}),
       ...(toDate ? { to: toToIso(toDate) } : {}),
       ...(locKind && locId ? { locKind, locId } : {}),
-      page: 1,
-      limit: 10000,
-    })
-    const exportRows = result.data.map((t) => ({
+      page,
+      limit,
+    }))
+    const exportRows = all.map((t) => ({
       No: t.transferNo,
       Sumber: t.source.name,
       Tujuan: t.dest.name,

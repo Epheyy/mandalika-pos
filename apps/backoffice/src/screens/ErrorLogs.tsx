@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ErrorLog, ListResult } from '@mandalika/api'
+import { fetchAllPages, type ErrorLog, type ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
@@ -68,12 +68,9 @@ export default function ErrorLogs() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const exportErrorLogs = async (fmt: 'csv' | 'xlsx') => {
-    const result = await api.listErrorLogs({
-      page: 1,
-      limit: 10000,
-      ...(source ? { source } : {}),
-    })
-    const exportRows = result.data.map((e) => ({
+    const all = await fetchAllPages((page, limit) =>
+      api.listErrorLogs({ page, limit, ...(source ? { source } : {}) }))
+    const exportRows = all.map((e) => ({
       Sumber: e.source,
       Jenis: e.kind ?? '',
       Pesan: e.message,

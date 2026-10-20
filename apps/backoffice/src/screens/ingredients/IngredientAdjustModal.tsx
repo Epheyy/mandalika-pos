@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Ingredient, Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
+import { loadAllIngredients } from '../../lib/loadAll'
 import { Button } from '../../ui/Button'
 import { Input, Field, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -44,7 +45,7 @@ export function IngredientAdjustModal({
 
   useEffect(() => {
     const tasks: Promise<unknown>[] = [
-      api.listIngredients({ limit: 200 }).then((r) => setIngredients(r.data.filter((i) => i.isActive))),
+      loadAllIngredients((page, limit) => api.listIngredients({ page, limit })).then((r) => setIngredients(r.filter((i) => i.isActive))),
     ]
     if (!propLocation) {
       tasks.push(

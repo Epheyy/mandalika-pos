@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Ingredient, IngredientCategory } from '@mandalika/api'
 import { Search } from 'lucide-react'
 import { api } from '../../api'
+import { loadAllIngredients } from '../../lib/loadAll'
 import { fieldClass } from '../../ui/Field'
 
 interface Props {
@@ -25,7 +26,7 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
 
   useEffect(() => {
     let alive = true
-    api.listIngredients({ limit: 200 }).then((r) => { if (alive) setAll(r.data) }).catch(() => {})
+    loadAllIngredients((page, limit) => api.listIngredients({ page, limit })).then((r) => { if (alive) setAll(r) }).catch(() => {})
     api.listIngredientCategories().then((c) => { if (alive) setCats(c) }).catch(() => {})
     return () => { alive = false }
   }, [])

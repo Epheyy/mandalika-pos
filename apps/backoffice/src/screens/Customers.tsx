@@ -9,11 +9,13 @@ import type {
   Reminder,
   DupCandidate,
 } from '@mandalika/api'
+import { fetchAllPages } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
   ToggleLeft, ToggleRight, Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
+import { loadAllProducts } from '../lib/loadAll'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
@@ -67,8 +69,8 @@ const EMPTY_COND: CondForm = {
 }
 
 const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
-  const result = await api.listCustomers(1, 10000)
-  const rows = result.data.map((c) => ({
+  const all = await fetchAllPages((page, limit) => api.listCustomers(page, limit))
+  const rows = all.map((c) => ({
     Nama: c.name,
     Telepon: c.phone,
     Email: c.email ?? '',
@@ -114,7 +116,7 @@ export default function Customers() {
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
   const pq = usePolledQuery<Product[]>(
-    () => api.listProducts().then((r) => r.data.filter((p) => p.isActive)),
+    () => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)),
     [outletId],
   )
   const loyalty = lq.data ?? DEFAULT_LOYALTY
