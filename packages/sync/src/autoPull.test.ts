@@ -259,5 +259,84 @@ describe('AutoPullScheduler', () => {
     vi.advanceTimersByTime(60_000)
     expect(fired).toHaveLength(1)
   })
-})
 
+  describe('stock kind (A15 phase B)', () => {
+    it('stock has its own 300 s floor counted from the last auto pull of either kind', () => {
+      rnd = 0
+      s.attemptStarted('data')
+      s.wantPull(false, 'stock')
+      vi.advanceTimersByTime(AUTO_PULL.STOCK_FLOOR_MS - 1)
+      expect(fired).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(fired).toHaveLength(1)
+    })
+
+    it('a stock attempt does not delay a data pull (the data budget is separate)', () => {
+      rnd = 0
+      s.attemptStarted('stock')
+      s.wantPull(false, 'data')
+      vi.advanceTimersByTime(AUTO_PULL.JITTER_MIN_MS)
+      expect(fired).toHaveLength(1)
+    })
+
+    it('the stock cap is 10 per rolling hour and leaves the data cap alone', () => {
+      rnd = 0
+      for (let i = 0; i < AUTO_PULL.STOCK_HOURLY_CAP; i++) s.attemptStarted('stock')
+      expect(s.isCapped('stock')).toBe(true)
+      expect(s.isCapped()).toBe(false)
+      s.wantPull(false, 'stock')
+      expect(s.isScheduled()).toBe(false)
+      expect(logs.some((l) => l.includes('stock'))).toBe(true)
+      s.wantPull(false, 'data')
+      expect(s.isScheduled()).toBe(true)
+      s.cancel()
+      vi.advanceTimersByTime(AUTO_PULL.HOUR_MS)
+      expect(s.isCapped('stock')).toBe(false)
+    })
+
+    it('a stock attempt never uses up the 20/h data budget', () => {
+      for (let i = 0; i < 15; i++) s.attemptStarted('stock')
+      expect(s.isCapped()).toBe(false)
+    })
+
+    it('a data want replaces an armed stock timer; a stock want keeps an armed data timer', () => {
+      rnd = 0
+      s.wantPull(false, 'stock')
+      expect(s.armedKind()).toBe('stock')
+      s.wantPull(false, 'data')
+      expect(s.armedKind()).toBe('data')
+      s.wantPull(false, 'stock')
+      expect(s.armedKind()).toBe('data')
+      vi.advanceTimersByTime(AUTO_PULL.JITTER_MIN_MS)
+      expect(fired).toHaveLength(1) // fired as data, not held to the stock floor
+    })
+
+    it('the timer reports the kind it was armed for', () => {
+      rnd = 0
+      const seen: unknown[] = []
+      s.cancel()
+      s = new AutoPullScheduler({
+        now: () => Date.now(), random: () => rnd,
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+        run: (kind) => seen.push(kind),
+      })
+      s.wantPull(false, 'stock')
+      vi.advanceTimersByTime(AUTO_PULL.JITTER_MIN_MS)
+      expect(seen).toEqual(['stock'])
+    })
+
+    it('retryIn keeps the stock floor, waiting remembers the kind for a nudge', () => {
+      rnd = 0
+      s.attemptStarted('stock')
+      s.retryIn(AUTO_PULL.FLUSHING_RECHECK_MS, 'stock')
+      vi.advanceTimersByTime(AUTO_PULL.STOCK_FLOOR_MS - 1)
+      expect(fired).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(fired).toHaveLength(1)
+      s.markWaiting('stock')
+      s.nudge()
+      expect(s.armedKind()).toBe('stock')
+    })
+  })
+})

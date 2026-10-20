@@ -164,7 +164,9 @@ export class SettlingDebits {
     const entries = this.state.entries
       .filter((e) => e.gen >= g && !covered(e))
       .map((e) => (known ? { ...e, lines: e.lines.filter((l) => known.has(`${l.productId}|${l.variantSize}`)) } : e))
-      .filter((e) => e.lines.length > 0)
+      // A seq-bearing entry stays even with no lines left (a bundle-only sale still bumped the counter, and
+      // explainedCount must keep counting it); it debits nothing.
+      .filter((e) => e.lines.length > 0 || e.seq !== undefined)
     this.state = { ...this.state, applied: g, entries }
     this.persist().catch((err) => console.error('[sync] settling-debit retire write failed', err))
     return true
