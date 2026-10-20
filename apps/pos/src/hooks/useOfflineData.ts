@@ -3,6 +3,7 @@
  * online status, resync, and bootstraps engine on mount.
  */
 
+import { isResyncingNow, nextLastSyncedAt } from './autoPullStatus'
 import { useCallback, use, useEffect, useState } from 'react'
 import type { SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
@@ -90,7 +91,8 @@ export function useOfflineData(): OfflineDataState {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     () => localStorage.getItem('mandalika.pos.lastSyncedAt'),
   )
-  const [isResyncing, setIsResyncing] = useState(false)
+  const [manualResyncing, setManualResyncing] = useState(false)
+  const [enginePulling, setEnginePulling] = useState(() => engine.isPulling())
 
   useEffect(() => {
     // Browser online/offline events are only hints here — on a connectivity
@@ -119,7 +121,7 @@ export function useOfflineData(): OfflineDataState {
   }, [engine])
 
   const resync = useCallback(async () => {
-    setIsResyncing(true)
+    setManualResyncing(true)
     try {
       await engine.resync()
       const now = new Date().toISOString()
@@ -127,7 +129,7 @@ export function useOfflineData(): OfflineDataState {
       localStorage.setItem('mandalika.pos.lastSyncedAt', now)
       setWall(engine.getWall())
     } finally {
-      setIsResyncing(false)
+      setManualResyncing(false)
     }
   }, [engine])
 
@@ -146,6 +148,14 @@ export function useOfflineData(): OfflineDataState {
       })
       setAccountProblem(engine.accountProblem())
       setIsOnline(engine.isReachable())
+      // Background pulls: show them as syncing and keep "last synced" honest.
+      setEnginePulling(engine.isPulling())
+      setLastSyncedAt((prev) => {
+        const next = nextLastSyncedAt(prev, engine.lastPulledAt())
+        if (next === null) return prev
+        localStorage.setItem('mandalika.pos.lastSyncedAt', next)
+        return next
+      })
     }, 2000)
     return () => clearInterval(interval)
   }, [engine])
@@ -169,7 +179,7 @@ export function useOfflineData(): OfflineDataState {
     stuck: attn.stuck,
     accountProblem,
     lastSyncedAt,
-    isResyncing,
+    isResyncing: isResyncingNow(manualResyncing, enginePulling),
     resync,
     flush,
     retryFailed,
