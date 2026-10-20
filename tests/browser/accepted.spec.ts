@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -58,6 +58,14 @@ test('POS-CUSTOMER-CREATE new customer and registered sale retain their link', a
   const p = page as ScenarioPage
   await setupPos(p)
   await evidence(info, await addCustomer(p))
+})
+
+test('POS-AUTOPULL a version bump is pulled automatically only while the cart is empty', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p)
+  const result = await posAutoPull(p)
+  expect(result).toHaveLength(3)
+  await evidence(info, result)
 })
 
 test('POS-RECAP all pages cached and actual panel remount keeps complete snapshot', async ({ page }, info) => {
