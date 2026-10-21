@@ -1,4 +1,4 @@
-package write
+package ledger
 
 import (
 	"context"
