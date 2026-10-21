@@ -188,3 +188,71 @@ func TestParseStockSeqOff(t *testing.T) {
 		}
 	}
 }
+
+func TestParseERPEnabled(t *testing.T) {
+	tests := []struct {
+		in          string
+		wantEnabled bool
+		wantOK      bool
+	}{
+		{"", false, true}, {"true", true, true}, {" TRUE ", true, true}, {"1", true, true},
+		{"false", false, true}, {"0", false, true}, {"yes", false, false}, {"on", false, false},
+	}
+	for _, tt := range tests {
+		en, ok := parseERPEnabled(tt.in)
+		if en != tt.wantEnabled || ok != tt.wantOK {
+			t.Errorf("parseERPEnabled(%q) = %v,%v; want %v,%v", tt.in, en, ok, tt.wantEnabled, tt.wantOK)
+		}
+	}
+}
+
+func TestValidateERP(t *testing.T) {
+	enable := func(c *Config) {
+		c.ERPIntegrationEnabled = true
+		c.ERPBaseURL = "https://erp.example.com/api/integration/v1"
+		c.ERPAPIKey = "super-secret-key-value"
+	}
+	tests := []struct {
+		name    string
+		env     string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{"disabled needs nothing", "production", func(c *Config) {}, ""},
+		{"disabled ignores bad url", "development", func(c *Config) { c.ERPBaseURL = "::bad" }, ""},
+		{"enabled valid dev http", "development", func(c *Config) { enable(c); c.ERPBaseURL = "http://localhost:9090/api/integration/v1" }, ""},
+		{"enabled valid prod", "production", enable, ""},
+		{"enabled missing url", "development", func(c *Config) { enable(c); c.ERPBaseURL = "" }, "ERP_BASE_URL"},
+		{"enabled missing key", "development", func(c *Config) { enable(c); c.ERPAPIKey = "" }, "ERP_API_KEY"},
+		{"enabled relative url", "development", func(c *Config) { enable(c); c.ERPBaseURL = "/api/integration/v1" }, "absolute"},
+		{"enabled ftp url", "development", func(c *Config) { enable(c); c.ERPBaseURL = "ftp://erp.example.com" }, "absolute"},
+		{"enabled unparseable url", "development", func(c *Config) { enable(c); c.ERPBaseURL = "http://[::1" }, "absolute"},
+		{"prod requires https", "production", func(c *Config) { enable(c); c.ERPBaseURL = "http://erp.example.com/api/integration/v1" }, "https"},
+		{"bad enabled flag", "development", func(c *Config) { c.erpEnabledBad = true }, "ERP_INTEGRATION_ENABLED"},
+		{"prod short scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = "short" }, "ERP_SCHEDULER_TOKEN"},
+		{"prod long scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = strings.Repeat("t", 32) }, ""},
+		{"prod unset scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = "" }, ""},
+		{"dev short scheduler token ok", "development", func(c *Config) { c.ERPSchedulerToken = "short" }, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := base(tt.env)
+			tt.mutate(c)
+			err := c.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("want nil, got %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("want error containing %q, got %v", tt.wantErr, err)
+			}
+			for _, secret := range []string{c.ERPAPIKey, c.ERPSchedulerToken} {
+				if secret != "" && strings.Contains(err.Error(), secret) {
+					t.Fatalf("error leaks a secret value: %v", err)
+				}
+			}
+		})
+	}
+}
