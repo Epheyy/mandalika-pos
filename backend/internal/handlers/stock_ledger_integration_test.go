@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -204,6 +205,39 @@ func TestStockLedgerPostgres(t *testing.T) {
 		if n := slCount(t, ctx, pool, `kind='adjust' AND ref_type='backfill' AND location_id=$1`, slOutletA); n != 2 {
 			t.Fatalf("want two reanchor adjusts (+3, +1), got %d", n)
 		}
+	})
+
+	// The cmd/ledger-backfill path: ledger.RunBackfill (backfill + invariant + commit decision).
+	t.Run("run-backfill", func(t *testing.T) {
+		slSetup(t, ctx, pool)
+		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'run1',7) ON CONFLICT DO NOTHING`, slOutletC, slProductP)
+		before := slCount(t, ctx, pool, `true`)
+		rep, viol, err := ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{DryRun: true, RunID: "cmd-dry"})
+		if err != nil || rep.WouldInsert < 1 || rep.Inserted != 0 || len(viol) < 1 || slCount(t, ctx, pool, `true`) != before {
+			t.Fatalf("dry run must plan, report violations and insert nothing: %+v viol=%d err=%v", rep, len(viol), err)
+		}
+		rep, viol, err = ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{RunID: "cmd-open"})
+		if err != nil || rep.Inserted < 1 || len(viol) != 0 {
+			t.Fatalf("real run: %+v viol=%d err=%v", rep, len(viol), err)
+		}
+		assertLedgerInvariant(t, ctx, pool)
+		if rep, _, err = ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{RunID: "cmd-open2"}); err != nil || rep.Inserted != 0 {
+			t.Fatalf("re-run with a new run id must insert 0: %+v err=%v", rep, err)
+		}
+		exec(`UPDATE outlet_variant_stock SET stock = 9 WHERE outlet_id=$1 AND product_id=$2 AND variant_size='run1'`, slOutletC, slProductP)
+		if _, viol, err = ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{Reanchor: true, RunID: "cmd-re"}); err != nil || len(viol) != 0 {
+			t.Fatalf("reanchor: viol=%d err=%v", len(viol), err)
+		}
+		assertLedgerInvariant(t, ctx, pool)
+		// Opening mode cannot repair drift on an opened key: the write run must roll back.
+		exec(`UPDATE outlet_variant_stock SET stock = 11 WHERE outlet_id=$1 AND product_id=$2 AND variant_size='run1'`, slOutletC, slProductP)
+		if _, viol, err = ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{RunID: "cmd-bad"}); !errors.Is(err, ledger.ErrInvariantViolated) || len(viol) != 1 {
+			t.Fatalf("drifted key in opening mode: viol=%d err=%v", len(viol), err)
+		}
+		if _, _, err = ledger.RunBackfill(ctx, pool, ledger.BackfillOptions{Reanchor: true, RunID: "cmd-re2"}); err != nil {
+			t.Fatal(err)
+		}
+		assertLedgerInvariant(t, ctx, pool)
 	})
 
 	t.Run("record-split", func(t *testing.T) {
