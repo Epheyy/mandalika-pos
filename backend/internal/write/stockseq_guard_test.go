@@ -24,16 +24,18 @@ var stockSeqAllowlist = map[string]bool{
 	// bumpers: sale, refund (RefundTx), transfers, goods receipt/adjust, stock count,
 	// product-create seed
 	"internal/service/order.go":    true,
+	"internal/service/refund.go":   true,
 	"internal/write/transfer.go":   true,
 	"internal/write/warehouse.go":  true,
 	"internal/write/stockcount.go": true,
-	"internal/write/repo.go":       true,
+	"internal/write/catalog.go":    true,
 	// non-bumpers: stock unchanged (lazy zero row, rename, delete, par, availability)
 	// or read-only
 	"internal/service/lockorder.go":     false,
 	"internal/write/import_products.go": false,
 	"internal/read/oversell.go":         false,
-	"internal/read/repo.go":             false,
+	"internal/read/catalog.go":          false,
+	"internal/read/inventory.go":        false,
 }
 
 const stockTable = "outlet_variant_stock"
@@ -306,12 +308,13 @@ var stockWriteSQL = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)
 // outlet_variant_stock plus the dynamic-table references ("outlet_variant_stock" as a Go
 // string value, used to build SQL for the outlet leg).
 var stockSQLPins = map[string][2]int{
-	"internal/service/order.go":         {3, 0}, // lazy row, decrement, refund restock
+	"internal/service/order.go":         {2, 0}, // lazy row, decrement
+	"internal/service/refund.go":        {1, 0}, // refund restock
 	"internal/service/lockorder.go":     {1, 0}, // lazy zero row (no bump)
 	"internal/write/transfer.go":        {2, 0}, // addStockDelta, deductStockGuarded
 	"internal/write/warehouse.go":       {2, 1}, // goods receipt (dynamic), adjust, par
 	"internal/write/stockcount.go":      {0, 1}, // countLoc.stock()
-	"internal/write/repo.go":            {5, 0}, // seed, rename, delete variant, availability, cleanup
+	"internal/write/catalog.go":         {5, 0}, // seed, rename, delete variant, availability, cleanup
 	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change)
 }
 
