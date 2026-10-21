@@ -95,11 +95,21 @@ async function worker(name, dir) {
     assert(guard, 'bundled editor UNC rejection precedes filesystem I/O');
     const expression = guard.match(/if \((.*)\) return onErrorCallback/)[1];
     assert(!/fs|childProcess|require|import|fetch/.test(expression));
-    for (const fileName of ['\\\\synthetic.invalid\\owned\\dummy.js', '//synthetic.invalid/owned/dummy.js', '\\\\?\\UNC\\synthetic.invalid\\owned\\dummy.js']) {
-      assert.equal(vm.runInNewContext(expression, { process: { platform: 'win32' }, path$7: path.win32, fileName: path.win32.resolve(fileName) }, { timeout: limits.guardMs }), true);
+    // launch-editor >=2.14.2 (GHSA-587h-7wmj-h5pm) resolves inside parseFile BEFORE the guard; evaluate the real bundled parseFile
+    // so the harness proves production still strips ':line:col' and resolves, instead of supplying the resolve itself.
+    assert(prefix.indexOf('parseFile(file)') > -1 && prefix.indexOf('parseFile(file)') < prefix.indexOf('UNC paths are not supported'), 'parseFile precedes the UNC guard');
+    const parseAt = source.indexOf('function parseFile(file)'), parseSource = source.slice(source.lastIndexOf('const positionRE', parseAt), source.indexOf('\n}));', parseAt));
+    assert(parseSource.includes('.resolve(unresolvedFileName)'), 'bundled parseFile resolves before the guard');
+    assert(!/fs|childProcess|import|fetch/.test(parseSource) && (parseSource.match(/__require\(/g) || []).length === 1, 'parseFile stays pure apart from the file:// branch');
+    const pathIdent = parseSource.match(/([\w$]+)\.resolve\(unresolvedFileName\)/)[1];
+    const resolved = file => vm.runInNewContext(parseSource + '\nmodule.exports(file).fileName', { module: {}, [pathIdent]: path.win32, __require: () => assert.fail('parseFile must not load modules for these inputs'), file }, { timeout: limits.guardMs });
+    const rejected = file => vm.runInNewContext(expression, { process: { platform: 'win32' }, fileName: resolved(file) }, { timeout: limits.guardMs });
+    for (const file of ['\\\\synthetic.invalid\\owned\\dummy.js', '//synthetic.invalid/owned/dummy.js', '\\\\?\\UNC\\synthetic.invalid\\owned\\dummy.js', '\\\\synthetic.invalid\\share\\x.js\\..:1:1']) {
+      assert.equal(rejected(file), true, file);
     }
-    assert.equal(vm.runInNewContext(expression, { process: { platform: 'win32' }, path$7: path.win32, fileName: 'C:\\owned\\dummy.js' }, { timeout: limits.guardMs }), false);
-    console.log(JSON.stringify({ name, digest, extractedPureGuard: expression, simulatedPlatformPredicateOnly: true, uncFilesystemCalls: 0, editorSpawns: 0, notEndToEndCredentialLeakTest: true }));
+    assert.equal(resolved('\\\\synthetic.invalid\\share\\x.js\\..:1:1'), '\\\\synthetic.invalid\\share\\', 'advisory bypass shape is stripped and resolved before the guard');
+    for (const file of ['C:\\owned\\dummy.js', 'C:\\owned\\x.js\\..:1:1']) assert.equal(rejected(file), false, file);
+    console.log(JSON.stringify({ name, digest, extractedPureGuard: expression, bundledParseFileEvaluated: true, simulatedPlatformPredicateOnly: true, uncFilesystemCalls: 0, editorSpawns: 0, notEndToEndCredentialLeakTest: true }));
   }
 }
 if (option('--worker')) {
