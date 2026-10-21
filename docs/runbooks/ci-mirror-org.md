@@ -24,7 +24,7 @@ The gates need no repository secrets (verified 2026-10-21: `quality.yml`, `postg
 2. Name `mandalika-pos-ci`, **Private**, no README, no .gitignore, no license (it must be empty).
 3. Create. Note the URL `https://github.com/<org>/mandalika-pos-ci.git`.
 
-Tell Claude the org name. The rest is command line.
+Done 2026-10-21: org `mandalika-ci`, repo `mandalika-ci/mandalika-pos-ci`, remote `ci` configured in the main checkout.
 
 ## 3. Add the remote and push (Claude or owner)
 
@@ -35,6 +35,11 @@ git push ci prod-hardening
 ```
 
 The first push uploads the full history (about a minute). Every later push to `ci` runs the five gates on the mirror.
+
+**Gotcha (seen 2026-10-21):** a push that only creates a branch pointing at a commit the mirror already has starts no
+workflow, and the Actions tab keeps saying "No workflows found" until the first push that carries a NEW commit. Verified: an
+empty commit on a throwaway branch started all five gates within seconds. Merges always carry new commits, so this only
+matters for smoke tests.
 
 Watch the runs:
 
