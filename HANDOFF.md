@@ -212,6 +212,8 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 
 ## Next
 
+**ERP INTEGRATION (2026-10-21, owner decisions):** POS complies with the ERP (erp-flamboyan) as catalog master and ledger source of truth; big-bang Go backend reorganisation into feature modules before launch; additive-only schema changes; demo target 2026-11-02. Read `docs/plans/2026-10-21-erp-flamboyan-compatibility-assessment.md` (Parts 1-3) and the Indonesian handoff for the ERP developer `docs/integration/2026-10-21-serah-terima-erp-pos.md` (contract `POST /stock-documents`, POS work items P-A..P-H, open decisions §9). A planning card (reorg + ERP demo plan, Opus) is proposed; no code changed yet. ERP-side blockers: no write endpoint, no live outlet balance, not hosted, no tenant model.
+
 **NEXT SESSION — START HERE (written 2026-10-21; supersedes every older start-here block below):**
 - **State:** `prod-hardening` = `origin/prod-hardening` (clean, nothing unpushed). Live: backend revision `00120-puj` (migrations through 0063 + 0057, rollback `00118-gup`), backoffice on Cloudflare (list/export fix live), POS OTA **2.1.5** (APK 2.1 versionCode 12, fleet APK rollout still NOT done). Releases 8, 9, 10 are documented right below. Emulator `mandalika-tab` and Docker Desktop were left running (close them; `adb emu kill`).
 - **Pre-re-audit source of truth:** `docs/audits/2026-10-20-pre-reaudit-status.md` (all 44 findings, verified). The owner's earlier list 'A15 Phase B, A33 Task 9, A36' was incomplete; A15 Phase B is now DONE and live.
