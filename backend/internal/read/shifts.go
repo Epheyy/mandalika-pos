@@ -7,7 +7,7 @@ import (
 	"github.com/oapi-codegen/nullable"
 
 	"github.com/mandalika/pos-backend/internal/api"
-	"github.com/mandalika/pos-backend/internal/service"
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDate',s.business_date,
@@ -19,7 +19,7 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDa
   'transferSales',s.transfer_sales,'qrisSales',s.qris_sales,
   'countedByMethod',s.counted_by_method,
   -- Closed: the close-time snapshot (NULL before 0047). Open: filled in Go from the
-  -- live refundsPaidByMethod, because the isCash rule lives in service.IsCashMethod.
+  -- live refundsPaidByMethod, because the isCash rule lives in rules.IsCashMethod.
   'cashRefundsPaid',CASE WHEN s.status='closed' AND s.refunds_paid_by_method IS NOT NULL THEN s.cash_refunds_paid END,
   'refundsPaidByMethod',CASE WHEN s.status='closed' THEN s.refunds_paid_by_method
     ELSE (SELECT COALESCE(jsonb_object_agg(x.payment_method, x.amount),'{}'::jsonb) FROM (
@@ -74,7 +74,7 @@ func (r *Repo) fillOpenCashRefunds(ctx context.Context, shifts []api.Shift) erro
 		var cash float64
 		if by, err := shifts[i].RefundsPaidByMethod.Get(); err == nil {
 			for method, amount := range by {
-				if service.IsCashMethod(methods, method) {
+				if rules.IsCashMethod(methods, method) {
 					cash += float64(amount)
 				}
 			}

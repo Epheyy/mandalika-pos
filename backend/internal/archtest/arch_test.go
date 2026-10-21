@@ -64,7 +64,6 @@ const (
 // knownViolations is the ratchet: edges that exist at HEAD 3a2dde5. A fix must
 // delete its line (the test fails if a listed edge no longer exists).
 var knownViolations = map[string]string{
-	"read -> service":       "read/repo.go:1085 service.IsCashMethod",
 	"service -> write":      "write.Insert*/BumpStockSeq/ErrBusy/RewardGrantRow in createOrderCore/RefundTx",
 	"write -> auth":         "write/receive_approval.go HashPassword/VerifyPassword + PIN lockout",
 	"handlers -> " + pgconn: "handlers/writes.go:1126 refundHTTPError",
