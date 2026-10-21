@@ -33,7 +33,8 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/service/lockorder.go":     false,
 	"internal/write/import_products.go": false,
 	"internal/read/oversell.go":         false,
-	"internal/read/repo.go":             false,
+	"internal/read/catalog.go":          false,
+	"internal/read/inventory.go":        false,
 }
 
 const stockTable = "outlet_variant_stock"
