@@ -34,8 +34,8 @@ var tiers = map[string]tier{
 	"db": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,
 	"auth": platform, "middleware": platform,
 	"read": domain, "write": domain, "service": domain,
-	"integration/erp": adapter,
-	"handlers":        transport, "sync": transport,
+	"integration/erp": adapter, "integration/erp/erpapi": leaf,
+	"handlers": transport, "sync": transport,
 	"server":  root,
 	"codegen": tool, "fsmigrate": tool, "promotionpreflight": tool,
 }
