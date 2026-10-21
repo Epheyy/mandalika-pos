@@ -197,6 +197,7 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 			}
 		})
 	}
+	f.duplicateLineCases(t)
 }
 
 const (

@@ -8,6 +8,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/ledger"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -87,6 +88,18 @@ func validateItems(items []TransferItemInput) error {
 		if it.Qty <= 0 {
 			return fmt.Errorf("qty harus lebih dari 0")
 		}
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, it := range items {
+		pid := it.ProductID
+		if u, e := uuid.Parse(pid); e == nil {
+			pid = u.String()
+		}
+		k := pid + "|" + it.VariantSize
+		if _, dup := seen[k]; dup {
+			return fmt.Errorf("produk dengan ukuran yang sama muncul lebih dari sekali; gabungkan jumlahnya dalam satu baris")
+		}
+		seen[k] = struct{}{}
 	}
 	return nil
 }
@@ -333,6 +346,7 @@ func (r *Repo) sendTransfer(ctx context.Context, tx pgx.Tx, id, actor string) er
 // ReceiveTransfer credits the dest with the ACTUAL received qty per line, records
 // each line's difference (received - sent), requires a discrepancy reason when
 // any line differs, completes the transfer, and bumps the dest outlet leg if any.
+// The payload is keyed by product+size, not line id: see receivedPerLine.
 func (r *Repo) ReceiveTransfer(ctx context.Context, id string, rcv TransferReceive, meta ReceiveMeta) error {
 	return retryBusy(ctx, func() error { return r.receiveTransfer(ctx, id, rcv, meta) })
 }
@@ -382,43 +396,30 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		return e
 	}
 
-	// Index supplied received quantities; a line not supplied defaults to its
+	// Resolve one received qty per line; a line not supplied defaults to its
 	// sent qty (received in full, no discrepancy).
-	recv := map[string]int{}
-	for _, it := range rcv.Items {
-		if it.ReceivedQty < 0 {
-			return apperr.Wrap(apperr.Rejected, fmt.Errorf("jumlah terima tidak boleh negatif"))
-		}
-		recv[it.ProductID+"|"+it.VariantSize] = it.ReceivedQty
+	received, e := receivedPerLine(lines, rcv.Items)
+	if e != nil {
+		return e
 	}
-	type resolved struct {
-		l   transferLine
-		got int
-	}
-	res := make([]resolved, 0, len(lines))
 	anyDiff := false
-	for _, l := range lines {
-		got, ok := recv[l.pid+"|"+l.size]
-		if !ok {
-			got = l.sent
-		}
-		if got != l.sent {
+	for i, l := range lines {
+		if received[i] != l.sent {
 			anyDiff = true
 		}
-		res = append(res, resolved{l, got})
 	}
 	if anyDiff && rcv.DiscrepancyReason == "" {
 		return apperr.Wrap(apperr.Rejected, fmt.Errorf("alasan selisih wajib diisi"))
 	}
 
-	for _, rr := range res {
-		if e := addStockDelta(ctx, tx, t.dstOutlet, t.dstWarehouse, rr.l.pid, rr.l.size, rr.got); e != nil {
+	for i, l := range lines {
+		got := received[i]
+		if e := addStockDelta(ctx, tx, t.dstOutlet, t.dstWarehouse, l.pid, l.size, got); e != nil {
 			return e
 		}
 		if _, e := tx.Exec(ctx,
-			`UPDATE transfer_items SET received_qty=$1, difference=$2
-			   WHERE transfer_id=$3 AND product_id=$4 AND variant_size=$5`,
-			rr.got, transferDiff(rr.l.sent, rr.got), id, rr.l.pid, rr.l.size); e != nil {
+			`UPDATE transfer_items SET received_qty=$1, difference=$2 WHERE id=$3`,
+			got, transferDiff(l.sent, got), l.id); e != nil {
 			return e
 		}
 	}
@@ -450,10 +451,6 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 
 	// Ledger rows BEFORE the bump. The replay branch above returns before this, so a
 	// replayed receive records nothing.
-	received := make([]int, len(res))
-	for i, rr := range res {
-		received[i] = rr.got
-	}
 	if e := recordTransferMovements(ctx, tx, ledger.KindTransferIn, id, t, lines, ttNo, meta.ReceivedBy, received); e != nil {
 		return e
 	}

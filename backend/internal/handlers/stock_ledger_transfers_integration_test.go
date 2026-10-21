@@ -131,9 +131,13 @@ func slTransfers(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 
 	t1 := draft(write.TransferItemInput{ProductID: slProductP, VariantSize: "tr-a", Qty: 10},
 		write.TransferItemInput{ProductID: slProductQ, VariantSize: "tr-b", Qty: 3})
-	// the same product/size twice: two lines, two rows, one chain
-	t2 := draft(write.TransferItemInput{ProductID: slProductP, VariantSize: "tr-a", Qty: 2},
-		write.TransferItemInput{ProductID: slProductP, VariantSize: "tr-a", Qty: 3})
+	// the same product/size twice: two lines, two rows, one chain. Create refuses that
+	// shape now, so the second line is added directly (legacy data still holds it).
+	t2 := draft(write.TransferItemInput{ProductID: slProductP, VariantSize: "tr-a", Qty: 2})
+	if _, err := pool.Exec(ctx, `INSERT INTO transfer_items (transfer_id, product_id, variant_size, sent_qty)
+		VALUES ($1,$2,'tr-a',3)`, t2, slProductP); err != nil {
+		t.Fatal(err)
+	}
 
 	// send, keyed: one transfer_out row per line at the warehouse
 	wantOK(post("/transfers/"+t1+"/send", "sl-send-1"), "send")
