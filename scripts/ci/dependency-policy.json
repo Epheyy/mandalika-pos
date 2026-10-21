@@ -4,7 +4,7 @@
   "generator_version": "1.0.0",
   "tools": {
     "pnpm": "9.15.0",
-    "go": "go1.26.9",
+    "go": "go1.26.10",
     "govulncheck": "v1.8.0",
     "licenseclassifier": "v2.0.0",
     "yaml": "2.9.1",

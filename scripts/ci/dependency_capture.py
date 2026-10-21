@@ -124,7 +124,7 @@ def osv_capture(components, raw):
 def capture(root, raw, parser_root):
     raw.mkdir(parents=True, exist_ok=False)
     env = os.environ.copy()
-    env.update({"GOTOOLCHAIN": "go1.26.9", "GOENV": "off", "GOFLAGS": "-mod=readonly", "GOWORK": "off", "GOPROXY": "https://proxy.golang.org", "GOSUMDB": "sum.golang.org", "GONOSUMDB": "", "GONOPROXY": "", "GOPRIVATE": ""})
+    env.update({"GOTOOLCHAIN": "go1.26.10", "GOENV": "off", "GOFLAGS": "-mod=readonly", "GOWORK": "off", "GOPROXY": "https://proxy.golang.org", "GOSUMDB": "sum.golang.org", "GONOSUMDB": "", "GONOPROXY": "", "GOPRIVATE": ""})
     for executable, module, version in [("govulncheck", "golang.org/x/vuln", "v1.8.0"), ("identify_license", "github.com/google/licenseclassifier/v2", "v2.0.0")]:
         binary = shutil.which(executable)
         if not binary:
@@ -161,7 +161,7 @@ def capture(root, raw, parser_root):
         run(["go", "mod", "download", "-json", "all"], module_directory, env, raw / "go-download.json")
     version = run(["go", "env", "GOVERSION"], backend, env, raw / "go-version.txt").strip()
     goroot = run(["go", "env", "GOROOT"], backend, env, raw / "go-root.txt").strip()
-    if version != "go1.26.9":
+    if version != "go1.26.10":
         raise PolicyError("Go toolchain mismatch")
     write(raw / "toolchain.json", {"version": version, "license": "BSD-3-Clause", "license_sha256": hashlib.sha256((Path(goroot) / "LICENSE").read_bytes()).hexdigest()})
     targets = required_targets(root)
