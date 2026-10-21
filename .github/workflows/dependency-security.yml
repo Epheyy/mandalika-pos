@@ -22,7 +22,7 @@ jobs:
           node-version: 22
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
           check-latest: false
           cache-dependency-path: backend/go.sum
       - uses: actions/setup-python@v5
@@ -37,7 +37,7 @@ jobs:
           corepack pnpm install --frozen-lockfile --ignore-scripts
       - name: Install pinned official Go scanners
         env:
-          GOTOOLCHAIN: go1.26.9
+          GOTOOLCHAIN: go1.26.10
           GOENV: 'off'
           GOPROXY: https://proxy.golang.org
           GOSUMDB: sum.golang.org
