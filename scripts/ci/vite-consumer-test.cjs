@@ -96,7 +96,7 @@ async function worker(name, dir) {
     const expression = guard.match(/if \((.*)\) return onErrorCallback/)[1];
     assert(!/fs|childProcess|require|import|fetch/.test(expression));
     for (const fileName of ['\\\\synthetic.invalid\\owned\\dummy.js', '//synthetic.invalid/owned/dummy.js', '\\\\?\\UNC\\synthetic.invalid\\owned\\dummy.js']) {
-      assert.equal(vm.runInNewContext(expression, { process: { platform: 'win32' }, path$7: path.win32, fileName }, { timeout: limits.guardMs }), true);
+      assert.equal(vm.runInNewContext(expression, { process: { platform: 'win32' }, path$7: path.win32, fileName: path.win32.resolve(fileName) }, { timeout: limits.guardMs }), true);
     }
     assert.equal(vm.runInNewContext(expression, { process: { platform: 'win32' }, path$7: path.win32, fileName: 'C:\\owned\\dummy.js' }, { timeout: limits.guardMs }), false);
     console.log(JSON.stringify({ name, digest, extractedPureGuard: expression, simulatedPlatformPredicateOnly: true, uncFilesystemCalls: 0, editorSpawns: 0, notEndToEndCredentialLeakTest: true }));
@@ -105,7 +105,7 @@ async function worker(name, dir) {
 if (option('--worker')) {
   assert(cases.includes(option('--worker'))); worker(option('--worker'), path.resolve(option('--dir'))).catch(e => { console.error(e); process.exitCode = 1; });
 } else {
-  const expected = option('--baseline') === 'before' ? '8.0.13' : '8.0.16'; assert(contexts.every(c => c.version === expected));
+  const expected = option('--baseline') === 'before' ? '8.0.13' : '8.1.6'; assert(contexts.every(c => c.version === expected));
   const results = [];
   for (const name of cases) {
     const dir = fs.mkdtempSync(path.join(fixtureRoot, 'mandalika-vite-')); let result;
