@@ -169,14 +169,12 @@ var ledgerHookFiles = map[string]string{
 var ledgerNonMovers = map[string]string{
 	"internal/service/lockorder.go":     "lazy zero row (INSERT ... stock 0 ON CONFLICT DO NOTHING) so the sorted row lock has something to lock; quantity unchanged",
 	"internal/write/import_products.go": "renames/moves only zero-stock keys (D13 guard)",
+	"internal/write/catalog.go":         "create refuses opening stock (D12), so it writes no stock row; renames/deletes move only zero rows under the D13 guard (L7)",
 }
 
 // ledgerPendingWriters: movers not yet converted, with the task that converts them.
-// Each entry is removed by the commit that makes the file record. It may be non-empty
-// until the last writer lands.
-var ledgerPendingWriters = map[string]string{
-	"internal/write/catalog.go": "L8", // create seeding; renames/deletes are D13-guarded zero-stock only (L7)
-}
+// Step 2 is complete, so it is empty and TestLedgerNoPendingWriters keeps it that way.
+var ledgerPendingWriters = map[string]string{}
 
 // classifyStockWriters returns the problems found for the given sources.
 func classifyStockWriters(srcs map[string]string, hooks, nonMovers, pending map[string]string) []string {
@@ -226,6 +224,14 @@ func TestLedgerEveryStockWriterRecords(t *testing.T) {
 	srcs := goSources(t, backendRoot(t), "internal")
 	for _, v := range classifyStockWriters(srcs, ledgerHookFiles, ledgerNonMovers, ledgerPendingWriters) {
 		t.Error(v)
+	}
+}
+
+// Step 2 (stock ledger) is complete: every stock writer records or is an explained
+// non-mover. Parking a writer again means editing this test on purpose.
+func TestLedgerNoPendingWriters(t *testing.T) {
+	if len(ledgerPendingWriters) != 0 {
+		t.Errorf("ledgerPendingWriters must stay empty after L8, got %v", sortedKeys(ledgerPendingWriters))
 	}
 }
 

@@ -49,6 +49,7 @@ func newSLGuardFx(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *slGuar
 			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), auth.CtxUserID, slInvUser)))
 		})
 	})
+	r.Post("/products", f.h.CreateProduct)
 	r.Put("/products/{id}", f.h.UpdateProduct)
 	r.Delete("/products/{id}", f.h.DeleteProduct)
 	r.Put("/products/{id}/outlet-config", f.h.PutProductOutletConfig)
@@ -174,6 +175,8 @@ func (f *slGuardFx) ok(w *httptest.ResponseRecorder, what string) {
 
 func slGuards(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	f := newSLGuardFx(t, ctx, pool)
+	t.Run("create-refuses-opening-stock", f.createRefusesOpeningStock)
+	t.Run("update-ignores-input-stock", f.updateIgnoresInputStock)
 	t.Run("variant-delete", f.variantDelete)
 	t.Run("variant-rename", f.variantRename)
 	t.Run("product-and-warehouse-delete", f.productAndWarehouseDelete)
@@ -182,6 +185,77 @@ func slGuards(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Run("rename-onto-leftover-rows", f.renameOntoResidue)
 	t.Run("warehouse-delete-vs-open-receipt", f.warehouseDeleteRace)
 	t.Run("csv-apply-guard", f.csvApplyGuard)
+}
+
+// D12: a create with a non-zero variant stock is a 400 that writes nothing; a create with 0
+// writes the product and variant but no stock row and no movement.
+func (f *slGuardFx) createRefusesOpeningStock(t *testing.T) {
+	payload := func(name string, stock int) write.Product {
+		return write.Product{Name: name, Brand: "SLG", Sellable: true, IsActive: true,
+			Variants: []write.Variant{{Size: "100ml", Price: 1000, Stock: stock, SKU: "SLG-" + name}}}
+	}
+	for _, stock := range []int{5, -3} {
+		name := fmt.Sprintf("d12-refused%d", stock)
+		w := f.do(http.MethodPost, "/products", payload(name, stock))
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "Penerimaan Barang") {
+			t.Fatalf("create with stock %d: %d %s, want 400 naming Penerimaan Barang", stock, w.Code, w.Body.String())
+		}
+		if n := f.count(`SELECT count(*)::int FROM products WHERE name=$1`, name); n != 0 {
+			t.Fatalf("refused create left %d product rows", n)
+		}
+		if n := f.count(`SELECT count(*)::int FROM product_variants WHERE sku=$1`, "SLG-"+name); n != 0 {
+			t.Fatalf("refused create left %d variant rows", n)
+		}
+	}
+	before := f.count(`SELECT count(*)::int FROM stock_movements`)
+	w := f.do(http.MethodPost, "/products", payload("d12-zero", 0))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create with stock 0: %d %s", w.Code, w.Body.String())
+	}
+	pid := f.str(`SELECT id::text FROM products WHERE name='d12-zero'`)
+	if n := f.rows("outlet_variant_stock", pid, "100ml") + f.rows("warehouse_variant_stock", pid, "100ml"); n != 0 {
+		t.Fatalf("zero create wrote %d stock rows", n)
+	}
+	if after := f.count(`SELECT count(*)::int FROM stock_movements`); after != before {
+		t.Fatalf("zero create wrote %d movements", after-before)
+	}
+	assertLedgerInvariant(t, f.ctx, f.pool)
+}
+
+func (f *slGuardFx) str(sql string, args ...any) (s string) {
+	f.t.Helper()
+	if err := f.pool.QueryRow(f.ctx, sql, args...).Scan(&s); err != nil {
+		f.t.Fatal(err)
+	}
+	return s
+}
+
+// UpdateProduct still ignores input stock (no refusal): neither the frozen
+// product_variants.stock nor live stock moves.
+func (f *slGuardFx) updateIgnoresInputStock(t *testing.T) {
+	pid, vids := f.product("d12-upd", "a")
+	f.outlet(pid, "a", 4)
+	f.open()
+	frozen := f.count(`SELECT stock FROM product_variants WHERE id=$1`, vids["a"])
+	v := slGuardVariant("d12-upd", vids["a"], "a", "")
+	v.Stock = 99
+	f.ok(f.putProduct("d12-upd", pid, v), "update with a different input stock")
+	if got := f.count(`SELECT stock FROM product_variants WHERE id=$1`, vids["a"]); got != frozen {
+		t.Fatalf("product_variants.stock %d -> %d, want frozen", frozen, got)
+	}
+	if got := f.count(`SELECT stock FROM outlet_variant_stock WHERE product_id=$1 AND variant_size='a'`, pid); got != 4 {
+		t.Fatalf("live stock %d, want 4", got)
+	}
+	nv := slGuardVariant("d12-upd", "", "b", "")
+	nv.Stock = 50
+	f.ok(f.putProduct("d12-upd", pid, v, nv), "update adding a variant with input stock")
+	if got := f.count(`SELECT stock FROM product_variants WHERE product_id=$1 AND size='b'`, pid); got != 0 {
+		t.Fatalf("new variant product_variants.stock %d, want 0 (DEFAULT)", got)
+	}
+	if n := f.rows("outlet_variant_stock", pid, "b"); n != 0 {
+		t.Fatalf("new variant got %d stock rows", n)
+	}
+	assertLedgerInvariant(t, f.ctx, f.pool)
 }
 
 func (f *slGuardFx) variantDelete(t *testing.T) {

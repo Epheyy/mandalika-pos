@@ -110,6 +110,13 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 	if e := validateVariants(p.Variants); e != nil {
 		return "", e
 	}
+	// D12: opening stock is never typed into a create; it enters through a goods receipt,
+	// which records the movement. Refused before any write.
+	for _, v := range p.Variants {
+		if v.Stock != 0 {
+			return "", fmt.Errorf("stok awal tidak bisa diisi saat membuat produk; catat lewat Penerimaan Barang (varian %s)", v.SKU)
+		}
+	}
 	var id string
 	err := r.txStock(ctx, "products", func(t pgx.Tx) ([]string, error) {
 		imgs, main := productImages(p)
@@ -136,7 +143,8 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 
 // seedOutletStock writes a new product's initial per-variant stock to one outlet:
 // seedOutletID when set, else the primary outlet (most completed orders, tie-break
-// oldest active). Variants with 0 are skipped; other outlets start empty. It returns
+// oldest active). Variants with 0 are skipped; other outlets start empty. Since D12
+// CreateProduct refuses a non-zero stock, so in practice no row is written. It returns
 // the outlet it wrote stock rows to, or "" when no row was written (no active outlet,
 // or every variant is 0), so the caller announces a change only when one happened.
 func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID string, vs []Variant) (string, error) {
@@ -210,15 +218,15 @@ func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
 			vid := matched[i]
 			if vid == "" {
 				if _, e := t.Exec(ctx,
-					`INSERT INTO product_variants (product_id, size, price, stock, sku, barcode) VALUES ($1,$2,$3,$4,$5,$6)`,
-					id, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
+					`INSERT INTO product_variants (product_id, size, price, sku, barcode) VALUES ($1,$2,$3,$4,$5)`,
+					id, v.Size, v.Price, v.SKU, variantBarcode(v)); e != nil {
 					return e
 				}
 				continue
 			}
 			if _, e := t.Exec(ctx,
-				`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4, barcode=$5 WHERE id=$6`,
-				v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v), vid); e != nil {
+				`UPDATE product_variants SET size=$1, price=$2, sku=$3, barcode=$4 WHERE id=$5`,
+				v.Size, v.Price, v.SKU, variantBarcode(v), vid); e != nil {
 				return e
 			}
 			if cur := byID[vid]; cur.size != v.Size {
@@ -369,9 +377,9 @@ func dropRemovedVariants(ctx context.Context, t pgx.Tx, id string, matched []str
 func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Variant) error {
 	for _, v := range vs {
 		if _, e := t.Exec(ctx, `
-			INSERT INTO product_variants (product_id, size, price, stock, sku, barcode)
-			VALUES ($1,$2,$3,$4,$5,$6)`,
-			productID, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
+			INSERT INTO product_variants (product_id, size, price, sku, barcode)
+			VALUES ($1,$2,$3,$4,$5)`,
+			productID, v.Size, v.Price, v.SKU, variantBarcode(v)); e != nil {
 			return e
 		}
 	}
