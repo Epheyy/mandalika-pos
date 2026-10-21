@@ -165,6 +165,8 @@ class Fixture:
     def __init__(self, args, gate, evidence):
         self.args, self.gate, self.evidence = args, gate, evidence
         self.prefix, self.test, self.port, short = gate
+        # --go-runner docker joins this container's network namespace, so Postgres must listen on the gate port itself.
+        self.pg_port = self.port if getattr(args, "go_runner", "host") == "docker" else 5432
         self.user, self.database = f"{short}_test", f"mandalika_{short}_synthetic"
         self.password, self.nonce = secrets.token_hex(24), uuid.uuid4().hex
         self.env = clean_env() | {"PGPASSWORD": self.password, "PGCONNECT_TIMEOUT": "2"}
@@ -181,7 +183,7 @@ class Fixture:
     def sql(self, query, timeout=5):
         if self.args.runtime == "docker":
             cmd = ["docker", "exec", "--env", "PGPASSWORD", self.container, "psql"]
-            port = 5432
+            port = self.pg_port
         else:
             cmd, port = [self.binary("psql")], self.port
         return checked(cmd + ["-X", "-w", "-v", "ON_ERROR_STOP=1", "-At", "-h", "127.0.0.1",
@@ -195,16 +197,16 @@ class Fixture:
             self.created = True  # cleanup by unique owned name even if create response is lost
             env = clean_env() | {"POSTGRES_PASSWORD": self.password}
             checked(["docker", "create", "--name", self.container, "--label", f"mandalika-ci={self.nonce}",
-                     "--publish", f"127.0.0.1:{self.port}:5432", "--mount", "type=tmpfs,destination=/var/lib/postgresql",
+                     "--publish", f"127.0.0.1:{self.port}:{self.pg_port}", "--mount", "type=tmpfs,destination=/var/lib/postgresql",
                      "--env", "POSTGRES_PASSWORD", "--env", f"POSTGRES_USER={self.user}",
                      "--env", f"POSTGRES_DB={self.database}", "--env", f"PGDATA={self.data_dir}",
                      "--env", "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256",
-                     self.args.image_id], env=env, timeout=60)
+                     self.args.image_id] + (["-c", f"port={self.pg_port}"] if self.pg_port != 5432 else []), env=env, timeout=60)
             details = json.loads(checked(["docker", "inspect", "--format",
                 '{{json .Id}}', self.container]))
             self.evidence["container_id"] = details
             bindings = json.loads(checked(["docker", "inspect", "--format", '{{json .HostConfig.PortBindings}}', self.container]))
-            if bindings != {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(self.port)}]}:
+            if bindings != {f"{self.pg_port}/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(self.port)}]}:
                 raise GateError("unexpected container port bindings")
             checked(["docker", "start", self.container], timeout=30)
         else:
@@ -262,9 +264,9 @@ class Fixture:
         self.evidence.update(actual_data_directory=directory, server_version_num=version,
                              public_tables_before=tables, identity="verified")
 
-    def test_env(self):
+    def test_env(self, host: str = "127.0.0.1"):
         # Generated only here, from fixed constants; never printed or serialized.
-        dsn = f"postgres://{self.user}:{self.password}@127.0.0.1:{self.port}/{self.database}?sslmode=disable"
+        dsn = f"postgres://{self.user}:{self.password}@{host}:{self.port}/{self.database}?sslmode=disable"
         return clean_env() | {f"MANDALIKA_{self.prefix}_TEST_DSN": dsn,
                               f"MANDALIKA_{self.prefix}_TEST_DATA_DIR": self.data_dir}
 
@@ -305,13 +307,59 @@ def save(path: Path, report):
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+GO_IMAGE_DEFAULT = "golang:1.26.10"
+
+
+def docker_go_cmd(args, go_cmd: list, prefix: str, container: str | None = None) -> list:
+    """Run the `go test` command inside the pinned Linux Go image: the race detector needs CGO, which this
+    Windows host lacks. The Go container joins the fixture container's network namespace, so the test's
+    127.0.0.1:<gate port> guard holds unchanged. The DSN travels as an inherited env NAME, never as a value on
+    the command line (the command is saved as evidence)."""
+    network = ["--network", f"container:{container}"] if container else []
+    return ["docker", "run", "--rm", *network,
+            "--mount", f"type=bind,source={ROOT},target=/src",
+            "--mount", "type=volume,source=mandalika-ci-gomod,target=/go/pkg/mod",
+            "--mount", "type=volume,source=mandalika-ci-gocache,target=/root/.cache/go-build",
+            "--workdir", "/src/backend",
+            "--env", f"MANDALIKA_{prefix}_TEST_DSN", "--env", f"MANDALIKA_{prefix}_TEST_DATA_DIR",
+            "--env", "CGO_ENABLED=1", getattr(args, "go_image", GO_IMAGE_DEFAULT)] + go_cmd
+
+
+def ensure_go_image(args) -> str:
+    image = getattr(args, "go_image", GO_IMAGE_DEFAULT)
+    try:
+        checked(["docker", "image", "inspect", "--format", "{{.Id}}", image])
+    except GateError:
+        checked(["docker", "pull", image], timeout=600)
+    # Warm the module and build caches once so the per-gate test timeout is not spent downloading.
+    checked(docker_go_cmd(args, ["go", "mod", "download"], "WARM"), timeout=900)
+    return checked(["docker", "image", "inspect", "--format", "{{.Id}}", image])
+
+
+def selected_gates(args):
+    only = getattr(args, "only", None)
+    if not only:
+        return GATES
+    wanted = {x.strip().upper() for x in only.split(",") if x.strip()}
+    unknown = wanted - {g[0] for g in GATES}
+    if unknown:
+        raise GateError(f"unknown gate prefix: {sorted(unknown)}")
+    return tuple(g for g in GATES if g[0] in wanted)
+
+
 def run(args) -> int:
-    report = {"schema_version": 1, "runtime": args.runtime, "race": not args.no_race,
-              "expected_gates": [g[1] for g in GATES], "gates": [], "status": "running"}
+    go_runner = getattr(args, "go_runner", "host")
+    gates = selected_gates(args)
+    report = {"schema_version": 1, "runtime": args.runtime, "race": not args.no_race, "go_runner": go_runner,
+              "expected_gates": [g[1] for g in gates], "gates": [], "status": "running"}
     started = time.monotonic()
     save(args.output, report)
     try:
         report["go_version"] = checked(["go", "version"])
+        if go_runner == "docker":
+            if args.runtime != "docker":
+                raise GateError("--go-runner docker requires --runtime docker (shared container network namespace)")
+            report["go_image"] = ensure_go_image(args)
         if args.runtime == "docker":
             report["docker_version"] = checked(["docker", "version", "--format", "{{.Server.Version}}"])
             report["image"] = pull_image()
@@ -325,7 +373,7 @@ def run(args) -> int:
                 if not re.search(r"\b18\.3\b", version):
                     raise GateError("native runtime must be PostgreSQL 18.3")
             report["postgres_version"] = version
-        for gate in GATES:
+        for gate in gates:
             item = {"gate": gate[0], "test": gate[1], "stage": "start", "status": "running"}
             report["gates"].append(item)
             fixture = Fixture(args, gate, item)
@@ -341,9 +389,13 @@ def run(args) -> int:
                        "-count=1", "-json", f"-timeout={args.test_timeout}s"]
                 if not args.no_race:
                     cmd.append("-race")
+                if go_runner == "docker":
+                    cmd, test_env = docker_go_cmd(args, cmd, fixture.prefix, fixture.container), fixture.test_env()
+                else:
+                    test_env = fixture.test_env()
                 item["command"], item["cwd"] = cmd, str(ROOT / "backend")
                 save(args.output, report)
-                result = command(cmd, env=fixture.test_env(), timeout=args.test_timeout + 60, cwd=ROOT / "backend")
+                result = command(cmd, env=test_env, timeout=args.test_timeout + 60, cwd=ROOT / "backend")
                 item["result"] = named_result(result.stdout, gate[1], result.returncode)
                 log = args.output.parent / f"{gate[0]}.go-test.jsonl"
                 log.write_text(sanitize(result.stdout, fixture.password), encoding="utf-8")
@@ -379,6 +431,10 @@ def main():
     parser.add_argument("--runtime", choices=("docker", "native"), default="docker")
     parser.add_argument("--pg-bin", help="Explicit native PostgreSQL 18.3 bin directory")
     parser.add_argument("--no-race", action="store_true", help="Explicit local-only concession; hosted CI uses race")
+    parser.add_argument("--go-runner", choices=("host", "docker"), default="host",
+                        help="docker: run go test (with race) inside the pinned Linux Go image; no CGO needed on the host")
+    parser.add_argument("--go-image", default=GO_IMAGE_DEFAULT, help="Go image for --go-runner docker (pinned)")
+    parser.add_argument("--only", help="Comma-separated gate prefixes to run (default: all)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ready-timeout", type=int, default=45)
     parser.add_argument("--test-timeout", type=int, default=180)
