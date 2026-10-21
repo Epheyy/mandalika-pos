@@ -20,8 +20,9 @@ import (
 // stored outcome is revealed.
 var ErrReceiptKeyConflict = apperr.New(apperr.KeyConflict, "kunci idempotensi sudah dipakai untuk operasi lain")
 
-// ReceiptClaim identifies one keyed write. Scope is the authenticated caller's
-// outlet, never taken from the payload.
+// ReceiptClaim identifies one keyed write. Scope is the authenticated caller's outlet
+// for /sync writes and "user:<id>" for backoffice writes; it is never taken from the
+// payload.
 type ReceiptClaim struct {
 	Key     string
 	OpType  string

@@ -326,6 +326,8 @@ func TestStockLedgerPostgres(t *testing.T) {
 		assertLedgerInvariant(t, ctx, pool)
 	})
 
+	t.Run("transfers", func(t *testing.T) { slTransfers(t, ctx, pool) })
+
 	t.Run("refund-link", func(t *testing.T) {
 		slSetup(t, ctx, pool)
 		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'rf',1),($1,$2,'rf2',1)

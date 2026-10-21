@@ -59,6 +59,10 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Err(w, http.StatusConflict, err.Error())
 		return
 	}
+	if isKeyConflict(err) {
+		httpx.Err(w, http.StatusConflict, err.Error()) // key already used for another operation
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return

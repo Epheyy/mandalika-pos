@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/ledger"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -47,13 +48,13 @@ type ReceiveMeta struct {
 
 // loaded transfer row (locations are nil for the leg that is the other kind).
 type transferRow struct {
-	status                                           string
+	status, number                                   string
 	srcOutlet, srcWarehouse, dstOutlet, dstWarehouse *string
 }
 
 type transferLine struct {
-	pid, size string
-	sent      int
+	id, pid, size string
+	sent          int
 }
 
 func validateLocs(src, dst TransferLoc) error {
@@ -106,9 +107,9 @@ func insertTransferItems(ctx context.Context, tx pgx.Tx, id string, items []Tran
 func loadTransfer(ctx context.Context, q pgx.Tx, id string) (transferRow, error) {
 	var t transferRow
 	e := q.QueryRow(ctx,
-		`SELECT status, source_outlet_id, source_warehouse_id, dest_outlet_id, dest_warehouse_id
+		`SELECT status, transfer_no, source_outlet_id, source_warehouse_id, dest_outlet_id, dest_warehouse_id
 		   FROM transfers WHERE id=$1 FOR UPDATE`, id).Scan(
-		&t.status, &t.srcOutlet, &t.srcWarehouse, &t.dstOutlet, &t.dstWarehouse)
+		&t.status, &t.number, &t.srcOutlet, &t.srcWarehouse, &t.dstOutlet, &t.dstWarehouse)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -119,8 +120,8 @@ func loadTransfer(ctx context.Context, q pgx.Tx, id string) (transferRow, error)
 // are always locked in one deterministic order (no deadlocks between transfers).
 func transferLines(ctx context.Context, q pgx.Tx, id string) ([]transferLine, error) {
 	rows, e := q.Query(ctx,
-		`SELECT product_id, variant_size, sent_qty FROM transfer_items WHERE transfer_id=$1
-		  ORDER BY product_id, variant_size`, id)
+		`SELECT id, product_id, variant_size, sent_qty FROM transfer_items WHERE transfer_id=$1
+		  ORDER BY product_id, variant_size, id`, id)
 	if e != nil {
 		return nil, e
 	}
@@ -128,7 +129,7 @@ func transferLines(ctx context.Context, q pgx.Tx, id string) ([]transferLine, er
 	var out []transferLine
 	for rows.Next() {
 		var l transferLine
-		if e := rows.Scan(&l.pid, &l.size, &l.sent); e != nil {
+		if e := rows.Scan(&l.id, &l.pid, &l.size, &l.sent); e != nil {
 			return nil, e
 		}
 		out = append(out, l)
@@ -257,16 +258,30 @@ func (r *Repo) UpdateTransferDraft(ctx context.Context, id string, t TransferCre
 // SendTransfer deducts each line from the source (guarding against oversend),
 // marks the transfer in_transit, and bumps the source outlet leg if any.
 func (r *Repo) SendTransfer(ctx context.Context, id string) error {
-	return retryBusy(ctx, func() error { return r.sendTransfer(ctx, id) })
+	return retryBusy(ctx, func() error { return r.inTx(ctx, func(tx pgx.Tx) error { return r.sendTransfer(ctx, tx, id, "") }) })
 }
 
-func (r *Repo) sendTransfer(ctx context.Context, id string) error {
+// SendTransferTx is SendTransfer inside the caller's transaction (an idempotency
+// receipt claim). It neither begins, commits nor retries. actor ("" allowed) is the
+// acting user id recorded on the ledger rows.
+func (r *Repo) SendTransferTx(ctx context.Context, tx pgx.Tx, id, actor string) error {
+	return r.sendTransfer(ctx, tx, id, actor)
+}
+
+// inTx runs fn in one fresh transaction: commit on success, roll back otherwise.
+func (r *Repo) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if e := fn(tx); e != nil {
+		return e
+	}
+	return tx.Commit(ctx)
+}
 
+func (r *Repo) sendTransfer(ctx context.Context, tx pgx.Tx, id, actor string) error {
 	t, e := loadTransfer(ctx, tx, id)
 	if e != nil {
 		return e
@@ -298,6 +313,10 @@ func (r *Repo) sendTransfer(ctx context.Context, id string) error {
 		`UPDATE transfers SET surat_jalan_no=$1 WHERE id=$2`, sjNo, id); e != nil {
 		return e
 	}
+	// Ledger rows BEFORE the outlet bumps (the bump stays the last statement).
+	if e := recordTransferMovements(ctx, tx, ledger.KindTransferOut, id, t, lines, sjNo, actor, nil); e != nil {
+		return e
+	}
 	if t.srcOutlet != nil {
 		if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.srcOutlet}); e != nil {
 			return e
@@ -308,7 +327,7 @@ func (r *Repo) sendTransfer(ctx context.Context, id string) error {
 			return e
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // ReceiveTransfer credits the dest with the ACTUAL received qty per line, records
@@ -429,6 +448,16 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 		return e
 	}
 
+	// Ledger rows BEFORE the bump. The replay branch above returns before this, so a
+	// replayed receive records nothing.
+	received := make([]int, len(res))
+	for i, rr := range res {
+		received[i] = rr.got
+	}
+	if e := recordTransferMovements(ctx, tx, ledger.KindTransferIn, id, t, lines, ttNo, meta.ReceivedBy, received); e != nil {
+		return e
+	}
+
 	// A15 Phase B: the destination outlet's stock just rose. LAST, once, after the TT
 	// stamp so the counter row lock is held for the shortest time. The replay branch
 	// above returns before this and so never bumps.
@@ -443,16 +472,16 @@ func (r *Repo) receiveTransfer(ctx context.Context, id string, rcv TransferRecei
 // CancelTransfer voids a draft (no stock effect) or reverses an in_transit
 // transfer (restore each line's sent qty to the source, bump source outlet leg).
 func (r *Repo) CancelTransfer(ctx context.Context, id string) error {
-	return retryBusy(ctx, func() error { return r.cancelTransfer(ctx, id) })
+	return retryBusy(ctx, func() error { return r.inTx(ctx, func(tx pgx.Tx) error { return r.cancelTransfer(ctx, tx, id, "") }) })
 }
 
-func (r *Repo) cancelTransfer(ctx context.Context, id string) error {
-	tx, err := r.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
+// CancelTransferTx is CancelTransfer inside the caller's transaction (an idempotency
+// receipt claim). It neither begins, commits nor retries. actor as in SendTransferTx.
+func (r *Repo) CancelTransferTx(ctx context.Context, tx pgx.Tx, id, actor string) error {
+	return r.cancelTransfer(ctx, tx, id, actor)
+}
 
+func (r *Repo) cancelTransfer(ctx context.Context, tx pgx.Tx, id, actor string) error {
 	t, e := loadTransfer(ctx, tx, id)
 	if e != nil {
 		return e
@@ -469,6 +498,10 @@ func (r *Repo) cancelTransfer(ctx context.Context, id string) error {
 			if e := addStockDelta(ctx, tx, t.srcOutlet, t.srcWarehouse, l.pid, l.size, l.sent); e != nil {
 				return e
 			}
+		}
+		// Ledger rows BEFORE the bump (a draft moved no stock, so it records nothing).
+		if e := recordTransferMovements(ctx, tx, ledger.KindTransferCancel, id, t, lines, t.number, actor, nil); e != nil {
+			return e
 		}
 		if t.srcOutlet != nil {
 			if e := bumpVersionOutlets(ctx, tx, "products", []string{*t.srcOutlet}); e != nil {
@@ -487,5 +520,5 @@ func (r *Repo) cancelTransfer(ctx context.Context, id string) error {
 			return e
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }

@@ -158,7 +158,9 @@ func hasStockWrite(src string) bool {
 // ledgerHookFiles: stock-writer file -> name of the helper (in another file) it must
 // call to record, for writers whose recording lives in a hook file (e.g. the sale and
 // refund hooks in service/ledger_hooks.go).
-var ledgerHookFiles = map[string]string{}
+var ledgerHookFiles = map[string]string{
+	"internal/write/transfer.go": "recordTransferMovements", // write/transfer_ledger.go
+}
 
 // ledgerNonMovers: files that write stock tables without changing any quantity, with
 // the reason. A file that also holds a real mover must NOT be listed here.
@@ -170,7 +172,6 @@ var ledgerNonMovers = map[string]string{
 // Each entry is removed by the commit that makes the file record. It may be non-empty
 // until the last writer lands.
 var ledgerPendingWriters = map[string]string{
-	"internal/write/transfer.go":        "L2",
 	"internal/write/warehouse.go":       "L3",
 	"internal/write/stockcount.go":      "L4",
 	"internal/service/refund.go":        "L5",
