@@ -161,6 +161,7 @@ func hasStockWrite(src string) bool {
 var ledgerHookFiles = map[string]string{
 	"internal/write/transfer.go": "recordTransferMovements", // write/transfer_ledger.go
 	"internal/service/refund.go": "recordRefundMovements",   // service/ledger_hooks.go
+	"internal/service/order.go":  "recordSaleMovements",     // service/ledger_hooks.go
 }
 
 // ledgerNonMovers: files that write stock tables without changing any quantity, with
@@ -173,7 +174,6 @@ var ledgerNonMovers = map[string]string{
 // Each entry is removed by the commit that makes the file record. It may be non-empty
 // until the last writer lands.
 var ledgerPendingWriters = map[string]string{
-	"internal/service/order.go":         "L6",
 	"internal/write/catalog.go":         "L7",
 	"internal/write/import_products.go": "L7",
 }

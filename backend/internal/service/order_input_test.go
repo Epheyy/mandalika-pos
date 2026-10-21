@@ -84,6 +84,25 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 		}
 	})
 }
+
+// Query serves recordSaleMovements' one read with no rows: the ledger call then has no
+// lines and returns without touching the batch API this fake does not model (the sale
+// rows themselves are proven against PostgreSQL by the SL gate). Any other statement
+// is an error, like QueryRow's default.
+func (tx *inputTestTx) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+	tx.queries = append(tx.queries, sql)
+	if strings.Contains(sql, "JOIN outlet_variant_stock s ON") {
+		return inputTestNoRows{}, nil
+	}
+	return nil, errors.New("unexpected synthetic query")
+}
+
+type inputTestNoRows struct{ pgx.Rows }
+
+func (inputTestNoRows) Next() bool { return false }
+func (inputTestNoRows) Close()     {}
+func (inputTestNoRows) Err() error { return nil }
+
 func (tx *inputTestTx) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	tx.writes++
 	if tx.allowWrites {

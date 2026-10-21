@@ -136,7 +136,7 @@ func slRefund(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		return s
 	}
 
-	// ---- restocked lines only, chained duplicates, NULL refund_of (sales do not record yet) ----
+	// ---- restocked lines only, chained duplicates, refund_of linked (the sale records its own movements) ----
 	pN, pD, pB, pU := product(true, 10), product(true, 10), product(false, 0), product(false, 0)
 	o1 := sale("slr-sale-1",
 		line(pN, slrSize, 2, false), line(pD, slrSize, 1, false), line(pD, slrSize, 2, false),
@@ -180,8 +180,8 @@ func slRefund(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	if !reflect.DeepEqual(gotD, wantD) {
 		t.Fatalf("duplicate-key refund rows %+v, want %+v", gotD, wantD)
 	}
-	if c := slCount(t, ctx, pool, `kind='refund' AND ref_id=$1 AND refund_of_movement_id IS NOT NULL`, o1); c != 0 {
-		t.Fatalf("%d refund rows linked to a sale movement that was never recorded", c)
+	if c := slCount(t, ctx, pool, `kind='refund' AND ref_id=$1 AND refund_of_movement_id IS NOT NULL`, o1); c != 3 {
+		t.Fatalf("%d of 3 refund rows linked to their sale movement", c)
 	}
 	assertLedgerInvariant(t, ctx, pool)
 
@@ -194,18 +194,11 @@ func slRefund(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		t.Fatalf("refused refund wrote %d movements", after-before)
 	}
 
-	// ---- refund_of link: a recorded sale movement is linked ----
+	// ---- refund_of link: the sale movement recorded by the sale itself is linked ----
 	pL := product(true, 5)
 	slBackfill(t, ctx, pool, ledger.BackfillOptions{RunID: "slr-open-2"})
 	o2 := sale("slr-sale-2", line(pL, slrSize, 1, false))
 	i2 := itemID(o2, pL, slrSize, 1)
-	if _, err := slRecord(ctx, pool, ledger.Document{
-		Key: "sale:" + o2, Kind: ledger.KindSale, LocationType: ledger.LocOutlet, LocationID: slOutletC,
-		RefType: "order", RefID: o2, OccurredAt: time.Now().UTC(),
-		Lines: []ledger.Line{{ProductID: pL, VariantSize: slrSize, Qty: -1, QtyBefore: 5, QtyAfter: 4, DedupeKey: "sale:" + i2, RefLine: i2}},
-	}, false); err != nil {
-		t.Fatal(err)
-	}
 	assertLedgerInvariant(t, ctx, pool)
 	if code := refund(o2); code != 200 && code != 201 {
 		t.Fatalf("refund o2: %d", code)
