@@ -39,6 +39,8 @@ var stockSeqAllowlist = map[string]bool{
 	// ledger reads (post-read / backfill lock); never writes stock (plan §2.5, D2b)
 	"internal/ledger/ledger.go":   false,
 	"internal/ledger/backfill.go": false,
+	// reads stock to choose the restocked refund lines; never writes it (D2b)
+	"internal/service/ledger_hooks.go": false,
 }
 
 const stockTable = "outlet_variant_stock"
