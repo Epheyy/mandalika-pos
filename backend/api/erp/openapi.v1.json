@@ -1,0 +1,900 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ERP Integration API",
+    "version": "1.0.0",
+    "description": "API server-to-server untuk aplikasi internal. Panggil API ini hanya dari server backend Anda. Kirim header Authorization: Bearer erp_<prefix>_<secret>. Abaikan field yang tidak dikenal."
+  },
+  "servers": [
+    {
+      "url": "/api/integration/v1"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/catalog/finished-goods": {
+      "get": {
+        "operationId": "listCatalogFinishedGoods",
+        "summary": "Katalog finished goods",
+        "tags": [
+          "catalog"
+        ],
+        "parameters": [
+          {
+            "name": "updated_since",
+            "in": "query",
+            "required": false,
+            "description": "Waktu ISO-8601. Bila diisi, ERP mengirim record dengan updated_at lebih besar dari nilai ini. ERP juga mengirim record yang dihapus.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Isi dengan next_cursor dari halaman sebelumnya. Pakai mode sync yang sama (full atau incremental).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "required": false,
+            "description": "Jumlah record per halaman.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "codes",
+            "in": "query",
+            "required": false,
+            "description": "Daftar code, dipisah koma. Isi 1–100 code yang unik. Panjang total maksimal 1900 karakter. Panjang 1901–2000 karakter → 422 VALIDATION_ERROR. Panjang lebih dari 2000 karakter → 400 INVALID_INPUT dari sanitizer global. Bila daftar terlalu panjang, bagi daftar menjadi beberapa request.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1900
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Cari teks di code atau name. Huruf besar dan huruf kecil dianggap sama.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "next_cursor",
+                        "server_time"
+                      ],
+                      "description": "Satu halaman data. Full sync (tanpa updated_since) mengirim record aktif, urut slug. Incremental sync (dengan updated_since) mengirim semua perubahan, urut updated_at lalu slug. Incremental sync juga mengirim record yang dihapus (deleted_at terisi).",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/IntegrationFG"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Cursor untuk halaman berikutnya. Bila null, halaman ini adalah halaman terakhir."
+                        },
+                        "server_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Waktu server saat ERP memproses request. Simpan nilai dari halaman pertama sebagai watermark."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT. Satu query param lebih dari 2000 karakter atau berisi null byte. Sanitizer global menolak request sebelum validasi schema. Response tidak berisi details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "INTEGRATION_UNAUTHORIZED. Key tidak ada, salah format, tidak dikenal, sudah di-revoke, atau sudah kedaluwarsa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "INTEGRATION_CLIENT_SUSPENDED: admin menangguhkan client. INTEGRATION_FORBIDDEN_SCOPE: client tidak punya scope untuk endpoint ini.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR. Query tidak valid. Lihat details untuk field yang salah.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT_EXCEEDED: client atau IP melewati batas request. RATE_LIMIT_BLOCKED: ERP memblokir IP sementara karena IP terus melewati batas global. Tunggu sesuai header Retry-After (detik), lalu ulangi request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/outlets": {
+      "get": {
+        "operationId": "listCatalogOutlets",
+        "summary": "Katalog outlet",
+        "tags": [
+          "catalog"
+        ],
+        "parameters": [
+          {
+            "name": "updated_since",
+            "in": "query",
+            "required": false,
+            "description": "Waktu ISO-8601. Bila diisi, ERP mengirim record dengan updated_at lebih besar dari nilai ini. ERP juga mengirim record yang dihapus.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Isi dengan next_cursor dari halaman sebelumnya. Pakai mode sync yang sama (full atau incremental).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "required": false,
+            "description": "Jumlah record per halaman.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "codes",
+            "in": "query",
+            "required": false,
+            "description": "Daftar code, dipisah koma. Isi 1–100 code yang unik. Panjang total maksimal 1900 karakter. Panjang 1901–2000 karakter → 422 VALIDATION_ERROR. Panjang lebih dari 2000 karakter → 400 INVALID_INPUT dari sanitizer global. Bila daftar terlalu panjang, bagi daftar menjadi beberapa request.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1900
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Cari teks di code atau name. Huruf besar dan huruf kecil dianggap sama.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "next_cursor",
+                        "server_time"
+                      ],
+                      "description": "Satu halaman data. Full sync (tanpa updated_since) mengirim record aktif, urut slug. Incremental sync (dengan updated_since) mengirim semua perubahan, urut updated_at lalu slug. Incremental sync juga mengirim record yang dihapus (deleted_at terisi).",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/IntegrationOutlet"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Cursor untuk halaman berikutnya. Bila null, halaman ini adalah halaman terakhir."
+                        },
+                        "server_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Waktu server saat ERP memproses request. Simpan nilai dari halaman pertama sebagai watermark."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT. Satu query param lebih dari 2000 karakter atau berisi null byte. Sanitizer global menolak request sebelum validasi schema. Response tidak berisi details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "INTEGRATION_UNAUTHORIZED. Key tidak ada, salah format, tidak dikenal, sudah di-revoke, atau sudah kedaluwarsa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "INTEGRATION_CLIENT_SUSPENDED: admin menangguhkan client. INTEGRATION_FORBIDDEN_SCOPE: client tidak punya scope untuk endpoint ini.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR. Query tidak valid. Lihat details untuk field yang salah.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT_EXCEEDED: client atau IP melewati batas request. RATE_LIMIT_BLOCKED: ERP memblokir IP sementara karena IP terus melewati batas global. Tunggu sesuai header Retry-After (detik), lalu ulangi request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outlets/{code}/stock": {
+      "get": {
+        "operationId": "getOutletStock",
+        "summary": "Stok outlet saat ini",
+        "description": "Stok finished goods saat ini di satu outlet. Stok berubah saat admin ERP melakukan import stok FG atau adjust stok manual. Penjualan di outlet tidak mengubah stok ERP. Koreksi ke bulan lama tidak mengubah stok saat ini bila bulan yang lebih baru sudah punya data.",
+        "tags": [
+          "outlet-stock"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Code outlet. Ambil nilai terbaru dari katalog outlet. URL-encode karakter khusus.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "name": "fg_codes",
+            "in": "query",
+            "required": false,
+            "description": "Daftar code FG, dipisah koma. Isi 1–100 code yang unik. Panjang total maksimal 1900 karakter. ERP mengirim semua FG ini dalam satu response, termasuk FG dengan qty 0.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1900
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "required": false,
+            "description": "Jumlah item per halaman. Jangan kirim bersama fg_codes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Isi dengan next_cursor dari halaman sebelumnya. Jangan kirim bersama fg_codes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "outlet",
+                        "items",
+                        "last_updated_at",
+                        "next_cursor",
+                        "server_time"
+                      ],
+                      "description": "Stok saat ini di satu outlet. Tanpa fg_codes, ERP mengirim FG dengan qty lebih dari 0, urut fg_slug. Dengan fg_codes, ERP mengirim semua FG yang diminta dalam satu response.",
+                      "properties": {
+                        "outlet": {
+                          "$ref": "#/components/schemas/IntegrationOutletStockOutlet",
+                          "description": "Outlet dari code di path."
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/IntegrationOutletStockItem"
+                          },
+                          "description": "Stok per finished goods, urut fg_slug."
+                        },
+                        "last_updated_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time",
+                          "description": "Nilai updated_at terbesar dari semua data stok saat ini di outlet ini. Null bila outlet belum punya data stok."
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Cursor untuk halaman berikutnya. Bila null, halaman ini adalah halaman terakhir. Nilai selalu null bila request memakai fg_codes."
+                        },
+                        "server_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Waktu server saat ERP memproses request."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT. Satu query param lebih dari 2000 karakter atau berisi null byte. Sanitizer global menolak request sebelum validasi schema. Response tidak berisi details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "INTEGRATION_UNAUTHORIZED. Key tidak ada, salah format, tidak dikenal, sudah di-revoke, atau sudah kedaluwarsa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "INTEGRATION_CLIENT_SUSPENDED: admin menangguhkan client. INTEGRATION_FORBIDDEN_SCOPE: client tidak punya scope untuk endpoint ini.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND. Code outlet tidak ada, atau ERP sudah menghapus outlet itu.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR. Param atau query tidak valid, atau fg_codes berisi code yang tidak dikenal. Lihat details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT_EXCEEDED: client atau IP melewati batas request. RATE_LIMIT_BLOCKED: ERP memblokir IP sementara karena IP terus melewati batas global. Tunggu sesuai header Retry-After (detik), lalu ulangi request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "INTEGRATION_BUSY. Koneksi database ERP sedang penuh. Tunggu sesuai header Retry-After (detik), lalu ulangi request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "erp_<prefix>_<secret>"
+      }
+    },
+    "schemas": {
+      "IntegrationFG": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "ID stabil dari record. Pakai sebagai kunci upsert. Nilai tidak berubah bila nama berubah."
+          },
+          "code": {
+            "type": "string",
+            "description": "Kode SKU finished goods. Nilai tidak berubah."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nama record."
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "WOMEN",
+              "MEN",
+              "UNISEX"
+            ],
+            "description": "Target gender produk."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACTIVE",
+              "FAVOURITE",
+              "DISCONTINUE",
+              "NEW_LAUNCHING"
+            ],
+            "description": "Status produk. ERP tetap mengirim produk DISCONTINUE."
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ukuran produk dalam angka. Null bila ukuran tidak ada."
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nama kategori. Null bila kategori tidak ada."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nama unit, misalnya PCS. Null bila unit tidak ada."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Deskripsi produk. Null bila deskripsi tidak ada."
+          },
+          "is_others": {
+            "type": "boolean",
+            "description": "Tanda Others di master finished goods ERP."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Waktu ERP membuat record."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Waktu perubahan terakhir. Incremental sync memakai nilai ini."
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waktu ERP menghapus record. Bila terisi, hapus atau sembunyikan record di sisi Anda."
+          }
+        },
+        "required": [
+          "slug",
+          "code",
+          "name",
+          "gender",
+          "status",
+          "size",
+          "category",
+          "unit",
+          "description",
+          "is_others",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "additionalProperties": false
+      },
+      "IntegrationOutlet": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "ID stabil dari record. Pakai sebagai kunci upsert. Nilai tidak berubah bila nama berubah."
+          },
+          "code": {
+            "type": "string",
+            "description": "Kode outlet. Admin ERP dapat mengubah nilai ini. Pakai slug sebagai kunci tetap."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nama record."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RETAIL",
+              "ONLINE",
+              "POPUP"
+            ],
+            "description": "Tipe outlet."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nomor telepon outlet. Null bila nomor tidak ada."
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Alamat outlet. Null bila alamat tidak ada."
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Koordinat lintang. Null bila koordinat tidak ada."
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Koordinat bujur. Null bila koordinat tidak ada."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Waktu ERP membuat record."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Waktu perubahan terakhir. Incremental sync memakai nilai ini."
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waktu ERP menghapus record. Bila terisi, hapus atau sembunyikan record di sisi Anda."
+          }
+        },
+        "required": [
+          "slug",
+          "code",
+          "name",
+          "type",
+          "phone",
+          "address",
+          "latitude",
+          "longitude",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "additionalProperties": false
+      },
+      "IntegrationOutletStockOutlet": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "ID stabil outlet. Nilai tidak berubah bila nama atau code berubah."
+          },
+          "code": {
+            "type": "string",
+            "description": "Code outlet saat ini."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nama outlet."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RETAIL",
+              "ONLINE",
+              "POPUP"
+            ],
+            "description": "Tipe outlet."
+          }
+        },
+        "required": [
+          "slug",
+          "code",
+          "name",
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "IntegrationOutletStockItem": {
+        "type": "object",
+        "properties": {
+          "fg_slug": {
+            "type": "string",
+            "description": "ID stabil finished goods. Nilai sama dengan slug di katalog finished goods."
+          },
+          "fg_code": {
+            "type": "string",
+            "description": "Kode SKU finished goods. Nilai tidak berubah."
+          },
+          "fg_name": {
+            "type": "string",
+            "description": "Nama finished goods."
+          },
+          "qty": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stok layak jual saat ini (kondisi GOOD). Stok reject tidak dihitung. Nilai 0 atau kurang berarti stok tidak tersedia."
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waktu tulis terakhir pada data stok yang menentukan qty. Null bila ERP tidak punya data stok FG ini di outlet ini."
+          }
+        },
+        "required": [
+          "fg_slug",
+          "fg_code",
+          "fg_name",
+          "qty",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error",
+          "message",
+          "code",
+          "requestId"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Kode error yang stabil: INVALID_INPUT, INTEGRATION_UNAUTHORIZED, INTEGRATION_CLIENT_SUSPENDED, INTEGRATION_FORBIDDEN_SCOPE, NOT_FOUND, VALIDATION_ERROR, RATE_LIMIT_EXCEEDED, RATE_LIMIT_BLOCKED, INTEGRATION_BUSY."
+          },
+          "requestId": {
+            "type": "string",
+            "description": "ID request. Sertakan ID ini saat Anda melapor masalah."
+          },
+          "details": {
+            "description": "Daftar masalah per field. Hanya ada pada VALIDATION_ERROR."
+          }
+        }
+      }
+    }
+  }
+}
