@@ -180,9 +180,8 @@ components:
           items:
             $ref: '#/components/schemas/Tender'
         customer_ref:
-          type: string
           nullable: true
-          description: Optional POS customer id. The ERP may ignore it.
+          description: Optional POS customer id (string) or null. The ERP may ignore it.
     StockDocumentKind:
       type: string
       description: The ERP maps the kind to `MovementType` IN/OUT/CORRECTION and stores it in `reason`.
@@ -204,11 +203,11 @@ components:
           description: Total number of parts for this `ref.id`.
     DocumentSource:
       type: object
-      required: [system, brand]
+      required: [brand]
       properties:
         system:
           type: string
-          enum: [pos]
+          description: Always `pos` from the POS backend.
         brand:
           type: string
           description: POS deployment name. The ERP uses `idempotency_scope = "pos:" + brand`.
