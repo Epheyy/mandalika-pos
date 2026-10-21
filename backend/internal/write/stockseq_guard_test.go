@@ -27,7 +27,7 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/write/transfer.go":   true,
 	"internal/write/warehouse.go":  true,
 	"internal/write/stockcount.go": true,
-	"internal/write/repo.go":       true,
+	"internal/write/catalog.go":    true,
 	// non-bumpers: stock unchanged (lazy zero row, rename, delete, par, availability)
 	// or read-only
 	"internal/service/lockorder.go":     false,
@@ -312,7 +312,7 @@ var stockSQLPins = map[string][2]int{
 	"internal/write/transfer.go":        {2, 0}, // addStockDelta, deductStockGuarded
 	"internal/write/warehouse.go":       {2, 1}, // goods receipt (dynamic), adjust, par
 	"internal/write/stockcount.go":      {0, 1}, // countLoc.stock()
-	"internal/write/repo.go":            {5, 0}, // seed, rename, delete variant, availability, cleanup
+	"internal/write/catalog.go":         {5, 0}, // seed, rename, delete variant, availability, cleanup
 	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change)
 }
 
