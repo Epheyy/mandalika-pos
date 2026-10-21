@@ -34,6 +34,12 @@ func (r *Repo) StockCounts(ctx context.Context, s Scope, page, limit int) ([]api
 }
 
 func (r *Repo) StockCount(ctx context.Context, s Scope, id string) (api.StockCount, error) {
+	return StockCountOn(ctx, r.Pool, s, id)
+}
+
+// StockCountOn reads one stock count through q: the pool, or a transaction that has
+// just written it (a keyed completion answers from inside its receipt claim).
+func StockCountOn(ctx context.Context, q RowQuerier, s Scope, id string) (api.StockCount, error) {
 	args := []any{id}
 	cond := ""
 	if !s.CrossAll {
@@ -42,6 +48,6 @@ func (r *Repo) StockCount(ctx context.Context, s Scope, id string) (api.StockCou
 		// (warehouse counts have no outlet binding; they're permission-gated).
 		cond = " AND (sc.outlet_id=$2 OR sc.warehouse_id IS NOT NULL)"
 	}
-	return oneJSON[api.StockCount](ctx, r.Pool,
+	return oneJSON[api.StockCount](ctx, q,
 		`SELECT `+stockCountObj+` FROM stock_counts sc WHERE sc.id=$1`+cond, args...)
 }

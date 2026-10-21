@@ -12,6 +12,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 	"github.com/mandalika/pos-backend/internal/write"
 )
@@ -30,6 +31,13 @@ type keyedWrite struct {
 	Payload any                                        // canonical request identity: same key + other payload = 409
 	Unkeyed func() error                               // the existing path, used when no key was sent
 	Effect  func(ctx context.Context, tx pgx.Tx) error // the same write inside the claim's transaction
+	// Outcome, when set, builds the response body for a write that answers more than
+	// {"ok":true}. It runs after the write: inside the claim's transaction (q is the tx,
+	// its result is stored and replayed) or, without a key, against the pool.
+	Outcome func(ctx context.Context, q read.RowQuerier) (json.RawMessage, error)
+	// OnErr, when set, answers errors the shared mapping would turn into a 400; it
+	// returns true once it has written the response.
+	OnErr func(w http.ResponseWriter, err error) bool
 }
 
 // receiptRunner is the injected runner when set (tests), else the PostgreSQL one.
@@ -40,7 +48,8 @@ func (h *Handlers) receiptRunner() service.ReceiptRunner {
 	return service.PoolReceiptRunner(h.Write.Pool)
 }
 
-// keyedMutated runs kw and answers 200: {"ok":true} on the first run and on a replay.
+// keyedMutated runs kw and answers 200: {"ok":true} (or the Outcome body) on the first
+// run and on a replay.
 func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyedWrite) {
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(key) > maxIdempotencyKeyLen {
@@ -48,7 +57,7 @@ func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyed
 		return
 	}
 	if key == "" {
-		h.mutated(w, r, kw.Unkeyed())
+		h.unkeyedMutated(w, r, kw)
 		return
 	}
 	payload, err := json.Marshal(kw.Payload)
@@ -65,15 +74,32 @@ func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyed
 			if e := kw.Effect(r.Context(), tx); e != nil {
 				return nil, e
 			}
-			return okOutcome, nil
+			if kw.Outcome == nil {
+				return okOutcome, nil
+			}
+			body, e := kw.Outcome(r.Context(), tx)
+			if e != nil {
+				return nil, e
+			}
+			// Stored as a JSON string: jsonb would reorder the keys of an object, and a
+			// replay must equal the first answer byte for byte.
+			return json.Marshal(string(body))
 		})
 		return e
 	})
 	if err != nil {
-		h.mutated(w, r, err)
+		if kw.OnErr == nil || !kw.OnErr(w, err) {
+			h.mutated(w, r, err)
+		}
 		return
 	}
 	h.invalidate(r)
+	if len(outcome) > 0 && outcome[0] == '"' { // an Outcome body, stored as a string
+		var text string
+		if json.Unmarshal(outcome, &text) == nil {
+			outcome = json.RawMessage(text)
+		}
+	}
 	// A replayed outcome comes back from jsonb with normalised spacing: compact it so the
 	// first run and every replay are byte-identical.
 	var body bytes.Buffer
@@ -84,6 +110,27 @@ func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyed
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body.Bytes())
+}
+
+// unkeyedMutated is the no-key path: the existing write, then {"ok":true} or, for a
+// write with an Outcome, the same body built from the pool (as writeJSON, so the
+// response is what it was before the key existed).
+func (h *Handlers) unkeyedMutated(w http.ResponseWriter, r *http.Request, kw keyedWrite) {
+	err := kw.Unkeyed()
+	if err != nil && kw.OnErr != nil && kw.OnErr(w, err) {
+		return
+	}
+	if err != nil || kw.Outcome == nil {
+		h.mutated(w, r, err)
+		return
+	}
+	h.invalidate(r)
+	out, err := kw.Outcome(r.Context(), h.Write.Pool)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // isKeyConflict reports an idempotency key reused for another operation.

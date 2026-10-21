@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/ledger"
 )
 
 // ── Custom roles (global reference data — bumps content version) ──
@@ -410,18 +412,26 @@ func (r *Repo) updateStockCount(ctx context.Context, id, outletID string, u Stoc
 // line first set here has no baseline and falls back to frozen_qty); it can never
 // add products. Completing an already completed count writes nothing.
 func (r *Repo) CompleteStockCount(ctx context.Context, id, outletID string, items []StockCountItem) error {
-	return retryBusy(ctx, func() error { return r.completeStockCount(ctx, id, outletID, items) })
+	return r.CompleteStockCountBy(ctx, id, outletID, "", items)
 }
 
-func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, items []StockCountItem) error {
+// CompleteStockCountBy is CompleteStockCount recording actor ("" allowed) on the ledger rows.
+func (r *Repo) CompleteStockCountBy(ctx context.Context, id, outletID, actor string, items []StockCountItem) error {
+	return retryBusy(ctx, func() error {
+		return r.inTx(ctx, func(t pgx.Tx) error { return r.completeStockCount(ctx, t, id, outletID, actor, items) })
+	})
+}
+
+// CompleteStockCountTx is CompleteStockCountBy inside the caller's transaction (an
+// idempotency receipt claim). It neither begins, commits nor retries.
+func (r *Repo) CompleteStockCountTx(ctx context.Context, tx pgx.Tx, id, outletID, actor string, items []StockCountItem) error {
+	return r.completeStockCount(ctx, tx, id, outletID, actor, items)
+}
+
+func (r *Repo) completeStockCount(ctx context.Context, t pgx.Tx, id, outletID, actor string, items []StockCountItem) error {
 	if e := validateCountItems(items); e != nil {
 		return e
 	}
-	t, err := r.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer t.Rollback(ctx)
 	c, e := lockCount(ctx, t, id, outletID)
 	if e != nil {
 		return e
@@ -439,7 +449,7 @@ func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, item
 			return e
 		}
 	}
-	if e := applyCountDeltas(ctx, t, id, c.loc); e != nil {
+	if e := applyCountDeltas(ctx, t, id, c.loc, actor); e != nil {
 		return e
 	}
 	if _, e := t.Exec(ctx,
@@ -458,7 +468,7 @@ func (r *Repo) completeStockCount(ctx context.Context, id, outletID string, item
 			return e
 		}
 	}
-	return t.Commit(ctx)
+	return nil
 }
 
 // checkReplayItems accepts a replayed completion only if every payload line is on
@@ -500,17 +510,18 @@ func checkReplayItems(ctx context.Context, t pgx.Tx, id string, items []StockCou
 // and the baseline read is not locked, so a sale landing in the millisecond between
 // that read and the count's own write can do the same.
 //
-// applyCountDeltas adds each counted line's delta to live stock and records the
-// stock seen before/after. Lines are visited in (product_id, variant_size) order,
+// applyCountDeltas adds each counted line's delta to live stock, records the stock
+// seen before/after on the line, and writes the ledger rows (kind count, one per
+// non-zero delta, before/after from the RETURNING stock) in the same tx. Lines are visited in (product_id, variant_size) order,
 // the same order transfers lock stock rows in. A negative result is kept.
-func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc) error {
+func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc, actor string) error {
 	type line struct {
-		pid, size      string
+		id, pid, size  string
 		frozen, actual int
 		baseline       *int
 	}
 	rows, e := t.Query(ctx, `
-		SELECT product_id, variant_size, frozen_qty, actual_qty, baseline_qty
+		SELECT id, product_id, variant_size, frozen_qty, actual_qty, baseline_qty
 		  FROM stock_count_items WHERE stock_count_id=$1 AND actual_qty IS NOT NULL
 		 ORDER BY product_id, variant_size`, id)
 	if e != nil {
@@ -519,7 +530,7 @@ func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc) er
 	var lines []line
 	for rows.Next() {
 		var l line
-		if e := rows.Scan(&l.pid, &l.size, &l.frozen, &l.actual, &l.baseline); e != nil {
+		if e := rows.Scan(&l.id, &l.pid, &l.size, &l.frozen, &l.actual, &l.baseline); e != nil {
 			rows.Close()
 			return e
 		}
@@ -533,6 +544,7 @@ func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc) er
 	apply := fmt.Sprintf(`INSERT INTO %s (%s, product_id, variant_size, stock) VALUES ($1,$2,$3,$4)
 		ON CONFLICT (%s, product_id, variant_size) DO UPDATE SET stock = %s.stock + $4
 		RETURNING stock`, tbl, col, col, tbl)
+	doc := countLedgerDoc(id, loc, actor, len(lines))
 	for _, l := range lines {
 		delta := countDelta(l.actual, l.baseline, l.frozen)
 		var after int
@@ -545,6 +557,26 @@ func applyCountDeltas(ctx context.Context, t pgx.Tx, id string, loc countLoc) er
 			id, l.pid, l.size, delta, after-delta, after); e != nil {
 			return e
 		}
+		doc.Lines = append(doc.Lines, ledger.Line{
+			ProductID: l.pid, VariantSize: l.size, Qty: delta, QtyBefore: after - delta, QtyAfter: after,
+			RefLine: l.id, DedupeKey: doc.Key + ":" + l.pid + ":" + l.size,
+		})
 	}
-	return nil
+	_, e = ledger.Record(ctx, t, doc)
+	return e
+}
+
+// countLedgerDoc is the ledger document of one count's completion at its location
+// (stock_counts has no printed number, so ref_number stays empty).
+func countLedgerDoc(id string, loc countLoc, actor string, n int) ledger.Document {
+	_, _, lid := loc.stock()
+	lt := ledger.LocOutlet
+	if loc.isWarehouse() {
+		lt = ledger.LocWarehouse
+	}
+	return ledger.Document{
+		Key: "count:" + id, Kind: ledger.KindCount, LocationType: lt, LocationID: lid,
+		RefType: "stock_count", RefID: id, Actor: actor, OccurredAt: time.Now(),
+		Lines: make([]ledger.Line, 0, n),
+	}
 }
