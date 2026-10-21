@@ -14,6 +14,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/clientip"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 // resetStore is the Postgres surface AdminResetPassword needs (faked in tests).
@@ -67,7 +68,7 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if err := ValidatePassword(req.Password); err != nil {
+	if err := rules.ValidatePassword(req.Password); err != nil {
 		httpx.Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -84,7 +85,7 @@ func (h *Handler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusForbidden, "cannot reset your own password here")
 		return
 	}
-	hash, err := HashPassword(req.Password)
+	hash, err := rules.HashPassword(req.Password)
 	if err != nil {
 		slog.Error("admin_password_reset_failed", "stage", "hash", "actor", actorID, "target", targetID)
 		httpx.Err(w, http.StatusInternalServerError, "reset failed")

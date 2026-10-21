@@ -19,6 +19,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/config"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/rules"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -58,7 +59,7 @@ func TestReceiveApprovalPostgres(t *testing.T) {
 		}
 		return n
 	}
-	hash, err := auth.HashPassword(pin)
+	hash, err := rules.HashPassword(pin)
 	if err != nil {
 		t.Fatal(err)
 	}

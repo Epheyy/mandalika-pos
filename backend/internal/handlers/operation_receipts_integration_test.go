@@ -19,6 +19,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/db"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/rules"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -446,7 +447,7 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 		// the role check; the PIN is verified against the stored hash.
 		const approver = "00000000-0000-4000-8a00-000000000021"
 		const pin = "4321"
-		hash, err := auth.HashPassword(pin)
+		hash, err := rules.HashPassword(pin)
 		if err != nil {
 			t.Fatal(err)
 		}
