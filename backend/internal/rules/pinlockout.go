@@ -1,4 +1,4 @@
-package auth
+package rules
 
 import "time"
 

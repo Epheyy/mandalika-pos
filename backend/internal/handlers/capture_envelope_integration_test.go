@@ -20,6 +20,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/db"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/rules"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -98,7 +99,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 		ghostUID = "00000000-0000-4000-8e00-0000000000ff"
 	)
 	const pin = "4321"
-	pinHash, err := auth.HashPassword(pin)
+	pinHash, err := rules.HashPassword(pin)
 	if err != nil {
 		t.Fatal(err)
 	}

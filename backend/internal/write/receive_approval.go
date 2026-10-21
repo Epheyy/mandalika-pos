@@ -14,7 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mandalika/pos-backend/internal/apperr"
-	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 // A08: online step-up approval for transfer receive.
@@ -85,13 +85,13 @@ func dummyPinHash() string {
 	dummyOnce.Do(func() {
 		b := make([]byte, 16)
 		_, _ = rand.Read(b)
-		dummyHash, _ = auth.HashPassword(hex.EncodeToString(b))
+		dummyHash, _ = rules.HashPassword(hex.EncodeToString(b))
 	})
 	return dummyHash
 }
 
 type lockRow struct {
-	state auth.LockoutState
+	state rules.LockoutState
 	have  bool // a row exists (the user exists)
 }
 
@@ -115,7 +115,7 @@ func loadLockout(ctx context.Context, tx pgx.Tx, kind, userID string) (lockRow, 
 	return l, err
 }
 
-func saveLockout(ctx context.Context, tx pgx.Tx, kind, userID string, s auth.LockoutState) error {
+func saveLockout(ctx context.Context, tx pgx.Tx, kind, userID string, s rules.LockoutState) error {
 	_, err := tx.Exec(ctx,
 		`UPDATE receive_pin_lockouts SET failures=$3, lock_cycles=$4, locked_until=$5, hard_locked=$6, updated_at=now()
 		  WHERE subject_kind=$1 AND user_id=$2`, kind, userID, s.Failures, s.LockCycles, s.LockedUntil, s.HardLocked)
@@ -247,11 +247,11 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
 		return zero, err
 	}
-	if locked := (apprLock.have && auth.IsLocked(apprLock.state, now)) || (reqLock.have && auth.IsLocked(reqLock.state, now)); locked {
+	if locked := (apprLock.have && rules.IsLocked(apprLock.state, now)) || (reqLock.have && rules.IsLocked(reqLock.state, now)); locked {
 		le := &LockedError{
 			Hard: (apprLock.have && apprLock.state.HardLocked) || (reqLock.have && reqLock.state.HardLocked),
 		}
-		le.RetryAfter = max(auth.RetryAfter(apprLock.state, now), auth.RetryAfter(reqLock.state, now))
+		le.RetryAfter = max(rules.RetryAfter(apprLock.state, now), rules.RetryAfter(reqLock.state, now))
 		// Checked BEFORE argon2: a locked subject is never verified, correct PIN or not.
 		if err := insertAttempt(ctx, tx, in, exists, "locked"); err != nil {
 			return zero, err
@@ -267,7 +267,7 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	if eligible {
 		toCheck = *hash
 	}
-	pinOK, _ := auth.VerifyPassword(in.PIN, toCheck)
+	pinOK, _ := rules.VerifyPassword(in.PIN, toCheck)
 
 	if !(eligible && pinOK) {
 		outcome := "wrong_pin"
@@ -275,12 +275,12 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 			outcome = "ineligible"
 		}
 		if apprLock.have {
-			if err := saveLockout(ctx, tx, "approver", in.ApproverID, auth.NextLockout(apprLock.state, now, auth.LockoutFail, auth.ApproverLockout)); err != nil {
+			if err := saveLockout(ctx, tx, "approver", in.ApproverID, rules.NextLockout(apprLock.state, now, rules.LockoutFail, rules.ApproverLockout)); err != nil {
 				return zero, err
 			}
 		}
 		if reqLock.have {
-			if err := saveLockout(ctx, tx, "requester", in.RequesterID, auth.NextLockout(reqLock.state, now, auth.LockoutFail, auth.RequesterLockout)); err != nil {
+			if err := saveLockout(ctx, tx, "requester", in.RequesterID, rules.NextLockout(reqLock.state, now, rules.LockoutFail, rules.RequesterLockout)); err != nil {
 				return zero, err
 			}
 		}
@@ -319,12 +319,12 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	}
 	out.ApproverName = apprName
 	if apprLock.have {
-		if err := saveLockout(ctx, tx, "approver", in.ApproverID, auth.NextLockout(apprLock.state, now, auth.LockoutSuccess, auth.ApproverLockout)); err != nil {
+		if err := saveLockout(ctx, tx, "approver", in.ApproverID, rules.NextLockout(apprLock.state, now, rules.LockoutSuccess, rules.ApproverLockout)); err != nil {
 			return zero, err
 		}
 	}
 	if reqLock.have {
-		if err := saveLockout(ctx, tx, "requester", in.RequesterID, auth.NextLockout(reqLock.state, now, auth.LockoutSuccess, auth.RequesterLockout)); err != nil {
+		if err := saveLockout(ctx, tx, "requester", in.RequesterID, rules.NextLockout(reqLock.state, now, rules.LockoutSuccess, rules.RequesterLockout)); err != nil {
 			return zero, err
 		}
 	}

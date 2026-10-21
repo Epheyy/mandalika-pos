@@ -65,7 +65,6 @@ const (
 // delete its line (the test fails if a listed edge no longer exists).
 var knownViolations = map[string]string{
 	"service -> write":      "write.Insert*/BumpStockSeq/ErrBusy/RewardGrantRow in createOrderCore/RefundTx",
-	"write -> auth":         "write/receive_approval.go HashPassword/VerifyPassword + PIN lockout",
 	"handlers -> " + pgconn: "handlers/writes.go:1126 refundHTTPError",
 	"sync -> " + pgx:        "pgx.Tx in sync.go:55,383,394 + attribute.go poolLookup",
 	"sync -> " + pgxpool:    "sync.go:26,105 Engine.Pool",

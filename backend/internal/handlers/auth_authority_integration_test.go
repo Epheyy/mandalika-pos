@@ -25,6 +25,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
 	"github.com/mandalika/pos-backend/internal/handlers"
+	"github.com/mandalika/pos-backend/internal/rules"
 	"github.com/mandalika/pos-backend/internal/server"
 )
 
@@ -86,7 +87,7 @@ func newAUGate(t *testing.T, pool *pgxpool.Pool, ctx context.Context) *auGate {
 		TrustedProxyHops: 1,
 		CORSOrigins:      []string{"http://localhost"},
 	}
-	h, err := auth.HashPassword(auPW)
+	h, err := rules.HashPassword(auPW)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,7 +711,7 @@ func (g *auGate) reset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newHash, _ := auth.HashPassword("S3cret-au-login-race")
+	newHash, _ := rules.HashPassword("S3cret-au-login-race")
 	if _, err := g.store.ResetPassword(g.ctx, lu, newHash); err != nil {
 		t.Fatal(err)
 	}

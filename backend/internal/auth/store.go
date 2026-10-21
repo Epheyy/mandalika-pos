@@ -6,6 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 type User struct {
@@ -103,7 +105,7 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (*User
 	if err != nil {
 		return nil, "", err
 	}
-	ok, err := VerifyPassword(password, u.passwordHash)
+	ok, err := rules.VerifyPassword(password, u.passwordHash)
 	if err != nil || !ok {
 		return nil, "", ErrNotFound
 	}
@@ -173,7 +175,7 @@ func (s *Store) SetReceivePin(ctx context.Context, userID, pin string) error {
 	if pin == "" {
 		return s.ClearReceivePin(ctx, userID)
 	}
-	hash, err := HashPassword(pin)
+	hash, err := rules.HashPassword(pin)
 	if err != nil {
 		return err
 	}
@@ -244,7 +246,7 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 
 // CreateUser inserts a user with hashed password and permission rows.
 func (s *Store) CreateUser(ctx context.Context, email, password, name, role, outletID string, perms []string) (string, error) {
-	hash, err := HashPassword(password)
+	hash, err := rules.HashPassword(password)
 	if err != nil {
 		return "", err
 	}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 const (
@@ -148,7 +149,7 @@ func TestAdminResetPasswordSuccessEffects(t *testing.T) {
 	if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {
 		t.Fatalf("status %d body %q", rec.Code, rec.Body)
 	}
-	if ok, err := VerifyPassword(goodPW, st.gotHash); err != nil || !ok {
+	if ok, err := rules.VerifyPassword(goodPW, st.gotHash); err != nil || !ok {
 		t.Fatalf("stored hash does not verify: ok=%v err=%v", ok, err)
 	}
 	if got, _ := mr.Get(refreshRevokedKey(targetID)); got != "1700000002" {
