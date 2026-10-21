@@ -4329,6 +4329,8 @@ export interface components {
         OutletHeader: string;
         /** @description Required when dryRun=false (generated once per preview, reused on retry). */
         ImportIdempotencyKey: string;
+        /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+        WriteIdempotencyKey: string;
         Page: number;
         Limit: number;
         /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
@@ -5193,7 +5195,10 @@ export interface operations {
     adjustPoints: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path: {
                 id: string;
             };
@@ -5213,6 +5218,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdjustPointsResponse"];
                 };
+            };
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5426,7 +5438,10 @@ export interface operations {
     createDiscountCodeBatch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -5444,6 +5459,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DiscountCodeListResponse"];
                 };
+            };
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6031,7 +6053,10 @@ export interface operations {
                 kind: "outlet" | "warehouse";
                 id: string;
             };
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -6050,6 +6075,13 @@ export interface operations {
                     "application/json": components["schemas"]["OkResponse"];
                 };
             };
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     adjustLocationStock: {
@@ -6058,7 +6090,10 @@ export interface operations {
                 kind: "outlet" | "warehouse";
                 id: string;
             };
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -6076,6 +6111,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OkResponse"];
                 };
+            };
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7226,7 +7268,10 @@ export interface operations {
     sendTransfer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path: {
                 id: string;
             };
@@ -7244,6 +7289,13 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     receiveTransfer: {
@@ -7276,7 +7328,10 @@ export interface operations {
     cancelTransfer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path: {
                 id: string;
             };
@@ -7294,6 +7349,13 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listCustomRoles: {
@@ -7761,6 +7823,8 @@ export interface operations {
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -7783,7 +7847,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description count is not in progress, or lock conflict (retryable) */
+            /** @description count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7825,6 +7889,8 @@ export interface operations {
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -7843,6 +7909,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["IdResponse"];
                 };
+            };
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
