@@ -17,8 +17,6 @@ import (
 //go:embed seed.json
 var embeddedSeed []byte
 
-const defaultKey = "erp_stub_localdevkey"
-
 type config struct {
 	key       string
 	statePath string
@@ -93,8 +91,7 @@ func main() {
 	flag.Parse()
 
 	if *key == "" {
-		*key = defaultKey
-		log.Printf("WARNING: using the default API key %q; set -key or ERP_STUB_KEY", defaultKey)
+		log.Fatal("erpstub: no API key; set -key or ERP_STUB_KEY (there is no default key)")
 	}
 	seed := embeddedSeed
 	if *seedPath != "" {
