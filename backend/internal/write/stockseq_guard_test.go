@@ -33,9 +33,16 @@ var stockSeqAllowlist = map[string]bool{
 	// or read-only
 	"internal/service/lockorder.go":     false,
 	"internal/write/import_products.go": false,
-	"internal/read/oversell.go":         false,
-	"internal/read/catalog.go":          false,
-	"internal/read/inventory.go":        false,
+	// D13 guard: row locks and RETURNING checks around zero-stock deletes/moves only
+	"internal/write/stock_guard.go": false,
+	"internal/read/oversell.go":     false,
+	"internal/read/catalog.go":      false,
+	"internal/read/inventory.go":    false,
+	// ledger reads (post-read / backfill lock); never writes stock (plan §2.5, D2b)
+	"internal/ledger/ledger.go":   false,
+	"internal/ledger/backfill.go": false,
+	// reads stock to choose the restocked refund lines; never writes it (D2b)
+	"internal/service/ledger_hooks.go": false,
 }
 
 const stockTable = "outlet_variant_stock"
@@ -308,14 +315,17 @@ var stockWriteSQL = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)
 // outlet_variant_stock plus the dynamic-table references ("outlet_variant_stock" as a Go
 // string value, used to build SQL for the outlet leg).
 var stockSQLPins = map[string][2]int{
-	"internal/service/order.go":         {2, 0}, // lazy row, decrement
-	"internal/service/refund.go":        {1, 0}, // refund restock
-	"internal/service/lockorder.go":     {1, 0}, // lazy zero row (no bump)
-	"internal/write/transfer.go":        {2, 0}, // addStockDelta, deductStockGuarded
-	"internal/write/warehouse.go":       {2, 1}, // goods receipt (dynamic), adjust, par
-	"internal/write/stockcount.go":      {0, 1}, // countLoc.stock()
-	"internal/write/catalog.go":         {5, 0}, // seed, rename, delete variant, availability, cleanup
-	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change)
+	"internal/service/order.go":     {2, 0}, // lazy row, decrement
+	"internal/service/refund.go":    {1, 0}, // refund restock
+	"internal/service/lockorder.go": {1, 0}, // lazy zero row (no bump)
+	"internal/write/transfer.go":    {2, 0}, // addStockDelta, deductStockGuarded
+	"internal/write/warehouse.go":   {3, 1}, // goods receipt (dynamic), adjust lazy zero row before the locked pre-read (ledger before/after; no qty change), adjust, par
+	"internal/write/stockcount.go":  {0, 1}, // countLoc.stock()
+	// seed, rename (D13: guarded zero-stock move, RETURNING check), delete variant (D13:
+	// guarded zero-stock delete), availability, cleanup (D13: only stock = 0 rows of sizes
+	// without a variant), DeleteProduct (D13: guarded zero-stock delete before the cascade)
+	"internal/write/catalog.go":         {6, 0},
+	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change; D13 refuses a stocked key)
 }
 
 // stockHelperCallers: every stock-changing helper and the only functions allowed to call it.

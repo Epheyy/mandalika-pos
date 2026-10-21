@@ -111,6 +111,11 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 		httpx.Err(w, http.StatusServiceUnavailable, "sibuk, coba lagi (proses lain sedang memakai data yang sama); tidak ada data yang diubah")
 		return
 	}
+	if write.IsStockGuardRefusal(err) {
+		// D13: a rename of a stocked variant that a stale preview let through; nothing applied.
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		slog.Error("csv import failed", "kind", kind, "err", err)
 		httpx.Err(w, http.StatusInternalServerError, "impor gagal; tidak ada data yang diubah")

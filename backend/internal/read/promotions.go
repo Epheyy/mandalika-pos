@@ -53,13 +53,20 @@ func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, erro
 // json_build_object shape as DiscountCodes(); pgx maps []string → uuid[] with
 // the explicit cast.
 func (r *Repo) DiscountCodesByIDs(ctx context.Context, ids []string) ([]api.DiscountCode, int, error) {
-	return listJSON[api.DiscountCode](ctx, r.Pool,
-		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
+	rows, err := DiscountCodesByIDsOn(ctx, r.Pool, ids)
+	return rows, len(rows), err
+}
+
+// DiscountCodesByIDsOn is DiscountCodesByIDs through q: the pool, or the transaction that
+// just created the codes (a keyed batch answers from inside its receipt claim).
+func DiscountCodesByIDsOn(ctx context.Context, q RowQuerier, ids []string) ([]api.DiscountCode, error) {
+	return oneJSON[[]api.DiscountCode](ctx, q,
+		`SELECT COALESCE(json_agg(json_build_object('id',id,'code',code,'promotionId',promotion_id,
 		   'type',type,'value',value,'minPurchase',min_purchase,
 		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
 		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
 		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
-		   'createdAt',created_at)
-		   FROM discount_codes WHERE id = ANY($1::uuid[]) ORDER BY created_at DESC`, ids)
+		   'createdAt',created_at) ORDER BY created_at DESC), '[]'::json)
+		   FROM discount_codes WHERE id = ANY($1::uuid[])`, ids)
 }

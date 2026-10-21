@@ -19,7 +19,7 @@ func (s *OrderService) Refund(ctx context.Context, in RefundInput) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if err := s.RefundTx(ctx, tx, in); err != nil {
+	if err := s.RefundTxLedger(ctx, tx, in); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -37,6 +37,17 @@ func (s *OrderService) OrderOutlet(ctx context.Context, orderID string) (string,
 		return "", ErrRefundOrderNotFound
 	}
 	return outlet, err
+}
+
+// RefundTxLedger is RefundTx plus the stock ledger rows of the restock (D11: a wrapper
+// so the frozen RefundTx stays untouched). The movements land after RefundTx's
+// BumpStockSeq; they take no stock or version lock, only plain reads and ledger
+// inserts, so the lock order and the "bump is last" rule still hold.
+func (s *OrderService) RefundTxLedger(ctx context.Context, tx pgx.Tx, in RefundInput) error {
+	if err := s.RefundTx(ctx, tx, in); err != nil {
+		return err
+	}
+	return recordRefundMovements(ctx, tx, in)
 }
 
 // RefundTx is Refund inside a caller-owned transaction (the caller commits or

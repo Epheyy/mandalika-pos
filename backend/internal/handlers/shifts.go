@@ -2,14 +2,17 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 )
 
@@ -87,10 +90,27 @@ func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
 		return
 	}
-	id, err := h.OrderSvc.AddCashFlow(r.Context(), service.CashFlowInput{
+	in := service.CashFlowInput{
 		OutletID: c.outletID, ShiftID: body.ShiftID, Type: body.Type,
 		Amount: body.Amount, Description: body.Description,
 		CashierID: c.userID, CashierName: c.name,
+	}
+	var id string
+	h.keyedMutated(w, r, keyedWrite{
+		OpType: "bo.cash_flow.create",
+		Payload: map[string]any{"outletId": c.outletID, "shiftId": body.ShiftID, "type": body.Type,
+			"amount": body.Amount, "description": body.Description},
+		Status: http.StatusCreated,
+		Unkeyed: func() (err error) {
+			id, err = h.OrderSvc.AddCashFlow(r.Context(), in)
+			return err
+		},
+		Effect: func(ctx context.Context, tx pgx.Tx) (err error) {
+			id, err = h.OrderSvc.AddCashFlowTx(ctx, tx, in)
+			return err
+		},
+		Outcome: func(context.Context, read.RowQuerier) (json.RawMessage, error) {
+			return json.Marshal(map[string]any{"data": map[string]string{"id": id}})
+		},
 	})
-	h.created(w, r, id, err)
 }

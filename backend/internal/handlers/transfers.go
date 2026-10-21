@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
@@ -77,7 +79,14 @@ func (h *Handlers) UpdateTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) SendTransfer(w http.ResponseWriter, r *http.Request) {
-	h.mutated(w, r, h.Write.SendTransfer(r.Context(), chi.URLParam(r, "id")))
+	id := chi.URLParam(r, "id")
+	h.keyedMutated(w, r, keyedWrite{
+		OpType: "bo.transfer.send", Payload: map[string]string{"transferId": id},
+		Unkeyed: func() error { return h.Write.SendTransfer(r.Context(), id) },
+		Effect: func(ctx context.Context, tx pgx.Tx) error {
+			return h.Write.SendTransferTx(ctx, tx, id, callerUserID(r))
+		},
+	})
 }
 
 func (h *Handlers) ReceiveTransfer(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +101,14 @@ func (h *Handlers) ReceiveTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) CancelTransfer(w http.ResponseWriter, r *http.Request) {
-	h.mutated(w, r, h.Write.CancelTransfer(r.Context(), chi.URLParam(r, "id")))
+	id := chi.URLParam(r, "id")
+	h.keyedMutated(w, r, keyedWrite{
+		OpType: "bo.transfer.cancel", Payload: map[string]string{"transferId": id},
+		Unkeyed: func() error { return h.Write.CancelTransfer(r.Context(), id) },
+		Effect: func(ctx context.Context, tx pgx.Tx) error {
+			return h.Write.CancelTransferTx(ctx, tx, id, callerUserID(r))
+		},
+	})
 }
 
 func (h *Handlers) GetInboundTransfers(w http.ResponseWriter, r *http.Request) {

@@ -618,4 +618,11 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 			})
 		}
 	})
+	t.Run("backoffice-keyed-writes", func(t *testing.T) {
+		var bs string
+		if err := pool.QueryRow(ctx, `INSERT INTO shifts(outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,'OR cashier A','open',now()) RETURNING id`, outletA, userA).Scan(&bs); err != nil {
+			t.Fatal(err)
+		}
+		boKeyedWrites(t, ctx, pool, h, secret, tokenA, outletA, bs)
+	})
 }

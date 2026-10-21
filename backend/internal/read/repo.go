@@ -59,7 +59,12 @@ func listJSON[T any](ctx context.Context, p *pgxpool.Pool, sql string, args ...a
 	return out, total, nil
 }
 
-func oneJSON[T any](ctx context.Context, p *pgxpool.Pool, sql string, args ...any) (T, error) {
+// RowQuerier is the single-row query surface of a pool or a transaction.
+type RowQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func oneJSON[T any](ctx context.Context, p RowQuerier, sql string, args ...any) (T, error) {
 	var v T
 	var raw []byte
 	err := p.QueryRow(ctx, sql, args...).Scan(&raw)

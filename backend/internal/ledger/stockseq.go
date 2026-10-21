@@ -26,6 +26,11 @@ import (
 //     bundle or unresolved lines): the client counts "one own sale = exactly one bump"
 //     to tell its own sales from foreign stock changes, so do not "fix" that.
 //
+// The keyed backoffice path's UPDATE operation_receipts SET outcome (RunWithReceipt) runs
+// after the bump, like processed_keys on sales; it touches no stock or version row. A
+// keyed write's Outcome read-back (e.g. the stock-count JSON) also runs after the bump,
+// inside the claim tx; it only reads.
+//
 // The upsert covers outlets created after migration 0057 seeded the table.
 func BumpStockSeq(ctx context.Context, tx pgx.Tx, outletIDs ...string) (map[string]int64, error) {
 	seen := make(map[string]bool, len(outletIDs))

@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -152,23 +156,38 @@ func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := h.caller(r)
-	bal, err := h.Write.AdjustPoints(r.Context(), chi.URLParam(r, "id"), in.Points, in.Reason, c.userID, c.name)
-	if errors.Is(err, write.ErrNotFound) {
-		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
-		return
-	}
-	if errors.Is(err, write.ErrZeroDelta) || errors.Is(err, write.ErrInsufficientPoints) || errors.Is(err, write.ErrReasonRequired) {
-		httpx.Err(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	h.invalidate(r)
-	writeJSON(w, http.StatusOK, api.AdjustPointsResponse{Data: struct {
-		BalanceAfter int `json:"balanceAfter"`
-	}{BalanceAfter: bal}})
+	id := chi.URLParam(r, "id")
+	var bal int
+	h.keyedMutated(w, r, keyedWrite{
+		OpType:  "bo.points.adjust",
+		Payload: map[string]any{"customerId": id, "points": in.Points, "reason": in.Reason},
+		Unkeyed: func() (err error) {
+			bal, err = h.Write.AdjustPoints(r.Context(), id, in.Points, in.Reason, c.userID, c.name)
+			return err
+		},
+		Effect: func(ctx context.Context, tx pgx.Tx) (err error) {
+			bal, err = h.Write.AdjustPointsTx(ctx, tx, id, in.Points, in.Reason, c.userID, c.name)
+			return err
+		},
+		Outcome: func(context.Context, read.RowQuerier) (json.RawMessage, error) {
+			return json.Marshal(api.AdjustPointsResponse{Data: struct {
+				BalanceAfter int `json:"balanceAfter"`
+			}{BalanceAfter: bal}})
+		},
+		OnErr: func(w http.ResponseWriter, err error) bool {
+			switch {
+			case errors.Is(err, write.ErrNotFound):
+				httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
+			case errors.Is(err, write.ErrZeroDelta) || errors.Is(err, write.ErrInsufficientPoints) || errors.Is(err, write.ErrReasonRequired):
+				httpx.Err(w, http.StatusBadRequest, err.Error())
+			case errors.Is(err, write.ErrBusy) || isKeyConflict(err):
+				return false // 409 via the shared mapping
+			default:
+				writeErr(w, http.StatusInternalServerError, err)
+			}
+			return true
+		},
+	})
 }
 
 func (h *Handlers) RewardGrants(w http.ResponseWriter, r *http.Request) {

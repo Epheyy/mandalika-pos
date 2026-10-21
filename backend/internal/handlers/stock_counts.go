@@ -1,13 +1,16 @@
 package handlers
 
 import (
-	"errors"
+	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -64,28 +67,25 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := h.caller(r)
-	// No outlet guard — repo authorizes (see UpdateStockCount).
+	// No outlet guard — repo authorizes (see UpdateStockCount). The outlet is the
+	// authenticated caller's, never the body's.
 	id := chi.URLParam(r, "id")
-	if err := h.Write.CompleteStockCount(r.Context(), id, c.outletID, body.Items); err != nil {
-		if errors.Is(err, write.ErrNotFound) {
-			httpx.Err(w, http.StatusNotFound, "not found")
-			return
-		}
-		if errors.Is(err, write.ErrBusy) {
-			httpx.Err(w, http.StatusConflict, err.Error()) // nothing applied, safe to retry
-			return
-		}
-		if countConflict(w, err) {
-			return
-		}
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	h.invalidate(r)
-	v, err := h.Repo.StockCount(r.Context(), scope(r), id)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": v})
+	h.keyedMutated(w, r, keyedWrite{
+		OpType:  "bo.stock_count.complete",
+		Payload: map[string]any{"countId": id, "outletId": c.outletID, "items": body.Items},
+		Unkeyed: func() error {
+			return h.Write.CompleteStockCountBy(r.Context(), id, c.outletID, callerUserID(r), body.Items)
+		},
+		Effect: func(ctx context.Context, tx pgx.Tx) error {
+			return h.Write.CompleteStockCountTx(ctx, tx, id, c.outletID, callerUserID(r), body.Items)
+		},
+		Outcome: func(ctx context.Context, q read.RowQuerier) (json.RawMessage, error) {
+			v, err := read.StockCountOn(ctx, q, scope(r), id)
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(map[string]any{"data": v})
+		},
+		OnErr: func(w http.ResponseWriter, err error) bool { return countConflict(w, err) },
+	})
 }

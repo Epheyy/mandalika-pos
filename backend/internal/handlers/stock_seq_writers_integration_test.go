@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"strings"
@@ -386,27 +387,48 @@ func (f *stFixture) runWriterCases(t *testing.T) {
 		f.wantDelta(t, "warehouse stock count", 0, 0, func() { f.must(t, f.repo.CompleteStockCount(f.ctx, wid, "", counted)) })
 	})
 
-	t.Run("W8 product create seeds one outlet and bumps it once; catalog edits do not", func(t *testing.T) {
+	t.Run("W8 product create refuses opening stock (D12) and writes no stock row; catalog edits do not bump", func(t *testing.T) {
 		mk := func(name string, stock int) write.Product {
 			return write.Product{Name: name, Sellable: true, IsActive: true,
 				Variants: []write.Variant{{Size: stSize, Price: 100000, Stock: stock, SKU: "SKU-" + name}}}
 		}
-		var pid string
-		f.wantDelta(t, "create with stock", 1, 0, func() {
-			var err error
-			pid, err = f.repo.CreateProduct(f.ctx, stOutletA, mk("seeded", 5))
-			f.must(t, err)
+		f.wantDelta(t, "create with stock is refused", 0, 0, func() {
+			if _, err := f.repo.CreateProduct(f.ctx, stOutletA, mk("seeded", 5)); err == nil {
+				t.Fatal("create with stock 5 succeeded, want the D12 refusal")
+			}
 		})
-		if f.stock(t, stOutletA, pid) != 5 {
-			t.Fatalf("seed stock %d", f.stock(t, stOutletA, pid))
+		if n := f.str(t, `SELECT count(*)::text FROM products WHERE name='seeded'`); n != "0" {
+			t.Fatalf("refused create left %s product rows", n)
 		}
-		f.wantDelta(t, "create with all-zero stock writes no stock row", 0, 0, func() {
-			_, err := f.repo.CreateProduct(f.ctx, stOutletA, mk("unseeded", 0))
+		if n := f.str(t, `SELECT count(*)::text FROM product_variants WHERE sku='SKU-seeded'`); n != "0" {
+			t.Fatalf("refused create left %s variant rows", n)
+		}
+		var pid string
+		f.wantDelta(t, "create with zero stock writes no stock row", 0, 0, func() {
+			var err error
+			pid, err = f.repo.CreateProduct(f.ctx, stOutletA, mk("unseeded", 0))
 			f.must(t, err)
 		})
+		if n := f.str(t, `SELECT count(*)::text FROM outlet_variant_stock WHERE product_id=$1`, pid); n != "0" {
+			t.Fatalf("zero create wrote %s stock rows", n)
+		}
+		// the rename/delete guards need a stocked variant: set it up as a fixture
+		f.setStock(t, stOutletA, pid, 5)
 		vid := f.str(t, `SELECT id::text FROM product_variants WHERE product_id=$1`, pid)
-		renamed := mk("seeded", 5)
+		renamed := mk("unseeded", 0)
 		renamed.Variants[0].ID, renamed.Variants[0].Size = vid, "220ml"
+		// D13: a stocked variant can be neither renamed nor deleted; the refusal changes nothing.
+		f.wantDelta(t, "variant rename refused while stocked", 0, 0, func() {
+			if err := f.repo.UpdateProduct(f.ctx, pid, renamed); !errors.Is(err, write.ErrVariantHasStock) {
+				t.Fatalf("rename of a stocked variant: %v, want ErrVariantHasStock", err)
+			}
+		})
+		f.wantDelta(t, "product delete refused while stocked", 0, 0, func() {
+			if err := f.repo.DeleteProduct(f.ctx, pid); !errors.Is(err, write.ErrVariantHasStock) {
+				t.Fatalf("delete of a stocked product: %v, want ErrVariantHasStock", err)
+			}
+		})
+		f.setStock(t, stOutletA, pid, 0)
 		f.wantDelta(t, "variant rename", 0, 0, func() { f.must(t, f.repo.UpdateProduct(f.ctx, pid, renamed)) })
 		f.wantDelta(t, "availability and price config", 0, 0, func() {
 			f.must(t, f.repo.SetProductOutletConfig(f.ctx, pid, []api.OutletConfigItemInput{

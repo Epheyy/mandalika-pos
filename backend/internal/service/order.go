@@ -629,6 +629,10 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		}
 	}
 
+	if e := recordSaleMovements(ctx, tx, orderID, orderNumber, in, itemIDs); e != nil {
+		return "", false, false, e
+	}
+
 	// SP-Promo-3b: record one promo_reward_grants row per honored reward line (the
 	// order row now exists for the FK). Each grant carries the SERVER full/net prices
 	// resolved above — the audit of what was given for free.

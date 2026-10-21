@@ -79,6 +79,14 @@ components:
       required: false
       description: Required when dryRun=false (generated once per preview, reused on retry).
       schema: { type: string }
+    WriteIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >
+        Optional. One uuid per form submit, reused on retry; the same key with the
+        same body replays the stored response, with a different body returns 409.
+      schema: { type: string, maxLength: 200 }
     Page:
       name: page
       in: query
@@ -3031,6 +3039,7 @@ paths:
       summary: Manual points adjustment (Backoffice, manage_settings)
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3042,6 +3051,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdjustPointsResponse' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/customers/{id}/reward-grants:
     get:
       operationId: listRewardGrants
@@ -3173,6 +3183,8 @@ paths:
       operationId: createDiscountCodeBatch
       tags: [promotions]
       summary: Generate a batch of discount codes (Backoffice)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3184,6 +3196,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeListResponse' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/customers/import:
     post:
       operationId: importCustomers
@@ -3528,6 +3541,7 @@ paths:
       parameters:
         - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
         - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3535,6 +3549,7 @@ paths:
             schema: { $ref: '#/components/schemas/GoodsReceiptInput' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/inventory/adjust:
     post:
       operationId: adjustLocationStock
@@ -3543,6 +3558,7 @@ paths:
       parameters:
         - { name: kind, in: query, required: true, schema: { type: string, enum: [outlet, warehouse] } }
         - { name: id, in: query, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3550,6 +3566,7 @@ paths:
             schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/inventory/outlet-par:
     put:
       operationId: setOutletPar
@@ -4135,6 +4152,8 @@ paths:
       operationId: sendTransfer
       tags: [catalog]
       summary: Send a transfer (Backoffice)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       responses:
         '200':
           description: ok
@@ -4142,6 +4161,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/transfers/{id}/receive:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -4168,6 +4188,8 @@ paths:
       operationId: cancelTransfer
       tags: [catalog]
       summary: Cancel a transfer (Backoffice)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       responses:
         '200':
           description: ok
@@ -4175,6 +4197,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
   /api/v1/custom-roles:
     get:
       operationId: listCustomRoles
@@ -4479,6 +4502,7 @@ paths:
         is a no-op that returns it. Items may only update actualQty of existing lines.
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: false
         content:
@@ -4491,7 +4515,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "count is not in progress, or lock conflict (retryable)" }
+        '409': { description: "count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request" }
   /api/v1/cash-flows:
     post:
       operationId: createCashFlow
@@ -4499,6 +4523,7 @@ paths:
       summary: Record a cash in/out movement
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -4510,6 +4535,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IdResponse' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
     get:
       operationId: listCashFlows
       tags: [sales]

@@ -59,6 +59,15 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Err(w, http.StatusConflict, err.Error())
 		return
 	}
+	if isKeyConflict(err) {
+		httpx.Err(w, http.StatusConflict, err.Error()) // key already used for another operation
+		return
+	}
+	if write.IsStockGuardRefusal(err) {
+		// A D13 refusal (stocked variant, or a rename onto leftover rows): 409 with its message.
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return

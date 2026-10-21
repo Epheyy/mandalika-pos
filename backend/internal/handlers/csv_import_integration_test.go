@@ -580,18 +580,40 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
-	sub("products: a size rename moves outlet stock, outlet price and warehouse stock", func(t *testing.T) {
+	sub("products: D13 a rename away from a size that still holds stock is a row error and apply refuses", func(t *testing.T) {
+		before := stockSnapshot()
+		csv := prodHeader + "Melati,Mandalika,,,75 ml,125000,MEL-50,,,,\n"
+		rep := preview("/products/import", csv)
+		found := false
+		for _, i := range rep.Issues {
+			found = found || (i.Code == "size_has_stock" && strings.Contains(i.Message, "masih punya stok di"))
+		}
+		if !found || !rep.HasErrors() {
+			t.Fatalf("want size_has_stock naming a location: %+v", rep.Issues)
+		}
+		if code, raw := commit("/products/import", csv, rep, "p-d13"); code != http.StatusUnprocessableEntity {
+			t.Errorf("commit -> %d %s, want 422", code, raw)
+		}
+		if stockSnapshot() != before {
+			t.Error("a refused rename changed stock rows")
+		}
+	})
+
+	sub("products: a size rename moves the (zeroed) outlet stock, outlet price and warehouse stock rows", func(t *testing.T) {
+		// D13: only an empty key may be renamed, so empty the 50 ml rows first.
+		exec(`UPDATE outlet_variant_stock SET stock=0 WHERE product_id=$1 AND variant_size='50 ml'`, melatiID)
+		exec(`UPDATE warehouse_variant_stock SET stock=0 WHERE product_id=$1 AND variant_size='50 ml'`, melatiID)
 		exec(`DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size='75 ml'`, melatiID)
 		rep := mustApply("/products/import", prodHeader+"Melati,Mandalika,,,75 ml,125000,MEL-50,,,,\n", "p-3")
 		if rep.Summary.Update != 1 || rep.Summary.Warning == 0 {
 			t.Fatalf("%+v", rep.Summary)
 		}
-		if count(`SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1 AND variant_size='75 ml' AND stock=7`, melatiID) != 1 ||
+		if count(`SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1 AND variant_size='75 ml' AND stock=0`, melatiID) != 1 ||
 			count(`SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1 AND variant_size='50 ml'`, melatiID) != 0 {
 			t.Error("outlet stock did not follow the rename")
 		}
 		if count(`SELECT count(*) FROM outlet_variant_price WHERE product_id=$1 AND variant_size='75 ml' AND price=99000`, melatiID) != 1 ||
-			count(`SELECT count(*) FROM warehouse_variant_stock WHERE product_id=$1 AND variant_size='75 ml' AND stock=11`, melatiID) != 1 ||
+			count(`SELECT count(*) FROM warehouse_variant_stock WHERE product_id=$1 AND variant_size='75 ml' AND stock=0`, melatiID) != 1 ||
 			count(`SELECT count(*) FROM outlet_variant_price WHERE product_id=$1 AND variant_size='50 ml'`, melatiID)+count(`SELECT count(*) FROM warehouse_variant_stock WHERE product_id=$1 AND variant_size='50 ml'`, melatiID) != 0 {
 			t.Error("outlet price or warehouse stock did not follow the rename")
 		}
@@ -671,6 +693,12 @@ func TestCsvImportPostgres(t *testing.T) {
 	}
 	sub("products: a rename is blocked while an open transfer or stock count still uses the size, and allowed otherwise", func(t *testing.T) {
 		rename := prodHeader + "Melati,Mandalika,,,120 ml,180000,MEL-100,,,,\n"
+		// D13: a stocked size cannot be renamed at all, so empty the 100 ml rows first.
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_has_stock") {
+			t.Fatalf("100 ml still holds stock, the rename must be refused: %+v", rep.Issues)
+		}
+		exec(`UPDATE outlet_variant_stock SET stock=0 WHERE product_id=$1 AND variant_size='100 ml'`, melatiID)
+		exec(`UPDATE warehouse_variant_stock SET stock=0 WHERE product_id=$1 AND variant_size='100 ml'`, melatiID)
 		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
 			t.Fatalf("no open document yet, the rename must be allowed: %+v", rep.Issues)
 		}

@@ -106,7 +106,7 @@ func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Rep
 }
 
 func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemResult {
-	return e.processOneWithRefund(ctx, c, it, e.Orders.RefundTx)
+	return e.processOneWithRefund(ctx, c, it, e.Orders.RefundTxLedger)
 }
 
 // refundFunc runs a refund inside the transaction that also holds the item's
