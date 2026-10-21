@@ -1,0 +1,391 @@
+openapi: 3.0.3
+info:
+  title: ERP Integration API v1 — stock documents (proposed by POS Mandalika)
+  version: 1.0.0-draft.1
+  description: |
+    Proposed write endpoint for the ERP (erp-flamboyan) Integration API v1, written by the POS team from the
+    handoff `docs/integration/2026-10-21-serah-terima-erp-pos.md` §4.3, §4.4, §4.6 and §10. It is a fragment:
+    merge it into the ERP's generated `openapi.v1.json` when the ERP implements the endpoint.
+
+    The POS backend (never a tablet or browser) posts one document per stock event. The ERP splits each
+    document into `stock_movements` rows in one transaction and updates a live balance per (FG, location).
+
+    Idempotency: the document key is (`idempotency_scope = "pos:" + source.brand`, `document_id`). The ERP
+    stores a hash of the request body. Same key and same body → 200 `replayed`, nothing written again. Same key
+    and a different body → 409 `IDEMPOTENCY_CONFLICT`. The POS relay retries until it receives a 2xx, and it
+    resends the exact stored body (including `recorded_at`), so a retry is always byte-for-byte equivalent.
+    Key order and whitespace must not affect the hash.
+
+    Large documents (for example a stock count) are split by POS into documents of at most 200 lines. Each part is
+    a separate document with its own `document_id`; all parts share `ref.id` and carry `part`.
+
+    The POS reference implementation of this contract is `backend/cmd/erpstub` in the POS repo.
+servers:
+  - url: /api/integration/v1
+security:
+  - apiKey: []
+paths:
+  /stock-documents:
+    post:
+      operationId: postStockDocument
+      summary: Apply one POS stock document (idempotent)
+      description: |
+        Requires scope `integration:stock:write`.
+
+        The ERP validates the whole document first. If any check fails (unknown `fg_code`, unknown
+        `location.slug`, bad `kind`, more than 200 lines, a `movement_id` already used in this scope, …)
+        it answers 422 and writes nothing.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Must equal `document_id` in the body.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockDocument'
+            examples:
+              sale:
+                $ref: '#/components/examples/Sale'
+              countPart:
+                $ref: '#/components/examples/CountPart'
+      responses:
+        '200':
+          description: Applied now (`applied`) or already applied with the same body (`replayed`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockDocumentResult'
+              examples:
+                applied:
+                  value:
+                    success: true
+                    data:
+                      document_id: d0000000-0000-4000-8000-000000000002
+                      status: applied
+                      movement_ids: [b0000000-0000-4000-8000-000000000002]
+                replayed:
+                  value:
+                    success: true
+                    data:
+                      document_id: d0000000-0000-4000-8000-000000000002
+                      status: replayed
+                      movement_ids: [b0000000-0000-4000-8000-000000000002]
+        '400':
+          description: Malformed JSON or body too large (`INVALID_INPUT`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing, unknown, revoked or expired key (`INTEGRATION_UNAUTHORIZED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Client suspended (`INTEGRATION_CLIENT_SUSPENDED`) or no `stock:write` scope (`INTEGRATION_FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Same (`scope`, `document_id`) was already applied with a different body (`IDEMPOTENCY_CONFLICT`). Nothing written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation failed (`VALIDATION_ERROR`); see `details`. Nothing written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                error: Unprocessable Entity
+                message: document failed validation
+                code: VALIDATION_ERROR
+                requestId: 9f2c1a7e
+                details:
+                  - path: lines[2].fg_code
+                    message: unknown fg_code "FG-999"
+        '429':
+          description: Rate limited (`RATE_LIMIT_EXCEEDED` / `RATE_LIMIT_BLOCKED`). Retry after `Retry-After` seconds.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: ERP busy (`INTEGRATION_BUSY`). Nothing written; retry after `Retry-After` seconds.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: erp_<prefix>_<secret>
+  schemas:
+    StockDocument:
+      type: object
+      required: [document_id, kind, source, location, occurred_at, ref, lines]
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          description: Generated by the POS backend. Idempotency key of the document; equals the `Idempotency-Key` header.
+        kind:
+          $ref: '#/components/schemas/StockDocumentKind'
+        part:
+          $ref: '#/components/schemas/DocumentPart'
+        source:
+          $ref: '#/components/schemas/DocumentSource'
+        location:
+          $ref: '#/components/schemas/DocumentLocation'
+        occurred_at:
+          type: string
+          format: date-time
+          description: When it happened on the device (can be long before `recorded_at` because of offline sales). The ERP derives `period_month` from it.
+        recorded_at:
+          type: string
+          format: date-time
+          description: When the POS backend received the event. Stable across relay retries.
+        ref:
+          $ref: '#/components/schemas/DocumentRef'
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/StockLine'
+        tenders:
+          type: array
+          description: Only on `sale` and `refund`. Any other kind with tenders → 422.
+          items:
+            $ref: '#/components/schemas/Tender'
+        customer_ref:
+          type: string
+          nullable: true
+          description: Optional POS customer id. The ERP may ignore it.
+    StockDocumentKind:
+      type: string
+      description: The ERP maps the kind to `MovementType` IN/OUT/CORRECTION and stores it in `reason`.
+      enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off]
+    DocumentPart:
+      type: object
+      description: |
+        Present only when POS split one source document (same `ref.id`) into several documents of at most 200 lines.
+        Every part has its own `document_id` and is applied independently; there is no all-parts transaction.
+      required: [index, count]
+      properties:
+        index:
+          type: integer
+          minimum: 1
+          description: 1-based part number; `index <= count`.
+        count:
+          type: integer
+          minimum: 1
+          description: Total number of parts for this `ref.id`.
+    DocumentSource:
+      type: object
+      required: [system, brand]
+      properties:
+        system:
+          type: string
+          enum: [pos]
+        brand:
+          type: string
+          description: POS deployment name. The ERP uses `idempotency_scope = "pos:" + brand`.
+          example: mandalika
+        device_id:
+          type: string
+          example: tab-07
+        actor:
+          type: string
+          description: Cashier uuid or name.
+    DocumentLocation:
+      type: object
+      required: [type, slug]
+      properties:
+        type:
+          type: string
+          enum: [outlet, warehouse]
+        slug:
+          type: string
+          description: ERP slug of the outlet or warehouse. Unknown or deleted → 422.
+    DocumentRef:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          example: order
+          description: POS source document type (order, transfer, stock_count, receipt, adjustment, backfill, …).
+        id:
+          type: string
+          description: POS source document id. A transfer is two documents (`transfer_out` at the source, `transfer_in` at the destination) with the same `ref.id`.
+        number:
+          type: string
+          description: Printed number (receipt, transfer number).
+          example: KMG-AB0004
+    StockLine:
+      type: object
+      required: [movement_id, fg_code, qty]
+      properties:
+        movement_id:
+          type: string
+          format: uuid
+          description: Per-line id from POS, stored as `stock_movements.idempotency_key`. Unique within the scope; reuse in another document → 422.
+        fg_code:
+          type: string
+          description: FG `code` from the ERP catalog. Unknown or deleted → 422. `DISCONTINUE` is accepted.
+        qty:
+          type: integer
+          format: int64
+          description: Signed. Negative = out. For `count` it is the delta (counted − expected), not the counted total.
+        qty_before:
+          type: integer
+          format: int64
+          description: POS balance at this location before the line. Informational, for reconciliation.
+        qty_after:
+          type: integer
+          format: int64
+          description: POS balance after the line. Informational.
+        unit_price:
+          type: integer
+          format: int64
+          description: Rupiah, sale/refund only. Informational.
+        discount:
+          type: integer
+          format: int64
+          description: Rupiah. Informational.
+        reason:
+          type: string
+          description: Usually equals `kind`.
+        flags:
+          type: array
+          items:
+            type: string
+          description: 'Known value: `shortage` when the sale made the POS balance negative (oversell). The ERP still records the movement.'
+        refund_of_movement_id:
+          type: string
+          format: uuid
+          description: Refund lines only. The `movement_id` of the sale line being refunded.
+        expected_qty:
+          type: integer
+          format: int64
+          description: '`transfer_in` only. Quantity sent by the source; `qty` is what arrived.'
+    Tender:
+      type: object
+      required: [method, amount]
+      properties:
+        method:
+          type: string
+          enum: [cash, card, transfer, qris]
+        amount:
+          type: integer
+          format: int64
+          description: Rupiah. Negative on a refund.
+    StockDocumentResult:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [document_id, status, movement_ids]
+          properties:
+            document_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [applied, replayed]
+            movement_ids:
+              type: array
+              description: In line order. On `replayed`, the ids stored with the original document.
+              items:
+                type: string
+                format: uuid
+    Error:
+      type: object
+      required: [success, error, message, code, requestId]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+          description: INVALID_INPUT, INTEGRATION_UNAUTHORIZED, INTEGRATION_CLIENT_SUSPENDED, INTEGRATION_FORBIDDEN_SCOPE, IDEMPOTENCY_CONFLICT, VALIDATION_ERROR, RATE_LIMIT_EXCEEDED, RATE_LIMIT_BLOCKED, INTEGRATION_BUSY.
+        requestId:
+          type: string
+        details:
+          type: array
+          description: Only on VALIDATION_ERROR.
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path:
+                type: string
+                example: lines[2].fg_code
+              message:
+                type: string
+  examples:
+    Sale:
+      summary: Sale at outlet kemang (handoff §4.3)
+      value:
+        document_id: d0000000-0000-4000-8000-000000000002
+        kind: sale
+        source: { system: pos, brand: mandalika, device_id: tab-07, actor: kasir-01 }
+        location: { type: outlet, slug: kemang }
+        occurred_at: '2026-11-02T03:15:20+07:00'
+        recorded_at: '2026-11-01T20:15:41Z'
+        ref: { type: order, id: 5b1f0c2e-9a77-4d3e-8f10-2c6a1e9b0a01, number: KMG-AB0004 }
+        lines:
+          - movement_id: b0000000-0000-4000-8000-000000000002
+            fg_code: FG-001
+            qty: -1
+            qty_before: 42
+            qty_after: 41
+            unit_price: 150000
+            discount: 0
+            reason: sale
+            flags: []
+        tenders:
+          - { method: qris, amount: 150000 }
+        customer_ref: null
+    CountPart:
+      summary: Part 2 of 3 of a stock count split at 200 lines (handoff §4.6)
+      value:
+        document_id: d0000000-0000-4000-8000-000000000032
+        kind: count
+        part: { index: 2, count: 3 }
+        source: { system: pos, brand: mandalika }
+        location: { type: outlet, slug: kemang }
+        occurred_at: '2026-11-01T21:00:00+07:00'
+        ref: { type: stock_count, id: 7c3a9e10-2b44-4f6d-9e21-0d5b8a6f3c02, number: SO-2026-11-01 }
+        lines:
+          - { movement_id: b0000000-0000-4000-8000-000000000201, fg_code: FG-001, qty: -2, qty_before: 50, qty_after: 48, reason: count }
