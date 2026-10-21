@@ -66,8 +66,27 @@ func (r *Repo) UpdateWarehouse(ctx context.Context, id string, w Warehouse) erro
 	})
 }
 
+// DeleteWarehouse (D13): refused while any of its stock rows is non-zero. The warehouse row
+// is locked first (see lockWarehouseRow) so every stock row a concurrent receipt created is
+// committed and visible; the zero rows are then deleted explicitly, with a RETURNING check,
+// before the warehouse, so the FK CASCADE finds no non-zero row to remove.
 func (r *Repo) DeleteWarehouse(ctx context.Context, id string) error {
+	return retryBusy(ctx, func() error { return r.deleteWarehouse(ctx, id) })
+}
+
+func (r *Repo) deleteWarehouse(ctx context.Context, id string) error {
 	return r.noBumpTx(ctx, func(t pgx.Tx) error {
+		if e := lockWarehouseRow(ctx, t, id); e != nil {
+			return e
+		}
+		if e := lockWarehouseStock(ctx, t, id); e != nil {
+			return e
+		}
+		if e := guardedZeroWrite(ctx, t, "warehouse", `
+			DELETE FROM warehouse_variant_stock WHERE warehouse_id=$1
+			RETURNING warehouse_id::text, variant_size, stock`, id); e != nil {
+			return e
+		}
 		ct, e := t.Exec(ctx, `DELETE FROM warehouses WHERE id=$1`, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound

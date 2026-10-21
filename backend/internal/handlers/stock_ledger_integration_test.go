@@ -331,6 +331,7 @@ func TestStockLedgerPostgres(t *testing.T) {
 	t.Run("stock-count", func(t *testing.T) { slStockCounts(t, ctx, pool) })
 	t.Run("refund", func(t *testing.T) { slRefund(t, ctx, pool) })
 	t.Run("sale", func(t *testing.T) { slSale(t, ctx, pool) })
+	t.Run("guards", func(t *testing.T) { slGuards(t, ctx, pool) })
 
 	t.Run("refund-link", func(t *testing.T) {
 		slSetup(t, ctx, pool)

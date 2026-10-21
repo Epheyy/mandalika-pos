@@ -176,99 +176,194 @@ func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID stri
 
 // UpdateProduct preserves variant identity instead of delete+reinsert: each
 // incoming variant is matched to an existing one by id (modal) or SKU (CSV). A
-// matched variant is updated in place; if its size changed, its per-outlet
-// stock/price rows are moved old→new size in the same tx (so stock follows a
-// rename via any caller). Unmatched incoming = new variant; existing variants not
-// in the payload = removed (with their per-outlet rows).
+// matched variant is updated in place; if its size changed, its per-outlet and
+// warehouse stock/price rows are moved old→new size in the same tx. Unmatched
+// incoming = new variant; existing variants not in the payload = removed (with their
+// per-outlet and warehouse rows). D13: a rename or removal never moves or destroys
+// stock: it is refused (VariantHasStockError, 409) while any row of the old size is
+// non-zero.
 func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 	if e := validateVariants(p.Variants); e != nil {
 		return e
 	}
+	return retryBusy(ctx, func() error { return r.updateProduct(ctx, id, p) })
+}
+
+// updateProduct is one UpdateProduct attempt (one fresh tx). It does not lock the product
+// row: a stock row a concurrent receipt adds for a removed or renamed size after the guard
+// is only left behind under the old size (nothing is destroyed or moved), and locking
+// the parent would stall every sale of the product for the length of an edit.
+func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
 	return barcodeConflict(r.tx(ctx, "products", func(t pgx.Tx) error {
-		imgs, main := productImages(p)
-		ct, e := t.Exec(ctx, `
-			UPDATE products SET name=$1, brand=$2, category_id=$3, description=$4,
-			  image_url=$5, images=$6, sellable=$7,
-			  is_featured=$8, is_favourite=$9, is_active=$10
-			WHERE id=$11`,
-			p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
-			nullStr(main), imgs, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive, id)
+		if e := updateProductRow(ctx, t, id, p); e != nil {
+			return e
+		}
+		byID, bySKU, e := loadExistingVariants(ctx, t, id)
 		if e != nil {
 			return e
 		}
-		if ct.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-
-		rows, e := t.Query(ctx, `SELECT id, size, sku FROM product_variants WHERE product_id=$1`, id)
-		if e != nil {
+		matched := matchVariants(p.Variants, byID, bySKU)
+		if e := lockVariantStock(ctx, t, id, sizesAtRisk(p.Variants, matched, byID)); e != nil {
 			return e
 		}
-		type ex struct{ size, sku string }
-		byID := map[string]ex{}
-		bySKU := map[string]string{}
-		for rows.Next() {
-			var vid, sz, sku string
-			if e := rows.Scan(&vid, &sz, &sku); e != nil {
-				rows.Close()
-				return e
-			}
-			byID[vid] = ex{sz, sku}
-			if sku != "" {
-				bySKU[sku] = vid
-			}
-		}
-		rows.Close()
-
-		kept := map[string]bool{}
-		for _, v := range p.Variants {
-			vid := v.ID
+		for i, v := range p.Variants {
+			vid := matched[i]
 			if vid == "" {
-				vid = bySKU[v.SKU] // CSV path: correlate by SKU
-			}
-			if cur, ok := byID[vid]; ok {
 				if _, e := t.Exec(ctx,
-					`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4, barcode=$5 WHERE id=$6`,
-					v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v), vid); e != nil {
+					`INSERT INTO product_variants (product_id, size, price, stock, sku, barcode) VALUES ($1,$2,$3,$4,$5,$6)`,
+					id, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
 					return e
 				}
-				if cur.size != v.Size {
-					if _, e := t.Exec(ctx,
-						`UPDATE outlet_variant_stock SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3`,
-						v.Size, id, cur.size); e != nil {
-						return e
-					}
-					if _, e := t.Exec(ctx,
-						`UPDATE outlet_variant_price SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3`,
-						v.Size, id, cur.size); e != nil {
-						return e
-					}
-				}
-				kept[vid] = true
 				continue
 			}
 			if _, e := t.Exec(ctx,
-				`INSERT INTO product_variants (product_id, size, price, stock, sku, barcode) VALUES ($1,$2,$3,$4,$5,$6)`,
-				id, v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v)); e != nil {
+				`UPDATE product_variants SET size=$1, price=$2, stock=$3, sku=$4, barcode=$5 WHERE id=$6`,
+				v.Size, v.Price, v.Stock, v.SKU, variantBarcode(v), vid); e != nil {
 				return e
+			}
+			if cur := byID[vid]; cur.size != v.Size {
+				if e := ensureSizeFree(ctx, t, id, v.Size); e != nil {
+					return e
+				}
+				if e := moveVariantKeys(ctx, t, id, cur.size, v.Size); e != nil {
+					return e
+				}
 			}
 		}
-		for vid, cur := range byID {
-			if kept[vid] {
-				continue
-			}
-			if _, e := t.Exec(ctx, `DELETE FROM product_variants WHERE id=$1`, vid); e != nil {
-				return e
-			}
-			if _, e := t.Exec(ctx, `DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size=$2`, id, cur.size); e != nil {
-				return e
-			}
-			if _, e := t.Exec(ctx, `DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size=$2`, id, cur.size); e != nil {
-				return e
-			}
-		}
-		return nil
+		return dropRemovedVariants(ctx, t, id, matched, byID)
 	}))
+}
+
+func updateProductRow(ctx context.Context, t pgx.Tx, id string, p Product) error {
+	imgs, main := productImages(p)
+	ct, e := t.Exec(ctx, `
+		UPDATE products SET name=$1, brand=$2, category_id=$3, description=$4,
+		  image_url=$5, images=$6, sellable=$7,
+		  is_featured=$8, is_favourite=$9, is_active=$10
+		WHERE id=$11`,
+		p.Name, p.Brand, nullUUID(p.CategoryID), nullStr(p.Description),
+		nullStr(main), imgs, p.Sellable, p.IsFeatured, p.IsFavourite, p.IsActive, id)
+	if e != nil {
+		return e
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+type existingVariant struct{ size, sku string }
+
+func loadExistingVariants(ctx context.Context, t pgx.Tx, id string) (map[string]existingVariant, map[string]string, error) {
+	rows, e := t.Query(ctx, `SELECT id, size, sku FROM product_variants WHERE product_id=$1`, id)
+	if e != nil {
+		return nil, nil, e
+	}
+	defer rows.Close()
+	byID := map[string]existingVariant{}
+	bySKU := map[string]string{}
+	for rows.Next() {
+		var vid, sz, sku string
+		if e := rows.Scan(&vid, &sz, &sku); e != nil {
+			return nil, nil, e
+		}
+		byID[vid] = existingVariant{sz, sku}
+		if sku != "" {
+			bySKU[sku] = vid
+		}
+	}
+	return byID, bySKU, rows.Err()
+}
+
+// matchVariants maps each incoming variant (by index) to the existing variant id it
+// updates, by id (modal) or SKU (CSV); "" = a new variant.
+func matchVariants(vs []Variant, byID map[string]existingVariant, bySKU map[string]string) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		vid := v.ID
+		if vid == "" {
+			vid = bySKU[v.SKU]
+		}
+		if _, ok := byID[vid]; ok {
+			out[i] = vid
+		}
+	}
+	return out
+}
+
+// sizesAtRisk lists the OLD sizes whose stock keys a rename would move or a removal
+// would delete.
+func sizesAtRisk(vs []Variant, matched []string, byID map[string]existingVariant) []string {
+	kept := map[string]bool{}
+	var sizes []string
+	for i, v := range vs {
+		if vid := matched[i]; vid != "" {
+			kept[vid] = true
+			if old := byID[vid].size; old != v.Size {
+				sizes = append(sizes, old)
+			}
+		}
+	}
+	for vid, cur := range byID {
+		if !kept[vid] {
+			sizes = append(sizes, cur.size)
+		}
+	}
+	return sizes
+}
+
+// moveVariantKeys re-keys a renamed variant's outlet stock, outlet price and warehouse
+// stock rows. The pre-lock proved them zero; the RETURNING check keeps that true if a
+// writer created a non-zero row since (D13).
+func moveVariantKeys(ctx context.Context, t pgx.Tx, productID, from, to string) error {
+	// D13 guarded zero-stock move (RETURNING check), not a quantity change.
+	if e := guardedZeroWrite(ctx, t, "outlet", `
+		UPDATE outlet_variant_stock SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3
+		RETURNING outlet_id::text, $3::text, stock`, to, productID, from); e != nil {
+		return e
+	}
+	if _, e := t.Exec(ctx,
+		`UPDATE outlet_variant_price SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3`,
+		to, productID, from); e != nil {
+		return e
+	}
+	return guardedZeroWrite(ctx, t, "warehouse", `
+		UPDATE warehouse_variant_stock SET variant_size=$1 WHERE product_id=$2 AND variant_size=$3
+		RETURNING warehouse_id::text, $3::text, stock`, to, productID, from)
+}
+
+// dropRemovedVariants deletes the variants missing from the payload together with
+// their outlet and warehouse stock rows and outlet price rows.
+func dropRemovedVariants(ctx context.Context, t pgx.Tx, id string, matched []string, byID map[string]existingVariant) error {
+	kept := map[string]bool{}
+	for _, vid := range matched {
+		if vid != "" {
+			kept[vid] = true
+		}
+	}
+	for vid, cur := range byID {
+		if kept[vid] {
+			continue
+		}
+		if _, e := t.Exec(ctx, `DELETE FROM product_variants WHERE id=$1`, vid); e != nil {
+			return e
+		}
+		// D13 guarded zero-stock delete (RETURNING check), not a quantity change.
+		if e := guardedZeroWrite(ctx, t, "outlet", `
+			DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size=$2
+			RETURNING outlet_id::text, variant_size, stock`, id, cur.size); e != nil {
+			return e
+		}
+		if _, e := t.Exec(ctx, `DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size=$2`, id, cur.size); e != nil {
+			return e
+		}
+		if e := guardedZeroWrite(ctx, t, "warehouse", `
+			DELETE FROM warehouse_variant_stock WHERE product_id=$1 AND variant_size=$2
+			RETURNING warehouse_id::text, variant_size, stock`, id, cur.size); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Variant) error {
@@ -283,8 +378,40 @@ func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Varian
 	return nil
 }
 
+// DeleteProduct (D13): refused while any outlet or warehouse stock row of the product is
+// non-zero. The product row is locked first (see lockProductRow) so every stock row a
+// concurrent writer created is committed and visible; the zero rows are then deleted
+// explicitly, with a RETURNING check, BEFORE the product delete, so the FK CASCADE finds
+// no non-zero row to remove.
 func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
-	return r.delete(ctx, "products", "products", id)
+	return retryBusy(ctx, func() error { return r.deleteProduct(ctx, id) })
+}
+
+func (r *Repo) deleteProduct(ctx context.Context, id string) error {
+	return r.tx(ctx, "products", func(t pgx.Tx) error {
+		if e := lockProductRow(ctx, t, id); e != nil {
+			return e
+		}
+		if e := lockProductStock(ctx, t, id); e != nil {
+			return e
+		}
+		// D13 guarded zero-stock delete (RETURNING check), not a quantity change.
+		if e := guardedZeroWrite(ctx, t, "outlet", `
+			DELETE FROM outlet_variant_stock WHERE product_id=$1
+			RETURNING outlet_id::text, variant_size, stock`, id); e != nil {
+			return e
+		}
+		if e := guardedZeroWrite(ctx, t, "warehouse", `
+			DELETE FROM warehouse_variant_stock WHERE product_id=$1
+			RETURNING warehouse_id::text, variant_size, stock`, id); e != nil {
+			return e
+		}
+		ct, e := t.Exec(ctx, `DELETE FROM products WHERE id=$1`, id)
+		if e == nil && ct.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return e
+	})
 }
 
 // SetProductOutletConfig applies the per-outlet price/availability matrix for one
@@ -292,6 +419,10 @@ func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
 // A null price clears the override (falls back to base). Stock + par_level are
 // owned by the Inventori module and are never touched here.
 func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput) error {
+	return retryBusy(ctx, func() error { return r.setProductOutletConfig(ctx, productID, items) })
+}
+
+func (r *Repo) setProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput) error {
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -340,8 +471,9 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 			return e
 		}
 	}
-	// Clean up rows for variant sizes that no longer exist (renamed or removed),
-	// so a renamed variant doesn't leave orphaned stock + price rows behind.
+	// Clean up rows for sizes that are not in the payload. A stock row goes only when the
+	// size has no variant any more AND the row is empty (D13): a partial payload must not
+	// delete the live stock row of a variant that merely was not listed.
 	sizes := make([]string, 0, len(items))
 	seenSize := map[string]bool{}
 	for _, it := range items {
@@ -351,7 +483,9 @@ func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, ite
 		}
 	}
 	if _, e := t.Exec(ctx,
-		`DELETE FROM outlet_variant_stock WHERE product_id=$1 AND variant_size <> ALL($2::text[])`,
+		`DELETE FROM outlet_variant_stock s WHERE s.product_id=$1 AND s.variant_size <> ALL($2::text[])
+		   AND s.stock = 0
+		   AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = s.product_id AND v.size = s.variant_size)`,
 		productID, sizes); e != nil {
 		return e
 	}

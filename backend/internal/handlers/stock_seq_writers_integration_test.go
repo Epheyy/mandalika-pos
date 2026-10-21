@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"strings"
@@ -407,6 +408,18 @@ func (f *stFixture) runWriterCases(t *testing.T) {
 		vid := f.str(t, `SELECT id::text FROM product_variants WHERE product_id=$1`, pid)
 		renamed := mk("seeded", 5)
 		renamed.Variants[0].ID, renamed.Variants[0].Size = vid, "220ml"
+		// D13: a stocked variant can be neither renamed nor deleted; the refusal changes nothing.
+		f.wantDelta(t, "variant rename refused while stocked", 0, 0, func() {
+			if err := f.repo.UpdateProduct(f.ctx, pid, renamed); !errors.Is(err, write.ErrVariantHasStock) {
+				t.Fatalf("rename of a stocked variant: %v, want ErrVariantHasStock", err)
+			}
+		})
+		f.wantDelta(t, "product delete refused while stocked", 0, 0, func() {
+			if err := f.repo.DeleteProduct(f.ctx, pid); !errors.Is(err, write.ErrVariantHasStock) {
+				t.Fatalf("delete of a stocked product: %v, want ErrVariantHasStock", err)
+			}
+		})
+		f.setStock(t, stOutletA, pid, 0)
 		f.wantDelta(t, "variant rename", 0, 0, func() { f.must(t, f.repo.UpdateProduct(f.ctx, pid, renamed)) })
 		f.wantDelta(t, "availability and price config", 0, 0, func() {
 			f.must(t, f.repo.SetProductOutletConfig(f.ctx, pid, []api.OutletConfigItemInput{

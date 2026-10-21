@@ -111,6 +111,35 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 		return cat, err
 	}
 
+	// Sizes that hold non-zero stock somewhere (D13): renaming away from one is refused.
+	rows, err = q.Query(ctx, `
+		SELECT DISTINCT ON (product_id, variant_size) product_id::text, variant_size, loc FROM (
+		  SELECT s.product_id, s.variant_size, 'outlet ' || o.name AS loc
+		    FROM outlet_variant_stock s JOIN outlets o ON o.id = s.outlet_id WHERE s.stock <> 0
+		  UNION ALL
+		  SELECT s.product_id, s.variant_size, 'gudang ' || w.name
+		    FROM warehouse_variant_stock s JOIN warehouses w ON w.id = s.warehouse_id WHERE s.stock <> 0) x
+		ORDER BY product_id, variant_size, loc`)
+	if err != nil {
+		return cat, err
+	}
+	cat.StockedSizes = map[string]map[string]string{}
+	for rows.Next() {
+		var pid, size, loc string
+		if err = rows.Scan(&pid, &size, &loc); err != nil {
+			rows.Close()
+			return cat, err
+		}
+		if cat.StockedSizes[pid] == nil {
+			cat.StockedSizes[pid] = map[string]string{}
+		}
+		cat.StockedSizes[pid][size] = loc
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return cat, err
+	}
+
 	// Sizes referenced by open documents. Transfer receive/cancel and stock count completion
 	// key stock by the stored size text, so a rename away from one of these sizes would let
 	// them write stock under a size no variant has any more.
@@ -301,7 +330,7 @@ func updateImportedProducts(ctx context.Context, tx pgx.Tx, ps []csvimport.Plann
 
 // writeImportedVariants inserts new variants (never with stock), updates size, price and
 // barcode of matched ones, and moves per-outlet stock/price (and warehouse stock) rows
-// for renamed sizes.
+// for renamed sizes. Only zero-stock keys move (D13); a stocked key refuses the apply.
 func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.PlannedProduct, productID []string) error {
 	var (
 		cPID, cSize, cSKU, cBar []string
@@ -353,18 +382,32 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 		}
 	}
 	if len(rPID) > 0 {
+		// D13: a rename never moves stock. Lock every outlet and warehouse stock row of the
+		// old keys and refuse while one is non-zero (the planner already reports this per
+		// row; this catches a sale or receipt between preview and apply).
+		if err := lockStockKeys(ctx, tx, rPID, rFrom); err != nil {
+			return err
+		}
 		// Lock the stock/price rows in (product, size) order first, then move exactly the
 		// rows that were locked; any difference means something changed under us.
 		for _, table := range []string{"outlet_variant_stock", "outlet_variant_price", "warehouse_variant_stock"} {
-			var locked int
+			// A row committed since lockStockKeys is locked here too; it must still be empty (D13).
+			nonZero := "false" // the price table has no stock column
+			if table != "outlet_variant_price" {
+				nonZero = "s.stock <> 0"
+			}
+			var locked, stocked int
 			if err := tx.QueryRow(ctx, `
-				SELECT count(*) FROM (
-				  SELECT 1 FROM `+table+` s
+				SELECT count(*), count(*) FILTER (WHERE l.nz) FROM (
+				  SELECT `+nonZero+` AS nz FROM `+table+` s
 				    JOIN unnest($1::uuid[],$2::text[]) AS r(pid,from_size)
 				      ON s.product_id = r.pid AND s.variant_size = r.from_size
 				   ORDER BY `+lockOrder(table)+`
-				     FOR UPDATE OF s) l`, rPID, rFrom).Scan(&locked); err != nil {
+				     FOR UPDATE OF s) l`, rPID, rFrom).Scan(&locked, &stocked); err != nil {
 				return err
+			}
+			if stocked > 0 {
+				return &VariantHasStockError{Where: "outlet atau gudang"}
 			}
 			ct, err := tx.Exec(ctx, `
 				UPDATE `+table+` s SET variant_size = r.to_size

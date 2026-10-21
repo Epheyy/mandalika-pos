@@ -167,15 +167,15 @@ var ledgerHookFiles = map[string]string{
 // ledgerNonMovers: files that write stock tables without changing any quantity, with
 // the reason. A file that also holds a real mover must NOT be listed here.
 var ledgerNonMovers = map[string]string{
-	"internal/service/lockorder.go": "lazy zero row (INSERT ... stock 0 ON CONFLICT DO NOTHING) so the sorted row lock has something to lock; quantity unchanged",
+	"internal/service/lockorder.go":     "lazy zero row (INSERT ... stock 0 ON CONFLICT DO NOTHING) so the sorted row lock has something to lock; quantity unchanged",
+	"internal/write/import_products.go": "renames/moves only zero-stock keys (D13 guard)",
 }
 
 // ledgerPendingWriters: movers not yet converted, with the task that converts them.
 // Each entry is removed by the commit that makes the file record. It may be non-empty
 // until the last writer lands.
 var ledgerPendingWriters = map[string]string{
-	"internal/write/catalog.go":         "L7",
-	"internal/write/import_products.go": "L7",
+	"internal/write/catalog.go": "L8", // create seeding; renames/deletes are D13-guarded zero-stock only (L7)
 }
 
 // classifyStockWriters returns the problems found for the given sources.

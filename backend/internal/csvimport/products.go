@@ -33,6 +33,10 @@ type Catalog struct {
 	// StockSizes lists, per product id, the sizes that already have per-outlet or warehouse
 	// stock/price rows (a rename onto one of them would collide on the location key).
 	StockSizes map[string]map[string]bool
+	// StockedSizes maps product id -> size -> a location label ("outlet X" / "gudang Y")
+	// for sizes that hold non-zero stock (negative included). A rename away from one is
+	// refused (D13): stock is never moved by a rename; zero it by adjustment first.
+	StockedSizes map[string]map[string]string
 	// InFlightSizes lists, per product id, the sizes referenced by open documents (draft or
 	// in-transit transfers, planned or in-progress stock counts). Those documents key stock
 	// by the stored size text, so renaming a variant away from such a size would make their
@@ -262,6 +266,7 @@ type catalogIndex struct {
 	barcodeOf  map[string]string          // barcode -> variant id
 	catByLower map[string]CatalogCategory
 	stockSizes map[string]map[string]bool
+	stocked    map[string]map[string]string
 	inFlight   map[string]map[string]bool
 	catName    map[string]string
 }
@@ -271,7 +276,7 @@ func newCatalogIndex(cat Catalog) *catalogIndex {
 		byKey: map[string][]*CatalogProduct{}, variantsOf: map[string][]CatalogVariant{},
 		skuOwners: map[string]map[string]bool{}, barcodeOf: map[string]string{},
 		catByLower: map[string]CatalogCategory{}, stockSizes: cat.StockSizes,
-		inFlight: cat.InFlightSizes, catName: cat.CategoryNames,
+		stocked: cat.StockedSizes, inFlight: cat.InFlightSizes, catName: cat.CategoryNames,
 	}
 	for i := range cat.Products {
 		p := &cat.Products[i]
@@ -555,6 +560,8 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 		if matched.Size != r.size {
 			if holder := sizeHolder(existing, r.size, matched.ID); holder != "" {
 				fail("Ukuran", "size_collision", fmt.Sprintf("ukuran \"%s\" sudah dipakai varian lain (SKU %s); tukar atau ganti nama ukuran lewat form produk", r.size, holder), r.size)
+			} else if loc := ix.stocked[matched.ProductID][matched.Size]; loc != "" {
+				fail("Ukuran", "size_has_stock", fmt.Sprintf("ukuran \"%s\" masih punya stok di %s; nolkan lewat penyesuaian dulu sebelum mengganti ukuran", matched.Size, loc), r.size)
 			} else if ix.stockSizes[matched.ProductID][r.size] {
 				fail("Ukuran", "size_stock_residue", fmt.Sprintf("ukuran \"%s\" masih punya sisa baris stok atau harga (di outlet atau gudang) dari varian lama; kosongkan lewat penyesuaian stok atau pilih ukuran lain", r.size), r.size)
 			} else if ix.inFlight[matched.ProductID][matched.Size] {
