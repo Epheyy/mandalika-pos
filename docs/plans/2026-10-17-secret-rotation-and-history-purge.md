@@ -47,3 +47,26 @@ re-creates what is needed; (f) ask GitHub Support to purge cached views / `refs/
 Side effects to accept: every commit SHA changes (HANDOFF/plan docs cite old SHAs); Cloud Run revision `commit-sha` labels, OTA
 release `commit_sha` records and CI run history point at SHAs that no longer exist, so `promote-backend.sh` re-verification of
 OLD labelled revisions will refuse (rollback with `gcloud run services update-traffic` still works); any open PR breaks.
+
+## Phase 2 result (2026-10-21, owner GO received)
+
+Verified against a fresh mirror clone of GitHub (12 heads, 1,337 commits) and the GitHub API:
+
+- No commit reachable from any branch contains `.claude/settings.local.json` (0 on every ref, before any rewrite).
+- The two leak commits are dangling objects on GitHub: `a595fc6` and `34676aa` both return `diverged` against
+  `prod-hardening` (not ancestors), and the branches carry rewritten twins instead (`dc82a14` = the same
+  "production hardening" commit without the file). Every branch tip SHA was unchanged by a filter-branch pass, which
+  confirms the rewrite had already landed on origin before today.
+- Both dangling SHAs still serve the old file by direct SHA (`contents/...?ref=a595fc6` 7,100 bytes,
+  `?ref=34676aa` 24,569 bytes). Only GitHub can drop unreachable objects.
+- The pickaxe hits for `SEED_ADMIN_PASSWORD=` and `neon.tech` on branches are templates, runbooks and test fixtures
+  with placeholder credentials (`.env*.example`, `RUNBOOK.md`, `config_test.go`, `test_secret_scan.py`); checked masked.
+
+Therefore: **no force-push was done and none is needed.** Collaborators can resume; PR #1 does not need to be closed
+for this. Remaining step (owner): ask GitHub Support to purge unreachable objects and cached views, quoting the two
+SHAs. Request text:
+
+> Repository Epheyy/mandalika-pos (private). We rewrote history to remove a file containing credentials, which have since
+> been rotated. The old commits a595fc6 and 34676aa are no longer reachable from any branch but are still served by SHA
+> (for example /contents/.claude/settings.local.json?ref=34676aa). Please run garbage collection on the repository and purge
+> cached views and pull-request refs so these objects are no longer retrievable.

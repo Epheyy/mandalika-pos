@@ -38,7 +38,7 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
   `/livez` 503 "db down" → 200). Admin password rotated via the app's own `auth.Store.ResetPassword` (209 sessions revoked, one-off
   script, not committed), new random value stored as `SEED_ADMIN_PASSWORD` v2 (v1 disabled); new password → 200, old → 401.
   Rollback note: older revisions also read `latest`, so rolling back to an old revision still uses the NEW secrets (good).
-  STILL OPEN: (a) git history purge of the file — prepared + dry-run verified, waits for the owner's explicit GO (collaborators
+  STILL OPEN (UPDATED 2026-10-21: the rewrite is ALREADY on origin; a595fc6/34676aa are dangling, no branch carries the file, no force-push needed; only a GitHub Support purge of unreachable objects remains, owner action, request text in the plan doc): (a) git history purge of the file — prepared + dry-run verified, waits for the owner's explicit GO (collaborators
   mikaeladityan/kujangga must be warned; plan in the docs file); (b) owner to review Neon connection history since 2026-05-18;
   (c) CI secret-scan guard merged locally (`scripts/ci/secret_scan.py` in quality.yml), not pushed yet; (d) emulator/tablet admin
   sessions were revoked → log in again with the new password (owner reads it: `gcloud secrets versions access latest --secret=SEED_ADMIN_PASSWORD --project mandalika-pos`);
