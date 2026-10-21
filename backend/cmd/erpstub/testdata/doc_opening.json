@@ -1,0 +1,12 @@
+{
+  "document_id": "d0000000-0000-4000-8000-000000000001",
+  "kind": "opening",
+  "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "cashier-1"},
+  "location": {"type": "outlet", "slug": "kemang"},
+  "occurred_at": "2026-04-01T10:00:00Z",
+  "recorded_at": "2026-04-01T10:00:01Z",
+  "ref": {"type": "opening", "id": "OPEN-KMG-001", "number": "OPEN-001"},
+  "lines": [
+    {"movement_id": "a0000000-0000-4000-8000-000000000001", "fg_code": "FG-001", "qty": 42, "qty_before": 0, "qty_after": 42, "reason": "opening", "flags": []}
+  ]
+}

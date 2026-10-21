@@ -1,0 +1,18 @@
+{
+  "finished_goods": [
+    {"slug": "fg-001-santal-noir", "code": "FG-001", "name": "Santal Noir 50ml", "category": "Eau de Parfum", "description": null, "gender": "UNISEX", "is_others": false, "size": 50, "status": "ACTIVE", "unit": "PCS", "created_at": "2025-12-01T08:00:00Z", "updated_at": "2026-01-10T08:00:00Z", "deleted_at": null},
+    {"slug": "fg-002-rose-oud", "code": "FG-002", "name": "Rose Oud 100ml", "category": "Eau de Parfum", "description": "Rose and oud", "gender": "WOMEN", "is_others": false, "size": 100, "status": "FAVOURITE", "unit": "PCS", "created_at": "2025-12-01T08:00:00Z", "updated_at": "2026-02-01T08:00:00Z", "deleted_at": null},
+    {"slug": "fg-003-amber-musk", "code": "FG-003", "name": "Amber Musk 30ml", "category": "Eau de Parfum", "description": null, "gender": "MEN", "is_others": false, "size": 30, "status": "ACTIVE", "unit": "PCS", "created_at": "2025-12-05T08:00:00Z", "updated_at": "2026-01-20T08:00:00Z", "deleted_at": null},
+    {"slug": "fg-004-vetiver-sage", "code": "FG-004", "name": "Vetiver Sage", "category": null, "description": null, "gender": "UNISEX", "is_others": true, "size": null, "status": "NEW_LAUNCHING", "unit": null, "created_at": "2026-03-01T08:00:00Z", "updated_at": "2026-03-05T08:00:00Z", "deleted_at": null},
+    {"slug": "fg-005-old-classic", "code": "FG-005", "name": "Old Classic 50ml", "category": "Eau de Toilette", "description": null, "gender": "MEN", "is_others": false, "size": 50, "status": "DISCONTINUE", "unit": "PCS", "created_at": "2025-06-01T08:00:00Z", "updated_at": "2026-02-15T08:00:00Z", "deleted_at": null},
+    {"slug": "fg-006-retired-blend", "code": "FG-006", "name": "Retired Blend 50ml", "category": "Eau de Toilette", "description": null, "gender": "UNISEX", "is_others": false, "size": 50, "status": "ACTIVE", "unit": "PCS", "created_at": "2025-06-01T08:00:00Z", "updated_at": "2026-03-10T08:00:00Z", "deleted_at": "2026-03-10T08:00:00Z"}
+  ],
+  "outlets": [
+    {"slug": "kemang", "code": "KMG", "name": "Mandalika Kemang", "type": "RETAIL", "address": "Jl. Kemang Raya 1, Jakarta", "phone": "+62210000001", "latitude": -6.2615, "longitude": 106.8106, "created_at": "2025-01-01T08:00:00Z", "updated_at": "2026-01-05T08:00:00Z", "deleted_at": null},
+    {"slug": "bsd", "code": "BSD", "name": "Mandalika BSD", "type": "RETAIL", "address": null, "phone": null, "latitude": null, "longitude": null, "created_at": "2025-01-01T08:00:00Z", "updated_at": "2026-01-06T08:00:00Z", "deleted_at": null},
+    {"slug": "old-popup", "code": "POP", "name": "Old Popup", "type": "POPUP", "address": null, "phone": null, "latitude": null, "longitude": null, "created_at": "2025-03-01T08:00:00Z", "updated_at": "2026-02-20T08:00:00Z", "deleted_at": "2026-02-20T08:00:00Z"}
+  ],
+  "warehouses": [
+    {"slug": "gudang-pusat", "name": "Gudang Pusat"}
+  ]
+}

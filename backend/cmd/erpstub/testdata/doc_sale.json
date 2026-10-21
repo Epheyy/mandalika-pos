@@ -1,0 +1,14 @@
+{
+  "document_id": "d0000000-0000-4000-8000-000000000002",
+  "kind": "sale",
+  "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "cashier-1"},
+  "location": {"type": "outlet", "slug": "kemang"},
+  "occurred_at": "2026-04-01T11:00:00Z",
+  "recorded_at": "2026-04-01T11:00:01Z",
+  "ref": {"type": "order", "id": "ord-0001", "number": "INV-0001"},
+  "lines": [
+    {"movement_id": "a0000000-0000-4000-8000-000000000002", "fg_code": "FG-001", "qty": -1, "qty_before": 42, "qty_after": 41, "unit_price": 150000, "discount": 0, "reason": "sale", "flags": []}
+  ],
+  "tenders": [{"method": "qris", "amount": 150000}],
+  "customer_ref": null
+}

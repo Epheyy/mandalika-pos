@@ -1,0 +1,12 @@
+{
+  "document_id": "d0000000-0000-4000-8000-000000000006",
+  "kind": "count",
+  "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "cashier-1"},
+  "location": {"type": "outlet", "slug": "kemang"},
+  "occurred_at": "2026-04-04T09:00:00Z",
+  "recorded_at": "2026-04-04T09:00:01Z",
+  "ref": {"type": "count", "id": "CNT-0001", "number": "CNT-0001"},
+  "lines": [
+    {"movement_id": "a0000000-0000-4000-8000-000000000006", "fg_code": "FG-001", "qty": -2, "qty_before": 51, "qty_after": 49, "reason": "stock count", "flags": []}
+  ]
+}
