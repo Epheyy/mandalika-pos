@@ -1,0 +1,8 @@
+# oapi-codegen config for the ERP Integration API v1 client (models + client only).
+# Input: api/erp/openapi.v1.as30.json (3.0 down-conversion, see api/erp/SOURCE.md).
+# Regenerate from backend/: `make gen-erp`.
+package: erpapi
+output: erp.gen.go
+generate:
+  models: true
+  client: true
