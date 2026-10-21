@@ -113,43 +113,66 @@ func (r *Repo) CreateDiscountCodeBatch(ctx context.Context, b DiscountCodeBatch)
 	if err := validateDiscountCodeBatch(b); err != nil {
 		return nil, err
 	}
-	prefix := strings.ToUpper(b.Prefix)
-	out := make([]CreatedCode, 0, b.Count)
+	var out []CreatedCode
 	err := r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
-		for i := 0; i < b.Count; i++ {
-			var id, code, createdAt string
-			inserted := false
-			for attempt := 0; attempt < 10 && !inserted; attempt++ {
-				code = prefix + randSuffix(b.SuffixLength)
-				e := t.QueryRow(ctx, `
-					INSERT INTO discount_codes (code, promotion_id, type, value,
-					  min_purchase, usage_limit, is_active, start_date, end_date, combinable,
-					  per_customer_limit)
-					VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-					ON CONFLICT (code) DO NOTHING
-					RETURNING id, code, created_at::text`,
-					code, nullUUID(b.PromotionID), b.Type, b.Value, b.MinPurchase,
-					b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable,
-					b.PerCustomerLimit).
-					Scan(&id, &code, &createdAt)
-				if e == nil {
-					inserted = true
-					break
-				}
-				if errors.Is(e, pgx.ErrNoRows) { // conflict → no row inserted → regenerate
-					continue
-				}
-				return e // other error → abort tx
-			}
-			if !inserted {
-				return fmt.Errorf("could not generate a unique code after retries")
-			}
-			out = append(out, CreatedCode{ID: id, Code: code, CreatedAt: createdAt})
-		}
-		return nil
+		var e error
+		out, e = r.insertDiscountCodeBatch(ctx, t, b)
+		return e
 	})
 	if err != nil {
 		return nil, err
+	}
+	return out, nil
+}
+
+// CreateDiscountCodeBatchTx is CreateDiscountCodeBatch inside a caller-owned
+// transaction (begin/commit are the caller's); used by the Idempotency-Key path.
+func (r *Repo) CreateDiscountCodeBatchTx(ctx context.Context, t pgx.Tx, b DiscountCodeBatch) ([]CreatedCode, error) {
+	if err := validateDiscountCodeBatch(b); err != nil {
+		return nil, err
+	}
+	out, err := r.insertDiscountCodeBatch(ctx, t, b)
+	if err != nil {
+		return nil, err
+	}
+	if err := bumpVersion(ctx, t, "discountCodes"); err != nil {
+		return nil, fmt.Errorf("bump version: %w", err)
+	}
+	return out, nil
+}
+
+func (r *Repo) insertDiscountCodeBatch(ctx context.Context, t pgx.Tx, b DiscountCodeBatch) ([]CreatedCode, error) {
+	prefix := strings.ToUpper(b.Prefix)
+	out := make([]CreatedCode, 0, b.Count)
+	for i := 0; i < b.Count; i++ {
+		var id, code, createdAt string
+		inserted := false
+		for attempt := 0; attempt < 10 && !inserted; attempt++ {
+			code = prefix + randSuffix(b.SuffixLength)
+			e := t.QueryRow(ctx, `
+				INSERT INTO discount_codes (code, promotion_id, type, value,
+				  min_purchase, usage_limit, is_active, start_date, end_date, combinable,
+				  per_customer_limit)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+				ON CONFLICT (code) DO NOTHING
+				RETURNING id, code, created_at::text`,
+				code, nullUUID(b.PromotionID), b.Type, b.Value, b.MinPurchase,
+				b.UsageLimit, b.IsActive, nullDate(b.StartDate), nullDate(b.EndDate), b.Combinable,
+				b.PerCustomerLimit).
+				Scan(&id, &code, &createdAt)
+			if e == nil {
+				inserted = true
+				break
+			}
+			if errors.Is(e, pgx.ErrNoRows) { // conflict → no row inserted → regenerate
+				continue
+			}
+			return nil, e // other error → abort tx
+		}
+		if !inserted {
+			return nil, fmt.Errorf("could not generate a unique code after retries")
+		}
+		out = append(out, CreatedCode{ID: id, Code: code, CreatedAt: createdAt})
 	}
 	return out, nil
 }

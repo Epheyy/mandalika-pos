@@ -38,6 +38,15 @@ type keyedWrite struct {
 	// OnErr, when set, answers errors the shared mapping would turn into a 400; it
 	// returns true once it has written the response.
 	OnErr func(w http.ResponseWriter, err error) bool
+	// Status is the success status code (0 = 200); a create answers 201 on a replay too.
+	Status int
+}
+
+func (kw keyedWrite) status() int {
+	if kw.Status == 0 {
+		return http.StatusOK
+	}
+	return kw.Status
 }
 
 // receiptRunner is the injected runner when set (tests), else the PostgreSQL one.
@@ -48,7 +57,7 @@ func (h *Handlers) receiptRunner() service.ReceiptRunner {
 	return service.PoolReceiptRunner(h.Write.Pool)
 }
 
-// keyedMutated runs kw and answers 200: {"ok":true} (or the Outcome body) on the first
+// keyedMutated runs kw and answers 200 (or kw.Status): {"ok":true} (or the Outcome body) on the first
 // run and on a replay.
 func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyedWrite) {
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
@@ -108,7 +117,7 @@ func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyed
 		body.Write(outcome)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(kw.status())
 	_, _ = w.Write(body.Bytes())
 }
 
@@ -130,7 +139,7 @@ func (h *Handlers) unkeyedMutated(w http.ResponseWriter, r *http.Request, kw key
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, kw.status(), out)
 }
 
 // isKeyConflict reports an idempotency key reused for another operation.

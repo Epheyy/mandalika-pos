@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -61,20 +65,30 @@ func (h *Handlers) CreateDiscountCodeBatch(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	created, err := h.Write.CreateDiscountCodeBatch(r.Context(), b)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err) // validation/generation error → 400 + message
-		return
-	}
-	ids := make([]string, len(created))
-	for i, c := range created {
-		ids[i] = c.ID
-	}
-	rows, _, err := h.Repo.DiscountCodesByIDs(r.Context(), ids)
-	if err != nil {
-		writeErr(w, 500, err)
-		return
-	}
-	h.invalidate(r)
-	writeJSON(w, http.StatusOK, api.DiscountCodeListResponse{Data: rows})
+	var created []write.CreatedCode
+	h.keyedMutated(w, r, keyedWrite{
+		OpType:  "bo.discount_code.batch",
+		Payload: b,
+		Unkeyed: func() (err error) {
+			created, err = h.Write.CreateDiscountCodeBatch(r.Context(), b)
+			return err
+		},
+		Effect: func(ctx context.Context, tx pgx.Tx) (err error) {
+			created, err = h.Write.CreateDiscountCodeBatchTx(ctx, tx, b)
+			return err
+		},
+		// The rows of the batch this call generated (inside the claim's tx on a keyed
+		// write), so a replay returns the stored codes and never generates again.
+		Outcome: func(ctx context.Context, q read.RowQuerier) (json.RawMessage, error) {
+			ids := make([]string, len(created))
+			for i, c := range created {
+				ids[i] = c.ID
+			}
+			rows, err := read.DiscountCodesByIDsOn(ctx, q, ids)
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(api.DiscountCodeListResponse{Data: rows})
+		},
+	})
 }
