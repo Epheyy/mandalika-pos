@@ -172,7 +172,6 @@ var ledgerNonMovers = map[string]string{
 // Each entry is removed by the commit that makes the file record. It may be non-empty
 // until the last writer lands.
 var ledgerPendingWriters = map[string]string{
-	"internal/write/warehouse.go":       "L3",
 	"internal/write/stockcount.go":      "L4",
 	"internal/service/refund.go":        "L5",
 	"internal/service/order.go":         "L6",

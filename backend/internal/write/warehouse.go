@@ -3,8 +3,13 @@ package write
 import (
 	"context"
 	"fmt"
+	"sort"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/mandalika/pos-backend/internal/ledger"
 )
 
 // OutletPar is the write-side input for setting a per-variant PAR (low-stock
@@ -117,6 +122,15 @@ func (r *Repo) stockOutletTx(ctx context.Context, outletID string, fn func(pgx.T
 		return err
 	}
 	defer t.Rollback(ctx)
+	if err := stockOutletWork(ctx, t, outletID, fn); err != nil {
+		return err
+	}
+	return t.Commit(ctx)
+}
+
+// stockOutletWork is stockOutletTx inside a caller-owned transaction: fn, the outlet's
+// content version, then BumpStockSeq as the last statement. It neither begins nor commits.
+func stockOutletWork(ctx context.Context, t pgx.Tx, outletID string, fn func(pgx.Tx) error) error {
 	if err := fn(t); err != nil {
 		return err
 	}
@@ -126,7 +140,39 @@ func (r *Repo) stockOutletTx(ctx context.Context, outletID string, fn func(pgx.T
 	if _, err := BumpStockSeq(ctx, t, outletID); err != nil {
 		return err
 	}
-	return t.Commit(ctx)
+	return nil
+}
+
+// locationWork runs work in its own transaction: warehouse writes bump nothing, outlet
+// writes bump the content version and the stock counter.
+func (r *Repo) locationWork(ctx context.Context, kind, locID string, work func(pgx.Tx) error) error {
+	if kind == "warehouse" {
+		return r.noBumpTx(ctx, work)
+	}
+	return r.stockOutletTx(ctx, locID, work)
+}
+
+// locationWorkTx is locationWork inside the caller's transaction.
+func locationWorkTx(ctx context.Context, tx pgx.Tx, kind, locID string, work func(pgx.Tx) error) error {
+	if kind == "warehouse" {
+		return work(tx)
+	}
+	return stockOutletWork(ctx, tx, locID, work)
+}
+
+// locationIDs maps a location kind to the (warehouse_id, outlet_id) column values.
+func locationIDs(kind, locID string) (whID, outID any) {
+	if kind == "warehouse" {
+		return locID, nil
+	}
+	return nil, locID
+}
+
+func ledgerLocation(kind string) ledger.LocationType {
+	if kind == "warehouse" {
+		return ledger.LocWarehouse
+	}
+	return ledger.LocOutlet
 }
 
 // CreateLocationGoodsReceipt records a goods-in for an outlet OR warehouse and
@@ -136,13 +182,23 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 	if err := validateGoodsReceipt(kind, g.Items); err != nil {
 		return err
 	}
-	var whID, outID any
-	if kind == "warehouse" {
-		whID = locID
-	} else {
-		outID = locID
+	return r.locationWork(ctx, kind, locID, goodsReceiptWork(ctx, kind, locID, createdBy, g))
+}
+
+// CreateLocationGoodsReceiptTx is CreateLocationGoodsReceipt inside the caller's
+// transaction (an idempotency receipt claim). It neither begins, commits nor retries.
+func (r *Repo) CreateLocationGoodsReceiptTx(ctx context.Context, tx pgx.Tx, kind, locID, createdBy string, g GoodsReceipt) error {
+	if err := validateGoodsReceipt(kind, g.Items); err != nil {
+		return err
 	}
-	work := func(t pgx.Tx) error {
+	return locationWorkTx(ctx, tx, kind, locID, goodsReceiptWork(ctx, kind, locID, createdBy, g))
+}
+
+// goodsReceiptWork is the receipt body: header + items, the stock upsert, then the
+// ledger rows (before the caller's bumps).
+func goodsReceiptWork(ctx context.Context, kind, locID, createdBy string, g GoodsReceipt) func(pgx.Tx) error {
+	whID, outID := locationIDs(kind, locID)
+	return func(t pgx.Tx) error {
 		var rid string
 		if e := t.QueryRow(ctx,
 			`INSERT INTO goods_receipts (warehouse_id, outlet_id, supplier, note, created_by)
@@ -158,41 +214,81 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 				return e
 			}
 		}
-		{
-			// One statement per location kind whose rows are inserted/locked in
-			// (product_id, variant_size) order, the same order sales and refunds use
-			// (A42); duplicate lines add up. Outlet: touch ONLY stock, preserving
-			// available + par_level.
-			pids := make([]string, len(g.Items))
-			sizes := make([]string, len(g.Items))
-			qtys := make([]int32, len(g.Items))
-			for i, it := range g.Items {
-				pids[i], sizes[i], qtys[i] = it.ProductID, it.VariantSize, int32(it.Qty)
-			}
-			table, locCol := "outlet_variant_stock", "outlet_id"
-			if kind == "warehouse" {
-				table, locCol = "warehouse_variant_stock", "warehouse_id"
-			}
-			// table/locCol come from the two constants above, never from input.
-			if _, e := t.Exec(ctx,
-				`INSERT INTO `+table+` (`+locCol+`, product_id, variant_size, stock)
-				 SELECT $1::uuid, k.pid, k.size, k.qty
-				   FROM (SELECT u.pid, u.size, SUM(u.qty)::int AS qty
-				           FROM unnest($2::uuid[], $3::text[], $4::int[]) AS u(pid, size, qty)
-				          GROUP BY u.pid, u.size) k
-				  ORDER BY k.pid, k.size
-				 ON CONFLICT (`+locCol+`, product_id, variant_size)
-				   DO UPDATE SET stock = `+table+`.stock + EXCLUDED.stock`,
-				locID, pids, sizes, qtys); e != nil {
-				return e
-			}
+		if e := upsertReceiptStock(ctx, t, kind, locID, g.Items); e != nil {
+			return e
 		}
-		return nil
+		return recordReceiptMovements(ctx, t, kind, locID, createdBy, rid, g.Items)
 	}
+}
+
+// upsertReceiptStock adds the receipt lines to stock in ONE statement whose rows are
+// inserted/locked in (product_id, variant_size) order, the same order sales and refunds
+// use (A42); duplicate lines add up. Outlet: touch ONLY stock, preserving available +
+// par_level.
+func upsertReceiptStock(ctx context.Context, t pgx.Tx, kind, locID string, items []GoodsReceiptItem) error {
+	pids := make([]string, len(items))
+	sizes := make([]string, len(items))
+	qtys := make([]int32, len(items))
+	for i, it := range items {
+		pids[i], sizes[i], qtys[i] = it.ProductID, it.VariantSize, int32(it.Qty)
+	}
+	table, locCol := "outlet_variant_stock", "outlet_id"
 	if kind == "warehouse" {
-		return r.noBumpTx(ctx, work)
+		table, locCol = "warehouse_variant_stock", "warehouse_id"
 	}
-	return r.stockOutletTx(ctx, locID, work)
+	// table/locCol come from the two constants above, never from input.
+	_, e := t.Exec(ctx,
+		`INSERT INTO `+table+` (`+locCol+`, product_id, variant_size, stock)
+		 SELECT $1::uuid, k.pid, k.size, k.qty
+		   FROM (SELECT u.pid, u.size, SUM(u.qty)::int AS qty
+		           FROM unnest($2::uuid[], $3::text[], $4::int[]) AS u(pid, size, qty)
+		          GROUP BY u.pid, u.size) k
+		  ORDER BY k.pid, k.size
+		 ON CONFLICT (`+locCol+`, product_id, variant_size)
+		   DO UPDATE SET stock = `+table+`.stock + EXCLUDED.stock`,
+		locID, pids, sizes, qtys)
+	return e
+}
+
+// recordReceiptMovements writes one `receipt` ledger row per DISTINCT (product, size),
+// qty summed, in the same (product, size) order as the upsert. Runs after the upsert and
+// before the outlet bumps, so BumpStockSeq stays the last statement.
+func recordReceiptMovements(ctx context.Context, t pgx.Tx, kind, locID, createdBy, rid string, items []GoodsReceiptItem) error {
+	type key struct{ pid, size string }
+	sums := map[key]int{}
+	var keys []key
+	for _, it := range items {
+		// Any spelling PostgreSQL accepts for a uuid lands on one canonical key.
+		pid, err := uuid.Parse(it.ProductID)
+		if err != nil {
+			return fmt.Errorf("goods receipt: product id %q is not a uuid", it.ProductID)
+		}
+		k := key{pid.String(), it.VariantSize}
+		if _, seen := sums[k]; !seen {
+			keys = append(keys, k)
+		}
+		sums[k] += it.Qty
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].pid != keys[j].pid {
+			return keys[i].pid < keys[j].pid
+		}
+		return keys[i].size < keys[j].size
+	})
+	doc := ledger.Document{
+		Key: "receipt:" + rid, Kind: ledger.KindReceipt,
+		LocationType: ledgerLocation(kind), LocationID: locID,
+		RefType: "goods_receipt", RefID: rid, Actor: createdBy,
+		OccurredAt: time.Now(), Lines: make([]ledger.Line, 0, len(keys)),
+	}
+	for _, k := range keys {
+		doc.Lines = append(doc.Lines, ledger.Line{
+			ProductID: k.pid, VariantSize: k.size, Qty: sums[k],
+			RefLine: k.pid + ":" + k.size, DedupeKey: "receipt:" + rid + ":" + k.pid + ":" + k.size,
+		})
+	}
+	_, err := ledger.RecordDeltas(ctx, t, doc)
+	return err
 }
 
 // AdjustLocationStock SETS the absolute on-hand qty for an outlet OR warehouse +
@@ -202,40 +298,90 @@ func (r *Repo) AdjustLocationStock(ctx context.Context, kind, locID, createdBy s
 	if err := validateLocationAdjust(kind, a.NewQty, a.Reason); err != nil {
 		return err
 	}
-	var whID, outID any
-	if kind == "warehouse" {
-		whID = locID
-	} else {
-		outID = locID
+	return r.locationWork(ctx, kind, locID, adjustWork(ctx, kind, locID, createdBy, a))
+}
+
+// AdjustLocationStockTx is AdjustLocationStock inside the caller's transaction (an
+// idempotency receipt claim). It neither begins, commits nor retries.
+func (r *Repo) AdjustLocationStockTx(ctx context.Context, tx pgx.Tx, kind, locID, createdBy string, a WarehouseAdjust) error {
+	if err := validateLocationAdjust(kind, a.NewQty, a.Reason); err != nil {
+		return err
 	}
-	work := func(t pgx.Tx) error {
-		if kind == "warehouse" {
-			if _, e := t.Exec(ctx,
-				`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
-				 VALUES ($1,$2,$3,$4)
-				 ON CONFLICT (warehouse_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
-				locID, a.ProductID, a.VariantSize, a.NewQty); e != nil {
-				return e
-			}
-		} else {
-			if _, e := t.Exec(ctx,
-				`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
-				 VALUES ($1,$2,$3,$4)
-				 ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
-				locID, a.ProductID, a.VariantSize, a.NewQty); e != nil {
-				return e
-			}
+	return locationWorkTx(ctx, tx, kind, locID, adjustWork(ctx, kind, locID, createdBy, a))
+}
+
+// adjustWork locks the row and reads the old qty, applies the absolute set, logs the
+// correction and records the ledger movement (new - old; a no-op records nothing).
+func adjustWork(ctx context.Context, kind, locID, createdBy string, a WarehouseAdjust) func(pgx.Tx) error {
+	whID, outID := locationIDs(kind, locID)
+	return func(t pgx.Tx) error {
+		old, e := lockAdjustStock(ctx, t, kind, locID, a)
+		if e != nil {
+			return e
 		}
-		_, e := t.Exec(ctx,
+		if e := setAdjustStock(ctx, t, kind, locID, a); e != nil {
+			return e
+		}
+		var adjID string
+		if e := t.QueryRow(ctx,
 			`INSERT INTO warehouse_stock_adjustments (warehouse_id, outlet_id, product_id, variant_size, new_qty, reason, created_by)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-			whID, outID, a.ProductID, a.VariantSize, a.NewQty, a.Reason, nullUUID(createdBy))
+			 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+			whID, outID, a.ProductID, a.VariantSize, a.NewQty, a.Reason, nullUUID(createdBy)).Scan(&adjID); e != nil {
+			return e
+		}
+		_, e = ledger.Record(ctx, t, ledger.Document{
+			Key: "adjust:" + adjID, Kind: ledger.KindAdjust,
+			LocationType: ledgerLocation(kind), LocationID: locID,
+			RefType: "stock_adjustment", RefID: adjID, Actor: createdBy, OccurredAt: time.Now(),
+			Lines: []ledger.Line{{
+				ProductID: a.ProductID, VariantSize: a.VariantSize, Qty: a.NewQty - old,
+				QtyBefore: old, QtyAfter: a.NewQty, DedupeKey: "adjust:" + adjID,
+			}},
+		})
 		return e
 	}
+}
+
+// lockAdjustStock makes sure the stock row exists (a lazy zero row, no quantity change)
+// and locks it, returning the old qty for the ledger's before/after.
+func lockAdjustStock(ctx context.Context, t pgx.Tx, kind, locID string, a WarehouseAdjust) (int, error) {
+	zeroRow, lockRow := "", ""
 	if kind == "warehouse" {
-		return r.noBumpTx(ctx, work)
+		zeroRow = `INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
+			 VALUES ($1,$2,$3,0)
+			 ON CONFLICT (warehouse_id, product_id, variant_size) DO NOTHING`
+		lockRow = `SELECT stock FROM warehouse_variant_stock WHERE warehouse_id=$1 AND product_id=$2 AND variant_size=$3 FOR UPDATE`
+	} else {
+		zeroRow = `INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+			 VALUES ($1,$2,$3,0)
+			 ON CONFLICT (outlet_id, product_id, variant_size) DO NOTHING`
+		lockRow = `SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 FOR UPDATE`
 	}
-	return r.stockOutletTx(ctx, locID, work)
+	if _, e := t.Exec(ctx, zeroRow, locID, a.ProductID, a.VariantSize); e != nil {
+		return 0, e
+	}
+	var old int
+	e := t.QueryRow(ctx, lockRow, locID, a.ProductID, a.VariantSize).Scan(&old)
+	return old, e
+}
+
+// setAdjustStock writes the absolute qty. Outlet: touch ONLY stock, preserving
+// available + par_level.
+func setAdjustStock(ctx context.Context, t pgx.Tx, kind, locID string, a WarehouseAdjust) error {
+	if kind == "warehouse" {
+		_, e := t.Exec(ctx,
+			`INSERT INTO warehouse_variant_stock (warehouse_id, product_id, variant_size, stock)
+			 VALUES ($1,$2,$3,$4)
+			 ON CONFLICT (warehouse_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+			locID, a.ProductID, a.VariantSize, a.NewQty)
+		return e
+	}
+	_, e := t.Exec(ctx,
+		`INSERT INTO outlet_variant_stock (outlet_id, product_id, variant_size, stock)
+		 VALUES ($1,$2,$3,$4)
+		 ON CONFLICT (outlet_id, product_id, variant_size) DO UPDATE SET stock=EXCLUDED.stock`,
+		locID, a.ProductID, a.VariantSize, a.NewQty)
+	return e
 }
 
 // SetOutletPar upserts ONLY par_level for one (outlet, product, variant),

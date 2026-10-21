@@ -114,6 +114,10 @@ func MovementID(dedupeKey string) string {
 // a deterministic order: it is also the per-key application order (and so the row
 // order within a key), and it decides which part a line lands in on replay.
 func Record(ctx context.Context, tx pgx.Tx, doc Document) (Result, error) {
+	doc, err := canonicalize(doc)
+	if err != nil {
+		return Result{}, err
+	}
 	lines, err := prepare(doc)
 	if err != nil {
 		return Result{}, err
@@ -133,6 +137,10 @@ func Record(ctx context.Context, tx pgx.Tx, doc Document) (Result, error) {
 // order the deltas were applied in, and deterministic across replays. The caller
 // already holds the row locks from its own write, so this takes none.
 func RecordDeltas(ctx context.Context, tx pgx.Tx, doc Document) (Result, error) {
+	doc, err := canonicalize(doc)
+	if err != nil {
+		return Result{}, err
+	}
 	lines, err := prepare(doc)
 	if err != nil {
 		return Result{}, err
@@ -164,6 +172,48 @@ func fillBeforeAfter(lines []Line, current map[lineKey]int) []Line {
 		out[i] = l
 	}
 	return out
+}
+
+// canonical returns the canonical lowercase hyphenated form of a uuid in any spelling
+// PostgreSQL accepts (upper case, no hyphens, braced); "" stays "". The stock post-read
+// compares product_id::text, which is always canonical, so every id must be too.
+func canonical(what, id string) (string, error) {
+	if id == "" {
+		return "", nil
+	}
+	u, err := uuid.Parse(id)
+	if err != nil {
+		return "", fmt.Errorf("ledger: %s %q is not a uuid", what, id)
+	}
+	return u.String(), nil
+}
+
+// canonicalize returns a copy of doc with every uuid field in canonical form, so lines
+// that spell one product differently group onto one key. Dedupe keys are opaque and
+// kept as given.
+func canonicalize(doc Document) (Document, error) {
+	var err error
+	if doc.LocationID, err = canonical("location id", doc.LocationID); err != nil {
+		return doc, err
+	}
+	if doc.RefID, err = canonical("ref id", doc.RefID); err != nil {
+		return doc, err
+	}
+	lines := make([]Line, len(doc.Lines))
+	for i, l := range doc.Lines {
+		if l.ProductID, err = canonical("product id", l.ProductID); err != nil {
+			return doc, err
+		}
+		if l.VariantID, err = canonical("variant id", l.VariantID); err != nil {
+			return doc, err
+		}
+		if l.RefundOfMovementID, err = canonical("refund-of movement id", l.RefundOfMovementID); err != nil {
+			return doc, err
+		}
+		lines[i] = l
+	}
+	doc.Lines = lines
+	return doc, nil
 }
 
 // prepare validates the document and returns its lines without zero-qty ones (kept for

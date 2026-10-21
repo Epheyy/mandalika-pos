@@ -315,7 +315,7 @@ var stockSQLPins = map[string][2]int{
 	"internal/service/refund.go":        {1, 0}, // refund restock
 	"internal/service/lockorder.go":     {1, 0}, // lazy zero row (no bump)
 	"internal/write/transfer.go":        {2, 0}, // addStockDelta, deductStockGuarded
-	"internal/write/warehouse.go":       {2, 1}, // goods receipt (dynamic), adjust, par
+	"internal/write/warehouse.go":       {3, 1}, // goods receipt (dynamic), adjust lazy zero row before the locked pre-read (ledger before/after; no qty change), adjust, par
 	"internal/write/stockcount.go":      {0, 1}, // countLoc.stock()
 	"internal/write/catalog.go":         {5, 0}, // seed, rename, delete variant, availability, cleanup
 	"internal/write/import_products.go": {0, 1}, // rename only (no quantity change)

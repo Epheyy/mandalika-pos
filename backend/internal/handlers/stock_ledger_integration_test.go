@@ -327,6 +327,7 @@ func TestStockLedgerPostgres(t *testing.T) {
 	})
 
 	t.Run("transfers", func(t *testing.T) { slTransfers(t, ctx, pool) })
+	t.Run("inventory", func(t *testing.T) { slInventory(t, ctx, pool) })
 
 	t.Run("refund-link", func(t *testing.T) {
 		slSetup(t, ctx, pool)

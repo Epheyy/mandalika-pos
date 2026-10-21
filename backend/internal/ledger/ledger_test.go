@@ -291,3 +291,48 @@ func TestBackfillDocumentsGroupPerLocation(t *testing.T) {
 		t.Fatalf("only the drifted warehouse key may be reanchored, got %+v", re)
 	}
 }
+
+func TestCanonicalizeNormalisesUUIDSpellings(t *testing.T) {
+	const canon = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+	for name, in := range map[string]string{
+		"upper":     strings.ToUpper(canon),
+		"no-hyphen": strings.ReplaceAll(canon, "-", ""),
+		"braced":    "{" + canon + "}",
+	} {
+		d := baseDoc(Line{ProductID: in, VariantSize: "s", Qty: 1, DedupeKey: "k", VariantID: in, RefundOfMovementID: in})
+		d.LocationID, d.RefID = in, in
+		got, err := canonicalize(d)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		l := got.Lines[0]
+		if got.LocationID != canon || got.RefID != canon || l.ProductID != canon || l.VariantID != canon || l.RefundOfMovementID != canon || l.DedupeKey != "k" {
+			t.Fatalf("%s: not canonical: %+v %+v", name, got, l)
+		}
+		if d.Lines[0].ProductID != in {
+			t.Fatalf("%s: the caller's lines were mutated", name)
+		}
+	}
+	bad := baseDoc(Line{ProductID: "not-a-uuid", VariantSize: "s", Qty: 1, DedupeKey: "k"})
+	if _, err := canonicalize(bad); err == nil {
+		t.Fatal("a garbage product id must be a validation error")
+	}
+	empty, err := canonicalize(baseDoc(Line{ProductID: canon, VariantSize: "s", Qty: 1, DedupeKey: "k"}))
+	if err != nil || empty.RefID != "" || empty.Lines[0].VariantID != "" {
+		t.Fatalf("empty optional ids must stay empty: %+v %v", empty, err)
+	}
+}
+
+func TestMixedCaseDuplicatesChainAfterCanonicalize(t *testing.T) {
+	const canon = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+	d, err := canonicalize(baseDoc(
+		Line{ProductID: strings.ToUpper(canon), VariantSize: "s", Qty: -3, DedupeKey: "a"},
+		Line{ProductID: canon, VariantSize: "s", Qty: -2, DedupeKey: "b"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := fillBeforeAfter(d.Lines, map[lineKey]int{{canon, "s"}: 5})
+	if out[0].QtyBefore != 10 || out[0].QtyAfter != 7 || out[1].QtyBefore != 7 || out[1].QtyAfter != 5 {
+		t.Fatalf("spellings of one product must chain as one key: %+v", out)
+	}
+}

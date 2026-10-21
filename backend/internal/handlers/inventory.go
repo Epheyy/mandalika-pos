@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
@@ -26,8 +29,14 @@ func (h *Handlers) CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	c, _ := h.caller(r)
-	h.mutated(w, r, h.Write.CreateLocationGoodsReceipt(r.Context(), kind, id, c.userID, g))
+	uid := callerUserID(r)
+	h.keyedMutated(w, r, keyedWrite{
+		OpType: "bo.goods_receipt", Payload: map[string]any{"kind": kind, "id": id, "body": g},
+		Unkeyed: func() error { return h.Write.CreateLocationGoodsReceipt(r.Context(), kind, id, uid, g) },
+		Effect: func(ctx context.Context, tx pgx.Tx) error {
+			return h.Write.CreateLocationGoodsReceiptTx(ctx, tx, kind, id, uid, g)
+		},
+	})
 }
 
 func (h *Handlers) AdjustLocationStock(w http.ResponseWriter, r *http.Request) {
@@ -40,8 +49,14 @@ func (h *Handlers) AdjustLocationStock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	c, _ := h.caller(r)
-	h.mutated(w, r, h.Write.AdjustLocationStock(r.Context(), kind, id, c.userID, a))
+	uid := callerUserID(r)
+	h.keyedMutated(w, r, keyedWrite{
+		OpType: "bo.inventory.adjust", Payload: map[string]any{"kind": kind, "id": id, "body": a},
+		Unkeyed: func() error { return h.Write.AdjustLocationStock(r.Context(), kind, id, uid, a) },
+		Effect: func(ctx context.Context, tx pgx.Tx) error {
+			return h.Write.AdjustLocationStockTx(ctx, tx, kind, id, uid, a)
+		},
+	})
 }
 
 func (h *Handlers) SetOutletPar(w http.ResponseWriter, r *http.Request) {
