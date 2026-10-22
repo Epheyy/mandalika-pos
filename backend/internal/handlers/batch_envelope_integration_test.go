@@ -185,5 +185,6 @@ func TestBatchEnvelopePostgres(t *testing.T) {
 			}
 		}
 	})
+	t.Run("520-item queue", func(t *testing.T) { verifyLargeQueue(t, ctx, pool, router, token, user, outlet) })
 	t.Log("Real raw HTTP, JWT, caller lookup, ProcessBatch and PostgreSQL effects; ten full-row snapshots; synthetic isolated fixture only")
 }
