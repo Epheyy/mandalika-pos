@@ -5,8 +5,8 @@
 // Run it only AFTER the old revision has drained, and on the test Neon DB only with
 // the owner's OK (D13). It is idempotent: a re-run with a new run id inserts only keys
 // that have no opening row yet; -reanchor fixes drift (adjust rows) after a rollback
-// window. Not done here: the ERP `opening` document enqueue (plan §2.4 last bullet),
-// which belongs to step 5 (erp_outbox).
+// window. Each opening/reanchor document is queued in erp_outbox by ledger.Record in
+// the same transaction (plan §2.4 last bullet, §5.1); the relay sends it to the ERP.
 package main
 
 import (
@@ -48,7 +48,7 @@ lock on both stock tables). DSN comes from DATABASE_URL only.
 Run only after the old Cloud Run revision has drained; on the test Neon DB only with
 the owner's OK (D13). Idempotent: a re-run with a new run id inserts only keys that
 have no opening yet. Exit 0 ok, 1 failed / invariant left violated / lock timeout
-(re-run), 2 usage. The ERP opening document enqueue is NOT done here (step 5).
+(re-run), 2 usage. Every document written is also queued for the ERP (erp_outbox).
 `
 
 // Seams for tests.

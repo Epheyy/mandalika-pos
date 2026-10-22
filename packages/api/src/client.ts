@@ -28,6 +28,12 @@ export type StockCount = S['StockCount']
 export type StockCountItem = S['StockCountItem']
 export type CashFlow = S['CashFlow']
 export type ErrorLog = S['ErrorLog']
+export type ErpOutboxItem = S['ErpOutboxItem']
+export type ErpOutboxDetail = S['ErpOutboxDetail']
+export type ErpOutboxCounts = S['ErpOutboxCounts']
+export type ErpRelayReport = S['ErpRelayReport']
+export type ListErpOutboxParams = Query<'listErpOutbox'>
+export interface ErpOutboxList { items: ErpOutboxItem[]; meta: Meta; counts: ErpOutboxCounts }
 export type CustomRole = S['CustomRole']
 export type ReportSummary = S['ReportSummary']
 export type Meta = S['Meta']
@@ -305,6 +311,10 @@ export interface Api {
   listShifts: (params?: ListShiftsParams) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
   listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
+  listErpOutbox: (params?: ListErpOutboxParams) => Promise<ErpOutboxList>
+  getErpOutbox: (id: string) => Promise<ErpOutboxDetail>
+  retryErpOutbox: (id: string) => Promise<ErpOutboxItem>
+  runErpRelay: () => Promise<ErpRelayReport>
   resolveSyncReviewItem: (key: string, note: string) => Promise<SyncReviewResolution>
 
   // stock counts
@@ -726,6 +736,17 @@ export function createClient(opts: ClientOptions): Api {
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason }),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
     listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
+    listErpOutbox: async (params) => {
+      // Drop undefined filters: qs would otherwise send status=undefined (400).
+      const defined = Object.fromEntries(
+        Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== null),
+      ) as Record<string, string | number>
+      const r = await request<S['ErpOutboxListResponse']>('GET', `${API}/admin/erp/outbox` + qs(defined))
+      return { items: r.data, meta: r.meta, counts: r.counts }
+    },
+    getErpOutbox: (id) => data<ErpOutboxDetail>('GET', `${API}/admin/erp/outbox/${id}`),
+    retryErpOutbox: (id) => data<ErpOutboxItem>('POST', `${API}/admin/erp/outbox/${id}/retry`),
+    runErpRelay: () => data<ErpRelayReport>('POST', `${API}/admin/erp/relay`),
     listSyncReviewItems: ({ status, page, limit, outletId, reviewCode }) =>
       request<SyncReviewItemList>('GET', `${API}/sync-review-items` + qs({
         status, page, limit,

@@ -9,6 +9,12 @@ describe('canSeeNav', () => {
     expect(canSeeNav('errors', 'view_error_logs', null)).toBe(false)
   })
 
+  it('shows Integrasi ERP only for the admin role', () => {
+    expect(canSeeNav('erpOutbox', 'manage_erp_integration', { role: 'admin', permissions: [] })).toBe(true)
+    expect(canSeeNav('erpOutbox', 'manage_erp_integration', { role: 'manager', permissions: ['manage_erp_integration'] })).toBe(false)
+    expect(canSeeNav('erpOutbox', 'manage_erp_integration', null)).toBe(false)
+  })
+
   it('keeps the existing alternate permissions for Inventori and Laporan', () => {
     expect(canSeeNav('warehouses', 'manage_inventory', { role: 'manager', permissions: ['manage_stock_count'] })).toBe(true)
     expect(canSeeNav('reports', 'view_reports', { role: 'manager', permissions: ['view_transactions'] })).toBe(true)

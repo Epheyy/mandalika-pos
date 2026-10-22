@@ -28,6 +28,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    schedulerSecret:
+      type: apiKey
+      in: header
+      name: X-Scheduler-Secret
   parameters:
     WIBDateFrom:
       name: dateFrom
@@ -101,6 +105,85 @@ components:
       description: Admin-only explicit outlet scope; "all" for cross-outlet.
       schema: { type: string }
   schemas:
+    # --- ERP outbox (plan step 5) ---
+    ErpRelayReport:
+      type: object
+      required: [disabled, claimed, delivered, replayed, held, retried, dead, released]
+      properties:
+        disabled: { type: boolean }
+        reason: { type: string }
+        claimed: { type: integer }
+        delivered: { type: integer }
+        replayed: { type: integer }
+        held: { type: integer }
+        retried: { type: integer }
+        dead: { type: integer }
+        released: { type: integer }
+        stopped: { type: string, enum: [unauthorized, forbidden, rate_limited, budget] }
+    ErpRelayReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ErpRelayReport' }
+    ErpOutboxItem:
+      type: object
+      required: [id, documentId, kind, locationType, locationId, refType, refId, part, partCount, status, attempts, nextAttemptAt, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        locationType: { type: string, enum: [outlet, warehouse] }
+        locationId: { type: string, format: uuid }
+        refType: { type: string }
+        refId: { type: string, format: uuid }
+        refNumber: { type: string, nullable: true }
+        part: { type: integer }
+        partCount: { type: integer }
+        status: { type: string, enum: [pending, held, sending, delivered, replayed, dead] }
+        attempts: { type: integer }
+        nextAttemptAt: { type: string, format: date-time }
+        lastHttpStatus: { type: integer, nullable: true }
+        lastError: { type: string, nullable: true }
+        holdReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deliveredAt: { type: string, format: date-time, nullable: true }
+    ErpOutboxDetail:
+      allOf:
+        - { $ref: '#/components/schemas/ErpOutboxItem' }
+        - type: object
+          properties:
+            payload: { type: object, additionalProperties: true, nullable: true }
+            payloadSha256: { type: string, nullable: true }
+            erpResponse: { type: object, additionalProperties: true, nullable: true }
+    ErpOutboxCounts:
+      type: object
+      required: [pending, held, sending, delivered, replayed, dead]
+      properties:
+        pending: { type: integer }
+        held: { type: integer }
+        sending: { type: integer }
+        delivered: { type: integer }
+        replayed: { type: integer }
+        dead: { type: integer }
+    ErpOutboxItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ErpOutboxItem' }
+    ErpOutboxDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ErpOutboxDetail' }
+    ErpOutboxListResponse:
+      type: object
+      required: [data, meta, counts]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ErpOutboxItem' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+        counts: { $ref: '#/components/schemas/ErpOutboxCounts' }
+    # --- end ERP outbox ---
     Error:
       type: object
       required: [error]
@@ -5188,3 +5271,120 @@ paths:
             schema: { $ref: '#/components/schemas/SetReceivePinRequest' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+  # --- ERP outbox (plan step 5) ---
+  /api/v1/internal/erp/relay:
+    post:
+      operationId: runErpRelayScheduled
+      tags: [admin]
+      summary: Run one ERP outbox relay pass (Cloud Scheduler; shared-secret header, no JWT)
+      security:
+        - schedulerSecret: []
+      responses:
+        '200':
+          description: relay report (disabled=true when the relay is off)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpRelayReportResponse' }
+        '401':
+          description: missing or wrong scheduler secret
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: rate limited (30 requests per minute)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: scheduler secret not configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/v1/admin/erp/relay:
+    post:
+      operationId: runErpRelay
+      tags: [admin]
+      summary: Run one ERP outbox relay pass now (admin)
+      responses:
+        '200':
+          description: relay report (disabled=true when the relay is off)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpRelayReportResponse' }
+  /api/v1/admin/erp/outbox:
+    get:
+      operationId: listErpOutbox
+      tags: [admin]
+      summary: List ERP outbox documents with per-status counts (admin)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, held, sending, delivered, replayed, dead] }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+      responses:
+        '200':
+          description: outbox rows, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpOutboxListResponse' }
+        '400':
+          description: invalid status or kind filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/v1/admin/erp/outbox/{id}:
+    get:
+      operationId: getErpOutbox
+      tags: [admin]
+      summary: One ERP outbox document with its payload and the ERP response (admin)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: outbox row
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpOutboxDetailResponse' }
+        '400':
+          description: id is not a uuid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/v1/admin/erp/outbox/{id}/retry:
+    post:
+      operationId: retryErpOutbox
+      tags: [admin]
+      summary: Re-queue a dead, held, delivered or replayed ERP document (admin)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: re-queued row
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpOutboxItemResponse' }
+        '400':
+          description: id is not a uuid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: row is pending or sending
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  # --- end ERP outbox ---
