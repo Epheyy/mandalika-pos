@@ -79,7 +79,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 		for _, p := range rw.Products {
 			vs := make([]api.LoyaltyPreviewVariant, 0, len(p.Variants))
 			for _, v := range p.Variants {
-				vs = append(vs, api.LoyaltyPreviewVariant{Size: v.Size, Price: float32(v.Price)})
+				vs = append(vs, api.LoyaltyPreviewVariant{Size: v.Size, Price: v.Price})
 			}
 			products = append(products, api.LoyaltyPreviewProduct{Id: p.ID, Name: p.Name, Variants: vs})
 		}

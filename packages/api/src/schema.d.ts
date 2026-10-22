@@ -2620,6 +2620,7 @@ export interface components {
             productId: string;
             variantSize: string;
             qty: number;
+            /** Format: double */
             unitCost?: number | null;
         };
         GoodsReceiptInput: {
@@ -2643,6 +2644,7 @@ export interface components {
             /** Format: uuid */
             categoryId?: string | null;
             categoryName?: string | null;
+            /** Format: double */
             defaultUnitCost?: number | null;
             notes?: string | null;
             isActive: boolean;
@@ -2655,6 +2657,7 @@ export interface components {
             sku?: string | null;
             /** Format: uuid */
             categoryId?: string | null;
+            /** Format: double */
             defaultUnitCost?: number | null;
             notes?: string | null;
             isActive: boolean;
@@ -2668,6 +2671,7 @@ export interface components {
             ingredientId: string;
             name: string;
             unit: string;
+            /** Format: double */
             defaultUnitCost?: number | null;
             qty: number;
         };
@@ -2681,7 +2685,9 @@ export interface components {
             name: string;
             qty: number;
             unitAtSave: string;
+            /** Format: double */
             costAtSave?: number | null;
+            /** Format: double */
             defaultUnitCost?: number | null;
             isActive: boolean;
             onHandTotal: number;
@@ -2697,6 +2703,7 @@ export interface components {
             versionId?: string | null;
             versionNo: number;
             notes?: string | null;
+            /** Format: double */
             totalCostCached?: number | null;
             versionCount: number;
             items: components["schemas"]["RecipeIngredientLine"][];
@@ -2709,6 +2716,7 @@ export interface components {
             id: string;
             versionNo: number;
             notes?: string | null;
+            /** Format: double */
             totalCostCached?: number | null;
             /** Format: date-time */
             createdAt: string;
@@ -2781,7 +2789,9 @@ export interface components {
             rMax?: number | null;
             fMin?: number | null;
             fMax?: number | null;
+            /** Format: double */
             mMin?: number | null;
+            /** Format: double */
             mMax?: number | null;
             isActive: boolean;
             /** Format: date-time */
@@ -2794,7 +2804,9 @@ export interface components {
             rMax?: number | null;
             fMin?: number | null;
             fMax?: number | null;
+            /** Format: double */
             mMin?: number | null;
+            /** Format: double */
             mMax?: number | null;
             isActive?: boolean | null;
         };
@@ -2821,6 +2833,7 @@ export interface components {
             /** Format: uuid */
             ingredientId: string;
             qty: number;
+            /** Format: double */
             unitCost?: number | null;
         };
         IngredientGoodsReceiptInput: {
@@ -3048,11 +3061,15 @@ export interface components {
             /** Format: uuid */
             id?: string | null;
             size: string;
+            /** Format: double */
             price: number;
             stock: number;
             sku: string;
             barcode?: string;
-            /** @description the catalog base price; price may be an outlet override when an outlet is in scope */
+            /**
+             * Format: double
+             * @description the catalog base price; price may be an outlet override when an outlet is in scope
+             */
             basePrice?: number;
             parLevel?: number | null;
             readonly erpSlug?: string | null;
@@ -3089,6 +3106,7 @@ export interface components {
             productName: string;
             variantSize: string;
             quantity: number;
+            /** Format: double */
             price: number;
         };
         Bundle: {
@@ -3097,6 +3115,7 @@ export interface components {
             name: string;
             description?: string | null;
             items: components["schemas"]["BundleItem"][];
+            /** Format: double */
             price: number;
             imageUrl?: string | null;
             isActive: boolean;
@@ -3113,6 +3132,7 @@ export interface components {
             phone: string;
             email?: string | null;
             points: number;
+            /** Format: double */
             totalSpent: number;
             visitCount: number;
             /** Format: date-time */
@@ -3244,12 +3264,14 @@ export interface components {
             trigger: string;
             /** @enum {string} */
             rewardType: "set_points" | "multiply_points" | "product_reward";
+            /** Format: double */
             rewardValue: number;
             rewardProductIds?: string[] | null;
             campaignStartDate?: string | null;
             campaignEndDate?: string | null;
             activeDays?: number[] | null;
             applicableProductIds?: string[] | null;
+            /** Format: double */
             minimumSpend?: number | null;
             isActive: boolean;
             /** Format: date-time */
@@ -3258,6 +3280,7 @@ export interface components {
         };
         LoyaltyPreviewVariant: {
             size: string;
+            /** Format: double */
             price: number;
         };
         LoyaltyPreviewProduct: {
@@ -3272,6 +3295,7 @@ export interface components {
         };
         LoyaltyPreviewRequest: {
             customerId: string;
+            /** Format: double */
             total: number;
             clientCreatedAt?: string | null;
             items: components["schemas"]["OrderItemInput"][];
@@ -3289,12 +3313,14 @@ export interface components {
             trigger: string;
             /** @enum {string} */
             rewardType: "set_points" | "multiply_points" | "product_reward";
+            /** Format: double */
             rewardValue: number;
             rewardProductIds?: string[];
             campaignStartDate?: string;
             campaignEndDate?: string;
             activeDays?: number[];
             applicableProductIds?: string[];
+            /** Format: double */
             minimumSpend?: number | null;
             isActive: boolean;
         };
@@ -3319,8 +3345,11 @@ export interface components {
             productId?: string;
             productName?: string;
             variantSize?: string;
+            /** Format: double */
             fullPrice?: number;
+            /** Format: double */
             rewardPrice?: number;
+            /** Format: double */
             rewardValue?: number;
             createdAt?: string;
         };
@@ -3333,7 +3362,9 @@ export interface components {
             productName?: string;
             variantSize?: string;
             quantity?: number;
+            /** Format: double */
             fullPrice?: number;
+            /** Format: double */
             valueGivenAway?: number;
             createdAt?: string;
         };
@@ -3343,10 +3374,12 @@ export interface components {
             productId?: string;
             productName?: string;
             variantSize?: string;
+            /** Format: double */
             value?: number;
             items?: number;
         };
         PromoGrantSummary: {
+            /** Format: double */
             totalValue?: number;
             totalItems?: number;
             totalOrders?: number;
@@ -3362,6 +3395,7 @@ export interface components {
             code?: string;
             promotionName?: string | null;
             redemptions?: number;
+            /** Format: double */
             valueGiven?: number;
             usageLimit?: number | null;
             usageCount?: number;
@@ -3370,6 +3404,7 @@ export interface components {
         };
         DiscountCodeReportSummary: {
             totalRedemptions?: number;
+            /** Format: double */
             totalValue?: number;
             distinctCodes?: number;
         };
@@ -3462,13 +3497,16 @@ export interface components {
             getProductIds?: string[];
             /** @enum {string} */
             getDiscountKind: "percentage" | "fixed";
+            /** Format: double */
             getDiscountValue: number;
             maxApplications?: number;
         };
         Tier: {
+            /** Format: double */
             minSubtotal: number;
             /** @enum {string} */
             kind: "percentage" | "fixed";
+            /** Format: double */
             value: number;
         };
         TieredConfig: {
@@ -3480,6 +3518,7 @@ export interface components {
         };
         BundleConfig: {
             slots: components["schemas"]["BundleSlot"][];
+            /** Format: double */
             bundlePrice: number;
             maxApplications?: number;
         };
@@ -3490,7 +3529,9 @@ export interface components {
             description?: string | null;
             /** @enum {string} */
             type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
+            /** Format: double */
             value: number;
+            /** Format: double */
             minPurchase?: number | null;
             applicableProductIds?: string[] | null;
             applicableVariantKeys?: string[] | null;
@@ -3522,7 +3563,9 @@ export interface components {
             promotionId?: string | null;
             /** @enum {string} */
             type: "percentage" | "fixed";
+            /** Format: double */
             value: number;
+            /** Format: double */
             minPurchase?: number | null;
             usageLimit?: number | null;
             perCustomerLimit?: number | null;
@@ -3838,6 +3881,7 @@ export interface components {
             roundingEnabled: boolean;
             /** @enum {string} */
             roundingType: "nearest_500" | "nearest_1000" | "none";
+            /** Format: double */
             roundingAmount?: number | null;
             /** @enum {string|null} */
             roundingDirection?: "floor" | "ceil" | "nearest" | null;
@@ -3985,8 +4029,10 @@ export interface components {
             productId: string;
             productName: string;
             variantSize: string;
+            /** Format: double */
             price: number;
             quantity: number;
+            /** Format: double */
             subtotal: number;
             isBundle?: boolean;
             isReward?: boolean;
@@ -4005,10 +4051,13 @@ export interface components {
             items: components["schemas"]["OrderItemInput"][];
             /** @description configured payment method id (free-form since migration 0005) */
             paymentMethod: string;
+            /** Format: double */
             amountPaid?: number;
             /** @enum {string|null} */
             discountType?: "percentage" | "fixed" | null;
+            /** Format: double */
             discountValue?: number | null;
+            /** Format: double */
             surchargeValue?: number | null;
             discountCode?: string | null;
             promotionId?: string | null;
@@ -4030,9 +4079,11 @@ export interface components {
         };
         OpenShiftRequest: {
             outletName?: string | null;
+            /** Format: double */
             startingCash: number;
         };
         CloseShiftRequest: {
+            /** Format: double */
             closingCash: number;
             countedByMethod?: {
                 [key: string]: number;
@@ -4041,6 +4092,7 @@ export interface components {
         CashFlowRequest: {
             shiftId?: string | null;
             type: string;
+            /** Format: double */
             amount: number;
             description: string;
         };
@@ -4287,6 +4339,7 @@ export interface components {
             outletName: string;
             variantSize: string;
             stock: number;
+            /** Format: double */
             price?: number | null;
             available: boolean;
             parLevel?: number | null;
@@ -4298,6 +4351,7 @@ export interface components {
             /** Format: uuid */
             outletId: string;
             variantSize: string;
+            /** Format: double */
             price?: number | null;
             available: boolean;
         };
@@ -4322,7 +4376,9 @@ export interface components {
             description?: string;
             /** @enum {string} */
             type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
+            /** Format: double */
             value: number;
+            /** Format: double */
             minPurchase?: number | null;
             applicableProductIds?: string[];
             applicableVariantKeys?: string[];
@@ -4347,7 +4403,9 @@ export interface components {
             promotionId?: string;
             /** @enum {string} */
             type: "percentage" | "fixed";
+            /** Format: double */
             value: number;
+            /** Format: double */
             minPurchase?: number | null;
             usageLimit?: number | null;
             perCustomerLimit?: number | null;
@@ -4364,7 +4422,9 @@ export interface components {
             promotionId?: string;
             /** @enum {string} */
             type: "percentage" | "fixed";
+            /** Format: double */
             value: number;
+            /** Format: double */
             minPurchase?: number | null;
             usageLimit?: number | null;
             perCustomerLimit?: number | null;

@@ -387,7 +387,7 @@ components:
         productId: { type: string, format: uuid }
         variantSize: { type: string }
         qty: { type: integer }
-        unitCost: { type: number, nullable: true }
+        unitCost: { type: number, format: double, nullable: true }
     GoodsReceiptInput:
       type: object
       required: [items]
@@ -413,7 +413,7 @@ components:
         sku: { type: string }
         categoryId: { type: string, format: uuid, nullable: true }
         categoryName: { type: string, nullable: true }
-        defaultUnitCost: { type: number, nullable: true }
+        defaultUnitCost: { type: number, format: double, nullable: true }
         notes: { type: string, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
@@ -425,7 +425,7 @@ components:
         unit: { type: string }
         sku: { type: string, nullable: true }
         categoryId: { type: string, format: uuid, nullable: true }
-        defaultUnitCost: { type: number, nullable: true }
+        defaultUnitCost: { type: number, format: double, nullable: true }
         notes: { type: string, nullable: true }
         isActive: { type: boolean }
     IngredientListResponse:
@@ -441,7 +441,7 @@ components:
         ingredientId: { type: string, format: uuid }
         name: { type: string }
         unit: { type: string }
-        defaultUnitCost: { type: number, nullable: true }
+        defaultUnitCost: { type: number, format: double, nullable: true }
         qty: { type: number }
     IngredientStockResponse:
       type: object
@@ -457,8 +457,8 @@ components:
         name: { type: string }
         qty: { type: number }
         unitAtSave: { type: string }
-        costAtSave: { type: number, nullable: true }
-        defaultUnitCost: { type: number, nullable: true }
+        costAtSave: { type: number, format: double, nullable: true }
+        defaultUnitCost: { type: number, format: double, nullable: true }
         isActive: { type: boolean }
         onHandTotal: { type: number }
     Recipe:
@@ -471,7 +471,7 @@ components:
         versionId: { type: string, format: uuid, nullable: true }
         versionNo: { type: integer }
         notes: { type: string, nullable: true }
-        totalCostCached: { type: number, nullable: true }
+        totalCostCached: { type: number, format: double, nullable: true }
         versionCount: { type: integer }
         items: { type: array, items: { $ref: '#/components/schemas/RecipeIngredientLine' } }
     RecipeResponse:
@@ -486,7 +486,7 @@ components:
         id: { type: string, format: uuid }
         versionNo: { type: integer }
         notes: { type: string, nullable: true }
-        totalCostCached: { type: number, nullable: true }
+        totalCostCached: { type: number, format: double, nullable: true }
         createdAt: { type: string, format: date-time }
         createdByName: { type: string, nullable: true }
     RecipeVersionListResponse:
@@ -576,8 +576,8 @@ components:
         rMax: { type: integer, nullable: true }
         fMin: { type: integer, nullable: true }
         fMax: { type: integer, nullable: true }
-        mMin: { type: number, nullable: true }
-        mMax: { type: number, nullable: true }
+        mMin: { type: number, format: double, nullable: true }
+        mMax: { type: number, format: double, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
     SegmentInput:
@@ -590,8 +590,8 @@ components:
         rMax: { type: integer, nullable: true }
         fMin: { type: integer, nullable: true }
         fMax: { type: integer, nullable: true }
-        mMin: { type: number, nullable: true }
-        mMax: { type: number, nullable: true }
+        mMin: { type: number, format: double, nullable: true }
+        mMax: { type: number, format: double, nullable: true }
         isActive: { type: boolean, nullable: true }
     SegmentListResponse:
       type: object
@@ -629,7 +629,7 @@ components:
       properties:
         ingredientId: { type: string, format: uuid }
         qty: { type: number }
-        unitCost: { type: number, nullable: true }
+        unitCost: { type: number, format: double, nullable: true }
     IngredientGoodsReceiptInput:
       type: object
       required: [items]
@@ -886,11 +886,11 @@ components:
       properties:
         id: { type: string, format: uuid, nullable: true }
         size: { type: string }
-        price: { type: number }
+        price: { type: number, format: double }
         stock: { type: integer }
         sku: { type: string }
         barcode: { type: string }
-        basePrice: { type: number, description: 'the catalog base price; price may be an outlet override when an outlet is in scope' }
+        basePrice: { type: number, format: double, description: 'the catalog base price; price may be an outlet override when an outlet is in scope' }
         parLevel: { type: integer, nullable: true }
         erpSlug: { type: string, nullable: true, readOnly: true }  # ERP catalog (step 4)
         isActive: { type: boolean, readOnly: true }  # ERP catalog (step 4)
@@ -932,7 +932,7 @@ components:
         productName: { type: string }
         variantSize: { type: string }
         quantity: { type: integer }
-        price: { type: number }
+        price: { type: number, format: double }
     Bundle:
       type: object
       required: [id, name, items, price, isActive, createdAt]
@@ -941,7 +941,7 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/BundleItem' } }
-        price: { type: number }
+        price: { type: number, format: double }
         imageUrl: { type: string, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
@@ -959,7 +959,7 @@ components:
         phone: { type: string }
         email: { type: string, nullable: true }
         points: { type: integer }
-        totalSpent: { type: number }
+        totalSpent: { type: number, format: double }
         visitCount: { type: integer }
         lastVisit: { type: string, format: date-time, nullable: true }
         birthday: { type: string, format: date, nullable: true }
@@ -1105,13 +1105,13 @@ components:
         type: { type: string, enum: [always_on, campaign] }
         trigger: { type: string }
         rewardType: { type: string, enum: [set_points, multiply_points, product_reward] }
-        rewardValue: { type: number }
+        rewardValue: { type: number, format: double }
         rewardProductIds: { type: array, items: { type: string }, nullable: true }
         campaignStartDate: { type: string, nullable: true }
         campaignEndDate: { type: string, nullable: true }
         activeDays: { type: array, items: { type: integer }, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
-        minimumSpend: { type: number, nullable: true }
+        minimumSpend: { type: number, format: double, nullable: true }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         appliedCount: { type: integer, nullable: true }
@@ -1120,7 +1120,7 @@ components:
       required: [size, price]
       properties:
         size: { type: string }
-        price: { type: number }
+        price: { type: number, format: double }
     LoyaltyPreviewProduct:
       type: object
       required: [id, name, variants]
@@ -1144,7 +1144,7 @@ components:
       required: [customerId, items, total]
       properties:
         customerId: { type: string }
-        total: { type: number }
+        total: { type: number, format: double }
         clientCreatedAt: { type: string, nullable: true }
         items:
           type: array
@@ -1169,13 +1169,13 @@ components:
         type: { type: string, enum: [always_on, campaign] }
         trigger: { type: string }
         rewardType: { type: string, enum: [set_points, multiply_points, product_reward] }
-        rewardValue: { type: number }
+        rewardValue: { type: number, format: double }
         rewardProductIds: { type: array, items: { type: string } }
         campaignStartDate: { type: string }
         campaignEndDate: { type: string }
         activeDays: { type: array, items: { type: integer } }
         applicableProductIds: { type: array, items: { type: string } }
-        minimumSpend: { type: number, nullable: true }
+        minimumSpend: { type: number, format: double, nullable: true }
         isActive: { type: boolean }
     RewardGrant:
       type: object
@@ -1201,9 +1201,9 @@ components:
         productId: { type: string }
         productName: { type: string }
         variantSize: { type: string }
-        fullPrice: { type: number }
-        rewardPrice: { type: number }
-        rewardValue: { type: number }
+        fullPrice: { type: number, format: double }
+        rewardPrice: { type: number, format: double }
+        rewardValue: { type: number, format: double }
         createdAt: { type: string }
     PromoRewardGrantGroup:
       type: object
@@ -1216,8 +1216,8 @@ components:
         productName: { type: string }
         variantSize: { type: string }
         quantity: { type: integer }
-        fullPrice: { type: number }
-        valueGivenAway: { type: number }
+        fullPrice: { type: number, format: double }
+        valueGivenAway: { type: number, format: double }
         createdAt: { type: string }
     PromoGrantBreakdown:
       type: object
@@ -1227,12 +1227,12 @@ components:
         productId: { type: string }
         productName: { type: string }
         variantSize: { type: string }
-        value: { type: number }
+        value: { type: number, format: double }
         items: { type: integer }
     PromoGrantSummary:
       type: object
       properties:
-        totalValue: { type: number }
+        totalValue: { type: number, format: double }
         totalItems: { type: integer }
         totalOrders: { type: integer }
         byPromotion: { type: array, items: { $ref: '#/components/schemas/PromoGrantBreakdown' } }
@@ -1250,7 +1250,7 @@ components:
         code: { type: string }
         promotionName: { type: string, nullable: true }
         redemptions: { type: integer }
-        valueGiven: { type: number }
+        valueGiven: { type: number, format: double }
         usageLimit: { type: integer, nullable: true }
         usageCount: { type: integer }
         remaining: { type: integer, nullable: true }
@@ -1259,7 +1259,7 @@ components:
       type: object
       properties:
         totalRedemptions: { type: integer }
-        totalValue: { type: number }
+        totalValue: { type: number, format: double }
         distinctCodes: { type: integer }
     DiscountCodeReport:
       type: object
@@ -1363,15 +1363,15 @@ components:
         buyProductIds: { type: array, items: { type: string } }
         getProductIds: { type: array, items: { type: string } }
         getDiscountKind: { type: string, enum: [percentage, fixed] }
-        getDiscountValue: { type: number }
+        getDiscountValue: { type: number, format: double }
         maxApplications: { type: integer }
     Tier:
       type: object
       required: [minSubtotal, kind, value]
       properties:
-        minSubtotal: { type: number }
+        minSubtotal: { type: number, format: double }
         kind: { type: string, enum: [percentage, fixed] }
-        value: { type: number }
+        value: { type: number, format: double }
     TieredConfig:
       type: object
       required: [tiers]
@@ -1388,7 +1388,7 @@ components:
       required: [slots, bundlePrice]
       properties:
         slots: { type: array, items: { $ref: '#/components/schemas/BundleSlot' } }
-        bundlePrice: { type: number }
+        bundlePrice: { type: number, format: double }
         maxApplications: { type: integer }
     Promotion:
       type: object
@@ -1398,8 +1398,8 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
-        value: { type: number }
-        minPurchase: { type: number, nullable: true }
+        value: { type: number, format: double }
+        minPurchase: { type: number, format: double, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
         applicableVariantKeys: { type: array, items: { type: string }, nullable: true }
         applicableVariantSizes: { type: array, items: { type: string }, nullable: true }
@@ -1438,8 +1438,8 @@ components:
         code: { type: string }
         promotionId: { type: string, nullable: true }
         type: { type: string, enum: [percentage, fixed] }
-        value: { type: number }
-        minPurchase: { type: number, nullable: true }
+        value: { type: number, format: double }
+        minPurchase: { type: number, format: double, nullable: true }
         usageLimit: { type: integer, nullable: true }
         perCustomerLimit: { type: integer, nullable: true }
         customerId:
@@ -1756,7 +1756,7 @@ components:
         taxRate: { type: number }
         roundingEnabled: { type: boolean }
         roundingType: { type: string, enum: [nearest_500, nearest_1000, none] }
-        roundingAmount: { type: number, nullable: true }
+        roundingAmount: { type: number, format: double, nullable: true }
         roundingDirection: { type: string, enum: [floor, ceil, nearest], nullable: true }
         roundingApplyToTax: { type: boolean, nullable: true }
         paymentMethods: { type: array, items: { $ref: '#/components/schemas/PaymentMethodConfig' } }
@@ -1921,9 +1921,9 @@ components:
         productId: { type: string }
         productName: { type: string }
         variantSize: { type: string }
-        price: { type: number }
+        price: { type: number, format: double }
         quantity: { type: integer }
-        subtotal: { type: number }
+        subtotal: { type: number, format: double }
         isBundle: { type: boolean }
         isReward: { type: boolean }
         rewardConditionId: { type: string }
@@ -1944,10 +1944,10 @@ components:
         customerName: { type: string, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/OrderItemInput' } }
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
-        amountPaid: { type: number }
+        amountPaid: { type: number, format: double }
         discountType: { type: string, enum: [percentage, fixed], nullable: true }
-        discountValue: { type: number, nullable: true }
-        surchargeValue: { type: number, nullable: true }
+        discountValue: { type: number, format: double, nullable: true }
+        surchargeValue: { type: number, format: double, nullable: true }
         discountCode: { type: string, nullable: true }
         promotionId: { type: string, nullable: true }
         promotionIds: { type: array, items: { type: string }, nullable: true }
@@ -1977,24 +1977,24 @@ components:
       required: [startingCash]
       properties:
         outletName: { type: string, nullable: true }
-        startingCash: { type: number }
+        startingCash: { type: number, format: double }
     CloseShiftRequest:
       type: object
       required: [closingCash]
       properties:
-        closingCash: { type: number }
+        closingCash: { type: number, format: double }
         # Optional per-method counted cash captured at close (reconciliation).
         countedByMethod:
           type: object
           nullable: true
-          additionalProperties: { type: number }
+          additionalProperties: { type: number, format: double }
     CashFlowRequest:
       type: object
       required: [type, amount, description]
       properties:
         shiftId: { type: string, nullable: true }
         type: { type: string }
-        amount: { type: number }
+        amount: { type: number, format: double }
         description: { type: string }
     SyncVersion:
       type: object
@@ -2306,7 +2306,7 @@ components:
         variantSize: { type: string }
         stock: { type: integer }
         # null = use the variant's base price (no per-outlet override)
-        price: { type: number, nullable: true }
+        price: { type: number, format: double, nullable: true }
         available: { type: boolean }
         parLevel: { type: integer, nullable: true }
     OutletConfigResponse:
@@ -2321,7 +2321,7 @@ components:
         outletId: { type: string, format: uuid }
         variantSize: { type: string }
         # null = use the variant's base price (no per-outlet override)
-        price: { type: number, nullable: true }
+        price: { type: number, format: double, nullable: true }
         available: { type: boolean }
     OutletConfigInput:
       type: object
@@ -2352,8 +2352,8 @@ components:
         name: { type: string }
         description: { type: string }
         type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
-        value: { type: number }
-        minPurchase: { type: number, nullable: true }
+        value: { type: number, format: double }
+        minPurchase: { type: number, format: double, nullable: true }
         applicableProductIds: { type: array, items: { type: string } }
         applicableVariantKeys: { type: array, items: { type: string } }
         applicableVariantSizes: { type: array, items: { type: string } }
@@ -2385,8 +2385,8 @@ components:
         code: { type: string }
         promotionId: { type: string }
         type: { type: string, enum: [percentage, fixed] }
-        value: { type: number }
-        minPurchase: { type: number, nullable: true }
+        value: { type: number, format: double }
+        minPurchase: { type: number, format: double, nullable: true }
         usageLimit: { type: integer, nullable: true }
         perCustomerLimit: { type: integer, nullable: true }
         customerId:
@@ -2405,8 +2405,8 @@ components:
         suffixLength: { type: integer }
         promotionId: { type: string }
         type: { type: string, enum: [percentage, fixed] }
-        value: { type: number }
-        minPurchase: { type: number, nullable: true }
+        value: { type: number, format: double }
+        minPurchase: { type: number, format: double, nullable: true }
         usageLimit: { type: integer, nullable: true }
         perCustomerLimit: { type: integer, nullable: true }
         isActive: { type: boolean }

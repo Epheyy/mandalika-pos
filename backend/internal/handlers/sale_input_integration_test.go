@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
@@ -272,6 +273,141 @@ func TestSaleInputPostgres(t *testing.T) {
 			}
 			if promo == bundle && (grants != 3 || net != 1000 || qty != 3 || total != 1000) {
 				t.Fatalf("bundle grants=%d net=%v qty=%d subtotal=%v", grants, net, qty, total)
+			}
+		}
+	})
+	t.Run("D-1 money above 2^24 round-trips exactly through the API", func(t *testing.T) {
+		// 16777217 and 16777219 are odd and above 2^24, so a float32 decode or encode
+		// anywhere on the path (generated DTO or hand-written cast) rounds them.
+		const bigPrice, bigPaid, bigMin = 16777217, 16777219, 16777219
+		adminToken, err := auth.IssueAccess(secret, time.Hour, user, "admin", outlet, []string{"manage_products", "manage_promotions", "create_order"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rt := chi.NewRouter()
+		rt.Use(authWrap)
+		rt.Post("/products", h.CreateProduct)
+		rt.Get("/products/{id}", h.Product)
+		rt.Put("/products/{id}/outlet-config", h.PutProductOutletConfig)
+		rt.Get("/products/{id}/outlet-config", h.GetProductOutletConfig)
+		rt.Post("/discount-codes", h.CreateDiscountCode)
+		rt.Get("/discount-codes", h.DiscountCodes)
+		rt.Post("/orders", h.CreateOrder)
+		rt.Get("/orders/{id}", h.Order)
+		call := func(method, path, key string, body any) map[string]any {
+			t.Helper()
+			var rdr *strings.Reader
+			if body != nil {
+				raw, err := json.Marshal(body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rdr = strings.NewReader(string(raw))
+			} else {
+				rdr = strings.NewReader("")
+			}
+			r := httptest.NewRequest(method, path, rdr)
+			r.Header.Set("Authorization", "Bearer "+adminToken)
+			if key != "" {
+				r.Header.Set("Idempotency-Key", key)
+			}
+			w := httptest.NewRecorder()
+			rt.ServeHTTP(w, r)
+			if w.Code != 200 && w.Code != 201 {
+				t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+			}
+			dec := json.NewDecoder(w.Body)
+			dec.UseNumber()
+			var out map[string]any
+			if err := dec.Decode(&out); err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+		num := func(v any) float64 {
+			t.Helper()
+			n, ok := v.(json.Number)
+			if !ok {
+				t.Fatalf("not a number: %#v", v)
+			}
+			f, err := n.Float64()
+			if err != nil {
+				t.Fatal(err)
+			}
+			return f
+		}
+		created := call("POST", "/products", "d1-product", map[string]any{
+			"name": "D1 product", "brand": "D1", "isActive": true, "sellable": true,
+			"variants": []map[string]any{{"size": "D1", "price": bigPrice, "stock": 0, "sku": "D1-SKU"}},
+		})
+		bigProduct := created["data"].(map[string]any)["id"].(string)
+		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'D1',10)`, outlet, bigProduct)
+		var dbPrice float64
+		if err := pool.QueryRow(ctx, `SELECT price FROM product_variants WHERE product_id=$1 AND size='D1'`, bigProduct).Scan(&dbPrice); err != nil || dbPrice != bigPrice {
+			t.Fatalf("variant row price=%v err=%v", dbPrice, err)
+		}
+		prod := call("GET", "/products/"+bigProduct, "", nil)["data"].(map[string]any)
+		variant := prod["variants"].([]any)[0].(map[string]any)
+		if got := num(variant["price"]); got != bigPrice {
+			t.Fatalf("variant price read back %v, want %d", got, bigPrice)
+		}
+		// Outlet price override: write path passes the decoded price straight to pgx.
+		call("PUT", "/products/"+bigProduct+"/outlet-config", "d1-outlet-config", map[string]any{
+			"items": []map[string]any{{"outletId": outlet, "variantSize": "D1", "available": true, "price": bigPrice}},
+		})
+		var dbOutletPrice float64
+		if err := pool.QueryRow(ctx, `SELECT price FROM outlet_variant_price WHERE outlet_id=$1 AND product_id=$2 AND variant_size='D1'`, outlet, bigProduct).Scan(&dbOutletPrice); err != nil || dbOutletPrice != bigPrice {
+			t.Fatalf("outlet_variant_price row price=%v err=%v", dbOutletPrice, err)
+		}
+		var sawOutletRow bool
+		for _, c := range call("GET", "/products/"+bigProduct+"/outlet-config", "", nil)["data"].([]any) {
+			row := c.(map[string]any)
+			if row["outletId"] == outlet && row["variantSize"] == "D1" {
+				sawOutletRow = true
+				if got := num(row["price"]); got != bigPrice {
+					t.Fatalf("outlet override read back %v, want %d", got, bigPrice)
+				}
+			}
+		}
+		if !sawOutletRow {
+			t.Fatal("outlet-config row not returned")
+		}
+		call("POST", "/discount-codes", "d1-code", map[string]any{
+			"code": "D1BIG", "type": "fixed", "value": bigPrice, "minPurchase": bigMin, "isActive": true,
+		})
+		var dbValue, dbMin float64
+		if err := pool.QueryRow(ctx, `SELECT value,min_purchase FROM discount_codes WHERE code='D1BIG'`).Scan(&dbValue, &dbMin); err != nil || dbValue != bigPrice || dbMin != bigMin {
+			t.Fatalf("code row value=%v min=%v err=%v", dbValue, dbMin, err)
+		}
+		var found bool
+		for _, c := range call("GET", "/discount-codes", "", nil)["data"].([]any) {
+			row := c.(map[string]any)
+			if row["code"] == "D1BIG" {
+				found = true
+				if num(row["value"]) != bigPrice || num(row["minPurchase"]) != bigMin {
+					t.Fatalf("code read back value=%v min=%v", row["value"], row["minPurchase"])
+				}
+			}
+		}
+		if !found {
+			t.Fatal("created discount code not listed")
+		}
+		call("POST", "/orders", "d1-order", map[string]any{
+			"orderUuid": "00000000-0000-4000-8002-000000000001", "paymentMethod": "cash", "amountPaid": bigPaid,
+			"items": []map[string]any{{"productId": bigProduct, "productName": "D1 product", "variantSize": "D1", "price": bigPrice, "quantity": 1, "subtotal": bigPrice}},
+		})
+		var orderID string
+		var dbTotal, dbPaid float64
+		if err := pool.QueryRow(ctx, `SELECT id,total,amount_paid FROM orders WHERE idempotency_key='d1-order'`).Scan(&orderID, &dbTotal, &dbPaid); err != nil || dbTotal != bigPrice || dbPaid != bigPaid {
+			t.Fatalf("order row total=%v paid=%v err=%v", dbTotal, dbPaid, err)
+		}
+		ord := call("GET", "/orders/"+orderID, "", nil)["data"].(map[string]any)
+		if num(ord["total"]) != bigPrice || num(ord["amountPaid"]) != bigPaid {
+			t.Fatalf("order read back total=%v paid=%v", ord["total"], ord["amountPaid"])
+		}
+		for _, it := range ord["items"].([]any) {
+			if num(it.(map[string]any)["price"]) != bigPrice {
+				t.Fatalf("order item price read back %v", it.(map[string]any)["price"])
 			}
 		}
 	})
