@@ -79,10 +79,13 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		fmt.Fprintln(stderr, "DATABASE_URL is not set; refusing to start.")
 		return exitUsage
 	}
-	cfg := config.LoadERPRelayFrom(getenv)
-	// The scheduler token is for the HTTP endpoint only; the CLI neither uses nor
-	// validates it, so a bad one cannot block an operator run.
-	cfg.SchedulerToken = ""
+	// The CLI reads only the two ERP keys it needs from the same environment (trimmed
+	// like config.Load). It never reads ERP_SCHEDULER_TOKEN: that is for the HTTP
+	// endpoint only, so a bad one cannot block an operator run.
+	cfg := config.LoadERPRelayFrom(&config.Config{
+		ERPBaseURL: strings.TrimSpace(getenv("ERP_BASE_URL")),
+		ERPAPIKey:  strings.TrimSpace(getenv("ERP_API_KEY")),
+	}, getenv)
 	if err := cfg.Validate(strings.EqualFold(getenv("ENV"), "production")); err != nil {
 		fmt.Fprintln(stderr, "invalid ERP configuration:", err)
 		return exitUsage

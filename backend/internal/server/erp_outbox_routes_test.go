@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/mandalika/pos-backend/internal/config"
 )
 
 const erpTestSchedulerToken = "ERP-SCHEDULER-SYNTHETIC-TOKEN-0123456789ab"
@@ -86,8 +88,7 @@ func TestErpSchedulerRouteSecret(t *testing.T) {
 	})
 	t.Run("configured", func(t *testing.T) {
 		clearERPEnv(t)
-		t.Setenv("ERP_SCHEDULER_TOKEN", erpTestSchedulerToken)
-		router, _ := newRouteHarness(t)
+		router, _ := newRouteHarnessCfg(t, func(c *config.Config) { c.ERPSchedulerToken = erpTestSchedulerToken })
 		if rec := post(router, ""); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("missing header: status %d want 401", rec.Code)
 		}

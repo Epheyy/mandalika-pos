@@ -84,7 +84,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	syncEngine.ContactKey = syncpkg.DeriveContactKey(cfg.AccessSecret)
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 	// ERP outbox relay (plan step 5)
-	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(), cfg.IsProd())
+	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(cfg), cfg.IsProd())
 	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
@@ -102,7 +102,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	r.Route("/api/v1", func(r chi.Router) {
 		// ERP outbox relay (plan step 5): Cloud Scheduler trigger, shared secret
 		// (X-Scheduler-Secret), no JWT. Step 4's /internal/erp/* convention.
-		r.With(mw.RateLimit(c, "erp-relay", 30, time.Minute)).Post("/internal/erp/relay", eo.SchedulerRelay)
+		r.With(mw.RateLimit(c, "erp-relay", 30, time.Minute), mw.RequireSchedulerSecret(cfg)).Post("/internal/erp/relay", eo.SchedulerRelay)
 
 		// Credential endpoints get a strict per-IP limit to blunt
 		// brute-force and token-spray; the global limit still applies.
