@@ -636,6 +636,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/erp/catalog-pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ERP catalog pull trigger for Cloud Scheduler (X-Scheduler-Secret)
+         * @description Machine-to-machine trigger, not for the backoffice. Authenticated by the shared secret in the X-Scheduler-Secret header (ERP_SCHEDULER_TOKEN, constant-time compare), not by a bearer token. Default mode when ?mode is absent: incremental. A failed, partial or skipped_locked run is still 200 (the outcome is in the body) so Cloud Scheduler does not retry-storm; a concurrent call returns skipped_locked. 503 when the token is unset or ERP_INTEGRATION_ENABLED is off.
+         */
+        post: operations["erpCatalogPullScheduler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/catalog-pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run an ERP catalog pull now (admin only)
+         * @description Same run as the scheduler route. Default mode when ?mode is absent: full. A failed or partial run is still 200 (the outcome is in the body); a concurrent call returns skipped_locked. 503 when ERP_INTEGRATION_ENABLED is off.
+         */
+        post: operations["erpCatalogPullAdmin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest ERP catalog pull runs and watermarks (admin only) */
+        get: operations["listErpSyncRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promo-reward-grants": {
         parameters: {
             query?: never;
@@ -2379,6 +2436,68 @@ export interface components {
             data: components["schemas"]["ErpOutboxItem"][];
             meta: components["schemas"]["Meta"];
             counts: components["schemas"]["ErpOutboxCounts"];
+        };
+        ErpCatalogPullResource: {
+            /** @enum {string} */
+            resource: "outlets" | "finished_goods";
+            /**
+             * @description the mode the run used; the requested mode when it stopped before resolving it
+             * @enum {string}
+             */
+            mode: "full" | "incremental" | "auto";
+            runId: string;
+            /** @enum {string} */
+            status: "completed" | "partial" | "failed";
+            pages: number;
+            upserted: number;
+            tombstoned: number;
+            deactivated: number;
+            itemErrors: number;
+            error: string;
+            /** Format: date-time */
+            watermark: string | null;
+        };
+        ErpCatalogPullReport: {
+            /** @enum {string} */
+            status: "completed" | "partial" | "failed" | "skipped_locked";
+            resources: components["schemas"]["ErpCatalogPullResource"][];
+        };
+        ErpCatalogPullResponse: {
+            data: components["schemas"]["ErpCatalogPullReport"];
+        };
+        ErpSyncRun: {
+            id: string;
+            resource: string;
+            /** @enum {string} */
+            mode: "full" | "incremental";
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt: string | null;
+            pages: number | null;
+            upserted: number | null;
+            tombstoned: number | null;
+            /** @enum {string} */
+            status: "running" | "completed" | "partial" | "failed";
+            error: string | null;
+        };
+        ErpWatermark: {
+            resource: string;
+            /** Format: date-time */
+            watermark: string | null;
+            /** Format: date-time */
+            lastFullSyncAt: string | null;
+            /** Format: date-time */
+            lastRunAt: string | null;
+            lastStatus: string | null;
+            lastError: string | null;
+        };
+        ErpSyncRunsReport: {
+            runs: components["schemas"]["ErpSyncRun"][];
+            watermarks: components["schemas"]["ErpWatermark"][];
+        };
+        ErpSyncRunsResponse: {
+            data: components["schemas"]["ErpSyncRunsReport"];
         };
         Error: {
             error: string;
@@ -5931,6 +6050,156 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    erpCatalogPullScheduler: {
+        parameters: {
+            query?: {
+                mode?: "full" | "incremental" | "auto";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description run report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpCatalogPullResponse"];
+                };
+            };
+            /** @description unknown mode */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description missing or wrong X-Scheduler-Secret */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description infrastructure failure before any resource ran */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description scheduler endpoint disabled or ERP integration disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    erpCatalogPullAdmin: {
+        parameters: {
+            query?: {
+                mode?: "full" | "incremental" | "auto";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description run report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpCatalogPullResponse"];
+                };
+            };
+            /** @description unknown mode */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description infrastructure failure before any resource ran */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ERP integration disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listErpSyncRuns: {
+        parameters: {
+            query?: {
+                /** @description default 20, max 100 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description runs, newest first, and the per-resource watermarks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpSyncRunsResponse"];
+                };
+            };
+            /** @description invalid limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     listPromoRewardGrants: {

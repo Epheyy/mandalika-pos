@@ -32,6 +32,7 @@ components:
       type: apiKey
       in: header
       name: X-Scheduler-Secret
+      description: ERP_SCHEDULER_TOKEN shared secret for Cloud Scheduler (internal ERP routes only).
   parameters:
     WIBDateFrom:
       name: dateFrom
@@ -184,6 +185,69 @@ components:
         meta: { $ref: '#/components/schemas/Meta' }
         counts: { $ref: '#/components/schemas/ErpOutboxCounts' }
     # --- end ERP outbox ---
+    ErpCatalogPullResource:
+      type: object
+      required: [resource, mode, runId, status, pages, upserted, tombstoned, deactivated, itemErrors, error, watermark]
+      properties:
+        resource: { type: string, enum: [outlets, finished_goods] }
+        mode: { type: string, enum: [full, incremental, auto], description: "the mode the run used; the requested mode when it stopped before resolving it" }
+        runId: { type: string }
+        status: { type: string, enum: [completed, partial, failed] }
+        pages: { type: integer }
+        upserted: { type: integer }
+        tombstoned: { type: integer }
+        deactivated: { type: integer }
+        itemErrors: { type: integer }
+        error: { type: string }
+        watermark: { type: string, format: date-time, nullable: true }
+    ErpCatalogPullReport:
+      type: object
+      required: [status, resources]
+      properties:
+        status: { type: string, enum: [completed, partial, failed, skipped_locked] }
+        resources:
+          type: array
+          items: { $ref: '#/components/schemas/ErpCatalogPullResource' }
+    ErpCatalogPullResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ErpCatalogPullReport' }
+    ErpSyncRun:
+      type: object
+      required: [id, resource, mode, startedAt, finishedAt, pages, upserted, tombstoned, status, error]
+      properties:
+        id: { type: string }
+        resource: { type: string }
+        mode: { type: string, enum: [full, incremental] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        pages: { type: integer, nullable: true }
+        upserted: { type: integer, nullable: true }
+        tombstoned: { type: integer, nullable: true }
+        status: { type: string, enum: [running, completed, partial, failed] }
+        error: { type: string, nullable: true }
+    ErpWatermark:
+      type: object
+      required: [resource, watermark, lastFullSyncAt, lastRunAt, lastStatus, lastError]
+      properties:
+        resource: { type: string }
+        watermark: { type: string, format: date-time, nullable: true }
+        lastFullSyncAt: { type: string, format: date-time, nullable: true }
+        lastRunAt: { type: string, format: date-time, nullable: true }
+        lastStatus: { type: string, nullable: true }
+        lastError: { type: string, nullable: true }
+    ErpSyncRunsReport:
+      type: object
+      required: [runs, watermarks]
+      properties:
+        runs: { type: array, items: { $ref: '#/components/schemas/ErpSyncRun' } }
+        watermarks: { type: array, items: { $ref: '#/components/schemas/ErpWatermark' } }
+    ErpSyncRunsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ErpSyncRunsReport' }
     Error:
       type: object
       required: [error]
@@ -3401,6 +3465,63 @@ paths:
         '429': { description: 'two imports already running in this process; retry shortly', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: 'busy (lock conflict), nothing applied, retry', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { $ref: '#/components/responses/ImportRejected' }
+  /api/v1/internal/erp/catalog-pull:
+    post:
+      operationId: erpCatalogPullScheduler
+      tags: [imports]
+      summary: ERP catalog pull trigger for Cloud Scheduler (X-Scheduler-Secret)
+      description: >
+        Machine-to-machine trigger, not for the backoffice. Authenticated by the shared secret
+        in the X-Scheduler-Secret header (ERP_SCHEDULER_TOKEN, constant-time compare), not by a
+        bearer token. Default mode when ?mode is absent: incremental. A failed, partial or
+        skipped_locked run is still 200 (the outcome is in the body) so Cloud Scheduler does not
+        retry-storm; a concurrent call returns skipped_locked. 503 when the token is unset or
+        ERP_INTEGRATION_ENABLED is off.
+      security:
+        - schedulerSecret: []
+      parameters:
+        - { name: mode, in: query, schema: { type: string, enum: [full, incremental, auto] } }
+      responses:
+        '200':
+          description: run report
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErpCatalogPullResponse' } } }
+        '400': { description: unknown mode, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: missing or wrong X-Scheduler-Secret, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: rate limit exceeded, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '500': { description: infrastructure failure before any resource ran, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: scheduler endpoint disabled or ERP integration disabled, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/admin/erp/catalog-pull:
+    post:
+      operationId: erpCatalogPullAdmin
+      tags: [imports]
+      summary: Run an ERP catalog pull now (admin only)
+      description: >
+        Same run as the scheduler route. Default mode when ?mode is absent: full. A failed or
+        partial run is still 200 (the outcome is in the body); a concurrent call returns
+        skipped_locked. 503 when ERP_INTEGRATION_ENABLED is off.
+      parameters:
+        - { name: mode, in: query, schema: { type: string, enum: [full, incremental, auto] } }
+      responses:
+        '200':
+          description: run report
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErpCatalogPullResponse' } } }
+        '400': { description: unknown mode, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { description: infrastructure failure before any resource ran, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: ERP integration disabled, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/admin/erp/sync-runs:
+    get:
+      operationId: listErpSyncRuns
+      tags: [imports]
+      summary: Latest ERP catalog pull runs and watermarks (admin only)
+      parameters:
+        - { name: limit, in: query, description: 'default 20, max 100', schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: runs, newest first, and the per-resource watermarks
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErpSyncRunsResponse' } } }
+        '400': { description: invalid limit, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
   # --- end ERP catalog (step 4) ---
   /api/v1/promo-reward-grants:
     get:

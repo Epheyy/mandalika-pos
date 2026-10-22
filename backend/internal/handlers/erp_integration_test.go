@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,9 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpstub"
+	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
 )
 
@@ -661,5 +666,159 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		if rep := e.run(erp.ModeFull); rep.Status != erp.StatusCompleted {
 			t.Fatalf("third run after completion = %+v", rep)
 		}
+	})
+
+	t.Run("http-triggers", func(t *testing.T) {
+		const schedulerToken = "er-scheduler-token-0123456789abcdef0123"
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		e.fg("h1", "H1", "Hotel One 30ml", "EDP", 30, "ACTIVE", "")
+
+		secret := []byte("ER-HTTP-SYNTHETIC-KEY")
+		issue := func(uid, role string) string {
+			tk, err := auth.IssueAccess(secret, time.Hour, uid, role, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return tk
+		}
+		adminTok := issue("00000000-0000-4000-8f20-000000000001", "admin")
+		cashierTok := issue("00000000-0000-4000-8f20-000000000002", "cashier")
+
+		build := func(token string, runner ErpCatalogRunner) http.Handler {
+			h := New(read.New(pool), nil, nil, nil, nil, nil, nil)
+			h.SetErpCatalogRunner(runner)
+			cfg := &config.Config{AccessSecret: secret, ERPSchedulerToken: token}
+			r := chi.NewRouter()
+			r.Route("/api/v1", func(r chi.Router) {
+				r.With(mw.RequireSchedulerSecret(cfg)).Post("/internal/erp/catalog-pull", h.ErpCatalogPullScheduler)
+				r.Group(func(r chi.Router) {
+					r.Use(mw.RequireAuth(cfg), mw.RequireRole("admin"))
+					r.Post("/admin/erp/catalog-pull", h.ErpCatalogPullAdmin)
+					r.Get("/admin/erp/sync-runs", h.ErpSyncRuns)
+				})
+			})
+			return r
+		}
+		router := build(schedulerToken, e.syncer)
+		call := func(rt http.Handler, method, path string, hdr map[string]string) (int, string) {
+			req := httptest.NewRequest(method, path, nil)
+			for k, v := range hdr {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+			rt.ServeHTTP(rec, req)
+			return rec.Code, rec.Body.String()
+		}
+		type pullBody struct {
+			Data struct {
+				Status    string `json:"status"`
+				Resources []struct {
+					Resource string `json:"resource"`
+					Mode     string `json:"mode"`
+					Status   string `json:"status"`
+					Upserted int    `json:"upserted"`
+				} `json:"resources"`
+			} `json:"data"`
+		}
+		const sched = "/api/v1/internal/erp/catalog-pull"
+		const adm = "/api/v1/admin/erp/catalog-pull"
+
+		// Scheduler route: secret required, nothing is written without it.
+		if code, body := call(router, http.MethodPost, sched, nil); code != http.StatusUnauthorized || strings.Contains(body, schedulerToken) {
+			t.Fatalf("no header = %d %s", code, body)
+		}
+		if code, _ := call(router, http.MethodPost, sched, map[string]string{"X-Scheduler-Secret": "wrong"}); code != http.StatusUnauthorized {
+			t.Fatalf("wrong header = %d", code)
+		}
+		erWantInt(t, "nothing ran without the secret", erCount(t, ctx, pool, `SELECT count(*) FROM erp_sync_runs`), 0)
+		good := map[string]string{"X-Scheduler-Secret": schedulerToken}
+		if code, body := call(router, http.MethodPost, sched+"?mode=nope", good); code != http.StatusBadRequest {
+			t.Fatalf("bad mode = %d %s", code, body)
+		}
+		code, body := call(router, http.MethodPost, sched, good) // default: incremental (no watermark yet, so it runs as full)
+		var pb pullBody
+		if err := json.Unmarshal([]byte(body), &pb); err != nil || code != http.StatusOK || pb.Data.Status != erp.StatusCompleted || len(pb.Data.Resources) != 2 {
+			t.Fatalf("scheduler run = %d %s (%v)", code, body, err)
+		}
+		erWantInt(t, "variant pulled", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE sku='H1'`), 1)
+
+		// Unset token disables the route; a nil runner answers 503 even with the right secret.
+		if code, _ := call(build("", e.syncer), http.MethodPost, sched, good); code != http.StatusServiceUnavailable {
+			t.Fatalf("unset token = %d", code)
+		}
+		if code, body := call(build(schedulerToken, nil), http.MethodPost, sched, good); code != http.StatusServiceUnavailable || !strings.Contains(body, "ERP integration disabled") {
+			t.Fatalf("disabled integration = %d %s", code, body)
+		}
+
+		// Admin route: role gated, default mode full.
+		if code, _ := call(router, http.MethodPost, adm, nil); code != http.StatusUnauthorized {
+			t.Fatalf("admin no token = %d", code)
+		}
+		if code, _ := call(router, http.MethodPost, adm, map[string]string{"Authorization": "Bearer " + cashierTok}); code != http.StatusForbidden {
+			t.Fatalf("cashier = %d", code)
+		}
+		code, body = call(router, http.MethodPost, adm, map[string]string{"Authorization": "Bearer " + adminTok})
+		pb = pullBody{}
+		if err := json.Unmarshal([]byte(body), &pb); err != nil || code != http.StatusOK || pb.Data.Status != erp.StatusCompleted ||
+			len(pb.Data.Resources) != 2 || pb.Data.Resources[0].Mode != "full" {
+			t.Fatalf("admin run = %d %s (%v)", code, body, err)
+		}
+
+		// sync-runs: newest first, limit honoured, watermarks included; admin only.
+		if code, _ := call(router, http.MethodGet, "/api/v1/admin/erp/sync-runs", map[string]string{"Authorization": "Bearer " + cashierTok}); code != http.StatusForbidden {
+			t.Fatalf("cashier sync-runs = %d", code)
+		}
+		type runsBody struct {
+			Data struct {
+				Runs       []struct{ Resource, Status string } `json:"runs"`
+				Watermarks []struct{ Resource string }         `json:"watermarks"`
+			} `json:"data"`
+		}
+		var rb runsBody
+		code, body = call(router, http.MethodGet, "/api/v1/admin/erp/sync-runs", map[string]string{"Authorization": "Bearer " + adminTok})
+		if err := json.Unmarshal([]byte(body), &rb); err != nil || code != http.StatusOK || len(rb.Data.Runs) != 4 || len(rb.Data.Watermarks) != 2 {
+			t.Fatalf("sync-runs = %d %s (%v)", code, body, err)
+		}
+		rb = runsBody{}
+		code, body = call(router, http.MethodGet, "/api/v1/admin/erp/sync-runs?limit=1", map[string]string{"Authorization": "Bearer " + adminTok})
+		if err := json.Unmarshal([]byte(body), &rb); err != nil || code != http.StatusOK || len(rb.Data.Runs) != 1 {
+			t.Fatalf("sync-runs limit=1 = %d %s (%v)", code, body, err)
+		}
+		if code, _ := call(router, http.MethodGet, "/api/v1/admin/erp/sync-runs?limit=0", map[string]string{"Authorization": "Bearer " + adminTok}); code != http.StatusBadRequest {
+			t.Fatalf("sync-runs limit=0 = %d", code)
+		}
+
+		// Two concurrent scheduler calls: one completes, the other is skipped_locked (still 200).
+		started, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		e.tr.mu.Lock()
+		e.tr.before = func(*http.Request) {
+			once.Do(func() { close(started) })
+			<-release
+		}
+		e.tr.mu.Unlock()
+		type result struct {
+			code int
+			body string
+		}
+		first := make(chan result, 1)
+		go func() {
+			c, b := call(router, http.MethodPost, sched+"?mode=full", good)
+			first <- result{c, b}
+		}()
+		<-started
+		code, body = call(router, http.MethodPost, sched+"?mode=full", good)
+		pb = pullBody{}
+		if err := json.Unmarshal([]byte(body), &pb); err != nil || code != http.StatusOK || pb.Data.Status != erp.StatusSkippedLocked {
+			t.Fatalf("concurrent second call = %d %s (%v)", code, body, err)
+		}
+		close(release)
+		res := <-first
+		pb = pullBody{}
+		if err := json.Unmarshal([]byte(res.body), &pb); err != nil || res.code != http.StatusOK || pb.Data.Status != erp.StatusCompleted {
+			t.Fatalf("concurrent first call = %d %s (%v)", res.code, res.body, err)
+		}
+		erWantInt(t, "run rows after the concurrent pair (only the winner wrote)", erCount(t, ctx, pool, `SELECT count(*) FROM erp_sync_runs`), 6)
 	})
 }

@@ -85,6 +85,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 	// ERP outbox relay (plan step 5)
 	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(), cfg.IsProd())
+	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -118,6 +119,14 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RateLimit(c, "ota", 120, time.Minute))
 			r.Post("/ota/check", h.OtaCheck)
+		})
+
+		// ERP catalog pull trigger for Cloud Scheduler (plan §4.4, D15): outside RequireAuth,
+		// guarded by the X-Scheduler-Secret shared secret and its own small rate-limit bucket.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RateLimit(c, "erp-catalog", 10, time.Minute))
+			r.Use(mw.RequireSchedulerSecret(cfg))
+			r.Post("/internal/erp/catalog-pull", h.ErpCatalogPullScheduler)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -362,6 +371,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequireRole("admin"))
 				r.Get("/admin/erp/sku-mapping/export", h.ExportSkuMapping)
 				r.Post("/admin/erp/sku-mapping/import", h.ImportSkuMapping)
+				r.Post("/admin/erp/catalog-pull", h.ErpCatalogPullAdmin)
+				r.Get("/admin/erp/sync-runs", h.ErpSyncRuns)
 			})
 		})
 	})

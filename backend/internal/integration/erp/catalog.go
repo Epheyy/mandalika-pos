@@ -53,7 +53,7 @@ const (
 )
 
 const (
-	defaultBudget      = 25 * time.Second // under the 30 s write timeout
+	defaultBudget      = 25 * time.Second // run deadline = budget + 5 s; HTTP callers pass less
 	incrementalOverlap = 5 * time.Minute  // updated_since = watermark - overlap
 	fullSyncMaxAge     = 24 * time.Hour   // auto picks full when the last full is older
 	maxErrorMessages   = 10               // item-error messages kept per run
@@ -291,7 +291,7 @@ func resolveMode(want Mode, st watermarkState, now time.Time) Mode {
 // row, page until the cursor ends (or the budget/an error stops it), then
 // commit (complete) or record (abort). The watermark only moves on complete.
 func (s *Syncer) runResource(ctx context.Context, st runStore, resource string, want Mode, step stepFn, deadline time.Time) ResourceResult {
-	out := ResourceResult{Resource: resource}
+	out := ResourceResult{Resource: resource, Mode: want}
 	fail := func(err error) ResourceResult {
 		out.Status, out.Error = StatusFailed, clip(err.Error())
 		return out
