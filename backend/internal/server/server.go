@@ -83,6 +83,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	syncEngine.StockSeqOff = cfg.SyncStockSeqOff
 	syncEngine.ContactKey = syncpkg.DeriveContactKey(cfg.AccessSecret)
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
+	// ERP outbox relay (plan step 5)
+	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(), cfg.IsProd())
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -97,6 +99,10 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// ERP outbox relay (plan step 5): Cloud Scheduler trigger, shared secret
+		// (X-Scheduler-Secret), no JWT. Step 4's /internal/erp/* convention.
+		r.With(mw.RateLimit(c, "erp-relay", 30, time.Minute)).Post("/internal/erp/relay", eo.SchedulerRelay)
+
 		// Credential endpoints get a strict per-IP limit to blunt
 		// brute-force and token-spray; the global limit still applies.
 		r.Group(func(r chi.Router) {
@@ -343,6 +349,12 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/custom-roles/{id}", h.UpdateCustomRole)
 				r.Delete("/custom-roles/{id}", h.DeleteCustomRole)
 				r.Get("/error-logs", h.ErrorLogs)
+
+				// ERP outbox relay (plan step 5)
+				r.Post("/admin/erp/relay", eo.RunRelay)
+				r.Get("/admin/erp/outbox", eo.ListOutbox)
+				r.Get("/admin/erp/outbox/{id}", eo.GetOutbox)
+				r.Post("/admin/erp/outbox/{id}/retry", eo.RetryOutbox)
 			})
 		})
 	})

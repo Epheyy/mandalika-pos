@@ -2175,10 +2175,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/erp/relay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one ERP outbox relay pass (Cloud Scheduler; shared-secret header, no JWT) */
+        post: operations["runErpRelayScheduled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/relay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one ERP outbox relay pass now (admin) */
+        post: operations["runErpRelay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ERP outbox documents with per-status counts (admin) */
+        get: operations["listErpOutbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/outbox/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One ERP outbox document with its payload and the ERP response (admin) */
+        get: operations["getErpOutbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/outbox/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-queue a dead, held, delivered or replayed ERP document (admin) */
+        post: operations["retryErpOutbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ErpRelayReport: {
+            disabled: boolean;
+            reason?: string;
+            claimed: number;
+            delivered: number;
+            replayed: number;
+            held: number;
+            retried: number;
+            dead: number;
+            released: number;
+            /** @enum {string} */
+            stopped?: "unauthorized" | "forbidden" | "rate_limited" | "budget";
+        };
+        ErpRelayReportResponse: {
+            data: components["schemas"]["ErpRelayReport"];
+        };
+        ErpOutboxItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            documentId: string;
+            /** @enum {string} */
+            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+            /** @enum {string} */
+            locationType: "outlet" | "warehouse";
+            /** Format: uuid */
+            locationId: string;
+            refType: string;
+            /** Format: uuid */
+            refId: string;
+            refNumber?: string | null;
+            part: number;
+            partCount: number;
+            /** @enum {string} */
+            status: "pending" | "held" | "sending" | "delivered" | "replayed" | "dead";
+            attempts: number;
+            /** Format: date-time */
+            nextAttemptAt: string;
+            lastHttpStatus?: number | null;
+            lastError?: string | null;
+            holdReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            deliveredAt?: string | null;
+        };
+        ErpOutboxDetail: components["schemas"]["ErpOutboxItem"] & {
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            payloadSha256?: string | null;
+            erpResponse?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        ErpOutboxCounts: {
+            pending: number;
+            held: number;
+            sending: number;
+            delivered: number;
+            replayed: number;
+            dead: number;
+        };
+        ErpOutboxItemResponse: {
+            data: components["schemas"]["ErpOutboxItem"];
+        };
+        ErpOutboxDetailResponse: {
+            data: components["schemas"]["ErpOutboxDetail"];
+        };
+        ErpOutboxListResponse: {
+            data: components["schemas"]["ErpOutboxItem"][];
+            meta: components["schemas"]["Meta"];
+            counts: components["schemas"]["ErpOutboxCounts"];
+        };
         Error: {
             error: string;
         };
@@ -8948,6 +9109,196 @@ export interface operations {
                     "application/json": {
                         ok?: boolean;
                     };
+                };
+            };
+        };
+    };
+    runErpRelayScheduled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description relay report (disabled=true when the relay is off) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpRelayReportResponse"];
+                };
+            };
+            /** @description missing or wrong scheduler secret */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description rate limited (30 requests per minute) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description scheduler secret not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    runErpRelay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description relay report (disabled=true when the relay is off) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpRelayReportResponse"];
+                };
+            };
+        };
+    };
+    listErpOutbox: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                status?: "pending" | "held" | "sending" | "delivered" | "replayed" | "dead";
+                kind?: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description outbox rows, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpOutboxListResponse"];
+                };
+            };
+            /** @description invalid status or kind filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getErpOutbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description outbox row */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpOutboxDetailResponse"];
+                };
+            };
+            /** @description id is not a uuid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    retryErpOutbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description re-queued row */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErpOutboxItemResponse"];
+                };
+            };
+            /** @description id is not a uuid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description row is pending or sending */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };
