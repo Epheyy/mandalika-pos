@@ -19,6 +19,9 @@ import (
 // reviewReportBodyLimit bounds a check-in body (the tablet sends at most 50 items).
 const reviewReportBodyLimit = 8 << 20
 
+// SyncReviewBodyLimit is exported so the server body-limit table reuses the number.
+const SyncReviewBodyLimit int64 = reviewReportBodyLimit
+
 // ReportSyncReviewItems: POST /sync/review-items (tablet check-in). The outlet
 // comes from the caller's auth context, never from the body.
 func (h *Handlers) ReportSyncReviewItems(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +30,7 @@ func (h *Handlers) ReportSyncReviewItems(w http.ResponseWriter, r *http.Request)
 		Items []json.RawMessage `json:"items"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	// The batch-size rule applies to the raw count; a badly typed single item is skipped
@@ -113,7 +116,7 @@ func (h *Handlers) ResolveSyncReviewItem(w http.ResponseWriter, r *http.Request)
 		Note string `json:"note"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	note, err := normalizeResolveNote(body.Note)

@@ -34,10 +34,21 @@ func (h *Handlers) caller(r *http.Request) (callerID, error) {
 func decodeWrite[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 	var v T
 	if err := httpx.DecodeLoose(r, &v); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return v, false
 	}
 	return v, true
+}
+
+// writeDecodeErr answers a failed body decode: a *http.MaxBytesError (the global
+// or a per-route cap tripped, incl. chunked bodies) is 413 with a fixed message;
+// anything else keeps the 400 "invalid body".
+func writeDecodeErr(w http.ResponseWriter, err error) {
+	if isBodyTooLarge(err) {
+		httpx.Err(w, http.StatusRequestEntityTooLarge, "request body too large")
+		return
+	}
+	httpx.Err(w, http.StatusBadRequest, "invalid body")
 }
 
 func (h *Handlers) created(w http.ResponseWriter, r *http.Request, id string, err error) {

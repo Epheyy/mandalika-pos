@@ -168,6 +168,10 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
+		if isBodyTooLarge(err) {
+			writeDecodeErr(w, err)
+			return
+		}
 		httpx.Err(w, http.StatusBadRequest, "Isi permintaan refund tidak valid.")
 		return
 	}

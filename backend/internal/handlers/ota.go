@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/ota"
 )
 
@@ -54,7 +55,10 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		DeviceID string `json:"device_id"`
 		CustomID string `json:"custom_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); isBodyTooLarge(err) {
+		httpx.Err(w, http.StatusRequestEntityTooLarge, "request body too large")
+		return
+	}
 	platform := strings.ToLower(strings.TrimSpace(body.Platform))
 	if platform == "" {
 		platform = "android"

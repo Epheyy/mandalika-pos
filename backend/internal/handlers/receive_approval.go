@@ -53,7 +53,7 @@ func (h *Handlers) CreateTransferReceiveApproval(w http.ResponseWriter, r *http.
 	}
 	var body api.TransferReceiveApprovalRequest
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	if len(body.IdempotencyKey) == 0 || len(body.IdempotencyKey) > maxReceiptKeyLen ||

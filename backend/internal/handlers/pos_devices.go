@@ -16,7 +16,7 @@ func (h *Handlers) RegisterPOSDevice(w http.ResponseWriter, r *http.Request) {
 		DeviceID string `json:"deviceId"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	id, err := uuid.Parse(body.DeviceID)

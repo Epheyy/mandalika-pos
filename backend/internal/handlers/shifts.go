@@ -77,7 +77,7 @@ func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
 		Description string  `json:"description"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	c, _ := h.caller(r)

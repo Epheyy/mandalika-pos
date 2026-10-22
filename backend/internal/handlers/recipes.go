@@ -67,7 +67,7 @@ func (h *Handlers) RestoreRecipeVersion(w http.ResponseWriter, r *http.Request) 
 	// An empty body is tolerated; a present-but-malformed one must not silently drop
 	// expectedCurrentVersionId (that would bypass the version guard).
 	if err := decodeOptionalBody(r, &in); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	c, _ := h.caller(r)

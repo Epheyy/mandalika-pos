@@ -20,6 +20,9 @@ const (
 	syncBatchBodyLimit = 8 << 20
 )
 
+// SyncBatchBodyLimit is exported so the server body-limit table reuses the number.
+const SyncBatchBodyLimit int64 = syncBatchBodyLimit
+
 var errBatchTooLarge = errors.New("batch too large")
 
 // A MaxBytesReader overflow must stay distinguishable from a malformed body.

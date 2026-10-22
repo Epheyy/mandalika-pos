@@ -63,7 +63,7 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 	// Empty body = finalize from the stored draft items; a malformed one is a 400
 	// with nothing applied.
 	if err := decodeOptionalBody(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	c, _ := h.caller(r)

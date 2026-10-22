@@ -18,6 +18,9 @@ import (
 // csvimport.Read); anything larger is refused with an explicit 413.
 const importBodyCap = 20 << 20
 
+// ImportBodyCap is exported so the server body-limit table reuses the number.
+const ImportBodyCap int64 = importBodyCap
+
 const maxIdempotencyKey = 200
 
 // ImportCustomers, ImportProducts and ImportIngredients share one flow: dry run

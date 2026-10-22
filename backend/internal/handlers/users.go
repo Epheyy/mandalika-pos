@@ -44,7 +44,7 @@ func (h *Handlers) GetUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateUserRequest
 	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	outlet := ""
@@ -73,7 +73,7 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req api.UpdateUserRequest
 	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	var role *string
@@ -133,7 +133,7 @@ func (h *Handlers) SetUserReceivePin(w http.ResponseWriter, r *http.Request) {
 		Clear *bool   `json:"clear"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	id := chi.URLParam(r, "id")

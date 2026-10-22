@@ -68,6 +68,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	}))
 	// Global per-IP rate limit; a POS device bursts on sync but stays modest.
 	r.Use(mw.RateLimit(c, "api", cfg.RateLimitRPS*60, time.Minute))
+	// Global request-body cap (1 MiB) with a documented exception table.
+	r.Use(mw.BodyLimit(bodyLimitFor))
 
 	store := auth.NewStore(database.Pool)
 	ah := auth.NewHandler(cfg, store, c)
