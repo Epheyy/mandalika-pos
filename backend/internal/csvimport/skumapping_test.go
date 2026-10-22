@@ -110,3 +110,21 @@ func TestPlanSkuMappingMissingRequiredColumn(t *testing.T) {
 		t.Fatal("a file without fg_slug column must be refused")
 	}
 }
+
+// GuardCell and cleanCell share formulaLead: every guarded prefix round-trips, and an
+// unguarded value is returned as is.
+func TestGuardCellRoundTripsThroughCleanCell(t *testing.T) {
+	for i := 0; i < len(formulaLead); i++ {
+		v := string(formulaLead[i]) + "SUM(A1)"
+		g := GuardCell(v)
+		if g != "'"+v {
+			t.Errorf("GuardCell(%q) = %q, want an apostrophe prefix", v, g)
+		}
+		if got := cleanCell(g); got != v {
+			t.Errorf("cleanCell(GuardCell(%q)) = %q, want the original", v, got)
+		}
+	}
+	if got := GuardCell("SKU-1"); got != "SKU-1" {
+		t.Errorf("GuardCell(plain) = %q", got)
+	}
+}

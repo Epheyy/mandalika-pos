@@ -223,11 +223,16 @@ func buildRow(index, line int, rec, header []string, colKey map[int]string, spec
 	return row
 }
 
+// formulaLead lists the leading bytes a spreadsheet may treat as a formula. GuardCell
+// prefixes them with an apostrophe on export and cleanCell strips that on import; both
+// use this one set so a guarded value always round-trips.
+const formulaLead = "=+-@\t\r"
+
 // cleanCell reverses the export's formula guard (exactly one leading apostrophe before
 // = + - @ tab CR) and normalises blanks: an all-whitespace cell and a lone "-" (the
 // export's guarded placeholder) are empty.
 func cleanCell(s string) string {
-	if len(s) >= 2 && s[0] == '\'' && strings.IndexByte("=+-@\t\r", s[1]) >= 0 {
+	if len(s) >= 2 && s[0] == '\'' && strings.IndexByte(formulaLead, s[1]) >= 0 {
 		s = s[1:]
 	}
 	if t := strings.TrimSpace(s); t == "" || t == "-" {
@@ -240,7 +245,7 @@ func cleanCell(s string) string {
 // that starts with = + - @ tab or CR gets one leading apostrophe so a spreadsheet does
 // not run it as a formula.
 func GuardCell(s string) string {
-	if s != "" && strings.IndexByte("=+-@	", s[0]) >= 0 {
+	if s != "" && strings.IndexByte(formulaLead, s[0]) >= 0 {
 		return "'" + s
 	}
 	return s
