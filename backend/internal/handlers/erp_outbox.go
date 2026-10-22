@@ -79,6 +79,9 @@ func (e *ErpOutbox) SchedulerRelay(w http.ResponseWriter, r *http.Request) {
 // RunRelay is POST /api/v1/admin/erp/relay.
 func (e *ErpOutbox) RunRelay(w http.ResponseWriter, r *http.Request) { e.runRelay(w, r) }
 
+// relayWriteDeadline is the response write deadline of a relay run (see runRelay).
+const relayWriteDeadline = 55 * time.Second
+
 func (e *ErpOutbox) runRelay(w http.ResponseWriter, r *http.Request) {
 	if !e.cfg.Enabled || e.cfgErr != nil {
 		reason := reasonRelayOff
@@ -88,6 +91,11 @@ func (e *ErpOutbox) runRelay(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, api.ErpRelayReportResponse{Data: api.ErpRelayReport{Disabled: true, Reason: &reason}})
 		return
 	}
+	// A run is bounded by the relay's 20 s budget, but its final state writes and the
+	// release use their own short timeouts, so it can pass the server's 30 s
+	// WriteTimeout. Extend this response's deadline (stays under the 60 s Cloud
+	// Scheduler attempt deadline); best effort, ignored where unsupported.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(relayWriteDeadline))
 	rep, err := e.relay.Run(r.Context())
 	if err != nil {
 		internalError(w, "erp relay run failed", err)
