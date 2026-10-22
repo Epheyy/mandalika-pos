@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"net/http"
@@ -17,7 +17,7 @@ type stockPage struct {
 	ServerTime    string                              `json:"server_time"`
 }
 
-func (s *server) outletStock(w http.ResponseWriter, r *http.Request) {
+func (s *Server) outletStock(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	q := r.URL.Query()
 	s.mu.Lock()
@@ -35,7 +35,7 @@ func (s *server) outletStock(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildStock computes the stock page for an outlet. Caller holds s.mu.
-func (s *server) buildStock(code string, q url.Values) (*stockPage, bool, []detail) {
+func (s *Server) buildStock(code string, q url.Values) (*stockPage, bool, []detail) {
 	outlet := s.st.findOutlet(func(o *erpapi.IntegrationOutlet) bool { return o.Code == code })
 	if outlet == nil {
 		return nil, true, nil

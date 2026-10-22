@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"crypto/rand"
@@ -61,7 +61,7 @@ func writeCatalog(w http.ResponseWriter, data any) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "data": data})
 }
 
-func (s *server) authOK(r *http.Request) bool {
+func (s *Server) authOK(r *http.Request) bool {
 	const prefix = "Bearer "
 	h := r.Header.Get("Authorization")
 	if !strings.HasPrefix(h, prefix) {
@@ -75,7 +75,7 @@ func writeUnauthorized(w http.ResponseWriter) {
 }
 
 // api wraps an integration route: fault hook, then bearer key, then handler.
-func (s *server) api(h http.HandlerFunc) http.HandlerFunc {
+func (s *Server) api(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if status, ok := s.takeFault(); ok {
 			writeFault(w, status)
@@ -90,7 +90,7 @@ func (s *server) api(h http.HandlerFunc) http.HandlerFunc {
 }
 
 // hook wraps a /_stub route: bearer key only, never faulted.
-func (s *server) hook(h http.HandlerFunc) http.HandlerFunc {
+func (s *Server) hook(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !s.authOK(r) {
 			writeUnauthorized(w)
@@ -100,7 +100,7 @@ func (s *server) hook(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *server) takeFault() (int, bool) {
+func (s *Server) takeFault() (int, bool) {
 	s.fmu.Lock()
 	defer s.fmu.Unlock()
 	if s.faultLeft <= 0 {

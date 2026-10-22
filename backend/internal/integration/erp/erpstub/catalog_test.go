@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"encoding/json"
@@ -206,4 +206,49 @@ func TestStubFGUpsertFeedsCatalogAndDocuments(t *testing.T) {
 	tomb := e.postHook("/_stub/fg", []byte(`{"slug":"fg-new","code":"FG-NEW","name":"Brand New","deleted_at":"2026-06-02T00:00:00Z"}`))
 	expectStatus(t, tomb, http.StatusOK)
 	expectValidation(t, e.post(mustJSON(t, docBody(2, "receipt", ln(2, "FG-NEW", 1)))))
+}
+
+func TestStubOutletUpsertTombstoneAndCodeRules(t *testing.T) {
+	e := newEnv(t, "")
+	e.clock.Advance(24 * time.Hour)
+	rec := e.postHook("/_stub/outlet", []byte(`{"slug":"pik","code":"PIK","name":"Mandalika PIK"}`))
+	expectStatus(t, rec, http.StatusOK)
+	var o struct {
+		Type      string `json:"type"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+	}
+	_ = json.Unmarshal(decode(t, rec).Data, &o)
+	if o.Type != "RETAIL" || o.CreatedAt != "2026-06-02T00:00:00Z" || o.UpdatedAt != o.CreatedAt {
+		t.Fatalf("defaults/stamps = %+v", o)
+	}
+
+	// A code already used by another slug is rejected; an invalid type too.
+	expectValidation(t, e.postHook("/_stub/outlet", []byte(`{"slug":"other","code":"PIK","name":"Dup"}`)))
+	expectValidation(t, e.postHook("/_stub/outlet", []byte(`{"slug":"pik","code":"PIK","name":"X","type":"BOGUS"}`)))
+
+	// A code change on the same slug keeps created_at and bumps updated_at.
+	e.clock.Advance(time.Hour)
+	chg := e.postHook("/_stub/outlet", []byte(`{"slug":"pik","code":"PIK2","name":"Mandalika PIK"}`))
+	expectStatus(t, chg, http.StatusOK)
+	_ = json.Unmarshal(decode(t, chg).Data, &o)
+	if o.CreatedAt != "2026-06-02T00:00:00Z" || o.UpdatedAt != "2026-06-02T01:00:00Z" {
+		t.Fatalf("created_at must be kept, updated_at bumped: %+v", o)
+	}
+
+	// deleted_at tombstones: gone from a full read, present in an incremental one.
+	tomb := e.postHook("/_stub/outlet", []byte(`{"slug":"pik","code":"PIK2","name":"Mandalika PIK","deleted_at":"2026-06-02T02:00:00Z"}`))
+	expectStatus(t, tomb, http.StatusOK)
+	for _, it := range getPage(t, e, "/api/integration/v1/catalog/outlets").Items {
+		if it.Slug == "pik" {
+			t.Fatal("tombstoned outlet must not appear in a full read")
+		}
+	}
+	found := false
+	for _, it := range getPage(t, e, "/api/integration/v1/catalog/outlets?updated_since=2026-06-01T00:00:00Z").Items {
+		found = found || it.Slug == "pik"
+	}
+	if !found {
+		t.Fatal("tombstone must appear in an incremental read")
+	}
 }

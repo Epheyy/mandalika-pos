@@ -19,7 +19,7 @@ info:
     Large documents (for example a stock count) are split by POS into documents of at most 200 lines. Each part is
     a separate document with its own `document_id`; all parts share `ref.id` and carry `part`.
 
-    The POS reference implementation of this contract is `backend/cmd/erpstub` in the POS repo.
+    The POS reference implementation of this contract is `backend/internal/integration/erp/erpstub` (binary: `backend/cmd/erpstub`) in the POS repo.
 servers:
   - url: /api/integration/v1
 security:

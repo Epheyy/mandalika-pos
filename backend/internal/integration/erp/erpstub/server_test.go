@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"bytes"
@@ -35,16 +35,16 @@ func (c *testClock) Advance(d time.Duration) {
 
 type env struct {
 	t     *testing.T
-	s     *server
+	s     *Server
 	clock *testClock
 }
 
 func newEnv(t *testing.T, statePath string) *env {
 	t.Helper()
 	clock := &testClock{t: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)}
-	s, err := newServer(config{key: testKey, statePath: statePath, seed: embeddedSeed, now: clock.Now})
+	s, err := New(Config{Key: testKey, StatePath: statePath, Now: clock.Now})
 	if err != nil {
-		t.Fatalf("newServer: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	return &env{t: t, s: s, clock: clock}
 }

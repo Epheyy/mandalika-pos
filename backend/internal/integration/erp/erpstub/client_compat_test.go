@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"context"
