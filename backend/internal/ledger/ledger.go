@@ -17,7 +17,8 @@ import (
 //
 // Call order inside a non-frozen writer: Record/RecordDeltas BEFORE BumpStockSeq, so
 // "the bump is the last stock/version statement" stays literally true. This package
-// reads stock (RecordDeltas post-read, backfill) but never writes it.
+// reads stock (RecordDeltas post-read, backfill) but never writes it. Each document part
+// is also queued in erp_outbox in the same batch (outbox.go, plan §5.1).
 
 // MaxLinesPerDocument is the largest document the ERP contract accepts (handoff §4.6).
 // A bigger document is split into parts, each with its own document id.
@@ -281,7 +282,7 @@ func insertDocument(ctx context.Context, tx pgx.Tx, doc Document, lines []Line) 
 			part = i + 1
 		}
 		p := Part{DocumentID: DocumentID(doc.Key, part), Part: part, Lines: len(chunk)}
-		n, err := insertLines(ctx, tx, doc, p.DocumentID, chunk)
+		n, err := insertLines(ctx, tx, doc, p.DocumentID, chunk, outboxRowFor(doc, p.DocumentID, part, len(chunks)))
 		if err != nil {
 			return Result{}, fmt.Errorf("ledger: insert %s part %d: %w", doc.Key, part, err)
 		}
@@ -298,8 +299,9 @@ INSERT INTO stock_movements (id, document_id, dedupe_key, kind, location_type, l
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,(SELECT m.id FROM stock_movements m WHERE m.id = $21::uuid))
 ON CONFLICT (dedupe_key) DO NOTHING`
 
-// insertLines sends the lines as one batch and returns how many rows were inserted.
-func insertLines(ctx context.Context, tx pgx.Tx, doc Document, docID string, lines []Line) (int, error) {
+// insertLines sends the lines plus the part's outbox enqueue as one batch (enqueue
+// last, so it sees the rows) and returns how many movement rows were inserted.
+func insertLines(ctx context.Context, tx pgx.Tx, doc Document, docID string, lines []Line, ob outboxRow) (int, error) {
 	batch := &pgx.Batch{}
 	for _, l := range lines {
 		flags := l.Flags
@@ -313,6 +315,7 @@ func insertLines(ctx context.Context, tx pgx.Tx, doc Document, docID string, lin
 			nullable(doc.Actor), nullable(doc.DeviceID), doc.OccurredAt, flags,
 			nullable(l.RefundOfMovementID))
 	}
+	batch.Queue(enqueueOutboxSQL, ob.args()...)
 	br := tx.SendBatch(ctx, batch)
 	inserted := 0
 	for range lines {
@@ -322,6 +325,18 @@ func insertLines(ctx context.Context, tx pgx.Tx, doc Document, docID string, lin
 			return 0, err
 		}
 		inserted += int(tag.RowsAffected())
+	}
+	tag, err := br.Exec()
+	if err != nil {
+		_ = br.Close()
+		return 0, fmt.Errorf("enqueue erp outbox: %w", err)
+	}
+	// New movements on a document that was already queued would never reach the ERP
+	// (its payload may be frozen and sent). No writer does this today; fail loudly
+	// rather than lose them silently.
+	if inserted > 0 && tag.RowsAffected() == 0 {
+		_ = br.Close()
+		return 0, fmt.Errorf("document %s already queued for the ERP; %d new movements would not be sent", docID, inserted)
 	}
 	return inserted, br.Close()
 }
