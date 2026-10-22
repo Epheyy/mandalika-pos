@@ -12,6 +12,11 @@ import (
 // when no row) and unavailable products are excluded by the caller's WHERE; the
 // outlet id is passed as $1. Otherwise (CrossAll/admin "all") stock is summed
 // across outlets and the base variant price is used.
+//
+// Only the tablet pull (sc.SellableOnly) also hides inactive ERP variants
+// (DISCONTINUE or tombstoned) and ERP-created variants whose resolved outlet price
+// is 0, so a tablet never sells an unpriced item. The backoffice outlet scope and the
+// CrossAll branch show every variant: a hidden variant would be hard-deleted by a save.
 func productObjScoped(sc Scope) string {
 	if sc.CrossAll || sc.OutletID == "" {
 		return `json_build_object(
@@ -43,8 +48,22 @@ func productObjScoped(sc Scope) string {
 	        WHERE op.outlet_id=$1 AND op.product_id=v.product_id AND op.variant_size=v.size),
 	     'sku',v.sku,'barcode',v.barcode) ORDER BY v.size)
 	     FROM product_variants v WHERE v.product_id=p.id
+	     AND ` + tabletVariantFilter(sc, "v", 1) + `
 	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
 	        WHERE oa.outlet_id=$1 AND oa.product_id=v.product_id AND oa.variant_size=v.size), true)),'[]'::json))`
+}
+
+// tabletVariantFilter is the extra variant predicate of the tablet pull ("true"
+// otherwise): the variant is active and is not
+// an ERP-created variant whose resolved outlet price (override, else base) is still 0.
+// alias is the product_variants alias, outletArg the outlet id placeholder number.
+func tabletVariantFilter(sc Scope, alias string, outletArg int) string {
+	if !sc.SellableOnly {
+		return "true"
+	}
+	return fmt.Sprintf(`%[1]s.is_active AND NOT (%[1]s.erp_slug IS NOT NULL AND COALESCE(
+	       (SELECT op.price FROM outlet_variant_price op WHERE op.outlet_id=$%[2]d
+	          AND op.product_id=%[1]s.product_id AND op.variant_size=%[1]s.size), %[1]s.price) = 0)`, alias, outletArg)
 }
 
 // availabilityWhere keeps a product only if it has at least one variant available
@@ -56,6 +75,7 @@ func availabilityWhere(sc Scope, argPos int) string {
 	}
 	return fmt.Sprintf(` AND EXISTS (SELECT 1 FROM product_variants v2
 	   WHERE v2.product_id=p.id
+	     AND `+tabletVariantFilter(sc, "v2", argPos)+`
 	     AND COALESCE((SELECT oa.available FROM outlet_variant_stock oa
 	        WHERE oa.outlet_id=$%d AND oa.product_id=v2.product_id AND oa.variant_size=v2.size), true))`, argPos)
 }
