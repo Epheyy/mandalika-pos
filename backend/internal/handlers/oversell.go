@@ -84,7 +84,7 @@ func (h *Handlers) AcknowledgeOversell(w http.ResponseWriter, r *http.Request) {
 		Note string   `json:"note"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	note := strings.TrimSpace(body.Note)

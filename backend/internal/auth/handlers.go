@@ -122,9 +122,17 @@ func loginRateKey(ipBucket, email string) string {
 	return ipBucket + ":" + emailDigest(email)
 }
 
-// rate limit: 10 login attempts / 5 min per IP+email.
+// loginRateWindow is the window of the per-IP+email attempt limit (10 attempts).
+// Retry-After on that 429 is the full window: the counter's remaining TTL is not
+// readable through the cache API, so the upper bound is the honest value.
+const loginRateWindow = 5 * time.Minute
+
+// refreshRetryAfterSeconds is the Retry-After on the refresh 503 (a brief store blip).
+const refreshRetryAfterSeconds = 2
+
+// rate limit: 10 login attempts / loginRateWindow per IP+email.
 func (h *Handler) rateLimited(ctx context.Context, key string) bool {
-	n := h.Cache.Incr(ctx, "rl:login:"+key, 5*time.Minute)
+	n := h.Cache.Incr(ctx, "rl:login:"+key, loginRateWindow)
 	return n > 10
 }
 
@@ -166,11 +174,13 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if h.rateLimited(ctx, loginRateKey(clientip.ClientIPBucket(r), req.Email)) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
 	emailKey := loginEmailKey(req.Email)
 	if emailCapReached(h.Cache.Count(ctx, emailKey)) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(loginEmailFailWindow.Seconds())))
 		httpx.Err(w, http.StatusTooManyRequests, "too many attempts, try later")
 		return
 	}
@@ -237,6 +247,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	case err != nil:
 		slog.Error("refresh_unavailable", "err", err, "user", rc.UserID)
+		w.Header().Set("Retry-After", strconv.Itoa(refreshRetryAfterSeconds))
 		httpx.Err(w, http.StatusServiceUnavailable, "auth temporarily unavailable")
 		return
 	}

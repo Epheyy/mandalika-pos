@@ -21,7 +21,7 @@ func (h *Handlers) SyncVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := h.Sync.Version(r.Context(), c.outletID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		syncFail(w, r, err)
 		return
 	}
 	// A05: a 2xx here is the tablet's "last successful online contact"; sign it for the
@@ -38,7 +38,7 @@ func (h *Handlers) SyncPull(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := h.Sync.Pull(r.Context(), scope(r), c.outletID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		syncFail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": b})
@@ -73,7 +73,7 @@ func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
 		CanRefund: auth.HasPermission(r.Context(), "process_refund"),
 	}, items)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		syncFail(w, r, err)
 		return
 	}
 	h.invalidate(r)

@@ -70,7 +70,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
 	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, previewClock(body.ClientCreatedAt, time.Now()), c.outletID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	out := make([]api.LoyaltyPreviewReward, 0, len(rewards))
@@ -79,7 +79,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 		for _, p := range rw.Products {
 			vs := make([]api.LoyaltyPreviewVariant, 0, len(p.Variants))
 			for _, v := range p.Variants {
-				vs = append(vs, api.LoyaltyPreviewVariant{Size: v.Size, Price: float32(v.Price)})
+				vs = append(vs, api.LoyaltyPreviewVariant{Size: v.Size, Price: v.Price})
 			}
 			products = append(products, api.LoyaltyPreviewProduct{Id: p.ID, Name: p.Name, Variants: vs})
 		}

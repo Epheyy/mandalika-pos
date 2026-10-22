@@ -26,7 +26,7 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 ) {
 	body, err := service.DecodeOpenShift(r.Body)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	c, _ := resolveCaller(r)
@@ -35,7 +35,7 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 		CashierID: c.userID, CashierName: c.name, StartingCash: body.StartingCash,
 	})
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	h.invalidate(r)
@@ -54,12 +54,12 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 ) {
 	body, err := service.DecodeCloseShift(r.Body, false)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	c, _ := resolveCaller(r)
 	if err := close(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash, body.CountedByMethod); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	h.invalidate(r)
@@ -77,13 +77,13 @@ func (h *Handlers) CreateCashFlow(w http.ResponseWriter, r *http.Request) {
 		Description string  `json:"description"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	c, _ := h.caller(r)
 	if err := h.OrderSvc.ValidateShiftOutlet(r.Context(), c.outletID, body.ShiftID); err != nil {
 		if errors.Is(err, service.ErrShiftNotInOutlet) {
-			httpx.Err(w, http.StatusBadRequest, err.Error())
+			httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
 			return
 		}
 		slog.Error("shift ownership check failed", "err", err)

@@ -92,7 +92,7 @@ func (h *Handlers) CustomersLookup(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.Repo.CustomerByPhoneNorm(r.Context(), norm, lookupMaxRows)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
@@ -112,7 +112,7 @@ func (h *Handlers) lookupForReader(w http.ResponseWriter, r *http.Request) {
 		rows, err = h.Repo.CustomerLookup(r.Context(), q, limit)
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})

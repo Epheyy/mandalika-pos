@@ -59,7 +59,7 @@ func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters,
 
 	// Summary scalars (over the full filtered set). Fields are pointers, so
 	// scan into locals then take addresses. reward_value is numeric → scan into
-	// float64, narrow to the *float32 field.
+	// float64 (the field is format: double too, so no narrowing).
 	var tv float64
 	var ti, to int
 	if err := r.Pool.QueryRow(ctx,
@@ -67,8 +67,7 @@ func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters,
 	).Scan(&tv, &ti, &to); err != nil {
 		return sum, nil, 0, err
 	}
-	tvf := float32(tv)
-	sum.TotalValue = &tvf
+	sum.TotalValue = &tv
 	sum.TotalItems = &ti
 	sum.TotalOrders = &to
 
@@ -137,8 +136,8 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 	args := []any{f.DateFrom, f.DateTo, f.OutletID}
 
 	// Summary over the full filtered set. Fields are pointers, so scan into
-	// locals then take addresses. Value is numeric → scan into float64, narrow
-	// to the *float32 field.
+	// locals then take addresses. Value is numeric → scan into float64
+	// (the field is format: double too, so no narrowing).
 	var tr, dc int
 	var tv float64
 	if err := r.Pool.QueryRow(ctx,
@@ -146,9 +145,9 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 	).Scan(&tr, &tv, &dc); err != nil {
 		return sum, nil, 0, err
 	}
-	trv, tvv, dcv := tr, float32(tv), dc
+	trv, dcv := tr, dc
 	sum.TotalRedemptions = &trv
-	sum.TotalValue = &tvv
+	sum.TotalValue = &tv
 	sum.DistinctCodes = &dcv
 
 	// Total group count (grouped subquery mirrors the page's GROUP BY).

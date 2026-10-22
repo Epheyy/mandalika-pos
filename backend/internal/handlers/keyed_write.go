@@ -71,7 +71,7 @@ func (h *Handlers) keyedMutated(w http.ResponseWriter, r *http.Request, kw keyed
 	}
 	payload, err := json.Marshal(kw.Payload)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	uid := callerUserID(r)
@@ -136,7 +136,7 @@ func (h *Handlers) unkeyedMutated(w http.ResponseWriter, r *http.Request, kw key
 	h.invalidate(r)
 	out, err := kw.Outcome(r.Context(), h.Write.Pool)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, kw.status(), out)

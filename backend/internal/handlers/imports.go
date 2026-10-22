@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,9 @@ import (
 // importBodyCap bounds the JSON request (the CSV text itself is capped at 16 MiB inside
 // csvimport.Read); anything larger is refused with an explicit 413.
 const importBodyCap = 20 << 20
+
+// ImportBodyCap is exported so the server body-limit table reuses the number.
+const ImportBodyCap int64 = importBodyCap
 
 const maxIdempotencyKey = 200
 
@@ -49,6 +53,22 @@ const (
 	importWriteWindow = 150 * time.Second
 )
 
+const (
+	importSlotRetryAfterSeconds = 5 // another import holds a slot; imports take seconds
+	importBusyRetryAfterSeconds = 2 // lock conflict, nothing applied
+)
+
+// answerImportBusy answers a lock conflict (write.ErrBusy) as a retryable 503 and
+// reports whether it did.
+func answerImportBusy(w http.ResponseWriter, err error) bool {
+	if !errors.Is(err, write.ErrBusy) {
+		return false
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(importBusyRetryAfterSeconds))
+	httpx.Err(w, http.StatusServiceUnavailable, "sibuk, coba lagi (proses lain sedang memakai data yang sama); tidak ada data yang diubah")
+	return true
+}
+
 func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
 	slots := h.importSlots
 	if slots == nil { // a Handlers built without New still gets the default limit
@@ -58,6 +78,7 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 	case slots <- struct{}{}:
 		defer func() { <-slots }()
 	default:
+		w.Header().Set("Retry-After", strconv.Itoa(importSlotRetryAfterSeconds))
 		httpx.Err(w, http.StatusTooManyRequests, "sibuk, coba lagi sebentar (impor lain sedang berjalan)")
 		return
 	}
@@ -106,14 +127,17 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 	}
 	req.UserID, _ = r.Context().Value(auth.CtxUserID).(string)
 
-	res, err := h.Write.RunImport(r.Context(), req)
-	if errors.Is(err, write.ErrBusy) {
-		httpx.Err(w, http.StatusServiceUnavailable, "sibuk, coba lagi (proses lain sedang memakai data yang sama); tidak ada data yang diubah")
+	run := h.Write.RunImport
+	if h.importRunner != nil {
+		run = h.importRunner
+	}
+	res, err := run(r.Context(), req)
+	if answerImportBusy(w, err) {
 		return
 	}
 	if write.IsStockGuardRefusal(err) {
 		// D13: a rename of a stocked variant that a stale preview let through; nothing applied.
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if err != nil {

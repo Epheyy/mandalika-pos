@@ -13,6 +13,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
+	"github.com/mandalika/pos-backend/internal/read"
 )
 
 // ErpCatalogRunner runs one ERP catalog pull. *erp.Syncer satisfies it; tests inject fakes.
@@ -47,6 +48,40 @@ const (
 // SetErpCatalogRunner installs the pull job (nil disables the endpoints).
 func (h *Handlers) SetErpCatalogRunner(r ErpCatalogRunner) { h.erpPull = r }
 
+// erpDBErrorText replaces relayed or stored error text that carries database output.
+const erpDBErrorText = "database error (see server log)"
+
+func sanitizeErpText(s string) string {
+	if hasDBMarker(s) {
+		return erpDBErrorText
+	}
+	return s
+}
+
+func sanitizeErpPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	v := sanitizeErpText(*p)
+	return &v
+}
+
+// sanitizeErpRuns returns copies of the run and watermark rows with database text
+// removed from their error fields at output only; stored and logged text is unchanged.
+func sanitizeErpRuns(runs []read.ErpSyncRun, marks []read.ErpWatermark) ([]read.ErpSyncRun, []read.ErpWatermark) {
+	outRuns := make([]read.ErpSyncRun, len(runs))
+	for i, x := range runs {
+		x.Error = sanitizeErpPtr(x.Error)
+		outRuns[i] = x
+	}
+	outMarks := make([]read.ErpWatermark, len(marks))
+	for i, x := range marks {
+		x.LastError = sanitizeErpPtr(x.LastError)
+		outMarks[i] = x
+	}
+	return outRuns, outMarks
+}
+
 type erpPullResource struct {
 	Resource    string     `json:"resource"`
 	Mode        string     `json:"mode"`
@@ -72,7 +107,7 @@ func newErpPullReport(rep erp.CatalogReport) erpPullReport {
 		out.Resources = append(out.Resources, erpPullResource{
 			Resource: x.Resource, Mode: string(x.Mode), RunID: x.RunID, Status: x.Status, Pages: x.Pages,
 			Upserted: x.Upserted, Tombstoned: x.Tombstoned, Deactivated: x.Deactivated,
-			ItemErrors: x.ItemErrors, Error: x.Error, Watermark: x.Watermark,
+			ItemErrors: x.ItemErrors, Error: sanitizeErpText(x.Error), Watermark: x.Watermark,
 		})
 	}
 	return out
@@ -139,8 +174,9 @@ func (h *Handlers) ErpSyncRuns(w http.ResponseWriter, r *http.Request) {
 	}
 	runs, marks, err := h.Repo.ErpSyncRuns(r.Context(), limit)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
+	runs, marks = sanitizeErpRuns(runs, marks)
 	httpx.JSON(w, http.StatusOK, map[string]any{"runs": runs, "watermarks": marks})
 }

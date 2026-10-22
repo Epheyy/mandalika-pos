@@ -20,7 +20,7 @@ func (h *Handlers) Reminders(w http.ResponseWriter, r *http.Request) {
 	case "30":
 		window = 30
 	default:
-		writeErr(w, http.StatusBadRequest, errors.New("window harus 7 atau 30"))
+		writeErr(w, r, http.StatusBadRequest, errors.New("window harus 7 atau 30"))
 		return
 	}
 	typ := r.URL.Query().Get("type")
@@ -30,12 +30,12 @@ func (h *Handlers) Reminders(w http.ResponseWriter, r *http.Request) {
 	case "birthday", "anniversary":
 		// ok
 	default:
-		writeErr(w, http.StatusBadRequest, errReminderType)
+		writeErr(w, r, http.StatusBadRequest, errReminderType)
 		return
 	}
 	rows, total, err := h.Repo.Reminders(r.Context(), time.Now(), window, typ, p, l)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.ReminderListResponse{Data: rows, Meta: *meta(total, p, l)})

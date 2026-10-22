@@ -75,7 +75,7 @@ func (h *Handlers) SetOutletPar(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) InventoryOverview(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.Repo.InventoryOverview(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -84,7 +84,7 @@ func (h *Handlers) InventoryOverview(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) IngredientOverview(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.Repo.IngredientOverview(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -102,7 +102,7 @@ func (h *Handlers) MovementSummary(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	rows, total, err := h.Repo.MovementSummary(r.Context(), kind, id, from, to, p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.MovementSummaryResponse{Data: rows, Meta: *meta(total, p, l)})

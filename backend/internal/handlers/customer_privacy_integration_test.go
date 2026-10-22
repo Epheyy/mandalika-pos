@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,6 +137,7 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		r.Get("/sync/pull", h.SyncPull)
 		r.Get("/discount-codes", h.DiscountCodes)
 		r.Get("/orders", h.Orders)
+		r.Post("/sync/batch", h.SyncBatch)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireCustomerReader())
 			r.Get("/customers", h.Customers)
@@ -433,6 +435,153 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 					t.Errorf("%s q=%s = %d orders, want 1", who, q, n)
 				}
 			}
+		}
+	})
+
+	// ERP review S-1: customer_create must never overwrite an existing customer.
+	t.Run("sync customer_create cannot overwrite an existing customer", func(t *testing.T) {
+		const (
+			shift  = "00000000-0000-4000-8f20-0000000000b1"
+			device = "00000000-0000-4000-8f20-0000000000b2"
+			newID  = "00000000-0000-4000-8f20-0000000000b3"
+		)
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,starting_cash) VALUES($1,$2,$3,'cp-cashier','open',now(),0)`, shift, outlet, uCashier)
+		send := func(key, id, name, phone, email string) syncpkg.ItemResult {
+			t.Helper()
+			payload := map[string]any{"customerId": id, "name": name, "phone": phone}
+			if email != "" {
+				payload["email"] = email
+			}
+			raw, err := json.Marshal(map[string]any{"items": []map[string]any{{
+				"type": "customer_create", "idempotencyKey": device + ":" + key, "payload": payload,
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": uCashier, "deviceId": device,
+					"capturedAt": time.Now().UTC().Format(time.RFC3339), "shiftId": shift},
+			}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodPost, "/sync/batch", strings.NewReader(string(raw)))
+			r.Header.Set("Authorization", "Bearer "+tok["cashier"])
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			var out struct {
+				Data syncpkg.BatchResult `json:"data"`
+			}
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Data.Results) != 1 {
+				t.Fatalf("batch status=%d body=%.300s", w.Code, w.Body.String())
+			}
+			return out.Data.Results[0]
+		}
+		row := func(id string) string {
+			t.Helper()
+			var s string
+			if err := pool.QueryRow(ctx, `SELECT name||'|'||phone||'|'||COALESCE(email,'') FROM customers WHERE id=$1`, id).Scan(&s); err != nil {
+				t.Fatal(err)
+			}
+			return s
+		}
+		dups := func() int {
+			t.Helper()
+			var n int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM customer_dup_candidates`).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		const stored = "Alice Priv|0812-3456-7890|alice@example.invalid"
+
+		// 1. different data under a new key is refused, unchanged, and leaks nothing.
+		res := send("s1-attack", custA, "Mallory Evil", "0899-9999-9999", "mallory@example.invalid")
+		if res.Status != "error" || res.Code != "conflict" || res.Retryable == nil || *res.Retryable {
+			t.Fatalf("overwrite attempt = %+v, want non-retryable conflict", res)
+		}
+		for _, v := range []string{"Alice", "0812", "alice@", "Mallory", "0899", "mallory@"} {
+			if strings.Contains(res.Error, v) {
+				t.Errorf("conflict message leaks %q: %s", v, res.Error)
+			}
+		}
+		if got := row(custA); got != stored {
+			t.Fatalf("customer A overwritten: %s", got)
+		}
+
+		// 2. identical replay under a new key succeeds with the same id and changes nothing.
+		res = send("s2-replay", custA, "Alice Priv", "0812-3456-7890", "alice@example.invalid")
+		if res.Status != "ok" || res.Error != "" || res.OrderID != custA {
+			t.Fatalf("identical replay = %+v, want ok with id %s", res, custA)
+		}
+		if got := row(custA); got != stored {
+			t.Fatalf("replay changed customer A: %s", got)
+		}
+
+		// 2b. email is not compared (it would be an email-guess oracle) and never written.
+		res = send("s2b-email", custA, "Alice Priv", "0812-3456-7890", "guess@example.invalid")
+		if res.Status != "ok" || res.OrderID != custA {
+			t.Fatalf("different-email replay = %+v, want ok", res)
+		}
+		if got := row(custA); got != stored {
+			t.Fatalf("email guess changed customer A: %s", got)
+		}
+		for i, c := range [][2]string{{"Other Name", "0812-3456-7890"}, {"Alice Priv", "0899-0000-0000"}} {
+			res = send(fmt.Sprintf("s2c-%d", i), custA, c[0], c[1], "alice@example.invalid")
+			if res.Status != "error" || res.Code != "conflict" {
+				t.Fatalf("name/phone mismatch %v = %+v, want conflict", c, res)
+			}
+			if got := row(custA); got != stored {
+				t.Fatalf("mismatch changed customer A: %s", got)
+			}
+		}
+
+		// 2d. a replay of a customer that recorded a dup candidate records no second one.
+		const dupID = "00000000-0000-4000-8f20-0000000000b4"
+		before := dups()
+		res = send("s2d-create", dupID, "Dup Of Alice", "0812-3456-7890", "")
+		if res.Status != "ok" || dups() != before+1 {
+			t.Fatalf("create with a shared raw phone: %+v dups %d -> %d, want one new candidate", res, before, dups())
+		}
+		// The pair is unique, so clear it: a re-record on replay would otherwise be a silent no-op.
+		exec(`DELETE FROM customer_dup_candidates WHERE new_customer_id=$1`, dupID)
+		before = dups()
+		res = send("s2d-replay", dupID, "Dup Of Alice", "0812-3456-7890", "")
+		if res.Status != "ok" || res.OrderID != dupID {
+			t.Fatalf("dup replay = %+v", res)
+		}
+		if after := dups(); after != before {
+			t.Fatalf("dup candidates %d -> %d after identical replay, want unchanged", before, after)
+		}
+
+		// 2e. a since-merged (tombstoned) customer: identical replay ok, mismatch conflict.
+		const oldRow = "Alice Old|081234567890|"
+		res = send("s2e-replay", custOld, "Alice Old", "081234567890", "")
+		if res.Status != "ok" || res.OrderID != custOld {
+			t.Fatalf("merged identical replay = %+v, want ok with id %s", res, custOld)
+		}
+		for i, c := range [][2]string{{"Not Old", "081234567890"}, {"Alice Old", "0855-5555-5555"}} {
+			res = send(fmt.Sprintf("s2e-%d", i), custOld, c[0], c[1], "")
+			if res.Status != "error" || res.Code != "conflict" {
+				t.Fatalf("merged mismatch %v = %+v, want conflict", c, res)
+			}
+		}
+		if got := row(custOld); got != oldRow {
+			t.Fatalf("merged customer changed: %s", got)
+		}
+		var mi string
+		if err := pool.QueryRow(ctx, `SELECT merged_into FROM customers WHERE id=$1`, custOld).Scan(&mi); err != nil || mi != custA {
+			t.Fatalf("merged_into = %q %v", mi, err)
+		}
+
+		// 3. same key replay is served from the receipt.
+		again := send("s2-replay", custA, "Alice Priv", "0812-3456-7890", "alice@example.invalid")
+		if again.Status != "ok" && again.Status != "duplicate" {
+			t.Fatalf("same-key replay = %+v", again)
+		}
+
+		// 4. a brand-new id is created.
+		res = send("s4-new", newID, "Fresh Customer", "0877-1234-5678", "")
+		if res.Status != "ok" {
+			t.Fatalf("new customer = %+v", res)
+		}
+		if got := row(newID); got != "Fresh Customer|0877-1234-5678|" {
+			t.Fatalf("new customer row = %s", got)
 		}
 	})
 }

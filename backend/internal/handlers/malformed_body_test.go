@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -83,5 +84,16 @@ func TestShiftReceiptFields(t *testing.T) {
 	closed := closedShiftReceipt("11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", 75, now)
 	if closed.Status != "closed" || closed.Id.String() != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("closed receipt: %+v", closed)
+	}
+}
+
+func TestDecodeOptionalBodyKeepsMaxBytesErrorOnTrailingInput(t *testing.T) {
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	r.Body = http.MaxBytesReader(rec, io.NopCloser(strings.NewReader(`{"a":1}`+strings.Repeat(" ", 64)+`x`)), 16)
+	var v struct{}
+	err := decodeOptionalBody(r, &v)
+	if !isBodyTooLarge(err) {
+		t.Fatalf("err = %v, want a *http.MaxBytesError in the chain", err)
 	}
 }

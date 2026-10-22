@@ -17,7 +17,7 @@ var skuMappingColumns = []string{"variant_id", "product", "size", "sku", "has_st
 func (h *Handlers) ExportSkuMapping(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.SkuMappingExport(r.Context())
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")

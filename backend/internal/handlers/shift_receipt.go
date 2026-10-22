@@ -27,6 +27,9 @@ func decodeOptionalBody(r *http.Request, v any) error {
 		return err
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		if isBodyTooLarge(err) {
+			return err // keep *http.MaxBytesError so callers answer 413, not 400
+		}
 		return errors.New("unexpected trailing input")
 	}
 	return nil

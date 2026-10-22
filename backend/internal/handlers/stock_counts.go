@@ -40,7 +40,7 @@ func (h *Handlers) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
 	// No outlet guard — the repo (lockCount) authorizes: outlet counts must match
 	// the caller's outlet; warehouse counts are permission-gated by the route.
 	err := h.Write.UpdateStockCount(r.Context(), chi.URLParam(r, "id"), c.outletID, body)
-	if countConflict(w, err) {
+	if countConflict(w, r, err) {
 		return
 	}
 	h.mutated(w, r, err)
@@ -48,9 +48,9 @@ func (h *Handlers) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
 
 // countConflict answers a stock count lifecycle refusal (apperr.Conflict) with 409
 // and its Indonesian message; every other error is left to the caller's mapping.
-func countConflict(w http.ResponseWriter, err error) bool {
+func countConflict(w http.ResponseWriter, r *http.Request, err error) bool {
 	if code, ok := apperr.CodeOf(err); ok && code == apperr.Conflict {
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return true
 	}
 	return false
@@ -63,7 +63,7 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 	// Empty body = finalize from the stored draft items; a malformed one is a 400
 	// with nothing applied.
 	if err := decodeOptionalBody(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	c, _ := h.caller(r)
@@ -86,6 +86,6 @@ func (h *Handlers) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 			}
 			return json.Marshal(map[string]any{"data": v})
 		},
-		OnErr: func(w http.ResponseWriter, err error) bool { return countConflict(w, err) },
+		OnErr: func(w http.ResponseWriter, err error) bool { return countConflict(w, r, err) },
 	})
 }

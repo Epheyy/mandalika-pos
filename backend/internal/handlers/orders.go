@@ -120,7 +120,7 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 			httpx.Err(w, http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi")
 			return
 		}
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	if h.Cache != nil {
@@ -133,7 +133,7 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 func (h *Handlers) returnOrder(w http.ResponseWriter, r *http.Request, id string) {
 	o, err := h.Repo.Order(r.Context(), scope(r), id)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"data": o})
@@ -168,6 +168,10 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
+		if isBodyTooLarge(err) {
+			writeDecodeErr(w, err)
+			return
+		}
 		httpx.Err(w, http.StatusBadRequest, "Isi permintaan refund tidak valid.")
 		return
 	}

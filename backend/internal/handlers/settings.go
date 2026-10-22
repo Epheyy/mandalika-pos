@@ -10,7 +10,7 @@ import (
 func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	h.mutated(w, r, h.Write.UpdateAppSettings(r.Context(), raw))
@@ -19,7 +19,7 @@ func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	if err := httpx.DecodeLoose(r, &raw); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	h.mutated(w, r, h.Write.UpdateLoyaltySettings(r.Context(), raw))

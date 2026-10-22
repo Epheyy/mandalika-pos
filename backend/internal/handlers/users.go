@@ -34,7 +34,7 @@ func (h *Handlers) ListUsers(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) GetUser(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Repo.User(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.UserResponse{Data: v})
@@ -44,7 +44,7 @@ func (h *Handlers) GetUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateUserRequest
 	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	outlet := ""
@@ -58,12 +58,12 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := h.Store.CreateUser(r.Context(), string(req.Email), req.Password,
 		req.DisplayName, string(req.Role), outlet, perms)
 	if err != nil {
-		httpx.Err(w, http.StatusBadRequest, "create failed: "+err.Error())
+		writeUserErr(w, r, "create failed: ", err)
 		return
 	}
 	u, err := h.Repo.User(r.Context(), id)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, api.UserResponse{Data: u})
@@ -73,7 +73,7 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req api.UpdateUserRequest
 	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	var role *string
@@ -103,12 +103,12 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 			httpx.Err(w, http.StatusNotFound, "not found")
 			return
 		}
-		httpx.Err(w, http.StatusBadRequest, "update failed: "+err.Error())
+		writeUserErr(w, r, "update failed: ", err)
 		return
 	}
 	u, err := h.Repo.User(r.Context(), id)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.UserResponse{Data: u})
@@ -121,7 +121,7 @@ func (h *Handlers) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -133,7 +133,7 @@ func (h *Handlers) SetUserReceivePin(w http.ResponseWriter, r *http.Request) {
 		Clear *bool   `json:"clear"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
-		httpx.Err(w, http.StatusBadRequest, "invalid body")
+		writeDecodeErr(w, err)
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -159,4 +159,14 @@ func validReceivePin(pin string) bool {
 		}
 	}
 	return true
+}
+
+// writeUserErr answers a user create/update failure: a domain refusal keeps its
+// prefixed text, a database error (e.g. a duplicate email) is sanitised.
+func writeUserErr(w http.ResponseWriter, r *http.Request, prefix string, err error) {
+	status, msg := classifyErr(r, http.StatusBadRequest, err)
+	if status == http.StatusBadRequest && msg == err.Error() {
+		msg = prefix + msg
+	}
+	httpx.Err(w, status, msg)
 }

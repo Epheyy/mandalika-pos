@@ -32,6 +32,11 @@ type Engine struct {
 	// LegacyEnvelopeUntil ends the grace period for items without a capture-time
 	// envelope (SYNC_LEGACY_ENVELOPE_UNTIL). Zero = no cutoff: accept and warn.
 	LegacyEnvelopeUntil time.Time
+	// WorkBudget bounds the item-processing time of one batch (zero = DefaultWorkBudget).
+	WorkBudget time.Duration
+	// testProcess and testVersion replace processOne and Version (tests only).
+	testProcess func(context.Context, Caller, BatchItem) ItemResult
+	testVersion func(context.Context, string) (VersionInfo, error)
 	// Now is injectable for tests; nil = time.Now.
 	Now func() time.Time
 	// Lookup is injectable for tests; nil = queries on Pool.

@@ -26,7 +26,7 @@ func (h *Handlers) Transfers(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, total, err := h.Repo.Transfers(r.Context(), status, from, to, locKind, locID, p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.TransferListResponse{Data: rows, Meta: *meta(total, p, l)})
@@ -35,7 +35,7 @@ func (h *Handlers) Transfers(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) Transfer(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Repo.Transfer(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 0, err) // writeErr maps read.ErrNotFound → 404
+		writeErr(w, r, 0, err) // writeErr maps read.ErrNotFound → 404
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": v})
@@ -54,7 +54,7 @@ func (h *Handlers) TransferLocationStock(w http.ResponseWriter, r *http.Request)
 	}
 	rows, err := h.Repo.LocationStock(r.Context(), kind, id)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
@@ -119,7 +119,7 @@ func (h *Handlers) GetInboundTransfers(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.Repo.TransfersForOutlet(r.Context(), c.outletID, "in_transit")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
@@ -138,7 +138,7 @@ func (h *Handlers) GetOutletTransfers(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.Repo.OutletTransferHistory(r.Context(), c.outletID, status)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})

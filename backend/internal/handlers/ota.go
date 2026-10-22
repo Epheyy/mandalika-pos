@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/ota"
 )
 
@@ -33,10 +35,6 @@ func validateOtaPublish(in ota.Release) error {
 	return nil
 }
 
-// errOtaUnavailable is the generic error surfaced to the PUBLIC /ota/check on a
-// backend fault — the real error is logged, never echoed to an unauth caller.
-var errOtaUnavailable = errors.New("ota check unavailable")
-
 // OtaCheck is the PUBLIC Capgo self-hosted update endpoint. The plugin POSTs
 // AppInfos; we read only platform + version_name + version_build + version_code (the APK
 // versionCode: a bundle is only offered to the build it targets) and reply with the BARE Capgo
@@ -54,7 +52,10 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 		DeviceID string `json:"device_id"`
 		CustomID string `json:"custom_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); isBodyTooLarge(err) {
+		httpx.Err(w, http.StatusRequestEntityTooLarge, "request body too large")
+		return
+	}
 	platform := strings.ToLower(strings.TrimSpace(body.Platform))
 	if platform == "" {
 		platform = "android"
@@ -72,9 +73,8 @@ func (h *Handlers) OtaCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	latest, err := h.Repo.LatestOtaRelease(r.Context(), platform, code)
 	if err != nil {
-		// Public endpoint: log the real error, echo only a generic message.
-		slog.Error("ota check: latest release", "platform", platform, "err", err)
-		writeErr(w, http.StatusInternalServerError, errOtaUnavailable)
+		// Public endpoint: writeErr logs the real error once and echoes only a generic message.
+		writeErr(w, r, http.StatusInternalServerError, fmt.Errorf("ota check: latest release (%s): %w", platform, err))
 		return
 	}
 	resp := ota.Decide(latest, body.VersionName, body.VersionBuild)
@@ -116,13 +116,13 @@ func (h *Handlers) OtaPublish(w http.ResponseWriter, r *http.Request) {
 		in.Platform = "android"
 	}
 	if err := validateOtaPublish(in); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	id, err := h.Write.PublishOtaRelease(r.Context(), in, uid)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"id": id})

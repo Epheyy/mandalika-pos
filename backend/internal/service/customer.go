@@ -42,8 +42,8 @@ type CreateCustomerInput struct {
 	Email string
 }
 
-// CreateCustomer inserts (or upserts) a customer using the client-provided UUID,
-// so offline new-customer creation works and is replay-safe.
+// CreateCustomer inserts a customer using the client-provided UUID, so offline
+// new-customer creation works and is replay-safe. It never overwrites an existing row.
 func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInput) (string, error) {
 	if in.Name == "" || in.Phone == "" {
 		return "", apperr.New(apperr.Rejected, "customer requires name and phone")
@@ -60,7 +60,13 @@ func (s *OrderService) CreateCustomer(ctx context.Context, in CreateCustomerInpu
 	return id, tx.Commit(ctx)
 }
 
-// CreateCustomerTx is CreateCustomer inside a caller-owned transaction.
+// CreateCustomerTx is CreateCustomer inside a caller-owned transaction. An id that
+// already exists is only accepted when the stored name and phone equal the input
+// (an identical replay under a new idempotency key); otherwise it is a Conflict and
+// the stored row is left untouched. The stored row is never modified. Email is
+// deliberately NOT compared: the cashier lookup exposes id/name/phone but not email,
+// so an ok-vs-conflict answer on email would let a cashier guess it. The error never
+// echoes the stored row's data.
 func (s *OrderService) CreateCustomerTx(ctx context.Context, tx pgx.Tx, in CreateCustomerInput) (string, error) {
 	if in.Name == "" || in.Phone == "" {
 		return "", apperr.New(apperr.Rejected, "customer requires name and phone")
@@ -69,10 +75,23 @@ func (s *OrderService) CreateCustomerTx(ctx context.Context, tx pgx.Tx, in Creat
 	err := tx.QueryRow(ctx, `
 		INSERT INTO customers (id, name, phone, email)
 		VALUES (COALESCE(NULLIF($1,'')::uuid, gen_random_uuid()), $2, $3, $4)
-		ON CONFLICT (id) DO UPDATE
-		  SET name = EXCLUDED.name, phone = EXCLUDED.phone, email = EXCLUDED.email
+		ON CONFLICT (id) DO NOTHING
 		RETURNING id`,
 		in.ID, in.Name, in.Phone, nullStr(in.Email)).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Id already taken (in.ID is non-empty here: an empty id gets a fresh uuid).
+		var same bool
+		if err := tx.QueryRow(ctx, `
+			SELECT id::text, name = $2 AND phone = $3
+			FROM customers WHERE id = $1::uuid`,
+			in.ID, in.Name, in.Phone).Scan(&id, &same); err != nil {
+			return "", fmt.Errorf("create customer: read back existing: %w", err)
+		}
+		if !same {
+			return "", apperr.New(apperr.Conflict, "ID pelanggan sudah dipakai pelanggan lain; data tidak diubah")
+		}
+		return id, nil // identical replay: nothing to change, no new dup candidate
+	}
 	if err != nil {
 		return "", fmt.Errorf("create customer: %w", err)
 	}
