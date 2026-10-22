@@ -35,7 +35,7 @@ Release state: release 8 (backend `00118-gup`, migrations through 0063, OTA 2.1.
 | A26 | Reports aggregate 50 rows | Parent-open | F5 payment filter, F6 Rp0 flash, Dashboard 'Semua' unbounded, float32 input schemas, summary+q at 500k not measured; the 50-row export/list bug is FIXED and LIVE in release 9 (pagefix) |
 | A27 | Summary double subtraction | Done-live (rel8) | F1 per-product net of returns, F2 grant/code reports on refund basis |
 | A28 | Business time | Done-live (rel8) | code-report 'kedaluwarsa' label + segment recency on Jakarta time; BD gate gaps |
-| A29 | Error/batch contracts | Parent-open (server half done locally 2026-10-22, unpushed) | Server done on branch `claude/epic-williamson-532ec6`: sanitised direct-handler errors (`6ae5f72`), Retry-After on 429/503 + default request deadline 25 s / 28 s + sync work budget 20 s (`b0d94f0`), 520-item queue test on local Docker PG, not Neon (`86dd18f`). OPEN, separate POS slice (SyncEngine + OTA, owner gate): client does not read Retry-After (nothing in `packages/` reads it; `classifyFailure` `packages/sync/src/engine.ts:187-199`); no default deadline on non-batch calls (`packages/api/src/client.ts:487-490` only when `timeoutMs` is passed); review lows `engine.ts:562`, `:935` |
+| A29 | Error/batch contracts | Parent-open (server half LIVE 2026-10-22, backend `00126-seh`) | Server done and live: sanitised direct-handler errors (`6ae5f72`), Retry-After on 429/503 + default request deadline 25 s / 28 s + sync work budget 20 s (`b0d94f0`), 520-item queue test on local Docker PG, not Neon (`86dd18f`). OPEN, separate POS slice (SyncEngine + OTA, owner gate): client does not read Retry-After (nothing in `packages/` reads it; `classifyFailure` `packages/sync/src/engine.ts:187-199`); no default deadline on non-batch calls (`packages/api/src/client.ts:487-490` only when `timeoutMs` is passed); review lows `engine.ts:562`, `:935` |
 | A30 | Permission matrix / privacy | Done-live (rel8) | owner calls L1/L3/L5 (defaults built); Q1 answered 2026-10-20 (separate systems) |
 | A31 | Stale polling overwrite | Done | – |
 | A32 | Migration/pool budget | Done-live (rel2) | optional rollback drill |
@@ -53,13 +53,13 @@ Release state: release 8 (backend `00118-gup`, migrations through 0063, OTA 2.1.
 | A44 | Oversell exceptions | Done-live (rel4) | deferred lows L3/L4/L6/L7/L8 |
 
 ## ERP developer's backend review (BACKEND_ARCHITECTURE_REVIEW.md), cheap items, 2026-10-22
-Done locally on branch `claude/epic-williamson-532ec6` (6 commits on `4052fe8`, unpushed, Opus-reviewed, gates green; backend-only, no migration, no OTA/APK):
+LIVE 2026-10-22 (merge `a03ac9d` + CI fix `a2fddd7`, backend revision `00126-seh`; Opus-reviewed, gates green; backend-only, no migration, no OTA/APK):
 | Review ID | State | Commit / notes |
 |---|---|---|
-| R-1 body caps | Done locally | `e134ad7`: global 1 MiB cap, method+path exception table (sync batch/review 8 MiB, imports 20 MiB, stock-count create / ingredient count save 8 MiB). Shift open/close still answer 400 (not 413) on a chunked oversized body (`service/shift_input.go` drops the error); cap holds. |
-| E-1 raw DB errors | Done locally | `6ae5f72`: classifier by error chain; generic `internal error (ref <request id>)`; GET /products/not-a-uuid 500 -> 400; sync routes always 500; source-scan guard. |
-| D-1 float32 money | Done locally | `b448c1e`: 59 money fields `format: double`; also fixed the outlet price-override write (float32 at HEAD); generated-type guard test. Quantities and rates stay float32. |
-| S-1 customer overwrite | Done locally | `cac0019`: ON CONFLICT DO NOTHING + name/phone read-back, conflict otherwise; email not compared (avoids a guessing oracle; never written). |
+| R-1 body caps | Live | `e134ad7`: global 1 MiB cap, method+path exception table (sync batch/review 8 MiB, imports 20 MiB, stock-count create / ingredient count save 8 MiB). Shift open/close still answer 400 (not 413) on a chunked oversized body (`service/shift_input.go` drops the error); cap holds. |
+| E-1 raw DB errors | Live | `6ae5f72`: classifier by error chain; generic `internal error (ref <request id>)`; GET /products/not-a-uuid 500 -> 400; sync routes always 500; source-scan guard. |
+| D-1 float32 money | Live | `b448c1e`: 59 money fields `format: double`; also fixed the outlet price-override write (float32 at HEAD); generated-type guard test. Quantities and rates stay float32. |
+| S-1 customer overwrite | Live | `cac0019`: ON CONFLICT DO NOTHING + name/phone read-back, conflict otherwise; email not compared (avoids a guessing oracle; never written). |
 | Pre-existing, open | Follow-up | Orders resolve any `customerId` without outlet/device check (`service/order.go:389-397`): a cashier with an id from the phone lookup can attach orders and redeem points (capped at balance). Owner call. |
 | Flaky test, open | Follow-up | `internal/redact` `TestScannersScaleLinearly` failed once under full-suite load (wall-clock ratio), passed 5/5 alone and on rerun. |
 
