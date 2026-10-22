@@ -4,6 +4,11 @@ Tanggal: 2026-10-21. Penulis: tim POS. Pembaca: developer ERP.
 Dasar analisis: ERP `main` @ `1c1d08f5`, POS `prod-hardening` @ `4b0f7f7`.
 Analisis teknis lengkap (bahasa Inggris): `docs/plans/2026-10-21-erp-flamboyan-compatibility-assessment.md`.
 
+> **Status 2026-10-22:** seluruh pekerjaan sisi POS di dokumen ini (§5 P-A s.d. P-H) sudah selesai, digabung, dan berjalan di
+> lingkungan uji (Cloud Run revisi `00124-duv`, migrasi 0064–0066, ledger terisi, backfill selesai). Tarik katalog dan relay
+> dimatikan sampai ERP tersedia. Yang tersisa ada di sisi ERP (§4) dan jawaban §11. POS juga menyediakan **stub** kontrak
+> (`backend/cmd/erpstub`) dan spesifikasi OpenAPI `docs/integration/stock-documents.v1.yaml` sebagai acuan implementasi ERP.
+
 Dokumen ini menjawab tiga hal:
 
 1. Apa yang POS butuhkan dari ERP (endpoint, field, semantik).
@@ -40,14 +45,14 @@ Setiap peristiwa berikut mengubah stok di POS. Semua peristiwa ini harus terbaca
 |---|---|---|---|---|
 | Penjualan (`sale`) | Tablet | − per baris | `orders`, `order_items` | Ya |
 | Refund (`refund`) | Tablet/backoffice | + per baris (seluruh order) | status `orders` | Ya |
-| Kirim transfer (`transfer_out`) | Backoffice | − sumber | `transfers`, `transfer_items` | Belum (akan ditambah) |
+| Kirim transfer (`transfer_out`) | Backoffice | − sumber | `transfers`, `transfer_items` | Ya (sejak 2026-10-22) |
 | Terima transfer (`transfer_in`) | Tablet/backoffice | + tujuan (qty aktual) | `transfers` | Ya |
-| Batal transfer in-transit (`transfer_cancel`) | Backoffice | + sumber | `transfers` | Belum (akan ditambah) |
-| Penerimaan barang (`receipt`) | Backoffice | + outlet/gudang | `goods_receipts` | Belum (akan ditambah) |
-| Penyesuaian stok (`adjust`) | Backoffice | set absolut | `warehouse_stock_adjustments` | Belum (akan ditambah) |
-| Stock opname (`count`) | Backoffice | delta per baris | `stock_counts`, `stock_count_items` | Status-guard (akan ditambah key) |
-| Saldo awal (`opening`) | Migrasi/backfill | + | baru | Baru |
-| Hapus varian dengan stok (`write_off`) | Backoffice | − | baru | Baru |
+| Batal transfer in-transit (`transfer_cancel`) | Backoffice | + sumber | `transfers` | Ya (sejak 2026-10-22) |
+| Penerimaan barang (`receipt`) | Backoffice | + outlet/gudang | `goods_receipts` | Ya (sejak 2026-10-22) |
+| Penyesuaian stok (`adjust`) | Backoffice | set absolut | `warehouse_stock_adjustments` | Ya (sejak 2026-10-22) |
+| Stock opname (`count`) | Backoffice | delta per baris | `stock_counts`, `stock_count_items` | Ya (sejak 2026-10-22) |
+| Saldo awal (`opening`) | Backfill (sudah dijalankan) | + | `stock_movements` | Ya |
+| Hapus varian dengan stok (`write_off`) | Backoffice | − | ditolak (409) selama stok ≠ 0 | n/a |
 
 Peristiwa lain yang **tidak** mengubah stok FG dan **tidak** dikirim ke ERP pada fase ini: buka/tutup shift, arus kas, pelanggan dan loyalti, promo, OTA. Bahan baku (ingredients) punya alur paralel di POS, tetapi penjualan belum mengonsumsi bahan baku. Lihat §9.
 
@@ -197,6 +202,11 @@ Kami menyarankan A. Dengan A, `GET /outlets/{code}/stock` dapat membaca saldo li
 
 ## 5. Yang dilakukan POS
 
+**Status 2026-10-22: semua butir di bawah SELESAI dan berjalan di lingkungan uji.** Rincian: ledger
+`stock_movements` (migrasi 0064) ditulis dalam transaksi yang sama oleh setiap penulis stok; outbox `erp_outbox` (0065) diisi
+oleh ledger; relay dan tarik katalog siap tetapi dimatikan; kolom id eksternal (0066) ada; pemetaan SKU satu kali menunggu
+ekspor `code` + `slug` dari ERP (Q6).
+
 | # | Pekerjaan | Perubahan | Catatan |
 |---|---|---|---|
 | P-A | Reorganisasi backend Go ke modul per fitur (`internal/catalog`, `internal/stock`, `internal/orders`, …) dengan tes aturan dependensi. | Tanpa perubahan perilaku. CI harus hijau sebelum pekerjaan lain. | Menjawab temuan developer ERP tentang struktur. |
@@ -265,6 +275,9 @@ Pola ini sama dengan praktik umum: POS memiliki stok live, ERP/akuntansi menerim
 ---
 
 ## 8. Timeline demo 2 November 2026 dan pembagian kerja
+
+**Status 2026-10-22: seluruh kolom POS di tabel ini selesai lebih awal.** Yang tersisa: kolom ERP (hosting, scope tulis,
+endpoint `stock-documents`, saldo live, client + API key) dan jawaban §11. Tanggal uji bersama bergeser mengikuti kesiapan ERP.
 
 Hari kerja tersisa: 22, 23, 26, 27, 28, 29, 30 Oktober (7 hari). 2 November adalah hari demo.
 
@@ -347,13 +360,13 @@ saat ERP punya endpoint tulis). Daftar ini menggabungkan §9, §4, dan temuan im
 |---|---|---|
 | Q1 **[D]** | Induk produk: apakah ERP menambah `product_slug` (atau field setara) di record FG katalog? Bila tidak, POS memakai aturan "nama tanpa ukuran dalam kategori yang sama" sebagai `erp_group_key` sementara. | §3.1 K1, §14.4 analisis |
 | Q2 **[D]** | Konvensi `size` non-ml (`finish_good_sizes.size` integer). Hari ini POS menurunkan label "30pcs" bila `unit` = PCS. Apakah itu benar, dan bagaimana tester, gift set, bundel? | §3.1 K2 |
-| Q3 **[D]** | Apakah FG berstatus `PENDING` boleh dijual? POS saat ini memperlakukan `PENDING` dan `NEW_LAUNCHING` sebagai aktif, `DISCONTINUE` dan tombstone sebagai nonaktif. | pull katalog |
+| Q3 **[D]** | Apakah FG berstatus `PENDING` boleh dijual? | **DIJAWAB (pemilik, 2026-10-22): tidak boleh dijual.** POS kini memperlakukan `PENDING`, `DISCONTINUE`, dan tombstone sebagai nonaktif; `ACTIVE`, `FAVOURITE`, `NEW_LAUNCHING` aktif. |
 | Q4 | Perubahan nama kategori, unit, atau nilai `size` tidak mengubah `updated_at` FG (README ERP). POS hanya melihatnya pada full run harian. Bisakah ERP mem-bump `updated_at` FG saat data turunan berubah? | README §Full sync |
 | Q5 | Hapus permanen (purge) dari trash hanya tertangkap oleh full reconcile. Apakah ada jeda minimum sebelum purge, atau endpoint daftar id yang dipurge? | README §Record yang dihapus |
 | Q6 **[D]** | Ekspor `code` + `slug` FG (CSV) untuk pemetaan SKU satu kali di POS. Bisakah ERP menyediakannya dari UI atau endpoint? | pemetaan SKU |
 | Q7 | Gudang: tidak ada endpoint katalog gudang. POS mengirim dokumen dengan `location.type = "warehouse"` dan butuh `slug` gudang ERP. Apakah akan ada `GET /catalog/warehouses`? | §4.3 `location` |
 | Q8 | Spec dipublikasikan sebagai OpenAPI 3.1. Generator Go POS (oapi-codegen v2.7.2) butuh 3.0, jadi POS menurunkan versi secara mekanis. Bisakah ERP juga menerbitkan 3.0, atau konfirmasi bahwa konversi `type: [x, "null"]` menjadi `nullable: true` cukup? | §4.3 klien |
-| Q9 **[D]** | Tenant: satu ERP per brand, atau satu ERP untuk tiga brand? Scope idempotensi POS `pos:mandalika` sudah tetap. | §9.1 |
+| Q9 **[D]** | Tenant: satu ERP per brand, atau satu ERP untuk tiga brand? | **DIJAWAB (pemilik, 2026-10-22): satu ERP per brand.** Scope `pos:<brand>` per deployment; tidak perlu scoping client per outlet. |
 | Q10 **[D]** | Hosting: di mana ERP di-host untuk demo, dan kapan API key client POS tersedia? | §4.1 |
 
 ### 11.2 Kontrak `POST /stock-documents` (yang POS sudah implementasikan)

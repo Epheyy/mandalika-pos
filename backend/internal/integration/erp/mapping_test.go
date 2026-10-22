@@ -21,7 +21,7 @@ func TestFGActive(t *testing.T) {
 		{"active", erpapi.ACTIVE, nil, true},
 		{"favourite", erpapi.FAVOURITE, nil, true},
 		{"new launching", erpapi.NEWLAUNCHING, nil, true},
-		{"pending counts as active", erpapi.PENDING, nil, true},
+		{"pending is not sellable (Q3)", erpapi.PENDING, nil, false},
 		{"discontinue", erpapi.DISCONTINUE, nil, false},
 		{"deleted active", erpapi.ACTIVE, &now, false},
 		{"deleted discontinue", erpapi.DISCONTINUE, &now, false},

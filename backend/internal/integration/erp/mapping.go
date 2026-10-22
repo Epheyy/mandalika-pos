@@ -19,10 +19,10 @@ const groupKeyPrefix = "pos:"
 var sizeTokenRe = regexp.MustCompile(`(?i)\b\d+(?:[.,]\d+)?\s*ml\b`)
 
 // FGActive reports whether a finished good should be sellable-eligible in the POS.
-// Tombstoned and DISCONTINUE are inactive; PENDING/ACTIVE/FAVOURITE/NEW_LAUNCHING
-// are active (PENDING is an open ERP question).
+// Tombstoned, DISCONTINUE and PENDING are inactive (owner answer 2026-10-22, handoff Q3:
+// PENDING is not sellable); ACTIVE/FAVOURITE/NEW_LAUNCHING are active.
 func FGActive(fg erpapi.IntegrationFG) bool {
-	return fg.DeletedAt == nil && fg.Status != erpapi.DISCONTINUE
+	return fg.DeletedAt == nil && fg.Status != erpapi.DISCONTINUE && fg.Status != erpapi.PENDING
 }
 
 // SizeLabel builds the variant size label. A missing size is "Satuan"; an
