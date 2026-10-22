@@ -1,0 +1,218 @@
+package erp
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+)
+
+var (
+	t0      = time.Date(2026, 11, 1, 20, 15, 20, 0, time.UTC)
+	created = time.Date(2026, 11, 1, 20, 15, 41, 0, time.UTC)
+)
+
+func header(kind string) OutboxHeader {
+	return OutboxHeader{
+		ID: "o1", DocumentID: "d1", Kind: kind, LocationType: "outlet", LocationID: "loc1",
+		RefType: "order", RefID: "ref1", RefNumber: "KMG-1", Part: 0, PartCount: 1, CreatedAt: created,
+	}
+}
+
+func movement(id string, qty int) MovementRow {
+	return MovementRow{
+		ID: id, ProductID: "p-" + id, VariantSize: "50ml", Qty: qty, QtyBefore: 10, QtyAfter: 10 + qty,
+		OccurredAt: t0, Actor: "kasir-01", DeviceID: "tab-07", FgCode: "FG-" + id, RefLine: "item-" + id,
+	}
+}
+
+func input(kind string, ms ...MovementRow) BuildInput {
+	return BuildInput{Header: header(kind), LocationSlug: "kemang", Movements: ms, Brand: "mandalika"}
+}
+
+func mustBuild(t *testing.T, in BuildInput) StockDocument {
+	t.Helper()
+	doc, hold, err := BuildDocument(in)
+	if err != nil || hold != "" {
+		t.Fatalf("BuildDocument: hold=%q err=%v", hold, err)
+	}
+	return doc
+}
+
+func TestBuildDocumentEveryKind(t *testing.T) {
+	for kind := range knownKinds {
+		t.Run(kind, func(t *testing.T) {
+			doc := mustBuild(t, input(kind, movement("a", -1)))
+			if doc.Kind != kind || doc.Lines[0].Reason != kind {
+				t.Errorf("kind/reason = %s/%s, want %s", doc.Kind, doc.Lines[0].Reason, kind)
+			}
+			if doc.Source.System != "pos" || doc.Source.Brand != "mandalika" ||
+				doc.Source.DeviceID != "tab-07" || doc.Source.Actor != "kasir-01" {
+				t.Errorf("source = %+v", doc.Source)
+			}
+			if doc.OccurredAt != "2026-11-01T20:15:20Z" || doc.RecordedAt != "2026-11-01T20:15:41Z" {
+				t.Errorf("timestamps = %s / %s", doc.OccurredAt, doc.RecordedAt)
+			}
+			if doc.Location.Slug != "kemang" || doc.Ref.ID != "ref1" || doc.Ref.Number != "KMG-1" {
+				t.Errorf("location/ref = %+v / %+v", doc.Location, doc.Ref)
+			}
+			if doc.Lines[0].Flags == nil {
+				t.Error("flags must never be nil")
+			}
+		})
+	}
+}
+
+func TestBuildDocumentSaleCarriesPriceAndTender(t *testing.T) {
+	in := input("sale", movement("a", -1))
+	in.Order = &OrderInfo{PaymentMethod: "qris", Total: 150000, LinePrice: map[string]int64{"item-a": 150000}}
+	doc := mustBuild(t, in)
+	if doc.Lines[0].UnitPrice == nil || *doc.Lines[0].UnitPrice != 150000 {
+		t.Errorf("unit_price = %v", doc.Lines[0].UnitPrice)
+	}
+	if len(doc.Tenders) != 1 || doc.Tenders[0] != (Tender{Method: "qris", Amount: 150000}) {
+		t.Errorf("tenders = %+v", doc.Tenders)
+	}
+}
+
+func TestBuildDocumentRefundLinksOriginalAndNegatesTender(t *testing.T) {
+	m := movement("a", 1)
+	m.RefundOfMovementID = "orig-1"
+	in := input("refund", m)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 90000, LinePrice: map[string]int64{}}
+	doc := mustBuild(t, in)
+	if doc.Lines[0].RefundOfMovementID != "orig-1" {
+		t.Errorf("refund_of_movement_id = %q", doc.Lines[0].RefundOfMovementID)
+	}
+	if len(doc.Tenders) != 1 || doc.Tenders[0].Amount != -90000 {
+		t.Errorf("tenders = %+v", doc.Tenders)
+	}
+	if doc.Lines[0].UnitPrice != nil {
+		t.Error("unit_price must be omitted when the line has no price")
+	}
+}
+
+func TestBuildDocumentTransferPairing(t *testing.T) {
+	out := input("transfer_out", movement("a", -10))
+	out.Header.RefType, out.Header.RefID, out.Header.DocumentID = "transfer", "tr-1", "d-out"
+	out.Header.LocationType, out.Header.LocationID, out.LocationSlug = "warehouse", "w1", "gudang"
+
+	m := movement("b", 9)
+	m.Flags = []string{"variance", "sent:10"}
+	in := input("transfer_in", m)
+	in.Header.RefType, in.Header.RefID, in.Header.DocumentID = "transfer", "tr-1", "d-in"
+
+	a, b := mustBuild(t, out), mustBuild(t, in)
+	if a.Ref.ID != b.Ref.ID || a.DocumentID == b.DocumentID || a.Location.Slug == b.Location.Slug {
+		t.Errorf("pairing broken: %+v / %+v", a, b)
+	}
+	if got := b.Lines[0].ExpectedQty; got == nil || *got != 10 {
+		t.Errorf("expected_qty = %v, want 10", got)
+	}
+	if fmt.Sprint(b.Lines[0].Flags) != "[variance]" {
+		t.Errorf("flags = %v, want [variance] (sent: stripped)", b.Lines[0].Flags)
+	}
+	if a.Lines[0].ExpectedQty != nil {
+		t.Error("only transfer_in carries expected_qty")
+	}
+}
+
+func TestBuildDocumentTransferInExpectedQtyDefaultsToQty(t *testing.T) {
+	doc := mustBuild(t, input("transfer_in", movement("a", 7)))
+	if got := doc.Lines[0].ExpectedQty; got == nil || *got != 7 {
+		t.Errorf("expected_qty = %v, want 7", got)
+	}
+}
+
+func TestBuildDocumentKeepsShortageFlag(t *testing.T) {
+	m := movement("a", -2)
+	m.Flags = []string{"shortage"}
+	doc := mustBuild(t, input("sale", m))
+	if fmt.Sprint(doc.Lines[0].Flags) != "[shortage]" {
+		t.Errorf("flags = %v", doc.Lines[0].Flags)
+	}
+}
+
+func TestBuildDocumentParts(t *testing.T) {
+	order := &OrderInfo{PaymentMethod: "cash", Total: 100, LinePrice: map[string]int64{}}
+
+	in := input("sale", movement("a", -1))
+	in.Header.Part, in.Header.PartCount, in.Order = 2, 3, order
+	doc := mustBuild(t, in)
+	if doc.Part == nil || *doc.Part != (DocumentPart{Index: 2, Count: 3}) {
+		t.Errorf("part = %+v", doc.Part)
+	}
+	if len(doc.Tenders) != 0 {
+		t.Errorf("part 2 must carry no tenders, got %+v", doc.Tenders)
+	}
+
+	in.Header.Part = 1
+	if doc := mustBuild(t, in); len(doc.Tenders) != 1 {
+		t.Errorf("part 1 must carry the tender, got %+v", doc.Tenders)
+	}
+
+	in.Header.Part, in.Header.PartCount = 0, 1
+	out, _ := json.Marshal(mustBuild(t, in))
+	if strings.Contains(string(out), `"part"`) {
+		t.Errorf("unsplit document must have no part key: %s", out)
+	}
+}
+
+func TestBuildDocumentCustomPaymentMethodHasNoTender(t *testing.T) {
+	in := input("sale", movement("a", -1))
+	in.Order = &OrderInfo{PaymentMethod: "bca", Total: 100, LinePrice: map[string]int64{}}
+	if doc := mustBuild(t, in); len(doc.Tenders) != 0 {
+		t.Errorf("tenders = %+v, want none", doc.Tenders)
+	}
+}
+
+func TestBuildDocumentHoldReasons(t *testing.T) {
+	t.Run("location", func(t *testing.T) {
+		in := input("sale", movement("a", -1))
+		in.LocationSlug = ""
+		_, hold, err := BuildDocument(in)
+		if err != nil || hold != "lokasi outlet loc1 belum dipetakan ke ERP (erp_slug kosong)" {
+			t.Errorf("hold=%q err=%v", hold, err)
+		}
+	})
+	t.Run("location is checked before variants", func(t *testing.T) {
+		m := movement("a", -1)
+		m.FgCode = ""
+		in := input("sale", m)
+		in.LocationSlug = ""
+		if _, hold, _ := BuildDocument(in); !strings.HasPrefix(hold, "lokasi ") {
+			t.Errorf("hold = %q", hold)
+		}
+	})
+	t.Run("variants", func(t *testing.T) {
+		m := movement("a", -1)
+		m.FgCode = ""
+		_, hold, err := BuildDocument(input("sale", m, m))
+		if err != nil || hold != "varian belum dipetakan ke ERP: p-a 50ml" {
+			t.Errorf("hold=%q err=%v (duplicates must be listed once)", hold, err)
+		}
+	})
+	t.Run("more than five variants", func(t *testing.T) {
+		var ms []MovementRow
+		for i := 0; i < 8; i++ {
+			m := movement(fmt.Sprint(i), -1)
+			m.FgCode = ""
+			ms = append(ms, m)
+		}
+		_, hold, _ := BuildDocument(input("sale", ms...))
+		if !strings.HasSuffix(hold, ", +3 lainnya") || strings.Count(hold, "50ml") != 5 {
+			t.Errorf("hold = %q", hold)
+		}
+	})
+}
+
+func TestBuildDocumentErrors(t *testing.T) {
+	if _, _, err := BuildDocument(input("sale")); !errors.Is(err, ErrNoMovements) {
+		t.Errorf("err = %v, want ErrNoMovements", err)
+	}
+	if _, _, err := BuildDocument(input("bogus", movement("a", 1))); !errors.Is(err, ErrUnknownKind) {
+		t.Errorf("err = %v, want ErrUnknownKind", err)
+	}
+}
