@@ -16,7 +16,7 @@ bounded_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bounded_module)
 
 GUARD = {"TestGuardValidRecursiveAndDeterministic", "TestGuardBoundaryRejectsKOObservations", "TestGuardLocalReferenceSnapshot", "TestGuardPreservesOutputOnFailures", "TestGuardConcurrentWriterAndCommitPoint", "TestGuardOutputPrecedenceAndUnsupportedInputs", "TestGuardWorkerProcess", "TestGuardInertEscaping"}
-CONTRACT = {"TestApprovedNullableFields", "TestNullableConstructorsAndActualSyncPointer", "TestAllApprovedOptionalAdapters", "TestGeneratedResponseEncodingBeforeStatus", "TestGeneratedKeyAndNamedTypes", "TestOrderAndShiftMoneyKeepsRupiahAbove2Pow24"}
+CONTRACT = {"TestApprovedNullableFields", "TestNullableConstructorsAndActualSyncPointer", "TestAllApprovedOptionalAdapters", "TestGeneratedResponseEncodingBeforeStatus", "TestGeneratedKeyAndNamedTypes", "TestOrderAndShiftMoneyKeepsRupiahAbove2Pow24", "TestNoFloat32MoneyFieldsInGeneratedAPI"}
 
 
 def main():
