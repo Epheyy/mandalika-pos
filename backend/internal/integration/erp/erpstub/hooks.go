@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"encoding/json"
@@ -10,14 +10,14 @@ import (
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
 )
 
-func (s *server) hookDocuments(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) hookDocuments(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	docs := append([]docRecord{}, s.st.Documents...)
 	s.mu.Unlock()
 	writeOK(w, http.StatusOK, docs)
 }
 
-func (s *server) hookBalances(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) hookBalances(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	rows := make([]balance, 0, len(s.st.Balances))
 	for _, b := range s.st.Balances {
@@ -37,7 +37,7 @@ func (s *server) hookBalances(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, http.StatusOK, rows)
 }
 
-func (s *server) hookFault(w http.ResponseWriter, r *http.Request) {
+func (s *Server) hookFault(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	status, count := http.StatusServiceUnavailable, 1
 	var ds []detail
@@ -65,7 +65,7 @@ func (s *server) hookFault(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, http.StatusOK, map[string]int{"status": status, "remaining": count})
 }
 
-func (s *server) hookUpsertFG(w http.ResponseWriter, r *http.Request) {
+func (s *Server) hookUpsertFG(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	var in erpapi.IntegrationFG
 	if err != nil || json.Unmarshal(body, &in) != nil {
@@ -125,6 +125,65 @@ func validateFGInput(in *erpapi.IntegrationFG) []detail {
 	}
 	if in.Status != "" && !in.Status.Valid() {
 		ds = append(ds, detail{"status", "invalid status"})
+	}
+	return ds
+}
+
+// hookUpsertOutlet upserts an outlet by slug, mirroring hookUpsertFG.
+func (s *Server) hookUpsertOutlet(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	var in erpapi.IntegrationOutlet
+	if err != nil || json.Unmarshal(body, &in) != nil {
+		writeErr(w, http.StatusBadRequest, "INVALID_INPUT", "malformed JSON body", nil)
+		return
+	}
+	if ds := validateOutletInput(&in); len(ds) > 0 {
+		writeValidation(w, ds)
+		return
+	}
+	if in.Type == "" {
+		in.Type = erpapi.IntegrationOutletTypeRETAIL
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, o := range s.st.Outlets {
+		if o.Code == in.Code && o.Slug != in.Slug {
+			writeValidation(w, []detail{{"code", "already used by slug " + o.Slug}})
+			return
+		}
+	}
+	rec := in
+	now := s.now().UTC()
+	rec.UpdatedAt, rec.CreatedAt = now, now
+	idx := -1
+	for i, o := range s.st.Outlets {
+		if o.Slug == in.Slug {
+			idx, rec.CreatedAt = i, o.CreatedAt
+		}
+	}
+	err = s.commitLocked(func() {
+		if idx >= 0 {
+			s.st.Outlets[idx] = rec
+		} else {
+			s.st.Outlets = append(s.st.Outlets, rec)
+		}
+	})
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "INTEGRATION_BUSY", "could not persist state, retry", nil)
+		return
+	}
+	writeOK(w, http.StatusOK, rec)
+}
+
+func validateOutletInput(in *erpapi.IntegrationOutlet) []detail {
+	var ds []detail
+	for path, v := range map[string]string{"slug": in.Slug, "code": in.Code, "name": in.Name} {
+		if v == "" {
+			ds = append(ds, detail{path, "is required"})
+		}
+	}
+	if in.Type != "" && !in.Type.Valid() {
+		ds = append(ds, detail{"type", "invalid type"})
 	}
 	return ds
 }

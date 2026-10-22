@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -67,7 +68,25 @@ type Config struct {
 	// dbMaxConnsBad is set when DB_MAX_CONNS is not an integer >= 1; Validate fails
 	// fast so a typo never silently means "pgx default".
 	dbMaxConnsBad bool
+	// ERPIntegrationEnabled is the ERP_INTEGRATION_ENABLED kill switch (true only for
+	// "true"/"1", any case): the catalog pull, stock reads and outbox relay stay off
+	// unless it is set. Default false.
+	ERPIntegrationEnabled bool
+	// erpEnabledBad is set when ERP_INTEGRATION_ENABLED was a non-empty value that is
+	// not a boolean; Validate fails fast so a typo never silently means "off".
+	erpEnabledBad bool
+	// ERPBaseURL is ERP_BASE_URL: the ERP Integration API base INCLUDING the version
+	// prefix, e.g. https://erp.example.com/api/integration/v1.
+	ERPBaseURL string
+	// ERPAPIKey is ERP_API_KEY, the bearer key for the ERP Integration API. Secret.
+	ERPAPIKey string
+	// ERPSchedulerToken is ERP_SCHEDULER_TOKEN: the shared secret Cloud Scheduler sends
+	// to the /internal/erp/* endpoints. Secret; empty = those endpoints stay closed.
+	ERPSchedulerToken string
 }
+
+// MinERPSchedulerTokenLen is the shortest ERP_SCHEDULER_TOKEN accepted in production.
+const MinERPSchedulerTokenLen = 32
 
 // DefaultDBMaxConns is the per-instance pool size when DB_MAX_CONNS is unset.
 const DefaultDBMaxConns = 10
@@ -167,6 +186,7 @@ func Load() *Config {
 	_ = godotenv.Load()
 	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
 	dbMaxConns, dbMaxConnsOK := parseDBMaxConns(os.Getenv("DB_MAX_CONNS"))
+	erpEnabled, erpEnabledOK := parseERPEnabled(os.Getenv("ERP_INTEGRATION_ENABLED"))
 	return &Config{
 		DBMaxConns:       dbMaxConns,
 		dbMaxConnsBad:    !dbMaxConnsOK,
@@ -196,7 +216,25 @@ func Load() *Config {
 		SyncLegacyEnvelopeUntil: legacyUntil,
 		syncLegacyUntilBad:      !legacyOK,
 		SyncStockSeqOff:         parseStockSeqOff(os.Getenv("SYNC_STOCK_SEQ")),
+
+		ERPIntegrationEnabled: erpEnabled,
+		erpEnabledBad:         !erpEnabledOK,
+		ERPBaseURL:            strings.TrimSpace(os.Getenv("ERP_BASE_URL")),
+		ERPAPIKey:             strings.TrimSpace(os.Getenv("ERP_API_KEY")),
+		ERPSchedulerToken:     strings.TrimSpace(os.Getenv("ERP_SCHEDULER_TOKEN")),
 	}
+}
+
+// parseERPEnabled reads ERP_INTEGRATION_ENABLED: "true"/"1" (any case, trimmed) is
+// on, empty/"false"/"0" is off; anything else is off with ok=false so Validate fails.
+func parseERPEnabled(v string) (enabled, ok bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "1":
+		return true, true
+	case "", "false", "0":
+		return false, true
+	}
+	return false, false
 }
 
 // parseStockSeqOff reports whether SYNC_STOCK_SEQ is exactly "off" (any case).
@@ -235,6 +273,9 @@ func (c *Config) Validate() error {
 	}
 	if c.dbMaxConnsBad {
 		return errors.New("invalid config: DB_MAX_CONNS must be an integer between 1 and 100")
+	}
+	if err := c.validateERP(); err != nil {
+		return err
 	}
 	if c.IsProd() && c.redisURLUnset {
 		slog.Warn("REDIS_URL is unset in production: using the localhost default, which has no Redis; " +
@@ -287,8 +328,34 @@ func (c *Config) Validate() error {
 		errs = append(errs, "DATABASE_URL must point at the managed database, not localhost, in production")
 	}
 
+	if c.ERPSchedulerToken != "" && len(c.ERPSchedulerToken) < MinERPSchedulerTokenLen {
+		errs = append(errs, fmt.Sprintf("ERP_SCHEDULER_TOKEN must be at least %d bytes in production", MinERPSchedulerTokenLen))
+	}
+
 	if len(errs) > 0 {
 		return errors.New("invalid production config:\n  - " + strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
+// validateERP checks the ERP integration settings in every environment. Error
+// messages never include the API key or scheduler token values.
+func (c *Config) validateERP() error {
+	if c.erpEnabledBad {
+		return errors.New("invalid config: ERP_INTEGRATION_ENABLED must be true, false, 1 or 0")
+	}
+	if !c.ERPIntegrationEnabled {
+		return nil
+	}
+	if c.ERPBaseURL == "" || c.ERPAPIKey == "" {
+		return errors.New("invalid config: ERP_BASE_URL and ERP_API_KEY must be set when ERP_INTEGRATION_ENABLED is on")
+	}
+	u, err := url.Parse(c.ERPBaseURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return errors.New("invalid config: ERP_BASE_URL must be an absolute http(s) URL")
+	}
+	if c.IsProd() && u.Scheme != "https" {
+		return errors.New("invalid production config: ERP_BASE_URL must be https")
 	}
 	return nil
 }

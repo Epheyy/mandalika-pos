@@ -49,11 +49,16 @@ type Catalog struct {
 type CatalogProduct struct {
 	ID, Name, Brand, CategoryID, Description string
 	Sellable, Active, Featured               bool
+	// ERPLinked marks a product the ERP owns (erp_group_key or an erp_slug variant): its
+	// category is read-only for the import.
+	ERPLinked bool
 }
 
 type CatalogVariant struct {
 	ID, ProductID, Size, SKU, Barcode string
 	Price                             float64
+	// ERPLinked marks a variant with an erp_slug: its size is read-only for the import.
+	ERPLinked bool
 }
 
 type CatalogCategory struct{ ID, Name string }
@@ -436,7 +441,14 @@ func mergeProductFields(b *Builder, g *productGroup, pp *PlannedProduct, ix *cat
 
 	ex := g.existing
 	var changed []string
-	if cat != "" {
+	if cat != "" && ex != nil && ex.ERPLinked {
+		// ERP-owned (plan 4.5): the category is not applied. A row that names another
+		// category is a warning; the same category is simply no change.
+		if c, ok := ix.catByLower[strings.ToLower(cat)]; !ok || c.ID != ex.CategoryID {
+			b.Issue(catRow.row, "Kategori", SevWarning, "erp_owned",
+				"kategori produk ini dikelola ERP; perubahan tidak diterapkan", cat)
+		}
+	} else if cat != "" {
 		pp.CategoryName = cat
 		id := cats.resolve(cat)
 		// A category that does not exist yet is always a change (it is created and assigned),
@@ -557,7 +569,12 @@ func planVariant(b *Builder, r *productRow, g *productGroup, existing []CatalogV
 	if matched != nil {
 		pv.ExistingID = matched.ID
 		pv.CurrentSize = matched.Size
-		if matched.Size != r.size {
+		if matched.Size != r.size && matched.ERPLinked {
+			// ERP-owned (plan 4.5): the size is not applied; the other cells still are.
+			b.Issue(row, "Ukuran", SevWarning, "erp_owned",
+				fmt.Sprintf("ukuran varian ini dikelola ERP (\"%s\"); perubahan tidak diterapkan", matched.Size), r.size)
+			pv.Size = matched.Size
+		} else if matched.Size != r.size {
 			if holder := sizeHolder(existing, r.size, matched.ID); holder != "" {
 				fail("Ukuran", "size_collision", fmt.Sprintf("ukuran \"%s\" sudah dipakai varian lain (SKU %s); tukar atau ganti nama ukuran lewat form produk", r.size, holder), r.size)
 			} else if loc := ix.stocked[matched.ProductID][matched.Size]; loc != "" {

@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -23,18 +21,16 @@ import (
 const (
 	maxErpPage       = 100000
 	erpHTTPTimeout   = 10 * time.Second
-	erpSchedulerHdr  = "X-Scheduler-Secret"
 	reasonRelayOff   = "ERP_RELAY_ENABLED is off"
 	reasonRelayBadCf = "invalid ERP relay config"
 )
 
 // ErpOutbox serves the ERP outbox relay trigger and its admin API (plan step 5).
 type ErpOutbox struct {
-	pool      *pgxpool.Pool
-	relay     *erp.Relay
-	cfg       config.ERPRelay
-	cfgErr    error
-	secretSum [32]byte
+	pool   *pgxpool.Pool
+	relay  *erp.Relay
+	cfg    config.ERPRelay
+	cfgErr error
 }
 
 // NewErpOutbox never fails: an invalid config is logged once (no values) and the relay
@@ -50,31 +46,12 @@ func NewErpOutbox(pool *pgxpool.Pool, cfg config.ERPRelay, prod bool) *ErpOutbox
 		Brand:       cfg.Brand,
 		MaxAttempts: cfg.MaxAttempts,
 	}, slog.Default())
-	return &ErpOutbox{pool: pool, relay: relay, cfg: cfg, cfgErr: cfgErr, secretSum: sha256.Sum256([]byte(cfg.SchedulerToken))}
+	return &ErpOutbox{pool: pool, relay: relay, cfg: cfg, cfgErr: cfgErr}
 }
 
-// checkScheduler is the shared-secret check of the scheduler endpoint. Step 4's
-// middleware.RequireSchedulerSecret replaces it at merge time.
-func (e *ErpOutbox) checkScheduler(w http.ResponseWriter, r *http.Request) bool {
-	if e.cfg.SchedulerToken == "" {
-		httpx.Err(w, http.StatusServiceUnavailable, "scheduler not configured")
-		return false
-	}
-	got := sha256.Sum256([]byte(r.Header.Get(erpSchedulerHdr)))
-	if subtle.ConstantTimeCompare(got[:], e.secretSum[:]) != 1 {
-		httpx.Err(w, http.StatusUnauthorized, "unauthorized")
-		return false
-	}
-	return true
-}
-
-// SchedulerRelay is POST /api/v1/internal/erp/relay (Cloud Scheduler; shared secret, no JWT).
-func (e *ErpOutbox) SchedulerRelay(w http.ResponseWriter, r *http.Request) {
-	if !e.checkScheduler(w, r) {
-		return
-	}
-	e.runRelay(w, r)
-}
+// SchedulerRelay is POST /api/v1/internal/erp/relay (Cloud Scheduler, no JWT). The shared
+// secret is enforced by middleware.RequireSchedulerSecret on the route.
+func (e *ErpOutbox) SchedulerRelay(w http.ResponseWriter, r *http.Request) { e.runRelay(w, r) }
 
 // RunRelay is POST /api/v1/admin/erp/relay.
 func (e *ErpOutbox) RunRelay(w http.ResponseWriter, r *http.Request) { e.runRelay(w, r) }

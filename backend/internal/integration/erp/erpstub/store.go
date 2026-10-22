@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"encoding/json"
@@ -153,7 +153,7 @@ func cloneState(st *state) (*state, error) {
 
 // commitLocked applies a mutation and persists it. When persistence is on and
 // saving fails, the in-memory state is restored. Caller holds s.mu.
-func (s *server) commitLocked(apply func()) error {
+func (s *Server) commitLocked(apply func()) error {
 	if s.statePath == "" {
 		apply()
 		return nil

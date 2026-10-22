@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/nullable"
 
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
@@ -929,4 +931,557 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
+	// ── ERP SKU mapping (plan 4.2) + global SKU check ───────────
+	const (
+		zAlpha = "00000000-0000-4000-8f10-0000000000a1"
+		zBeta  = "00000000-0000-4000-8f10-0000000000a2"
+		zLeg1  = "00000000-0000-4000-8f10-0000000000a3"
+		zLeg2  = "00000000-0000-4000-8f10-0000000000a4"
+		zA50   = "00000000-0000-4000-8f10-0000000000b1"
+		zA100  = "00000000-0000-4000-8f10-0000000000b2"
+		zB50   = "00000000-0000-4000-8f10-0000000000b3"
+		zL1    = "00000000-0000-4000-8f10-0000000000b4"
+		zL2    = "00000000-0000-4000-8f10-0000000000b5"
+		skuMap = "/admin/erp/sku-mapping/import"
+		skuHdr = "variant_id,product,size,sku,has_stock,barcode,fg_code,fg_slug,erp_group_key\n"
+	)
+	adminOnly := router.With(authWrap, mw.RequireRole("admin"))
+	adminOnly.Get("/admin/erp/sku-mapping/export", h.ExportSkuMapping)
+	adminOnly.Post(skuMap, h.ImportSkuMapping)
+	productsRW := router.With(authWrap, mw.RequirePermission("manage_products"))
+	productsRW.Post("/products", h.CreateProduct)
+	productsRW.Put("/products/{id}", h.UpdateProduct)
+	do := func(method, token, path string, body any) (int, []byte) {
+		cur.Helper()
+		var rdr *bytes.Reader
+		if body == nil {
+			rdr = bytes.NewReader(nil)
+		} else {
+			raw, err := json.Marshal(body)
+			if err != nil {
+				cur.Fatal(err)
+			}
+			rdr = bytes.NewReader(raw)
+		}
+		r := httptest.NewRequest(method, path, rdr)
+		r.Header.Set("Authorization", "Bearer "+token)
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		return w.Code, w.Body.Bytes()
+	}
+	exec(`INSERT INTO products(id,name) VALUES($1,'ZMap Alpha'),($2,'ZMap Beta'),($3,'ZMap Leg One'),($4,'ZMap Leg Two')`, zAlpha, zBeta, zLeg1, zLeg2)
+	exec(`INSERT INTO product_variants(id,product_id,size,price,sku,barcode) VALUES
+		($1,$6,'100 ml',200000,'ZA-100','ZA-100'),($2,$6,'50 ml',100000,'ZA-50','ZA-50'),
+		($3,$7,'50 ml',100000,'ZB-50','ZB-50'),
+		($4,$8,'50 ml',100000,'LEG-DUP','LEG-BC1'),($5,$9,'50 ml',100000,'LEG-DUP','LEG-BC2')`,
+		zA100, zA50, zB50, zL1, zL2, zAlpha, zBeta, zLeg1, zLeg2)
+	exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'50 ml',3)`, outlet, zAlpha)
+	exec(`INSERT INTO warehouse_variant_stock(warehouse_id,product_id,variant_size,stock) VALUES($1,$2,'50 ml',2),($1,$3,'50 ml',0)`, wh, zBeta, zAlpha)
+	variantState := func() string {
+		cur.Helper()
+		return text(`SELECT string_agg(v.id::text||'|'||v.size||'|'||v.sku||'|'||v.barcode||'|'||COALESCE(v.erp_slug,'-')||'|'||COALESCE(p.erp_group_key,'-'), ';' ORDER BY v.id)
+		              FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.name LIKE 'ZMap%'`)
+	}
+	exportCSV := func() [][]string {
+		cur.Helper()
+		code, raw := do(http.MethodGet, tok, "/admin/erp/sku-mapping/export", nil)
+		if code != http.StatusOK {
+			cur.Fatalf("export -> %d %s", code, raw)
+		}
+		recs, err := csv.NewReader(bytes.NewReader(raw)).ReadAll()
+		if err != nil {
+			cur.Fatalf("export is not CSV: %v", err)
+		}
+		return recs
+	}
+
+	sub("sku-mapping: validateVariants refuses a new or changed SKU used by another product (409)", func(t *testing.T) {
+		before := variantState()
+		// change Alpha 50 ml to Beta's SKU
+		code, raw := do(http.MethodPut, tok, "/products/"+zAlpha, map[string]any{"name": "ZMap Alpha", "isActive": true, "variants": []map[string]any{
+			{"id": zA100, "size": "100 ml", "price": 200000, "sku": "ZA-100"},
+			{"id": zA50, "size": "50 ml", "price": 100000, "sku": "ZB-50"}}})
+		if code != http.StatusConflict || !strings.Contains(string(raw), "SKU sudah dipakai produk lain: ZB-50") {
+			t.Fatalf("changed SKU -> %d %s, want 409", code, raw)
+		}
+		// a brand-new variant with a taken SKU
+		code, raw = do(http.MethodPut, tok, "/products/"+zAlpha, map[string]any{"name": "ZMap Alpha", "isActive": true, "variants": []map[string]any{
+			{"id": zA100, "size": "100 ml", "price": 200000, "sku": "ZA-100"},
+			{"id": zA50, "size": "50 ml", "price": 100000, "sku": "ZA-50"},
+			{"size": "30 ml", "price": 50000, "sku": "ZB-50"}}})
+		if code != http.StatusConflict {
+			t.Fatalf("new variant with taken SKU -> %d %s, want 409", code, raw)
+		}
+		code, raw = do(http.MethodPost, tok, "/products", map[string]any{"name": "ZMap Create", "isActive": true, "variants": []map[string]any{
+			{"size": "50 ml", "price": 1, "sku": "ZB-50"}}})
+		if code != http.StatusConflict || count(`SELECT count(*) FROM products WHERE name='ZMap Create'`) != 0 {
+			t.Fatalf("create with taken SKU -> %d %s, want 409 and no row", code, raw)
+		}
+		if variantState() != before {
+			t.Error("a refused save changed variants")
+		}
+	})
+
+	sub("sku-mapping: an unchanged legacy duplicate SKU still saves (200)", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+zLeg2, map[string]any{"name": "ZMap Leg Two", "isActive": true, "variants": []map[string]any{
+			{"id": zL2, "size": "50 ml", "price": 123000, "sku": "LEG-DUP"}}})
+		if code != http.StatusOK {
+			t.Fatalf("unchanged legacy duplicate -> %d %s, want 200", code, raw)
+		}
+		if count(`SELECT count(*) FROM product_variants WHERE id=$1 AND price=123000`, zL2) != 1 {
+			t.Error("the save did not apply")
+		}
+	})
+
+	sub("sku-mapping: admin only (403 for non-admin on export and import)", func(t *testing.T) {
+		if code, _ := do(http.MethodGet, noPerm, "/admin/erp/sku-mapping/export", nil); code != http.StatusForbidden {
+			t.Errorf("export as cashier = %d, want 403", code)
+		}
+		if code, _ := call(noPerm, skuMap, map[string]any{"csv": "x", "dryRun": true}, ""); code != http.StatusForbidden {
+			t.Errorf("import as cashier = %d, want 403", code)
+		}
+	})
+
+	sub("sku-mapping: export has the exact columns, one row per variant, has_stock and empty fg columns", func(t *testing.T) {
+		recs := exportCSV()
+		if strings.Join(recs[0], ",") != "variant_id,product,size,sku,has_stock,barcode,fg_code,fg_slug,erp_group_key" {
+			t.Fatalf("header = %v", recs[0])
+		}
+		if len(recs)-1 != count(`SELECT count(*) FROM product_variants`) {
+			t.Errorf("rows = %d, want one per variant", len(recs)-1)
+		}
+		by := map[string][]string{}
+		var order []string
+		for _, r := range recs[1:] {
+			by[r[0]] = r
+			if strings.HasPrefix(r[1], "ZMap Alpha") || strings.HasPrefix(r[1], "ZMap Beta") {
+				order = append(order, r[0])
+			}
+		}
+		if strings.Join(order, ",") != strings.Join([]string{zA100, zA50, zB50}, ",") {
+			t.Errorf("order (product name, size text) = %v", order)
+		}
+		for id, want := range map[string]string{zA50: "true", zA100: "false", zB50: "true"} {
+			if by[id][4] != want {
+				t.Errorf("has_stock(%s) = %s, want %s (outlet or warehouse stock)", id, by[id][4], want)
+			}
+			if by[id][6] != "" || by[id][7] != "" || by[id][8] != "" {
+				t.Errorf("unlinked variant must have empty fg/group columns: %v", by[id])
+			}
+		}
+	})
+
+	sub("sku-mapping: dry run writes nothing", func(t *testing.T) {
+		before, v, runs := variantState(), versions(), count(`SELECT count(*) FROM import_runs`)
+		rep := preview(skuMap, skuHdr+zA50+",,,,,,FG-A50,slug-a50,grp-a\n")
+		if rep.Summary.Update != 1 || rep.HasErrors() {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		if variantState() != before || versions() != v || count(`SELECT count(*) FROM import_runs`) != runs {
+			t.Error("a dry run changed data, versions or import_runs")
+		}
+	})
+
+	sub("sku-mapping: invalid files are 422 with zero writes", func(t *testing.T) {
+		cases := map[string]string{
+			"duplicate fg_code":       zA50 + ",,,,,,FG-D,s1,\n" + zA100 + ",,,,,,FG-D,s2,\n",
+			"duplicate fg_slug":       zA50 + ",,,,,,FG-1,sd,\n" + zA100 + ",,,,,,FG-2,sd,\n",
+			"variant listed twice":    zA50 + ",,,,,,FG-1,s1,\n" + zA50 + ",,,,,,FG-2,s2,\n",
+			"unknown variant id":      "00000000-0000-4000-8f10-0000000000ff,,,,,,FG-1,s1,\n",
+			"fg_code used by another": zA50 + ",,,,,,ZB-50,s1,\n",
+			"only fg_code given":      zA50 + ",,,,,,FG-1,,\n",
+			"group key disagrees":     zA50 + ",,,,,,FG-1,s1,k1\n" + zA100 + ",,,,,,FG-2,s2,k2\n",
+		}
+		for name, body := range cases {
+			before, v := variantState(), versions()
+			csv := skuHdr + body
+			rep := preview(skuMap, csv)
+			if !rep.HasErrors() {
+				t.Errorf("%s: preview has no error: %+v", name, rep.Summary)
+				continue
+			}
+			if code, raw := commit(skuMap, csv, rep, "skumap-bad-"+strings.ReplaceAll(name, " ", "-")); code != http.StatusUnprocessableEntity {
+				t.Errorf("%s: commit -> %d %s, want 422", name, code, raw)
+			}
+			if variantState() != before || versions() != v {
+				t.Errorf("%s: rejected file wrote data", name)
+			}
+		}
+	})
+
+	sub("sku-mapping: fg_slug already linked to another variant is a 422", func(t *testing.T) {
+		exec(`UPDATE product_variants SET erp_slug='taken-slug' WHERE id=$1`, zB50)
+		defer exec(`UPDATE product_variants SET erp_slug=NULL WHERE id=$1`, zB50)
+		before := variantState()
+		csv := skuHdr + zA50 + ",,,,,,FG-1,taken-slug,\n"
+		rep := preview(skuMap, csv)
+		if !rep.HasErrors() {
+			t.Fatalf("no error: %+v", rep.Issues)
+		}
+		if code, raw := commit(skuMap, csv, rep, "skumap-slug"); code != http.StatusUnprocessableEntity {
+			t.Errorf("commit -> %d %s, want 422", code, raw)
+		}
+		if variantState() != before {
+			t.Error("rejected file wrote data")
+		}
+	})
+
+	sub("sku-mapping: apply sets sku/erp_slug/group key, keeps barcode and size, bumps products once; re-upload is all skips", func(t *testing.T) {
+		prodBefore := manifest("products")
+		csv := skuHdr +
+			zA50 + ",ZMap Alpha,50 ml,ZA-50,true,ZA-50,FG-A50,slug-a50,grp-alpha\n" +
+			zA100 + ",ZMap Alpha,100 ml,ZA-100,false,ZA-100,FG-A100,slug-a100,grp-alpha\n" +
+			zB50 + ",ZMap Beta,50 ml,ZB-50,true,ZB-50,,,\n"
+		rep := mustApply(skuMap, csv, "skumap-apply")
+		if rep.Summary.Update != 2 || rep.Summary.Skip != 1 || rep.Summary.Error != 0 || rep.RunID == "" {
+			t.Fatalf("%+v", rep.Summary)
+		}
+		if count(`SELECT count(*) FROM product_variants WHERE id=$1 AND sku='FG-A50' AND erp_slug='slug-a50' AND barcode='ZA-50' AND size='50 ml'`, zA50) != 1 ||
+			count(`SELECT count(*) FROM product_variants WHERE id=$1 AND sku='FG-A100' AND erp_slug='slug-a100' AND barcode='ZA-100' AND size='100 ml'`, zA100) != 1 {
+			t.Errorf("variant fields wrong: %s", variantState())
+		}
+		if count(`SELECT count(*) FROM product_variants WHERE id=$1 AND sku='ZB-50' AND erp_slug IS NULL`, zB50) != 1 {
+			t.Error("the unmapped row must be untouched")
+		}
+		if text(`SELECT erp_group_key FROM products WHERE id=$1`, zAlpha) != "grp-alpha" {
+			t.Error("group key not set")
+		}
+		if got := manifest("products"); got != prodBefore+1 {
+			t.Errorf("products bumped %d times, want once", got-prodBefore)
+		}
+		if count(`SELECT count(*) FROM import_runs WHERE kind='sku_mapping' AND idempotency_key='skumap-apply'`) != 1 {
+			t.Error("one sku_mapping import_runs row expected")
+		}
+
+		// the export now shows the link
+		for _, r := range exportCSV()[1:] {
+			if r[0] == zA50 && (r[3] != "FG-A50" || r[6] != "FG-A50" || r[7] != "slug-a50" || r[8] != "grp-alpha") {
+				t.Errorf("export of a linked variant = %v", r)
+			}
+		}
+
+		// re-upload: all skips, nothing bumped
+		v := versions()
+		again := mustApply(skuMap, csv, "skumap-apply-2")
+		if again.Summary.Update != 0 || again.Summary.Skip != 3 || versions() != v {
+			t.Errorf("re-upload: %+v (versions changed: %v)", again.Summary, versions() != v)
+		}
+		// replay of the first key returns the stored result without writing
+		if code, _ := commit(skuMap, csv, rep, "skumap-apply"); code != http.StatusOK {
+			t.Errorf("replay -> %d, want 200", code)
+		}
+	})
+
+	sub("sku-mapping: an fg_code held by another variant is refused after the mapping too", func(t *testing.T) {
+		before := variantState()
+		rep := preview(skuMap, skuHdr+zB50+",,,,,,FG-A50,slug-b50,\n")
+		if !rep.HasErrors() {
+			t.Fatalf("fg_code in use must be an error: %+v", rep.Issues)
+		}
+		if variantState() != before {
+			t.Error("preview wrote data")
+		}
+	})
+
+	sub("sku-mapping: a SKU swap and a chain inside one product apply cleanly (barcode and size untouched)", func(t *testing.T) {
+		const (
+			pSwap, pChain = "00000000-0000-4000-8f10-0000000000a5", "00000000-0000-4000-8f10-0000000000a6"
+			s1, s2        = "00000000-0000-4000-8f10-0000000000c1", "00000000-0000-4000-8f10-0000000000c2"
+			c1, c2        = "00000000-0000-4000-8f10-0000000000c3", "00000000-0000-4000-8f10-0000000000c4"
+		)
+		exec(`INSERT INTO products(id,name) VALUES($1,'ZMap Swap'),($2,'ZMap Chain')`, pSwap, pChain)
+		exec(`INSERT INTO product_variants(id,product_id,size,price,sku,barcode) VALUES
+			($1,$5,'50 ml',1,'SW-X','SW-BC1'),($2,$5,'100 ml',1,'SW-Y','SW-BC2'),
+			($3,$6,'50 ml',1,'CH-1','CH-BC1'),($4,$6,'100 ml',1,'CH-2','CH-BC2')`, s1, s2, c1, c2, pSwap, pChain)
+		rep := mustApply(skuMap, skuHdr+
+			s1+",,,,,,SW-Y,slug-sw1,\n"+s2+",,,,,,SW-X,slug-sw2,\n"+
+			c1+",,,,,,CH-2,slug-ch1,\n"+c2+",,,,,,CH-3,slug-ch2,\n", "skumap-swap-chain")
+		if rep.Summary.Update != 4 || rep.HasErrors() {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		for id, want := range map[string]string{
+			s1: "SW-Y|50 ml|SW-BC1|slug-sw1", s2: "SW-X|100 ml|SW-BC2|slug-sw2",
+			c1: "CH-2|50 ml|CH-BC1|slug-ch1", c2: "CH-3|100 ml|CH-BC2|slug-ch2"} {
+			if got := text(`SELECT sku||'|'||size||'|'||barcode||'|'||erp_slug FROM product_variants WHERE id=$1`, id); got != want {
+				t.Errorf("%s = %s, want %s", id, got, want)
+			}
+		}
+		if count(`SELECT count(*) FROM product_variants WHERE sku LIKE 'tmp:%'`) != 0 {
+			t.Error("a temporary SKU was left behind")
+		}
+	})
+
+	sub("sku-mapping: an erp_group_key on a row without fg_code and fg_slug is a row error", func(t *testing.T) {
+		before := variantState()
+		rep := preview(skuMap, skuHdr+zB50+",,,,,,,,grp-orphan\n")
+		if !rep.HasErrors() || rep.Summary.Error != 1 {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		if variantState() != before {
+			t.Error("preview wrote data")
+		}
+	})
+
+	// ── ERP-owned fields are read-only on linked rows (plan 4.5) ──
+	const (
+		eLinked = "00000000-0000-4000-8f10-0000000000d1"
+		ePlain  = "00000000-0000-4000-8f10-0000000000d2"
+		eOutlet = "00000000-0000-4000-8f10-0000000000d3"
+		eV50    = "00000000-0000-4000-8f10-0000000000e1"
+		eV100   = "00000000-0000-4000-8f10-0000000000e2"
+		eVPlain = "00000000-0000-4000-8f10-0000000000e3"
+	)
+	productsRW.Delete("/products/{id}", h.DeleteProduct)
+	adminOnly.Put("/outlets/{id}", h.UpdateOutlet)
+	catKeep := text(`INSERT INTO categories(name) VALUES('ZErp Keep') RETURNING id::text`)
+	catOther := text(`INSERT INTO categories(name) VALUES('ZErp Other') RETURNING id::text`)
+	exec(`INSERT INTO products(id,name,brand,category_id,erp_group_key) VALUES($1,'ZErp Linked','ZBrand',$3,'grp-zerp'),($2,'ZErp Plain','ZBrand',$3,NULL)`, eLinked, ePlain, catKeep)
+	exec(`INSERT INTO product_variants(id,product_id,size,price,sku,barcode,erp_slug,is_active) VALUES
+		($1,$4,'50 ml',100000,'ZE-50','ZE-BC50','slug-ze50',true),($2,$4,'100 ml',180000,'ZE-100','ZE-BC100','slug-ze100',false),
+		($3,$5,'50 ml',90000,'ZP-50','ZP-BC50',NULL,true)`, eV50, eV100, eVPlain, eLinked, ePlain)
+	exec(`INSERT INTO outlets(id,name,code,address,phone,erp_slug,erp_code) VALUES($1,'ZErp Outlet','ZE1','Jl. ERP 1',NULL,'slug-outlet','ERP-01')`, eOutlet)
+	nstr := func(n nullable.Nullable[string]) string {
+		v, _ := n.Get()
+		return v
+	}
+	variantBody := func(id, size, sku string, price float64, bc string) map[string]any {
+		m := map[string]any{"size": size, "sku": sku, "price": price, "barcode": bc}
+		if id != "" {
+			m["id"] = id
+		}
+		return m
+	}
+	linkedPayload := func(name, cat string, vs ...map[string]any) map[string]any {
+		return map[string]any{"name": name, "brand": "ZBrand", "categoryId": cat, "isActive": true, "sellable": true, "variants": vs}
+	}
+	erpState := func() string {
+		cur.Helper()
+		return text(`SELECT (SELECT string_agg(p.id::text||'|'||p.name||'|'||COALESCE(p.category_id::text,'')||'|'||p.is_active::text, ';' ORDER BY p.id) FROM products p WHERE p.name LIKE 'ZErp%')
+		  || '#' || (SELECT string_agg(v.id::text||'|'||v.size||'|'||v.sku||'|'||v.price::text||'|'||v.barcode, ';' ORDER BY v.id) FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.name LIKE 'ZErp%')`)
+	}
+
+	sub("erp-owned: the read JSON exposes erpGroupKey, erpLinked and the variants' erpSlug and isActive (both branches)", func(t *testing.T) {
+		for _, sc := range []read.Scope{{CrossAll: true}, {OutletID: outlet}} {
+			p, err := rd.Product(ctx, sc, eLinked)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.ErpLinked == nil || !*p.ErpLinked || nstr(p.ErpGroupKey) != "grp-zerp" {
+				t.Errorf("scope %+v: linked product = erpLinked %v key %v", sc, p.ErpLinked, p.ErpGroupKey)
+			}
+			slugs := map[string]bool{}
+			for _, v := range p.Variants {
+				if s := nstr(v.ErpSlug); s != "" {
+					slugs[s] = true
+				}
+				if v.IsActive == nil {
+					t.Errorf("scope %+v: variant %s has no isActive", sc, v.Sku)
+				} else if v.Sku == "ZE-100" && *v.IsActive {
+					t.Errorf("scope %+v: inactive variant reads active", sc)
+				}
+			}
+			if !slugs["slug-ze50"] || !slugs["slug-ze100"] {
+				t.Errorf("scope %+v: variant slugs %v", sc, slugs)
+			}
+			pl, err := rd.Product(ctx, sc, ePlain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pl.ErpLinked == nil || *pl.ErpLinked || nstr(pl.ErpGroupKey) != "" || nstr(pl.Variants[0].ErpSlug) != "" {
+				t.Errorf("scope %+v: plain product reads linked: %v %v", sc, pl.ErpLinked, pl.ErpGroupKey)
+			}
+		}
+		outs, _, err := rd.Outlets(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, o := range outs {
+			if o.Id.String() == eOutlet {
+				found = true
+				if nstr(o.ErpSlug) != "slug-outlet" || nstr(o.ErpCode) != "ERP-01" {
+					t.Errorf("outlet erp fields: %v %v", o.ErpSlug, o.ErpCode)
+				}
+			}
+		}
+		if !found {
+			t.Error("linked outlet missing from the read")
+		}
+	})
+
+	sub("erp-owned: a linked product's name or category change is a 409 and writes nothing", func(t *testing.T) {
+		before := erpState()
+		for name, body := range map[string]map[string]any{
+			"name": linkedPayload("ZErp Renamed", catKeep,
+				variantBody(eV50, "50 ml", "ZE-50", 100000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100")),
+			"category": linkedPayload("ZErp Linked", catOther,
+				variantBody(eV50, "50 ml", "ZE-50", 100000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100")),
+		} {
+			code, raw := do(http.MethodPut, tok, "/products/"+eLinked, body)
+			if code != http.StatusConflict || !strings.Contains(string(raw), "dikelola ERP") {
+				t.Errorf("%s change -> %d %s, want 409", name, code, raw)
+			}
+		}
+		if erpState() != before {
+			t.Error("a refused save changed data")
+		}
+	})
+
+	sub("erp-owned: an unchanged save, and a price or barcode change, on a linked product is a 200", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
+			variantBody(eV50, "50 ml", "ZE-50", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")))
+		if code != http.StatusOK {
+			t.Fatalf("price/barcode change -> %d %s, want 200", code, raw)
+		}
+		if count(`SELECT count(*) FROM product_variants WHERE id=$1 AND price=110000`, eV50) != 1 ||
+			count(`SELECT count(*) FROM product_variants WHERE id=$1 AND barcode='ZE-BC100-NEW'`, eV100) != 1 {
+			t.Error("price or barcode was not applied")
+		}
+		code, raw = do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
+			variantBody(eV50, "50 ml", "ZE-50", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")))
+		if code != http.StatusOK {
+			t.Fatalf("unchanged save -> %d %s, want 200", code, raw)
+		}
+	})
+
+	sub("erp-owned: a linked variant's size or SKU change, and dropping it, is a 409", func(t *testing.T) {
+		before := erpState()
+		for name, body := range map[string]map[string]any{
+			"size": linkedPayload("ZErp Linked", catKeep,
+				variantBody(eV50, "30 ml", "ZE-50", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")),
+			"sku": linkedPayload("ZErp Linked", catKeep,
+				variantBody(eV50, "50 ml", "ZE-50X", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")),
+			"drop": linkedPayload("ZErp Linked", catKeep, variantBody(eV50, "50 ml", "ZE-50", 110000, "ZE-BC50")),
+		} {
+			code, raw := do(http.MethodPut, tok, "/products/"+eLinked, body)
+			if code != http.StatusConflict || !strings.Contains(string(raw), "ERP") {
+				t.Errorf("%s -> %d %s, want 409", name, code, raw)
+			}
+		}
+		if erpState() != before {
+			t.Error("a refused save changed data")
+		}
+	})
+
+	sub("erp-owned: adding an unlinked variant to a linked product is a 200; it can be removed again", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
+			variantBody(eV50, "50 ml", "ZE-50", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW"),
+			variantBody("", "30 ml", "ZE-30", 50000, "ZE-BC30")))
+		if code != http.StatusOK || count(`SELECT count(*) FROM product_variants WHERE sku='ZE-30' AND erp_slug IS NULL`) != 1 {
+			t.Fatalf("add unlinked variant -> %d %s", code, raw)
+		}
+		code, raw = do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
+			variantBody(eV50, "50 ml", "ZE-50", 110000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")))
+		if code != http.StatusOK || count(`SELECT count(*) FROM product_variants WHERE sku='ZE-30'`) != 0 {
+			t.Fatalf("remove the unlinked variant -> %d %s", code, raw)
+		}
+	})
+
+	sub("erp-owned: an unlinked product still renames freely, and an unlinked product deletes", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+ePlain, linkedPayload("ZErp Plain Renamed", catOther,
+			variantBody(eVPlain, "60 ml", "ZP-60", 91000, "ZP-BC50")))
+		if code != http.StatusOK || count(`SELECT count(*) FROM products WHERE id=$1 AND name='ZErp Plain Renamed' AND category_id=$2`, ePlain, catOther) != 1 {
+			t.Fatalf("unlinked rename -> %d %s", code, raw)
+		}
+		if code, raw = do(http.MethodDelete, tok, "/products/"+ePlain, nil); code != http.StatusOK || count(`SELECT count(*) FROM products WHERE id=$1`, ePlain) != 0 {
+			t.Fatalf("unlinked delete -> %d %s", code, raw)
+		}
+	})
+
+	sub("erp-owned: deleting an ERP-linked product is a 409 and the product stays", func(t *testing.T) {
+		code, raw := do(http.MethodDelete, tok, "/products/"+eLinked, nil)
+		if code != http.StatusConflict || !strings.Contains(string(raw), "dikelola ERP") || count(`SELECT count(*) FROM products WHERE id=$1`, eLinked) != 1 {
+			t.Fatalf("linked delete -> %d %s, want 409", code, raw)
+		}
+	})
+
+	sub("erp-owned: a linked outlet's name, address or phone change is a 409; code, an unchanged save and an empty phone stay editable", func(t *testing.T) {
+		put := func(name, code, address, phone string) (int, []byte) {
+			return do(http.MethodPut, tok, "/outlets/"+eOutlet, map[string]any{"name": name, "code": code, "address": address, "phone": phone, "isActive": true})
+		}
+		for field, args := range map[string][4]string{
+			"name":    {"ZErp Outlet Baru", "ZE1", "Jl. ERP 1", ""},
+			"address": {"ZErp Outlet", "ZE1", "Jl. Lain", ""},
+			"phone":   {"ZErp Outlet", "ZE1", "Jl. ERP 1", "0812"},
+		} {
+			if code, raw := put(args[0], args[1], args[2], args[3]); code != http.StatusConflict || !strings.Contains(string(raw), "dikelola ERP") {
+				t.Errorf("%s change -> %d %s, want 409", field, code, raw)
+			}
+		}
+		if text(`SELECT name||'|'||address FROM outlets WHERE id=$1`, eOutlet) != "ZErp Outlet|Jl. ERP 1" {
+			t.Error("a refused save changed the outlet")
+		}
+		if code, raw := put("ZErp Outlet", "ZE1-NEW", "Jl. ERP 1", ""); code != http.StatusOK {
+			t.Fatalf("code change (empty phone = stored NULL) -> %d %s, want 200", code, raw)
+		}
+		if text(`SELECT code FROM outlets WHERE id=$1`, eOutlet) != "ZE1-NEW" {
+			t.Error("the code change was not applied")
+		}
+	})
+
+	sub("erp-owned: a CSV row of a linked product warns and skips category and size, and still applies price and barcode", func(t *testing.T) {
+		csv := prodHeader + "ZErp Linked,ZBrand,ZErp Other,,40 ml,125.000,ZE-50,ZE-BC50-CSV,,,\n"
+		rep := mustApply("/products/import", csv, "p-erp-1")
+		if rep.Summary.Error != 0 || rep.Summary.Update != 1 || rep.Summary.Warning != 2 || rep.Summary.NewCategories != 0 {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		codes := map[string]bool{}
+		for _, i := range rep.Issues {
+			if i.Code == "erp_owned" && i.Severity == csvimport.SevWarning {
+				codes[i.Column] = true
+			}
+		}
+		if !codes["Kategori"] || !codes["Ukuran"] {
+			t.Errorf("want erp_owned warnings on Kategori and Ukuran: %+v", rep.Issues)
+		}
+		if got := text(`SELECT p.name||'|'||p.category_id::text||'|'||v.size||'|'||v.price::text||'|'||v.barcode
+		                  FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.id=$1`, eV50); got != "ZErp Linked|"+catKeep+"|50 ml|125000.00|ZE-BC50-CSV" {
+			t.Errorf("after the import: %s", got)
+		}
+	})
+
+	sub("erp-owned: a CSV row with the unchanged category and size is no warning, and a linked product's Aktif still applies", func(t *testing.T) {
+		csv := prodHeader + "ZErp Linked,ZBrand,ZErp Keep,,50 ml,125000,ZE-50,,,Tidak,\n"
+		rep := mustApply("/products/import", csv, "p-erp-2")
+		if rep.Summary.Warning != 0 || rep.Summary.Error != 0 || rep.Summary.Update != 1 {
+			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
+		}
+		if count(`SELECT count(*) FROM products WHERE id=$1 AND NOT is_active`, eLinked) != 1 {
+			t.Error("is_active is admin-owned and must apply")
+		}
+	})
+
+	sub("erp-owned: a variant sent without an id but with a linked SKU and a new size is a 409", func(t *testing.T) {
+		before := erpState()
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
+			variantBody("", "30 ml", "ZE-50", 125000, "ZE-BC50-CSV"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100-NEW")))
+		if code != http.StatusConflict || !strings.Contains(string(raw), "ERP") {
+			t.Fatalf("-> %d %s, want 409", code, raw)
+		}
+		if erpState() != before {
+			t.Error("a refused save changed data")
+		}
+	})
+
+	sub("erp-owned: a whitespace-only difference passes and the STORED name, size, SKU and address are kept", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload(" ZErp Linked ", catKeep,
+			variantBody(eV50, " 50 ml ", "ZE-50 ", 126000, "ZE-BC50-CSV"), variantBody(eV100, "100 ml", " ZE-100", 180000, "ZE-BC100-NEW")))
+		if code != http.StatusOK {
+			t.Fatalf("product -> %d %s, want 200", code, raw)
+		}
+		if got := text(`SELECT p.name||'|'||v.size||'|'||v.sku||'|'||v.price::text FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.id=$1`, eV50); got != "ZErp Linked|50 ml|ZE-50|126000.00" {
+			t.Errorf("stored values drifted: %q", got)
+		}
+		if got := text(`SELECT sku FROM product_variants WHERE id=$1`, eV100); got != "ZE-100" {
+			t.Errorf("sku drifted: %q", got)
+		}
+		code, raw = do(http.MethodPut, tok, "/outlets/"+eOutlet, map[string]any{"name": " ZErp Outlet", "code": "ZE1-NEW", "address": " Jl. ERP 1 ", "phone": "", "isActive": true})
+		if code != http.StatusOK {
+			t.Fatalf("outlet -> %d %s, want 200", code, raw)
+		}
+		if got := text(`SELECT name||'|'||address FROM outlets WHERE id=$1`, eOutlet); got != "ZErp Outlet|Jl. ERP 1" {
+			t.Errorf("outlet text drifted: %q", got)
+		}
+	})
 }

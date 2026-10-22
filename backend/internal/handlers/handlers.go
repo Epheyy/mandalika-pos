@@ -39,6 +39,8 @@ type Handlers struct {
 	importSlots chan struct{}
 	// receipts overrides the PostgreSQL receipt runner of keyed backoffice writes (tests only).
 	receipts service.ReceiptRunner
+	// erpPull runs the ERP catalog pull; nil when the integration is disabled (endpoints answer 503).
+	erpPull ErpCatalogRunner
 	// lastErrorLogSweep (unix nanos) throttles the error_logs retention sweep triggered by POST /error-logs.
 	lastErrorLogSweep atomic.Int64
 }

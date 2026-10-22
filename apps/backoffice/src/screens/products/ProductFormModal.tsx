@@ -41,6 +41,9 @@ interface ProductFormModalProps {
   setOcCollapsed: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
 }
 
+// Disabled look for an ERP-owned control (the shared field class has none).
+const ERP_LOCKED = 'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
+
 export function ProductFormModal({
   open, onClose, editing, busy, err, onSave,
   form, setForm, categories, uploading, onImage, removeImage, makeMainImage,
@@ -48,12 +51,18 @@ export function ProductFormModal({
   ocfgLoading, ocfgOutlets, ocGet, ocSet, setOutletAllAvailable, basePriceOf, ocCollapsed, setOcCollapsed,
 }: ProductFormModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const erpLinked = form.erpLinked === true
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="xl"
       title={editing ? 'Edit Produk' : 'Tambah Produk'}
+      subtitle={erpLinked ? (
+        <>
+          Dari ERP{form.erpGroupKey && <span className="ml-1 font-mono text-[10px] text-gray-400">({form.erpGroupKey})</span>}
+        </>
+      ) : undefined}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>Batal</Button>
@@ -101,10 +110,15 @@ export function ProductFormModal({
         </Field>
         <div className="grid grid-cols-2 gap-4">
           {(['name', 'brand'] as const).map((k) => (
-            <Input key={k} label={k === 'name' ? 'Nama Produk *' : 'Brand *'} type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+            <Input key={k} label={k === 'name' ? 'Nama Produk *' : 'Brand *'} type="text" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
+              disabled={erpLinked && k === 'name'} hint={erpLinked && k === 'name' ? <span id="erp-hint-name">Dikelola ERP</span> : undefined}
+              aria-describedby={erpLinked && k === 'name' ? 'erp-hint-name' : undefined}
+              className={erpLinked && k === 'name' ? ERP_LOCKED : undefined} />
           ))}
         </div>
-        <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
+        <Select label="Kategori *" value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+          disabled={erpLinked} hint={erpLinked ? <span id="erp-hint-category">Dikelola ERP</span> : undefined}
+          aria-describedby={erpLinked ? 'erp-hint-category' : undefined} className={erpLinked ? ERP_LOCKED : undefined}>
           <option value="">Pilih kategori...</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>

@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"bytes"
@@ -157,7 +157,7 @@ func headerChecks(key string, doc *document) []detail {
 	return ds
 }
 
-func (s *server) postStockDocument(w http.ResponseWriter, r *http.Request) {
+func (s *Server) postStockDocument(w http.ResponseWriter, r *http.Request) {
 	doc, hash, canon, ok := readDocument(w, r)
 	if !ok {
 		return

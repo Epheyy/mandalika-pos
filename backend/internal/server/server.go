@@ -84,7 +84,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	syncEngine.ContactKey = syncpkg.DeriveContactKey(cfg.AccessSecret)
 	h := handlers.New(rd, c, store, wr, os, syncEngine, signer)
 	// ERP outbox relay (plan step 5)
-	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(), cfg.IsProd())
+	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(cfg), cfg.IsProd())
+	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -101,7 +102,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	r.Route("/api/v1", func(r chi.Router) {
 		// ERP outbox relay (plan step 5): Cloud Scheduler trigger, shared secret
 		// (X-Scheduler-Secret), no JWT. Step 4's /internal/erp/* convention.
-		r.With(mw.RateLimit(c, "erp-relay", 30, time.Minute)).Post("/internal/erp/relay", eo.SchedulerRelay)
+		r.With(mw.RateLimit(c, "erp-relay", 30, time.Minute), mw.RequireSchedulerSecret(cfg)).Post("/internal/erp/relay", eo.SchedulerRelay)
 
 		// Credential endpoints get a strict per-IP limit to blunt
 		// brute-force and token-spray; the global limit still applies.
@@ -118,6 +119,14 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RateLimit(c, "ota", 120, time.Minute))
 			r.Post("/ota/check", h.OtaCheck)
+		})
+
+		// ERP catalog pull trigger for Cloud Scheduler (plan §4.4, D15): outside RequireAuth,
+		// guarded by the X-Scheduler-Secret shared secret and its own small rate-limit bucket.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RateLimit(c, "erp-catalog", 10, time.Minute))
+			r.Use(mw.RequireSchedulerSecret(cfg))
+			r.Post("/internal/erp/catalog-pull", h.ErpCatalogPullScheduler)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -355,6 +364,15 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/admin/erp/outbox", eo.ListOutbox)
 				r.Get("/admin/erp/outbox/{id}", eo.GetOutbox)
 				r.Post("/admin/erp/outbox/{id}/retry", eo.RetryOutbox)
+			})
+
+			// ERP integration (step 4): admin only.
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireRole("admin"))
+				r.Get("/admin/erp/sku-mapping/export", h.ExportSkuMapping)
+				r.Post("/admin/erp/sku-mapping/import", h.ImportSkuMapping)
+				r.Post("/admin/erp/catalog-pull", h.ErpCatalogPullAdmin)
+				r.Get("/admin/erp/sync-runs", h.ErpSyncRuns)
 			})
 		})
 	})

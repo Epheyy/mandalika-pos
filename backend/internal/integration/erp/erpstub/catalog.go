@@ -1,4 +1,4 @@
-package main
+package erpstub
 
 import (
 	"encoding/base64"
@@ -259,7 +259,7 @@ type catalogPage struct {
 	ServerTime string  `json:"server_time"`
 }
 
-func (s *server) catalogHandler(build func(*state) []catRec) http.HandlerFunc {
+func (s *Server) catalogHandler(build func(*state) []catRec) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, ds := parseCatalogParams(r.URL.Query())
 		if len(ds) > 0 {

@@ -84,6 +84,12 @@ func send(router http.Handler, method, path, token, body string) *httptest.Respo
 
 func newRouteHarness(t *testing.T) (http.Handler, func(role, uid string) string) {
 	t.Helper()
+	return newRouteHarnessCfg(t, nil)
+}
+
+// newRouteHarnessCfg is newRouteHarness with a hook to adjust the Config before the router is built.
+func newRouteHarnessCfg(t *testing.T, tweak func(*config.Config)) (http.Handler, func(role, uid string) string) {
+	t.Helper()
 	secret := routeHarnessSecret
 	mr := miniredis.RunT(t)
 	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
@@ -95,6 +101,9 @@ func newRouteHarness(t *testing.T) (http.Handler, func(role, uid string) string)
 	t.Cleanup(pool.Close)
 
 	cfg := &config.Config{AccessSecret: secret, RateLimitRPS: 100}
+	if tweak != nil {
+		tweak(cfg)
+	}
 	router := New(cfg, &db.DB{Pool: pool}, cache.NewFromClient(rc), nil)
 	issue := func(role, uid string) string {
 		t.Helper()

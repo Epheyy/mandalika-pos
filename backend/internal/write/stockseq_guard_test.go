@@ -38,6 +38,7 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/read/oversell.go":     false,
 	"internal/read/catalog.go":      false,
 	"internal/read/inventory.go":    false,
+	"internal/read/skumapping.go":   false, // read-only has_stock check for the ERP mapping export
 	// ledger reads (post-read / backfill lock); never writes stock (plan §2.5, D2b)
 	"internal/ledger/ledger.go":   false,
 	"internal/ledger/backfill.go": false,

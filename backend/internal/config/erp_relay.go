@@ -11,8 +11,8 @@ import (
 )
 
 // ERPRelay is the configuration of the erp_outbox relay (plan step 5).
-// BaseURL/APIKey/SchedulerToken duplicate the step 4 keys in config.go by design until the
-// branches merge; then read them from Config.
+// BaseURL/APIKey/SchedulerToken are copied from Config (ERP_BASE_URL, ERP_API_KEY,
+// ERP_SCHEDULER_TOKEN), so the keys are read in one place.
 type ERPRelay struct {
 	Enabled        bool
 	BaseURL        string // includes /api/integration/v1
@@ -32,20 +32,19 @@ const (
 
 var erpBrandRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 
-// LoadERPRelay reads ERP_RELAY_ENABLED, ERP_BASE_URL, ERP_API_KEY, ERP_SCHEDULER_TOKEN,
-// ERP_BRAND (default "mandalika") and ERP_RELAY_MAX_ATTEMPTS (default 10, 1..100).
-// A bad max-attempts value is reported by Validate, never by a panic.
-//
-// Secrets and the URL are trimmed: Secret Manager values often end in a newline.
-func LoadERPRelay() ERPRelay { return LoadERPRelayFrom(os.Getenv) }
+// LoadERPRelay copies ERPBaseURL, ERPAPIKey and ERPSchedulerToken from c (already
+// trimmed by Load) and reads ERP_RELAY_ENABLED, ERP_BRAND (default "mandalika") and
+// ERP_RELAY_MAX_ATTEMPTS (default 10, 1..100) from the environment. A bad max-attempts
+// value is reported by Validate, never by a panic.
+func LoadERPRelay(c *Config) ERPRelay { return LoadERPRelayFrom(c, os.Getenv) }
 
 // LoadERPRelayFrom is LoadERPRelay with an injectable environment lookup.
-func LoadERPRelayFrom(getenv func(string) string) ERPRelay {
+func LoadERPRelayFrom(c *Config, getenv func(string) string) ERPRelay {
 	e := ERPRelay{
 		Enabled:        envERPOn(getenv("ERP_RELAY_ENABLED")),
-		BaseURL:        strings.TrimSpace(getenv("ERP_BASE_URL")),
-		APIKey:         strings.TrimSpace(getenv("ERP_API_KEY")),
-		SchedulerToken: strings.TrimSpace(getenv("ERP_SCHEDULER_TOKEN")),
+		BaseURL:        c.ERPBaseURL,
+		APIKey:         c.ERPAPIKey,
+		SchedulerToken: c.ERPSchedulerToken,
 		Brand:          strings.TrimSpace(getenv("ERP_BRAND")),
 		MaxAttempts:    defaultERPMaxAttempts,
 	}

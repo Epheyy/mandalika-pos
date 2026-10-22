@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Product, Category, Bundle, ProductVariant, ProductInput } from '@mandalika/api'
 import { SINGLE_UNIT_SIZE } from '@mandalika/types'
 import { api } from '../../api'
+import { validateProductForm } from './validateForm'
 import { loadAllProducts } from '../../lib/loadAll'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -77,6 +78,7 @@ export function useProductsData() {
       sellable: p.sellable ?? true,
       isActive: p.isActive, isFeatured: p.isFeatured,
       variants: p.variants.map((v) => ({ ...v })),
+      erpLinked: p.erpLinked === true, erpGroupKey: p.erpGroupKey ?? null,
     })
     setErr(null)
     setOcfgOutlets([])
@@ -105,6 +107,7 @@ export function useProductsData() {
           images: base.images ?? f.images,
           sellable: base.sellable ?? f.sellable,
           variants: base.variants.map((v) => ({ ...v })),
+          erpLinked: base.erpLinked === true, erpGroupKey: base.erpGroupKey ?? null,
         }))
       const oMap = new Map<string, string>()
       const m: Record<string, OcRow> = {}
@@ -192,27 +195,13 @@ export function useProductsData() {
   const removeVariant = (i: number) => setForm((f) => ({ ...f, variants: f.variants.filter((_, x) => x !== i) }))
 
   const save = async () => {
-    if (!form.name.trim()) return setErr('Nama produk wajib diisi')
-    if (!form.categoryId) return setErr('Pilih kategori')
-    // A single-variant product (e.g. merch like a bag) may leave Ukuran blank →
-    // it defaults to "Satuan". Multi-variant products need a distinct, non-empty
-    // size on each row.
+    const invalid = validateProductForm(form)
+    if (invalid) return setErr(invalid)
     const single = form.variants.length === 1
     const variants = form.variants.map((v) => ({
       ...v,
       size: v.size.trim() || (single ? SINGLE_UNIT_SIZE : ''),
     }))
-    if (variants.some((v) => v.price <= 0))
-      return setErr('Setiap varian harus punya harga')
-    if (variants.some((v) => !v.sku.trim()))
-      return setErr('Setiap varian wajib punya SKU')
-    if (!single && variants.some((v) => !v.size))
-      return setErr('Produk dengan beberapa varian: setiap varian wajib punya ukuran')
-    if (!single) {
-      const sizes = variants.map((v) => v.size.toLowerCase())
-      if (new Set(sizes).size !== sizes.length)
-        return setErr('Ukuran varian tidak boleh sama')
-    }
     setBusy(true)
     setErr(null)
     try {

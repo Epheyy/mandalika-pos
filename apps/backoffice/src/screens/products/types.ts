@@ -7,6 +7,8 @@ export type Form = {
   name: string; brand: string; categoryId: string; description: string
   images: string[]; sellable: boolean
   isActive: boolean; isFeatured: boolean; variants: ProductVariant[]
+  // Read-only ERP origin (set when editing); name and category are ERP-owned when linked.
+  erpLinked?: boolean; erpGroupKey?: string | null
 }
 
 export const EMPTY: Form = {

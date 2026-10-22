@@ -5,16 +5,22 @@ import (
 	"testing"
 )
 
-func setERPEnv(t *testing.T, kv map[string]string) {
+// setERPEnv sets the env the relay reads itself and returns the Config carrying the three
+// keys that Load reads (same trimming as Load).
+func setERPEnv(t *testing.T, kv map[string]string) *Config {
 	t.Helper()
 	for _, k := range []string{"ERP_RELAY_ENABLED", "ERP_BASE_URL", "ERP_API_KEY", "ERP_SCHEDULER_TOKEN", "ERP_BRAND", "ERP_RELAY_MAX_ATTEMPTS"} {
 		t.Setenv(k, kv[k])
 	}
+	return &Config{
+		ERPBaseURL:        strings.TrimSpace(kv["ERP_BASE_URL"]),
+		ERPAPIKey:         strings.TrimSpace(kv["ERP_API_KEY"]),
+		ERPSchedulerToken: strings.TrimSpace(kv["ERP_SCHEDULER_TOKEN"]),
+	}
 }
 
 func TestLoadERPRelayDefaults(t *testing.T) {
-	setERPEnv(t, nil)
-	e := LoadERPRelay()
+	e := LoadERPRelay(setERPEnv(t, nil))
 	if e.Enabled || e.Brand != "mandalika" || e.MaxAttempts != 10 {
 		t.Fatalf("defaults: %+v", e)
 	}
@@ -25,8 +31,8 @@ func TestLoadERPRelayDefaults(t *testing.T) {
 
 func TestLoadERPRelayEnabledFlag(t *testing.T) {
 	for v, want := range map[string]bool{"true": true, "1": true, "TRUE": true, "yes": false, "0": false, "": false} {
-		setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": v})
-		if got := LoadERPRelay().Enabled; got != want {
+		c := setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": v})
+		if got := LoadERPRelay(c).Enabled; got != want {
 			t.Errorf("ERP_RELAY_ENABLED=%q: %v want %v", v, got, want)
 		}
 	}
@@ -70,8 +76,7 @@ func TestERPRelayValidate(t *testing.T) {
 		{"disabled still checks token", map[string]string{"ERP_SCHEDULER_TOKEN": "short"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			setERPEnv(t, tc.env)
-			err := LoadERPRelay().Validate(false)
+			err := LoadERPRelay(setERPEnv(t, tc.env)).Validate(false)
 			if (err != nil) != tc.bad {
 				t.Fatalf("err=%v want bad=%v", err, tc.bad)
 			}
@@ -80,19 +85,19 @@ func TestERPRelayValidate(t *testing.T) {
 }
 
 func TestERPRelayValidateNeverLeaksValues(t *testing.T) {
-	setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": "1", "ERP_BASE_URL": "https://x/y?secret=SEKRET", "ERP_API_KEY": "KEYVAL"})
-	err := LoadERPRelay().Validate(false)
+	c := setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": "1", "ERP_BASE_URL": "https://x/y?secret=SEKRET", "ERP_API_KEY": "KEYVAL"})
+	err := LoadERPRelay(c).Validate(false)
 	if err == nil || strings.Contains(err.Error(), "SEKRET") || strings.Contains(err.Error(), "KEYVAL") {
 		t.Fatalf("error leaks a value: %v", err)
 	}
 }
 
 func TestERPRelayTrimsWhitespace(t *testing.T) {
-	setERPEnv(t, map[string]string{
+	c := setERPEnv(t, map[string]string{
 		"ERP_RELAY_ENABLED": "true", "ERP_BASE_URL": " https://erp.example.com/v1\n",
 		"ERP_API_KEY": "key\n", "ERP_SCHEDULER_TOKEN": strings.Repeat("s", 32) + "\r\n",
 	})
-	e := LoadERPRelay()
+	e := LoadERPRelay(c)
 	if e.APIKey != "key" || e.SchedulerToken != strings.Repeat("s", 32) || e.BaseURL != "https://erp.example.com/v1" {
 		t.Fatalf("not trimmed: %+v", e)
 	}
@@ -113,8 +118,7 @@ func TestERPRelayRejectsEmbeddedSpaceOrControl(t *testing.T) {
 		for k, v := range over {
 			env[k] = v
 		}
-		setERPEnv(t, env)
-		if err := LoadERPRelay().Validate(false); err == nil {
+		if err := LoadERPRelay(setERPEnv(t, env)).Validate(false); err == nil {
 			t.Errorf("%s: want error", name)
 		}
 	}
@@ -135,8 +139,8 @@ func TestERPRelayValidateBaseURLModes(t *testing.T) {
 		{"https://user@erp.example.com/v1", true, false},
 		{"http://localhost.evil.com/v1", true, false},
 	} {
-		setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": "true", "ERP_BASE_URL": tc.url, "ERP_API_KEY": "k"})
-		err := LoadERPRelay().Validate(tc.prod)
+		c := setERPEnv(t, map[string]string{"ERP_RELAY_ENABLED": "true", "ERP_BASE_URL": tc.url, "ERP_API_KEY": "k"})
+		err := LoadERPRelay(c).Validate(tc.prod)
 		if (err == nil) != tc.ok {
 			t.Errorf("%s prod=%v: err=%v want ok=%v", tc.url, tc.prod, err, tc.ok)
 		}
