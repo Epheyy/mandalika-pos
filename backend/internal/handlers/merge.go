@@ -28,7 +28,7 @@ func (h *Handlers) DupCandidates(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	rows, total, err := h.Repo.DupCandidates(r.Context(), status, p, l)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.DupCandidateListResponse{
@@ -46,7 +46,7 @@ func (h *Handlers) DupCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.DupCandidateResponse{Data: v})
@@ -93,9 +93,9 @@ func (h *Handlers) MergeDupCandidate(w http.ResponseWriter, r *http.Request) {
 			errors.Is(mergeErr, write.ErrAlreadyMerged),
 			errors.Is(mergeErr, write.ErrSelfMerge),
 			errors.Is(mergeErr, write.ErrKeeperNotInPair):
-			httpx.Err(w, http.StatusConflict, mergeErr.Error())
+			httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, mergeErr))
 		default:
-			httpx.Err(w, http.StatusInternalServerError, mergeErr.Error())
+			writeErr(w, r, http.StatusInternalServerError, mergeErr)
 		}
 		return
 	}
@@ -112,7 +112,7 @@ func (h *Handlers) DismissDupCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpx.Err(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	h.invalidate(r)

@@ -13,7 +13,7 @@ func (h *Handlers) IngredientStockCounts(w http.ResponseWriter, r *http.Request)
 	p, l := pageLimit(r)
 	rows, total, err := h.Repo.IngredientStockCounts(r.Context(), p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.IngredientStockCountListResponse{Data: rows, Meta: *meta(total, p, l)})
@@ -22,7 +22,7 @@ func (h *Handlers) IngredientStockCounts(w http.ResponseWriter, r *http.Request)
 func (h *Handlers) IngredientStockCount(w http.ResponseWriter, r *http.Request) {
 	sc, err := h.Repo.IngredientStockCount(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.IngredientStockCountResponse{Data: sc})

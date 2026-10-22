@@ -39,7 +39,7 @@ func (h *Handlers) DeleteCustomer(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) Tags(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.Tags(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.TagListResponse{Data: rows})
@@ -77,7 +77,7 @@ func (h *Handlers) SetCustomerTags(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) Segments(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.Segments(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.SegmentListResponse{Data: rows})
@@ -116,7 +116,7 @@ func (h *Handlers) Interactions(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	rows, total, err := h.Repo.Interactions(r.Context(), chi.URLParam(r, "id"), p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.InteractionListResponse{Data: rows, Meta: *meta(total, p, l)})
@@ -144,7 +144,7 @@ func (h *Handlers) PointTransactions(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	rows, total, err := h.Repo.PointTransactions(r.Context(), chi.URLParam(r, "id"), p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.PointTransactionListResponse{Data: rows, Meta: *meta(total, p, l)})
@@ -179,11 +179,11 @@ func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(err, write.ErrNotFound):
 				httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
 			case errors.Is(err, write.ErrZeroDelta) || errors.Is(err, write.ErrInsufficientPoints) || errors.Is(err, write.ErrReasonRequired):
-				httpx.Err(w, http.StatusBadRequest, err.Error())
+				httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
 			case errors.Is(err, write.ErrBusy) || isKeyConflict(err):
 				return false // 409 via the shared mapping
 			default:
-				writeErr(w, http.StatusInternalServerError, err)
+				writeErr(w, r, http.StatusInternalServerError, err)
 			}
 			return true
 		},
@@ -193,7 +193,7 @@ func (h *Handlers) AdjustPoints(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RewardGrants(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.RewardGrants(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RewardGrantListResponse{Data: rows})

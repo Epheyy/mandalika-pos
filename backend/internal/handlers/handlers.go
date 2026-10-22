@@ -111,7 +111,7 @@ func (h *Handlers) cached(w http.ResponseWriter, r *http.Request, key string, bu
 	}
 	body, status, err := build()
 	if err != nil {
-		writeErr(w, status, err)
+		writeErr(w, r, status, err)
 		return
 	}
 	raw, _ := json.Marshal(body)
@@ -122,17 +122,6 @@ func (h *Handlers) cached(w http.ResponseWriter, r *http.Request, key string, bu
 	w.Header().Set("X-Cache", "MISS")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(raw)
-}
-
-func writeErr(w http.ResponseWriter, status int, err error) {
-	if errors.Is(err, read.ErrNotFound) {
-		httpx.Err(w, http.StatusNotFound, "not found")
-		return
-	}
-	if status == 0 {
-		status = http.StatusInternalServerError
-	}
-	httpx.Err(w, status, err.Error())
 }
 
 func ckey(r *http.Request) string {
@@ -297,7 +286,7 @@ func (h *Handlers) CustomersByPhone(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.Repo.CustomerByPhone(r.Context(), phone)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.CustomerListResponse{Data: rows, Meta: meta(len(rows), 1, len(rows))})
@@ -371,7 +360,7 @@ func (h *Handlers) ErrorLogs(w http.ResponseWriter, r *http.Request) {
 	rows, total, err := h.Repo.ErrorLogs(r.Context(),
 		q.Get("outletId"), q.Get("source"), q.Get("from"), q.Get("to"), p, l)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.ErrorLogListResponse{Data: rows, Meta: meta(total, p, l)})
@@ -386,7 +375,7 @@ func (h *Handlers) CurrentShift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	resp.Data = nullableShift(v)
@@ -396,7 +385,7 @@ func (h *Handlers) CurrentShift(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) Shift(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Repo.Shift(r.Context(), scope(r), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.ShiftResponse{Data: nullableShift(v)})
@@ -468,7 +457,7 @@ func (h *Handlers) PromoRewardGrants(w http.ResponseWriter, r *http.Request) {
 	}
 	summary, rows, total, err := h.Repo.PromoRewardGrantReport(r.Context(), f, p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.PromoRewardGrantReport{
@@ -495,7 +484,7 @@ func (h *Handlers) DiscountCodeReport(w http.ResponseWriter, r *http.Request) {
 	}
 	summary, rows, total, err := h.Repo.DiscountCodeReport(r.Context(), f, p, l)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.DiscountCodeReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})

@@ -43,7 +43,7 @@ func (h *Handlers) ReportSyncReviewItems(w http.ResponseWriter, r *http.Request)
 	if decoded := decodeReviewReports(body.Items); len(decoded) > 0 {
 		var err error
 		if items, err = normalizeReviewReports(decoded); err != nil {
-			httpx.Err(w, http.StatusBadRequest, err.Error())
+			httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
 			return
 		}
 	}
@@ -121,7 +121,7 @@ func (h *Handlers) ResolveSyncReviewItem(w http.ResponseWriter, r *http.Request)
 	}
 	note, err := normalizeResolveNote(body.Note)
 	if err != nil {
-		httpx.Err(w, http.StatusBadRequest, err.Error())
+		httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
 		return
 	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)

@@ -53,11 +53,11 @@ func writeDecodeErr(w http.ResponseWriter, err error) {
 
 func (h *Handlers) created(w http.ResponseWriter, r *http.Request, id string, err error) {
 	if write.IsSkuTaken(err) {
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	h.invalidate(r)
@@ -71,29 +71,29 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	if errors.Is(err, write.ErrBusy) {
 		// Lock conflict/deadlock: nothing was applied, safe to retry. Clean message only.
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if isKeyConflict(err) {
-		httpx.Err(w, http.StatusConflict, err.Error()) // key already used for another operation
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err)) // key already used for another operation
 		return
 	}
 	if write.IsSkuTaken(err) {
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if write.IsErpOwned(err) {
 		// An ERP-owned field of an ERP-linked row (plan 4.5): the ERP owns it.
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if write.IsStockGuardRefusal(err) {
 		// A D13 refusal (stocked variant, or a rename onto leftover rows): 409 with its message.
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	h.invalidate(r)

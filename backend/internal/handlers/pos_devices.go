@@ -38,9 +38,9 @@ func (h *Handlers) RegisterPOSDevice(w http.ResponseWriter, r *http.Request) {
 		kind, _ := apperr.CodeOf(err)
 		switch kind {
 		case apperr.NotFound:
-			httpx.Err(w, http.StatusNotFound, err.Error())
+			httpx.Err(w, http.StatusNotFound, safeDomainText(r, http.StatusNotFound, err))
 		case apperr.Busy:
-			httpx.Err(w, http.StatusConflict, err.Error())
+			httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		default:
 			slog.Error("pos device register failed", "outletId", c.outletID, "err", err)
 			httpx.Err(w, http.StatusInternalServerError, "gagal mendaftarkan perangkat")

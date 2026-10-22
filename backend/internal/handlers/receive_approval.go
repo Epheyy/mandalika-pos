@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -34,7 +33,7 @@ func (h *Handlers) ListReceiveApprovers(w http.ResponseWriter, r *http.Request) 
 	}
 	rows, err := h.Repo.ReceiveApprovingUsers(r.Context(), c.outletID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if rows == nil {
@@ -83,7 +82,7 @@ func (h *Handlers) CreateTransferReceiveApproval(w http.ResponseWriter, r *http.
 	}
 	res, err := h.Write.MintReceiveApproval(r.Context(), in)
 	if err != nil {
-		mintError(w, err)
+		mintError(w, r, err)
 		return
 	}
 	id, _ := parseUUID(res.GrantID)
@@ -95,7 +94,7 @@ func (h *Handlers) CreateTransferReceiveApproval(w http.ResponseWriter, r *http.
 
 // mintError maps a mint refusal to its HTTP shape. Unknown, ineligible, no-PIN and
 // wrong-PIN approvers all return the identical 403 body.
-func mintError(w http.ResponseWriter, err error) {
+func mintError(w http.ResponseWriter, r *http.Request, err error) {
 	var locked *write.LockedError
 	if errors.As(err, &locked) {
 		// A hard lock (either subject) has no countdown: retryAfterSeconds 0 and no Retry-After
@@ -115,15 +114,14 @@ func mintError(w http.ResponseWriter, err error) {
 	code, _ := apperr.CodeOf(err)
 	switch code {
 	case apperr.Forbidden:
-		httpx.Err(w, http.StatusForbidden, err.Error())
+		httpx.Err(w, http.StatusForbidden, safeDomainText(r, http.StatusForbidden, err))
 	case apperr.Conflict:
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 	case apperr.Busy:
 		w.Header().Set("Retry-After", "2")
-		httpx.Err(w, http.StatusServiceUnavailable, err.Error())
+		httpx.Err(w, http.StatusServiceUnavailable, safeDomainText(r, http.StatusServiceUnavailable, err))
 	default:
-		slog.Error("receive approval mint failed", "err", err)
-		httpx.Err(w, http.StatusInternalServerError, "terjadi kesalahan, coba lagi")
+		writeErr(w, r, http.StatusInternalServerError, err)
 	}
 }
 
@@ -141,7 +139,7 @@ func (h *Handlers) ClearUserReceivePinLockout(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

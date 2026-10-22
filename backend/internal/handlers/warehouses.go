@@ -11,7 +11,7 @@ import (
 func (h *Handlers) Warehouses(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.Warehouses(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
@@ -41,7 +41,7 @@ func (h *Handlers) DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) WarehouseStock(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.WarehouseStock(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": rows})

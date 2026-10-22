@@ -70,7 +70,7 @@ func (h *Handlers) LoyaltyPreview(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
 	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), body.CustomerID, body.Items, body.Total, previewClock(body.ClientCreatedAt, time.Now()), c.outletID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	out := make([]api.LoyaltyPreviewReward, 0, len(rewards))

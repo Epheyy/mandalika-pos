@@ -116,7 +116,7 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 	}
 	if write.IsStockGuardRefusal(err) {
 		// D13: a rename of a stocked variant that a stale preview let through; nothing applied.
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	if err != nil {

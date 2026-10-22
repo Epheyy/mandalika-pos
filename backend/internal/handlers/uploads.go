@@ -13,7 +13,7 @@ func (h *Handlers) SignUpload(w http.ResponseWriter, r *http.Request) {
 	_ = httpx.DecodeLoose(r, &body)
 	sig, err := h.Signer.Sign(body.Folder)
 	if err != nil {
-		httpx.Err(w, http.StatusServiceUnavailable, err.Error())
+		writeErr(w, r, http.StatusServiceUnavailable, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": sig})

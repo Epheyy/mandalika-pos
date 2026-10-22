@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
@@ -14,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -178,6 +180,27 @@ func TestPaginationPostgres(t *testing.T) {
 	t.Run("shifts-251", func(t *testing.T) { verify(t, "shifts", "/api/v1/shifts?", 1000, 251, true) })
 	t.Run("flows-401", func(t *testing.T) { verify(t, "flows", "/api/v1/cash-flows?shiftId="+shiftID(1000), 1000, 401, true) })
 	t.Run("products-201", func(t *testing.T) { verify(t, "products", "/api/v1/products?", 1000, 201, false) })
+	t.Run("bad-uuid-id-is-400-without-database-text", func(t *testing.T) {
+		// Before sanitised errors this answered 500 with the raw SQLSTATE 22P02 text.
+		cr := chi.NewRouter()
+		cr.Get("/api/v1/products/{id}", h.Product)
+		token, err := auth.IssueAccess(secret, time.Hour, cashier, "cashier", outletID(1000), []string{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/products/not-a-uuid", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		wrap(cr).ServeHTTP(w, req)
+		if w.Code != 400 || !strings.Contains(w.Body.String(), "invalid input") {
+			t.Fatalf("status %d body %s", w.Code, w.Body.String())
+		}
+		for _, leak := range []string{"SQLSTATE", "ERROR:", "uuid"} {
+			if strings.Contains(w.Body.String(), leak) {
+				t.Fatalf("database text leaked (%s): %s", leak, w.Body.String())
+			}
+		}
+	})
 	t.Run("shift-and-date-filters", func(t *testing.T) {
 		verify(t, "filtered", "/api/v1/orders?shiftId="+shiftID(201)+"&from=2026-09-21&to=2026-09-21", 201, 201, true)
 		verify(t, "empty-date", "/api/v1/orders?from=2026-09-22", 201, 0, true)

@@ -14,7 +14,7 @@ import (
 func (h *Handlers) VariantRecipe(w http.ResponseWriter, r *http.Request) {
 	rec, err := h.Repo.VariantRecipe(r.Context(), chi.URLParam(r, "variantId"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err) // read.ErrNotFound → 404
+		writeErr(w, r, http.StatusBadRequest, err) // read.ErrNotFound → 404
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RecipeResponse{Data: rec})
@@ -23,7 +23,7 @@ func (h *Handlers) VariantRecipe(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RecipeVariantIDs(w http.ResponseWriter, r *http.Request) {
 	ids, err := h.Repo.RecipeVariantIDs(r.Context(), chi.URLParam(r, "productId"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RecipeVariantIdsResponse{VariantIds: ids})
@@ -32,7 +32,7 @@ func (h *Handlers) RecipeVariantIDs(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RecipeVersions(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.RecipeVersions(r.Context(), chi.URLParam(r, "variantId"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RecipeVersionListResponse{Data: rows})
@@ -41,7 +41,7 @@ func (h *Handlers) RecipeVersions(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) RecipeVersion(w http.ResponseWriter, r *http.Request) {
 	rec, err := h.Repo.RecipeVersion(r.Context(), chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RecipeResponse{Data: rec})
@@ -55,7 +55,7 @@ func (h *Handlers) SaveVariantRecipe(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
 	id, err := h.Write.SaveRecipe(r.Context(), c.userID, chi.URLParam(r, "variantId"), in)
 	if errors.Is(err, write.ErrVersionConflict) {
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	h.created(w, r, id, err) // validation / inactive-add → 400; success → 201
@@ -74,7 +74,7 @@ func (h *Handlers) RestoreRecipeVersion(w http.ResponseWriter, r *http.Request) 
 	id, err := h.Write.RestoreRecipeVersion(r.Context(), c.userID,
 		chi.URLParam(r, "variantId"), chi.URLParam(r, "versionId"), in.ExpectedCurrentVersionID)
 	if errors.Is(err, write.ErrVersionConflict) {
-		httpx.Err(w, http.StatusConflict, err.Error())
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
 	h.created(w, r, id, err)

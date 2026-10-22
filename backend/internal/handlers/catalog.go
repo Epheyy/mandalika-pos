@@ -33,7 +33,7 @@ func (h *Handlers) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) GetProductOutletConfig(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.ProductOutletConfig(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.OutletConfigResponse{Data: rows})

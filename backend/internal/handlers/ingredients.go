@@ -15,7 +15,7 @@ func (h *Handlers) Ingredients(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	rows, total, err := h.Repo.Ingredients(r.Context(), p, l, q)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.IngredientListResponse{Data: rows, Meta: *meta(total, p, l)})
@@ -45,7 +45,7 @@ func (h *Handlers) DeleteIngredient(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) IngredientUsage(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.Repo.IngredientUsage(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -112,7 +112,7 @@ func (h *Handlers) IngredientLocationStock(w http.ResponseWriter, r *http.Reques
 	}
 	rows, err := h.Repo.IngredientLocationStock(r.Context(), kind, locID)
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.IngredientStockResponse{Data: rows})
@@ -121,7 +121,7 @@ func (h *Handlers) IngredientLocationStock(w http.ResponseWriter, r *http.Reques
 func (h *Handlers) IngredientCategories(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Repo.IngredientCategories(r.Context())
 	if err != nil {
-		writeErr(w, 500, err)
+		writeErr(w, r, 500, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.IngredientCategoryListResponse{Data: rows})
