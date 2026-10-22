@@ -28,14 +28,16 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 	var cat csvimport.Catalog
 	rows, err := q.Query(ctx, `
 		SELECT id::text, name, brand, COALESCE(category_id::text,''), COALESCE(description,''),
-		       sellable, is_active, is_featured
+		       sellable, is_active, is_featured,
+		       erp_group_key IS NOT NULL
+		         OR EXISTS (SELECT 1 FROM product_variants ev WHERE ev.product_id = products.id AND ev.erp_slug IS NOT NULL)
 		  FROM products`)
 	if err != nil {
 		return cat, err
 	}
 	for rows.Next() {
 		var p csvimport.CatalogProduct
-		if err = rows.Scan(&p.ID, &p.Name, &p.Brand, &p.CategoryID, &p.Description, &p.Sellable, &p.Active, &p.Featured); err != nil {
+		if err = rows.Scan(&p.ID, &p.Name, &p.Brand, &p.CategoryID, &p.Description, &p.Sellable, &p.Active, &p.Featured, &p.ERPLinked); err != nil {
 			rows.Close()
 			return cat, err
 		}
@@ -46,13 +48,13 @@ func loadCatalog(ctx context.Context, q pgx.Tx) (csvimport.Catalog, error) {
 		return cat, err
 	}
 
-	rows, err = q.Query(ctx, `SELECT id::text, product_id::text, size, sku, barcode, price::float8 FROM product_variants`)
+	rows, err = q.Query(ctx, `SELECT id::text, product_id::text, size, sku, barcode, price::float8, erp_slug IS NOT NULL FROM product_variants`)
 	if err != nil {
 		return cat, err
 	}
 	for rows.Next() {
 		var v csvimport.CatalogVariant
-		if err = rows.Scan(&v.ID, &v.ProductID, &v.Size, &v.SKU, &v.Barcode, &v.Price); err != nil {
+		if err = rows.Scan(&v.ID, &v.ProductID, &v.Size, &v.SKU, &v.Barcode, &v.Price, &v.ERPLinked); err != nil {
 			rows.Close()
 			return cat, err
 		}

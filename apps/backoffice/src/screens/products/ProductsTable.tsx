@@ -75,13 +75,18 @@ export function ProductsTable({
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1">
                         <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
+                        {p.erpLinked && <Badge tone="gold">Dari ERP</Badge>}
+                        {p.erpLinked && <span id={`erp-nodelete-${p.id}`} className="sr-only">Produk dari ERP tidak bisa dihapus; nonaktifkan saja</span>}
                         {p.sellable === false && <Badge tone="warning">Internal</Badge>}
                       </div>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <IconButton onClick={() => onEdit(p)}><Edit2 className="w-4 h-4" /></IconButton>
-                        <IconButton tone="danger" onClick={() => onDelete(p.id)}><Trash2 className="w-4 h-4" /></IconButton>
+                        <IconButton tone="danger" disabled={p.erpLinked === true} aria-label={`Hapus ${p.name}`}
+                          aria-describedby={p.erpLinked ? `erp-nodelete-${p.id}` : undefined}
+                          title={p.erpLinked ? 'Produk dari ERP tidak bisa dihapus; nonaktifkan saja' : undefined}
+                          className="disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onDelete(p.id)}><Trash2 className="w-4 h-4" /></IconButton>
                       </div>
                     </td>
                   </tr>

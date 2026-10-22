@@ -248,12 +248,19 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 	return retryBusy(ctx, func() error { return r.updateProduct(ctx, id, p) })
 }
 
-// updateProduct is one UpdateProduct attempt (one fresh tx). It does not lock the product
-// row: a stock row a concurrent receipt adds for a removed or renamed size after the guard
-// is only left behind under the old size (nothing is destroyed or moved), and locking
-// the parent would stall every sale of the product for the length of an edit.
+// updateProduct is one UpdateProduct attempt (one fresh tx). Its only product-row lock is
+// the FOR NO KEY UPDATE of the ERP guard, which the UPDATE right after takes anyway; it
+// does not lock the parent against stock writers: a stock row a concurrent receipt adds
+// for a removed or renamed size after the guard is only left behind under the old size
+// (nothing is destroyed or moved), and a FOR UPDATE would stall every sale of the product
+// for the length of an edit. The incoming variants are copied because the ERP guard
+// replaces ERP-owned text on linked variants with the stored values.
 func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
+	p.Variants = append([]Variant(nil), p.Variants...)
 	return barcodeConflict(r.tx(ctx, "products", func(t pgx.Tx) error {
+		if e := guardLinkedProduct(ctx, t, id, &p); e != nil {
+			return e
+		}
 		if e := updateProductRow(ctx, t, id, p); e != nil {
 			return e
 		}
@@ -262,6 +269,9 @@ func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
 			return e
 		}
 		matched := matchVariants(p.Variants, byID, bySKU)
+		if e := guardLinkedVariants(ctx, t, id, p.Variants, matched, byID); e != nil {
+			return e
+		}
 		if e := checkSkusFree(ctx, t, id, existingSKUs(p.Variants, matched, byID), p.Variants); e != nil {
 			return e
 		}
@@ -452,6 +462,9 @@ func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
 func (r *Repo) deleteProduct(ctx context.Context, id string) error {
 	return r.tx(ctx, "products", func(t pgx.Tx) error {
 		if e := lockProductRow(ctx, t, id); e != nil {
+			return e
+		}
+		if e := guardLinkedProductDelete(ctx, t, id); e != nil {
 			return e
 		}
 		if e := lockProductStock(ctx, t, id); e != nil {

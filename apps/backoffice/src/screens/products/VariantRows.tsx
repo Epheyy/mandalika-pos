@@ -3,6 +3,9 @@ import { Plus, X, Store, FlaskConical } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { fieldClass } from '../../ui/Field'
 
+// Disabled look for an ERP-owned control (the shared field class has none).
+const ERP_LOCKED = 'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
+
 interface VariantRowsProps {
   variants: ProductVariant[]
   editing: boolean
@@ -50,7 +53,9 @@ export function VariantRows({
               { k: 'price', span: 'col-span-3', ph: '150000', num: true },
               { k: 'sku', span: 'col-span-3', ph: 'MND-01', num: false },
             ] as const).map(({ k, span, ph, num }) => (
-              <input key={k} id={i === 0 && k === 'size' ? 'variant-size-0' : undefined} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={k === 'size' ? 'Ukuran varian' : k === 'price' ? 'Harga dasar varian' : 'SKU varian'} className={`${fieldClass} ${span}`} />
+              <input key={k} id={i === 0 && k === 'size' ? 'variant-size-0' : undefined} type={num ? 'number' : 'text'} value={num && v[k] === 0 ? '' : v[k]} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={k === 'size' ? 'Ukuran varian' : k === 'price' ? 'Harga dasar varian' : 'SKU varian'}
+                disabled={!!v.erpSlug && k !== 'price'} title={v.erpSlug && k !== 'price' ? 'Dikelola ERP' : undefined}
+                className={`${fieldClass} ${span} ${v.erpSlug && k !== 'price' ? ERP_LOCKED : ''}`} />
             ))}
             <input
               type="text"
@@ -71,11 +76,20 @@ export function VariantRows({
                   <FlaskConical className="w-4 h-4" />
                 </button>
               )}
-              <button type="button" onClick={() => onRemoveVariant(i)}
-                disabled={variants.length === 1} className="text-gray-300 hover:text-red-500 disabled:opacity-0">
-                <X className="w-4 h-4" />
-              </button>
+              {v.erpSlug ? (
+                <span title="Varian dari ERP tidak bisa dihapus" className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gold-50 text-gold-700">
+                  ERP<span className="sr-only"> (varian dari ERP, tidak bisa dihapus)</span>
+                </span>
+              ) : (
+                <button type="button" onClick={() => onRemoveVariant(i)}
+                  disabled={variants.length === 1} className="text-gray-300 hover:text-red-500 disabled:opacity-0">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
+            {v.erpSlug && v.isActive === false && (
+              <p className="col-span-12 text-[11px] font-bold text-amber-700 -mt-1 px-1">Nonaktif (ERP)</p>
+            )}
           </div>
         ))}
       </div>

@@ -331,6 +331,8 @@ components:
           enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
           description: Outlet timezone (WIB, WITA, WIT). Decides the business day of its sales.
         createdAt: { type: string, format: date-time }
+        erpSlug: { type: string, nullable: true, readOnly: true }  # ERP catalog (step 4)
+        erpCode: { type: string, nullable: true, readOnly: true }  # ERP catalog (step 4)
     OutletListResponse:
       type: object
       required: [data]
@@ -890,6 +892,8 @@ components:
         barcode: { type: string }
         basePrice: { type: number, description: 'the catalog base price; price may be an outlet override when an outlet is in scope' }
         parLevel: { type: integer, nullable: true }
+        erpSlug: { type: string, nullable: true, readOnly: true }  # ERP catalog (step 4)
+        isActive: { type: boolean, readOnly: true }  # ERP catalog (step 4)
     Product:
       type: object
       required: [id, name, brand, categoryId, variants, isFeatured, isFavourite, isActive, createdAt]
@@ -907,6 +911,8 @@ components:
         isFavourite: { type: boolean }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
+        erpGroupKey: { type: string, nullable: true, readOnly: true }  # ERP catalog (step 4)
+        erpLinked: { type: boolean, readOnly: true }  # ERP catalog (step 4)
     ProductListResponse:
       type: object
       required: [data]

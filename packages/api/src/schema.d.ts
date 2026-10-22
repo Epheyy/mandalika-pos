@@ -2574,6 +2574,8 @@ export interface components {
             timezone: "Asia/Jakarta" | "Asia/Makassar" | "Asia/Jayapura";
             /** Format: date-time */
             createdAt: string;
+            readonly erpSlug?: string | null;
+            readonly erpCode?: string | null;
         };
         OutletListResponse: {
             data: components["schemas"]["Outlet"][];
@@ -3053,6 +3055,8 @@ export interface components {
             /** @description the catalog base price; price may be an outlet override when an outlet is in scope */
             basePrice?: number;
             parLevel?: number | null;
+            readonly erpSlug?: string | null;
+            readonly isActive?: boolean;
         };
         Product: {
             /** Format: uuid */
@@ -3070,6 +3074,8 @@ export interface components {
             isActive: boolean;
             /** Format: date-time */
             createdAt: string;
+            readonly erpGroupKey?: string | null;
+            readonly erpLinked?: boolean;
         };
         ProductListResponse: {
             data: components["schemas"]["Product"][];

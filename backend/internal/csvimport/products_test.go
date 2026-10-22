@@ -319,3 +319,58 @@ func TestPlanProductsRoundTripsGuardedExport(t *testing.T) {
 		t.Fatalf("%+v %+v", p.Report.Issues, p.Products)
 	}
 }
+
+// erpLinkedCatalog marks Melati and its MEL-50 variant ERP-linked, and adds a second
+// category to move it to.
+func erpLinkedCatalog() Catalog {
+	c := baseCatalog()
+	c.Products[0].ERPLinked = true
+	c.Variants[0].ERPLinked = true
+	c.Categories = append(c.Categories, CatalogCategory{ID: "c2", Name: "Woody"})
+	return c
+}
+
+func TestPlanProductsErpLinkedCategoryAndSizeAreReadOnlyWarnings(t *testing.T) {
+	tb := Read([]byte(productHeader+"Melati,Mandalika,Woody,,40 ml,125.000,MEL-50,,,,\n"), ProductSpec)
+	p, err := PlanProducts(tb, erpLinkedCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Report.HasErrors() || p.Report.Summary.Warning != 2 || !hasIssue(p.Report, "erp_owned", SevWarning) {
+		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+	if len(p.Products) != 1 || p.Products[0].CategoryName != "" {
+		t.Fatalf("the category must not be planned: %+v", p.Products)
+	}
+	v := p.Products[0].Variants[0]
+	if v.Size != "50 ml" || v.RenameFrom != "" || v.Price != 125000 || !v.Update {
+		t.Errorf("size is kept, price applies: %+v", v)
+	}
+	if p.Report.Summary.NewCategories != 0 {
+		t.Errorf("an ERP-owned category must not be created: %+v", p.Report.Summary)
+	}
+}
+
+func TestPlanProductsErpLinkedSameCategoryAndSizeIsSilent(t *testing.T) {
+	tb := Read([]byte(productHeader+"Melati,Mandalika,Floral,,50 ml,100.000,MEL-50,,,,\n"), ProductSpec)
+	p, err := PlanProducts(tb, erpLinkedCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Report.Summary.Warning != 0 || p.Report.Summary.Skip != 1 {
+		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+}
+
+func TestPlanProductsUnlinkedKeepsRenamingCategoryAndSize(t *testing.T) {
+	tb := Read([]byte(productHeader+"Melati,Mandalika,Woody,,40 ml,100.000,MEL-50,,,,\n"), ProductSpec)
+	c := baseCatalog()
+	c.Categories = append(c.Categories, CatalogCategory{ID: "c2", Name: "Woody"})
+	p, err := PlanProducts(tb, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasIssue(p.Report, "erp_owned", SevWarning) || p.Products[0].CategoryName != "Woody" || p.Products[0].Variants[0].RenameFrom != "50 ml" {
+		t.Fatalf("an unlinked product behaves as before: %+v %+v", p.Report.Issues, p.Products)
+	}
+}

@@ -71,6 +71,11 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Err(w, http.StatusConflict, err.Error())
 		return
 	}
+	if write.IsErpOwned(err) {
+		// An ERP-owned field of an ERP-linked row (plan 4.5): the ERP owns it.
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
 	if write.IsStockGuardRefusal(err) {
 		// A D13 refusal (stocked variant, or a rename onto leftover rows): 409 with its message.
 		httpx.Err(w, http.StatusConflict, err.Error())
