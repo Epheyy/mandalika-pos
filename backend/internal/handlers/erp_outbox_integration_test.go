@@ -234,4 +234,7 @@ func TestErpOutboxPostgres(t *testing.T) {
 
 	// Relay state machine against this database (erp_relay_integration_test.go).
 	obrRelayCases(t, ctx, pool)
+
+	// End to end against the real cmd/erpstub process (erp_e2e_integration_test.go).
+	obrE2ECases(t, ctx, pool)
 }
