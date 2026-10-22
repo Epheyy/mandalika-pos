@@ -356,6 +356,13 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/admin/erp/outbox/{id}", eo.GetOutbox)
 				r.Post("/admin/erp/outbox/{id}/retry", eo.RetryOutbox)
 			})
+
+			// ERP integration (step 4): admin only.
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireRole("admin"))
+				r.Get("/admin/erp/sku-mapping/export", h.ExportSkuMapping)
+				r.Post("/admin/erp/sku-mapping/import", h.ImportSkuMapping)
+			})
 		})
 	})
 

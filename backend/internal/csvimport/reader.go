@@ -236,6 +236,16 @@ func cleanCell(s string) string {
 	return s
 }
 
+// GuardCell is the export's formula guard (the inverse of cleanCell's reversal): a cell
+// that starts with = + - @ tab or CR gets one leading apostrophe so a spreadsheet does
+// not run it as a formula.
+func GuardCell(s string) string {
+	if s != "" && strings.IndexByte("=+-@	", s[0]) >= 0 {
+		return "'" + s
+	}
+	return s
+}
+
 func blankRecord(rec []string) bool {
 	for _, c := range rec {
 		if strings.TrimSpace(c) != "" {

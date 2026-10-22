@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/apperr"
 )
 
 // txStock is tx for a writer that also changes outlet stock. fn returns the outlets
@@ -77,6 +78,53 @@ func validateVariants(vs []Variant) error {
 	return nil
 }
 
+// SkuTakenError is a SKU that another product already uses (global SKU uniqueness, plan
+// 4.2). It carries the 409 conflict code; handlers answer it with HTTP 409.
+type SkuTakenError struct{ SKU string }
+
+func (e *SkuTakenError) Error() string { return "SKU sudah dipakai produk lain: " + e.SKU }
+
+func (e *SkuTakenError) ErrorCode() apperr.Code { return apperr.Conflict }
+
+// IsSkuTaken reports whether err is a SkuTakenError.
+func IsSkuTaken(err error) bool {
+	var e *SkuTakenError
+	return errors.As(err, &e)
+}
+
+// existingSKUs lists, per incoming variant, the stored SKU of the variant it updates
+// ("" for a new variant), so checkSkusFree can tell new or changed SKUs from unchanged ones.
+func existingSKUs(vs []Variant, matched []string, byID map[string]existingVariant) []string {
+	out := make([]string, len(vs))
+	for i := range vs {
+		if vid := matched[i]; vid != "" {
+			out[i] = byID[vid].sku
+		}
+	}
+	return out
+}
+
+// checkSkusFree rejects a NEW or CHANGED SKU that a variant of another product already
+// uses. Unchanged SKUs are skipped on purpose: legacy duplicates may exist until the
+// one-time mapping runs, and they must still save. current is nil on create.
+func checkSkusFree(ctx context.Context, t pgx.Tx, productID string, current []string, vs []Variant) error {
+	for i, v := range vs {
+		if current != nil && current[i] == v.SKU {
+			continue
+		}
+		var taken bool
+		if e := t.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM product_variants WHERE sku=$1 AND product_id IS DISTINCT FROM NULLIF($2,'')::uuid)`,
+			v.SKU, productID).Scan(&taken); e != nil {
+			return e
+		}
+		if taken {
+			return &SkuTakenError{SKU: v.SKU}
+		}
+	}
+	return nil
+}
+
 type Product struct {
 	Name        string    `json:"name"`
 	Brand       string    `json:"brand"`
@@ -119,6 +167,9 @@ func (r *Repo) CreateProduct(ctx context.Context, seedOutletID string, p Product
 	}
 	var id string
 	err := r.txStock(ctx, "products", func(t pgx.Tx) ([]string, error) {
+		if e := checkSkusFree(ctx, t, "", nil, p.Variants); e != nil {
+			return nil, e
+		}
 		imgs, main := productImages(p)
 		if e := t.QueryRow(ctx, `
 			INSERT INTO products (name, brand, category_id, description, image_url,
@@ -211,6 +262,9 @@ func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
 			return e
 		}
 		matched := matchVariants(p.Variants, byID, bySKU)
+		if e := checkSkusFree(ctx, t, id, existingSKUs(p.Variants, matched, byID), p.Variants); e != nil {
+			return e
+		}
 		if e := lockVariantStock(ctx, t, id, sizesAtRisk(p.Variants, matched, byID)); e != nil {
 			return e
 		}

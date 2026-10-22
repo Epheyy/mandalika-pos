@@ -41,6 +41,10 @@ func decodeWrite[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 }
 
 func (h *Handlers) created(w http.ResponseWriter, r *http.Request, id string, err error) {
+	if write.IsSkuTaken(err) {
+		httpx.Err(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
@@ -61,6 +65,10 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	if isKeyConflict(err) {
 		httpx.Err(w, http.StatusConflict, err.Error()) // key already used for another operation
+		return
+	}
+	if write.IsSkuTaken(err) {
+		httpx.Err(w, http.StatusConflict, err.Error())
 		return
 	}
 	if write.IsStockGuardRefusal(err) {

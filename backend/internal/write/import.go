@@ -59,6 +59,8 @@ func specFor(kind string) (csvimport.Spec, error) {
 		return csvimport.ProductSpec, nil
 	case csvimport.KindIngredients:
 		return csvimport.IngredientSpec, nil
+	case csvimport.KindSkuMapping:
+		return csvimport.SkuMappingSpec, nil
 	}
 	return csvimport.Spec{}, fmt.Errorf("unknown import kind %q", kind)
 }
@@ -71,6 +73,8 @@ func planKind(ctx context.Context, q pgx.Tx, kind string, t *csvimport.Table) (*
 		return planProductImport(ctx, q, t)
 	case csvimport.KindIngredients:
 		return planIngredientImport(ctx, q, t)
+	case csvimport.KindSkuMapping:
+		return planSkuMappingImport(ctx, q, t)
 	}
 	return nil, fmt.Errorf("unknown import kind %q", kind)
 }

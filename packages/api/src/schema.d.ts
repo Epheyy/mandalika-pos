@@ -596,6 +596,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/erp/sku-mapping/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One-time ERP SKU mapping sheet as CSV (admin only)
+         * @description One row per product variant, ordered by product name then size, with columns variant_id, product, size, sku, has_stock, barcode, fg_code, fg_slug, erp_group_key. fg_code and fg_slug are prefilled only for variants already linked to the ERP; cells starting with = + - @ are guarded with a leading apostrophe. Read-only.
+         */
+        get: operations["exportSkuMapping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/erp/sku-mapping/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CSV ERP SKU mapping import, dry run or commit (admin only)
+         * @description Sets sku = fg_code, erp_slug = fg_slug (and the product erp_group_key when given) for each row with both fg_code and fg_slug; rows with both empty are skipped. Barcode and size are never changed. Same dry run and commit contract as the product import; all-or-nothing.
+         */
+        post: operations["importSkuMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promo-reward-grants": {
         parameters: {
             query?: never;
@@ -4893,6 +4933,15 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+            /** @description SKU already used by a variant of another product */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getProduct: {
@@ -4943,6 +4992,15 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description SKU already used by another product, or a stocked variant cannot be renamed or removed (D13) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     deleteProduct: {
@@ -5743,6 +5801,83 @@ export interface operations {
         };
     };
     importIngredients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+                "Idempotency-Key"?: components["parameters"]["ImportIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ImportReportOK"];
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["ImportConflict"];
+            /** @description request body over the 20 MiB cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["ImportRejected"];
+            /** @description two imports already running in this process; retry shortly */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description busy (lock conflict), nothing applied, retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    exportSkuMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (UTF-8, header row) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    importSkuMapping: {
         parameters: {
             query?: never;
             header?: {

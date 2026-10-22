@@ -2819,6 +2819,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/IdResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'SKU already used by a variant of another product', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     get:
       operationId: listProducts
       tags: [catalog]
@@ -2854,6 +2855,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
+        '409': { description: 'SKU already used by another product, or a stocked variant cannot be renamed or removed (D13)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       operationId: deleteProduct
@@ -3355,6 +3357,51 @@ paths:
         '429': { description: 'two imports already running in this process; retry shortly', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: 'busy (lock conflict), nothing applied, retry', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { $ref: '#/components/responses/ImportRejected' }
+  # --- ERP catalog (step 4) ---
+  /api/v1/admin/erp/sku-mapping/export:
+    get:
+      operationId: exportSkuMapping
+      tags: [imports]
+      summary: One-time ERP SKU mapping sheet as CSV (admin only)
+      description: >
+        One row per product variant, ordered by product name then size, with columns
+        variant_id, product, size, sku, has_stock, barcode, fg_code, fg_slug, erp_group_key.
+        fg_code and fg_slug are prefilled only for variants already linked to the ERP;
+        cells starting with = + - @ are guarded with a leading apostrophe. Read-only.
+      responses:
+        '200':
+          description: CSV file (UTF-8, header row)
+          content:
+            text/csv:
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/admin/erp/sku-mapping/import:
+    post:
+      operationId: importSkuMapping
+      tags: [imports]
+      summary: CSV ERP SKU mapping import, dry run or commit (admin only)
+      description: >
+        Sets sku = fg_code, erp_slug = fg_slug (and the product erp_group_key when given)
+        for each row with both fg_code and fg_slug; rows with both empty are skipped.
+        Barcode and size are never changed. Same dry run and commit contract as the
+        product import; all-or-nothing.
+      parameters:
+        - $ref: '#/components/parameters/ImportIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ImportReportOK' }
+        '400': { description: invalid request }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ImportConflict' }
+        '413': { description: 'request body over the 20 MiB cap', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'two imports already running in this process; retry shortly', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: 'busy (lock conflict), nothing applied, retry', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { $ref: '#/components/responses/ImportRejected' }
+  # --- end ERP catalog (step 4) ---
   /api/v1/promo-reward-grants:
     get:
       operationId: listPromoRewardGrants
