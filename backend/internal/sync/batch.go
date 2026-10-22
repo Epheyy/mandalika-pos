@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/apperr"
@@ -68,7 +69,58 @@ type Caller struct {
 // ProcessBatch flushes outbox items in order, one at a time, each idempotent.
 // A failed item does not abort the batch — POS retries it next flush.
 func (e *Engine) ProcessBatch(ctx context.Context, c Caller, items []BatchItem) (BatchResult, error) {
-	return processBatch(ctx, c, items, e.processOne, e.Version)
+	process, version := e.processOne, e.Version
+	if e.testProcess != nil {
+		process = e.testProcess
+	}
+	if e.testVersion != nil {
+		version = e.testVersion
+	}
+	return processBatchBudget(ctx, c, items, process, version, e.workBudget(), time.Now)
+}
+
+// DefaultWorkBudget bounds the item-processing phase of one batch. The budget is only
+// checked between items and no statement_timeout is set (only lock_timeout), so the
+// worst case is budget + one item's own run + the closing version read. The request
+// deadline (server.LongDeadline, 28 s) starts at the middleware, before the body upload
+// and decode, so the budget is also capped at (time left on ctx) - deadlineHeadroom:
+// what remains must cover one item (about 5 s allowance) plus versionReadTimeout, which
+// keeps the response inside the 30 s WriteTimeout and the client's abort. Items past the
+// budget are deferred, not failed.
+const DefaultWorkBudget = 20 * time.Second
+
+// versionReadTimeout is the fresh context the closing version read gets, so a nearly
+// expired (or expired) request context still returns the counters.
+const versionReadTimeout = 2 * time.Second
+
+// deadlineHeadroom is reserved at the end of the request deadline: one item's run
+// (allowance 5 s) plus versionReadTimeout; 28 s - 7 s + 5 s + 2 s = 28 s, inside the 30 s WriteTimeout.
+const deadlineHeadroom = 7 * time.Second
+
+// effectiveBudget shrinks budget so work stops deadlineHeadroom before the request
+// deadline, when there is one. It stays positive: the first item always runs anyway.
+func effectiveBudget(budget time.Duration, start, deadline time.Time, hasDeadline bool) time.Duration {
+	if hasDeadline {
+		if left := deadline.Sub(start) - deadlineHeadroom; left < budget {
+			budget = left
+		}
+	}
+	if budget <= 0 {
+		budget = time.Nanosecond
+	}
+	return budget
+}
+
+// budgetDeferredMessage is the fixed text of an item left unprocessed by the work
+// budget or an expired request context (no receipt claimed, no effect).
+const budgetDeferredMessage = "Ditunda: batas waktu proses batch tercapai, akan dicoba ulang otomatis."
+
+// workBudget resolves the engine's budget: zero means DefaultWorkBudget.
+func (e *Engine) workBudget() time.Duration {
+	if e.WorkBudget <= 0 {
+		return DefaultWorkBudget
+	}
+	return e.WorkBudget
 }
 
 // closeHeldMessage is returned for a shift_close held back because an earlier item
@@ -93,10 +145,30 @@ func heldMessage(itemType string) string {
 	return ""
 }
 
+// processBatch runs a batch with the default work budget and the wall clock.
 func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	process func(context.Context, Caller, BatchItem) ItemResult,
 	version func(context.Context, string) (VersionInfo, error),
 ) (BatchResult, error) {
+	return processBatchBudget(ctx, c, items, process, version, DefaultWorkBudget, time.Now)
+}
+
+// processBatchBudget processes items strictly in order. Before every item except the
+// first (a batch always makes progress) it checks the request context and the work
+// budget; past either, the item is answered as a retryable Busy with no receipt claimed
+// and no effect, and later shift_open/shift_close stay held behind it. budget <= 0 means
+// DefaultWorkBudget; now is injectable for tests.
+func processBatchBudget(ctx context.Context, c Caller, items []BatchItem,
+	process func(context.Context, Caller, BatchItem) ItemResult,
+	version func(context.Context, string) (VersionInfo, error),
+	budget time.Duration, now func() time.Time,
+) (BatchResult, error) {
+	if budget <= 0 {
+		budget = DefaultWorkBudget
+	}
+	start := now()
+	dl, hasDl := ctx.Deadline()
+	budget = effectiveBudget(budget, start, dl, hasDl)
 	out := BatchResult{Results: make([]ItemResult, 0, len(items))}
 	// A06/M3: the close snapshot is never recomputed, so a shift_close must not commit
 	// while an earlier item of this batch (a sale or refund the snapshot should count)
@@ -104,9 +176,15 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 	// so they do not hold it. Any earlier retryable failure holds (conservative; the
 	// POS sends FIFO and resends the same keys, so the held close just runs next flush).
 	earlierRetryable := false
-	for _, it := range items {
+	for i, it := range items {
 		var res ItemResult
-		if msg := heldMessage(it.Type); msg != "" && earlierRetryable {
+		if i > 0 && (ctx.Err() != nil || now().Sub(start) >= budget) {
+			// Out of time: do not start more work, and do not let each remaining item
+			// fail separately with a context error.
+			retryable := true
+			res = ItemResult{IdempotencyKey: it.IdempotencyKey, Status: "error", Error: budgetDeferredMessage,
+				Code: string(apperr.Busy), Retryable: &retryable}
+		} else if msg := heldMessage(it.Type); msg != "" && earlierRetryable {
 			// No receipt claimed, no effect: the same key runs normally on retry.
 			retryable := true
 			res = ItemResult{IdempotencyKey: it.IdempotencyKey, Status: "error", Error: msg,
@@ -127,7 +205,9 @@ func processBatch(ctx context.Context, c Caller, items []BatchItem,
 			out.Processed++
 		}
 	}
-	vi, err := version(ctx, c.OutletID)
+	vctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), versionReadTimeout)
+	defer cancel()
+	vi, err := version(vctx, c.OutletID)
 	if err != nil {
 		return out, err
 	}

@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -37,6 +38,8 @@ type Handlers struct {
 	Signer   *uploads.Signer
 	// importSlots bounds concurrent CSV imports per process (a 50k-row preview holds several copies in memory).
 	importSlots chan struct{}
+	// importRunner replaces Write.RunImport (tests only).
+	importRunner func(context.Context, write.ImportRequest) (write.ImportResult, error)
 	// receipts overrides the PostgreSQL receipt runner of keyed backoffice writes (tests only).
 	receipts service.ReceiptRunner
 	// erpPull runs the ERP catalog pull; nil when the integration is disabled (endpoints answer 503).
@@ -59,7 +62,9 @@ func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
 // write so the next GET reflects the mutation.
 func (h *Handlers) invalidate(r *http.Request) {
 	if h.Cache != nil {
-		h.Cache.DelByPrefix(r.Context(), "rd:")
+		// Detached: a request cut by the server deadline must still drop the cache;
+		// DelByPrefix bounds itself (scanTotalLimit).
+		h.Cache.DelByPrefix(context.WithoutCancel(r.Context()), "rd:")
 	}
 }
 

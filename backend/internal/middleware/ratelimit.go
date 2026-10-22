@@ -20,15 +20,27 @@ func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) fun
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := clientip.ClientIPBucket(r)
-			bucket := time.Now().Unix() / int64(window.Seconds())
+			now := time.Now()
+			bucket := now.Unix() / int64(window.Seconds())
 			key := "rl:" + prefix + ":" + ip + ":" + strconv.FormatInt(bucket, 10)
 
 			if c.IncrWindow(r.Context(), key, window) > int64(max) {
-				w.Header().Set("Retry-After", strconv.Itoa(int(window.Seconds())))
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(now, window)))
 				httpx.Err(w, http.StatusTooManyRequests, "rate limit exceeded")
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// retryAfterSeconds is the time left in the current fixed window (bucket end - now),
+// rounded up and never below 1, so a client told to wait that long lands in a fresh bucket.
+func retryAfterSeconds(now time.Time, window time.Duration) int {
+	w := int64(window.Seconds())
+	left := w - now.Unix()%w
+	if left < 1 {
+		left = 1
+	}
+	return int(left)
 }

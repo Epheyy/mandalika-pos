@@ -36,6 +36,7 @@ type bodyLimitRule struct {
 //     slash; extra segments do not match.
 //
 // Smaller inner caps (auth, oversell-ack, error-logs) stay in their handlers.
+// Per-route request deadlines are documented in deadlineExceptions (deadline.go).
 var bodyLimitExceptions = []bodyLimitRule{
 	{http.MethodPost, "/api/v1/sync/batch", handlers.SyncBatchBodyLimit},
 	{http.MethodPost, "/api/v1/sync/review-items", handlers.SyncReviewBodyLimit},

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +30,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
+// healthRetryAfterSeconds is the Retry-After on the 503 "db down" health answer.
+const healthRetryAfterSeconds = 5
+
 type pinger interface {
 	Ping(ctx context.Context) error
 }
@@ -39,6 +43,7 @@ type pinger interface {
 func healthHandler(database pinger, c *cache.Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if err := database.Ping(req.Context()); err != nil {
+			w.Header().Set("Retry-After", strconv.Itoa(healthRetryAfterSeconds))
 			httpx.Err(w, http.StatusServiceUnavailable, "db down")
 			return
 		}
@@ -70,6 +75,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	r.Use(mw.RateLimit(c, "api", cfg.RateLimitRPS*60, time.Minute))
 	// Global request-body cap (1 MiB) with a documented exception table.
 	r.Use(mw.BodyLimit(bodyLimitFor))
+	// Server-side context deadline (15 s default, 28 s for long routes, exempt imports);
+	// documented per path in deadlineExceptions.
+	r.Use(mw.Deadline(deadlineFor))
 
 	store := auth.NewStore(database.Pool)
 	ah := auth.NewHandler(cfg, store, c)

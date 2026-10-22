@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -20,6 +21,12 @@ import (
 const (
 	msgInvalidInput = "invalid input"
 	msgDataConflict = "the change conflicts with existing data"
+	// msgRequestTimeout answers a request that hit the server-side deadline.
+	msgRequestTimeout = "request timed out, retry"
+
+	// retryAfterTimeoutSeconds is the Retry-After on that 503: the work was cut by the
+	// deadline, a retry usually lands on a less busy moment.
+	retryAfterTimeoutSeconds = 2
 )
 
 // writeErr answers an error from a handler path. It classifies by what is in the
@@ -29,7 +36,23 @@ const (
 // request reference, the raw error going to the log once.
 func writeErr(w http.ResponseWriter, r *http.Request, status int, err error) {
 	status, msg := classifyErr(r, status, err)
+	if status == http.StatusServiceUnavailable && msg == msgRequestTimeout {
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfterTimeoutSeconds))
+	}
 	httpx.Err(w, status, msg)
+}
+
+// isServerDeadline reports a database/context error caused by the server-side request
+// deadline (middleware.Deadline) firing: the request context itself expired by deadline
+// and the error is a deadline, driver timeout or query-cancel. A client cancel
+// (context.Canceled) is not one, so it stays a generic 500.
+func isServerDeadline(r *http.Request, err error) bool {
+	if !errors.Is(r.Context().Err(), context.DeadlineExceeded) {
+		return false
+	}
+	var pg *pgconn.PgError
+	return errors.Is(err, context.DeadlineExceeded) || pgconn.Timeout(err) ||
+		errors.As(err, &pg) && pg.Code == "57014"
 }
 
 func classifyErr(r *http.Request, status int, err error) (int, string) {
@@ -38,6 +61,10 @@ func classifyErr(r *http.Request, status int, err error) (int, string) {
 	}
 	if errors.Is(err, read.ErrNotFound) || errors.Is(err, write.ErrNotFound) || errors.Is(err, pgx.ErrNoRows) {
 		return http.StatusNotFound, "not found"
+	}
+	if isServerDeadline(r, err) {
+		logRaw(r, http.StatusServiceUnavailable, err)
+		return http.StatusServiceUnavailable, msgRequestTimeout
 	}
 	serverSide := status == 0 || status >= http.StatusInternalServerError
 	var pg *pgconn.PgError
