@@ -24,6 +24,33 @@ var ErrVariantHasStock = apperr.New(apperr.Conflict, "varian masih punya stok")
 var ErrSizeResidue = apperr.New(apperr.Conflict,
 	"ukuran tujuan masih punya sisa baris stok atau harga (di outlet atau gudang) dari varian lama; kosongkan lewat penyesuaian stok atau pilih ukuran lain")
 
+// ErrProductHasHistory refuses a product delete once a goods receipt, stock adjustment or
+// transfer line names the product. Those documents keep a plain foreign key to products
+// (0015 goods_receipt_items and warehouse_stock_adjustments, 0016 transfer_items), and
+// deleting them would erase stock history; deactivating the product hides it instead.
+var ErrProductHasHistory = apperr.New(apperr.Conflict,
+	"produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan saja (matikan Produk Aktif)")
+
+// IsProductHasHistory reports whether err is the ErrProductHasHistory refusal.
+func IsProductHasHistory(err error) bool { return errors.Is(err, ErrProductHasHistory) }
+
+// guardProductHistory refuses the delete while a receipt, adjustment or transfer line names
+// the product. It runs under lockProductRow: inserting such a line takes a KEY SHARE lock
+// on the product row, so none can commit between this check and the delete.
+func guardProductHistory(ctx context.Context, tx pgx.Tx, id string) error {
+	var has bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM goods_receipt_items WHERE product_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM warehouse_stock_adjustments WHERE product_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM transfer_items WHERE product_id = $1::uuid)`, id).Scan(&has); err != nil {
+		return err
+	}
+	if has {
+		return ErrProductHasHistory
+	}
+	return nil
+}
+
 // IsStockGuardRefusal reports whether err is a D13 refusal that handlers answer with 409.
 func IsStockGuardRefusal(err error) bool {
 	return errors.Is(err, ErrVariantHasStock) || errors.Is(err, ErrSizeResidue)

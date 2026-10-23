@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -451,8 +452,10 @@ func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Varian
 }
 
 // DeleteProduct (D13): refused while any outlet or warehouse stock row of the product is
-// non-zero. The product row is locked first (see lockProductRow) so every stock row a
-// concurrent writer created is committed and visible; the zero rows are then deleted
+// non-zero, and then while any receipt, adjustment or transfer line names it
+// (ErrProductHasHistory: those keep a foreign key to products; deactivate instead). The
+// product row is locked first (see lockProductRow) so every stock row a concurrent
+// writer created is committed and visible; the zero rows are then deleted
 // explicitly, with a RETURNING check, BEFORE the product delete, so the FK CASCADE finds
 // no non-zero row to remove.
 func (r *Repo) DeleteProduct(ctx context.Context, id string) error {
@@ -481,9 +484,21 @@ func (r *Repo) deleteProduct(ctx context.Context, id string) error {
 			RETURNING warehouse_id::text, variant_size, stock`, id); e != nil {
 			return e
 		}
+		// After the stock guard, so a stocked product is still refused for its stock first.
+		if e := guardProductHistory(ctx, t, id); e != nil {
+			return e
+		}
 		ct, e := t.Exec(ctx, `DELETE FROM products WHERE id=$1`, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
+		}
+		var pg *pgconn.PgError
+		if errors.As(e, &pg) && pg.Code == "23503" {
+			// Backstop: a referencing table guardProductHistory does not list. Logged so a
+			// new foreign key shows up; the PgError is not wrapped (it would turn the 409
+			// into the generic conflict text).
+			slog.Warn("product delete blocked by an unlisted foreign key", "constraint", pg.ConstraintName, "table", pg.TableName)
+			return ErrProductHasHistory
 		}
 		return e
 	})
