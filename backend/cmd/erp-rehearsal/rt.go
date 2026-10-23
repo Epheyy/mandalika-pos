@@ -23,6 +23,7 @@ type rt struct {
 	items     map[string]*item // by letter
 	outletID  string
 	outletSlg string // outlet slug on the stub
+	outletRow obj    // the POS outlet as GET /outlets returned it
 	shiftID   string
 	shiftOpen bool // true when this run opened the shift
 	db        *pgxpool.Pool

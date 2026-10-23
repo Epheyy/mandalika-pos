@@ -75,6 +75,11 @@ demo FGs.
    ```
    The FG codes and slugs are derived from `-run-id`, so the rehearsal in B6 (run with `-run-id DEMO`)
    and the baked catalog agree. Do not commit this file (it carries the test-env outlet code).
+3. **Edit the outlet record in the file**: replace the placeholder `name` and the null `address`/`phone`
+   with the outlet's current POS values. Every catalog pull copies the ERP outlet's name, address and phone
+   onto the linked POS outlet (`catalog_store.go`), so the placeholders would overwrite the real details
+   (receipt header) after any stub restart. The rehearsal itself echoes the POS values when it upserts the
+   outlet.
 
 ## Phase B (cloud; each step = one owner go-ahead)
 
@@ -149,8 +154,8 @@ Promote (the new revision inherits the `commit-sha` label of `00126-seh`, whose 
 ```bash
 GH_REPO=mandalika-ci/mandalika-pos-ci scripts/promote-backend.sh erpdemo
 ```
-If `cr_revision_label erpdemo commit-sha` printed nothing, the promote script refuses; then promote by hand
-after the same smoke: `gcloud run services update-traffic mandalika-pos --region $R --project $P --to-tags erpdemo=100`.
+If the promote script refuses for any label reason (`commit-sha` empty, `deploy-tag` not `erpdemo` because
+`--update-labels` did not reach the revision), promote by hand after the same smoke: `gcloud run services update-traffic mandalika-pos --region $R --project $P --to-tags erpdemo=100`.
 `ERP_BRAND` is the ERP idempotency scope `pos:mandalika`: never change it after the first document.
 
 What happens at the first relay run: every document queued since the 2026-10-22 backfill (opening
@@ -213,8 +218,9 @@ Harness behaviour that matters on live:
 - Drain the backlog first. Documents queued since the 2026-10-22 backfill are claimed 50 per relay run.
   The harness drains at most 6 runs per step, about 300 documents. Before B6, press "Kirim sekarang"
   until a run reports `claimed=0`; most of these documents end `held`.
-- It opens (and closes again) its own admin shift at the outlet if none is open; the tablet's cashier
-  shift is reused if open. The ~2 min wait in step 11 is the relay's real 503 backoff.
+- It reads `GET /shifts/current` as the admin at the outlet and opens (and closes again) its own shift
+  when none is returned. Whether a cashier's open tablet shift counts is not verified against live:
+  close the tablet shift before B6 to keep the run's sales out of the cashier's shift report. The ~2 min wait in step 11 is the relay's real 503 backoff.
 - It leaves test data behind on purpose (no cleanup API): products in category `Rehearsal` with FG codes
   `RH-<ID>-A..D`, an inactive throwaway product `ERP Rehearsal <ID> guard` (step 13: a product whose
   stock was zeroed through receipts still cannot be hard-deleted, HTTP 400), and two `held` documents
@@ -244,7 +250,8 @@ Local equivalent of exactly this mode: `FROM_SEED=1 FIRST_PULL=incremental RUN_I
 - The secrets can stay (the real ERP key becomes a new `ERP_API_KEY` version); delete them only if the
   integration is abandoned.
 - Data left behind: demo products/variants (linked to FG slugs that exist only in the stub), the demo
-  outlet's `erp_slug`/`erp_code`, the warehouse `erp_slug`, and outbox rows marked `delivered`/`replayed`
+  outlet's `erp_slug`/`erp_code` (and its name/address/phone, which every pull copies from the stub), the
+  warehouse `erp_slug`, and outbox rows marked `delivered`/`replayed`
   that went only to the stub. **Before switching to erp-flamboyan:** those rows will never reach the real
   ERP (it would hold no opening stock for the demo FGs); either accept that (test data) or re-queue them
   (`cmd/erp-relay -retry <id>`), and unlink or delete the demo variants and the demo outlet mapping so the

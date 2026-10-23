@@ -72,7 +72,9 @@ func outletRecord(slug, code, name, stamp string) obj {
 }
 
 // printSeed writes a stub seed (same format as erpstub/seed.json) holding exactly the
-// run's FGs A..C, one outlet and the warehouse. FG D is created by the hook during the
+// run's FGs A..C, one outlet and the warehouse. The outlet's name, address and phone are
+// placeholders: the operator copies the real POS values in before baking (the catalog
+// pull overwrites them on the POS outlet). FG D is created by the hook during the
 // run (it has to be new to the incremental pull), so it is NOT in the seed.
 func printSeed(w io.Writer, runID, outletCode, outletSlug string) error {
 	if normID(runID) == "" || outletCode == "" {

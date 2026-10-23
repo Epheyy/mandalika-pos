@@ -49,6 +49,7 @@ func stepPreflight(r *rt) error {
 			r.outletID, found = str(o, "id"), true
 			r.outletSlg = outletSlugFor(r.cfg.outletCode, firstNonEmpty(str(o, "erpSlug"), r.cfg.outletSlug))
 			r.vars["outletName"], r.vars["outletErpSlug"] = str(o, "name"), str(o, "erpSlug")
+			r.outletRow = o
 		}
 	}
 	if !found {
@@ -102,6 +103,9 @@ func stepSeedStub(r *rt) error {
 		r.note("POS outlet already linked to slug %s; reusing it", ec)
 	}
 	rec := outletRecord(r.outletSlg, code, r.vars["outletName"], stamp)
+	// The pull copies name/address/phone onto the POS outlet: echo the POS values so a
+	// rehearsal never blanks the real outlet's details.
+	rec["address"], rec["phone"] = get(r.outletRow, "address"), get(r.outletRow, "phone")
 	if out, err := r.stub.call("POST", "/_stub/outlet", nil, rec); err != nil || !out.ok() {
 		if err == nil {
 			err = fmt.Errorf("%s", out.brief())
