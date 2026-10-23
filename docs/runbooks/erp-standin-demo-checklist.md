@@ -42,7 +42,7 @@ in `erp-standin-demo.md`. Each row: what to do, what must happen, and where to s
 | 7 | Goods receipt at the outlet, submitted twice with the same key (the rehearsal does the double submit) | One receipt, one `receipt` document | Outbox: one receipt document | One `receipt` document |
 | 8 | Fault: `h -X POST "$STUB/_stub/fault?status=503&count=1"`, sell 1, **Kirim sekarang** | Document `pending`, attempts 1, last error 503; next run after the backoff (≈2 min) → `delivered` | Outbox row: attempts and error, then `delivered` | Document appears only after the retry |
 | 9 | Dead-letter: tombstone one demo FG `h -X POST "$STUB/_stub/fg" -d '{...same FG..., "deleted_at":"2026-11-02T00:00:00Z"}'`, sell it, **Kirim sekarang**; then restore the FG (same body without `deleted_at`) and **Kirim ulang** + **Kirim sekarang** | 422 → `dead`, list shows `VALIDATION_ERROR: validation failed` (the detail view holds the ERP body: `fg_code` unknown finished good); after the fix → `delivered`. Do NOT pull the catalog between tombstone and restore (the pull would deactivate the variant) | Integrasi ERP → dead-letter list shows the reason; then `delivered` | Document present only after the fix |
-| 10 | Try to delete a demo variant that has stock | 409 "varian masih punya stok di <lokasi>; nolkan lewat penyesuaian dulu" | Product edit → delete variant → error toast. **Do not** zero the stock and retry the delete on stage: the hard delete is then refused with a generic 400 (stock history), a known follow-up | — |
+| 10 | Try to delete a demo variant that has stock | 409 "varian masih punya stok di <lokasi>; nolkan lewat penyesuaian dulu" | Product edit → delete variant → error toast. A zeroed variant can then be removed, but the product itself stays undeletable once it has stock history: 409 "produk punya riwayat stok …; nonaktifkan produk saja (matikan Produk Aktif)". Deactivating the product is the supported path | — |
 | 11 | Agreement | POS stock per location = stub balance per FG; §2.4 invariant query returns 0 rows | Warehouse stock / outlet stock screens | `_stub/balances` side by side; `h "$STUB/api/integration/v1/outlets/<CODE>/stock?fg_codes=<codes>"` |
 
 ## Rehearsal output (what a green run prints, per harness step)
@@ -64,7 +64,7 @@ Local reference run 2026-10-23 (`scripts/erp-rehearsal-local.sh`, 15/15 PASS, ~2
 | 10 transfer | 6 | send twice, same key → one transfer; `transfer_out@gudang-pusat` + `transfer_in@<outlet>` share `ref.id`; `qty=9 expected_qty=10 flags=[variance]` |
 | 11 fault | 8 | `pending attempts=1 lastHttpStatus=503`; `delivered` after ~2 min, attempts 2 |
 | 12 dead-letter | 9 | `dead http=422`, visible in `/admin/erp/outbox?status=dead`; after restore + retry `delivered` |
-| 13 delete guard | 10 | PUT and DELETE → 409 "varian masih punya stok di outlet …; nolkan lewat penyesuaian dulu" |
+| 13 delete guard | 10 | PUT → 409 "varian masih punya stok di outlet …; nolkan lewat penyesuaian dulu"; DELETE → 409 "produk masih punya stok di outlet … sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)" |
 | 14 agreement | 11 | per FG: outlet/warehouse POS stock = stub balance = stub stock API; all run documents on the stub; with a DSN: invariant 0 rows, ledger sums = stub |
 
 ## Talking points / known stand-in behaviour

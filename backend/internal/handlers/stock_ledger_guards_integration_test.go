@@ -152,12 +152,24 @@ func (f *slGuardFx) rows(table, pid, size string) int {
 	return f.count(`SELECT count(*)::int FROM `+table+` WHERE product_id=$1 AND variant_size=$2`, pid, size)
 }
 
+// conflict wants the D13 variant refusal; productConflict the product-delete form of it,
+// which points to deactivating instead of zeroing.
 func (f *slGuardFx) conflict(w *httptest.ResponseRecorder, what string, contains ...string) {
+	f.t.Helper()
+	f.conflictWith(w, what, append([]string{"varian masih punya stok di", "nolkan lewat penyesuaian dulu"}, contains...))
+}
+
+func (f *slGuardFx) productConflict(w *httptest.ResponseRecorder, what string, contains ...string) {
+	f.t.Helper()
+	f.conflictWith(w, what, append([]string{"produk masih punya stok di", "nonaktifkan produk saja (matikan Produk Aktif)"}, contains...))
+}
+
+func (f *slGuardFx) conflictWith(w *httptest.ResponseRecorder, what string, want []string) {
 	f.t.Helper()
 	if w.Code != http.StatusConflict {
 		f.t.Fatalf("%s: %d %s, want 409", what, w.Code, w.Body.String())
 	}
-	for _, c := range append([]string{"varian masih punya stok di", "nolkan lewat penyesuaian dulu"}, contains...) {
+	for _, c := range want {
 		if !strings.Contains(w.Body.String(), c) {
 			f.t.Fatalf("%s: body %s lacks %q", what, w.Body.String(), c)
 		}
@@ -329,7 +341,7 @@ func (f *slGuardFx) productAndWarehouseDelete(t *testing.T) {
 	pid, _ := f.product("pd-stock", "a")
 	f.outlet(pid, "a", 3)
 	f.open()
-	f.conflict(f.do(http.MethodDelete, "/products/"+pid, nil), "product delete with stock", "SL outlet A")
+	f.productConflict(f.do(http.MethodDelete, "/products/"+pid, nil), "product delete with stock", "SL outlet A")
 	if f.count(`SELECT count(*)::int FROM products WHERE id=$1`, pid) != 1 || f.rows("outlet_variant_stock", pid, "a") != 1 {
 		t.Fatal("a refused product delete must keep the product and its stock row")
 	}

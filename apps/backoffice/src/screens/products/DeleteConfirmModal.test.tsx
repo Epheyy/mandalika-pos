@@ -7,10 +7,10 @@ const noop = () => {}
 // A refused delete (409) must show the server's reason in the open confirm modal.
 describe('DeleteConfirmModal', () => {
   it('shows the refusal reason as an alert', () => {
-    const reason = 'produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan saja (matikan Produk Aktif)'
+    const reason = 'produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)'
     const html = renderToStaticMarkup(<DeleteConfirmModal open onClose={noop} onConfirm={noop} error={reason} />)
     expect(html).toContain('role="alert"')
-    expect(html).toContain('nonaktifkan saja')
+    expect(html).toContain('nonaktifkan produk saja')
   })
 
   it('disables the confirm button while a delete is in flight', () => {

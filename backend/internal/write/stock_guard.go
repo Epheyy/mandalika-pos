@@ -29,7 +29,7 @@ var ErrSizeResidue = apperr.New(apperr.Conflict,
 // (0015 goods_receipt_items and warehouse_stock_adjustments, 0016 transfer_items), and
 // deleting them would erase stock history; deactivating the product hides it instead.
 var ErrProductHasHistory = apperr.New(apperr.Conflict,
-	"produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan saja (matikan Produk Aktif)")
+	"produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)")
 
 // IsProductHasHistory reports whether err is the ErrProductHasHistory refusal.
 func IsProductHasHistory(err error) bool { return errors.Is(err, ErrProductHasHistory) }
@@ -66,6 +66,29 @@ func (e *VariantHasStockError) Error() string {
 func (e *VariantHasStockError) ErrorCode() apperr.Code { return apperr.Conflict }
 
 func (e *VariantHasStockError) Is(target error) bool { return target == ErrVariantHasStock }
+
+// ProductHasStockError is the product-delete form of VariantHasStockError. It points to
+// deactivating rather than zeroing: the adjustment that zeroes the stock is itself history,
+// so the delete would then be refused by ErrProductHasHistory. Still a D13 refusal (409).
+type ProductHasStockError struct{ Where string }
+
+func (e *ProductHasStockError) Error() string {
+	return "produk masih punya stok di " + e.Where + " sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)"
+}
+
+func (e *ProductHasStockError) ErrorCode() apperr.Code { return apperr.Conflict }
+
+func (e *ProductHasStockError) Is(target error) bool { return target == ErrVariantHasStock }
+
+// productStockRefusal turns a stock refusal of DeleteProduct into ProductHasStockError;
+// any other error passes through unchanged.
+func productStockRefusal(err error) error {
+	var v *VariantHasStockError
+	if errors.As(err, &v) {
+		return &ProductHasStockError{Where: v.Where}
+	}
+	return err
+}
 
 func hasStockAt(location, size string) error {
 	return &VariantHasStockError{Where: fmt.Sprintf("%s (ukuran %s)", location, size)}

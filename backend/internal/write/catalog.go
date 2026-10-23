@@ -452,7 +452,7 @@ func insertVariants(ctx context.Context, t pgx.Tx, productID string, vs []Varian
 }
 
 // DeleteProduct (D13): refused while any outlet or warehouse stock row of the product is
-// non-zero, and then while any receipt, adjustment or transfer line names it
+// non-zero (ProductHasStockError), and then while any receipt, adjustment or transfer line names it
 // (ErrProductHasHistory: those keep a foreign key to products; deactivate instead). The
 // product row is locked first (see lockProductRow) so every stock row a concurrent
 // writer created is committed and visible; the zero rows are then deleted
@@ -471,18 +471,18 @@ func (r *Repo) deleteProduct(ctx context.Context, id string) error {
 			return e
 		}
 		if e := lockProductStock(ctx, t, id); e != nil {
-			return e
+			return productStockRefusal(e)
 		}
 		// D13 guarded zero-stock delete (RETURNING check), not a quantity change.
 		if e := guardedZeroWrite(ctx, t, "outlet", `
 			DELETE FROM outlet_variant_stock WHERE product_id=$1
 			RETURNING outlet_id::text, variant_size, stock`, id); e != nil {
-			return e
+			return productStockRefusal(e)
 		}
 		if e := guardedZeroWrite(ctx, t, "warehouse", `
 			DELETE FROM warehouse_variant_stock WHERE product_id=$1
 			RETURNING warehouse_id::text, variant_size, stock`, id); e != nil {
-			return e
+			return productStockRefusal(e)
 		}
 		// After the stock guard, so a stocked product is still refused for its stock first.
 		if e := guardProductHistory(ctx, t, id); e != nil {

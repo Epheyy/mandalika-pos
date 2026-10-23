@@ -232,7 +232,8 @@ Harness behaviour that matters on live:
   close the tablet shift before B6 to keep the run's sales out of the cashier's shift report. The ~2 min wait in step 11 is the relay's real 503 backoff.
 - It leaves test data behind on purpose (no cleanup API): products in category `Rehearsal` with FG codes
   `RH-<ID>-A..D`, an inactive throwaway product `ERP Rehearsal <ID> guard` (step 13: a product whose
-  stock was zeroed through receipts still cannot be hard-deleted, HTTP 400), and two `held` documents
+  stock was received and then zeroed by an adjustment cannot be hard-deleted: HTTP 409 naming the stock history; deactivating
+  it is the supported path), and two `held` documents
   for that throwaway product.
 - Products are scanned through `GET /products` up to 2,000 rows (10 pages of 200).
 

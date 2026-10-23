@@ -103,7 +103,8 @@ func slDeleteZeroed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 			receipt(t, "outlet", slOutletA, pid, 3)
 			// D13 first: while stocked, the refusal is about the stock, not the history.
 			w := send(http.MethodDelete, "/products/"+pid, "")
-			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "masih punya stok") {
+			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "produk masih punya stok") ||
+				!strings.Contains(w.Body.String(), "nonaktifkan produk") {
 				t.Fatalf("delete while stocked = %d %s, want the D13 stock 409", w.Code, w.Body.String())
 			}
 			adjust(t, "outlet", slOutletA, pid, 0)
@@ -140,7 +141,7 @@ func slDeleteZeroed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 				t.Fatal("fixture wrote no history")
 			}
 			w := send(http.MethodDelete, "/products/"+tc.id, "")
-			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "riwayat stok") || !strings.Contains(w.Body.String(), "nonaktifkan") {
+			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "riwayat stok") || !strings.Contains(w.Body.String(), "nonaktifkan produk") {
 				t.Fatalf("delete of a zeroed product with history = %d %s, want 409 naming the history and deactivate", w.Code, w.Body.String())
 			}
 			if !exists(t, tc.id) || history(t, tc.id) != hist || one(t, `SELECT (SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1)

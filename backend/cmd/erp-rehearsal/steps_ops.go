@@ -278,7 +278,7 @@ func (r *rt) expectStockConflict(method, path string, body any) error {
 }
 
 // cleanupGuard zeroes the throwaway product and tries to delete it; a product with stock
-// history is refused by a foreign key (400), so it is then left inactive instead. A last
+// history is refused (409, "riwayat stok"), so it is then left inactive instead. A last
 // relay run moves its unmapped (non-ERP) documents to "held" so nothing stays pending.
 func (r *rt) cleanupGuard(pid string, gp obj) {
 	adj := obj{"productId": pid, "variantSize": "Guard", "newQty": 0, "reason": "erp-rehearsal cleanup"}
