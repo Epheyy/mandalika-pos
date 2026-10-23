@@ -62,7 +62,8 @@
       "rolldown@1.1.5>@rolldown/pluginutils": "1.0.1",
       "@rolldown/binding-wasm32-wasi@1.1.5>@napi-rs/wasm-runtime": "1.1.6",
       "@napi-rs/wasm-runtime@1.1.6>@tybys/wasm-util": "0.10.3",
-      "tinyglobby@0.2.16>picomatch": "4.0.4"
+      "tinyglobby@0.2.16>picomatch": "4.0.4",
+      "jspdf@4.2.1>dompurify": "3.4.17"
     }
   }
 }

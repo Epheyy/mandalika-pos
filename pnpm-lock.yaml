@@ -29,6 +29,7 @@ overrides:
   '@rolldown/binding-wasm32-wasi@1.1.5>@napi-rs/wasm-runtime': 1.1.6
   '@napi-rs/wasm-runtime@1.1.6>@tybys/wasm-util': 0.10.3
   tinyglobby@0.2.16>picomatch: 4.0.4
+  jspdf@4.2.1>dompurify: 3.4.17
 
 importers:
 
@@ -1176,8 +1177,8 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  dompurify@3.4.5:
-    resolution: {integrity: sha512-OrwIBKsdNSVEeubdJ1HBv/wNENRM9ytAVCv7YXt//A3vPdVMNuACRqK9mXCGCBW2ln7BT/A4X0jXHo2Gu89miA==}
+  dompurify@3.4.17:
+    resolution: {integrity: sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==}
 
   electron-to-chromium@1.5.393:
     resolution: {integrity: sha512-kiDJdIUawuEIcp9XoICKp1iTYDEbgguIPq526N1Q7jIQDeQ3CqoMx71025PI/7E48Ddtw2HuWsVjY7afEgNxmg==}
@@ -3132,7 +3133,7 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  dompurify@3.4.5:
+  dompurify@3.4.17:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
     optional: true
@@ -3427,7 +3428,7 @@ snapshots:
     optionalDependencies:
       canvg: 3.0.11
       core-js: 3.49.0
-      dompurify: 3.4.5
+      dompurify: 3.4.17
       html2canvas: 1.4.1
 
   keyv@4.5.4:
