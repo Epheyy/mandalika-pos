@@ -89,8 +89,11 @@ The stub accepts whatever key we give it, so we generate one.
 export CLOUDSDK_CORE_DISABLE_FILE_LOGGING=1; P=mandalika-pos; R=asia-southeast2
 gcloud secrets create ERP_API_KEY --project $P --replication-policy automatic
 gcloud secrets create ERP_SCHEDULER_TOKEN --project $P --replication-policy automatic
-openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add ERP_API_KEY --project $P --data-file=-
-openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add ERP_SCHEDULER_TOKEN --project $P --data-file=-
+openssl rand -hex 32 | tr -d '\r\n' | gcloud secrets versions add ERP_API_KEY --project $P --data-file=-
+openssl rand -hex 32 | tr -d '\r\n' | gcloud secrets versions add ERP_SCHEDULER_TOKEN --project $P --data-file=-
+# Check: both must print 64. Git Bash's openssl ends lines with \r\n; a stray \r makes the
+# stub (which does not trim) reject every call with 401 while the POS (which trims) sends 64 chars.
+for s in ERP_API_KEY ERP_SCHEDULER_TOKEN; do v="$(gcloud secrets versions access latest --secret $s --project $P)"; echo "$s ${#v}"; unset v; done
 SA=$(gcloud run services describe mandalika-pos --region $R --project $P --format 'value(spec.template.spec.serviceAccountName)')
 SA=${SA:-$(gcloud projects describe $P --format 'value(projectNumber)')-compute@developer.gserviceaccount.com}
 for s in ERP_API_KEY ERP_SCHEDULER_TOKEN; do
@@ -156,6 +159,12 @@ GH_REPO=mandalika-ci/mandalika-pos-ci scripts/promote-backend.sh erpdemo
 ```
 If the promote script refuses for any label reason (`commit-sha` empty, `deploy-tag` not `erpdemo` because
 `--update-labels` did not reach the revision), promote by hand after the same smoke: `gcloud run services update-traffic mandalika-pos --region $R --project $P --to-tags erpdemo=100`.
+**From a newer pushed SHA instead of the serving image** (what was done on 2026-10-23): first
+`GH_REPO=mandalika-ci/mandalika-pos-ci scripts/deploy-backend.sh <tag>`, which deploys the new image
+traffic-free with the flags still off. Then run the `services update ... --tag erpdemo` above: the new
+revision is built on the latest template, so it gets the new image and its `commit-sha` label. Smoke it
+and promote `erpdemo` as above.
+
 `ERP_BRAND` is the ERP idempotency scope `pos:mandalika`: never change it after the first document.
 
 What happens at the first relay run: every document queued since the 2026-10-22 backfill (opening
@@ -228,6 +237,28 @@ Harness behaviour that matters on live:
 - Products are scanned through `GET /products` up to 2,000 rows (10 pages of 200).
 
 Local equivalent of exactly this mode: `FROM_SEED=1 FIRST_PULL=incremental RUN_ID=DEMO scripts/erp-rehearsal-local.sh`.
+
+## Live state (done 2026-10-23, owner go-ahead)
+
+- Stub: `mandalika-erpstub` at `https://mandalika-erpstub-538849926142.asia-southeast2.run.app`, revision
+  `00002-sxd`, baked catalog `RH-DEMO-A..C` + outlet `bsd`/`BSD` (Mandalika BSD, Jakarta) + `gudang-pusat`.
+- Secrets `ERP_API_KEY` v2 and `ERP_SCHEDULER_TOKEN` v2 (v1 of both disabled: it carried a trailing `\r`).
+- Neon: warehouse `00049245-…` "Gudang Pusat (contoh)" `erp_slug = gudang-pusat`; outlet BSD linked by the
+  pull (`erp_slug bsd`, address kept).
+- mandalika-pos: `00128-yic` (tag `erpimg`, image e46e7fb, flags off, 0%) then `00129-sis` (tag `erpdemo`,
+  same image, flags on) serving 100%. Rollback: `--to-revisions mandalika-pos-00126-seh=100`.
+- Cloud Scheduler API enabled on the project; jobs `erp-relay` (*/2) and `erp-catalog-pull-incremental`
+  (*/15) in asia-southeast2, ENABLED; the first forced run of each succeeded.
+- Live rehearsal: `-run-id DEMO2` 15/15 PASS including the read-only §2.4 invariant (0 rows). The first
+  attempt (`-run-id DEMO`) stopped at step 2 on a stale cached product list (see below); `RH-DEMO-A..C`
+  exist in the POS unpriced and not sellable. After a stub restart only `DEMO` FGs come back, so a rerun after a
+  restart needs a fresh id (and `DEMO2` documents would 422 after a restart until re-seeded).
+- The rehearsal sales went into the Administrator's own open shift at BSD (`e3b4a893…`, open since
+  2026-10-10), which the harness reuses rather than opening one.
+
+Found live: the backend's Redis read cache (15 s, key = path + query) is not dropped by the ERP catalog pull
+(the pull handlers never call `h.invalidate`), so for up to 15 s after a pull `GET /products` can miss the
+new variants. The harness now adds a unique `_=` parameter to every backend GET.
 
 ## 6. Demo day
 

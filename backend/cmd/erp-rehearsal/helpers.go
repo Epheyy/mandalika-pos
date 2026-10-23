@@ -35,6 +35,7 @@ func (r *rt) login() error {
 		return fmt.Errorf("admin login answered without an access token")
 	}
 	r.be = newHTTP(r.cfg.backendURL+"/api/v1", map[string]string{"Authorization": "Bearer " + tok})
+	r.be.noCache = true
 	return nil
 }
 

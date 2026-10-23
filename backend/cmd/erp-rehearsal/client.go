@@ -68,6 +68,10 @@ type httpc struct {
 	base string
 	hc   *http.Client
 	hdr  map[string]string
+	// noCache appends a unique _= query parameter to every GET: the backend's Redis
+	// read cache (15 s, key = path + query) is not dropped by every writer (the ERP
+	// catalog pull and relay do not invalidate it), so a plain re-read can be stale.
+	noCache bool
 }
 
 func newHTTP(base string, hdr map[string]string) *httpc {
@@ -83,6 +87,13 @@ func (c *httpc) call(method, path string, h map[string]string, body any) (resp, 
 			return resp{}, err
 		}
 		rd = bytes.NewReader(b)
+	}
+	if c.noCache && method == http.MethodGet {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		path += fmt.Sprintf("%s_=%d", sep, time.Now().UnixNano())
 	}
 	req, err := http.NewRequest(method, c.base+path, rd)
 	if err != nil {
