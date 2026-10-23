@@ -87,8 +87,8 @@ func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
-	if write.IsProductHasHistory(err) {
-		// A zeroed product with receipt, adjustment or transfer lines: 409 naming that and deactivate.
+	if write.IsProductHasHistory(err) || write.IsWarehouseHasHistory(err) {
+		// A zeroed product or warehouse that stock documents name: 409 naming that and deactivate.
 		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}

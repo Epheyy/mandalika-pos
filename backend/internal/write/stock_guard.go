@@ -51,6 +51,42 @@ func guardProductHistory(ctx context.Context, tx pgx.Tx, id string) error {
 	return nil
 }
 
+// ErrWarehouseHasHistory refuses a warehouse delete once a stock document names the
+// warehouse. Transfers (0016, product and 0019 ingredient) keep a plain foreign key to
+// warehouses; receipts, adjustments and stock counts (0015 and 0019, product and
+// ingredient) cascade from it, so the delete would silently erase them. Deactivating
+// the warehouse hides it instead.
+var ErrWarehouseHasHistory = apperr.New(apperr.Conflict,
+	"gudang punya riwayat stok (penerimaan, penyesuaian, opname atau transfer) sehingga tidak bisa dihapus; nonaktifkan gudang saja (matikan Gudang Aktif)")
+
+// IsWarehouseHasHistory reports whether err is the ErrWarehouseHasHistory refusal.
+func IsWarehouseHasHistory(err error) bool { return errors.Is(err, ErrWarehouseHasHistory) }
+
+// guardWarehouseHistory refuses the delete while any stock document names the warehouse.
+// It runs under lockWarehouseRow: every table listed holds a foreign key to warehouses, so
+// an insert takes a KEY SHARE lock on the warehouse row and none can commit between this
+// check and the delete. stock_movements is left out on purpose: it has no foreign key so
+// that history survives deletes.
+func guardWarehouseHistory(ctx context.Context, tx pgx.Tx, id string) error {
+	var has bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM goods_receipts WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM warehouse_stock_adjustments WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM stock_counts WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM transfers WHERE source_warehouse_id = $1::uuid OR dest_warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM ingredient_goods_receipts WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM ingredient_stock_adjustments WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM ingredient_stock_counts WHERE warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM ingredient_transfers WHERE source_warehouse_id = $1::uuid OR dest_warehouse_id = $1::uuid)`,
+		id).Scan(&has); err != nil {
+		return err
+	}
+	if has {
+		return ErrWarehouseHasHistory
+	}
+	return nil
+}
+
 // IsStockGuardRefusal reports whether err is a D13 refusal that handlers answer with 409.
 func IsStockGuardRefusal(err error) bool {
 	return errors.Is(err, ErrVariantHasStock) || errors.Is(err, ErrSizeResidue)
@@ -86,6 +122,29 @@ func productStockRefusal(err error) error {
 	var v *VariantHasStockError
 	if errors.As(err, &v) {
 		return &ProductHasStockError{Where: v.Where}
+	}
+	return err
+}
+
+// WarehouseHasStockError is the warehouse-delete form of VariantHasStockError, for the same
+// reason as ProductHasStockError: zeroing by adjustment writes a document, and the delete is
+// then refused by ErrWarehouseHasHistory. Still a D13 refusal (409).
+type WarehouseHasStockError struct{ Where string }
+
+func (e *WarehouseHasStockError) Error() string {
+	return "gudang masih punya stok di " + e.Where + " sehingga tidak bisa dihapus; nonaktifkan gudang saja (matikan Gudang Aktif)"
+}
+
+func (e *WarehouseHasStockError) ErrorCode() apperr.Code { return apperr.Conflict }
+
+func (e *WarehouseHasStockError) Is(target error) bool { return target == ErrVariantHasStock }
+
+// warehouseStockRefusal turns a stock refusal of DeleteWarehouse into WarehouseHasStockError;
+// any other error passes through unchanged.
+func warehouseStockRefusal(err error) error {
+	var v *VariantHasStockError
+	if errors.As(err, &v) {
+		return &WarehouseHasStockError{Where: v.Where}
 	}
 	return err
 }

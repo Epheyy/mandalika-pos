@@ -152,8 +152,8 @@ func (f *slGuardFx) rows(table, pid, size string) int {
 	return f.count(`SELECT count(*)::int FROM `+table+` WHERE product_id=$1 AND variant_size=$2`, pid, size)
 }
 
-// conflict wants the D13 variant refusal; productConflict the product-delete form of it,
-// which points to deactivating instead of zeroing.
+// conflict wants the D13 variant refusal; productConflict and warehouseConflict the
+// delete forms of it, which point to deactivating instead of zeroing.
 func (f *slGuardFx) conflict(w *httptest.ResponseRecorder, what string, contains ...string) {
 	f.t.Helper()
 	f.conflictWith(w, what, append([]string{"varian masih punya stok di", "nolkan lewat penyesuaian dulu"}, contains...))
@@ -162,6 +162,11 @@ func (f *slGuardFx) conflict(w *httptest.ResponseRecorder, what string, contains
 func (f *slGuardFx) productConflict(w *httptest.ResponseRecorder, what string, contains ...string) {
 	f.t.Helper()
 	f.conflictWith(w, what, append([]string{"produk masih punya stok di", "nonaktifkan produk saja (matikan Produk Aktif)"}, contains...))
+}
+
+func (f *slGuardFx) warehouseConflict(w *httptest.ResponseRecorder, what string, contains ...string) {
+	f.t.Helper()
+	f.conflictWith(w, what, append([]string{"gudang masih punya stok di", "nonaktifkan gudang saja (matikan Gudang Aktif)"}, contains...))
 }
 
 func (f *slGuardFx) conflictWith(w *httptest.ResponseRecorder, what string, want []string) {
@@ -360,7 +365,7 @@ func (f *slGuardFx) productAndWarehouseDelete(t *testing.T) {
 	f.warehouse(whStocked, wp, "a", 2)
 	f.warehouse(whEmpty, wp, "a", 0)
 	f.open()
-	f.conflict(f.do(http.MethodDelete, "/warehouses/"+whStocked, nil), "warehouse delete with stock", "gudang SL wh stocked")
+	f.warehouseConflict(f.do(http.MethodDelete, "/warehouses/"+whStocked, nil), "warehouse delete with stock", "gudang SL wh stocked")
 	if f.count(`SELECT count(*)::int FROM warehouses WHERE id=$1`, whStocked) != 1 {
 		t.Fatal("a refused warehouse delete must keep the warehouse")
 	}
@@ -521,7 +526,7 @@ func (f *slGuardFx) warehouseDeleteRace(t *testing.T) {
 	}
 	w := <-done
 	f.open() // the receipt row had no movement; record it so the invariant can be checked
-	f.conflict(w, "delete racing an open receipt", "gudang SL wh race")
+	f.warehouseConflict(w, "delete racing an open receipt", "gudang SL wh race")
 	if f.rows("warehouse_variant_stock", pid, "a") != 1 {
 		t.Fatal("the receipt row must survive the refused delete")
 	}

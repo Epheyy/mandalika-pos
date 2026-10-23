@@ -2,12 +2,15 @@ package write
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mandalika/pos-backend/internal/ledger"
 )
@@ -66,7 +69,10 @@ func (r *Repo) UpdateWarehouse(ctx context.Context, id string, w Warehouse) erro
 	})
 }
 
-// DeleteWarehouse (D13): refused while any of its stock rows is non-zero. The warehouse row
+// DeleteWarehouse (D13): refused while any of its stock rows is non-zero
+// (WarehouseHasStockError), and then while a
+// stock document names it (ErrWarehouseHasHistory: transfers keep a foreign key, receipts,
+// adjustments and counts would cascade away; deactivate instead). The warehouse row
 // is locked first (see lockWarehouseRow) so every stock row a concurrent receipt created is
 // committed and visible; the zero rows are then deleted explicitly, with a RETURNING check,
 // before the warehouse, so the FK CASCADE finds no non-zero row to remove.
@@ -80,16 +86,28 @@ func (r *Repo) deleteWarehouse(ctx context.Context, id string) error {
 			return e
 		}
 		if e := lockWarehouseStock(ctx, t, id); e != nil {
-			return e
+			return warehouseStockRefusal(e)
 		}
 		if e := guardedZeroWrite(ctx, t, "warehouse", `
 			DELETE FROM warehouse_variant_stock WHERE warehouse_id=$1
 			RETURNING warehouse_id::text, variant_size, stock`, id); e != nil {
+			return warehouseStockRefusal(e)
+		}
+		// After the stock guard, so a stocked warehouse is still refused for its stock first.
+		if e := guardWarehouseHistory(ctx, t, id); e != nil {
 			return e
 		}
 		ct, e := t.Exec(ctx, `DELETE FROM warehouses WHERE id=$1`, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
+		}
+		var pg *pgconn.PgError
+		if errors.As(e, &pg) && pg.Code == "23503" {
+			// Backstop: a referencing table guardWarehouseHistory does not list. Logged so a
+			// new foreign key shows up; the PgError is not wrapped (it would turn the 409
+			// into the generic conflict text).
+			slog.Warn("warehouse delete blocked by an unlisted foreign key", "constraint", pg.ConstraintName, "table", pg.TableName)
+			return ErrWarehouseHasHistory
 		}
 		return e
 	})
