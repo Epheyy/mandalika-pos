@@ -44,6 +44,8 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/ledger/backfill.go": false,
 	// reads stock to choose the restocked refund lines; never writes it (D2b)
 	"internal/service/ledger_hooks.go": false,
+	// read-only plan §2.4 invariant query of the ERP demo rehearsal (default_transaction_read_only)
+	"cmd/erp-rehearsal/steps_check.go": false,
 }
 
 const stockTable = "outlet_variant_stock"
