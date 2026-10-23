@@ -2938,6 +2938,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'A stocked product (D13), a zeroed product with stock history (receipt, adjustment or transfer lines) or an ERP-linked product (deactivate it instead), or a lock conflict (retryable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     get:
       operationId: getProduct
       tags: [catalog]
@@ -3773,6 +3774,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'A stocked warehouse (D13) or a zeroed warehouse with stock history (receipts, adjustments, stock counts or transfers) (deactivate it instead), or a lock conflict (retryable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/warehouses/{id}/stock:
     parameters:
       - name: id

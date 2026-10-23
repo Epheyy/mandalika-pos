@@ -5209,6 +5209,15 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description A stocked product (D13), a zeroed product with stock history (receipt, adjustment or transfer lines) or an ERP-linked product (deactivate it instead), or a lock conflict (retryable) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getProductOutletConfig: {
@@ -6653,6 +6662,15 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            /** @description A stocked warehouse (D13) or a zeroed warehouse with stock history (receipts, adjustments, stock counts or transfers) (deactivate it instead), or a lock conflict (retryable) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getWarehouseStock: {
