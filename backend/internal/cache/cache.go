@@ -26,6 +26,10 @@ const (
 	memCounterMax    = 50_000
 )
 
+// ReadKeyPrefix starts every read-cache key (handlers' cache-aside GETs); dropping
+// the prefix invalidates every cached read at once.
+const ReadKeyPrefix = "rd:"
+
 // ErrUnavailable means Redis is disabled or the breaker is open: no call was made.
 var ErrUnavailable = errors.New("cache unavailable")
 

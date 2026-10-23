@@ -133,6 +133,10 @@ func (h *Handlers) erpCatalogPull(w http.ResponseWriter, r *http.Request, defaul
 		slog.Warn("erp catalog pull: could not extend the write deadline", "err", err)
 	}
 	rep, err := h.erpPull.Run(r.Context(), mode)
+	// Drop the read cache after every run: completed, partial and failed runs (and a run
+	// that returns an error) may all have committed pages, and product and outlet lists
+	// must show them now rather than after the 15 s TTL.
+	h.invalidate(r)
 	if err != nil {
 		slog.Error("erp catalog pull", "err", err, "mode", mode)
 		httpx.Err(w, http.StatusInternalServerError, "erp catalog pull failed")

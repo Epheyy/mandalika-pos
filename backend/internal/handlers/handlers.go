@@ -64,7 +64,7 @@ func (h *Handlers) invalidate(r *http.Request) {
 	if h.Cache != nil {
 		// Detached: a request cut by the server deadline must still drop the cache;
 		// DelByPrefix bounds itself (scanTotalLimit).
-		h.Cache.DelByPrefix(context.WithoutCancel(r.Context()), "rd:")
+		h.Cache.DelByPrefix(context.WithoutCancel(r.Context()), cache.ReadKeyPrefix)
 	}
 }
 
@@ -135,7 +135,7 @@ func ckey(r *http.Request) string {
 	if sc.CrossAll {
 		o = "all"
 	}
-	return "rd:" + r.Method + ":" + r.URL.Path + ":" + o + ":" + r.URL.RawQuery
+	return cache.ReadKeyPrefix + r.Method + ":" + r.URL.Path + ":" + o + ":" + r.URL.RawQuery
 }
 
 // ── Catalog / reference (global) ──────────────────────────

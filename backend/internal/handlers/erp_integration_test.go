@@ -12,9 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpstub"
@@ -820,5 +824,67 @@ func TestErpIntegrationPostgres(t *testing.T) {
 			t.Fatalf("concurrent first call = %d %s (%v)", res.code, res.body, err)
 		}
 		erWantInt(t, "run rows after the concurrent pair (only the winner wrote)", erCount(t, ctx, pool, `SELECT count(*) FROM erp_sync_runs`), 6)
+	})
+
+	// A pull writes the catalog behind the Redis read cache (15 s TTL); both trigger
+	// routes must drop it, so a product list read right after a pull shows the pulled rows.
+	t.Run("pull-drops-read-cache", func(t *testing.T) {
+		const schedulerToken = "er-scheduler-token-cache-0123456789abcdef"
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		e.fg("c1", "C1", "Cedar One 30ml", "EDP", 30, "ACTIVE", "")
+
+		secret := []byte("ER-CACHE-SYNTHETIC-KEY")
+		adminTok, err := auth.IssueAccess(secret, time.Hour, "00000000-0000-4000-8f20-000000000001", "admin", "", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mr := miniredis.RunT(t)
+		rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+		t.Cleanup(func() { _ = rc.Close() })
+		h := New(read.New(pool), cache.NewFromClient(rc), nil, nil, nil, nil, nil)
+		h.SetErpCatalogRunner(e.syncer)
+		cfg := &config.Config{AccessSecret: secret, ERPSchedulerToken: schedulerToken}
+		router := chi.NewRouter()
+		router.Route("/api/v1", func(r chi.Router) {
+			r.With(mw.RequireSchedulerSecret(cfg)).Post("/internal/erp/catalog-pull", h.ErpCatalogPullScheduler)
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireAuth(cfg), mw.RequireRole("admin"))
+				r.Post("/admin/erp/catalog-pull", h.ErpCatalogPullAdmin)
+				r.Get("/products", h.Products)
+			})
+		})
+		do := func(method, path string, hdr map[string]string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(method, path, nil)
+			for k, v := range hdr {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s %s = %d %s", method, path, rec.Code, rec.Body.String())
+			}
+			return rec
+		}
+		admin := map[string]string{"Authorization": "Bearer " + adminTok}
+		list := func() *httptest.ResponseRecorder { return do(http.MethodGet, "/api/v1/products", admin) }
+
+		if rec := list(); strings.Contains(rec.Body.String(), "Cedar") || rec.Header().Get("X-Cache") != "MISS" {
+			t.Fatalf("priming read = %s %s", rec.Header().Get("X-Cache"), rec.Body.String())
+		}
+		if rec := list(); rec.Header().Get("X-Cache") != "HIT" {
+			t.Fatalf("second read must come from the cache, got %q", rec.Header().Get("X-Cache"))
+		}
+
+		do(http.MethodPost, "/api/v1/admin/erp/catalog-pull", admin)
+		if rec := list(); !strings.Contains(rec.Body.String(), "Cedar One") {
+			t.Fatalf("list right after the admin pull lacks the pulled product (X-Cache %s): %s", rec.Header().Get("X-Cache"), rec.Body.String())
+		}
+
+		e.fg("d1", "D1", "Driftwood Two 30ml", "EDP", 30, "ACTIVE", "")
+		do(http.MethodPost, "/api/v1/internal/erp/catalog-pull?mode=full", map[string]string{"X-Scheduler-Secret": schedulerToken})
+		if rec := list(); !strings.Contains(rec.Body.String(), "Driftwood Two") {
+			t.Fatalf("list right after the scheduler pull lacks the pulled product (X-Cache %s): %s", rec.Header().Get("X-Cache"), rec.Body.String())
+		}
 	})
 }

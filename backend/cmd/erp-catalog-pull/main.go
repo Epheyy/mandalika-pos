@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
@@ -102,6 +103,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	syncer := &erp.Syncer{Pool: database.Pool, Source: client, Budget: opts.Budget, Logger: slog.New(slog.NewTextHandler(stderr, nil))}
 	rep, err := syncer.Run(ctx, opts.Mode)
+	// Any run may have committed pages (failed and errored runs included).
+	_, redisSet := os.LookupEnv("REDIS_URL")
+	bustReadCache(ctx, cfg, redisSet, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "erp-catalog-pull:", err)
 		return exitFailed
@@ -110,4 +114,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(rep)
 	return exitCode(rep.Status)
+}
+
+// bustReadCache drops the server's read cache (15 s TTL) so product and outlet lists show
+// the pulled rows at once. REDIS_URL may not reach Redis from this machine: the run's
+// result stands either way, and the operator is told the lists can lag by up to 15 s.
+// redisSet is whether REDIS_URL is in the environment: unset, config falls back to a
+// local dev Redis, which is not the server's cache.
+func bustReadCache(ctx context.Context, cfg *config.Config, redisSet bool, stderr io.Writer) {
+	const lag = "; product and outlet lists may lag up to 15 s"
+	if !redisSet {
+		fmt.Fprintln(stderr, "erp-catalog-pull: REDIS_URL not set, read cache not cleared"+lag)
+		return
+	}
+	ctx = context.WithoutCancel(ctx) // an interrupted run still clears what it committed
+	c, err := cache.Connect(ctx, cfg.RedisURL, cache.Options{DialTimeout: cfg.RedisDialTimeout, OpTimeout: cfg.RedisOpTimeout})
+	defer c.Close()
+	if err != nil {
+		// The parse error quotes the URL, password included: never print it.
+		fmt.Fprintln(stderr, "erp-catalog-pull: REDIS_URL unparseable, read cache not cleared"+lag)
+		return
+	}
+	if err := c.DelByPrefixE(ctx, cache.ReadKeyPrefix); err != nil {
+		fmt.Fprintf(stderr, "erp-catalog-pull: read cache not cleared (%v)%s\n", err, lag)
+	}
 }

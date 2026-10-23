@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
 )
 
@@ -66,5 +70,27 @@ func TestErpCatalogPullHandlers(t *testing.T) {
 				t.Fatalf("mode = %q, want %q", tc.runner.gotMode, tc.wantMode)
 			}
 		})
+	}
+}
+
+// Every run that reaches Run drops the read cache, a failed or errored one included: any
+// of them may have committed pages before it stopped.
+func TestErpCatalogPullDropsReadCache(t *testing.T) {
+	for _, runner := range []*fakeErpRunner{
+		{report: erp.CatalogReport{Status: erp.StatusCompleted}},
+		{report: erp.CatalogReport{Status: erp.StatusPartial}},
+		{report: erp.CatalogReport{Status: erp.StatusFailed}},
+		{err: errors.New("run error")},
+	} {
+		mr := miniredis.RunT(t)
+		rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+		t.Cleanup(func() { _ = rc.Close() })
+		mr.Set(cache.ReadKeyPrefix+"GET:/api/v1/products:all:", "stale")
+		h := &Handlers{Cache: cache.NewFromClient(rc)}
+		h.SetErpCatalogRunner(runner)
+		h.ErpCatalogPullScheduler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/x", nil))
+		if mr.Exists(cache.ReadKeyPrefix + "GET:/api/v1/products:all:") {
+			t.Fatalf("read cache survived a run (status %q, err %v)", runner.report.Status, runner.err)
+		}
 	}
 }

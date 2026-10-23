@@ -258,7 +258,9 @@ Local equivalent of exactly this mode: `FROM_SEED=1 FIRST_PULL=incremental RUN_I
 
 Found live: the backend's Redis read cache (15 s, key = path + query) is not dropped by the ERP catalog pull
 (the pull handlers never call `h.invalidate`), so for up to 15 s after a pull `GET /products` can miss the
-new variants. The harness now adds a unique `_=` parameter to every backend GET.
+new variants. The harness now adds a unique `_=` parameter to every backend GET. Fixed since: every pull
+entry path (scheduler, admin, `cmd/erp-catalog-pull`) now drops the read cache; the harness keeps the `_=`
+parameter because the relay still does not invalidate.
 
 ## 6. Demo day
 

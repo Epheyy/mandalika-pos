@@ -70,7 +70,7 @@ type httpc struct {
 	hdr  map[string]string
 	// noCache appends a unique _= query parameter to every GET: the backend's Redis
 	// read cache (15 s, key = path + query) is not dropped by every writer (the ERP
-	// catalog pull and relay do not invalidate it), so a plain re-read can be stale.
+	// relay does not invalidate it), so a plain re-read can be stale.
 	noCache bool
 }
 
