@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-22 by Claude (Opus 5.5) - A29 server half + ERP review R-1/E-1/D-1/S-1 LIVE (backend `00126-seh`); everything pushed; see NEXT SESSION - START HERE at the top of Next.
+Last updated: 2026-10-23 by Claude (Opus 5.5) - ERP stand-in LIVE (backend `00129-sis`, stub `mandalika-erpstub`, Scheduler jobs on); live rehearsal 15/15; see Now.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -34,6 +34,22 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **ERP STAND-IN LIVE 2026-10-23 (owner go-ahead "go B1–B6, merge and push", confirmed in-session):** the ERP
+  integration is ON in the test env against the stub. Backend **`00129-sis`** (tag `erpdemo`, image e46e7fb,
+  ERP_INTEGRATION_ENABLED/ERP_RELAY_ENABLED=true, ERP_BRAND=mandalika) at 100%, rollback `00126-seh`
+  (flags off); `00128-yic` (tag `erpimg`) = same image, flags off. Stub Cloud Run service `mandalika-erpstub`
+  (https://mandalika-erpstub-538849926142.asia-southeast2.run.app, in-memory, max 1 instance, baked catalog
+  RH-DEMO-A..C + outlet bsd/BSD + gudang-pusat). Secrets ERP_API_KEY / ERP_SCHEDULER_TOKEN (v2; v1 disabled,
+  had a trailing \r). Neon: warehouse "Gudang Pusat (contoh)" erp_slug=gudang-pusat; outlet BSD linked by the
+  pull. Cloud Scheduler API enabled; jobs `erp-relay` (*/2) and `erp-catalog-pull-incremental` (*/15),
+  asia-southeast2, ENABLED (no daily full pull against the stub). Live rehearsal `cmd/erp-rehearsal -live
+  -run-id DEMO2`: 15/15 PASS incl. read-only ledger invariant (0 rows). Runbook + checklist:
+  `docs/runbooks/erp-standin-demo*.md` (demo 2 Nov: set stub --min-instances 1 that morning; next rerun needs
+  a fresh -run-id). Follow-ups: (1) ERP catalog-pull handlers don't drop the 15 s Redis read cache
+  (`h.invalidate`); (2) a variant whose stock was zeroed still can't be hard-deleted (generic 400) while the
+  409 tells users to zero then delete; (3) dependency-security now fails on 2 NEW dompurify 3.4.5 advisories
+  (GHSA-cg2g-xh64-v4q7 critical, GHSA-mrv2-3pqr-j5jr high; not a deploy gate); (4) DEMO run left RH-DEMO-A..C
+  unpriced in the POS. Before switching to erp-flamboyan: see runbook §7 (stub-delivered outbox rows).
 - **SECRET ROTATION DONE 2026-10-17** (leak: Neon `DATABASE_URL` + `SEED_ADMIN_PASSWORD` in old versions of `.claude/settings.local.json`,
   commits a595fc6/34676aa; full-history search found NO other current secret; plan `docs/plans/2026-10-17-secret-rotation-and-history-purge.md`).
   Owner reset the Neon role password and added `DATABASE_URL` v2 (v1 disabled). Claude rolled Cloud Run revision **`00116-vev`**
