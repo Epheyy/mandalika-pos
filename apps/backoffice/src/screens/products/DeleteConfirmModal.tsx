@@ -8,12 +8,18 @@ interface DeleteConfirmModalProps {
   onConfirm: () => void
   title?: string
   message?: string
+  /** A refused delete's reason, shown under the message. */
+  error?: string | null
+  /** A delete in flight: the confirm button is disabled. */
+  busy?: boolean
 }
 
 export function DeleteConfirmModal({
   open, onClose, onConfirm,
   title = 'Konfirmasi Hapus',
   message = 'Data tidak dapat dikembalikan.',
+  error,
+  busy = false,
 }: DeleteConfirmModalProps) {
   return (
     <Modal
@@ -23,7 +29,7 @@ export function DeleteConfirmModal({
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>Batal</Button>
-          <Button variant="danger" className="flex-1" onClick={onConfirm}>Ya, Hapus</Button>
+          <Button variant="danger" className="flex-1" onClick={onConfirm} loading={busy}>Ya, Hapus</Button>
         </>
       }
     >
@@ -31,6 +37,7 @@ export function DeleteConfirmModal({
         <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
         <h3 className="text-xl font-black text-gray-900 mb-2">{title}</h3>
         <p className="text-sm text-gray-400">{message}</p>
+        {error && <p role="alert" className="text-sm text-red-600 mt-2">{error}</p>}
       </div>
     </Modal>
   )

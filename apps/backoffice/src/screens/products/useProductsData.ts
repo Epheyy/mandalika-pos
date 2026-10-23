@@ -38,6 +38,8 @@ export function useProductsData() {
   const [err, setErr] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [delId, setDelId] = useState<string | null>(null)
+  const [delErr, setDelErr] = useState<string | null>(null)
+  const [delBusy, setDelBusy] = useState(false)
   // Per-outlet stock/price/availability for the product being edited. Keyed
   // `${outletId}|${variantSize}` and rendered as outlets × current form.variants
   // so newly added variants appear (with defaults) before saving.
@@ -254,10 +256,42 @@ export function useProductsData() {
     }
   }
 
-  const del = async (pid: string) => {
-    await api.deleteProduct(pid)
+  // A refused delete (409: stock on hand, or receipt/adjustment/transfer history) keeps the
+  // confirm modal open with the server's reason instead of failing silently. delBusy
+  // blocks a second click, whose 404 would otherwise linger as the next modal's error.
+  const runDelete = async (remove: () => Promise<void>, fallback: string, refetch: () => Promise<unknown>) => {
+    setDelBusy(true)
+    try {
+      await remove()
+    } catch (e: unknown) {
+      setDelErr(e instanceof Error ? e.message : fallback)
+      return
+    } finally {
+      setDelBusy(false)
+    }
+    closeDel()
+    await refetch()
+  }
+  const del = (pid: string) => runDelete(() => api.deleteProduct(pid), 'Gagal menghapus produk.', pq.refetch)
+  const delCat = (cid: string) => runDelete(() => api.deleteCategory(cid), 'Gagal menghapus kategori.', cq.refetch)
+
+  const closeDel = () => {
     setDelId(null)
-    await pq.refetch()
+    setDelCatId(null)
+    setDelErr(null)
+  }
+  // Opening starts clean, and the modal cannot be dismissed mid-request: a refusal that
+  // landed after a cancel would otherwise show against the next item opened.
+  const askDel = (pid: string) => {
+    setDelErr(null)
+    setDelId(pid)
+  }
+  const askDelCat = (cid: string) => {
+    setDelErr(null)
+    setDelCatId(cid)
+  }
+  const cancelDel = () => {
+    if (!delBusy) closeDel()
   }
 
   const exportProducts = (fmt: 'csv' | 'xlsx') => {
@@ -305,10 +339,10 @@ export function useProductsData() {
     ocfgOutlets, setOcfgOutlets, setOcfgMap, ocfgLoading, ocGet, ocSet,
     setOutletAllAvailable, basePriceOf, ocCollapsed, setOcCollapsed,
     // delete
-    delId, setDelId, del,
+    delId, del, delCat, delErr, delBusy, askDel, askDelCat, cancelDel,
     // categories
     catOpen, setCatOpen, editingCat, setEditingCat, catForm, setCatForm,
-    delCatId, setDelCatId, saveCat,
+    delCatId, saveCat,
     // import/export
     exportProducts, downloadProductTemplate, refetchAfterImport,
   }

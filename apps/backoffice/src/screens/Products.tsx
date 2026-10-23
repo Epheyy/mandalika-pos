@@ -73,7 +73,7 @@ export default function Products() {
           setFCat={d.setFCat}
           catName={d.catName}
           onEdit={d.openEdit}
-          onDelete={d.setDelId}
+          onDelete={d.askDel}
         />
       )}
 
@@ -82,7 +82,7 @@ export default function Products() {
           categories={d.categories}
           products={d.products}
           onEdit={(c) => { d.setEditingCat(c); d.setCatForm({ name: c.name, description: c.description || '' }); d.setCatOpen(true) }}
-          onDelete={d.setDelCatId}
+          onDelete={d.askDelCat}
         />
       )}
 
@@ -130,8 +130,10 @@ export default function Products() {
 
       <DeleteConfirmModal
         open={!!(d.delId || d.delCatId)}
-        onClose={() => { d.setDelId(null); d.setDelCatId(null) }}
-        onConfirm={async () => { if (d.delId) await d.del(d.delId); if (d.delCatId) { await api.deleteCategory(d.delCatId); d.setDelCatId(null); await d.refetchCats() } }}
+        onClose={d.cancelDel}
+        onConfirm={() => { if (d.delId) void d.del(d.delId); else if (d.delCatId) void d.delCat(d.delCatId) }}
+        error={d.delErr}
+        busy={d.delBusy}
       />
 
       {d.recipeFor && (
