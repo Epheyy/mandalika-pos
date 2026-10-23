@@ -163,3 +163,18 @@ is added. Canonical quality runs scripts/ci/tar-consumer-test.cjs after installa
 it resolves tar from the actual Capacitor manifest and tests the installed template
 helper plus tiny archive regressions in bounded children. Full native workflows
 and general extraction byte/entry quotas are not claimed by these tests.
+
+## DOMPurify consumer regression
+
+The exact jspdf@4.2.1>dompurify override pins 3.4.17 inside jsPDF's ^3.3.1 optional
+dependency range, fixing GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr. jsPDF 4.2.1 is
+the latest release, so no parent bump exists, and an ordinary pnpm9 transitive update
+did not move the lock off 3.4.5. dompurify is optional and used only by jsPDF.html(),
+which the repo never calls: the sole consumer,
+apps/backoffice/src/screens/transfers/docs/render.ts, uses addImage and output. No root
+dompurify import is added. Canonical quality runs scripts/ci/dompurify-consumer-test.cjs
+after installation; it resolves dompurify from the actual jsPDF install, requires 3.4.17
+or later within the parent range, requires a single dompurify entry in pnpm-lock.yaml
+and checks that the entry point loads. There is no sanitize() regression because the
+repo has no DOM implementation (jsdom/happy-dom) and none is added; jsPDF.html() output
+sanitization is not claimed to be tested.
