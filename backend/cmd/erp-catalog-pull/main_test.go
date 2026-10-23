@@ -79,7 +79,7 @@ func TestBustReadCache(t *testing.T) {
 	}{
 		{"unset falls back to dev redis: skip", "redis://" + mr.Addr(), false, "REDIS_URL not set"},
 		{"set but empty (disabled)", "", true, "read cache not cleared"},
-		{"unparseable keeps the password out", "rediss://default:p%zz-secret@host:6379", true, "REDIS_URL unparseable"},
+		{"unparseable keeps the password out", "rediss://default:p%zz-secret@redis.invalid:6379", true, "REDIS_URL unparseable"},
 		{"unreachable", "redis://127.0.0.1:1/0", true, "read cache not cleared"},
 	}
 	for _, tc := range tests {
