@@ -17,6 +17,8 @@ describe('canSeeNav', () => {
 
   it('keeps the existing alternate permissions for Inventori and Laporan', () => {
     expect(canSeeNav('warehouses', 'manage_inventory', { role: 'manager', permissions: ['manage_stock_count'] })).toBe(true)
+    expect(canSeeNav('approvals', 'manage_inventory', { role: 'manager', permissions: ['manage_stock_count'] })).toBe(true)
+    expect(canSeeNav('approvals', 'manage_inventory', { role: 'manager', permissions: [] })).toBe(false)
     expect(canSeeNav('reports', 'view_reports', { role: 'manager', permissions: ['view_transactions'] })).toBe(true)
     expect(canSeeNav('products', 'manage_products', { role: 'manager', permissions: [] })).toBe(false)
   })

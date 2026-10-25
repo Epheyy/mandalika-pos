@@ -13,7 +13,7 @@ func (h *Handlers) UpdateAppSettings(w http.ResponseWriter, r *http.Request) {
 		writeDecodeErr(w, err)
 		return
 	}
-	h.mutated(w, r, h.Write.UpdateAppSettings(r.Context(), raw))
+	h.mutated(w, r, h.Write.UpdateAppSettingsBy(r.Context(), callerUserID(r), raw))
 }
 
 func (h *Handlers) UpdateLoyaltySettings(w http.ResponseWriter, r *http.Request) {

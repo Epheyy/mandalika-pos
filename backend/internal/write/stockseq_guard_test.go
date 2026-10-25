@@ -339,7 +339,7 @@ var stockSQLPins = map[string][2]int{
 var stockHelperCallers = map[string][]string{
 	"addStockDelta":      {"cancelTransfer", "receiveTransfer"},
 	"deductStockGuarded": {"sendTransfer"},
-	"applyCountDeltas":   {"completeStockCount"},
+	"applyCountDeltas":   {"finishCount"}, // S3: finishCount is the one caller (direct completion and an approved count); it bumps the stock seq last
 	"seedOutletStock":    {"CreateProduct"},
 	"bumpOutletTx":       {"SetOutletPar"}, // par level only: it must NOT carry a stock change
 	// S2: the per-sale giveaway decrement; its one caller is the sale hook, which runs inside

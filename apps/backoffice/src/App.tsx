@@ -33,6 +33,8 @@ import SettingsScreen from './screens/SettingsScreen'
 import ErrorLogs from './screens/ErrorLogs'
 import ErpOutboxScreen from './screens/integration/ErpOutboxScreen'
 import SyncReview from './screens/syncReview/SyncReview'
+import ApprovalQueue from './screens/approvals/ApprovalQueue'
+import { useApprovalCount } from './screens/approvals/useApprovalCount'
 import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
 import { useOversellOpenCount } from './screens/reports/useOversellOpenCount'
 import { useOutlet } from './outlet'
@@ -45,6 +47,7 @@ const NAV = [
   { id: 'promotions', label: 'Promosi', icon: Tag, perm: 'manage_promotions', C: Promotions },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
+  { id: 'approvals', label: 'Persetujuan Stok', icon: ClipboardCheck, perm: 'manage_inventory', C: ApprovalQueue },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'syncReview', label: 'Tinjauan Sinkron', icon: ClipboardCheck, perm: 'resolve_sync_review', C: SyncReview },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
@@ -118,6 +121,7 @@ export default function App() {
   }, [user])
 
   const reviewCount = useSyncReviewCount(visible.some((n) => n.id === 'syncReview'))
+  const approvalCount = useApprovalCount(visible.some((n) => n.id === 'approvals'))
   const { outletId: activeOutletId } = useOutlet()
   // Same count as the "Stok Minus" tab badge (A44): unchecked oversell lines in scope.
   const oversellCount = useOversellOpenCount(
@@ -198,6 +202,10 @@ export default function App() {
                 {id === 'reports' && oversellCount > 0 && (
                   <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"
                     aria-label={`${oversellCount} stok minus belum dicek`}>{oversellCount}</span>
+                )}
+                {id === 'approvals' && approvalCount > 0 && (
+                  <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"
+                    aria-label={`${approvalCount} menunggu persetujuan`}>{approvalCount}</span>
                 )}
                 {id === 'syncReview' && reviewCount > 0 && (
                   <span className="min-w-5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black text-center"

@@ -404,7 +404,7 @@ export interface Api {
   approveAdjustmentRequest: (id: string, input: InventoryApproveInput, idempotencyKey: string) => Promise<AdjustmentRequestApproveResult>
   rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<AdjustmentRequest>
   cancelAdjustmentRequest: (id: string, idempotencyKey: string, input?: InventoryCancelInput) => Promise<AdjustmentRequest>
-  listInventoryApprovals: () => Promise<ApprovalQueueResponse>
+  listInventoryApprovals: (page?: number, limit?: number) => Promise<ApprovalQueueResponse>
   listRequisitions: (params?: ListRequisitionsParams) => Promise<ListResult<StockRequisition>>
   getRequisition: (id: string) => Promise<StockRequisition>
   createRequisition: (input: StockRequisitionInput, idempotencyKey: string) => Promise<StockRequisition>
@@ -935,8 +935,8 @@ export function createClient(opts: ClientOptions): Api {
       data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/reject`, input, idemRequired(idempotencyKey)),
     cancelAdjustmentRequest: (id, idempotencyKey, input) =>
       data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idemRequired(idempotencyKey)),
-    listInventoryApprovals: () =>
-      request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending`),
+    listInventoryApprovals: (page, limit) =>
+      request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending${page ? `&page=${page}` : ''}${limit ? `&limit=${limit}` : ''}`),
     listRequisitions: (params) =>
       request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`),
     getRequisition: (id) => data<StockRequisition>('GET', `${API}/requisitions/${id}`),

@@ -63,6 +63,7 @@ GATES = (
     ("OB", "TestErpOutboxPostgres", 56470, "ob"),
     ("MV", "TestStockMovementsReadPostgres", 56469, "mv"),
     ("GW", "TestGiveawayPostgres", 56471, "gw"),
+    ("AP", "TestInventoryApprovalPostgres", 56472, "ap"),
 )
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
 

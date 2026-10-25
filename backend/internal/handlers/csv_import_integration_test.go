@@ -726,9 +726,24 @@ func TestCsvImportPostgres(t *testing.T) {
 		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
 			t.Fatalf("an open stock count must block the rename: %+v", rep.Issues)
 		}
+		// S3: a count waiting for approval still applies deltas by size text, so it blocks too
+		exec(`UPDATE stock_counts SET status='pending_approval' WHERE id=$1`, sc)
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
+			t.Fatalf("a count pending approval must block the rename: %+v", rep.Issues)
+		}
 		exec(`UPDATE stock_counts SET status='completed' WHERE id=$1`, sc)
 		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
 			t.Fatalf("a completed count must not block: %+v", rep.Issues)
+		}
+		// S3: so does a pending stock adjustment request for the size
+		ar := text(`INSERT INTO stock_adjustment_requests(number,outlet_id,product_id,variant_size,qty_at_request,requested_new_qty,reason_code,requested_by)
+			VALUES('ADJ-IM-1',$1,$2,'100 ml',1,0,'damaged',gen_random_uuid()) RETURNING id::text`, outlet, melatiID)
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
+			t.Fatalf("a pending adjustment request must block the rename: %+v", rep.Issues)
+		}
+		exec(`UPDATE stock_adjustment_requests SET status='cancelled' WHERE id=$1`, ar)
+		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
+			t.Fatalf("a cancelled request must not block: %+v", rep.Issues)
 		}
 	})
 
@@ -746,41 +761,62 @@ func TestCsvImportPostgres(t *testing.T) {
 		t.Fatal("the import never blocked on the held row")
 	}
 
-	sub("products: an open document created between plan and apply makes the rename stale (409)", func(t *testing.T) {
-		csv := prodHeader + "Melati,Mandalika,,,130 ml,180000,MEL-100,,,,\n"
-		rep := preview("/products/import", csv)
-		if rep.HasErrors() || hasCode(rep, "size_in_flight") {
-			t.Fatalf("%+v", rep.Issues)
-		}
-		before := stockSnapshot()
-		holder, err := pool.Begin(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer holder.Rollback(ctx)
-		if _, err = holder.Exec(ctx, `UPDATE product_variants SET price=price WHERE sku='MEL-100'`); err != nil {
-			t.Fatal(err)
-		}
-		done := make(chan int, 1)
-		go func() { c, _ := commit("/products/import", csv, rep, "p-late-doc"); done <- c }()
-		waitForLockWait(t)
-		// a stock count for the OLD size appears after the import planned, before it applies
-		sc := text(`INSERT INTO stock_counts(name,status,outlet_id) VALUES('late count','planned',$1) RETURNING id::text`, outlet)
-		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size) VALUES ($1,$2,'Melati','100 ml')`, sc, melatiID)
-		if err = holder.Commit(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if code := <-done; code != http.StatusConflict {
-			t.Errorf("commit status %d, want 409 import_stale", code)
-		}
-		if got := text(`SELECT size FROM product_variants WHERE sku='MEL-100'`); got != "100 ml" {
-			t.Errorf("rename was applied despite the open count: %s", got)
-		}
-		if stockSnapshot() != before {
-			t.Error("stale commit moved stock rows")
-		}
-		exec(`DELETE FROM stock_counts WHERE id=$1`, sc)
-	})
+	// A document that uses the old size can appear after the import planned and before it applies:
+	// the commit re-checks the renamed pairs inside its transaction and goes stale (409).
+	for i, late := range []struct {
+		label string
+		make  func() (cleanup func())
+	}{
+		{"planned stock count", func() func() {
+			sc := text(`INSERT INTO stock_counts(name,status,outlet_id) VALUES('late count','planned',$1) RETURNING id::text`, outlet)
+			exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size) VALUES ($1,$2,'Melati','100 ml')`, sc, melatiID)
+			return func() { exec(`DELETE FROM stock_counts WHERE id=$1`, sc) }
+		}},
+		{"stock count pending approval", func() func() {
+			sc := text(`INSERT INTO stock_counts(name,status,outlet_id) VALUES('late pending count','pending_approval',$1) RETURNING id::text`, outlet)
+			exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size) VALUES ($1,$2,'Melati','100 ml')`, sc, melatiID)
+			return func() { exec(`DELETE FROM stock_counts WHERE id=$1`, sc) }
+		}},
+		{"pending adjustment request", func() func() {
+			ar := text(`INSERT INTO stock_adjustment_requests(number,outlet_id,product_id,variant_size,qty_at_request,requested_new_qty,reason_code,requested_by)
+				VALUES('ADJ-IM-LATE',$1,$2,'100 ml',1,0,'damaged',gen_random_uuid()) RETURNING id::text`, outlet, melatiID)
+			return func() { exec(`DELETE FROM stock_adjustment_requests WHERE id=$1`, ar) }
+		}},
+	} {
+		sub("products: a "+late.label+" created between plan and apply makes the rename stale (409)", func(t *testing.T) {
+			csv := prodHeader + "Melati,Mandalika,,,130 ml,180000,MEL-100,,,,\n"
+			rep := preview("/products/import", csv)
+			if rep.HasErrors() || hasCode(rep, "size_in_flight") {
+				t.Fatalf("%+v", rep.Issues)
+			}
+			before := stockSnapshot()
+			holder, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer holder.Rollback(ctx)
+			if _, err = holder.Exec(ctx, `UPDATE product_variants SET price=price WHERE sku='MEL-100'`); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan int, 1)
+			go func() { c, _ := commit("/products/import", csv, rep, fmt.Sprintf("p-late-doc-%d", i)); done <- c }()
+			waitForLockWait(t)
+			cleanup := late.make()
+			defer cleanup()
+			if err = holder.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if code := <-done; code != http.StatusConflict {
+				t.Errorf("commit status %d, want 409 import_stale", code)
+			}
+			if got := text(`SELECT size FROM product_variants WHERE sku='MEL-100'`); got != "100 ml" {
+				t.Errorf("rename was applied despite the open document: %s", got)
+			}
+			if stockSnapshot() != before {
+				t.Error("stale commit moved stock rows")
+			}
+		})
+	}
 
 	sub("products: a variant renamed by the form between plan and apply makes the commit stale (409), nothing written", func(t *testing.T) {
 		csv := prodHeader + "Melati,Mandalika,,,100 ml,182000,MEL-100,,,,\n"

@@ -10,7 +10,7 @@ export function canSeeNav(id: string, perm: string, user: NavUser | null): boole
   // Admin-only: no permission grants the error log tab (the server enforces admin-only anyway).
   if (id === 'errors' || id === 'erpOutbox') return false
   const perms = user.permissions || []
-  if (id === 'warehouses') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
+  if (id === 'warehouses' || id === 'approvals') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
   if (id === 'reports') return perms.includes('view_reports') || perms.includes('view_transactions')
   return perms.includes(perm)
 }

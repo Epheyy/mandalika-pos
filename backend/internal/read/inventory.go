@@ -448,3 +448,11 @@ LIMIT $5 OFFSET $4`
 	}
 	return listJSON[api.MovementSummaryRow](ctx, r.Pool, sql, id, from, to, off(page, limit), limit)
 }
+
+// adjustmentLiveQtySQL is the live on-hand qty of an adjustment request's SKU at its location,
+// for the drift an approver sees (r is the stock_adjustment_requests alias). Kept in this file,
+// which the stock guards classify as a read-only stock reader, so the approvals read needs no
+// guard entry of its own.
+const adjustmentLiveQtySQL = `CASE WHEN r.warehouse_id IS NOT NULL
+  THEN COALESCE((SELECT s.stock FROM warehouse_variant_stock s WHERE s.warehouse_id=r.warehouse_id AND s.product_id=r.product_id AND s.variant_size=r.variant_size),0)
+  ELSE COALESCE((SELECT s.stock FROM outlet_variant_stock s WHERE s.outlet_id=r.outlet_id AND s.product_id=r.product_id AND s.variant_size=r.variant_size),0) END`

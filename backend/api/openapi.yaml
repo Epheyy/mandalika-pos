@@ -1703,8 +1703,10 @@ components:
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
         submittedBy: { type: string, format: uuid, description: "Who submitted the count for approval (pending_approval and later)." }
+        submittedByName: { type: string }
         submittedAt: { type: string, format: date-time }
         approvedBy: { type: string, format: uuid }
+        approvedByName: { type: string }
         approvedAt: { type: string, format: date-time }
         reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
         reasonText: { type: string }
@@ -2907,18 +2909,20 @@ components:
       required: [data, pendingCount]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/ApprovalQueueItem' } }
-        pendingCount: { type: integer, description: "Number of pending items, for the nav badge." }
+        pendingCount: { type: integer, description: "Number of pending items the caller may see, for the nav badge." }
+        meta: { $ref: '#/components/schemas/Meta' }
     InventoryConflictError:
       type: object
       description: >
         409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is
         approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock
-        conflict, invalid state, idempotency key reuse) send `{error}` with no data.
+        conflict, invalid state, idempotency key reuse) send `{error}` with `data` null (the shared error envelope writes it).
       required: [error]
       properties:
         error: { type: string }
         data:
           type: object
+          nullable: true
           required: [code]
           properties:
             code: { type: string, enum: [approval_required] }
@@ -6314,6 +6318,8 @@ paths:
       summary: Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, enum: [pending], default: pending } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           description: pending approvals and the pending count

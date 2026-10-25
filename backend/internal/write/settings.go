@@ -35,21 +35,30 @@ func validatePaymentMethods(raw json.RawMessage) error {
 }
 
 func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error {
+	return r.UpdateAppSettingsBy(ctx, "", raw)
+}
+
+// UpdateAppSettingsBy is UpdateAppSettings recording actor ("" allowed) on the history row of an
+// approval-switch change.
+func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.RawMessage) error {
 	var s struct {
-		TaxEnabled           bool                  `json:"taxEnabled"`
-		TaxRate              float64               `json:"taxRate"`
-		RoundingEnabled      bool                  `json:"roundingEnabled"`
-		RoundingType         string                `json:"roundingType"`
-		RoundingAmount       *float64              `json:"roundingAmount"`
-		RoundingDirection    *string               `json:"roundingDirection"`
-		RoundingApplyToTax   *bool                 `json:"roundingApplyToTax"`
-		AutoOpenShift        bool                  `json:"autoOpenShift"`
-		AllowNegativeStock   bool                  `json:"allowNegativeStock"`
-		PaymentMethods       json.RawMessage       `json:"paymentMethods"`
-		Receipt              json.RawMessage       `json:"receipt"`
-		ReceiveApproverRoles []string              `json:"receiveApproverRoles"`
-		RecipesEnabled       *bool                 `json:"recipesEnabled"`
-		Documents            *api.DocumentSettings `json:"documents"`
+		TaxEnabled           bool            `json:"taxEnabled"`
+		TaxRate              float64         `json:"taxRate"`
+		RoundingEnabled      bool            `json:"roundingEnabled"`
+		RoundingType         string          `json:"roundingType"`
+		RoundingAmount       *float64        `json:"roundingAmount"`
+		RoundingDirection    *string         `json:"roundingDirection"`
+		RoundingApplyToTax   *bool           `json:"roundingApplyToTax"`
+		AutoOpenShift        bool            `json:"autoOpenShift"`
+		AllowNegativeStock   bool            `json:"allowNegativeStock"`
+		PaymentMethods       json.RawMessage `json:"paymentMethods"`
+		Receipt              json.RawMessage `json:"receipt"`
+		ReceiveApproverRoles []string        `json:"receiveApproverRoles"`
+		RecipesEnabled       *bool           `json:"recipesEnabled"`
+		// InventoryApprovalRequired: absent leaves the stored value untouched (older clients
+		// that do not know the field must not switch the approval flow off).
+		InventoryApprovalRequired *bool                 `json:"inventoryApprovalRequired"`
+		Documents                 *api.DocumentSettings `json:"documents"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
@@ -115,6 +124,11 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 				`UPDATE app_settings SET recipes_enabled=$1 WHERE id=1`,
 				*s.RecipesEnabled); e != nil {
 				return fmt.Errorf("update recipes_enabled: %w", e)
+			}
+		}
+		if s.InventoryApprovalRequired != nil {
+			if e := setApprovalSwitch(ctx, t, actor, *s.InventoryApprovalRequired); e != nil {
+				return fmt.Errorf("update inventory_approval_required: %w", e)
 			}
 		}
 		return e
