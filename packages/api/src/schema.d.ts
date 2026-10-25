@@ -4272,10 +4272,12 @@ export interface components {
              * @description Who submitted the count for approval (pending_approval and later).
              */
             submittedBy?: string;
+            submittedByName?: string;
             /** Format: date-time */
             submittedAt?: string;
             /** Format: uuid */
             approvedBy?: string;
+            approvedByName?: string;
             /** Format: date-time */
             approvedAt?: string;
             reasonCode?: components["schemas"]["InventoryReasonCode"];
@@ -5335,13 +5337,13 @@ export interface components {
             pendingCount: number;
             meta?: components["schemas"]["Meta"];
         };
-        /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock conflict, invalid state, idempotency key reuse) send `{error}` with no data. */
+        /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock conflict, invalid state, idempotency key reuse) send `{error}` with `data` null (the shared error envelope writes it). */
         InventoryConflictError: {
             error: string;
             data?: {
                 /** @enum {string} */
                 code: "approval_required";
-            };
+            } | null;
         };
         StockCountSubmitLineInput: {
             /** Format: uuid */

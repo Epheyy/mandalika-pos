@@ -1703,8 +1703,10 @@ components:
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
         submittedBy: { type: string, format: uuid, description: "Who submitted the count for approval (pending_approval and later)." }
+        submittedByName: { type: string }
         submittedAt: { type: string, format: date-time }
         approvedBy: { type: string, format: uuid }
+        approvedByName: { type: string }
         approvedAt: { type: string, format: date-time }
         reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
         reasonText: { type: string }
@@ -2900,12 +2902,13 @@ components:
       description: >
         409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is
         approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock
-        conflict, invalid state, idempotency key reuse) send `{error}` with no data.
+        conflict, invalid state, idempotency key reuse) send `{error}` with `data` null (the shared error envelope writes it).
       required: [error]
       properties:
         error: { type: string }
         data:
           type: object
+          nullable: true
           required: [code]
           properties:
             code: { type: string, enum: [approval_required] }
