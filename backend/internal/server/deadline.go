@@ -36,6 +36,9 @@ type deadlineRule struct {
 //   - POST /internal/erp/catalog-pull, /admin/erp/catalog-pull: LongDeadline. The HTTP
 //     pull budget is 20 s plus a 5 s run grace (25 s) and the lock release uses its own
 //     context, so 28 s does not cut a legitimate run.
+//   - GET /inventory/movements/export: LongDeadline. A streamed kartu stok CSV of up to 100k
+//     rows can pass the 25 s default; the handler also extends its own write deadline (like the
+//     relay) and aborts the response on a mid-stream failure.
 //   - POST */import (products, customers, ingredients, admin/erp/sku-mapping): EXEMPT.
 //     These routes extend their own deadlines (read 60 s, write 150 s, imports.go) for a
 //     16 MiB upload plus a 50k-row plan, which a 28 s context would cut mid-transaction.
@@ -47,6 +50,7 @@ var deadlineExceptions = []deadlineRule{
 	{http.MethodPost, "/api/v1/admin/erp/relay", LongDeadline},
 	{http.MethodPost, "/api/v1/internal/erp/catalog-pull", LongDeadline},
 	{http.MethodPost, "/api/v1/admin/erp/catalog-pull", LongDeadline},
+	{http.MethodGet, "/api/v1/inventory/movements/export", LongDeadline},
 	{http.MethodPost, "/api/v1/products/import", 0},
 	{http.MethodPost, "/api/v1/customers/import", 0},
 	{http.MethodPost, "/api/v1/ingredients/import", 0},

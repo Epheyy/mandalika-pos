@@ -98,7 +98,7 @@ test('BO-CSV-IMPORT preview errors block apply, a clean preview applies with an 
 
 test('BO-STOCK-CARD summary row opens the kartu stok, rows page, Hadiah chip filters, CSV downloads', async ({ page }, info) => {
   const result = await stockCardFlow(page as ScenarioPage)
-  expect(result).toHaveLength(5)
+  expect(result).toHaveLength(7)
   await evidence(info, result)
 })
 

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/csvimport"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
@@ -24,6 +25,9 @@ const (
 	// Kartu stok export caps (plan §3): the range and the row count.
 	movementExportMaxDays = 93
 	movementExportMaxRows = 100000
+	// A 100k-row export can outlive the server's write timeout (see ExportStockMovements).
+	movementExportWriteDeadline = 60 * time.Second
+	movementSkuLimit            = 8
 )
 
 var movementKinds = map[string]bool{
@@ -31,16 +35,19 @@ var movementKinds = map[string]bool{
 	"receipt": true, "adjust": true, "count": true, "opening": true, "write_off": true,
 }
 
-// movementLocationAllowed is the explicit location check of the kartu stok reads: an outlet-bound
-// caller reaches only their own outlet and no warehouse; admins (cross-outlet) reach everything.
-func movementLocationAllowed(sc read.Scope, locType, locID string) bool {
-	if sc.CrossAll {
+// movementLocationAllowed is the explicit location check of the kartu stok reads. An admin
+// reads every location whatever outlet the X-Outlet-Id switcher selected (like the other
+// inventory reads). Anyone else reaches only their own outlet, plus warehouses: those have no
+// outlet binding and are permission-gated (manage_inventory), as for stock counts.
+func movementLocationAllowed(r *http.Request, locType, locID string) bool {
+	if role, _ := r.Context().Value(auth.CtxRole).(string); role == "admin" {
 		return true
 	}
-	if locType == "outlet" {
-		return sc.OutletID != "" && strings.EqualFold(sc.OutletID, locID)
+	if locType == "warehouse" {
+		return true
 	}
-	return sc.OutletID == ""
+	sc := scope(r)
+	return sc.CrossAll || (sc.OutletID != "" && strings.EqualFold(sc.OutletID, locID))
 }
 
 // parseMovementBound reads a from/to value: a calendar day in the location zone (a `to` day is
@@ -62,33 +69,40 @@ func parseMovementBound(s string, zone *time.Location, isTo bool) (*time.Time, e
 	return &t, nil
 }
 
-// movementFilter validates the query shared by the list, export and summary. It writes the error
-// response itself and returns ok=false. The zone is the location's, for formatting.
-func (h *Handlers) movementFilter(w http.ResponseWriter, r *http.Request) (f read.MovementFilter, zone *time.Location, ok bool) {
+// movementLocation validates and scope-checks the location of a kartu stok read. It writes
+// the error response itself and returns ok=false. The zone is the location's, for formatting.
+func (h *Handlers) movementLocation(w http.ResponseWriter, r *http.Request) (locType, locID string, zone *time.Location, ok bool) {
 	q := r.URL.Query()
-	f.LocationType, f.LocationID = q.Get("locationType"), q.Get("locationId")
-	if f.LocationType != "outlet" && f.LocationType != "warehouse" {
+	locType, locID = q.Get("locationType"), q.Get("locationId")
+	if locType != "outlet" && locType != "warehouse" {
 		httpx.Err(w, http.StatusBadRequest, "locationType harus outlet atau warehouse")
-		return f, nil, false
+		return "", "", nil, false
 	}
-	if _, err := uuid.Parse(f.LocationID); err != nil {
+	if _, err := uuid.Parse(locID); err != nil {
 		httpx.Err(w, http.StatusBadRequest, "locationId tidak valid")
-		return f, nil, false
+		return "", "", nil, false
 	}
-	if !movementLocationAllowed(scope(r), f.LocationType, f.LocationID) {
+	if !movementLocationAllowed(r, locType, locID) {
 		httpx.Err(w, http.StatusForbidden, "lokasi di luar cakupan akun")
-		return f, nil, false
+		return "", "", nil, false
 	}
-	zone, exists, err := h.Repo.LocationZone(r.Context(), f.LocationType, f.LocationID)
+	zone, exists, err := h.Repo.LocationZone(r.Context(), locType, locID)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
-		return f, nil, false
+		return "", "", nil, false
 	}
 	if !exists {
 		httpx.Err(w, http.StatusNotFound, "lokasi tidak ditemukan")
-		return f, nil, false
+		return "", "", nil, false
 	}
-	if !fillMovementOptions(w, q, zone, &f) {
+	return locType, locID, zone, true
+}
+
+// movementFilter validates the query shared by the list, export and summary. It writes the error
+// response itself and returns ok=false.
+func (h *Handlers) movementFilter(w http.ResponseWriter, r *http.Request) (f read.MovementFilter, zone *time.Location, ok bool) {
+	f.LocationType, f.LocationID, zone, ok = h.movementLocation(w, r)
+	if !ok || !fillMovementOptions(w, r.URL.Query(), zone, &f) {
 		return f, nil, false
 	}
 	return f, zone, true
@@ -175,7 +189,7 @@ func (h *Handlers) ListStockMovements(w http.ResponseWriter, r *http.Request) {
 		next := read.EncodeMovementCursor(page.Data[limit-1].Seq)
 		page.NextCursor = &next
 	}
-	if f.SingleSKU() {
+	if f.SingleSKU() && after == 0 { // the saldo header belongs to the first page
 		s, err := h.Repo.MovementSaldo(r.Context(), f)
 		if err != nil {
 			writeErr(w, r, http.StatusInternalServerError, err)
@@ -244,6 +258,9 @@ func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) 
 		httpx.Err(w, http.StatusRequestEntityTooLarge, "ekspor melebihi 100000 baris; persempit filter")
 		return
 	}
+	// A big export outlives the server's 30 s write timeout; extend this response (best effort,
+	// ignored where unsupported), like the ERP relay does.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(movementExportWriteDeadline))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="kartu-stok.csv"`)
 	cw := csv.NewWriter(w)
@@ -256,7 +273,11 @@ func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) 
 		err = cw.Error()
 	}
 	if err != nil {
-		slog.Warn("stock movement export: write failed", "err", err) // headers already sent
+		// The status line may already be sent, so a clean return would hand the client a 200 CSV
+		// that is silently cut short. Abort the connection instead so the download fails (the
+		// server recoverer treats http.ErrAbortHandler as a deliberate abort).
+		slog.Error("stock movement export: aborted mid-stream", "err", err)
+		panic(http.ErrAbortHandler)
 	}
 }
 
@@ -274,4 +295,20 @@ func (h *Handlers) LedgerMovementSummary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, api.MovementLedgerSummaryResponse{Data: rows, Meta: *meta(total, p, l)})
+}
+
+// MovementSkus is the SKU picker of the kartu stok: variants matching q (name, SKU or barcode)
+// that have at least one ledger row at the location. Cheap by design: it starts from the variant
+// table and probes the ledger index, never scanning the location history.
+func (h *Handlers) MovementSkus(w http.ResponseWriter, r *http.Request) {
+	locType, locID, _, ok := h.movementLocation(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.Repo.MovementSkus(r.Context(), locType, locID, r.URL.Query().Get("q"), movementSkuLimit)
+	if err != nil {
+		writeErr(w, r, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
 }

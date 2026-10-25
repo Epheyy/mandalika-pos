@@ -13,6 +13,9 @@ import { MOVEMENT_KIND_LABEL, daysAgoDay, type MovementKind } from './stockCardF
 import type { StockCardTarget } from './StockCard'
 import { useLocations } from './useLocations'
 
+// The ledger summary scans a location's history: refresh it slowly (the inputs refetch at once).
+const SUMMARY_REFRESH_MS = 60_000
+
 const HEADERS = ['Produk', 'Ukuran', 'SKU', 'Saldo Awal', 'Masuk', 'Keluar', 'Saldo Akhir']
 
 /** "Penjualan 3 · Penerimaan 5" for the per-kind quantities of a summary row. */
@@ -54,6 +57,7 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
           })
         : Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: pageSize } }),
     [where?.type, where?.id, fromDay, toDay, search, page, pageSize],
+    SUMMARY_REFRESH_MS,
   )
 
   const rows = q.data?.data ?? []
@@ -141,11 +145,13 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
         </div>
       </div>
 
+      {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
+
       <Card className="overflow-hidden">
         {q.loading && rows.length === 0 ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<BarChart2 />} title="Tidak ada pergerakan stok dalam rentang waktu ini" />
+          q.error ? null : <EmptyState icon={<BarChart2 />} title="Tidak ada pergerakan stok dalam rentang waktu ini" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

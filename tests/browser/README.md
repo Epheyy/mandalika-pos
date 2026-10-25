@@ -18,7 +18,7 @@ selects a new evidence directory; old runs are never overwritten.
 `required-scenarios.json` inventories the accepted historical scenarios and their
 required, redundant or intentionally manual classification. The ordinary typed
 Playwright tests call imported fixture functions, not evaluated snippet strings.
-The 26 required test IDs include compound rendered journeys and 13 separately
+The 32 required test IDs include compound rendered journeys and 13 separately
 reported real-React hook races. The discovery check and completion reporter reject
 missing/duplicate/unregistered IDs, skips/fixmes, expected failures, unexecuted
 tests and failures. `forbidOnly` is unconditional, retries are zero, and the first

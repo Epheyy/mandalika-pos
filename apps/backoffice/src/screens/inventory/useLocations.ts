@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
 import { DEFAULT_TIMEZONE } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 
@@ -32,7 +33,12 @@ export interface LocationsState {
 export function useLocations(initialKey = ''): LocationsState {
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
-  const outlets = ouq.data ?? []
+  // A non-admin sees only their own outlet (the server refuses the others); warehouses are
+  // permission-gated, not outlet-bound, so they stay.
+  const { user } = useAuth()
+  const ownOutlet = user && user.role !== 'admin' ? (user.outletId ?? null) : null
+  const allOutlets = ouq.data ?? []
+  const outlets = ownOutlet ? allOutlets.filter((o) => o.id === ownOutlet) : allOutlets
   const warehouses = wq.data ?? []
   const [locationKey, setLocationKey] = useState(initialKey)
 

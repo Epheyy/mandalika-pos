@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -126,6 +127,9 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 				t.Fatalf("position %d: seq %d, want %d (dup or gap)", i, s, want)
 			}
 		}
+		if later := list(t, sku+"&limit=7&cursor="+url.QueryEscape(cursorAfter(t, list(t, sku+"&limit=7")))); later.Summary != nil {
+			t.Fatal("the saldo header belongs to the first page only")
+		}
 		if w := admin("/inventory/movements?" + sku + "&cursor=!!"); w.Code != 400 {
 			t.Fatalf("bad cursor: %d", w.Code)
 		}
@@ -144,8 +148,11 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 				t.Fatalf("%s own outlet: %d %s", ep, w.Code, w.Body.String())
 			}
 			wh := ep + "locationType=warehouse&locationId=" + mvWarehouse
-			if w := get("manager", mvOutletA, wh); w.Code != 403 {
-				t.Fatalf("%s warehouse for an outlet user: %d, want 403", ep, w.Code)
+			if w := get("manager", mvOutletA, wh); w.Code != 200 {
+				t.Fatalf("%s warehouse for an outlet user: %d, want 200 (permission-gated, no outlet binding)", ep, w.Code)
+			}
+			if w := get("admin", mvOutletB, q); w.Code != 200 {
+				t.Fatalf("%s admin with another outlet selected in the switcher: %d, want 200", ep, w.Code)
 			}
 			if w := admin(wh); w.Code != 200 {
 				t.Fatalf("%s warehouse for admin: %d", ep, w.Code)
@@ -248,7 +255,7 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		js := list(t, q+"&limit=200")
-		if len(recs) != len(js.Data)+1 || strings.Join(recs[0], ",") != strings.Join(movementCSVHeader, ",") {
+		if len(recs) != len(js.Data)+1 || strings.Join(recs[0], ",") != mvCSVColumns {
 			t.Fatalf("csv has %d records for %d rows", len(recs), len(js.Data))
 		}
 		col := map[string]int{}
@@ -285,6 +292,62 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		wide := "/inventory/movements/export?locationType=outlet&locationId=" + mvOutletA + "&from=2026-01-01&to=2026-06-01"
 		if w := admin(wide); w.Code != 413 {
 			t.Fatalf("export over 93 days: %d", w.Code)
+		}
+	})
+
+	t.Run("a failure mid-export aborts the response instead of a short 200", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/inventory/movements/export?locationType=outlet&locationId="+mvOutletA+
+			"&from=2026-01-01&to=2026-02-01&productId="+mvProductP+"&variantSize=M", nil)
+		ctx := context.WithValue(req.Context(), auth.CtxRole, "admin")
+		w := &failAfterFirstWrite{ResponseWriter: httptest.NewRecorder()}
+		var aborted any
+		func() {
+			defer func() { aborted = recover() }()
+			h.ExportStockMovements(w, req.WithContext(ctx))
+		}()
+		if aborted != http.ErrAbortHandler {
+			t.Fatalf("recovered %v, want http.ErrAbortHandler", aborted)
+		}
+	})
+
+	t.Run("sku picker is scoped, cheap and limited to ledger variants", func(t *testing.T) {
+		type skuResp struct {
+			Data []read.MovementSku `json:"data"`
+		}
+		call := func(role, outlet, q string) (int, skuResp) {
+			router := chi.NewRouter()
+			router.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					c := context.WithValue(r.Context(), auth.CtxRole, role)
+					next.ServeHTTP(w, r.WithContext(context.WithValue(c, auth.CtxOutletID, outlet)))
+				})
+			})
+			router.Get("/inventory/movements/skus", h.MovementSkus)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/inventory/movements/skus?"+q, nil))
+			var out skuResp
+			_ = json.Unmarshal(w.Body.Bytes(), &out)
+			return w.Code, out
+		}
+		base := "locationType=outlet&locationId=" + mvOutletA
+		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 2 {
+			t.Fatalf("q=mv-p: %d %+v (want sizes M and L)", code, r.Data)
+		}
+		if _, r := call("admin", "", base+"&q=8990001"); len(r.Data) != 1 || r.Data[0].VariantSize != "M" {
+			t.Fatalf("barcode search = %+v", r.Data)
+		}
+		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 2 {
+			t.Fatalf("name search = %+v", r.Data)
+		}
+		// outlet B only has product P/M in its ledger
+		if _, r := call("admin", "", "locationType=outlet&locationId="+mvOutletB+"&q=mv-"); len(r.Data) != 1 {
+			t.Fatalf("outlet B skus = %+v", r.Data)
+		}
+		if _, r := call("admin", "", base+"&q="); len(r.Data) != 0 {
+			t.Fatalf("empty q must return nothing, got %+v", r.Data)
+		}
+		if code, _ := call("manager", mvOutletB, base+"&q=mv"); code != 403 {
+			t.Fatalf("other outlet: %d, want 403", code)
 		}
 	})
 
@@ -330,6 +393,31 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			t.Fatalf("q miss: %s", w.Body.String())
 		}
 	})
+}
+
+const mvCSVColumns = "id,waktu_kejadian,waktu_tercatat,jenis,dokumen,no_dokumen,lokasi,sku,barcode,produk,ukuran,masuk,keluar,saldo,oleh,alasan,penyetuju,tanda,status_erp"
+
+func cursorAfter(t *testing.T, p api.StockMovementPage) string {
+	t.Helper()
+	if p.NextCursor == nil {
+		t.Fatal("expected a next cursor")
+	}
+	return *p.NextCursor
+}
+
+// failAfterFirstWrite lets the first body write through and fails the next one, like a client
+// that disconnects mid-download.
+type failAfterFirstWrite struct {
+	http.ResponseWriter
+	writes int
+}
+
+func (f *failAfterFirstWrite) Write(b []byte) (int, error) {
+	f.writes++
+	if f.writes > 1 {
+		return 0, errors.New("client went away")
+	}
+	return f.ResponseWriter.Write(b)
 }
 
 func countGiveaway(rows []api.StockMovementRow) int {

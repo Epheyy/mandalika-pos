@@ -27,6 +27,8 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   const listCalls: URLSearchParams[] = []
   const summaryCalls: URLSearchParams[] = []
   const exportCalls: URLSearchParams[] = []
+  const skuCalls: URLSearchParams[] = []
+  let denySummary = true
 
   await page.unrouteAll({ behavior: 'wait' })
   await page.route('http://127.0.0.1:59999/api/v1/**', async (route) => {
@@ -36,8 +38,13 @@ export const stockCardFlow = async (page: ScenarioPage) => {
     if (path.includes('/auth/')) return route.fulfill({ json: { data: { access: 'SYNTHETIC-NON-TOKEN', refresh: 'SYNTHETIC-NON-TOKEN', user } } })
     if (path.endsWith('/outlets')) return route.fulfill({ json: { data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] } })
     if (path.endsWith('/inventory/overview')) return route.fulfill({ json: { locations: [], rows: [] } })
+    if (path.endsWith('/inventory/movements/skus')) {
+      skuCalls.push(url.searchParams)
+      return route.fulfill({ json: { data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD' }] } })
+    }
     if (path.endsWith('/inventory/movements/summary')) {
       summaryCalls.push(url.searchParams)
+      if (denySummary) return route.fulfill({ status: 403, json: { error: 'lokasi di luar cakupan akun' } })
       return route.fulfill({ json: {
         data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', opening: 0, closing: -3, inByKind: { receipt: 5 }, outByKind: { sale: 8 } }],
         meta: { total: 1, page: 1, limit: 25 },
@@ -67,6 +74,12 @@ export const stockCardFlow = async (page: ScenarioPage) => {
 
   await page.getByRole('button', { name: 'Inventori', exact: true }).click()
   await page.getByRole('button', { name: 'Pergerakan', exact: true }).click()
+  // a refused read shows its error, not the empty-state text
+  await page.getByRole('alert').filter({ hasText: /lokasi di luar cakupan/ }).waitFor()
+  check(await page.getByText('Tidak ada pergerakan stok dalam rentang waktu ini').count() === 0, 'empty state shown next to the error')
+  results.push({ step: 'summary-error' })
+  denySummary = false
+  await page.getByLabel('Cari').fill('canvas')
   const summaryRow = page.getByRole('row', { name: /Canvas Bag/ })
   await summaryRow.waitFor()
   check(summaryCalls.some((q) => q.get('locationType') === 'outlet' && q.get('locationId') === OUTLET && !!q.get('from') && !!q.get('to')), 'summary query')
@@ -91,6 +104,15 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   await page.getByText('goods_receipt', { exact: true }).waitFor({ state: 'detached' })
   check(listCalls.some((q) => q.get('giveaway') === 'true'), 'giveaway filter sent')
   results.push({ step: 'giveaway-chip' })
+
+  // the SKU picker uses its own cheap endpoint, never the summary
+  const summaryBefore = summaryCalls.length
+  await page.getByRole('button', { name: 'Hapus pilihan SKU' }).click()
+  await page.getByLabel('SKU / barcode / nama').fill('canvas')
+  await page.getByRole('button', { name: 'Canvas Bag · Std (CB-STD)' }).click()
+  check(skuCalls.some((q) => q.get('q') === 'canvas' && q.get('locationId') === OUTLET), 'sku picker query')
+  check(summaryCalls.length === summaryBefore, 'sku picker must not call the summary')
+  results.push({ step: 'sku-picker' })
 
   const waiting = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Unduh CSV' }).click()

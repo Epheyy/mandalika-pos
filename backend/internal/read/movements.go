@@ -321,3 +321,40 @@ OFFSET $%[4]d LIMIT $%[5]d`, inRange, prevCond, qArg, offArg, limArg)
 func likeEscape(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
+
+// MovementSku is one picker entry of MovementSkus.
+type MovementSku struct {
+	ProductID   string  `json:"productId"`
+	ProductName string  `json:"productName"`
+	VariantSize string  `json:"variantSize"`
+	SKU         string  `json:"sku"`
+	Barcode     *string `json:"barcode,omitempty"`
+}
+
+// MovementSkus lists up to limit variants matching q that have a ledger row at the location.
+func (r *Repo) MovementSkus(ctx context.Context, locType, locID, q string, limit int) ([]MovementSku, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return []MovementSku{}, nil
+	}
+	rows, err := r.Pool.Query(ctx, `
+SELECT v.product_id::text, p.name, v.size, v.sku, v.barcode
+FROM product_variants v JOIN products p ON p.id = v.product_id
+WHERE (p.name ILIKE $3 OR v.sku ILIKE $3 OR v.barcode ILIKE $3)
+  AND EXISTS (SELECT 1 FROM stock_movements m WHERE m.location_type=$1 AND m.location_id=$2
+              AND m.product_id=v.product_id AND m.variant_size=v.size)
+ORDER BY p.name, v.size LIMIT $4`, locType, locID, "%"+likeEscape(q)+"%", limit)
+	if err != nil {
+		return nil, fmt.Errorf("sku search: %w", err)
+	}
+	defer rows.Close()
+	out := []MovementSku{}
+	for rows.Next() {
+		var m MovementSku
+		if err := rows.Scan(&m.ProductID, &m.ProductName, &m.VariantSize, &m.SKU, &m.Barcode); err != nil {
+			return nil, fmt.Errorf("sku search scan: %w", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
