@@ -190,3 +190,11 @@ Implementer: Sonnet for S6-0..S6-4. Announce tier, effort and reason per AGENTS.
    - **Default:** yes. Add it before the backend deploy; it is small, also protects the backoffice form, and gets an RQ subtest.
 4. **Release.**
    - **Default:** ship S6 after the Nov 2 demo as OTA 2.1.6 (no APK), right after the S0–S5 backend deploy, to the pilot outlet's tablets first, then the rest.
+
+### Owner answers (2026-10-26): recommended defaults accepted
+
+1. `request_stock` is granted per terminal account in Backoffice → Pengguna, pilot outlet first. No migration, no bulk grant.
+2. Shared terminal accounts are accepted for v1. The tablet form gets an optional "Diminta oleh" name, saved at the start of the note (no schema change).
+3. S6-B is in: the server refuses a line whose product+size is not an existing variant (400), on create and update, before the backend deploy.
+4. Release after the Nov 2 demo as OTA 2.1.6, right after the S0–S5 backend deploy, pilot outlet first. Nothing ships before the owner's go-ahead.
+
