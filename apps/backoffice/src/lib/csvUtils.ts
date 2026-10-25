@@ -49,6 +49,16 @@ export function exportToCSV(data: Row[], filename: string, opts: { appendDate?: 
   a.click()
 }
 
+/** Save CSV text produced by the server verbatim (UTF-8 BOM added so spreadsheets read it as UTF-8). */
+export function downloadCsvText(text: string, filename: string) {
+  const blob = new Blob(['﻿', text], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 /**
  * Build an export base filename from a module name + context parts (active
  * filters/scope). Empty/nullish parts are dropped; each part is slugified.
