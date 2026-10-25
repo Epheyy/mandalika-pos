@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Product } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
@@ -18,10 +19,12 @@ interface Draft {
 export function OutletGiveawaySection({ outletId }: { outletId: string }) {
   const q = usePolledQuery(
     async () => {
+      // The stock read needs manage_inventory; a manage_outlets-only user still configures the
+      // giveaway and just sees "—" for the stock.
       const [giveaway, products, stock] = await Promise.all([
         api.getOutletGiveaway(outletId),
         api.listProducts(1, 200),
-        api.getTransferLocationStock('outlet', outletId),
+        api.getTransferLocationStock('outlet', outletId).catch(() => null),
       ])
       return { giveaway, products: products.data, stock }
     },
@@ -35,7 +38,20 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
   if (q.loading && !q.data) return <p className="text-xs text-gray-500">Memuat hadiah per transaksi…</p>
   if (!q.data) return <p className="text-sm text-red-600">{q.error ?? 'Gagal memuat hadiah per transaksi.'}</p>
 
-  const { giveaway, products, stock } = q.data
+  const { giveaway, stock } = q.data
+  // The list is capped at 200: keep a configured item beyond it selectable (name from the setting).
+  const listed = q.data.products
+  const products =
+    giveaway.productId && !listed.some((p) => p.id === giveaway.productId)
+      ? [
+          ...listed,
+          {
+            id: giveaway.productId,
+            name: giveaway.productName ?? giveaway.productId,
+            variants: giveaway.variantSize ? [{ size: giveaway.variantSize, sku: giveaway.sku ?? '' }] : [],
+          } as Product,
+        ]
+      : listed
   const saved: Draft = {
     productId: giveaway.productId ?? '',
     variantSize: giveaway.variantSize ?? '',
@@ -45,7 +61,7 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
   const product = products.find((p) => p.id === cur.productId)
   const variant = product?.variants.find((v) => v.size === cur.variantSize)
   const unchanged = !draft || (draft.productId === saved.productId && draft.variantSize === saved.variantSize && draft.enabled === saved.enabled)
-  const bagStock = stock.find((s) => s.productId === cur.productId && s.variantSize === cur.variantSize)?.stock
+  const bagStock = stock?.find((s) => s.productId === cur.productId && s.variantSize === cur.variantSize)?.stock
   // The saved setting knows its mapping; a freshly picked variant is judged by the catalog row.
   const savedSame = giveaway.configured && cur.productId === saved.productId && cur.variantSize === saved.variantSize
   const mapped = savedSame ? giveaway.erpMapped === true : !!variant?.erpSlug && !!variant.sku
@@ -116,7 +132,7 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
       {cur.productId && cur.variantSize && (
         <ul className="text-xs space-y-0.5">
           <li className={invalid ? 'text-red-600 font-bold' : 'text-gray-600'}>
-            {invalid ? 'Varian tidak valid (sudah dihapus): hadiah dilewati.' : `Stok hadiah saat ini: ${bagStock ?? 0}`}
+            {invalid ? 'Varian tidak valid (sudah dihapus): hadiah dilewati.' : `Stok hadiah saat ini: ${stock ? (bagStock ?? 0) : '—'}`}
           </li>
           <li className={mapped ? 'text-green-700' : 'text-red-600 font-bold'}>
             {mapped ? 'Sudah dipetakan ke ERP' : 'Belum dipetakan ke ERP'}

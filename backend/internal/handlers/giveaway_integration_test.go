@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,14 +24,6 @@ import (
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
 )
-
-// gwFakeRunner makes h.erpPull non-nil, which is how the handler knows the ERP
-// integration is on.
-type gwFakeRunner struct{}
-
-func (gwFakeRunner) Run(context.Context, erp.Mode) (erp.CatalogReport, error) {
-	return erp.CatalogReport{}, nil
-}
 
 type gwMove struct {
 	Key, Product, Size   string
@@ -249,19 +240,19 @@ func TestGiveawayPostgres(t *testing.T) {
 			t.Fatalf("PUT unknown outlet = %d, want 404", code)
 		}
 		// an unmapped variant is refused only while the ERP integration is on
-		h.SetErpCatalogRunner(gwFakeRunner{})
+		h.SetErpIntegrationEnabled(true)
 		if code, _ := put(outA, setting(unmapped, true), "gw-k-unmapped"); code != 409 {
 			t.Fatalf("PUT unmapped with ERP on = %d, want 409", code)
 		}
-		h.SetErpCatalogRunner(nil)
+		h.SetErpIntegrationEnabled(false)
 		if code, body := put(outA, setting(unmapped, true), "gw-k-unmapped-off"); code != 200 {
 			t.Fatalf("PUT unmapped with ERP off = %d %s, want 200", code, body)
 		}
-		h.SetErpCatalogRunner(gwFakeRunner{})
+		h.SetErpIntegrationEnabled(true)
 		if code, body := put(outA, setting(bag, true), "gw-k-set"); code != 200 || !strings.Contains(body, `"erpMapped":true`) {
 			t.Fatalf("PUT mapped = %d %s", code, body)
 		}
-		h.SetErpCatalogRunner(nil)
+		h.SetErpIntegrationEnabled(false)
 		code, body := put(outA, setting(bag, true), "gw-k-set") // replay: same key, same body
 		if code != 200 {
 			t.Fatalf("replayed PUT = %d %s", code, body)
@@ -467,7 +458,13 @@ func TestGiveawayPostgres(t *testing.T) {
 	})
 
 	t.Run("reversed-carts-with-a-sold-bag-do-not-deadlock", func(t *testing.T) {
+		// The bag sorts BEFORE x and y. Odd racers hold x and y without the bag in their cart,
+		// so only the giveaway key in lockStockRowsSorted keeps them from locking the bag
+		// after x/y while an even racer holds the bag and waits for x (a lock cycle).
 		x, y := product(outA, 100000, false), product(outA, 100000, false)
+		if !(bag < x && bag < y) {
+			t.Fatalf("test setup: bag %s must sort before %s and %s", bag, x, y)
+		}
 		reanchor()
 		before := stockOf(outA, bag)
 		const iters, racers = 25, 4
@@ -476,9 +473,9 @@ func TestGiveawayPostgres(t *testing.T) {
 			start := make(chan struct{})
 			errs := make(chan error, racers)
 			for r := 0; r < racers; r++ {
-				items := []service.OrderItem{item(bag, 1, 100000), item(x, 1, 100000), item(y, 1, 100000)}
-				if r%2 == 1 { // reversed cart order
-					items = []service.OrderItem{item(y, 1, 100000), item(x, 1, 100000), item(bag, 1, 100000)}
+				items := []service.OrderItem{item(y, 1, 100000), item(x, 1, 100000), item(bag, 1, 100000)} // sells a bag, reversed order
+				if r%2 == 1 {
+					items = []service.OrderItem{item(y, 1, 100000), item(x, 1, 100000)} // no bag in the cart
 				}
 				wg.Add(1)
 				go func() {
@@ -496,7 +493,7 @@ func TestGiveawayPostgres(t *testing.T) {
 				t.Fatalf("iteration %d: %v", i, err)
 			}
 		}
-		if got, want := stockOf(outA, bag), before-2*iters*racers; got != want { // one sold + one given per sale
+		if got, want := stockOf(outA, bag), before-iters*(racers/2*2+racers/2*1); got != want { // a bag-in-cart sale takes 2 (sold + given), a no-bag sale takes 1 (given)
 			t.Fatalf("bag = %d, want %d", got, want)
 		}
 		assertLedgerInvariant(t, ctx, pool)

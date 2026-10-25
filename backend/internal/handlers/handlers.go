@@ -44,6 +44,8 @@ type Handlers struct {
 	receipts service.ReceiptRunner
 	// erpPull runs the ERP catalog pull; nil when the integration is disabled (endpoints answer 503).
 	erpPull ErpCatalogRunner
+	// erpEnabled mirrors the ERP_INTEGRATION_ENABLED kill switch (set at wiring, SetErpIntegrationEnabled).
+	erpEnabled bool
 	// lastErrorLogSweep (unix nanos) throttles the error_logs retention sweep triggered by POST /error-logs.
 	lastErrorLogSweep atomic.Int64
 }

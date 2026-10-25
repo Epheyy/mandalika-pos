@@ -148,20 +148,29 @@ func lockStockRowsSorted(ctx context.Context, tx pgx.Tx, outletID string, items 
 // as before). Only the setting row is locked, never a stock row, so the sorted stock
 // lock order is unchanged.
 func giveawayKey(ctx context.Context, tx pgx.Tx, outletID string) (pid, size string, ok bool, err error) {
-	var enabled bool
 	if _, perr := uuid.Parse(outletID); perr != nil {
 		return "", "", false, nil
 	}
+	var enabled bool
 	err = tx.QueryRow(ctx,
 		`SELECT product_id::text, variant_size, enabled FROM outlet_giveaways
 		  WHERE outlet_id=$1 FOR SHARE`, outletID).Scan(&pid, &size, &enabled)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", false, nil
+		pid, size, enabled, err = "", "", false, nil
 	}
 	if err != nil {
 		return "", "", false, fmt.Errorf("lock giveaway setting: %w", err)
 	}
-	// A disabled row is share-locked too, so it cannot be re-enabled between this
-	// read and the hook's re-read (which would decrement a row outside the sorted lock).
+	// A disabled row is share-locked too, so it cannot be re-enabled mid-sale. A row that
+	// does not exist yet cannot be locked, so the locked key is also recorded tx-locally and
+	// the hook decrements only that key (empty = no giveaway): a setting committed after
+	// this point is ignored by this sale instead of being decremented outside the lock set.
+	locked := ""
+	if enabled {
+		locked = pid + "|" + size
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('pos.giveaway', $1, true)`, locked); err != nil {
+		return "", "", false, fmt.Errorf("record giveaway key: %w", err)
+	}
 	return pid, size, enabled, nil
 }

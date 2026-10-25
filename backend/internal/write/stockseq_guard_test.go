@@ -342,6 +342,9 @@ var stockHelperCallers = map[string][]string{
 	"applyCountDeltas":   {"completeStockCount"},
 	"seedOutletStock":    {"CreateProduct"},
 	"bumpOutletTx":       {"SetOutletPar"}, // par level only: it must NOT carry a stock change
+	// S2: the per-sale giveaway decrement; its one caller is the sale hook, which runs inside
+	// createOrderCore after lockStockRowsSorted locked the row (the sale bumps the seq itself)
+	"giveawayLine": {"recordSaleMovements"},
 }
 
 func countStockSQL(src string) (literal, dynamic int) {

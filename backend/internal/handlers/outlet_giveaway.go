@@ -65,7 +65,7 @@ func (h *Handlers) SetOutletGiveaway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := write.OutletGiveawayInput{ProductID: body.ProductID, VariantSize: body.VariantSize, Enabled: *body.Enabled}
-	erpOn := h.erpPull != nil
+	erpOn := h.erpEnabled
 	actor := callerUserID(r)
 	h.keyedMutated(w, r, keyedWrite{
 		OpType:  "bo.outlet_giveaway.set",

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -177,28 +178,31 @@ func recordSaleMovements(ctx context.Context, tx pgx.Tx, orderID, orderNumber st
 }
 
 // giveawayLine decrements the outlet's per-sale giveaway item by one (the row is already
-// locked: lockStockRowsSorted took the setting FOR SHARE and the stock row FOR UPDATE)
+// locked: lockStockRowsSorted took the setting FOR SHARE and the stock row FOR UPDATE, and
+// recorded the key it locked in the transaction-local setting pos.giveaway, which this reads
+// instead of the table: a setting created after the lock phase is not seen, so the decrement
+// never touches a stock row outside the sorted lock set)
 // and returns its ledger line, or nil when this sale gives nothing away. One unit per
 // completed order, whatever the cart holds. The sale is never blocked or failed by the
 // giveaway: no setting, a disabled setting or a vanished variant (no stock row) skip it.
 // Not restored on refund: the line is not an order item. The marker is the dedupe key
 // "giveaway:<order id>"; no flag besides shortage, because flags reach the ERP.
 func giveawayLine(ctx context.Context, tx pgx.Tx, orderID, outletID string) (*ledger.Line, error) {
-	var pid, size string
-	var enabled bool
-	err := tx.QueryRow(ctx,
-		`SELECT product_id::text, variant_size, enabled FROM outlet_giveaways WHERE outlet_id = $1`,
-		outletID).Scan(&pid, &size, &enabled)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !enabled) {
-		return nil, nil // the normal inert state: no log, a Warn per sale would flood it
-	}
-	if err != nil {
+	var locked string
+	if err := tx.QueryRow(ctx, `SELECT coalesce(current_setting('pos.giveaway', true), '')`).Scan(&locked); err != nil {
 		return nil, err
 	}
+	pid, size, ok := strings.Cut(locked, "|")
+	if !ok {
+		return nil, nil // no enabled setting: the normal inert state, no log (a Warn per sale would flood it)
+	}
 	var after int
-	err = tx.QueryRow(ctx,
+	// The variant must still exist: a stock row without one would hold every ERP sale document.
+	err := tx.QueryRow(ctx,
 		`UPDATE outlet_variant_stock SET stock=stock-1
-		  WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3 RETURNING stock`,
+		  WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3
+		    AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id=$2 AND pv.size=$3)
+		  RETURNING stock`,
 		outletID, pid, size).Scan(&after)
 	if errors.Is(err, pgx.ErrNoRows) {
 		slog.Warn("giveaway skipped: item has no stock row (variant removed?)",

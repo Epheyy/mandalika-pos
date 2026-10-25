@@ -55,8 +55,9 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 				*d[4].(*[]byte) = tx.paymentMethods
 			}
 			return nil
-		case strings.Contains(sql, "FROM outlet_giveaways"):
-			return pgx.ErrNoRows // S2 giveaway hook: no setting = no giveaway
+		case strings.Contains(sql, "pos.giveaway"):
+			*d[0].(*string) = "" // S2 giveaway hook: no recorded key = no giveaway
+			return nil
 		case strings.Contains(sql, "FROM outlets"):
 			return pgx.ErrNoRows // outletZone: unknown outlet = Asia/Jakarta
 		case strings.Contains(sql, "FROM loyalty_settings"):
