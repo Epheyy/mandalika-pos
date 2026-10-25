@@ -186,6 +186,12 @@
       "finding": "A39",
       "description": "CSV import dialog: preview errors block Terapkan, clean preview enables it, apply sends Idempotency-Key + dryRun false + preview hash/summary, success text",
       "source": "tests/browser/backoffice-import-scenarios.ts"
+    },
+    {
+      "id": "BO-STOCK-CARD",
+      "finding": "inventory-controls-S1",
+      "description": "Ringkasan row opens the Kartu Stok on that SKU, saldo header and Hadiah/Minus badges, cursor paging, Hadiah chip sends giveaway=true, Unduh CSV saves the server file",
+      "source": "tests/browser/backoffice-stockcard-scenarios.ts"
     }
   ],
   "redundant": [

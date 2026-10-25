@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
 import { DEFAULT_TIMEZONE } from '../../lib/businessDay'
@@ -47,7 +47,8 @@ export function useLocations(initialKey = ''): LocationsState {
     if (!locationKey && defaultKey) setLocationKey(defaultKey)
   }, [defaultKey, locationKey])
 
-  const location = parseLocationKey(locationKey)
+  // Stable identity per key: screens put it in effect dependencies.
+  const location = useMemo(() => parseLocationKey(locationKey), [locationKey])
   const zone =
     location?.type === 'outlet' ? (outlets.find((o) => o.id === location.id)?.timezone ?? DEFAULT_TIMEZONE) : DEFAULT_TIMEZONE
   return { outlets, warehouses, locationKey, setLocationKey, location, zone }
