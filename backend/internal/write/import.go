@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -206,9 +207,7 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 		return res, nil
 	}
 
-	if err = tx.QueryRow(ctx, `SELECT gen_random_uuid()::text`).Scan(&req.RunID); err != nil {
-		return ImportResult{}, err
-	}
+	req.RunID = uuid.NewString()
 	p, err := planKind(ctx, tx, req, table, true)
 	if err != nil {
 		return ImportResult{}, err

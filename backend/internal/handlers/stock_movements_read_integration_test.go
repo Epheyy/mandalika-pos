@@ -576,6 +576,7 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			trfOld   = "00000000-0000-4000-8f69-0000000000ec"
 			trfNew   = "00000000-0000-4000-8f69-0000000000ed"
 			trfPlain = "00000000-0000-4000-8f69-0000000000ee"
+			count2ID = "00000000-0000-4000-8f69-0000000000f0"
 		)
 		must := func(sql string, args ...any) {
 			t.Helper()
@@ -597,6 +598,11 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			trfOld, trfNew, mvWarehouse, outC, trfPlain)
 		must(`INSERT INTO stock_requisitions(id,number,status,outlet_id,warehouse_id,requested_by,transfer_id)
 		      VALUES($1,'PB-MV-1','fulfilled',$2,$3,$4,$5)`, pbID, outC, mvWarehouse, mvUser, trfNew)
+		// a count whose line carries its own reason, different from the count-level one
+		must(`INSERT INTO stock_counts(id,name,status,outlet_id,approved_by,reason_code,reason_text)
+		      VALUES($1,'MV opname 2','completed',$2,$3,'count_variance','selisih opname')`, count2ID, outC, approver)
+		must(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size,reason_code,reason_text)
+		      VALUES($1,$2,'MV kartu P','M','damaged','rusak satu')`, count2ID, mvProductP)
 		// a re-fulfilment: the PB links the latest transfer, the older cancelled one is in the event data
 		must(`INSERT INTO inventory_doc_events(doc_type,doc_id,action,data) VALUES
 		      ('requisition',$1,'fulfilled',jsonb_build_object('transferId',$2::text)),
@@ -612,12 +618,16 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 		row("adjust", -2, "stock_adjustment", adjDoc, "")
 		row("count", 1, "stock_count", countID, "")
+		row("count", 1, "stock_count", count2ID, "")
 		row("transfer_in", 4, "transfer", trfOld, "TRF-MV-1")
 		row("transfer_in", 4, "transfer", trfNew, "TRF-MV-2")
 		row("transfer_in", 4, "transfer", trfPlain, "TRF-MV-3")
 		row("receipt", 1, "goods_receipt", "00000000-0000-4000-8f69-0000000000ef", "")
 
 		p := list(t, "locationType=outlet&locationId="+outC+"&limit=50")
+		if len(p.Data) != 7 {
+			t.Fatalf("rows = %d, want 7 (a duplicated row from a join fan-out?)", len(p.Data))
+		}
 		byRef := map[string]api.StockMovementRow{}
 		for _, m := range p.Data {
 			if m.RefId != nil {
@@ -631,12 +641,16 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			return *v
 		}
 		adj := byRef[adjDoc]
-		if str(adj.DocNumber) != "ADJ-MV-1" || str(adj.ApprovedBy) != "MV Penyetuju" || adj.ReasonCode == nil || *adj.ReasonCode != "damaged" || str(adj.ReasonText) != "kena air" {
-			t.Fatalf("adjustment row = doc %q approver %q reason %v/%q", str(adj.DocNumber), str(adj.ApprovedBy), adj.ReasonCode, str(adj.ReasonText))
+		if str(adj.DocNumber) != "ADJ-MV-1" || str(adj.ApprovedByName) != "MV Penyetuju" || adj.ReasonCode == nil || *adj.ReasonCode != "damaged" || str(adj.ReasonText) != "kena air" {
+			t.Fatalf("adjustment row = doc %q approver %q reason %v/%q", str(adj.DocNumber), str(adj.ApprovedByName), adj.ReasonCode, str(adj.ReasonText))
 		}
 		cnt := byRef[countID]
-		if str(cnt.ApprovedBy) != "MV Penyetuju" || cnt.ReasonCode == nil || *cnt.ReasonCode != "count_variance" || str(cnt.ReasonText) != "selisih opname" || cnt.DocNumber != nil {
-			t.Fatalf("count row = approver %q reason %v/%q doc %v", str(cnt.ApprovedBy), cnt.ReasonCode, str(cnt.ReasonText), cnt.DocNumber)
+		if str(cnt.ApprovedByName) != "MV Penyetuju" || cnt.ReasonCode == nil || *cnt.ReasonCode != "count_variance" || str(cnt.ReasonText) != "selisih opname" || cnt.DocNumber != nil {
+			t.Fatalf("count row = approver %q reason %v/%q doc %v", str(cnt.ApprovedByName), cnt.ReasonCode, str(cnt.ReasonText), cnt.DocNumber)
+		}
+		cnt2 := byRef[count2ID]
+		if cnt2.ReasonCode == nil || *cnt2.ReasonCode != "damaged" || str(cnt2.ReasonText) != "rusak satu" {
+			t.Fatalf("count row with a line reason = %v/%q, want the line pair damaged/rusak satu", cnt2.ReasonCode, str(cnt2.ReasonText))
 		}
 		// F3: every transfer ever linked by a fulfil/refulfil event shows the PB number (not only the latest one)
 		for _, id := range []string{trfOld, trfNew} {
@@ -644,11 +658,38 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 				t.Fatalf("transfer %s requisitionNumber = %q, want PB-MV-1", id, got)
 			}
 		}
-		if plain := byRef[trfPlain]; plain.RequisitionNumber != nil || plain.ApprovedBy != nil || plain.DocNumber != nil || plain.ReasonCode != nil {
+		if plain := byRef[trfPlain]; plain.RequisitionNumber != nil || plain.ApprovedByName != nil || plain.DocNumber != nil || plain.ReasonCode != nil {
 			t.Fatalf("a plain transfer row gained audit fields: %+v", plain)
 		}
-		if rc := byRef["00000000-0000-4000-8f69-0000000000ef"]; rc.RequisitionNumber != nil || rc.ApprovedBy != nil || rc.DocNumber != nil {
+		if rc := byRef["00000000-0000-4000-8f69-0000000000ef"]; rc.RequisitionNumber != nil || rc.ApprovedByName != nil || rc.DocNumber != nil {
 			t.Fatalf("a receipt row gained audit fields: %+v", rc)
+		}
+		// the PB lookup must use the 0075 expression index (seq scan off: the fixture table is tiny)
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Release()
+		if _, err := conn.Exec(ctx, `SET enable_seqscan = off`); err != nil {
+			t.Fatal(err)
+		}
+		rowsPlan, err := conn.Query(ctx, `EXPLAIN SELECT sr.number FROM inventory_doc_events e JOIN stock_requisitions sr ON sr.id = e.doc_id
+		  WHERE e.doc_type='requisition' AND e.action IN ('fulfilled','refulfilled') AND e.data->>'transferId' = $1`, trfNew)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var plan []string
+		for rowsPlan.Next() {
+			var l string
+			if err := rowsPlan.Scan(&l); err != nil {
+				t.Fatal(err)
+			}
+			plan = append(plan, l)
+		}
+		rowsPlan.Close()
+		planText := strings.Join(plan, " | ")
+		if !strings.Contains(planText, "inventory_doc_events_transfer") {
+			t.Fatalf("PB lookup does not use inventory_doc_events_transfer: %s", planText)
 		}
 		w := admin("/inventory/movements/export?locationType=outlet&locationId=" + outC + "&from=2026-01-31&to=2026-02-02")
 		if w.Code != 200 {

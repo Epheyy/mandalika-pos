@@ -251,7 +251,7 @@ func movementCSVRow(m api.StockMovementRow, zone *time.Location) []string {
 	return []string{m.Id.String(), m.OccurredAt.In(zone).Format(time.RFC3339), m.RecordedAt.In(zone).Format(time.RFC3339),
 		string(m.Kind), m.RefType, g(deref(m.RefNumber)), g(deref(m.LocationName)), g(deref(m.Sku)), g(deref(m.Barcode)),
 		g(deref(m.ProductName)), g(m.VariantSize), in, out, strconv.Itoa(m.QtyAfter),
-		g(deref(m.ActorName)), g(deref(m.ReasonText)), reasonCode, g(deref(m.ApprovedBy)),
+		g(deref(m.ActorName)), g(deref(m.ReasonText)), g(reasonCode), g(deref(m.ApprovedByName)),
 		g(deref(m.DocNumber)), g(deref(m.RequisitionNumber)), strings.Join(marks, ";"), deref(m.ErpStatus)}
 }
 

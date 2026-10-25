@@ -117,8 +117,8 @@ const movementSelect = `
 SELECT m.id, m.seq, m.occurred_at, m.recorded_at, m.kind, m.location_type, m.location_id,
   COALESCE(lo.name, lw.name), p.name, m.product_id, m.variant_size, NULLIF(v.sku,''), v.barcode,
   m.qty, m.qty_before, m.qty_after, m.ref_type, m.ref_id, m.ref_number, m.flags,
-  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, sc.reason_text), eo.status,
-  COALESCE(wsa.reason_code, sc.reason_code), au.display_name, sar.number, pb.number
+  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END), eo.status,
+  COALESCE(wsa.reason_code, sci.reason_code, sc.reason_code), au.display_name, sar.number, pb.number
 FROM stock_movements m
 LEFT JOIN outlets lo ON m.location_type='outlet' AND lo.id=m.location_id
 LEFT JOIN warehouses lw ON m.location_type='warehouse' AND lw.id=m.location_id
@@ -129,11 +129,13 @@ LEFT JOIN users u ON u.id::text = m.actor
 LEFT JOIN warehouse_stock_adjustments wsa ON m.ref_type='stock_adjustment' AND wsa.id=m.ref_id
 LEFT JOIN stock_adjustment_requests sar ON wsa.request_id = sar.id
 LEFT JOIN stock_counts sc ON m.ref_type='stock_count' AND sc.id=m.ref_id
+LEFT JOIN stock_count_items sci ON m.ref_type='stock_count' AND sci.stock_count_id=m.ref_id
+                               AND sci.product_id=m.product_id AND sci.variant_size=m.variant_size
 LEFT JOIN users au ON au.id = COALESCE(sar.approved_by, sc.approved_by)
 LEFT JOIN LATERAL (SELECT sr.number FROM inventory_doc_events e
                    JOIN stock_requisitions sr ON sr.id = e.doc_id
                    WHERE m.ref_type='transfer' AND e.doc_type='requisition'
-                     AND e.action IN ('fulfilled','refulfilled') AND e.data->>'transferId' = m.ref_id::text
+                     AND e.action IN ('fulfilled','refulfilled') AND e.data->>'transferId' = m.ref_id::text -- index inventory_doc_events_transfer (0075)
                    ORDER BY e.at DESC LIMIT 1) pb ON true
 LEFT JOIN erp_outbox eo ON eo.document_id=m.document_id`
 
@@ -192,7 +194,7 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 		rc := api.InventoryReasonCode(*reasonCode)
 		m.ReasonCode = &rc
 	}
-	m.ApprovedBy, m.DocNumber, m.RequisitionNumber = approver, docNumber, pbNumber
+	m.ApprovedByName, m.DocNumber, m.RequisitionNumber = approver, docNumber, pbNumber
 	if m.Flags == nil {
 		m.Flags = []string{}
 	}

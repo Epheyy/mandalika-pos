@@ -281,7 +281,7 @@ function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone:
       <td className={cell}>{m.actorName ?? ''}</td>
       <td className={cell}>{m.reasonText ?? ''}</td>
       <td className={cell}>
-        {m.approvedBy ? `Disetujui oleh ${m.approvedBy}` : ''}
+        {m.approvedByName ? `Disetujui oleh ${m.approvedByName}` : ''}
         {m.docNumber && <span className="block font-mono text-xs text-gray-400">{m.docNumber}</span>}
       </td>
       <td className={cell}>
