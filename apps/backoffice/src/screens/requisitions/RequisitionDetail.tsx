@@ -112,7 +112,9 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
     void act('reject', (key) => api.rejectRequisition(pb.id, { note: note.trim() }, key))
   }
 
-  const deciding = canWarehouse && pb.status === 'submitted' && pb.requestedBy !== user?.id
+  // Four-eyes: the creator and the submitter may not decide or fulfil (the server enforces it too).
+  const participant = pb.requestedBy === user?.id || pb.submittedBy === user?.id
+  const deciding = canWarehouse && !participant && pb.status === 'submitted'
   const s = REQUISITION_STATUS[pb.status]
 
   return (
@@ -132,7 +134,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
             {ownOutlet && (pb.status === 'draft' || pb.status === 'submitted') && (
               <Button variant="danger" icon={<Ban className="w-4 h-4" />} loading={busy} onClick={() => act('cancel', (k) => api.cancelRequisition(pb.id, k))}>Batalkan</Button>
             )}
-            {canWarehouse && (pb.status === 'approved' || canRefulfil(pb)) && (
+            {canWarehouse && !participant && (pb.status === 'approved' || canRefulfil(pb)) && (
               <Button icon={<Truck className="w-4 h-4" />} loading={busy} onClick={() => act('fulfil', (k) => api.fulfilRequisition(pb.id, k))}>
                 {canRefulfil(pb) ? 'Buat Transfer Ulang' : 'Buat Transfer'}
               </Button>
@@ -201,10 +203,16 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
                 </td>
                 {pb.transfer && (
                   <td className="px-4 py-2 text-sm">
-                    <span className={it.transferQty != null && it.transferQty !== it.approvedQty ? 'font-bold text-amber-700' : 'text-gray-500'}
-                      title={it.transferQty != null && it.transferQty !== it.approvedQty ? 'Berbeda dari qty disetujui: draf transfer diubah' : undefined}>
-                      {it.transferQty ?? 0}
-                    </span>
+                    {it.transferQty == null ? (
+                      (it.approvedQty ?? 0) > 0
+                        ? <span className="font-bold text-amber-700">tidak ada di transfer</span>
+                        : <span className="text-gray-400">—</span>
+                    ) : (
+                      <span className={it.transferQty !== it.approvedQty ? 'font-bold text-amber-700' : 'text-gray-500'}
+                        title={it.transferQty !== it.approvedQty ? 'Berbeda dari qty disetujui: draf transfer diubah' : undefined}>
+                        {it.transferQty}
+                      </span>
+                    )}
                   </td>
                 )}
               </tr>

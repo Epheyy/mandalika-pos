@@ -25,7 +25,7 @@ const requisitionBase = `json_build_object(
   'warehouseId', r.warehouse_id, 'warehouseName', w.name,
   'neededBy', r.needed_by, 'note', r.note,
   'requestedBy', r.requested_by, 'requestedByName', ru.display_name,
-  'submittedAt', r.submitted_at,
+  'submittedAt', r.submitted_at, 'submittedBy', r.submitted_by,
   'decidedBy', r.decided_by, 'decidedByName', du.display_name,
   'decidedAt', r.decided_at, 'decisionNote', r.decision_note,
   'fulfilledBy', r.fulfilled_by, 'fulfilledAt', r.fulfilled_at,

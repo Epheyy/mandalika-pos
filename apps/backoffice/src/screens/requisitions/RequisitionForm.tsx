@@ -3,6 +3,8 @@ import { fetchAllPages, type Product, type StockRequisition, type StockRequisiti
 import { variantLabel } from '@mandalika/types'
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
+import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
@@ -36,6 +38,9 @@ function initialLines(draft?: StockRequisition): Line[] {
 
 /** Create or edit a draft Permintaan Barang: pick SKUs (product + size) and a qty per line. */
 export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormProps) {
+  const { user } = useAuth()
+  const { outletId } = useOutlet()
+  const activeOutlet = user?.role === 'admin' ? outletId : (user?.outletId ?? null)
   const pq = usePolledQuery<Product[]>(() => fetchAllPages((page, limit) => api.listProducts(page, limit)), [], 600000)
   const [lines, setLines] = useState<Line[]>(() => initialLines(draft))
   const [note, setNote] = useState(draft?.note ?? '')
@@ -83,7 +88,7 @@ export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormPro
     if (items.length === 0) return setErr('Tambahkan minimal satu barang.')
     if (items.some((i) => !Number.isInteger(i.requestedQty) || i.requestedQty <= 0)) return setErr('Qty harus bilangan bulat lebih dari 0.')
     const input: StockRequisitionInput = { items, note: note.trim() || undefined, neededBy: neededBy || undefined }
-    const key = keyFor(JSON.stringify(input))
+    const key = keyFor(JSON.stringify({ activeOutlet, draftId: draft?.id ?? null, input }))
     setBusy(true)
     setErr(null)
     try {

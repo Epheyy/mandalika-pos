@@ -29,7 +29,6 @@ func (r *Repo) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 type reqRow struct {
 	status, number, outletID string
 	submitted                bool // ever submitted (a draft cancelled before submit never was)
-	requestedBy, submittedBy *string
 	warehouseID, transferID  *string
 }
 
@@ -37,9 +36,9 @@ type reqRow struct {
 func lockRequisition(ctx context.Context, tx pgx.Tx, id string) (reqRow, error) {
 	var q reqRow
 	e := tx.QueryRow(ctx,
-		`SELECT status, number, outlet_id, warehouse_id, transfer_id, submitted_at IS NOT NULL, requested_by, submitted_by
+		`SELECT status, number, outlet_id, warehouse_id, transfer_id, submitted_at IS NOT NULL
 		   FROM stock_requisitions WHERE id=$1 FOR UPDATE`, id).Scan(
-		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID, &q.submitted, &q.requestedBy, &q.submittedBy)
+		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID, &q.submitted)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return q, ErrNotFound
 	}
@@ -71,17 +70,27 @@ func lockVisibleRequisition(ctx context.Context, tx pgx.Tx, id, viewerOutlet str
 	return q, nil
 }
 
-// errFourEyes refuses the person who created or submitted a PB from deciding on or fulfilling it,
-// whatever else they hold (manage_inventory, admin).
+// errFourEyes refuses anyone who took part in a PB (created, edited or submitted it) from
+// approving, rejecting or fulfilling it, whatever else they hold (manage_inventory, admin).
 var errFourEyes = apperr.New(apperr.Conflict,
-	"pembuat atau pengaju permintaan tidak boleh menyetujui, menolak, atau membuat transfer untuk permintaannya sendiri")
+	"pembuat, pengubah atau pengaju permintaan tidak boleh menyetujui, menolak, atau membuat transfer untuk permintaannya sendiri")
 
-// checkFourEyes applies the rule to the acting user; an unknown actor ("") cannot match.
-func (q reqRow) checkFourEyes(actor string) error {
-	for _, p := range []*string{q.requestedBy, q.submittedBy} {
-		if p != nil && actor != "" && sameUUID(*p, actor) {
-			return errFourEyes
-		}
+// checkFourEyes applies the rule to the acting user, from the PB's own columns and its event
+// history (the editors are only in the history). An unknown actor ("") cannot match.
+func checkFourEyes(ctx context.Context, tx pgx.Tx, id, actor string) error {
+	if actor == "" {
+		return nil
+	}
+	var took bool
+	if e := tx.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM stock_requisitions WHERE id=$1 AND (requested_by=$2::uuid OR submitted_by=$2::uuid))
+		     OR EXISTS (SELECT 1 FROM inventory_doc_events
+		                 WHERE doc_type='requisition' AND doc_id=$1 AND actor_id=$2::uuid
+		                   AND action IN ('created','updated','submitted'))`, id, actor).Scan(&took); e != nil {
+		return e
+	}
+	if took {
+		return errFourEyes
 	}
 	return nil
 }
@@ -224,7 +233,7 @@ func (r *Repo) ApproveRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOu
 	if e != nil {
 		return e
 	}
-	if e := q.checkFourEyes(actor); e != nil {
+	if e := checkFourEyes(ctx, tx, id, actor); e != nil {
 		return e
 	}
 	to, e := requisitionTransition(q.status, "approve")
@@ -270,7 +279,7 @@ func (r *Repo) RejectRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 	if e != nil {
 		return e
 	}
-	if e := q.checkFourEyes(actor); e != nil {
+	if e := checkFourEyes(ctx, tx, id, actor); e != nil {
 		return e
 	}
 	to, e := requisitionTransition(q.status, "reject")
@@ -296,7 +305,7 @@ func (r *Repo) FulfilRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 	if e != nil {
 		return "", "", e
 	}
-	if e := q.checkFourEyes(actor); e != nil {
+	if e := checkFourEyes(ctx, tx, id, actor); e != nil {
 		return "", "", e
 	}
 	if _, e := requisitionTransition(q.status, "fulfil"); e != nil {

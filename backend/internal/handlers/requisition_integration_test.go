@@ -75,6 +75,7 @@ const (
 	rqWhOff     = "00000000-0000-4000-8f00-000000000022"
 	rqWhUser    = "00000000-0000-4000-8f00-000000000031"
 	rqAdmin     = "00000000-0000-4000-8f00-000000000032"
+	rqMgr       = "00000000-0000-4000-8f00-000000000033"
 )
 
 type rqFixture struct {
@@ -94,6 +95,7 @@ func newRqFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *rqFixt
 	for _, u := range []struct{ id, name, role, outlet string }{
 		{rqStaffA, "Staf A", "cashier", rqOutletA}, {rqStaffB, "Staf B", "cashier", rqOutletB},
 		{rqWhUser, "Gudang", "cashier", ""}, {rqAdmin, "Admin", "admin", ""},
+		{rqMgr, "Manajer", "manager", rqOutletA},
 	} {
 		if u.outlet == "" {
 			f.exec(t, `INSERT INTO users(id,email,password_hash,display_name,role) VALUES($1,$2,'x',$3,$4)`, u.id, u.name+"@example.invalid", u.name, u.role)
@@ -116,6 +118,7 @@ func newRqFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *rqFixt
 	issue("staffB", rqStaffB, "cashier", rqOutletB, "request_stock")
 	issue("wh", rqWhUser, "cashier", "", "manage_inventory")
 	issue("admin", rqAdmin, "admin", "")
+	issue("mgr", rqMgr, "manager", rqOutletA, "request_stock", "manage_inventory")
 
 	authWrap := mw.RequireAuth(&config.Config{AccessSecret: secret})
 	r := chi.NewRouter()
@@ -284,6 +287,8 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("transfer-qty", f.transferQty)
 	t.Run("delete-guards-and-inactive-warehouse", f.deletesAndInactive)
 	t.Run("four-eyes", f.fourEyes)
+	t.Run("four-eyes-fulfil", f.fourEyesFulfil)
+	t.Run("four-eyes-editor", f.fourEyesEditor)
 	t.Run("history", f.history)
 }
 
@@ -666,21 +671,38 @@ func (f *rqFixture) transferQty(t *testing.T) {
 	}
 }
 
-// A product or warehouse named by a PB cannot be deleted (history 409, not a raw FK error);
-// a source gudang deactivated after approval blocks the fulfil.
+// A product or warehouse named ONLY by a PB cannot be deleted: the history guards answer 409.
+// The foreign keys would also refuse (a raw 23503 backstop), so each is dropped for the check
+// to make the guard clause itself the thing under test, then restored. A source gudang
+// deactivated after approval blocks the fulfil.
 func (f *rqFixture) deletesAndInactive(t *testing.T) {
-	p := f.product(t)
+	const wh2 = "00000000-0000-4000-8f00-0000000000a1"
+	f.exec(t, `INSERT INTO warehouses(id,name) VALUES($1,'RQ gudang 2')`, wh2)
+	p := f.product(t) // named only by this PB: no receipt, adjustment or transfer
 	id := f.create(t, "staffA", rqLine(p, 1))
-	code, body := f.call("wh", "DELETE", "/products/"+p, nil, "")
-	f.want(t, code, body, 409, "delete a product named by a PB")
 	f.submit(t, id)
-	if code, body := f.approve(t, id, 1); code != 200 {
-		t.Fatalf("approve: %d %s", code, body)
+	pb := f.get(t, "wh", id)
+	code, body := f.call("wh", "POST", "/requisitions/"+id+"/approve", map[string]any{"warehouseId": wh2,
+		"items": []map[string]any{{"itemId": pb.Data.Items[0].ID, "approvedQty": 1}}}, f.key())
+	f.want(t, code, body, 200, "approve from gudang 2")
+
+	f.exec(t, `ALTER TABLE stock_requisition_items DROP CONSTRAINT stock_requisition_items_product_id_fkey`)
+	code, body = f.call("wh", "DELETE", "/products/"+p, nil, "")
+	f.want(t, code, body, 409, "delete a product named only by a PB (guard, FK dropped)")
+	if f.count(t, `SELECT count(*) FROM products WHERE id=$1`, p) != 1 {
+		t.Error("the product was deleted although a PB names it")
 	}
-	code, body = f.call("wh", "DELETE", "/warehouses/"+rqWarehouse, nil, "")
-	f.want(t, code, body, 409, "delete a warehouse named by a PB")
-	f.exec(t, `UPDATE warehouses SET is_active=false WHERE id=$1`, rqWarehouse)
-	defer f.exec(t, `UPDATE warehouses SET is_active=true WHERE id=$1`, rqWarehouse)
+	f.exec(t, `ALTER TABLE stock_requisition_items ADD CONSTRAINT stock_requisition_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id)`)
+
+	f.exec(t, `ALTER TABLE stock_requisitions DROP CONSTRAINT stock_requisitions_warehouse_id_fkey`)
+	code, body = f.call("wh", "DELETE", "/warehouses/"+wh2, nil, "")
+	f.want(t, code, body, 409, "delete a warehouse named only by a PB (guard, FK dropped)")
+	if f.count(t, `SELECT count(*) FROM warehouses WHERE id=$1`, wh2) != 1 {
+		t.Error("the warehouse was deleted although a PB names it")
+	}
+	f.exec(t, `ALTER TABLE stock_requisitions ADD CONSTRAINT stock_requisitions_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)`)
+
+	f.exec(t, `UPDATE warehouses SET is_active=false WHERE id=$1`, wh2)
 	n := f.transfers(t)
 	code, body = f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
 	f.want(t, code, body, 409, "fulfil from an inactive gudang")
@@ -786,6 +808,79 @@ func (f *rqFixture) fourEyes(t *testing.T) {
 	f.want(t, code, body, 200, "admin submits staff A's draft")
 	code, body = f.call("admin", "POST", "/requisitions/"+sid+"/reject", map[string]any{"note": "x"}, f.key())
 	f.want(t, code, body, 409, "submitter rejects")
+	sitems := f.get(t, "wh", sid).Data.Items
+	sapproval := map[string]any{"warehouseId": rqWarehouse, "items": []map[string]any{{"itemId": sitems[0].ID, "approvedQty": 1}}}
+	code, body = f.call("admin", "POST", "/requisitions/"+sid+"/approve", sapproval, f.key())
+	f.want(t, code, body, 409, "submitter approves")
 	code, body = f.call("wh", "POST", "/requisitions/"+sid+"/reject", map[string]any{"note": "x"}, f.key())
 	f.want(t, code, body, 200, "another user rejects")
+}
+
+// Submitter and creator may not fulfil, nor re-fulfil after the transfer was cancelled.
+func (f *rqFixture) fourEyesFulfil(t *testing.T) {
+	p := f.product(t)
+	hdr := []string{"X-Outlet-Id", rqOutletA}
+	// staff A creates, admin submits (submitter), wh approves.
+	id := f.create(t, "staffA", rqLine(p, 1))
+	code, body := f.call("admin", "POST", "/requisitions/"+id+"/submit", nil, f.key(), hdr...)
+	f.want(t, code, body, 200, "admin submits")
+	if code, body := f.approve(t, id, 1); code != 200 {
+		t.Fatalf("approve: %d %s", code, body)
+	}
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 409, "submitter fulfils")
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 201, "another user fulfils")
+	var tid string
+	if err := f.pool.QueryRow(f.ctx, `SELECT transfer_id::text FROM stock_requisitions WHERE id=$1`, id).Scan(&tid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.repo.CancelTransfer(f.ctx, tid); err != nil {
+		t.Fatal(err)
+	}
+	// Re-fulfil is a fulfil: the submitter (admin) and the creator's own outlet-side user cannot do it.
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 409, "submitter re-fulfils")
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 201, "another user re-fulfils")
+
+	// Creator re-fulfil: a user who holds both permissions creates and submits, another approves and
+	// fulfils, the transfer is cancelled, and the creator cannot re-fulfil.
+	cid := f.create(t, "mgr", rqLine(p, 1))
+	f.call("mgr", "POST", "/requisitions/"+cid+"/submit", nil, f.key())
+	if code, body := f.approve(t, cid, 1); code != 200 {
+		t.Fatalf("approve: %d %s", code, body)
+	}
+	code, body = f.call("wh", "POST", "/requisitions/"+cid+"/fulfil", nil, f.key())
+	f.want(t, code, body, 201, "another user fulfils the manager's PB")
+	if err := f.pool.QueryRow(f.ctx, `SELECT transfer_id::text FROM stock_requisitions WHERE id=$1`, cid).Scan(&tid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.repo.CancelTransfer(f.ctx, tid); err != nil {
+		t.Fatal(err)
+	}
+	code, body = f.call("mgr", "POST", "/requisitions/"+cid+"/fulfil", nil, f.key())
+	f.want(t, code, body, 409, "creator re-fulfils")
+}
+
+// An editor is a participant: manager edits staff A's draft, staff A submits, the manager may
+// not approve it; the warehouse user (no part in it) can.
+func (f *rqFixture) fourEyesEditor(t *testing.T) {
+	p, q := f.product(t), f.product(t)
+	id := f.create(t, "staffA", rqLine(p, 1))
+	code, body := f.call("mgr", "PUT", "/requisitions/"+id, rqLines(rqLine(p, 2), rqLine(q, 1)), f.key())
+	f.want(t, code, body, 200, "manager edits staff A's draft")
+	f.submit(t, id)
+	pb := f.get(t, "wh", id)
+	var items []map[string]any
+	for _, it := range pb.Data.Items {
+		items = append(items, map[string]any{"itemId": it.ID, "approvedQty": 1})
+	}
+	approval := map[string]any{"warehouseId": rqWarehouse, "items": items}
+	code, body = f.call("mgr", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 409, "editor approves")
+	code, body = f.call("mgr", "POST", "/requisitions/"+id+"/reject", map[string]any{"note": "x"}, f.key())
+	f.want(t, code, body, 409, "editor rejects")
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 200, "a non-participant approves")
 }
