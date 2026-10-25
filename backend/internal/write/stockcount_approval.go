@@ -202,8 +202,8 @@ func (r *Repo) ApproveStockCountTx(ctx context.Context, t pgx.Tx, id string, p A
 }
 
 // RejectStockCountTx sends a submitted count back to in_progress for a recount. The decider must
-// be an approver for the count's location (no PIN: nothing is applied). The submitter may also
-// reject, which withdraws their own submission.
+// be an approver for the count's location (no PIN: nothing is applied). A submitter who is
+// themselves an approver may also reject, which withdraws their own submission.
 func (r *Repo) RejectStockCountTx(ctx context.Context, t pgx.Tx, id, userID, note string) error {
 	c, err := lockCountForDecision(ctx, t, id)
 	if err != nil {

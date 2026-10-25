@@ -237,9 +237,7 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		} {
 			for _, blank := range []string{"", "   "} {
 				code, _, body := call("POST", c.path, c.tok, blank, c.body)
-				if blank == "" {
-					mustCode("missing key "+c.path, 400, code, body)
-				}
+				mustCode("blank key "+c.path, 400, code, body)
 			}
 		}
 		if n := num(`SELECT count(*) FROM receive_pin_attempts WHERE doc_id=$1`, id); n != 0 {
@@ -270,10 +268,18 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 			t.Fatalf("a plain conflict must send {error} only: %s", body)
 		}
 		// the same key replays the first answer instead of conflicting
-		key := nextKey()
-		code, _, first := call("POST", "/inventory/adjustment-requests", tokMgrA, key, reqBody("outlet", outB, "M", 1, "damaged", ""))
-		_ = first
-		_ = code
+		// the same key and body replay the first answer byte for byte and create exactly one row
+		rkey := nextKey()
+		code, _, first := call("POST", "/inventory/adjustment-requests", tokMgrA, rkey, reqBody("outlet", outA, "S", 8, "lost", ""))
+		mustCode("keyed create", 201, code, first)
+		code, _, again := call("POST", "/inventory/adjustment-requests", tokMgrA, rkey, reqBody("outlet", outA, "S", 8, "lost", ""))
+		if code != 201 || again != first {
+			t.Fatalf("replay differs: %d %s vs %s", code, again, first)
+		}
+		if n := num(`SELECT count(*) FROM stock_adjustment_requests WHERE variant_size='S' AND status='pending_approval'`); n != 1 {
+			t.Fatalf("replayed create made %d rows", n)
+		}
+		call("POST", "/inventory/adjustment-requests/"+dataID(first)+"/cancel", tokMgrA, nextKey(), nil)
 		call("POST", "/inventory/adjustment-requests/"+id+"/cancel", tokMgrA, nextKey(), nil)
 		if status("stock_adjustment_requests", id) != "cancelled" {
 			t.Fatal("requester could not cancel")
