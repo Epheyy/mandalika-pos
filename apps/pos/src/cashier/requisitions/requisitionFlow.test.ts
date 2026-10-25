@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@mandalika/api'
 import type { StockRequisition } from '@mandalika/api'
 import {
-  EMPTY_FORM, FEATURE_OFF_MESSAGE, FORBIDDEN_MESSAGE, MSG_BAD_QTY, MSG_DUPLICATE, MSG_NO_LINES, NOT_FOUND_MESSAGE,
+  EMPTY_FORM, FEATURE_OFF_MESSAGE, formFromRequisition, splitNote, FORBIDDEN_MESSAGE, MSG_BAD_QTY, MSG_DUPLICATE, MSG_NO_LINES, NOT_FOUND_MESSAGE,
   OFFLINE_MESSAGE, REQUEST_TIMEOUT_MS, RETRY_MESSAGE, buildInput, cancelRequisition, composeNote, createDraft,
   loadRequisition, loadRequisitions, submitDraft, updateDraft,
   type FlowDeps, type RequisitionApi,
@@ -119,5 +119,22 @@ describe('buildInput / composeNote', () => {
     expect(composeNote('  Sari ', '')).toBe('Diminta oleh: Sari')
     expect(composeNote('', ' catatan ')).toBe('catatan')
     expect(composeNote('', '')).toBeUndefined()
+  })
+})
+
+
+describe('splitNote / formFromRequisition', () => {
+  it('splitNote inverts composeNote', () => {
+    for (const [by, note] of [['Sari', 'untuk event'], ['Sari', ''], ['', 'catatan'], ['', '']]) {
+      expect(splitNote(composeNote(by, note))).toEqual({ requestedBy: by, note })
+    }
+  })
+
+  it('formFromRequisition rebuilds the editable form from a draft', () => {
+    const f = formFromRequisition({
+      note: 'Diminta oleh: Sari\nevent', neededBy: '2026-11-03',
+      items: [{ id: 'i1', productId: 'p1', productName: 'A', variantSize: 'M', sku: 'S1', requestedQty: 3 }],
+    })
+    expect(f).toEqual({ requestedBy: 'Sari', note: 'event', neededBy: '2026-11-03', lines: [{ productId: 'p1', productName: 'A', variantSize: 'M', sku: 'S1', qty: '3' }] })
   })
 })

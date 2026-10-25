@@ -114,3 +114,25 @@ export function buildInput(form: RequisitionFormState): BuildResult {
   if (items.some((i) => !Number.isInteger(i.requestedQty) || i.requestedQty <= 0)) return { ok: false, message: MSG_BAD_QTY }
   return { ok: true, input: { items, note: composeNote(form.requestedBy, form.note), neededBy: form.neededBy || undefined } }
 }
+
+const REQUESTED_BY_PREFIX = 'Diminta oleh: '
+
+/** Inverse of composeNote, so editing a draft gives the "Diminta oleh" name back its own field. */
+export function splitNote(note: string | undefined | null): { requestedBy: string; note: string } {
+  const text = note ?? ''
+  if (!text.startsWith(REQUESTED_BY_PREFIX)) return { requestedBy: '', note: text }
+  const nl = text.indexOf('\n')
+  const first = nl < 0 ? text : text.slice(0, nl)
+  return { requestedBy: first.slice(REQUESTED_BY_PREFIX.length), note: nl < 0 ? '' : text.slice(nl + 1) }
+}
+
+/** The editable form for an existing draft. */
+export function formFromRequisition(pb: Pick<StockRequisition, 'items' | 'note' | 'neededBy'>): RequisitionFormState {
+  const { requestedBy, note } = splitNote(pb.note)
+  return {
+    lines: (pb.items ?? []).map((i) => ({
+      productId: i.productId, productName: i.productName ?? '', variantSize: i.variantSize, sku: i.sku, qty: String(i.requestedQty),
+    })),
+    neededBy: pb.neededBy ?? '', note, requestedBy,
+  }
+}
