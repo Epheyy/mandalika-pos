@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   LayoutDashboard,
   Package,
@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Warehouse,
   ClipboardCheck,
+  ClipboardList,
   Cable,
 } from 'lucide-react'
 import { useAuth } from './auth'
@@ -33,6 +34,7 @@ import SettingsScreen from './screens/SettingsScreen'
 import ErrorLogs from './screens/ErrorLogs'
 import ErpOutboxScreen from './screens/integration/ErpOutboxScreen'
 import SyncReview from './screens/syncReview/SyncReview'
+import Requisitions from './screens/requisitions/RequisitionList'
 import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
 import { useOversellOpenCount } from './screens/reports/useOversellOpenCount'
 import { useOutlet } from './outlet'
@@ -45,6 +47,7 @@ const NAV = [
   { id: 'promotions', label: 'Promosi', icon: Tag, perm: 'manage_promotions', C: Promotions },
   { id: 'reports', label: 'Laporan', icon: BarChart3, perm: 'view_reports', C: Reports },
   { id: 'warehouses', label: 'Inventori', icon: Warehouse, perm: 'manage_inventory', C: Warehouses },
+  { id: 'requisitions', label: 'Permintaan Barang', icon: ClipboardList, perm: 'request_stock', C: Requisitions },
   { id: 'users', label: 'Pengguna', icon: UserCog, perm: 'manage_users', C: Users },
   { id: 'syncReview', label: 'Tinjauan Sinkron', icon: ClipboardCheck, perm: 'resolve_sync_review', C: SyncReview },
   { id: 'settings', label: 'Pengaturan', icon: Settings, perm: 'manage_settings', C: SettingsScreen },
@@ -126,6 +129,16 @@ export default function App() {
   )
 
   const [activeId, setActiveId] = useState<string>('dashboard')
+
+  // Screens ask the shell to switch (e.g. Permintaan Barang -> Inventori for the linked transfer).
+  useEffect(() => {
+    const go = (e: Event) => {
+      const id = (e as CustomEvent<unknown>).detail
+      if (typeof id === 'string') setActiveId(id)
+    }
+    window.addEventListener('mandalika:nav', go)
+    return () => window.removeEventListener('mandalika:nav', go)
+  }, [])
 
   if (!ready)
     return (
