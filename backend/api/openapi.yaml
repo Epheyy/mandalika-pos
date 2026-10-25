@@ -1675,13 +1675,15 @@ components:
         countedAt: { type: string, format: date-time, nullable: true, description: "When this line's count was saved. Server-stamped." }
         stockBefore: { type: integer, nullable: true, description: "Live stock just before the difference was applied at completion. Server-recorded." }
         stockAfter: { type: integer, nullable: true, description: "Live stock after the difference was applied at completion. Server-recorded." }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string, description: "Per-line reason set at submit; server-recorded." }
     StockCount:
       type: object
       required: [id, name, status, items, createdBy, createdAt]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
-        status: { type: string, enum: [planned, in_progress, completed, cancelled] }
+        status: { type: string, enum: [planned, in_progress, pending_approval, completed, cancelled] }
         outletId: { type: string, format: uuid, nullable: true }
         warehouseId: { type: string, format: uuid, nullable: true }
         plannedDate: { type: string, nullable: true }
@@ -1691,6 +1693,13 @@ components:
         notes: { type: string, nullable: true }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
+        submittedBy: { type: string, format: uuid, description: "Who submitted the count for approval (pending_approval and later)." }
+        submittedAt: { type: string, format: date-time }
+        approvedBy: { type: string, format: uuid }
+        approvedAt: { type: string, format: date-time }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string }
+        rejectedNote: { type: string, description: "Note of the last rejection; the count is back in progress." }
     StockCountListResponse:
       type: object
       required: [data]
@@ -1770,6 +1779,9 @@ components:
         documents:
           $ref: '#/components/schemas/DocumentSettings'
         recipesEnabled: { type: boolean }
+        inventoryApprovalRequired:
+          type: boolean
+          description: "When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice."
     AppSettingsResponse:
       type: object
       required: [data]
@@ -2654,6 +2666,396 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/MovementSummaryRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    # --- Inventory controls (S0 contract): kartu stok, giveaway, approvals, scanner CSV, requisitions ---
+    InventoryLocationType:
+      type: string
+      enum: [outlet, warehouse]
+    InventoryReasonCode:
+      type: string
+      enum: [damaged, expired, lost, found, data_entry, tester_sample, count_variance, other]
+      description: "Reason for a stock change. `other` requires free text."
+    InventoryDocEvent:
+      type: object
+      required: [id, action, at]
+      description: One append-only history event of an inventory document (count, adjustment request, requisition, outlet giveaway).
+      properties:
+        id: { type: integer, format: int64 }
+        action: { type: string, enum: [created, updated, submitted, approved, rejected, cancelled, applied, imported, fulfilled, refulfilled] }
+        actorId: { type: string, format: uuid }
+        actorName: { type: string }
+        note: { type: string }
+        data: { type: object, additionalProperties: true, description: "Action specific details, e.g. transferId, fromQty/toQty, importRunId." }
+        at: { type: string, format: date-time }
+    StockMovementRow:
+      type: object
+      required: [id, seq, occurredAt, recordedAt, kind, locationType, locationId, productId, variantSize, qty, qtyBefore, qtyAfter, refType, flags, isGiveaway]
+      description: One stock ledger movement (kartu stok line). The running balance is qtyAfter in seq order.
+      properties:
+        id: { type: string, format: uuid }
+        seq: { type: integer, format: int64, description: "Order in which the movement was applied at the location; the balance chain is continuous in this order." }
+        occurredAt: { type: string, format: date-time }
+        recordedAt: { type: string, format: date-time }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        locationType: { $ref: '#/components/schemas/InventoryLocationType' }
+        locationId: { type: string, format: uuid }
+        locationName: { type: string }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        barcode: { type: string }
+        qty: { type: integer, description: "Signed change; negative is keluar." }
+        qtyBefore: { type: integer }
+        qtyAfter: { type: integer, description: Saldo after this movement. }
+        refType: { type: string }
+        refId: { type: string, format: uuid }
+        refNumber: { type: string }
+        flags: { type: array, items: { type: string }, description: "Ledger flags; `shortage` marks a movement that took stock below zero." }
+        isGiveaway: { type: boolean, description: "Derived: the movement is the per-sale giveaway item (ledger key giveaway:<order id>). Never sent to the ERP." }
+        actorId: { type: string }
+        actorName: { type: string }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string }
+        approvedBy: { type: string }
+        erpStatus: { type: string, description: "Status of the ERP outbox document that carries this movement, when there is one." }
+    StockMovementSummary:
+      type: object
+      required: [opening, totalIn, totalOut, closing]
+      properties:
+        opening: { type: integer, description: "qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty." }
+        totalIn: { type: integer }
+        totalOut: { type: integer, description: Absolute outgoing quantity. }
+        closing: { type: integer }
+    StockMovementPage:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/StockMovementRow' } }
+        nextCursor: { type: string, description: "Opaque keyset cursor; absent on the last page." }
+        summary:
+          $ref: '#/components/schemas/StockMovementSummary'
+    MovementLedgerSummaryRow:
+      type: object
+      required: [productId, productName, variantSize, sku, opening, inByKind, outByKind, closing]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        barcode: { type: string }
+        opening: { type: integer }
+        inByKind: { type: object, additionalProperties: { type: integer }, description: "Incoming quantity per movement kind." }
+        outByKind: { type: object, additionalProperties: { type: integer }, description: "Outgoing (absolute) quantity per movement kind." }
+        closing: { type: integer }
+    MovementLedgerSummaryResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/MovementLedgerSummaryRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    OutletGiveaway:
+      type: object
+      required: [outletId, configured, enabled]
+      description: The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row.
+      properties:
+        outletId: { type: string, format: uuid }
+        configured: { type: boolean }
+        enabled: { type: boolean }
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        productName: { type: string }
+        sku: { type: string }
+        erpMapped: { type: boolean, description: "The variant has an ERP slug and SKU." }
+        valid: { type: boolean, description: "The variant still exists." }
+        updatedBy: { type: string, format: uuid }
+        updatedAt: { type: string, format: date-time }
+    OutletGiveawayInput:
+      type: object
+      required: [productId, variantSize, enabled]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        enabled: { type: boolean }
+    OutletGiveawayResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/OutletGiveaway' }
+    AdjustmentRequestStatus:
+      type: string
+      enum: [pending_approval, approved, rejected, cancelled]
+    AdjustmentRequestCreateInput:
+      type: object
+      required: [locationType, locationId, productId, variantSize, newQty, reasonCode]
+      properties:
+        locationType: { $ref: '#/components/schemas/InventoryLocationType' }
+        locationId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        newQty: { type: integer, minimum: 0 }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string, description: "Required when reasonCode is other." }
+    AdjustmentRequest:
+      type: object
+      required: [id, number, status, locationType, locationId, productId, variantSize, qtyAtRequest, requestedNewQty, reasonCode, requestedBy, requestedAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string }
+        status: { $ref: '#/components/schemas/AdjustmentRequestStatus' }
+        locationType: { $ref: '#/components/schemas/InventoryLocationType' }
+        locationId: { type: string, format: uuid }
+        locationName: { type: string }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        qtyAtRequest: { type: integer, description: "Live quantity the requester saw; server-read." }
+        requestedNewQty: { type: integer }
+        liveQty: { type: integer, description: "Current live quantity, for the drift shown on the approval card." }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string }
+        requestedBy: { type: string, format: uuid }
+        requestedByName: { type: string }
+        requestedAt: { type: string, format: date-time }
+        approvedBy: { type: string, format: uuid }
+        approvedByName: { type: string }
+        approvedAt: { type: string, format: date-time }
+        decisionNote: { type: string }
+        appliedAdjustmentId: { type: string, format: uuid }
+        events: { type: array, items: { $ref: '#/components/schemas/InventoryDocEvent' } }
+    AdjustmentRequestResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AdjustmentRequest' }
+    AdjustmentRequestListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/AdjustmentRequest' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    InventoryApproveInput:
+      type: object
+      required: [pin]
+      description: Approver step-up. The approver is the logged-in user, who re-enters their own receive PIN.
+      properties:
+        pin: { type: string, minLength: 4, maxLength: 8 }
+        note: { type: string }
+    InventoryRejectInput:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1 }
+    InventoryCancelInput:
+      type: object
+      properties:
+        note: { type: string }
+    AdjustmentRequestApproveResult:
+      type: object
+      required: [request, appliedAdjustmentId, liveQtyBefore, delta]
+      properties:
+        request: { $ref: '#/components/schemas/AdjustmentRequest' }
+        appliedAdjustmentId: { type: string, format: uuid }
+        liveQtyBefore: { type: integer, description: Live quantity just before the delta was applied. }
+        delta: { type: integer, description: "The requested delta (requestedNewQty minus qtyAtRequest) that was applied." }
+    AdjustmentRequestApproveResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AdjustmentRequestApproveResult' }
+    ApprovalQueueItem:
+      type: object
+      required: [type, id, locationType, locationId, at, lines, netDelta]
+      properties:
+        type: { type: string, enum: [count, adjustment] }
+        id: { type: string, format: uuid }
+        number: { type: string, description: "Document number (adjustments) or name (counts)." }
+        locationType: { $ref: '#/components/schemas/InventoryLocationType' }
+        locationId: { type: string, format: uuid }
+        locationName: { type: string }
+        requestedBy: { type: string, format: uuid }
+        requestedByName: { type: string }
+        at: { type: string, format: date-time }
+        lines: { type: integer }
+        netDelta: { type: integer }
+    ApprovalQueueResponse:
+      type: object
+      required: [data, pendingCount]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ApprovalQueueItem' } }
+        pendingCount: { type: integer, description: "Number of pending items, for the nav badge." }
+    InventoryConflictError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string, enum: [approval_required], description: "Present when inventoryApprovalRequired is on and the direct endpoint was used." }
+    StockCountSubmitLineInput:
+      type: object
+      required: [productId, variantSize]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string }
+    StockCountSubmitInput:
+      type: object
+      required: [reasonCode]
+      properties:
+        reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
+        reasonText: { type: string }
+        lines: { type: array, items: { $ref: '#/components/schemas/StockCountSubmitLineInput' } }
+    StockCountImportWarning:
+      type: string
+      enum: [unknown_code, ambiguous_sku, not_on_count, stock_moved_since_start]
+    StockCountImportLineRef:
+      type: object
+      required: [productId, variantSize]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        productName: { type: string }
+        sku: { type: string }
+    StockCountImportRow:
+      type: object
+      required: [row, code, counted, warnings]
+      description: One scanned code after repeated scans of the same code were summed.
+      properties:
+        row: { type: integer }
+        code: { type: string, description: The scanned barcode or SKU. }
+        matchedLine: { $ref: '#/components/schemas/StockCountImportLineRef' }
+        expected: { type: integer, description: "The line's count-start snapshot (frozenQty)." }
+        counted: { type: integer }
+        previous: { type: integer, description: "The counted value this upload overwrites, when the line was already counted." }
+        difference: { type: integer, description: Counted minus expected. }
+        warnings: { type: array, items: { $ref: '#/components/schemas/StockCountImportWarning' } }
+    StockCountImportReport:
+      type: object
+      required: [kind, delimiter, fileSha256, totalRows, summary, fileIssues, issues, rows, uncounted]
+      properties:
+        kind: { type: string, enum: [stock_count] }
+        delimiter: { type: string }
+        fileSha256: { type: string }
+        totalRows: { type: integer }
+        summary: { $ref: '#/components/schemas/ImportSummary' }
+        fileIssues: { type: array, items: { $ref: '#/components/schemas/ImportFileIssue' } }
+        issues: { type: array, description: 'every error and warning, capped at 5000', items: { $ref: '#/components/schemas/ImportIssue' } }
+        rows: { type: array, description: 'first 500 rows only (counts are exact)', items: { $ref: '#/components/schemas/StockCountImportRow' } }
+        uncounted: { type: array, description: Count lines missing from the file; they stay uncounted., items: { $ref: '#/components/schemas/StockCountImportLineRef' } }
+        runId: { type: string }
+        appliedAt: { type: string }
+    StockCountImportReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/StockCountImportReport' }
+    StockCountImportRejectedResponse:
+      type: object
+      required: [data, error]
+      properties:
+        data: { $ref: '#/components/schemas/StockCountImportReport' }
+        error: { type: string }
+    StockRequisitionStatus:
+      type: string
+      enum: [draft, submitted, approved, rejected, fulfilled, cancelled]
+    StockRequisitionItem:
+      type: object
+      required: [id, productId, variantSize, requestedQty]
+      properties:
+        id: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        requestedQty: { type: integer, minimum: 1 }
+        approvedQty: { type: integer, minimum: 0 }
+        note: { type: string }
+    StockRequisitionTransferLink:
+      type: object
+      required: [id, transferNo, status]
+      properties:
+        id: { type: string, format: uuid }
+        transferNo: { type: string }
+        status: { type: string, description: "Live status of the linked transfer." }
+    StockRequisition:
+      type: object
+      required: [id, number, status, outletId, requestedBy, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, description: "PB-YYYY-NNNNN" }
+        status: { $ref: '#/components/schemas/StockRequisitionStatus' }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        warehouseId: { type: string, format: uuid, description: "Source gudang; set from approval." }
+        warehouseName: { type: string }
+        neededBy: { type: string, format: date }
+        note: { type: string }
+        requestedBy: { type: string, format: uuid }
+        requestedByName: { type: string }
+        submittedAt: { type: string, format: date-time }
+        decidedBy: { type: string, format: uuid }
+        decidedByName: { type: string }
+        decidedAt: { type: string, format: date-time }
+        decisionNote: { type: string }
+        fulfilledBy: { type: string, format: uuid }
+        fulfilledAt: { type: string, format: date-time }
+        cancelledAt: { type: string, format: date-time }
+        transfer: { $ref: '#/components/schemas/StockRequisitionTransferLink' }
+        items: { type: array, description: Present on the detail read., items: { $ref: '#/components/schemas/StockRequisitionItem' } }
+        events: { type: array, description: Present on the detail read., items: { $ref: '#/components/schemas/InventoryDocEvent' } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StockRequisitionItemInput:
+      type: object
+      required: [productId, variantSize, requestedQty]
+      properties:
+        productId: { type: string, format: uuid }
+        variantSize: { type: string }
+        requestedQty: { type: integer, minimum: 1 }
+        note: { type: string }
+    StockRequisitionInput:
+      type: object
+      required: [items]
+      description: Create or replace a draft requisition. The outlet is the caller's active outlet (X-Outlet-Id for an admin).
+      properties:
+        note: { type: string }
+        neededBy: { type: string, format: date }
+        items: { type: array, items: { $ref: '#/components/schemas/StockRequisitionItemInput' } }
+    StockRequisitionApproveItemInput:
+      type: object
+      required: [itemId, approvedQty]
+      properties:
+        itemId: { type: string, format: uuid }
+        approvedQty: { type: integer, minimum: 0 }
+    StockRequisitionApproveInput:
+      type: object
+      required: [warehouseId, items]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        items: { type: array, items: { $ref: '#/components/schemas/StockRequisitionApproveItemInput' } }
+        note: { type: string }
+    StockRequisitionFulfilResult:
+      type: object
+      required: [transferId, transferNo]
+      properties:
+        transferId: { type: string, format: uuid }
+        transferNo: { type: string }
+    StockRequisitionFulfilResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/StockRequisitionFulfilResult' }
+    StockRequisitionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/StockRequisition' }
+    StockRequisitionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/StockRequisition' } }
         meta: { $ref: '#/components/schemas/Meta' }
   responses:
     Unauthorized:
@@ -3825,7 +4227,7 @@ paths:
             schema: { $ref: '#/components/schemas/WarehouseAdjustInput' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
-        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
+        '409': { description: "Idempotency-Key reused with a different request, a conflicting state, or code approval_required when inventoryApprovalRequired is on (use the adjustment request flow)", content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflictError' } } } }
   /api/v1/inventory/outlet-par:
     put:
       operationId: setOutletPar
@@ -4774,7 +5176,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request" }
+        '409': { description: "count is not in progress, lock conflict (retryable), Idempotency-Key reused with a different request, or code approval_required when inventoryApprovalRequired is on (use submit and approve)", content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflictError' } } } }
   /api/v1/cash-flows:
     post:
       operationId: createCashFlow
@@ -5564,3 +5966,608 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
   # --- end ERP outbox ---
+  # --- Inventory controls (S0 contract; the handlers land in S1-S5) ---
+  /api/v1/inventory/movements:
+    get:
+      operationId: listStockMovements
+      tags: [catalog]
+      summary: Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
+      description: >
+        Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown
+        but never used for ordering. from/to filter occurredAt (RFC 3339, or a date read in the
+        outlet timezone). `summary` is returned only when one SKU (productId and variantSize) is filtered.
+      parameters:
+        - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: productId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: variantSize, in: query, required: false, schema: { type: string } }
+        - name: kind
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
+        - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key).", schema: { type: boolean } }
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: cursor, in: query, required: false, description: "Opaque; the nextCursor of the previous page.", schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: movements
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockMovementPage' }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/inventory/movements/export:
+    get:
+      operationId: exportStockMovements
+      tags: [catalog]
+      summary: Kartu stok as CSV, same filters as the list (manage_inventory)
+      description: >
+        UTF-8 CSV with a header row; cells starting with = + - @ are guarded. The range is at most 93 days
+        and 100000 rows; a larger export answers 413.
+      parameters:
+        - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: productId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: variantSize, in: query, required: false, schema: { type: string } }
+        - name: kind
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
+        - { name: giveaway, in: query, required: false, schema: { type: boolean } }
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: CSV file (UTF-8, header row)
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: range over 93 days or over 100000 rows, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inventory/movements/summary:
+    get:
+      operationId: getMovementLedgerSummary
+      tags: [catalog]
+      summary: Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory)
+      parameters:
+        - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: false, schema: { type: string } }
+        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: q, in: query, required: false, description: "Substring match on product name, SKU or barcode.", schema: { type: string } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: ledger summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovementLedgerSummaryResponse' }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/outlets/{id}/giveaway:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getOutletGiveaway
+      tags: [catalog]
+      summary: The per-sale giveaway item of an outlet (manage_outlets)
+      responses:
+        '200':
+          description: giveaway setting; configured false when the outlet has none
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutletGiveawayResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: setOutletGiveaway
+      tags: [catalog]
+      summary: Set the per-sale giveaway item of an outlet (manage_outlets)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutletGiveawayInput' }
+      responses:
+        '200':
+          description: saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutletGiveawayResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "the variant does not exist, the ERP integration is on and the variant has no ERP slug and SKU, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inventory/adjustment-requests:
+    get:
+      operationId: listAdjustmentRequests
+      tags: [catalog]
+      summary: List stock adjustment requests (manage_inventory)
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/AdjustmentRequestStatus' } }
+        - { name: locationType, in: query, required: false, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: false, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: adjustment requests
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createAdjustmentRequest
+      tags: [catalog]
+      summary: Request a stock adjustment to a new quantity; it waits for approval (manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdjustmentRequestCreateInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: "Idempotency-Key reused with a different request, or a conflicting state", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inventory/adjustment-requests/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getAdjustmentRequest
+      tags: [catalog]
+      summary: Get one adjustment request with its history and the live quantity (manage_inventory)
+      responses:
+        '200':
+          description: adjustment request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory/adjustment-requests/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: approveAdjustmentRequest
+      tags: [catalog]
+      summary: Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
+      description: >
+        The approver must be an admin or a receive approver role user, never the requester. The
+        applied change is the requested delta (requestedNewQty minus qtyAtRequest), not the absolute value.
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryApproveInput' }
+      responses:
+        '200':
+          description: approved and applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestApproveResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "same body for an ineligible approver, no PIN set and a wrong PIN", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "request is not pending, the approver is the requester, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429':
+          description: locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReceiveApprovalLocked' } } }
+        '503':
+          description: lock wait timed out or the database is busy; nothing was verified, retry after Retry-After
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /api/v1/inventory/adjustment-requests/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: rejectAdjustmentRequest
+      tags: [catalog]
+      summary: Reject a pending adjustment request with a note (manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryRejectInput' }
+      responses:
+        '200':
+          description: rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "request is not pending, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inventory/adjustment-requests/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: cancelAdjustmentRequest
+      tags: [catalog]
+      summary: Cancel a pending adjustment request (the requester; manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryCancelInput' }
+      responses:
+        '200':
+          description: cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdjustmentRequestResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "request is not pending, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inventory/approvals:
+    get:
+      operationId: listInventoryApprovals
+      tags: [catalog]
+      summary: Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending], default: pending } }
+      responses:
+        '200':
+          description: pending approvals and the pending count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalQueueResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/stock-counts/{id}/submit:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: submitStockCount
+      tags: [sales]
+      summary: Submit a finished count for approval; status becomes pending_approval (manage_stock_count)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockCountSubmitInput' }
+      responses:
+        '200':
+          description: submitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/stock-counts/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: approveStockCount
+      tags: [sales]
+      summary: Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryApproveInput' }
+      responses:
+        '200':
+          description: approved and applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "same body for an ineligible approver, no PIN set and a wrong PIN", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "count is not pending approval, the approver is the submitter, lock conflict (retryable), or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429':
+          description: locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReceiveApprovalLocked' } } }
+        '503':
+          description: lock wait timed out or the database is busy; nothing was verified, retry after Retry-After
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /api/v1/stock-counts/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: rejectStockCount
+      tags: [sales]
+      summary: Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryRejectInput' }
+      responses:
+        '200':
+          description: rejected, back in progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "count is not pending approval, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/stock-counts/{id}/export:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: exportStockCount
+      tags: [sales]
+      summary: Count sheet as CSV for a scanner app (manage_stock_count)
+      description: >
+        Columns sku, barcode, product, size, expected_qty and an empty counted_qty. Cells starting
+        with = + - @ are guarded with a leading apostrophe. Read-only.
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: CSV file (UTF-8, header row)
+          content:
+            text/csv:
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/stock-counts/{id}/import:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: importStockCount
+      tags: [imports]
+      summary: Scanner CSV upload for an in-progress count, dry run or commit (manage_stock_count)
+      description: >
+        Rows are barcode or sku plus counted_qty; repeated scans of one code are summed. The dry run
+        returns the diff preview and writes nothing. A commit stores the counted quantities only (it
+        never changes stock) and needs fileSha256 and expectedSummary from the preview and an
+        Idempotency-Key. Same dry run and commit contract as the product import.
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/ImportIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+      responses:
+        '200':
+          description: preview, applied result, or replay of an earlier commit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountImportReportResponse' }
+        '400': { description: invalid request }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/ImportConflict' }
+        '413': { description: 'request body over the 20 MiB cap', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422':
+          description: file or row errors; nothing was applied (the report says why)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountImportRejectedResponse' }
+        '429': { description: 'two imports already running in this process; retry shortly', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: 'busy (lock conflict), nothing applied, retry', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions:
+    get:
+      operationId: listRequisitions
+      tags: [sales]
+      summary: List Permintaan Barang (request_stock for the own outlet, or manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/StockRequisitionStatus' } }
+        - { name: outletId, in: query, required: false, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: requisitions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createRequisition
+      tags: [sales]
+      summary: Create a draft Permintaan Barang for the active outlet (request_stock)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockRequisitionInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: "Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getRequisition
+      tags: [sales]
+      summary: Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: requisition
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateRequisition
+      tags: [sales]
+      summary: Replace a draft Permintaan Barang (request_stock; drafts only)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockRequisitionInput' }
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is not a draft, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}/submit:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: submitRequisition
+      tags: [sales]
+      summary: Submit a draft Permintaan Barang to the warehouse (request_stock)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      responses:
+        '200':
+          description: submitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is not a draft, it has no lines, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: cancelRequisition
+      tags: [sales]
+      summary: Cancel a draft or submitted Permintaan Barang (request_stock)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      responses:
+        '200':
+          description: cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is already decided, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: approveRequisition
+      tags: [sales]
+      summary: Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockRequisitionApproveInput' }
+      responses:
+        '200':
+          description: approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is not submitted, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: rejectRequisition
+      tags: [sales]
+      summary: Reject a submitted Permintaan Barang with a note (manage_inventory)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryRejectInput' }
+      responses:
+        '200':
+          description: rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
+        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is not submitted, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/requisitions/{id}/fulfil:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: fulfilRequisition
+      tags: [sales]
+      summary: Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
+      description: Allowed again only when the linked transfer is cancelled; the requisition then gets a new link.
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
+      responses:
+        '201':
+          description: transfer draft created and linked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRequisitionFulfilResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: "requisition is not approved, a non-cancelled transfer is already linked, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

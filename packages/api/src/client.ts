@@ -132,6 +132,37 @@ export type ImportIssue = S['ImportIssue']
 export type ImportFileIssue = S['ImportFileIssue']
 export type ImportRowResult = S['ImportRowResult']
 export type ImportKind = ImportReport['kind']
+export type StockMovementRow = S['StockMovementRow']
+export type StockMovementSummary = S['StockMovementSummary']
+export type StockMovementPage = S['StockMovementPage']
+export type MovementLedgerSummaryRow = S['MovementLedgerSummaryRow']
+export type MovementLedgerSummaryResponse = S['MovementLedgerSummaryResponse']
+export type InventoryDocEvent = S['InventoryDocEvent']
+export type InventoryReasonCode = S['InventoryReasonCode']
+export type OutletGiveaway = S['OutletGiveaway']
+export type OutletGiveawayInput = S['OutletGiveawayInput']
+export type AdjustmentRequest = S['AdjustmentRequest']
+export type AdjustmentRequestCreateInput = S['AdjustmentRequestCreateInput']
+export type AdjustmentRequestApproveResult = S['AdjustmentRequestApproveResult']
+export type InventoryApproveInput = S['InventoryApproveInput']
+export type InventoryRejectInput = S['InventoryRejectInput']
+export type InventoryCancelInput = S['InventoryCancelInput']
+export type ApprovalQueueItem = S['ApprovalQueueItem']
+export type ApprovalQueueResponse = S['ApprovalQueueResponse']
+export type StockCountSubmitInput = S['StockCountSubmitInput']
+export type StockCountImportReport = S['StockCountImportReport']
+export type StockCountImportRow = S['StockCountImportRow']
+export type StockRequisition = S['StockRequisition']
+export type StockRequisitionItem = S['StockRequisitionItem']
+export type StockRequisitionInput = S['StockRequisitionInput']
+export type StockRequisitionApproveInput = S['StockRequisitionApproveInput']
+export type StockRequisitionFulfilResult = S['StockRequisitionFulfilResult']
+/** Query params of the kartu stok list and its CSV export, generated from the OpenAPI contract. */
+export type StockMovementParams = Query<'listStockMovements'>
+export type StockMovementExportParams = Query<'exportStockMovements'>
+export type MovementLedgerSummaryParams = Query<'getMovementLedgerSummary'>
+export type ListAdjustmentRequestsParams = Query<'listAdjustmentRequests'>
+export type ListRequisitionsParams = Query<'listRequisitions'>
 export interface OversellReportParams {
   dateFrom?: string
   dateTo?: string
@@ -330,6 +361,15 @@ export interface Api {
   }) => Promise<StockCount>
   updateStockCount: (id: string, input: Partial<StockCount>) => Promise<StockCount>
   completeStockCount: (id: string, items?: StockCountItem[]) => Promise<StockCount>
+  // approval flow (inventoryApprovalRequired): submit, then an approver approves with their PIN or rejects
+  submitStockCount: (id: string, input: StockCountSubmitInput, idempotencyKey?: string) => Promise<StockCount>
+  approveStockCount: (id: string, input: InventoryApproveInput, idempotencyKey?: string) => Promise<StockCount>
+  rejectStockCount: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<StockCount>
+  /** The count sheet as CSV text (sku, barcode, product, size, expected_qty, counted_qty). */
+  exportStockCount: (id: string) => Promise<string>
+  // scanner CSV upload: dryRun previews, dryRun=false stores counted quantities (needs idempotencyKey).
+  // A 422 (row errors) or 409 (stale / key conflict) throws an ApiError whose body carries the report.
+  importStockCount: (id: string, input: CsvImportRequest, idempotencyKey?: string) => Promise<StockCountImportReport>
 
   // warehouses / inventory
   listWarehouses: () => Promise<Warehouse[]>
@@ -343,6 +383,30 @@ export interface Api {
   getInventoryOverview: () => Promise<InventoryOverviewResponse>
   getIngredientOverview: () => Promise<IngredientOverviewResponse>
   getMovementSummary: (params: { kind: 'outlet' | 'warehouse'; id: string; from: string; to: string; page?: number; limit?: number }) => Promise<MovementSummaryResponse>
+
+  // inventory controls: kartu stok, giveaway, adjustment requests, approvals queue, requisitions
+  listStockMovements: (params: StockMovementParams) => Promise<StockMovementPage>
+  /** The kartu stok as CSV text, same filters as the list. */
+  exportStockMovements: (params: StockMovementExportParams) => Promise<string>
+  getMovementLedgerSummary: (params: MovementLedgerSummaryParams) => Promise<MovementLedgerSummaryResponse>
+  getOutletGiveaway: (outletId: string) => Promise<OutletGiveaway>
+  setOutletGiveaway: (outletId: string, input: OutletGiveawayInput, idempotencyKey?: string) => Promise<OutletGiveaway>
+  listAdjustmentRequests: (params?: ListAdjustmentRequestsParams) => Promise<ListResult<AdjustmentRequest>>
+  createAdjustmentRequest: (input: AdjustmentRequestCreateInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
+  getAdjustmentRequest: (id: string) => Promise<AdjustmentRequest>
+  approveAdjustmentRequest: (id: string, input: InventoryApproveInput, idempotencyKey?: string) => Promise<AdjustmentRequestApproveResult>
+  rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
+  cancelAdjustmentRequest: (id: string, input?: InventoryCancelInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
+  listInventoryApprovals: () => Promise<ApprovalQueueResponse>
+  listRequisitions: (params?: ListRequisitionsParams) => Promise<ListResult<StockRequisition>>
+  getRequisition: (id: string) => Promise<StockRequisition>
+  createRequisition: (input: StockRequisitionInput, idempotencyKey?: string) => Promise<StockRequisition>
+  updateRequisition: (id: string, input: StockRequisitionInput, idempotencyKey?: string) => Promise<StockRequisition>
+  submitRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisition>
+  cancelRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisition>
+  approveRequisition: (id: string, input: StockRequisitionApproveInput, idempotencyKey?: string) => Promise<StockRequisition>
+  rejectRequisition: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<StockRequisition>
+  fulfilRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisitionFulfilResult>
 
   // transfers (SP2)
   listTransfers: (opts?: { status?: string; from?: string; to?: string; locKind?: 'outlet' | 'warehouse'; locId?: string; page?: number; limit?: number }) => Promise<ListResult<Transfer>>
@@ -584,6 +648,62 @@ export function createClient(opts: ClientOptions): Api {
     params?: Record<string, string | number>,
   ): Promise<ListResult<T>> => request<ListResult<T>>('GET', path + qs(params))
 
+  /** Idempotency-Key request option for the optional key of a write. */
+  const idem = (key?: string): RequestOptions | undefined =>
+    key ? { headers: { 'Idempotency-Key': key } } : undefined
+
+  /** Query string that allows an array value (repeated key) next to scalars; undefined and null are dropped. */
+  const qsMulti = (params: object): string => {
+    const p = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === null) continue
+      if (Array.isArray(v)) for (const x of v) p.append(k, String(x))
+      else p.set(k, String(v))
+    }
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+
+  /** GET a text/csv body. Same auth, outlet header and one silent refresh as request(); the body is returned verbatim. */
+  async function requestCsv(path: string): Promise<string> {
+    const send = (): Promise<Response> => {
+      const headers: Record<string, string> = { Accept: 'text/csv' }
+      const token = opts.getToken()
+      if (token) headers.Authorization = `Bearer ${token}`
+      const outlet = opts.getOutletId?.()
+      if (outlet) headers['X-Outlet-Id'] = outlet
+      return fetch(opts.baseUrl + path, { method: 'GET', headers })
+    }
+    const sendTyped = async (): Promise<Response> => {
+      try {
+        return await send()
+      } catch (e) {
+        throw new ApiError(0, e instanceof Error ? e.message : 'network error', 'network')
+      }
+    }
+    let res = await sendTyped()
+    if (res.status === 401) {
+      const refreshed = await trySilentRefresh()
+      if (refreshed === 'ok') res = await sendTyped()
+      else if (refreshed !== 'rejected') throw refreshed
+    }
+    if (res.status === 401) {
+      opts.onUnauthorized?.()
+      throw new ApiError(401, 'unauthorized')
+    }
+    const text = await res.text()
+    if (!res.ok) {
+      let json: { error?: string } | null = null
+      try {
+        json = text ? JSON.parse(text) : null
+      } catch {
+        json = null
+      }
+      throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`, 'http', json)
+    }
+    return text
+  }
+
   return {
     request,
 
@@ -764,6 +884,15 @@ export function createClient(opts: ClientOptions): Api {
       data<StockCount>('PUT', `${API}/stock-counts/${id}`, input, { timeoutMs: STOCK_COUNT_SAVE_TIMEOUT_MS }),
     completeStockCount: (id, items) =>
       data<StockCount>('POST', `${API}/stock-counts/${id}/complete`, { items }),
+    submitStockCount: (id, input, idempotencyKey) =>
+      data<StockCount>('POST', `${API}/stock-counts/${id}/submit`, input, idem(idempotencyKey)),
+    approveStockCount: (id, input, idempotencyKey) =>
+      data<StockCount>('POST', `${API}/stock-counts/${id}/approve`, input, idem(idempotencyKey)),
+    rejectStockCount: (id, input, idempotencyKey) =>
+      data<StockCount>('POST', `${API}/stock-counts/${id}/reject`, input, idem(idempotencyKey)),
+    exportStockCount: (id) => requestCsv(`${API}/stock-counts/${id}/export`),
+    importStockCount: (id, input, idempotencyKey) =>
+      data<StockCountImportReport>('POST', `${API}/stock-counts/${id}/import`, input, idem(idempotencyKey)),
 
     listWarehouses: () => data<Warehouse[]>('GET', `${API}/warehouses`),
     createWarehouse: (input) => data<{ id: string }>('POST', `${API}/warehouses`, input),
@@ -790,6 +919,44 @@ export function createClient(opts: ClientOptions): Api {
       request<IngredientOverviewResponse>('GET', `${API}/inventory/ingredient-overview`),
     getMovementSummary: (params) =>
       request<MovementSummaryResponse>('GET', `${API}/inventory/movement-summary${qs(params as Record<string, string | number>)}`),
+    listStockMovements: (params) =>
+      request<StockMovementPage>('GET', `${API}/inventory/movements${qsMulti(params)}`),
+    exportStockMovements: (params) => requestCsv(`${API}/inventory/movements/export${qsMulti(params)}`),
+    getMovementLedgerSummary: (params) =>
+      request<MovementLedgerSummaryResponse>('GET', `${API}/inventory/movements/summary${qsMulti(params)}`),
+    getOutletGiveaway: (outletId) => data<OutletGiveaway>('GET', `${API}/outlets/${outletId}/giveaway`),
+    setOutletGiveaway: (outletId, input, idempotencyKey) =>
+      data<OutletGiveaway>('PUT', `${API}/outlets/${outletId}/giveaway`, input, idem(idempotencyKey)),
+    listAdjustmentRequests: (params) =>
+      request<ListResult<AdjustmentRequest>>('GET', `${API}/inventory/adjustment-requests${qsMulti(params ?? {})}`),
+    createAdjustmentRequest: (input, idempotencyKey) =>
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests`, input, idem(idempotencyKey)),
+    getAdjustmentRequest: (id) => data<AdjustmentRequest>('GET', `${API}/inventory/adjustment-requests/${id}`),
+    approveAdjustmentRequest: (id, input, idempotencyKey) =>
+      data<AdjustmentRequestApproveResult>('POST', `${API}/inventory/adjustment-requests/${id}/approve`, input, idem(idempotencyKey)),
+    rejectAdjustmentRequest: (id, input, idempotencyKey) =>
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/reject`, input, idem(idempotencyKey)),
+    cancelAdjustmentRequest: (id, input, idempotencyKey) =>
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idem(idempotencyKey)),
+    listInventoryApprovals: () =>
+      request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending`),
+    listRequisitions: (params) =>
+      request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`),
+    getRequisition: (id) => data<StockRequisition>('GET', `${API}/requisitions/${id}`),
+    createRequisition: (input, idempotencyKey) =>
+      data<StockRequisition>('POST', `${API}/requisitions`, input, idem(idempotencyKey)),
+    updateRequisition: (id, input, idempotencyKey) =>
+      data<StockRequisition>('PUT', `${API}/requisitions/${id}`, input, idem(idempotencyKey)),
+    submitRequisition: (id, idempotencyKey) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/submit`, undefined, idem(idempotencyKey)),
+    cancelRequisition: (id, idempotencyKey) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/cancel`, undefined, idem(idempotencyKey)),
+    approveRequisition: (id, input, idempotencyKey) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/approve`, input, idem(idempotencyKey)),
+    rejectRequisition: (id, input, idempotencyKey) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/reject`, input, idem(idempotencyKey)),
+    fulfilRequisition: (id, idempotencyKey) =>
+      data<StockRequisitionFulfilResult>('POST', `${API}/requisitions/${id}/fulfil`, undefined, idem(idempotencyKey)),
     listTransfers: (opts) => {
       const { status, from, to, locKind, locId, page = 1, limit = 50 } = opts ?? {}
       const params: Record<string, string | number> = { page, limit }

@@ -2357,6 +2357,434 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
+         * @description Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown but never used for ordering. from/to filter occurredAt (RFC 3339, or a date read in the outlet timezone). `summary` is returned only when one SKU (productId and variantSize) is filtered.
+         */
+        get: operations["listStockMovements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/movements/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kartu stok as CSV, same filters as the list (manage_inventory)
+         * @description UTF-8 CSV with a header row; cells starting with = + - @ are guarded. The range is at most 93 days and 100000 rows; a larger export answers 413.
+         */
+        get: operations["exportStockMovements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/movements/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory) */
+        get: operations["getMovementLedgerSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlets/{id}/giveaway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** The per-sale giveaway item of an outlet (manage_outlets) */
+        get: operations["getOutletGiveaway"];
+        /** Set the per-sale giveaway item of an outlet (manage_outlets) */
+        put: operations["setOutletGiveaway"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List stock adjustment requests (manage_inventory) */
+        get: operations["listAdjustmentRequests"];
+        put?: never;
+        /** Request a stock adjustment to a new quantity; it waits for approval (manage_inventory) */
+        post: operations["createAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Get one adjustment request with its history and the live quantity (manage_inventory) */
+        get: operations["getAdjustmentRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
+         * @description The approver must be an admin or a receive approver role user, never the requester. The applied change is the requested delta (requestedNewQty minus qtyAtRequest), not the absolute value.
+         */
+        post: operations["approveAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a pending adjustment request with a note (manage_inventory) */
+        post: operations["rejectAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a pending adjustment request (the requester; manage_inventory) */
+        post: operations["cancelAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count) */
+        get: operations["listInventoryApprovals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a finished count for approval; status becomes pending_approval (manage_stock_count) */
+        post: operations["submitStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule) */
+        post: operations["approveStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule) */
+        post: operations["rejectStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Count sheet as CSV for a scanner app (manage_stock_count)
+         * @description Columns sku, barcode, product, size, expected_qty and an empty counted_qty. Cells starting with = + - @ are guarded with a leading apostrophe. Read-only.
+         */
+        get: operations["exportStockCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scanner CSV upload for an in-progress count, dry run or commit (manage_stock_count)
+         * @description Rows are barcode or sku plus counted_qty; repeated scans of one code are summed. The dry run returns the diff preview and writes nothing. A commit stores the counted quantities only (it never changes stock) and needs fileSha256 and expectedSummary from the preview and an Idempotency-Key. Same dry run and commit contract as the product import.
+         */
+        post: operations["importStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Permintaan Barang (request_stock for the own outlet, or manage_inventory) */
+        get: operations["listRequisitions"];
+        put?: never;
+        /** Create a draft Permintaan Barang for the active outlet (request_stock) */
+        post: operations["createRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory) */
+        get: operations["getRequisition"];
+        /** Replace a draft Permintaan Barang (request_stock; drafts only) */
+        put: operations["updateRequisition"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a draft Permintaan Barang to the warehouse (request_stock) */
+        post: operations["submitRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a draft or submitted Permintaan Barang (request_stock) */
+        post: operations["cancelRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory) */
+        post: operations["approveRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a submitted Permintaan Barang with a note (manage_inventory) */
+        post: operations["rejectRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requisitions/{id}/fulfil": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
+         * @description Allowed again only when the linked transfer is cancelled; the requisition then gets a new link.
+         */
+        post: operations["fulfilRequisition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3806,13 +4234,16 @@ export interface components {
             stockBefore?: number | null;
             /** @description Live stock after the difference was applied at completion. Server-recorded. */
             stockAfter?: number | null;
+            reasonCode?: components["schemas"]["InventoryReasonCode"];
+            /** @description Per-line reason set at submit; server-recorded. */
+            reasonText?: string;
         };
         StockCount: {
             /** Format: uuid */
             id: string;
             name: string;
             /** @enum {string} */
-            status: "planned" | "in_progress" | "completed" | "cancelled";
+            status: "planned" | "in_progress" | "pending_approval" | "completed" | "cancelled";
             /** Format: uuid */
             outletId?: string | null;
             /** Format: uuid */
@@ -3827,6 +4258,21 @@ export interface components {
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
+            /**
+             * Format: uuid
+             * @description Who submitted the count for approval (pending_approval and later).
+             */
+            submittedBy?: string;
+            /** Format: date-time */
+            submittedAt?: string;
+            /** Format: uuid */
+            approvedBy?: string;
+            /** Format: date-time */
+            approvedAt?: string;
+            reasonCode?: components["schemas"]["InventoryReasonCode"];
+            reasonText?: string;
+            /** @description Note of the last rejection; the count is back in progress. */
+            rejectedNote?: string;
         };
         StockCountListResponse: {
             data: components["schemas"]["StockCount"][];
@@ -3894,6 +4340,8 @@ export interface components {
             receiveApproverRoles?: string[];
             documents?: components["schemas"]["DocumentSettings"];
             recipesEnabled?: boolean;
+            /** @description When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice. */
+            inventoryApprovalRequired?: boolean;
         };
         AppSettingsResponse: {
             data: components["schemas"]["AppSettings"];
@@ -4637,6 +5085,419 @@ export interface components {
         MovementSummaryResponse: {
             data: components["schemas"]["MovementSummaryRow"][];
             meta: components["schemas"]["Meta"];
+        };
+        /** @enum {string} */
+        InventoryLocationType: "outlet" | "warehouse";
+        /**
+         * @description Reason for a stock change. `other` requires free text.
+         * @enum {string}
+         */
+        InventoryReasonCode: "damaged" | "expired" | "lost" | "found" | "data_entry" | "tester_sample" | "count_variance" | "other";
+        /** @description One append-only history event of an inventory document (count, adjustment request, requisition, outlet giveaway). */
+        InventoryDocEvent: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            action: "created" | "updated" | "submitted" | "approved" | "rejected" | "cancelled" | "applied" | "imported" | "fulfilled" | "refulfilled";
+            /** Format: uuid */
+            actorId?: string;
+            actorName?: string;
+            note?: string;
+            /** @description Action specific details, e.g. transferId, fromQty/toQty, importRunId. */
+            data?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            at: string;
+        };
+        /** @description One stock ledger movement (kartu stok line). The running balance is qtyAfter in seq order. */
+        StockMovementRow: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: int64
+             * @description Order in which the movement was applied at the location; the balance chain is continuous in this order.
+             */
+            seq: number;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            recordedAt: string;
+            /** @enum {string} */
+            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            locationName?: string;
+            /** Format: uuid */
+            productId: string;
+            productName?: string;
+            variantSize: string;
+            sku?: string;
+            barcode?: string;
+            /** @description Signed change; negative is keluar. */
+            qty: number;
+            qtyBefore: number;
+            /** @description Saldo after this movement. */
+            qtyAfter: number;
+            refType: string;
+            /** Format: uuid */
+            refId?: string;
+            refNumber?: string;
+            /** @description Ledger flags; `shortage` marks a movement that took stock below zero. */
+            flags: string[];
+            /** @description Derived: the movement is the per-sale giveaway item (ledger key giveaway:<order id>). Never sent to the ERP. */
+            isGiveaway: boolean;
+            actorId?: string;
+            actorName?: string;
+            reasonCode?: components["schemas"]["InventoryReasonCode"];
+            reasonText?: string;
+            approvedBy?: string;
+            /** @description Status of the ERP outbox document that carries this movement, when there is one. */
+            erpStatus?: string;
+        };
+        StockMovementSummary: {
+            /** @description qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty. */
+            opening: number;
+            totalIn: number;
+            /** @description Absolute outgoing quantity. */
+            totalOut: number;
+            closing: number;
+        };
+        StockMovementPage: {
+            data: components["schemas"]["StockMovementRow"][];
+            /** @description Opaque keyset cursor; absent on the last page. */
+            nextCursor?: string;
+            summary?: components["schemas"]["StockMovementSummary"];
+        };
+        MovementLedgerSummaryRow: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku: string;
+            barcode?: string;
+            opening: number;
+            /** @description Incoming quantity per movement kind. */
+            inByKind: {
+                [key: string]: number;
+            };
+            /** @description Outgoing (absolute) quantity per movement kind. */
+            outByKind: {
+                [key: string]: number;
+            };
+            closing: number;
+        };
+        MovementLedgerSummaryResponse: {
+            data: components["schemas"]["MovementLedgerSummaryRow"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** @description The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row. */
+        OutletGiveaway: {
+            /** Format: uuid */
+            outletId: string;
+            configured: boolean;
+            enabled: boolean;
+            /** Format: uuid */
+            productId?: string;
+            variantSize?: string;
+            productName?: string;
+            sku?: string;
+            /** @description The variant has an ERP slug and SKU. */
+            erpMapped?: boolean;
+            /** @description The variant still exists. */
+            valid?: boolean;
+            /** Format: uuid */
+            updatedBy?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        OutletGiveawayInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            enabled: boolean;
+        };
+        OutletGiveawayResponse: {
+            data: components["schemas"]["OutletGiveaway"];
+        };
+        /** @enum {string} */
+        AdjustmentRequestStatus: "pending_approval" | "approved" | "rejected" | "cancelled";
+        AdjustmentRequestCreateInput: {
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            newQty: number;
+            reasonCode: components["schemas"]["InventoryReasonCode"];
+            /** @description Required when reasonCode is other. */
+            reasonText?: string;
+        };
+        AdjustmentRequest: {
+            /** Format: uuid */
+            id: string;
+            number: string;
+            status: components["schemas"]["AdjustmentRequestStatus"];
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            locationName?: string;
+            /** Format: uuid */
+            productId: string;
+            productName?: string;
+            variantSize: string;
+            sku?: string;
+            /** @description Live quantity the requester saw; server-read. */
+            qtyAtRequest: number;
+            requestedNewQty: number;
+            /** @description Current live quantity, for the drift shown on the approval card. */
+            liveQty?: number;
+            reasonCode: components["schemas"]["InventoryReasonCode"];
+            reasonText?: string;
+            /** Format: uuid */
+            requestedBy: string;
+            requestedByName?: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: uuid */
+            approvedBy?: string;
+            approvedByName?: string;
+            /** Format: date-time */
+            approvedAt?: string;
+            decisionNote?: string;
+            /** Format: uuid */
+            appliedAdjustmentId?: string;
+            events?: components["schemas"]["InventoryDocEvent"][];
+        };
+        AdjustmentRequestResponse: {
+            data: components["schemas"]["AdjustmentRequest"];
+        };
+        AdjustmentRequestListResponse: {
+            data: components["schemas"]["AdjustmentRequest"][];
+            meta?: components["schemas"]["Meta"];
+        };
+        /** @description Approver step-up. The approver is the logged-in user, who re-enters their own receive PIN. */
+        InventoryApproveInput: {
+            pin: string;
+            note?: string;
+        };
+        InventoryRejectInput: {
+            note: string;
+        };
+        InventoryCancelInput: {
+            note?: string;
+        };
+        AdjustmentRequestApproveResult: {
+            request: components["schemas"]["AdjustmentRequest"];
+            /** Format: uuid */
+            appliedAdjustmentId: string;
+            /** @description Live quantity just before the delta was applied. */
+            liveQtyBefore: number;
+            /** @description The requested delta (requestedNewQty minus qtyAtRequest) that was applied. */
+            delta: number;
+        };
+        AdjustmentRequestApproveResponse: {
+            data: components["schemas"]["AdjustmentRequestApproveResult"];
+        };
+        ApprovalQueueItem: {
+            /** @enum {string} */
+            type: "count" | "adjustment";
+            /** Format: uuid */
+            id: string;
+            /** @description Document number (adjustments) or name (counts). */
+            number?: string;
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            locationName?: string;
+            /** Format: uuid */
+            requestedBy?: string;
+            requestedByName?: string;
+            /** Format: date-time */
+            at: string;
+            lines: number;
+            netDelta: number;
+        };
+        ApprovalQueueResponse: {
+            data: components["schemas"]["ApprovalQueueItem"][];
+            /** @description Number of pending items, for the nav badge. */
+            pendingCount: number;
+        };
+        InventoryConflictError: {
+            error: string;
+            /**
+             * @description Present when inventoryApprovalRequired is on and the direct endpoint was used.
+             * @enum {string}
+             */
+            code?: "approval_required";
+        };
+        StockCountSubmitLineInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            reasonCode?: components["schemas"]["InventoryReasonCode"];
+            reasonText?: string;
+        };
+        StockCountSubmitInput: {
+            reasonCode: components["schemas"]["InventoryReasonCode"];
+            reasonText?: string;
+            lines?: components["schemas"]["StockCountSubmitLineInput"][];
+        };
+        /** @enum {string} */
+        StockCountImportWarning: "unknown_code" | "ambiguous_sku" | "not_on_count" | "stock_moved_since_start";
+        StockCountImportLineRef: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            productName?: string;
+            sku?: string;
+        };
+        /** @description One scanned code after repeated scans of the same code were summed. */
+        StockCountImportRow: {
+            row: number;
+            /** @description The scanned barcode or SKU. */
+            code: string;
+            matchedLine?: components["schemas"]["StockCountImportLineRef"];
+            /** @description The line's count-start snapshot (frozenQty). */
+            expected?: number;
+            counted: number;
+            /** @description The counted value this upload overwrites, when the line was already counted. */
+            previous?: number;
+            /** @description Counted minus expected. */
+            difference?: number;
+            warnings: components["schemas"]["StockCountImportWarning"][];
+        };
+        StockCountImportReport: {
+            /** @enum {string} */
+            kind: "stock_count";
+            delimiter: string;
+            fileSha256: string;
+            totalRows: number;
+            summary: components["schemas"]["ImportSummary"];
+            fileIssues: components["schemas"]["ImportFileIssue"][];
+            /** @description every error and warning, capped at 5000 */
+            issues: components["schemas"]["ImportIssue"][];
+            /** @description first 500 rows only (counts are exact) */
+            rows: components["schemas"]["StockCountImportRow"][];
+            /** @description Count lines missing from the file; they stay uncounted. */
+            uncounted: components["schemas"]["StockCountImportLineRef"][];
+            runId?: string;
+            appliedAt?: string;
+        };
+        StockCountImportReportResponse: {
+            data: components["schemas"]["StockCountImportReport"];
+        };
+        StockCountImportRejectedResponse: {
+            data: components["schemas"]["StockCountImportReport"];
+            error: string;
+        };
+        /** @enum {string} */
+        StockRequisitionStatus: "draft" | "submitted" | "approved" | "rejected" | "fulfilled" | "cancelled";
+        StockRequisitionItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            productId: string;
+            productName?: string;
+            variantSize: string;
+            sku?: string;
+            requestedQty: number;
+            approvedQty?: number;
+            note?: string;
+        };
+        StockRequisitionTransferLink: {
+            /** Format: uuid */
+            id: string;
+            transferNo: string;
+            /** @description Live status of the linked transfer. */
+            status: string;
+        };
+        StockRequisition: {
+            /** Format: uuid */
+            id: string;
+            /** @description PB-YYYY-NNNNN */
+            number: string;
+            status: components["schemas"]["StockRequisitionStatus"];
+            /** Format: uuid */
+            outletId: string;
+            outletName?: string;
+            /**
+             * Format: uuid
+             * @description Source gudang; set from approval.
+             */
+            warehouseId?: string;
+            warehouseName?: string;
+            /** Format: date */
+            neededBy?: string;
+            note?: string;
+            /** Format: uuid */
+            requestedBy: string;
+            requestedByName?: string;
+            /** Format: date-time */
+            submittedAt?: string;
+            /** Format: uuid */
+            decidedBy?: string;
+            decidedByName?: string;
+            /** Format: date-time */
+            decidedAt?: string;
+            decisionNote?: string;
+            /** Format: uuid */
+            fulfilledBy?: string;
+            /** Format: date-time */
+            fulfilledAt?: string;
+            /** Format: date-time */
+            cancelledAt?: string;
+            transfer?: components["schemas"]["StockRequisitionTransferLink"];
+            /** @description Present on the detail read. */
+            items?: components["schemas"]["StockRequisitionItem"][];
+            /** @description Present on the detail read. */
+            events?: components["schemas"]["InventoryDocEvent"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        StockRequisitionItemInput: {
+            /** Format: uuid */
+            productId: string;
+            variantSize: string;
+            requestedQty: number;
+            note?: string;
+        };
+        /** @description Create or replace a draft requisition. The outlet is the caller's active outlet (X-Outlet-Id for an admin). */
+        StockRequisitionInput: {
+            note?: string;
+            /** Format: date */
+            neededBy?: string;
+            items: components["schemas"]["StockRequisitionItemInput"][];
+        };
+        StockRequisitionApproveItemInput: {
+            /** Format: uuid */
+            itemId: string;
+            approvedQty: number;
+        };
+        StockRequisitionApproveInput: {
+            /** Format: uuid */
+            warehouseId: string;
+            items: components["schemas"]["StockRequisitionApproveItemInput"][];
+            note?: string;
+        };
+        StockRequisitionFulfilResult: {
+            /** Format: uuid */
+            transferId: string;
+            transferNo: string;
+        };
+        StockRequisitionFulfilResponse: {
+            data: components["schemas"]["StockRequisitionFulfilResult"];
+        };
+        StockRequisitionResponse: {
+            data: components["schemas"]["StockRequisition"];
+        };
+        StockRequisitionListResponse: {
+            data: components["schemas"]["StockRequisition"][];
+            meta?: components["schemas"]["Meta"];
         };
     };
     responses: {
@@ -6761,12 +7622,14 @@ export interface operations {
                     "application/json": components["schemas"]["OkResponse"];
                 };
             };
-            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            /** @description Idempotency-Key reused with a different request, a conflicting state, or code approval_required when inventoryApprovalRequired is on (use the adjustment request flow) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InventoryConflictError"];
+                };
             };
         };
     };
@@ -8496,12 +9359,14 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request */
+            /** @description count is not in progress, lock conflict (retryable), Idempotency-Key reused with a different request, or code approval_required when inventoryApprovalRequired is on (use submit and approve) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InventoryConflictError"];
+                };
             };
         };
     };
@@ -9781,6 +10646,1147 @@ export interface operations {
                 };
             };
             /** @description row is pending or sending */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStockMovements: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                productId?: string;
+                variantSize?: string;
+                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
+                flag?: "shortage";
+                /** @description true returns only giveaway movements (derived from the ledger key). */
+                giveaway?: boolean;
+                from?: string;
+                to?: string;
+                /** @description Opaque; the nextCursor of the previous page. */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description movements */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovementPage"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    exportStockMovements: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                productId?: string;
+                variantSize?: string;
+                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
+                flag?: "shortage";
+                giveaway?: boolean;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (UTF-8, header row) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description range over 93 days or over 100000 rows */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getMovementLedgerSummary: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                from?: string;
+                to?: string;
+                /** @description Substring match on product name, SKU or barcode. */
+                q?: string;
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ledger summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementLedgerSummaryResponse"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getOutletGiveaway: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description giveaway setting; configured false when the outlet has none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutletGiveawayResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setOutletGiveaway: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutletGiveawayInput"];
+            };
+        };
+        responses: {
+            /** @description saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutletGiveawayResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description the variant does not exist, the ERP integration is on and the variant has no ERP slug and SKU, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listAdjustmentRequests: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["AdjustmentRequestStatus"];
+                locationType?: components["schemas"]["InventoryLocationType"];
+                locationId?: string;
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description adjustment requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestListResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentRequestCreateInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Idempotency-Key reused with a different request, or a conflicting state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description adjustment request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    approveAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryApproveInput"];
+            };
+        };
+        responses: {
+            /** @description approved and applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestApproveResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description same body for an ineligible approver, no PIN set and a wrong PIN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description request is not pending, the approver is the requester, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveApprovalLocked"];
+                };
+            };
+            /** @description lock wait timed out or the database is busy; nothing was verified, retry after Retry-After */
+            503: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    rejectAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryRejectInput"];
+            };
+        };
+        responses: {
+            /** @description rejected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description request is not pending, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cancelAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InventoryCancelInput"];
+            };
+        };
+        responses: {
+            /** @description cancelled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description request is not pending, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listInventoryApprovals: {
+        parameters: {
+            query?: {
+                status?: "pending";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description pending approvals and the pending count */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalQueueResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    submitStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockCountSubmitInput"];
+            };
+        };
+        responses: {
+            /** @description submitted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description count is not in progress, lock conflict (retryable), or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    approveStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryApproveInput"];
+            };
+        };
+        responses: {
+            /** @description approved and applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description same body for an ineligible approver, no PIN set and a wrong PIN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description count is not pending approval, the approver is the submitter, lock conflict (retryable), or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description locked out after repeated wrong PINs; see Retry-After (seconds, absent on a hard lock) and the body */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveApprovalLocked"];
+                };
+            };
+            /** @description lock wait timed out or the database is busy; nothing was verified, retry after Retry-After */
+            503: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    rejectStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryRejectInput"];
+            };
+        };
+        responses: {
+            /** @description rejected, back in progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description count is not pending approval, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    exportStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (UTF-8, header row) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    importStockCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Required when dryRun=false (generated once per preview, reused on retry). */
+                "Idempotency-Key"?: components["parameters"]["ImportIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            /** @description preview, applied result, or replay of an earlier commit */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountImportReportResponse"];
+                };
+            };
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["ImportConflict"];
+            /** @description request body over the 20 MiB cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description file or row errors; nothing was applied (the report says why) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountImportRejectedResponse"];
+                };
+            };
+            /** @description two imports already running in this process; retry shortly */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description busy (lock conflict), nothing applied, retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listRequisitions: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["StockRequisitionStatus"];
+                outletId?: string;
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description requisitions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionListResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockRequisitionInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description requisition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockRequisitionInput"];
+            };
+        };
+        responses: {
+            /** @description updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is not a draft, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    submitRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description submitted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is not a draft, it has no lines, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cancelRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description cancelled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is already decided, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    approveRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockRequisitionApproveInput"];
+            };
+        };
+        responses: {
+            /** @description approved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is not submitted, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    rejectRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryRejectInput"];
+            };
+        };
+        responses: {
+            /** @description rejected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is not submitted, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    fulfilRequisition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description transfer draft created and linked */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockRequisitionFulfilResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description requisition is not approved, a non-cancelled transfer is already linked, or Idempotency-Key reused with a different request */
             409: {
                 headers: {
                     [name: string]: unknown;

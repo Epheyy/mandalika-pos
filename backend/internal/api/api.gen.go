@@ -30,6 +30,30 @@ const (
 	SchedulerSecretScopes schedulerSecretContextKey = "schedulerSecret.Scopes"
 )
 
+// Defines values for AdjustmentRequestStatus.
+const (
+	AdjustmentRequestStatusApproved        AdjustmentRequestStatus = "approved"
+	AdjustmentRequestStatusCancelled       AdjustmentRequestStatus = "cancelled"
+	AdjustmentRequestStatusPendingApproval AdjustmentRequestStatus = "pending_approval"
+	AdjustmentRequestStatusRejected        AdjustmentRequestStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the AdjustmentRequestStatus enum.
+func (e AdjustmentRequestStatus) Valid() bool {
+	switch e {
+	case AdjustmentRequestStatusApproved:
+		return true
+	case AdjustmentRequestStatusCancelled:
+		return true
+	case AdjustmentRequestStatusPendingApproval:
+		return true
+	case AdjustmentRequestStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AppSettingsRoundingDirection.
 const (
 	Ceil    AppSettingsRoundingDirection = "ceil"
@@ -66,6 +90,24 @@ func (e AppSettingsRoundingType) Valid() bool {
 	case Nearest500:
 		return true
 	case None:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ApprovalQueueItemType.
+const (
+	ApprovalQueueItemTypeAdjustment ApprovalQueueItemType = "adjustment"
+	ApprovalQueueItemTypeCount      ApprovalQueueItemType = "count"
+)
+
+// Valid indicates whether the value is a known member of the ApprovalQueueItemType enum.
+func (e ApprovalQueueItemType) Valid() bool {
+	switch e {
+	case ApprovalQueueItemTypeAdjustment:
+		return true
+	case ApprovalQueueItemTypeCount:
 		return true
 	default:
 		return false
@@ -729,6 +771,81 @@ func (e InteractionInputType) Valid() bool {
 	}
 }
 
+// Defines values for InventoryConflictErrorCode.
+const (
+	ApprovalRequired InventoryConflictErrorCode = "approval_required"
+)
+
+// Valid indicates whether the value is a known member of the InventoryConflictErrorCode enum.
+func (e InventoryConflictErrorCode) Valid() bool {
+	switch e {
+	case ApprovalRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InventoryDocEventAction.
+const (
+	InventoryDocEventActionApplied     InventoryDocEventAction = "applied"
+	InventoryDocEventActionApproved    InventoryDocEventAction = "approved"
+	InventoryDocEventActionCancelled   InventoryDocEventAction = "cancelled"
+	InventoryDocEventActionCreated     InventoryDocEventAction = "created"
+	InventoryDocEventActionFulfilled   InventoryDocEventAction = "fulfilled"
+	InventoryDocEventActionImported    InventoryDocEventAction = "imported"
+	InventoryDocEventActionRefulfilled InventoryDocEventAction = "refulfilled"
+	InventoryDocEventActionRejected    InventoryDocEventAction = "rejected"
+	InventoryDocEventActionSubmitted   InventoryDocEventAction = "submitted"
+	InventoryDocEventActionUpdated     InventoryDocEventAction = "updated"
+)
+
+// Valid indicates whether the value is a known member of the InventoryDocEventAction enum.
+func (e InventoryDocEventAction) Valid() bool {
+	switch e {
+	case InventoryDocEventActionApplied:
+		return true
+	case InventoryDocEventActionApproved:
+		return true
+	case InventoryDocEventActionCancelled:
+		return true
+	case InventoryDocEventActionCreated:
+		return true
+	case InventoryDocEventActionFulfilled:
+		return true
+	case InventoryDocEventActionImported:
+		return true
+	case InventoryDocEventActionRefulfilled:
+		return true
+	case InventoryDocEventActionRejected:
+		return true
+	case InventoryDocEventActionSubmitted:
+		return true
+	case InventoryDocEventActionUpdated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InventoryLocationType.
+const (
+	InventoryLocationTypeOutlet    InventoryLocationType = "outlet"
+	InventoryLocationTypeWarehouse InventoryLocationType = "warehouse"
+)
+
+// Valid indicates whether the value is a known member of the InventoryLocationType enum.
+func (e InventoryLocationType) Valid() bool {
+	switch e {
+	case InventoryLocationTypeOutlet:
+		return true
+	case InventoryLocationTypeWarehouse:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InventoryOverviewLocationKind.
 const (
 	InventoryOverviewLocationKindOutlet    InventoryOverviewLocationKind = "outlet"
@@ -741,6 +858,42 @@ func (e InventoryOverviewLocationKind) Valid() bool {
 	case InventoryOverviewLocationKindOutlet:
 		return true
 	case InventoryOverviewLocationKindWarehouse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InventoryReasonCode.
+const (
+	CountVariance InventoryReasonCode = "count_variance"
+	Damaged       InventoryReasonCode = "damaged"
+	DataEntry     InventoryReasonCode = "data_entry"
+	Expired       InventoryReasonCode = "expired"
+	Found         InventoryReasonCode = "found"
+	Lost          InventoryReasonCode = "lost"
+	Other         InventoryReasonCode = "other"
+	TesterSample  InventoryReasonCode = "tester_sample"
+)
+
+// Valid indicates whether the value is a known member of the InventoryReasonCode enum.
+func (e InventoryReasonCode) Valid() bool {
+	switch e {
+	case CountVariance:
+		return true
+	case Damaged:
+		return true
+	case DataEntry:
+		return true
+	case Expired:
+		return true
+	case Found:
+		return true
+	case Lost:
+		return true
+	case Other:
+		return true
+	case TesterSample:
 		return true
 	default:
 		return false
@@ -1067,10 +1220,11 @@ func (e ShiftStatus) Valid() bool {
 
 // Defines values for StockCountStatus.
 const (
-	StockCountStatusCancelled  StockCountStatus = "cancelled"
-	StockCountStatusCompleted  StockCountStatus = "completed"
-	StockCountStatusInProgress StockCountStatus = "in_progress"
-	StockCountStatusPlanned    StockCountStatus = "planned"
+	StockCountStatusCancelled       StockCountStatus = "cancelled"
+	StockCountStatusCompleted       StockCountStatus = "completed"
+	StockCountStatusInProgress      StockCountStatus = "in_progress"
+	StockCountStatusPendingApproval StockCountStatus = "pending_approval"
+	StockCountStatusPlanned         StockCountStatus = "planned"
 )
 
 // Valid indicates whether the value is a known member of the StockCountStatus enum.
@@ -1082,7 +1236,48 @@ func (e StockCountStatus) Valid() bool {
 		return true
 	case StockCountStatusInProgress:
 		return true
+	case StockCountStatusPendingApproval:
+		return true
 	case StockCountStatusPlanned:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockCountImportReportKind.
+const (
+	StockCountImportReportKindStockCount StockCountImportReportKind = "stock_count"
+)
+
+// Valid indicates whether the value is a known member of the StockCountImportReportKind enum.
+func (e StockCountImportReportKind) Valid() bool {
+	switch e {
+	case StockCountImportReportKindStockCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockCountImportWarning.
+const (
+	AmbiguousSku         StockCountImportWarning = "ambiguous_sku"
+	NotOnCount           StockCountImportWarning = "not_on_count"
+	StockMovedSinceStart StockCountImportWarning = "stock_moved_since_start"
+	UnknownCode          StockCountImportWarning = "unknown_code"
+)
+
+// Valid indicates whether the value is a known member of the StockCountImportWarning enum.
+func (e StockCountImportWarning) Valid() bool {
+	switch e {
+	case AmbiguousSku:
+		return true
+	case NotOnCount:
+		return true
+	case StockMovedSinceStart:
+		return true
+	case UnknownCode:
 		return true
 	default:
 		return false
@@ -1101,6 +1296,78 @@ func (e StockCountUpdateInputStatus) Valid() bool {
 	case StockCountUpdateInputStatusCancelled:
 		return true
 	case StockCountUpdateInputStatusInProgress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockMovementRowKind.
+const (
+	StockMovementRowKindAdjust         StockMovementRowKind = "adjust"
+	StockMovementRowKindCount          StockMovementRowKind = "count"
+	StockMovementRowKindOpening        StockMovementRowKind = "opening"
+	StockMovementRowKindReceipt        StockMovementRowKind = "receipt"
+	StockMovementRowKindRefund         StockMovementRowKind = "refund"
+	StockMovementRowKindSale           StockMovementRowKind = "sale"
+	StockMovementRowKindTransferCancel StockMovementRowKind = "transfer_cancel"
+	StockMovementRowKindTransferIn     StockMovementRowKind = "transfer_in"
+	StockMovementRowKindTransferOut    StockMovementRowKind = "transfer_out"
+	StockMovementRowKindWriteOff       StockMovementRowKind = "write_off"
+)
+
+// Valid indicates whether the value is a known member of the StockMovementRowKind enum.
+func (e StockMovementRowKind) Valid() bool {
+	switch e {
+	case StockMovementRowKindAdjust:
+		return true
+	case StockMovementRowKindCount:
+		return true
+	case StockMovementRowKindOpening:
+		return true
+	case StockMovementRowKindReceipt:
+		return true
+	case StockMovementRowKindRefund:
+		return true
+	case StockMovementRowKindSale:
+		return true
+	case StockMovementRowKindTransferCancel:
+		return true
+	case StockMovementRowKindTransferIn:
+		return true
+	case StockMovementRowKindTransferOut:
+		return true
+	case StockMovementRowKindWriteOff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockRequisitionStatus.
+const (
+	StockRequisitionStatusApproved  StockRequisitionStatus = "approved"
+	StockRequisitionStatusCancelled StockRequisitionStatus = "cancelled"
+	StockRequisitionStatusDraft     StockRequisitionStatus = "draft"
+	StockRequisitionStatusFulfilled StockRequisitionStatus = "fulfilled"
+	StockRequisitionStatusRejected  StockRequisitionStatus = "rejected"
+	StockRequisitionStatusSubmitted StockRequisitionStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the StockRequisitionStatus enum.
+func (e StockRequisitionStatus) Valid() bool {
+	switch e {
+	case StockRequisitionStatusApproved:
+		return true
+	case StockRequisitionStatusCancelled:
+		return true
+	case StockRequisitionStatusDraft:
+		return true
+	case StockRequisitionStatusFulfilled:
+		return true
+	case StockRequisitionStatusRejected:
+		return true
+	case StockRequisitionStatusSubmitted:
 		return true
 	default:
 		return false
@@ -1511,19 +1778,19 @@ func (e ListErpOutboxParamsKind) Valid() bool {
 
 // Defines values for ListDupCandidatesParamsStatus.
 const (
-	Dismissed ListDupCandidatesParamsStatus = "dismissed"
-	Merged    ListDupCandidatesParamsStatus = "merged"
-	Pending   ListDupCandidatesParamsStatus = "pending"
+	ListDupCandidatesParamsStatusDismissed ListDupCandidatesParamsStatus = "dismissed"
+	ListDupCandidatesParamsStatusMerged    ListDupCandidatesParamsStatus = "merged"
+	ListDupCandidatesParamsStatusPending   ListDupCandidatesParamsStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the ListDupCandidatesParamsStatus enum.
 func (e ListDupCandidatesParamsStatus) Valid() bool {
 	switch e {
-	case Dismissed:
+	case ListDupCandidatesParamsStatusDismissed:
 		return true
-	case Merged:
+	case ListDupCandidatesParamsStatusMerged:
 		return true
-	case Pending:
+	case ListDupCandidatesParamsStatusPending:
 		return true
 	default:
 		return false
@@ -1581,6 +1848,21 @@ func (e AdjustLocationStockParamsKind) Valid() bool {
 	case AdjustLocationStockParamsKindOutlet:
 		return true
 	case AdjustLocationStockParamsKindWarehouse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListInventoryApprovalsParamsStatus.
+const (
+	ListInventoryApprovalsParamsStatusPending ListInventoryApprovalsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListInventoryApprovalsParamsStatus enum.
+func (e ListInventoryApprovalsParamsStatus) Valid() bool {
+	switch e {
+	case ListInventoryApprovalsParamsStatusPending:
 		return true
 	default:
 		return false
@@ -1671,6 +1953,120 @@ func (e GetMovementSummaryParamsKind) Valid() bool {
 	case GetMovementSummaryParamsKindOutlet:
 		return true
 	case GetMovementSummaryParamsKindWarehouse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStockMovementsParamsKind.
+const (
+	ListStockMovementsParamsKindAdjust         ListStockMovementsParamsKind = "adjust"
+	ListStockMovementsParamsKindCount          ListStockMovementsParamsKind = "count"
+	ListStockMovementsParamsKindOpening        ListStockMovementsParamsKind = "opening"
+	ListStockMovementsParamsKindReceipt        ListStockMovementsParamsKind = "receipt"
+	ListStockMovementsParamsKindRefund         ListStockMovementsParamsKind = "refund"
+	ListStockMovementsParamsKindSale           ListStockMovementsParamsKind = "sale"
+	ListStockMovementsParamsKindTransferCancel ListStockMovementsParamsKind = "transfer_cancel"
+	ListStockMovementsParamsKindTransferIn     ListStockMovementsParamsKind = "transfer_in"
+	ListStockMovementsParamsKindTransferOut    ListStockMovementsParamsKind = "transfer_out"
+	ListStockMovementsParamsKindWriteOff       ListStockMovementsParamsKind = "write_off"
+)
+
+// Valid indicates whether the value is a known member of the ListStockMovementsParamsKind enum.
+func (e ListStockMovementsParamsKind) Valid() bool {
+	switch e {
+	case ListStockMovementsParamsKindAdjust:
+		return true
+	case ListStockMovementsParamsKindCount:
+		return true
+	case ListStockMovementsParamsKindOpening:
+		return true
+	case ListStockMovementsParamsKindReceipt:
+		return true
+	case ListStockMovementsParamsKindRefund:
+		return true
+	case ListStockMovementsParamsKindSale:
+		return true
+	case ListStockMovementsParamsKindTransferCancel:
+		return true
+	case ListStockMovementsParamsKindTransferIn:
+		return true
+	case ListStockMovementsParamsKindTransferOut:
+		return true
+	case ListStockMovementsParamsKindWriteOff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStockMovementsParamsFlag.
+const (
+	ListStockMovementsParamsFlagShortage ListStockMovementsParamsFlag = "shortage"
+)
+
+// Valid indicates whether the value is a known member of the ListStockMovementsParamsFlag enum.
+func (e ListStockMovementsParamsFlag) Valid() bool {
+	switch e {
+	case ListStockMovementsParamsFlagShortage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportStockMovementsParamsKind.
+const (
+	ExportStockMovementsParamsKindAdjust         ExportStockMovementsParamsKind = "adjust"
+	ExportStockMovementsParamsKindCount          ExportStockMovementsParamsKind = "count"
+	ExportStockMovementsParamsKindOpening        ExportStockMovementsParamsKind = "opening"
+	ExportStockMovementsParamsKindReceipt        ExportStockMovementsParamsKind = "receipt"
+	ExportStockMovementsParamsKindRefund         ExportStockMovementsParamsKind = "refund"
+	ExportStockMovementsParamsKindSale           ExportStockMovementsParamsKind = "sale"
+	ExportStockMovementsParamsKindTransferCancel ExportStockMovementsParamsKind = "transfer_cancel"
+	ExportStockMovementsParamsKindTransferIn     ExportStockMovementsParamsKind = "transfer_in"
+	ExportStockMovementsParamsKindTransferOut    ExportStockMovementsParamsKind = "transfer_out"
+	ExportStockMovementsParamsKindWriteOff       ExportStockMovementsParamsKind = "write_off"
+)
+
+// Valid indicates whether the value is a known member of the ExportStockMovementsParamsKind enum.
+func (e ExportStockMovementsParamsKind) Valid() bool {
+	switch e {
+	case ExportStockMovementsParamsKindAdjust:
+		return true
+	case ExportStockMovementsParamsKindCount:
+		return true
+	case ExportStockMovementsParamsKindOpening:
+		return true
+	case ExportStockMovementsParamsKindReceipt:
+		return true
+	case ExportStockMovementsParamsKindRefund:
+		return true
+	case ExportStockMovementsParamsKindSale:
+		return true
+	case ExportStockMovementsParamsKindTransferCancel:
+		return true
+	case ExportStockMovementsParamsKindTransferIn:
+		return true
+	case ExportStockMovementsParamsKindTransferOut:
+		return true
+	case ExportStockMovementsParamsKindWriteOff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportStockMovementsParamsFlag.
+const (
+	ExportStockMovementsParamsFlagShortage ExportStockMovementsParamsFlag = "shortage"
+)
+
+// Valid indicates whether the value is a known member of the ExportStockMovementsParamsFlag enum.
+func (e ExportStockMovementsParamsFlag) Valid() bool {
+	switch e {
+	case ExportStockMovementsParamsFlagShortage:
 		return true
 	default:
 		return false
@@ -1796,16 +2192,16 @@ func (e ListSyncReviewItemsParamsStatus) Valid() bool {
 
 // Defines values for GetOutletTransfersParamsStatus.
 const (
-	Cancelled GetOutletTransfersParamsStatus = "cancelled"
-	Completed GetOutletTransfersParamsStatus = "completed"
+	GetOutletTransfersParamsStatusCancelled GetOutletTransfersParamsStatus = "cancelled"
+	GetOutletTransfersParamsStatusCompleted GetOutletTransfersParamsStatus = "completed"
 )
 
 // Valid indicates whether the value is a known member of the GetOutletTransfersParamsStatus enum.
 func (e GetOutletTransfersParamsStatus) Valid() bool {
 	switch e {
-	case Cancelled:
+	case GetOutletTransfersParamsStatusCancelled:
 		return true
-	case Completed:
+	case GetOutletTransfersParamsStatusCompleted:
 		return true
 	default:
 		return false
@@ -1861,13 +2257,96 @@ type AdjustPointsResponse struct {
 	} `json:"data"`
 }
 
+// AdjustmentRequest defines model for AdjustmentRequest.
+type AdjustmentRequest struct {
+	AppliedAdjustmentId *openapi_types.UUID  `json:"appliedAdjustmentId,omitempty"`
+	ApprovedAt          *time.Time           `json:"approvedAt,omitempty"`
+	ApprovedBy          *openapi_types.UUID  `json:"approvedBy,omitempty"`
+	ApprovedByName      *string              `json:"approvedByName,omitempty"`
+	DecisionNote        *string              `json:"decisionNote,omitempty"`
+	Events              *[]InventoryDocEvent `json:"events,omitempty"`
+	Id                  openapi_types.UUID   `json:"id"`
+
+	// LiveQty Current live quantity, for the drift shown on the approval card.
+	LiveQty      *int                  `json:"liveQty,omitempty"`
+	LocationId   openapi_types.UUID    `json:"locationId"`
+	LocationName *string               `json:"locationName,omitempty"`
+	LocationType InventoryLocationType `json:"locationType"`
+	Number       string                `json:"number"`
+	ProductId    openapi_types.UUID    `json:"productId"`
+	ProductName  *string               `json:"productName,omitempty"`
+
+	// QtyAtRequest Live quantity the requester saw; server-read.
+	QtyAtRequest int `json:"qtyAtRequest"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode      InventoryReasonCode     `json:"reasonCode"`
+	ReasonText      *string                 `json:"reasonText,omitempty"`
+	RequestedAt     time.Time               `json:"requestedAt"`
+	RequestedBy     openapi_types.UUID      `json:"requestedBy"`
+	RequestedByName *string                 `json:"requestedByName,omitempty"`
+	RequestedNewQty int                     `json:"requestedNewQty"`
+	Sku             *string                 `json:"sku,omitempty"`
+	Status          AdjustmentRequestStatus `json:"status"`
+	VariantSize     string                  `json:"variantSize"`
+}
+
+// AdjustmentRequestApproveResponse defines model for AdjustmentRequestApproveResponse.
+type AdjustmentRequestApproveResponse struct {
+	Data AdjustmentRequestApproveResult `json:"data"`
+}
+
+// AdjustmentRequestApproveResult defines model for AdjustmentRequestApproveResult.
+type AdjustmentRequestApproveResult struct {
+	AppliedAdjustmentId openapi_types.UUID `json:"appliedAdjustmentId"`
+
+	// Delta The requested delta (requestedNewQty minus qtyAtRequest) that was applied.
+	Delta int `json:"delta"`
+
+	// LiveQtyBefore Live quantity just before the delta was applied.
+	LiveQtyBefore int               `json:"liveQtyBefore"`
+	Request       AdjustmentRequest `json:"request"`
+}
+
+// AdjustmentRequestCreateInput defines model for AdjustmentRequestCreateInput.
+type AdjustmentRequestCreateInput struct {
+	LocationId   openapi_types.UUID    `json:"locationId"`
+	LocationType InventoryLocationType `json:"locationType"`
+	NewQty       int                   `json:"newQty"`
+	ProductId    openapi_types.UUID    `json:"productId"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode InventoryReasonCode `json:"reasonCode"`
+
+	// ReasonText Required when reasonCode is other.
+	ReasonText  *string `json:"reasonText,omitempty"`
+	VariantSize string  `json:"variantSize"`
+}
+
+// AdjustmentRequestListResponse defines model for AdjustmentRequestListResponse.
+type AdjustmentRequestListResponse struct {
+	Data []AdjustmentRequest `json:"data"`
+	Meta *Meta               `json:"meta,omitempty"`
+}
+
+// AdjustmentRequestResponse defines model for AdjustmentRequestResponse.
+type AdjustmentRequestResponse struct {
+	Data AdjustmentRequest `json:"data"`
+}
+
+// AdjustmentRequestStatus defines model for AdjustmentRequestStatus.
+type AdjustmentRequestStatus string
+
 // AppSettings defines model for AppSettings.
 type AppSettings struct {
-	AllowNegativeStock bool                  `json:"allowNegativeStock"`
-	AutoOpenShift      bool                  `json:"autoOpenShift"`
-	Documents          *DocumentSettings     `json:"documents,omitempty"`
-	PaymentMethods     []PaymentMethodConfig `json:"paymentMethods"`
-	Receipt            ReceiptSettings       `json:"receipt"`
+	AllowNegativeStock bool              `json:"allowNegativeStock"`
+	AutoOpenShift      bool              `json:"autoOpenShift"`
+	Documents          *DocumentSettings `json:"documents,omitempty"`
+
+	// InventoryApprovalRequired When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice.
+	InventoryApprovalRequired *bool                 `json:"inventoryApprovalRequired,omitempty"`
+	PaymentMethods            []PaymentMethodConfig `json:"paymentMethods"`
+	Receipt                   ReceiptSettings       `json:"receipt"`
 
 	// ReceiveApproverRoles Roles whose users may approve a POS transfer receive.
 	ReceiveApproverRoles *[]string                                       `json:"receiveApproverRoles,omitempty"`
@@ -1890,6 +2369,34 @@ type AppSettingsRoundingType string
 // AppSettingsResponse defines model for AppSettingsResponse.
 type AppSettingsResponse struct {
 	Data AppSettings `json:"data"`
+}
+
+// ApprovalQueueItem defines model for ApprovalQueueItem.
+type ApprovalQueueItem struct {
+	At           time.Time             `json:"at"`
+	Id           openapi_types.UUID    `json:"id"`
+	Lines        int                   `json:"lines"`
+	LocationId   openapi_types.UUID    `json:"locationId"`
+	LocationName *string               `json:"locationName,omitempty"`
+	LocationType InventoryLocationType `json:"locationType"`
+	NetDelta     int                   `json:"netDelta"`
+
+	// Number Document number (adjustments) or name (counts).
+	Number          *string               `json:"number,omitempty"`
+	RequestedBy     *openapi_types.UUID   `json:"requestedBy,omitempty"`
+	RequestedByName *string               `json:"requestedByName,omitempty"`
+	Type            ApprovalQueueItemType `json:"type"`
+}
+
+// ApprovalQueueItemType defines model for ApprovalQueueItem.Type.
+type ApprovalQueueItemType string
+
+// ApprovalQueueResponse defines model for ApprovalQueueResponse.
+type ApprovalQueueResponse struct {
+	Data []ApprovalQueueItem `json:"data"`
+
+	// PendingCount Number of pending items, for the nav badge.
+	PendingCount int `json:"pendingCount"`
 }
 
 // AuthData defines model for AuthData.
@@ -2951,6 +3458,46 @@ type InteractionListResponse struct {
 	Meta Meta          `json:"meta"`
 }
 
+// InventoryApproveInput Approver step-up. The approver is the logged-in user, who re-enters their own receive PIN.
+type InventoryApproveInput struct {
+	Note *string `json:"note,omitempty"`
+	Pin  string  `json:"pin"`
+}
+
+// InventoryCancelInput defines model for InventoryCancelInput.
+type InventoryCancelInput struct {
+	Note *string `json:"note,omitempty"`
+}
+
+// InventoryConflictError defines model for InventoryConflictError.
+type InventoryConflictError struct {
+	// Code Present when inventoryApprovalRequired is on and the direct endpoint was used.
+	Code  *InventoryConflictErrorCode `json:"code,omitempty"`
+	Error string                      `json:"error"`
+}
+
+// InventoryConflictErrorCode Present when inventoryApprovalRequired is on and the direct endpoint was used.
+type InventoryConflictErrorCode string
+
+// InventoryDocEvent One append-only history event of an inventory document (count, adjustment request, requisition, outlet giveaway).
+type InventoryDocEvent struct {
+	Action    InventoryDocEventAction `json:"action"`
+	ActorId   *openapi_types.UUID     `json:"actorId,omitempty"`
+	ActorName *string                 `json:"actorName,omitempty"`
+	At        time.Time               `json:"at"`
+
+	// Data Action specific details, e.g. transferId, fromQty/toQty, importRunId.
+	Data *map[string]interface{} `json:"data,omitempty"`
+	Id   int64                   `json:"id"`
+	Note *string                 `json:"note,omitempty"`
+}
+
+// InventoryDocEventAction defines model for InventoryDocEvent.Action.
+type InventoryDocEventAction string
+
+// InventoryLocationType defines model for InventoryLocationType.
+type InventoryLocationType string
+
 // InventoryOverviewCell defines model for InventoryOverviewCell.
 type InventoryOverviewCell struct {
 	BelowPar   nullable.Nullable[bool] `json:"belowPar,omitempty"`
@@ -2982,6 +3529,14 @@ type InventoryOverviewRow struct {
 	Sku         *string                 `json:"sku,omitempty"`
 	Total       int                     `json:"total"`
 	VariantSize string                  `json:"variantSize"`
+}
+
+// InventoryReasonCode Reason for a stock change. `other` requires free text.
+type InventoryReasonCode string
+
+// InventoryRejectInput defines model for InventoryRejectInput.
+type InventoryRejectInput struct {
+	Note string `json:"note"`
 }
 
 // Letterhead defines model for Letterhead.
@@ -3106,6 +3661,29 @@ type Meta struct {
 	Limit int `json:"limit"`
 	Page  int `json:"page"`
 	Total int `json:"total"`
+}
+
+// MovementLedgerSummaryResponse defines model for MovementLedgerSummaryResponse.
+type MovementLedgerSummaryResponse struct {
+	Data []MovementLedgerSummaryRow `json:"data"`
+	Meta Meta                       `json:"meta"`
+}
+
+// MovementLedgerSummaryRow defines model for MovementLedgerSummaryRow.
+type MovementLedgerSummaryRow struct {
+	Barcode *string `json:"barcode,omitempty"`
+	Closing int     `json:"closing"`
+
+	// InByKind Incoming quantity per movement kind.
+	InByKind map[string]int `json:"inByKind"`
+	Opening  int            `json:"opening"`
+
+	// OutByKind Outgoing (absolute) quantity per movement kind.
+	OutByKind   map[string]int     `json:"outByKind"`
+	ProductId   openapi_types.UUID `json:"productId"`
+	ProductName string             `json:"productName"`
+	Sku         string             `json:"sku"`
+	VariantSize string             `json:"variantSize"`
 }
 
 // MovementSummaryResponse defines model for MovementSummaryResponse.
@@ -3267,6 +3845,38 @@ type OutletConfigItemInput struct {
 // OutletConfigResponse defines model for OutletConfigResponse.
 type OutletConfigResponse struct {
 	Data []OutletVariantConfig `json:"data"`
+}
+
+// OutletGiveaway The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row.
+type OutletGiveaway struct {
+	Configured bool `json:"configured"`
+	Enabled    bool `json:"enabled"`
+
+	// ErpMapped The variant has an ERP slug and SKU.
+	ErpMapped   *bool               `json:"erpMapped,omitempty"`
+	OutletId    openapi_types.UUID  `json:"outletId"`
+	ProductId   *openapi_types.UUID `json:"productId,omitempty"`
+	ProductName *string             `json:"productName,omitempty"`
+	Sku         *string             `json:"sku,omitempty"`
+	UpdatedAt   *time.Time          `json:"updatedAt,omitempty"`
+	UpdatedBy   *openapi_types.UUID `json:"updatedBy,omitempty"`
+
+	// Valid The variant still exists.
+	Valid       *bool   `json:"valid,omitempty"`
+	VariantSize *string `json:"variantSize,omitempty"`
+}
+
+// OutletGiveawayInput defines model for OutletGiveawayInput.
+type OutletGiveawayInput struct {
+	Enabled     bool               `json:"enabled"`
+	ProductId   openapi_types.UUID `json:"productId"`
+	VariantSize string             `json:"variantSize"`
+}
+
+// OutletGiveawayResponse defines model for OutletGiveawayResponse.
+type OutletGiveawayResponse struct {
+	// Data The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row.
+	Data OutletGiveaway `json:"data"`
 }
 
 // OutletInput defines model for OutletInput.
@@ -3905,6 +4515,8 @@ type ShiftResponse struct {
 
 // StockCount defines model for StockCount.
 type StockCount struct {
+	ApprovedAt  *time.Time                            `json:"approvedAt,omitempty"`
+	ApprovedBy  *openapi_types.UUID                   `json:"approvedBy,omitempty"`
 	CompletedAt nullable.Nullable[time.Time]          `json:"completedAt,omitempty"`
 	CreatedAt   time.Time                             `json:"createdAt"`
 	CreatedBy   string                                `json:"createdBy"`
@@ -3914,8 +4526,19 @@ type StockCount struct {
 	Notes       nullable.Nullable[string]             `json:"notes,omitempty"`
 	OutletId    nullable.Nullable[openapi_types.UUID] `json:"outletId,omitempty"`
 	PlannedDate nullable.Nullable[string]             `json:"plannedDate,omitempty"`
-	StartedAt   nullable.Nullable[time.Time]          `json:"startedAt,omitempty"`
-	Status      StockCountStatus                      `json:"status"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode *InventoryReasonCode `json:"reasonCode,omitempty"`
+	ReasonText *string              `json:"reasonText,omitempty"`
+
+	// RejectedNote Note of the last rejection; the count is back in progress.
+	RejectedNote *string                      `json:"rejectedNote,omitempty"`
+	StartedAt    nullable.Nullable[time.Time] `json:"startedAt,omitempty"`
+	Status       StockCountStatus             `json:"status"`
+	SubmittedAt  *time.Time                   `json:"submittedAt,omitempty"`
+
+	// SubmittedBy Who submitted the count for approval (pending_approval and later).
+	SubmittedBy *openapi_types.UUID                   `json:"submittedBy,omitempty"`
 	WarehouseId nullable.Nullable[openapi_types.UUID] `json:"warehouseId,omitempty"`
 }
 
@@ -3936,6 +4559,71 @@ type StockCountCreateInput struct {
 	WarehouseId nullable.Nullable[openapi_types.UUID] `json:"warehouseId,omitempty"`
 }
 
+// StockCountImportLineRef defines model for StockCountImportLineRef.
+type StockCountImportLineRef struct {
+	ProductId   openapi_types.UUID `json:"productId"`
+	ProductName *string            `json:"productName,omitempty"`
+	Sku         *string            `json:"sku,omitempty"`
+	VariantSize string             `json:"variantSize"`
+}
+
+// StockCountImportRejectedResponse defines model for StockCountImportRejectedResponse.
+type StockCountImportRejectedResponse struct {
+	Data  StockCountImportReport `json:"data"`
+	Error string                 `json:"error"`
+}
+
+// StockCountImportReport defines model for StockCountImportReport.
+type StockCountImportReport struct {
+	AppliedAt  *string           `json:"appliedAt,omitempty"`
+	Delimiter  string            `json:"delimiter"`
+	FileIssues []ImportFileIssue `json:"fileIssues"`
+	FileSha256 string            `json:"fileSha256"`
+
+	// Issues every error and warning, capped at 5000
+	Issues []ImportIssue              `json:"issues"`
+	Kind   StockCountImportReportKind `json:"kind"`
+
+	// Rows first 500 rows only (counts are exact)
+	Rows      []StockCountImportRow `json:"rows"`
+	RunId     *string               `json:"runId,omitempty"`
+	Summary   ImportSummary         `json:"summary"`
+	TotalRows int                   `json:"totalRows"`
+
+	// Uncounted Count lines missing from the file; they stay uncounted.
+	Uncounted []StockCountImportLineRef `json:"uncounted"`
+}
+
+// StockCountImportReportKind defines model for StockCountImportReport.Kind.
+type StockCountImportReportKind string
+
+// StockCountImportReportResponse defines model for StockCountImportReportResponse.
+type StockCountImportReportResponse struct {
+	Data StockCountImportReport `json:"data"`
+}
+
+// StockCountImportRow One scanned code after repeated scans of the same code were summed.
+type StockCountImportRow struct {
+	// Code The scanned barcode or SKU.
+	Code    string `json:"code"`
+	Counted int    `json:"counted"`
+
+	// Difference Counted minus expected.
+	Difference *int `json:"difference,omitempty"`
+
+	// Expected The line's count-start snapshot (frozenQty).
+	Expected    *int                     `json:"expected,omitempty"`
+	MatchedLine *StockCountImportLineRef `json:"matchedLine,omitempty"`
+
+	// Previous The counted value this upload overwrites, when the line was already counted.
+	Previous *int                      `json:"previous,omitempty"`
+	Row      int                       `json:"row"`
+	Warnings []StockCountImportWarning `json:"warnings"`
+}
+
+// StockCountImportWarning defines model for StockCountImportWarning.
+type StockCountImportWarning string
+
 // StockCountItem defines model for StockCountItem.
 type StockCountItem struct {
 	ActualQty nullable.Nullable[int] `json:"actualQty,omitempty"`
@@ -3953,7 +4641,13 @@ type StockCountItem struct {
 	FrozenQty   int    `json:"frozenQty"`
 	ProductId   string `json:"productId"`
 	ProductName string `json:"productName"`
-	Sku         string `json:"sku"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode *InventoryReasonCode `json:"reasonCode,omitempty"`
+
+	// ReasonText Per-line reason set at submit; server-recorded.
+	ReasonText *string `json:"reasonText,omitempty"`
+	Sku        string  `json:"sku"`
 
 	// StockAfter Live stock after the difference was applied at completion. Server-recorded.
 	StockAfter nullable.Nullable[int] `json:"stockAfter,omitempty"`
@@ -3974,6 +4668,25 @@ type StockCountResponse struct {
 	Data StockCount `json:"data"`
 }
 
+// StockCountSubmitInput defines model for StockCountSubmitInput.
+type StockCountSubmitInput struct {
+	Lines *[]StockCountSubmitLineInput `json:"lines,omitempty"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode InventoryReasonCode `json:"reasonCode"`
+	ReasonText *string             `json:"reasonText,omitempty"`
+}
+
+// StockCountSubmitLineInput defines model for StockCountSubmitLineInput.
+type StockCountSubmitLineInput struct {
+	ProductId openapi_types.UUID `json:"productId"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode  *InventoryReasonCode `json:"reasonCode,omitempty"`
+	ReasonText  *string              `json:"reasonText,omitempty"`
+	VariantSize string               `json:"variantSize"`
+}
+
 // StockCountUpdateInput defines model for StockCountUpdateInput.
 type StockCountUpdateInput struct {
 	Items  nullable.Nullable[[]StockCountItem]            `json:"items,omitempty"`
@@ -3983,6 +4696,185 @@ type StockCountUpdateInput struct {
 
 // StockCountUpdateInputStatus defines model for StockCountUpdateInput.Status.
 type StockCountUpdateInputStatus string
+
+// StockMovementPage defines model for StockMovementPage.
+type StockMovementPage struct {
+	Data []StockMovementRow `json:"data"`
+
+	// NextCursor Opaque keyset cursor; absent on the last page.
+	NextCursor *string               `json:"nextCursor,omitempty"`
+	Summary    *StockMovementSummary `json:"summary,omitempty"`
+}
+
+// StockMovementRow One stock ledger movement (kartu stok line). The running balance is qtyAfter in seq order.
+type StockMovementRow struct {
+	ActorId    *string `json:"actorId,omitempty"`
+	ActorName  *string `json:"actorName,omitempty"`
+	ApprovedBy *string `json:"approvedBy,omitempty"`
+	Barcode    *string `json:"barcode,omitempty"`
+
+	// ErpStatus Status of the ERP outbox document that carries this movement, when there is one.
+	ErpStatus *string `json:"erpStatus,omitempty"`
+
+	// Flags Ledger flags; `shortage` marks a movement that took stock below zero.
+	Flags []string           `json:"flags"`
+	Id    openapi_types.UUID `json:"id"`
+
+	// IsGiveaway Derived: the movement is the per-sale giveaway item (ledger key giveaway:<order id>). Never sent to the ERP.
+	IsGiveaway   bool                  `json:"isGiveaway"`
+	Kind         StockMovementRowKind  `json:"kind"`
+	LocationId   openapi_types.UUID    `json:"locationId"`
+	LocationName *string               `json:"locationName,omitempty"`
+	LocationType InventoryLocationType `json:"locationType"`
+	OccurredAt   time.Time             `json:"occurredAt"`
+	ProductId    openapi_types.UUID    `json:"productId"`
+	ProductName  *string               `json:"productName,omitempty"`
+
+	// Qty Signed change; negative is keluar.
+	Qty int `json:"qty"`
+
+	// QtyAfter Saldo after this movement.
+	QtyAfter  int `json:"qtyAfter"`
+	QtyBefore int `json:"qtyBefore"`
+
+	// ReasonCode Reason for a stock change. `other` requires free text.
+	ReasonCode *InventoryReasonCode `json:"reasonCode,omitempty"`
+	ReasonText *string              `json:"reasonText,omitempty"`
+	RecordedAt time.Time            `json:"recordedAt"`
+	RefId      *openapi_types.UUID  `json:"refId,omitempty"`
+	RefNumber  *string              `json:"refNumber,omitempty"`
+	RefType    string               `json:"refType"`
+
+	// Seq Order in which the movement was applied at the location; the balance chain is continuous in this order.
+	Seq         int64   `json:"seq"`
+	Sku         *string `json:"sku,omitempty"`
+	VariantSize string  `json:"variantSize"`
+}
+
+// StockMovementRowKind defines model for StockMovementRow.Kind.
+type StockMovementRowKind string
+
+// StockMovementSummary defines model for StockMovementSummary.
+type StockMovementSummary struct {
+	Closing int `json:"closing"`
+
+	// Opening qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty.
+	Opening int `json:"opening"`
+	TotalIn int `json:"totalIn"`
+
+	// TotalOut Absolute outgoing quantity.
+	TotalOut int `json:"totalOut"`
+}
+
+// StockRequisition defines model for StockRequisition.
+type StockRequisition struct {
+	CancelledAt   *time.Time          `json:"cancelledAt,omitempty"`
+	CreatedAt     time.Time           `json:"createdAt"`
+	DecidedAt     *time.Time          `json:"decidedAt,omitempty"`
+	DecidedBy     *openapi_types.UUID `json:"decidedBy,omitempty"`
+	DecidedByName *string             `json:"decidedByName,omitempty"`
+	DecisionNote  *string             `json:"decisionNote,omitempty"`
+
+	// Events Present on the detail read.
+	Events      *[]InventoryDocEvent `json:"events,omitempty"`
+	FulfilledAt *time.Time           `json:"fulfilledAt,omitempty"`
+	FulfilledBy *openapi_types.UUID  `json:"fulfilledBy,omitempty"`
+	Id          openapi_types.UUID   `json:"id"`
+
+	// Items Present on the detail read.
+	Items    *[]StockRequisitionItem `json:"items,omitempty"`
+	NeededBy *openapi_types.Date     `json:"neededBy,omitempty"`
+	Note     *string                 `json:"note,omitempty"`
+
+	// Number PB-YYYY-NNNNN
+	Number          string                        `json:"number"`
+	OutletId        openapi_types.UUID            `json:"outletId"`
+	OutletName      *string                       `json:"outletName,omitempty"`
+	RequestedBy     openapi_types.UUID            `json:"requestedBy"`
+	RequestedByName *string                       `json:"requestedByName,omitempty"`
+	Status          StockRequisitionStatus        `json:"status"`
+	SubmittedAt     *time.Time                    `json:"submittedAt,omitempty"`
+	Transfer        *StockRequisitionTransferLink `json:"transfer,omitempty"`
+	UpdatedAt       time.Time                     `json:"updatedAt"`
+
+	// WarehouseId Source gudang; set from approval.
+	WarehouseId   *openapi_types.UUID `json:"warehouseId,omitempty"`
+	WarehouseName *string             `json:"warehouseName,omitempty"`
+}
+
+// StockRequisitionApproveInput defines model for StockRequisitionApproveInput.
+type StockRequisitionApproveInput struct {
+	Items       []StockRequisitionApproveItemInput `json:"items"`
+	Note        *string                            `json:"note,omitempty"`
+	WarehouseId openapi_types.UUID                 `json:"warehouseId"`
+}
+
+// StockRequisitionApproveItemInput defines model for StockRequisitionApproveItemInput.
+type StockRequisitionApproveItemInput struct {
+	ApprovedQty int                `json:"approvedQty"`
+	ItemId      openapi_types.UUID `json:"itemId"`
+}
+
+// StockRequisitionFulfilResponse defines model for StockRequisitionFulfilResponse.
+type StockRequisitionFulfilResponse struct {
+	Data StockRequisitionFulfilResult `json:"data"`
+}
+
+// StockRequisitionFulfilResult defines model for StockRequisitionFulfilResult.
+type StockRequisitionFulfilResult struct {
+	TransferId openapi_types.UUID `json:"transferId"`
+	TransferNo string             `json:"transferNo"`
+}
+
+// StockRequisitionInput Create or replace a draft requisition. The outlet is the caller's active outlet (X-Outlet-Id for an admin).
+type StockRequisitionInput struct {
+	Items    []StockRequisitionItemInput `json:"items"`
+	NeededBy *openapi_types.Date         `json:"neededBy,omitempty"`
+	Note     *string                     `json:"note,omitempty"`
+}
+
+// StockRequisitionItem defines model for StockRequisitionItem.
+type StockRequisitionItem struct {
+	ApprovedQty  *int               `json:"approvedQty,omitempty"`
+	Id           openapi_types.UUID `json:"id"`
+	Note         *string            `json:"note,omitempty"`
+	ProductId    openapi_types.UUID `json:"productId"`
+	ProductName  *string            `json:"productName,omitempty"`
+	RequestedQty int                `json:"requestedQty"`
+	Sku          *string            `json:"sku,omitempty"`
+	VariantSize  string             `json:"variantSize"`
+}
+
+// StockRequisitionItemInput defines model for StockRequisitionItemInput.
+type StockRequisitionItemInput struct {
+	Note         *string            `json:"note,omitempty"`
+	ProductId    openapi_types.UUID `json:"productId"`
+	RequestedQty int                `json:"requestedQty"`
+	VariantSize  string             `json:"variantSize"`
+}
+
+// StockRequisitionListResponse defines model for StockRequisitionListResponse.
+type StockRequisitionListResponse struct {
+	Data []StockRequisition `json:"data"`
+	Meta *Meta              `json:"meta,omitempty"`
+}
+
+// StockRequisitionResponse defines model for StockRequisitionResponse.
+type StockRequisitionResponse struct {
+	Data StockRequisition `json:"data"`
+}
+
+// StockRequisitionStatus defines model for StockRequisitionStatus.
+type StockRequisitionStatus string
+
+// StockRequisitionTransferLink defines model for StockRequisitionTransferLink.
+type StockRequisitionTransferLink struct {
+	Id openapi_types.UUID `json:"id"`
+
+	// Status Live status of the linked transfer.
+	Status     string `json:"status"`
+	TransferNo string `json:"transferNo"`
+}
 
 // SyncBatchItem defines model for SyncBatchItem.
 type SyncBatchItem struct {
@@ -4738,6 +5630,47 @@ type AdjustLocationStockParams struct {
 // AdjustLocationStockParamsKind defines parameters for AdjustLocationStock.
 type AdjustLocationStockParamsKind string
 
+// ListAdjustmentRequestsParams defines parameters for ListAdjustmentRequests.
+type ListAdjustmentRequestsParams struct {
+	Status       *AdjustmentRequestStatus `form:"status,omitempty" json:"status,omitempty"`
+	LocationType *InventoryLocationType   `form:"locationType,omitempty" json:"locationType,omitempty"`
+	LocationId   *openapi_types.UUID      `form:"locationId,omitempty" json:"locationId,omitempty"`
+	Page         *Page                    `form:"page,omitempty" json:"page,omitempty"`
+	Limit        *Limit                   `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateAdjustmentRequestParams defines parameters for CreateAdjustmentRequest.
+type CreateAdjustmentRequestParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ApproveAdjustmentRequestParams defines parameters for ApproveAdjustmentRequest.
+type ApproveAdjustmentRequestParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CancelAdjustmentRequestParams defines parameters for CancelAdjustmentRequest.
+type CancelAdjustmentRequestParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// RejectAdjustmentRequestParams defines parameters for RejectAdjustmentRequest.
+type RejectAdjustmentRequestParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListInventoryApprovalsParams defines parameters for ListInventoryApprovals.
+type ListInventoryApprovalsParams struct {
+	Status *ListInventoryApprovalsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListInventoryApprovalsParamsStatus defines parameters for ListInventoryApprovals.
+type ListInventoryApprovalsParamsStatus string
+
 // CreateLocationGoodsReceiptParams defines parameters for CreateLocationGoodsReceipt.
 type CreateLocationGoodsReceiptParams struct {
 	Kind CreateLocationGoodsReceiptParamsKind `form:"kind" json:"kind"`
@@ -4793,6 +5726,63 @@ type GetMovementSummaryParams struct {
 
 // GetMovementSummaryParamsKind defines parameters for GetMovementSummary.
 type GetMovementSummaryParamsKind string
+
+// ListStockMovementsParams defines parameters for ListStockMovements.
+type ListStockMovementsParams struct {
+	LocationType InventoryLocationType           `form:"locationType" json:"locationType"`
+	LocationId   openapi_types.UUID              `form:"locationId" json:"locationId"`
+	ProductId    *openapi_types.UUID             `form:"productId,omitempty" json:"productId,omitempty"`
+	VariantSize  *string                         `form:"variantSize,omitempty" json:"variantSize,omitempty"`
+	Kind         *[]ListStockMovementsParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
+	Flag         *ListStockMovementsParamsFlag   `form:"flag,omitempty" json:"flag,omitempty"`
+
+	// Giveaway true returns only giveaway movements (derived from the ledger key).
+	Giveaway *bool   `form:"giveaway,omitempty" json:"giveaway,omitempty"`
+	From     *string `form:"from,omitempty" json:"from,omitempty"`
+	To       *string `form:"to,omitempty" json:"to,omitempty"`
+
+	// Cursor Opaque; the nextCursor of the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListStockMovementsParamsKind defines parameters for ListStockMovements.
+type ListStockMovementsParamsKind string
+
+// ListStockMovementsParamsFlag defines parameters for ListStockMovements.
+type ListStockMovementsParamsFlag string
+
+// ExportStockMovementsParams defines parameters for ExportStockMovements.
+type ExportStockMovementsParams struct {
+	LocationType InventoryLocationType             `form:"locationType" json:"locationType"`
+	LocationId   openapi_types.UUID                `form:"locationId" json:"locationId"`
+	ProductId    *openapi_types.UUID               `form:"productId,omitempty" json:"productId,omitempty"`
+	VariantSize  *string                           `form:"variantSize,omitempty" json:"variantSize,omitempty"`
+	Kind         *[]ExportStockMovementsParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
+	Flag         *ExportStockMovementsParamsFlag   `form:"flag,omitempty" json:"flag,omitempty"`
+	Giveaway     *bool                             `form:"giveaway,omitempty" json:"giveaway,omitempty"`
+	From         *string                           `form:"from,omitempty" json:"from,omitempty"`
+	To           *string                           `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// ExportStockMovementsParamsKind defines parameters for ExportStockMovements.
+type ExportStockMovementsParamsKind string
+
+// ExportStockMovementsParamsFlag defines parameters for ExportStockMovements.
+type ExportStockMovementsParamsFlag string
+
+// GetMovementLedgerSummaryParams defines parameters for GetMovementLedgerSummary.
+type GetMovementLedgerSummaryParams struct {
+	LocationType InventoryLocationType `form:"locationType" json:"locationType"`
+	LocationId   openapi_types.UUID    `form:"locationId" json:"locationId"`
+	From         *string               `form:"from,omitempty" json:"from,omitempty"`
+	To           *string               `form:"to,omitempty" json:"to,omitempty"`
+
+	// Q Substring match on product name, SKU or barcode.
+	Q     *string `form:"q,omitempty" json:"q,omitempty"`
+	Page  *Page   `form:"page,omitempty" json:"page,omitempty"`
+	Limit *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // SetOutletParParams defines parameters for SetOutletPar.
 type SetOutletParParams struct {
@@ -4859,6 +5849,12 @@ type GetOrderParams struct {
 type RefundOrderParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// SetOutletGiveawayParams defines parameters for SetOutletGiveaway.
+type SetOutletGiveawayParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
 // ListOversellReportParams defines parameters for ListOversellReport.
@@ -4956,6 +5952,77 @@ type ReportSummaryParams struct {
 // ReportSummaryParamsStatus defines parameters for ReportSummary.
 type ReportSummaryParamsStatus string
 
+// ListRequisitionsParams defines parameters for ListRequisitions.
+type ListRequisitionsParams struct {
+	Status   *StockRequisitionStatus `form:"status,omitempty" json:"status,omitempty"`
+	OutletId *openapi_types.UUID     `form:"outletId,omitempty" json:"outletId,omitempty"`
+	Page     *Page                   `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *Limit                  `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// CreateRequisitionParams defines parameters for CreateRequisition.
+type CreateRequisitionParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// GetRequisitionParams defines parameters for GetRequisition.
+type GetRequisitionParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// UpdateRequisitionParams defines parameters for UpdateRequisition.
+type UpdateRequisitionParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ApproveRequisitionParams defines parameters for ApproveRequisition.
+type ApproveRequisitionParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CancelRequisitionParams defines parameters for CancelRequisition.
+type CancelRequisitionParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// FulfilRequisitionParams defines parameters for FulfilRequisition.
+type FulfilRequisitionParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// RejectRequisitionParams defines parameters for RejectRequisition.
+type RejectRequisitionParams struct {
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// SubmitRequisitionParams defines parameters for SubmitRequisition.
+type SubmitRequisitionParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // ListShiftsParams defines parameters for ListShifts.
 type ListShiftsParams struct {
 	Page  *Page  `form:"page,omitempty" json:"page,omitempty"`
@@ -5022,8 +6089,50 @@ type UpdateStockCountParams struct {
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 }
 
+// ApproveStockCountParams defines parameters for ApproveStockCount.
+type ApproveStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // CompleteStockCountParams defines parameters for CompleteStockCount.
 type CompleteStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ExportStockCountParams defines parameters for ExportStockCount.
+type ExportStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+}
+
+// ImportStockCountParams defines parameters for ImportStockCount.
+type ImportStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Required when dryRun=false (generated once per preview, reused on retry).
+	IdempotencyKey *ImportIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// RejectStockCountParams defines parameters for RejectStockCount.
+type RejectStockCountParams struct {
+	// XOutletId Active outlet override (admin only, or must match token outlet).
+	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
+
+	// IdempotencyKey Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409.
+	IdempotencyKey *WriteIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// SubmitStockCountParams defines parameters for SubmitStockCount.
+type SubmitStockCountParams struct {
 	// XOutletId Active outlet override (admin only, or must match token outlet).
 	XOutletId *OutletHeader `json:"X-Outlet-Id,omitempty"`
 
@@ -5245,6 +6354,18 @@ type UpdateIngredientJSONRequestBody = IngredientInput
 // AdjustLocationStockJSONRequestBody defines body for AdjustLocationStock for application/json ContentType.
 type AdjustLocationStockJSONRequestBody = WarehouseAdjustInput
 
+// CreateAdjustmentRequestJSONRequestBody defines body for CreateAdjustmentRequest for application/json ContentType.
+type CreateAdjustmentRequestJSONRequestBody = AdjustmentRequestCreateInput
+
+// ApproveAdjustmentRequestJSONRequestBody defines body for ApproveAdjustmentRequest for application/json ContentType.
+type ApproveAdjustmentRequestJSONRequestBody = InventoryApproveInput
+
+// CancelAdjustmentRequestJSONRequestBody defines body for CancelAdjustmentRequest for application/json ContentType.
+type CancelAdjustmentRequestJSONRequestBody = InventoryCancelInput
+
+// RejectAdjustmentRequestJSONRequestBody defines body for RejectAdjustmentRequest for application/json ContentType.
+type RejectAdjustmentRequestJSONRequestBody = InventoryRejectInput
+
 // CreateLocationGoodsReceiptJSONRequestBody defines body for CreateLocationGoodsReceipt for application/json ContentType.
 type CreateLocationGoodsReceiptJSONRequestBody = GoodsReceiptInput
 
@@ -5274,6 +6395,9 @@ type CreateOutletJSONRequestBody = OutletInput
 
 // UpdateOutletJSONRequestBody defines body for UpdateOutlet for application/json ContentType.
 type UpdateOutletJSONRequestBody = OutletInput
+
+// SetOutletGiveawayJSONRequestBody defines body for SetOutletGiveaway for application/json ContentType.
+type SetOutletGiveawayJSONRequestBody = OutletGiveawayInput
 
 // AcknowledgeOversellRecordsJSONRequestBody defines body for AcknowledgeOversellRecords for application/json ContentType.
 type AcknowledgeOversellRecordsJSONRequestBody = OversellAckInput
@@ -5305,6 +6429,18 @@ type CreatePromotionJSONRequestBody = PromotionInput
 // UpdatePromotionJSONRequestBody defines body for UpdatePromotion for application/json ContentType.
 type UpdatePromotionJSONRequestBody = PromotionInput
 
+// CreateRequisitionJSONRequestBody defines body for CreateRequisition for application/json ContentType.
+type CreateRequisitionJSONRequestBody = StockRequisitionInput
+
+// UpdateRequisitionJSONRequestBody defines body for UpdateRequisition for application/json ContentType.
+type UpdateRequisitionJSONRequestBody = StockRequisitionInput
+
+// ApproveRequisitionJSONRequestBody defines body for ApproveRequisition for application/json ContentType.
+type ApproveRequisitionJSONRequestBody = StockRequisitionApproveInput
+
+// RejectRequisitionJSONRequestBody defines body for RejectRequisition for application/json ContentType.
+type RejectRequisitionJSONRequestBody = InventoryRejectInput
+
 // CreateSegmentJSONRequestBody defines body for CreateSegment for application/json ContentType.
 type CreateSegmentJSONRequestBody = SegmentInput
 
@@ -5332,8 +6468,20 @@ type CreateStockCountJSONRequestBody = StockCountCreateInput
 // UpdateStockCountJSONRequestBody defines body for UpdateStockCount for application/json ContentType.
 type UpdateStockCountJSONRequestBody = StockCountUpdateInput
 
+// ApproveStockCountJSONRequestBody defines body for ApproveStockCount for application/json ContentType.
+type ApproveStockCountJSONRequestBody = InventoryApproveInput
+
 // CompleteStockCountJSONRequestBody defines body for CompleteStockCount for application/json ContentType.
 type CompleteStockCountJSONRequestBody = StockCountCompleteInput
+
+// ImportStockCountJSONRequestBody defines body for ImportStockCount for application/json ContentType.
+type ImportStockCountJSONRequestBody = CsvImportRequest
+
+// RejectStockCountJSONRequestBody defines body for RejectStockCount for application/json ContentType.
+type RejectStockCountJSONRequestBody = InventoryRejectInput
+
+// SubmitStockCountJSONRequestBody defines body for SubmitStockCount for application/json ContentType.
+type SubmitStockCountJSONRequestBody = StockCountSubmitInput
 
 // ResolveSyncReviewItemJSONRequestBody defines body for ResolveSyncReviewItem for application/json ContentType.
 type ResolveSyncReviewItemJSONRequestBody = SyncReviewResolveRequest
@@ -5616,6 +6764,27 @@ type ServerInterface interface {
 	// Adjust an outlet OR warehouse stock to a new quantity (Backoffice)
 	// (POST /api/v1/inventory/adjust)
 	AdjustLocationStock(w http.ResponseWriter, r *http.Request, params AdjustLocationStockParams)
+	// List stock adjustment requests (manage_inventory)
+	// (GET /api/v1/inventory/adjustment-requests)
+	ListAdjustmentRequests(w http.ResponseWriter, r *http.Request, params ListAdjustmentRequestsParams)
+	// Request a stock adjustment to a new quantity; it waits for approval (manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests)
+	CreateAdjustmentRequest(w http.ResponseWriter, r *http.Request, params CreateAdjustmentRequestParams)
+	// Get one adjustment request with its history and the live quantity (manage_inventory)
+	// (GET /api/v1/inventory/adjustment-requests/{id})
+	GetAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/approve)
+	ApproveAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdjustmentRequestParams)
+	// Cancel a pending adjustment request (the requester; manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/cancel)
+	CancelAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelAdjustmentRequestParams)
+	// Reject a pending adjustment request with a note (manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/reject)
+	RejectAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectAdjustmentRequestParams)
+	// Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
+	// (GET /api/v1/inventory/approvals)
+	ListInventoryApprovals(w http.ResponseWriter, r *http.Request, params ListInventoryApprovalsParams)
 	// Receive goods into an outlet OR warehouse (Backoffice)
 	// (POST /api/v1/inventory/goods-receipt)
 	CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateLocationGoodsReceiptParams)
@@ -5634,6 +6803,15 @@ type ServerInterface interface {
 	// Per-location product movement summary (Backoffice)
 	// (GET /api/v1/inventory/movement-summary)
 	GetMovementSummary(w http.ResponseWriter, r *http.Request, params GetMovementSummaryParams)
+	// Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
+	// (GET /api/v1/inventory/movements)
+	ListStockMovements(w http.ResponseWriter, r *http.Request, params ListStockMovementsParams)
+	// Kartu stok as CSV, same filters as the list (manage_inventory)
+	// (GET /api/v1/inventory/movements/export)
+	ExportStockMovements(w http.ResponseWriter, r *http.Request, params ExportStockMovementsParams)
+	// Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory)
+	// (GET /api/v1/inventory/movements/summary)
+	GetMovementLedgerSummary(w http.ResponseWriter, r *http.Request, params GetMovementLedgerSummaryParams)
 	// Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice)
 	// (PUT /api/v1/inventory/outlet-par)
 	SetOutletPar(w http.ResponseWriter, r *http.Request, params SetOutletParParams)
@@ -5673,6 +6851,12 @@ type ServerInterface interface {
 	// Update outlet (Backoffice)
 	// (PUT /api/v1/outlets/{id})
 	UpdateOutlet(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// The per-sale giveaway item of an outlet (manage_outlets)
+	// (GET /api/v1/outlets/{id}/giveaway)
+	GetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Set the per-sale giveaway item of an outlet (manage_outlets)
+	// (PUT /api/v1/outlets/{id}/giveaway)
+	SetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SetOutletGiveawayParams)
 	// Mark oversell lines 'sudah dicek' (idempotent), manage_stock_count
 	// (POST /api/v1/oversell-records/acknowledge)
 	AcknowledgeOversellRecords(w http.ResponseWriter, r *http.Request)
@@ -5745,6 +6929,33 @@ type ServerInterface interface {
 	// Server-aggregated sales summary (outlet-scoped)
 	// (GET /api/v1/reports/summary)
 	ReportSummary(w http.ResponseWriter, r *http.Request, params ReportSummaryParams)
+	// List Permintaan Barang (request_stock for the own outlet, or manage_inventory)
+	// (GET /api/v1/requisitions)
+	ListRequisitions(w http.ResponseWriter, r *http.Request, params ListRequisitionsParams)
+	// Create a draft Permintaan Barang for the active outlet (request_stock)
+	// (POST /api/v1/requisitions)
+	CreateRequisition(w http.ResponseWriter, r *http.Request, params CreateRequisitionParams)
+	// Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory)
+	// (GET /api/v1/requisitions/{id})
+	GetRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetRequisitionParams)
+	// Replace a draft Permintaan Barang (request_stock; drafts only)
+	// (PUT /api/v1/requisitions/{id})
+	UpdateRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateRequisitionParams)
+	// Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/approve)
+	ApproveRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveRequisitionParams)
+	// Cancel a draft or submitted Permintaan Barang (request_stock)
+	// (POST /api/v1/requisitions/{id}/cancel)
+	CancelRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelRequisitionParams)
+	// Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/fulfil)
+	FulfilRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FulfilRequisitionParams)
+	// Reject a submitted Permintaan Barang with a note (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/reject)
+	RejectRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectRequisitionParams)
+	// Submit a draft Permintaan Barang to the warehouse (request_stock)
+	// (POST /api/v1/requisitions/{id}/submit)
+	SubmitRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitRequisitionParams)
 
 	// (GET /api/v1/segments)
 	ListSegments(w http.ResponseWriter, r *http.Request)
@@ -5799,9 +7010,24 @@ type ServerInterface interface {
 	// Update stock count (outlet-scoped). Start re-freezes frozen quantities from live stock; in progress, items only update actualQty of existing lines and capture the live stock as that line's baseline; planned counts replace the line list. Repeating start or cancel is a no-op.
 	// (PUT /api/v1/stock-counts/{id})
 	UpdateStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateStockCountParams)
+	// Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+	// (POST /api/v1/stock-counts/{id}/approve)
+	ApproveStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveStockCountParams)
 	// Complete stock count — adds each counted line's difference (counted minus baseline) to live stock in one tx, so sales made during the count are kept, and bumps the content version (outlet counts). Completing a completed count is a no-op that returns it. Items may only update actualQty of existing lines.
 	// (POST /api/v1/stock-counts/{id}/complete)
 	CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams)
+	// Count sheet as CSV for a scanner app (manage_stock_count)
+	// (GET /api/v1/stock-counts/{id}/export)
+	ExportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ExportStockCountParams)
+	// Scanner CSV upload for an in-progress count, dry run or commit (manage_stock_count)
+	// (POST /api/v1/stock-counts/{id}/import)
+	ImportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ImportStockCountParams)
+	// Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule)
+	// (POST /api/v1/stock-counts/{id}/reject)
+	RejectStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectStockCountParams)
+	// Submit a finished count for approval; status becomes pending_approval (manage_stock_count)
+	// (POST /api/v1/stock-counts/{id}/submit)
+	SubmitStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitStockCountParams)
 	// Head-office list of tablet review items (cross-outlet, paginated)
 	// (GET /api/v1/sync-review-items)
 	ListSyncReviewItems(w http.ResponseWriter, r *http.Request, params ListSyncReviewItemsParams)
@@ -6365,6 +7591,48 @@ func (_ Unimplemented) AdjustLocationStock(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List stock adjustment requests (manage_inventory)
+// (GET /api/v1/inventory/adjustment-requests)
+func (_ Unimplemented) ListAdjustmentRequests(w http.ResponseWriter, r *http.Request, params ListAdjustmentRequestsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Request a stock adjustment to a new quantity; it waits for approval (manage_inventory)
+// (POST /api/v1/inventory/adjustment-requests)
+func (_ Unimplemented) CreateAdjustmentRequest(w http.ResponseWriter, r *http.Request, params CreateAdjustmentRequestParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get one adjustment request with its history and the live quantity (manage_inventory)
+// (GET /api/v1/inventory/adjustment-requests/{id})
+func (_ Unimplemented) GetAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
+// (POST /api/v1/inventory/adjustment-requests/{id}/approve)
+func (_ Unimplemented) ApproveAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdjustmentRequestParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Cancel a pending adjustment request (the requester; manage_inventory)
+// (POST /api/v1/inventory/adjustment-requests/{id}/cancel)
+func (_ Unimplemented) CancelAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelAdjustmentRequestParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reject a pending adjustment request with a note (manage_inventory)
+// (POST /api/v1/inventory/adjustment-requests/{id}/reject)
+func (_ Unimplemented) RejectAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectAdjustmentRequestParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
+// (GET /api/v1/inventory/approvals)
+func (_ Unimplemented) ListInventoryApprovals(w http.ResponseWriter, r *http.Request, params ListInventoryApprovalsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Receive goods into an outlet OR warehouse (Backoffice)
 // (POST /api/v1/inventory/goods-receipt)
 func (_ Unimplemented) CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateLocationGoodsReceiptParams) {
@@ -6398,6 +7666,24 @@ func (_ Unimplemented) GetIngredientOverview(w http.ResponseWriter, r *http.Requ
 // Per-location product movement summary (Backoffice)
 // (GET /api/v1/inventory/movement-summary)
 func (_ Unimplemented) GetMovementSummary(w http.ResponseWriter, r *http.Request, params GetMovementSummaryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
+// (GET /api/v1/inventory/movements)
+func (_ Unimplemented) ListStockMovements(w http.ResponseWriter, r *http.Request, params ListStockMovementsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Kartu stok as CSV, same filters as the list (manage_inventory)
+// (GET /api/v1/inventory/movements/export)
+func (_ Unimplemented) ExportStockMovements(w http.ResponseWriter, r *http.Request, params ExportStockMovementsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory)
+// (GET /api/v1/inventory/movements/summary)
+func (_ Unimplemented) GetMovementLedgerSummary(w http.ResponseWriter, r *http.Request, params GetMovementLedgerSummaryParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6476,6 +7762,18 @@ func (_ Unimplemented) CreateOutlet(w http.ResponseWriter, r *http.Request) {
 // Update outlet (Backoffice)
 // (PUT /api/v1/outlets/{id})
 func (_ Unimplemented) UpdateOutlet(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// The per-sale giveaway item of an outlet (manage_outlets)
+// (GET /api/v1/outlets/{id}/giveaway)
+func (_ Unimplemented) GetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set the per-sale giveaway item of an outlet (manage_outlets)
+// (PUT /api/v1/outlets/{id}/giveaway)
+func (_ Unimplemented) SetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SetOutletGiveawayParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6618,6 +7916,60 @@ func (_ Unimplemented) ReportSummary(w http.ResponseWriter, r *http.Request, par
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List Permintaan Barang (request_stock for the own outlet, or manage_inventory)
+// (GET /api/v1/requisitions)
+func (_ Unimplemented) ListRequisitions(w http.ResponseWriter, r *http.Request, params ListRequisitionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a draft Permintaan Barang for the active outlet (request_stock)
+// (POST /api/v1/requisitions)
+func (_ Unimplemented) CreateRequisition(w http.ResponseWriter, r *http.Request, params CreateRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory)
+// (GET /api/v1/requisitions/{id})
+func (_ Unimplemented) GetRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace a draft Permintaan Barang (request_stock; drafts only)
+// (PUT /api/v1/requisitions/{id})
+func (_ Unimplemented) UpdateRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory)
+// (POST /api/v1/requisitions/{id}/approve)
+func (_ Unimplemented) ApproveRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Cancel a draft or submitted Permintaan Barang (request_stock)
+// (POST /api/v1/requisitions/{id}/cancel)
+func (_ Unimplemented) CancelRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
+// (POST /api/v1/requisitions/{id}/fulfil)
+func (_ Unimplemented) FulfilRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FulfilRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reject a submitted Permintaan Barang with a note (manage_inventory)
+// (POST /api/v1/requisitions/{id}/reject)
+func (_ Unimplemented) RejectRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Submit a draft Permintaan Barang to the warehouse (request_stock)
+// (POST /api/v1/requisitions/{id}/submit)
+func (_ Unimplemented) SubmitRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitRequisitionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /api/v1/segments)
 func (_ Unimplemented) ListSegments(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -6721,9 +8073,39 @@ func (_ Unimplemented) UpdateStockCount(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+// (POST /api/v1/stock-counts/{id}/approve)
+func (_ Unimplemented) ApproveStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Complete stock count — adds each counted line's difference (counted minus baseline) to live stock in one tx, so sales made during the count are kept, and bumps the content version (outlet counts). Completing a completed count is a no-op that returns it. Items may only update actualQty of existing lines.
 // (POST /api/v1/stock-counts/{id}/complete)
 func (_ Unimplemented) CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Count sheet as CSV for a scanner app (manage_stock_count)
+// (GET /api/v1/stock-counts/{id}/export)
+func (_ Unimplemented) ExportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ExportStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Scanner CSV upload for an in-progress count, dry run or commit (manage_stock_count)
+// (POST /api/v1/stock-counts/{id}/import)
+func (_ Unimplemented) ImportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ImportStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule)
+// (POST /api/v1/stock-counts/{id}/reject)
+func (_ Unimplemented) RejectStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectStockCountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Submit a finished count for approval; status becomes pending_approval (manage_stock_count)
+// (POST /api/v1/stock-counts/{id}/submit)
+func (_ Unimplemented) SubmitStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitStockCountParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -9909,6 +11291,383 @@ func (siw *ServerInterfaceWrapper) AdjustLocationStock(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// ListAdjustmentRequests operation middleware
+func (siw *ServerInterfaceWrapper) ListAdjustmentRequests(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdjustmentRequestsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "locationType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locationType", r.URL.Query(), &params.LocationType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationType"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationType", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "locationId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locationId", r.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdjustmentRequests(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAdjustmentRequest operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdjustmentRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAdjustmentRequestParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAdjustmentRequest(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdjustmentRequest operation middleware
+func (siw *ServerInterfaceWrapper) GetAdjustmentRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdjustmentRequest(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ApproveAdjustmentRequest operation middleware
+func (siw *ServerInterfaceWrapper) ApproveAdjustmentRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ApproveAdjustmentRequestParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveAdjustmentRequest(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelAdjustmentRequest operation middleware
+func (siw *ServerInterfaceWrapper) CancelAdjustmentRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelAdjustmentRequestParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelAdjustmentRequest(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RejectAdjustmentRequest operation middleware
+func (siw *ServerInterfaceWrapper) RejectAdjustmentRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RejectAdjustmentRequestParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RejectAdjustmentRequest(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListInventoryApprovals operation middleware
+func (siw *ServerInterfaceWrapper) ListInventoryApprovals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInventoryApprovalsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListInventoryApprovals(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateLocationGoodsReceipt operation middleware
 func (siw *ServerInterfaceWrapper) CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request) {
 
@@ -10253,6 +12012,435 @@ func (siw *ServerInterfaceWrapper) GetMovementSummary(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMovementSummary(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListStockMovements operation middleware
+func (siw *ServerInterfaceWrapper) ListStockMovements(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListStockMovementsParams
+
+	// ------------- Required query parameter "locationType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationType", r.URL.Query(), &params.LocationType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationType"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationType", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "locationId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationId", r.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "productId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "productId", r.URL.Query(), &params.ProductId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "productId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "productId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "variantSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "variantSize", r.URL.Query(), &params.VariantSize, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "variantSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "variantSize", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "flag" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "flag", r.URL.Query(), &params.Flag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "flag"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "flag", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "giveaway" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "giveaway", r.URL.Query(), &params.Giveaway, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "giveaway"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "giveaway", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStockMovements(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportStockMovements operation middleware
+func (siw *ServerInterfaceWrapper) ExportStockMovements(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportStockMovementsParams
+
+	// ------------- Required query parameter "locationType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationType", r.URL.Query(), &params.LocationType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationType"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationType", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "locationId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationId", r.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "productId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "productId", r.URL.Query(), &params.ProductId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "productId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "productId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "variantSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "variantSize", r.URL.Query(), &params.VariantSize, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "variantSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "variantSize", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "flag" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "flag", r.URL.Query(), &params.Flag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "flag"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "flag", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "giveaway" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "giveaway", r.URL.Query(), &params.Giveaway, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "giveaway"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "giveaway", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportStockMovements(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMovementLedgerSummary operation middleware
+func (siw *ServerInterfaceWrapper) GetMovementLedgerSummary(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMovementLedgerSummaryParams
+
+	// ------------- Required query parameter "locationType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationType", r.URL.Query(), &params.LocationType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationType"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationType", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "locationId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "locationId", r.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locationId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locationId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMovementLedgerSummary(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10886,6 +13074,94 @@ func (siw *ServerInterfaceWrapper) UpdateOutlet(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateOutlet(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOutletGiveaway operation middleware
+func (siw *ServerInterfaceWrapper) GetOutletGiveaway(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOutletGiveaway(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetOutletGiveaway operation middleware
+func (siw *ServerInterfaceWrapper) SetOutletGiveaway(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SetOutletGiveawayParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetOutletGiveaway(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -12092,6 +14368,620 @@ func (siw *ServerInterfaceWrapper) ReportSummary(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListRequisitions operation middleware
+func (siw *ServerInterfaceWrapper) ListRequisitions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRequisitionsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "outletId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "outletId", r.URL.Query(), &params.OutletId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "outletId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "outletId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRequisitions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRequisition operation middleware
+func (siw *ServerInterfaceWrapper) CreateRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRequisition(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRequisition operation middleware
+func (siw *ServerInterfaceWrapper) GetRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateRequisition operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ApproveRequisition operation middleware
+func (siw *ServerInterfaceWrapper) ApproveRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ApproveRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelRequisition operation middleware
+func (siw *ServerInterfaceWrapper) CancelRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// FulfilRequisition operation middleware
+func (siw *ServerInterfaceWrapper) FulfilRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FulfilRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FulfilRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RejectRequisition operation middleware
+func (siw *ServerInterfaceWrapper) RejectRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RejectRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RejectRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitRequisition operation middleware
+func (siw *ServerInterfaceWrapper) SubmitRequisition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SubmitRequisitionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitRequisition(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSegments operation middleware
 func (siw *ServerInterfaceWrapper) ListSegments(w http.ResponseWriter, r *http.Request) {
 
@@ -12833,6 +15723,81 @@ func (siw *ServerInterfaceWrapper) UpdateStockCount(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// ApproveStockCount operation middleware
+func (siw *ServerInterfaceWrapper) ApproveStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ApproveStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CompleteStockCount operation middleware
 func (siw *ServerInterfaceWrapper) CompleteStockCount(w http.ResponseWriter, r *http.Request) {
 
@@ -12899,6 +15864,287 @@ func (siw *ServerInterfaceWrapper) CompleteStockCount(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CompleteStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportStockCount operation middleware
+func (siw *ServerInterfaceWrapper) ExportStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportStockCount operation middleware
+func (siw *ServerInterfaceWrapper) ImportStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ImportStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey ImportIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RejectStockCount operation middleware
+func (siw *ServerInterfaceWrapper) RejectStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RejectStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RejectStockCount(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitStockCount operation middleware
+func (siw *ServerInterfaceWrapper) SubmitStockCount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SubmitStockCountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Outlet-Id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Outlet-Id")]; found {
+		var XOutletId OutletHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Outlet-Id", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Outlet-Id", valueList[0], &XOutletId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Outlet-Id", Err: err})
+			return
+		}
+
+		params.XOutletId = &XOutletId
+
+	}
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey WriteIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitStockCount(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -14788,6 +18034,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/inventory/adjust", wrapper.AdjustLocationStock)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/adjustment-requests", wrapper.ListAdjustmentRequests)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/adjustment-requests", wrapper.CreateAdjustmentRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/adjustment-requests/{id}", wrapper.GetAdjustmentRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/adjustment-requests/{id}/approve", wrapper.ApproveAdjustmentRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/adjustment-requests/{id}/cancel", wrapper.CancelAdjustmentRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/inventory/adjustment-requests/{id}/reject", wrapper.RejectAdjustmentRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/approvals", wrapper.ListInventoryApprovals)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/inventory/goods-receipt", wrapper.CreateLocationGoodsReceipt)
 	})
 	r.Group(func(r chi.Router) {
@@ -14804,6 +18071,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/inventory/movement-summary", wrapper.GetMovementSummary)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/movements", wrapper.ListStockMovements)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/movements/export", wrapper.ExportStockMovements)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/inventory/movements/summary", wrapper.GetMovementLedgerSummary)
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/inventory/outlet-par", wrapper.SetOutletPar)
@@ -14843,6 +18119,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/outlets/{id}", wrapper.UpdateOutlet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/outlets/{id}/giveaway", wrapper.GetOutletGiveaway)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/outlets/{id}/giveaway", wrapper.SetOutletGiveaway)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/oversell-records/acknowledge", wrapper.AcknowledgeOversellRecords)
@@ -14917,6 +18199,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/reports/summary", wrapper.ReportSummary)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/requisitions", wrapper.ListRequisitions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions", wrapper.CreateRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/requisitions/{id}", wrapper.GetRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/requisitions/{id}", wrapper.UpdateRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions/{id}/approve", wrapper.ApproveRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions/{id}/cancel", wrapper.CancelRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions/{id}/fulfil", wrapper.FulfilRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions/{id}/reject", wrapper.RejectRequisition)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/requisitions/{id}/submit", wrapper.SubmitRequisition)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/segments", wrapper.ListSegments)
 	})
 	r.Group(func(r chi.Router) {
@@ -14971,7 +18280,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/api/v1/stock-counts/{id}", wrapper.UpdateStockCount)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/approve", wrapper.ApproveStockCount)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/complete", wrapper.CompleteStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/stock-counts/{id}/export", wrapper.ExportStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/import", wrapper.ImportStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/reject", wrapper.RejectStockCount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/stock-counts/{id}/submit", wrapper.SubmitStockCount)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/sync-review-items", wrapper.ListSyncReviewItems)
@@ -17610,12 +20934,479 @@ func (response AdjustLocationStock200JSONResponse) VisitAdjustLocationStockRespo
 	return err
 }
 
-type AdjustLocationStock409Response struct {
+type AdjustLocationStock409JSONResponse InventoryConflictError
+
+func (response AdjustLocationStock409JSONResponse) VisitAdjustLocationStockResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
-func (response AdjustLocationStock409Response) VisitAdjustLocationStockResponse(w http.ResponseWriter) error {
+type ListAdjustmentRequestsRequestObject struct {
+	Params ListAdjustmentRequestsParams
+}
+
+type ListAdjustmentRequestsResponseObject interface {
+	VisitListAdjustmentRequestsResponse(w http.ResponseWriter) error
+}
+
+type ListAdjustmentRequests200JSONResponse AdjustmentRequestListResponse
+
+func (response ListAdjustmentRequests200JSONResponse) VisitListAdjustmentRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdjustmentRequests403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListAdjustmentRequests403JSONResponse) VisitListAdjustmentRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdjustmentRequestRequestObject struct {
+	Params CreateAdjustmentRequestParams
+	Body   *CreateAdjustmentRequestJSONRequestBody
+}
+
+type CreateAdjustmentRequestResponseObject interface {
+	VisitCreateAdjustmentRequestResponse(w http.ResponseWriter) error
+}
+
+type CreateAdjustmentRequest201JSONResponse AdjustmentRequestResponse
+
+func (response CreateAdjustmentRequest201JSONResponse) VisitCreateAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdjustmentRequest400JSONResponse Error
+
+func (response CreateAdjustmentRequest400JSONResponse) VisitCreateAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdjustmentRequest403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateAdjustmentRequest403JSONResponse) VisitCreateAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdjustmentRequest409JSONResponse Error
+
+func (response CreateAdjustmentRequest409JSONResponse) VisitCreateAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
-	return nil
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdjustmentRequestRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdjustmentRequestResponseObject interface {
+	VisitGetAdjustmentRequestResponse(w http.ResponseWriter) error
+}
+
+type GetAdjustmentRequest200JSONResponse AdjustmentRequestResponse
+
+func (response GetAdjustmentRequest200JSONResponse) VisitGetAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdjustmentRequest403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdjustmentRequest403JSONResponse) VisitGetAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdjustmentRequest404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAdjustmentRequest404JSONResponse) VisitGetAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequestRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ApproveAdjustmentRequestParams
+	Body   *ApproveAdjustmentRequestJSONRequestBody
+}
+
+type ApproveAdjustmentRequestResponseObject interface {
+	VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error
+}
+
+type ApproveAdjustmentRequest200JSONResponse AdjustmentRequestApproveResponse
+
+func (response ApproveAdjustmentRequest200JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest400JSONResponse Error
+
+func (response ApproveAdjustmentRequest400JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest403JSONResponse Error
+
+func (response ApproveAdjustmentRequest403JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ApproveAdjustmentRequest404JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest409JSONResponse Error
+
+func (response ApproveAdjustmentRequest409JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest429ResponseHeaders struct {
+	RetryAfter *int
+}
+
+type ApproveAdjustmentRequest429JSONResponse struct {
+	Body    ReceiveApprovalLocked
+	Headers ApproveAdjustmentRequest429ResponseHeaders
+}
+
+func (response ApproveAdjustmentRequest429JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdjustmentRequest503ResponseHeaders struct {
+	RetryAfter *int
+}
+
+type ApproveAdjustmentRequest503JSONResponse struct {
+	Body    Error
+	Headers ApproveAdjustmentRequest503ResponseHeaders
+}
+
+func (response ApproveAdjustmentRequest503JSONResponse) VisitApproveAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelAdjustmentRequestRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params CancelAdjustmentRequestParams
+	Body   *CancelAdjustmentRequestJSONRequestBody
+}
+
+type CancelAdjustmentRequestResponseObject interface {
+	VisitCancelAdjustmentRequestResponse(w http.ResponseWriter) error
+}
+
+type CancelAdjustmentRequest200JSONResponse AdjustmentRequestResponse
+
+func (response CancelAdjustmentRequest200JSONResponse) VisitCancelAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelAdjustmentRequest403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CancelAdjustmentRequest403JSONResponse) VisitCancelAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelAdjustmentRequest404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelAdjustmentRequest404JSONResponse) VisitCancelAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelAdjustmentRequest409JSONResponse Error
+
+func (response CancelAdjustmentRequest409JSONResponse) VisitCancelAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdjustmentRequestRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RejectAdjustmentRequestParams
+	Body   *RejectAdjustmentRequestJSONRequestBody
+}
+
+type RejectAdjustmentRequestResponseObject interface {
+	VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error
+}
+
+type RejectAdjustmentRequest200JSONResponse AdjustmentRequestResponse
+
+func (response RejectAdjustmentRequest200JSONResponse) VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdjustmentRequest400JSONResponse Error
+
+func (response RejectAdjustmentRequest400JSONResponse) VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdjustmentRequest403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RejectAdjustmentRequest403JSONResponse) VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdjustmentRequest404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RejectAdjustmentRequest404JSONResponse) VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdjustmentRequest409JSONResponse Error
+
+func (response RejectAdjustmentRequest409JSONResponse) VisitRejectAdjustmentRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInventoryApprovalsRequestObject struct {
+	Params ListInventoryApprovalsParams
+}
+
+type ListInventoryApprovalsResponseObject interface {
+	VisitListInventoryApprovalsResponse(w http.ResponseWriter) error
+}
+
+type ListInventoryApprovals200JSONResponse ApprovalQueueResponse
+
+func (response ListInventoryApprovals200JSONResponse) VisitListInventoryApprovalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInventoryApprovals403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListInventoryApprovals403JSONResponse) VisitListInventoryApprovalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type CreateLocationGoodsReceiptRequestObject struct {
@@ -17744,6 +21535,176 @@ func (response GetMovementSummary200JSONResponse) VisitGetMovementSummaryRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStockMovementsRequestObject struct {
+	Params ListStockMovementsParams
+}
+
+type ListStockMovementsResponseObject interface {
+	VisitListStockMovementsResponse(w http.ResponseWriter) error
+}
+
+type ListStockMovements200JSONResponse StockMovementPage
+
+func (response ListStockMovements200JSONResponse) VisitListStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStockMovements400JSONResponse Error
+
+func (response ListStockMovements400JSONResponse) VisitListStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStockMovements403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListStockMovements403JSONResponse) VisitListStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportStockMovementsRequestObject struct {
+	Params ExportStockMovementsParams
+}
+
+type ExportStockMovementsResponseObject interface {
+	VisitExportStockMovementsResponse(w http.ResponseWriter) error
+}
+
+type ExportStockMovements200TextcsvResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportStockMovements200TextcsvResponse) VisitExportStockMovementsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportStockMovements400JSONResponse Error
+
+func (response ExportStockMovements400JSONResponse) VisitExportStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportStockMovements403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ExportStockMovements403JSONResponse) VisitExportStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportStockMovements413JSONResponse Error
+
+func (response ExportStockMovements413JSONResponse) VisitExportStockMovementsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMovementLedgerSummaryRequestObject struct {
+	Params GetMovementLedgerSummaryParams
+}
+
+type GetMovementLedgerSummaryResponseObject interface {
+	VisitGetMovementLedgerSummaryResponse(w http.ResponseWriter) error
+}
+
+type GetMovementLedgerSummary200JSONResponse MovementLedgerSummaryResponse
+
+func (response GetMovementLedgerSummary200JSONResponse) VisitGetMovementLedgerSummaryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMovementLedgerSummary400JSONResponse Error
+
+func (response GetMovementLedgerSummary400JSONResponse) VisitGetMovementLedgerSummaryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMovementLedgerSummary403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMovementLedgerSummary403JSONResponse) VisitGetMovementLedgerSummaryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -18164,6 +22125,136 @@ func (response UpdateOutlet404JSONResponse) VisitUpdateOutletResponse(w http.Res
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOutletGiveawayRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetOutletGiveawayResponseObject interface {
+	VisitGetOutletGiveawayResponse(w http.ResponseWriter) error
+}
+
+type GetOutletGiveaway200JSONResponse OutletGiveawayResponse
+
+func (response GetOutletGiveaway200JSONResponse) VisitGetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOutletGiveaway403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetOutletGiveaway403JSONResponse) VisitGetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOutletGiveaway404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetOutletGiveaway404JSONResponse) VisitGetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetOutletGiveawayRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params SetOutletGiveawayParams
+	Body   *SetOutletGiveawayJSONRequestBody
+}
+
+type SetOutletGiveawayResponseObject interface {
+	VisitSetOutletGiveawayResponse(w http.ResponseWriter) error
+}
+
+type SetOutletGiveaway200JSONResponse OutletGiveawayResponse
+
+func (response SetOutletGiveaway200JSONResponse) VisitSetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetOutletGiveaway400JSONResponse Error
+
+func (response SetOutletGiveaway400JSONResponse) VisitSetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetOutletGiveaway403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetOutletGiveaway403JSONResponse) VisitSetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetOutletGiveaway404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetOutletGiveaway404JSONResponse) VisitSetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetOutletGiveaway409JSONResponse Error
+
+func (response SetOutletGiveaway409JSONResponse) VisitSetOutletGiveawayResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -19105,6 +23196,593 @@ func (response ReportSummary403JSONResponse) VisitReportSummaryResponse(w http.R
 	return err
 }
 
+type ListRequisitionsRequestObject struct {
+	Params ListRequisitionsParams
+}
+
+type ListRequisitionsResponseObject interface {
+	VisitListRequisitionsResponse(w http.ResponseWriter) error
+}
+
+type ListRequisitions200JSONResponse StockRequisitionListResponse
+
+func (response ListRequisitions200JSONResponse) VisitListRequisitionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRequisitions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListRequisitions403JSONResponse) VisitListRequisitionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRequisitionRequestObject struct {
+	Params CreateRequisitionParams
+	Body   *CreateRequisitionJSONRequestBody
+}
+
+type CreateRequisitionResponseObject interface {
+	VisitCreateRequisitionResponse(w http.ResponseWriter) error
+}
+
+type CreateRequisition201JSONResponse StockRequisitionResponse
+
+func (response CreateRequisition201JSONResponse) VisitCreateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRequisition400JSONResponse Error
+
+func (response CreateRequisition400JSONResponse) VisitCreateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateRequisition403JSONResponse) VisitCreateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRequisition409JSONResponse Error
+
+func (response CreateRequisition409JSONResponse) VisitCreateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetRequisitionParams
+}
+
+type GetRequisitionResponseObject interface {
+	VisitGetRequisitionResponse(w http.ResponseWriter) error
+}
+
+type GetRequisition200JSONResponse StockRequisitionResponse
+
+func (response GetRequisition200JSONResponse) VisitGetRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetRequisition403JSONResponse) VisitGetRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetRequisition404JSONResponse) VisitGetRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params UpdateRequisitionParams
+	Body   *UpdateRequisitionJSONRequestBody
+}
+
+type UpdateRequisitionResponseObject interface {
+	VisitUpdateRequisitionResponse(w http.ResponseWriter) error
+}
+
+type UpdateRequisition200JSONResponse StockRequisitionResponse
+
+func (response UpdateRequisition200JSONResponse) VisitUpdateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRequisition400JSONResponse Error
+
+func (response UpdateRequisition400JSONResponse) VisitUpdateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateRequisition403JSONResponse) VisitUpdateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateRequisition404JSONResponse) VisitUpdateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRequisition409JSONResponse Error
+
+func (response UpdateRequisition409JSONResponse) VisitUpdateRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ApproveRequisitionParams
+	Body   *ApproveRequisitionJSONRequestBody
+}
+
+type ApproveRequisitionResponseObject interface {
+	VisitApproveRequisitionResponse(w http.ResponseWriter) error
+}
+
+type ApproveRequisition200JSONResponse StockRequisitionResponse
+
+func (response ApproveRequisition200JSONResponse) VisitApproveRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveRequisition400JSONResponse Error
+
+func (response ApproveRequisition400JSONResponse) VisitApproveRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ApproveRequisition403JSONResponse) VisitApproveRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ApproveRequisition404JSONResponse) VisitApproveRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveRequisition409JSONResponse Error
+
+func (response ApproveRequisition409JSONResponse) VisitApproveRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params CancelRequisitionParams
+}
+
+type CancelRequisitionResponseObject interface {
+	VisitCancelRequisitionResponse(w http.ResponseWriter) error
+}
+
+type CancelRequisition200JSONResponse StockRequisitionResponse
+
+func (response CancelRequisition200JSONResponse) VisitCancelRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CancelRequisition403JSONResponse) VisitCancelRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelRequisition404JSONResponse) VisitCancelRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelRequisition409JSONResponse Error
+
+func (response CancelRequisition409JSONResponse) VisitCancelRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FulfilRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params FulfilRequisitionParams
+}
+
+type FulfilRequisitionResponseObject interface {
+	VisitFulfilRequisitionResponse(w http.ResponseWriter) error
+}
+
+type FulfilRequisition201JSONResponse StockRequisitionFulfilResponse
+
+func (response FulfilRequisition201JSONResponse) VisitFulfilRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FulfilRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response FulfilRequisition403JSONResponse) VisitFulfilRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FulfilRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response FulfilRequisition404JSONResponse) VisitFulfilRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FulfilRequisition409JSONResponse Error
+
+func (response FulfilRequisition409JSONResponse) VisitFulfilRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RejectRequisitionParams
+	Body   *RejectRequisitionJSONRequestBody
+}
+
+type RejectRequisitionResponseObject interface {
+	VisitRejectRequisitionResponse(w http.ResponseWriter) error
+}
+
+type RejectRequisition200JSONResponse StockRequisitionResponse
+
+func (response RejectRequisition200JSONResponse) VisitRejectRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectRequisition400JSONResponse Error
+
+func (response RejectRequisition400JSONResponse) VisitRejectRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RejectRequisition403JSONResponse) VisitRejectRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RejectRequisition404JSONResponse) VisitRejectRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectRequisition409JSONResponse Error
+
+func (response RejectRequisition409JSONResponse) VisitRejectRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitRequisitionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params SubmitRequisitionParams
+}
+
+type SubmitRequisitionResponseObject interface {
+	VisitSubmitRequisitionResponse(w http.ResponseWriter) error
+}
+
+type SubmitRequisition200JSONResponse StockRequisitionResponse
+
+func (response SubmitRequisition200JSONResponse) VisitSubmitRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitRequisition403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SubmitRequisition403JSONResponse) VisitSubmitRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitRequisition404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SubmitRequisition404JSONResponse) VisitSubmitRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitRequisition409JSONResponse Error
+
+func (response SubmitRequisition409JSONResponse) VisitSubmitRequisitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListSegmentsRequestObject struct {
 }
 
@@ -19563,6 +24241,134 @@ func (response UpdateStockCount409Response) VisitUpdateStockCountResponse(w http
 	return nil
 }
 
+type ApproveStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ApproveStockCountParams
+	Body   *ApproveStockCountJSONRequestBody
+}
+
+type ApproveStockCountResponseObject interface {
+	VisitApproveStockCountResponse(w http.ResponseWriter) error
+}
+
+type ApproveStockCount200JSONResponse StockCountResponse
+
+func (response ApproveStockCount200JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount400JSONResponse Error
+
+func (response ApproveStockCount400JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount403JSONResponse Error
+
+func (response ApproveStockCount403JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ApproveStockCount404JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount409JSONResponse Error
+
+func (response ApproveStockCount409JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount429ResponseHeaders struct {
+	RetryAfter *int
+}
+
+type ApproveStockCount429JSONResponse struct {
+	Body    ReceiveApprovalLocked
+	Headers ApproveStockCount429ResponseHeaders
+}
+
+func (response ApproveStockCount429JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveStockCount503ResponseHeaders struct {
+	RetryAfter *int
+}
+
+type ApproveStockCount503JSONResponse struct {
+	Body    Error
+	Headers ApproveStockCount503ResponseHeaders
+}
+
+func (response ApproveStockCount503JSONResponse) VisitApproveStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CompleteStockCountRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params CompleteStockCountParams
@@ -19601,12 +24407,365 @@ func (response CompleteStockCount404JSONResponse) VisitCompleteStockCountRespons
 	return err
 }
 
-type CompleteStockCount409Response struct {
+type CompleteStockCount409JSONResponse InventoryConflictError
+
+func (response CompleteStockCount409JSONResponse) VisitCompleteStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
-func (response CompleteStockCount409Response) VisitCompleteStockCountResponse(w http.ResponseWriter) error {
-	w.WriteHeader(409)
+type ExportStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ExportStockCountParams
+}
+
+type ExportStockCountResponseObject interface {
+	VisitExportStockCountResponse(w http.ResponseWriter) error
+}
+
+type ExportStockCount200TextcsvResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportStockCount200TextcsvResponse) VisitExportStockCountResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportStockCount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ExportStockCount403JSONResponse) VisitExportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ExportStockCount404JSONResponse) VisitExportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ImportStockCountParams
+	Body   *ImportStockCountJSONRequestBody
+}
+
+type ImportStockCountResponseObject interface {
+	VisitImportStockCountResponse(w http.ResponseWriter) error
+}
+
+type ImportStockCount200JSONResponse StockCountImportReportResponse
+
+func (response ImportStockCount200JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount400Response struct {
+}
+
+func (response ImportStockCount400Response) VisitImportStockCountResponse(w http.ResponseWriter) error {
+	w.WriteHeader(400)
 	return nil
+}
+
+type ImportStockCount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ImportStockCount403JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ImportStockCount404JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount409JSONResponse struct{ ImportConflictJSONResponse }
+
+func (response ImportStockCount409JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount413JSONResponse Error
+
+func (response ImportStockCount413JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount422JSONResponse StockCountImportRejectedResponse
+
+func (response ImportStockCount422JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount429JSONResponse Error
+
+func (response ImportStockCount429JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportStockCount503JSONResponse Error
+
+func (response ImportStockCount503JSONResponse) VisitImportStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RejectStockCountParams
+	Body   *RejectStockCountJSONRequestBody
+}
+
+type RejectStockCountResponseObject interface {
+	VisitRejectStockCountResponse(w http.ResponseWriter) error
+}
+
+type RejectStockCount200JSONResponse StockCountResponse
+
+func (response RejectStockCount200JSONResponse) VisitRejectStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectStockCount400JSONResponse Error
+
+func (response RejectStockCount400JSONResponse) VisitRejectStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectStockCount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RejectStockCount403JSONResponse) VisitRejectStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RejectStockCount404JSONResponse) VisitRejectStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectStockCount409JSONResponse Error
+
+func (response RejectStockCount409JSONResponse) VisitRejectStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitStockCountRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params SubmitStockCountParams
+	Body   *SubmitStockCountJSONRequestBody
+}
+
+type SubmitStockCountResponseObject interface {
+	VisitSubmitStockCountResponse(w http.ResponseWriter) error
+}
+
+type SubmitStockCount200JSONResponse StockCountResponse
+
+func (response SubmitStockCount200JSONResponse) VisitSubmitStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitStockCount400JSONResponse Error
+
+func (response SubmitStockCount400JSONResponse) VisitSubmitStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitStockCount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SubmitStockCount403JSONResponse) VisitSubmitStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitStockCount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SubmitStockCount404JSONResponse) VisitSubmitStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitStockCount409JSONResponse Error
+
+func (response SubmitStockCount409JSONResponse) VisitSubmitStockCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ListSyncReviewItemsRequestObject struct {
@@ -21282,6 +26441,27 @@ type StrictServerInterface interface {
 	// Adjust an outlet OR warehouse stock to a new quantity (Backoffice)
 	// (POST /api/v1/inventory/adjust)
 	AdjustLocationStock(ctx context.Context, request AdjustLocationStockRequestObject) (AdjustLocationStockResponseObject, error)
+	// List stock adjustment requests (manage_inventory)
+	// (GET /api/v1/inventory/adjustment-requests)
+	ListAdjustmentRequests(ctx context.Context, request ListAdjustmentRequestsRequestObject) (ListAdjustmentRequestsResponseObject, error)
+	// Request a stock adjustment to a new quantity; it waits for approval (manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests)
+	CreateAdjustmentRequest(ctx context.Context, request CreateAdjustmentRequestRequestObject) (CreateAdjustmentRequestResponseObject, error)
+	// Get one adjustment request with its history and the live quantity (manage_inventory)
+	// (GET /api/v1/inventory/adjustment-requests/{id})
+	GetAdjustmentRequest(ctx context.Context, request GetAdjustmentRequestRequestObject) (GetAdjustmentRequestResponseObject, error)
+	// Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/approve)
+	ApproveAdjustmentRequest(ctx context.Context, request ApproveAdjustmentRequestRequestObject) (ApproveAdjustmentRequestResponseObject, error)
+	// Cancel a pending adjustment request (the requester; manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/cancel)
+	CancelAdjustmentRequest(ctx context.Context, request CancelAdjustmentRequestRequestObject) (CancelAdjustmentRequestResponseObject, error)
+	// Reject a pending adjustment request with a note (manage_inventory)
+	// (POST /api/v1/inventory/adjustment-requests/{id}/reject)
+	RejectAdjustmentRequest(ctx context.Context, request RejectAdjustmentRequestRequestObject) (RejectAdjustmentRequestResponseObject, error)
+	// Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
+	// (GET /api/v1/inventory/approvals)
+	ListInventoryApprovals(ctx context.Context, request ListInventoryApprovalsRequestObject) (ListInventoryApprovalsResponseObject, error)
 	// Receive goods into an outlet OR warehouse (Backoffice)
 	// (POST /api/v1/inventory/goods-receipt)
 	CreateLocationGoodsReceipt(ctx context.Context, request CreateLocationGoodsReceiptRequestObject) (CreateLocationGoodsReceiptResponseObject, error)
@@ -21300,6 +26480,15 @@ type StrictServerInterface interface {
 	// Per-location product movement summary (Backoffice)
 	// (GET /api/v1/inventory/movement-summary)
 	GetMovementSummary(ctx context.Context, request GetMovementSummaryRequestObject) (GetMovementSummaryResponseObject, error)
+	// Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
+	// (GET /api/v1/inventory/movements)
+	ListStockMovements(ctx context.Context, request ListStockMovementsRequestObject) (ListStockMovementsResponseObject, error)
+	// Kartu stok as CSV, same filters as the list (manage_inventory)
+	// (GET /api/v1/inventory/movements/export)
+	ExportStockMovements(ctx context.Context, request ExportStockMovementsRequestObject) (ExportStockMovementsResponseObject, error)
+	// Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory)
+	// (GET /api/v1/inventory/movements/summary)
+	GetMovementLedgerSummary(ctx context.Context, request GetMovementLedgerSummaryRequestObject) (GetMovementLedgerSummaryResponseObject, error)
 	// Set the per-variant low-stock (PAR) threshold for an outlet (Backoffice)
 	// (PUT /api/v1/inventory/outlet-par)
 	SetOutletPar(ctx context.Context, request SetOutletParRequestObject) (SetOutletParResponseObject, error)
@@ -21339,6 +26528,12 @@ type StrictServerInterface interface {
 	// Update outlet (Backoffice)
 	// (PUT /api/v1/outlets/{id})
 	UpdateOutlet(ctx context.Context, request UpdateOutletRequestObject) (UpdateOutletResponseObject, error)
+	// The per-sale giveaway item of an outlet (manage_outlets)
+	// (GET /api/v1/outlets/{id}/giveaway)
+	GetOutletGiveaway(ctx context.Context, request GetOutletGiveawayRequestObject) (GetOutletGiveawayResponseObject, error)
+	// Set the per-sale giveaway item of an outlet (manage_outlets)
+	// (PUT /api/v1/outlets/{id}/giveaway)
+	SetOutletGiveaway(ctx context.Context, request SetOutletGiveawayRequestObject) (SetOutletGiveawayResponseObject, error)
 	// Mark oversell lines 'sudah dicek' (idempotent), manage_stock_count
 	// (POST /api/v1/oversell-records/acknowledge)
 	AcknowledgeOversellRecords(ctx context.Context, request AcknowledgeOversellRecordsRequestObject) (AcknowledgeOversellRecordsResponseObject, error)
@@ -21411,6 +26606,33 @@ type StrictServerInterface interface {
 	// Server-aggregated sales summary (outlet-scoped)
 	// (GET /api/v1/reports/summary)
 	ReportSummary(ctx context.Context, request ReportSummaryRequestObject) (ReportSummaryResponseObject, error)
+	// List Permintaan Barang (request_stock for the own outlet, or manage_inventory)
+	// (GET /api/v1/requisitions)
+	ListRequisitions(ctx context.Context, request ListRequisitionsRequestObject) (ListRequisitionsResponseObject, error)
+	// Create a draft Permintaan Barang for the active outlet (request_stock)
+	// (POST /api/v1/requisitions)
+	CreateRequisition(ctx context.Context, request CreateRequisitionRequestObject) (CreateRequisitionResponseObject, error)
+	// Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory)
+	// (GET /api/v1/requisitions/{id})
+	GetRequisition(ctx context.Context, request GetRequisitionRequestObject) (GetRequisitionResponseObject, error)
+	// Replace a draft Permintaan Barang (request_stock; drafts only)
+	// (PUT /api/v1/requisitions/{id})
+	UpdateRequisition(ctx context.Context, request UpdateRequisitionRequestObject) (UpdateRequisitionResponseObject, error)
+	// Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/approve)
+	ApproveRequisition(ctx context.Context, request ApproveRequisitionRequestObject) (ApproveRequisitionResponseObject, error)
+	// Cancel a draft or submitted Permintaan Barang (request_stock)
+	// (POST /api/v1/requisitions/{id}/cancel)
+	CancelRequisition(ctx context.Context, request CancelRequisitionRequestObject) (CancelRequisitionResponseObject, error)
+	// Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/fulfil)
+	FulfilRequisition(ctx context.Context, request FulfilRequisitionRequestObject) (FulfilRequisitionResponseObject, error)
+	// Reject a submitted Permintaan Barang with a note (manage_inventory)
+	// (POST /api/v1/requisitions/{id}/reject)
+	RejectRequisition(ctx context.Context, request RejectRequisitionRequestObject) (RejectRequisitionResponseObject, error)
+	// Submit a draft Permintaan Barang to the warehouse (request_stock)
+	// (POST /api/v1/requisitions/{id}/submit)
+	SubmitRequisition(ctx context.Context, request SubmitRequisitionRequestObject) (SubmitRequisitionResponseObject, error)
 
 	// (GET /api/v1/segments)
 	ListSegments(ctx context.Context, request ListSegmentsRequestObject) (ListSegmentsResponseObject, error)
@@ -21465,9 +26687,24 @@ type StrictServerInterface interface {
 	// Update stock count (outlet-scoped). Start re-freezes frozen quantities from live stock; in progress, items only update actualQty of existing lines and capture the live stock as that line's baseline; planned counts replace the line list. Repeating start or cancel is a no-op.
 	// (PUT /api/v1/stock-counts/{id})
 	UpdateStockCount(ctx context.Context, request UpdateStockCountRequestObject) (UpdateStockCountResponseObject, error)
+	// Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+	// (POST /api/v1/stock-counts/{id}/approve)
+	ApproveStockCount(ctx context.Context, request ApproveStockCountRequestObject) (ApproveStockCountResponseObject, error)
 	// Complete stock count — adds each counted line's difference (counted minus baseline) to live stock in one tx, so sales made during the count are kept, and bumps the content version (outlet counts). Completing a completed count is a no-op that returns it. Items may only update actualQty of existing lines.
 	// (POST /api/v1/stock-counts/{id}/complete)
 	CompleteStockCount(ctx context.Context, request CompleteStockCountRequestObject) (CompleteStockCountResponseObject, error)
+	// Count sheet as CSV for a scanner app (manage_stock_count)
+	// (GET /api/v1/stock-counts/{id}/export)
+	ExportStockCount(ctx context.Context, request ExportStockCountRequestObject) (ExportStockCountResponseObject, error)
+	// Scanner CSV upload for an in-progress count, dry run or commit (manage_stock_count)
+	// (POST /api/v1/stock-counts/{id}/import)
+	ImportStockCount(ctx context.Context, request ImportStockCountRequestObject) (ImportStockCountResponseObject, error)
+	// Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule)
+	// (POST /api/v1/stock-counts/{id}/reject)
+	RejectStockCount(ctx context.Context, request RejectStockCountRequestObject) (RejectStockCountResponseObject, error)
+	// Submit a finished count for approval; status becomes pending_approval (manage_stock_count)
+	// (POST /api/v1/stock-counts/{id}/submit)
+	SubmitStockCount(ctx context.Context, request SubmitStockCountRequestObject) (SubmitStockCountResponseObject, error)
 	// Head-office list of tablet review items (cross-outlet, paginated)
 	// (GET /api/v1/sync-review-items)
 	ListSyncReviewItems(ctx context.Context, request ListSyncReviewItemsRequestObject) (ListSyncReviewItemsResponseObject, error)
@@ -23784,6 +29021,222 @@ func (sh *strictHandler) AdjustLocationStock(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ListAdjustmentRequests operation middleware
+func (sh *strictHandler) ListAdjustmentRequests(w http.ResponseWriter, r *http.Request, params ListAdjustmentRequestsParams) {
+	var request ListAdjustmentRequestsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdjustmentRequests(ctx, request.(ListAdjustmentRequestsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdjustmentRequests")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdjustmentRequestsResponseObject); ok {
+		if err := validResponse.VisitListAdjustmentRequestsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAdjustmentRequest operation middleware
+func (sh *strictHandler) CreateAdjustmentRequest(w http.ResponseWriter, r *http.Request, params CreateAdjustmentRequestParams) {
+	var request CreateAdjustmentRequestRequestObject
+
+	request.Params = params
+
+	var body CreateAdjustmentRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAdjustmentRequest(ctx, request.(CreateAdjustmentRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAdjustmentRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAdjustmentRequestResponseObject); ok {
+		if err := validResponse.VisitCreateAdjustmentRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdjustmentRequest operation middleware
+func (sh *strictHandler) GetAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdjustmentRequestRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdjustmentRequest(ctx, request.(GetAdjustmentRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdjustmentRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdjustmentRequestResponseObject); ok {
+		if err := validResponse.VisitGetAdjustmentRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ApproveAdjustmentRequest operation middleware
+func (sh *strictHandler) ApproveAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdjustmentRequestParams) {
+	var request ApproveAdjustmentRequestRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ApproveAdjustmentRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveAdjustmentRequest(ctx, request.(ApproveAdjustmentRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveAdjustmentRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveAdjustmentRequestResponseObject); ok {
+		if err := validResponse.VisitApproveAdjustmentRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelAdjustmentRequest operation middleware
+func (sh *strictHandler) CancelAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelAdjustmentRequestParams) {
+	var request CancelAdjustmentRequestRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body CancelAdjustmentRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelAdjustmentRequest(ctx, request.(CancelAdjustmentRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelAdjustmentRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelAdjustmentRequestResponseObject); ok {
+		if err := validResponse.VisitCancelAdjustmentRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RejectAdjustmentRequest operation middleware
+func (sh *strictHandler) RejectAdjustmentRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectAdjustmentRequestParams) {
+	var request RejectAdjustmentRequestRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RejectAdjustmentRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RejectAdjustmentRequest(ctx, request.(RejectAdjustmentRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RejectAdjustmentRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RejectAdjustmentRequestResponseObject); ok {
+		if err := validResponse.VisitRejectAdjustmentRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListInventoryApprovals operation middleware
+func (sh *strictHandler) ListInventoryApprovals(w http.ResponseWriter, r *http.Request, params ListInventoryApprovalsParams) {
+	var request ListInventoryApprovalsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListInventoryApprovals(ctx, request.(ListInventoryApprovalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListInventoryApprovals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListInventoryApprovalsResponseObject); ok {
+		if err := validResponse.VisitListInventoryApprovalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateLocationGoodsReceipt operation middleware
 func (sh *strictHandler) CreateLocationGoodsReceipt(w http.ResponseWriter, r *http.Request, params CreateLocationGoodsReceiptParams) {
 	var request CreateLocationGoodsReceiptRequestObject
@@ -23952,6 +29405,84 @@ func (sh *strictHandler) GetMovementSummary(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMovementSummaryResponseObject); ok {
 		if err := validResponse.VisitGetMovementSummaryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStockMovements operation middleware
+func (sh *strictHandler) ListStockMovements(w http.ResponseWriter, r *http.Request, params ListStockMovementsParams) {
+	var request ListStockMovementsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStockMovements(ctx, request.(ListStockMovementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStockMovements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStockMovementsResponseObject); ok {
+		if err := validResponse.VisitListStockMovementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportStockMovements operation middleware
+func (sh *strictHandler) ExportStockMovements(w http.ResponseWriter, r *http.Request, params ExportStockMovementsParams) {
+	var request ExportStockMovementsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportStockMovements(ctx, request.(ExportStockMovementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportStockMovements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportStockMovementsResponseObject); ok {
+		if err := validResponse.VisitExportStockMovementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMovementLedgerSummary operation middleware
+func (sh *strictHandler) GetMovementLedgerSummary(w http.ResponseWriter, r *http.Request, params GetMovementLedgerSummaryParams) {
+	var request GetMovementLedgerSummaryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMovementLedgerSummary(ctx, request.(GetMovementLedgerSummaryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMovementLedgerSummary")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMovementLedgerSummaryResponseObject); ok {
+		if err := validResponse.VisitGetMovementLedgerSummaryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -24331,6 +29862,66 @@ func (sh *strictHandler) UpdateOutlet(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateOutletResponseObject); ok {
 		if err := validResponse.VisitUpdateOutletResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOutletGiveaway operation middleware
+func (sh *strictHandler) GetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetOutletGiveawayRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOutletGiveaway(ctx, request.(GetOutletGiveawayRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOutletGiveaway")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOutletGiveawayResponseObject); ok {
+		if err := validResponse.VisitGetOutletGiveawayResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetOutletGiveaway operation middleware
+func (sh *strictHandler) SetOutletGiveaway(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SetOutletGiveawayParams) {
+	var request SetOutletGiveawayRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body SetOutletGiveawayJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetOutletGiveaway(ctx, request.(SetOutletGiveawayRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetOutletGiveaway")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetOutletGiveawayResponseObject); ok {
+		if err := validResponse.VisitSetOutletGiveawayResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -25034,6 +30625,275 @@ func (sh *strictHandler) ReportSummary(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
+// ListRequisitions operation middleware
+func (sh *strictHandler) ListRequisitions(w http.ResponseWriter, r *http.Request, params ListRequisitionsParams) {
+	var request ListRequisitionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRequisitions(ctx, request.(ListRequisitionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRequisitions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRequisitionsResponseObject); ok {
+		if err := validResponse.VisitListRequisitionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateRequisition operation middleware
+func (sh *strictHandler) CreateRequisition(w http.ResponseWriter, r *http.Request, params CreateRequisitionParams) {
+	var request CreateRequisitionRequestObject
+
+	request.Params = params
+
+	var body CreateRequisitionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateRequisition(ctx, request.(CreateRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateRequisitionResponseObject); ok {
+		if err := validResponse.VisitCreateRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRequisition operation middleware
+func (sh *strictHandler) GetRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetRequisitionParams) {
+	var request GetRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRequisition(ctx, request.(GetRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRequisitionResponseObject); ok {
+		if err := validResponse.VisitGetRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateRequisition operation middleware
+func (sh *strictHandler) UpdateRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params UpdateRequisitionParams) {
+	var request UpdateRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body UpdateRequisitionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateRequisition(ctx, request.(UpdateRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateRequisitionResponseObject); ok {
+		if err := validResponse.VisitUpdateRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ApproveRequisition operation middleware
+func (sh *strictHandler) ApproveRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveRequisitionParams) {
+	var request ApproveRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ApproveRequisitionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveRequisition(ctx, request.(ApproveRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveRequisitionResponseObject); ok {
+		if err := validResponse.VisitApproveRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelRequisition operation middleware
+func (sh *strictHandler) CancelRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CancelRequisitionParams) {
+	var request CancelRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelRequisition(ctx, request.(CancelRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelRequisitionResponseObject); ok {
+		if err := validResponse.VisitCancelRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FulfilRequisition operation middleware
+func (sh *strictHandler) FulfilRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FulfilRequisitionParams) {
+	var request FulfilRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FulfilRequisition(ctx, request.(FulfilRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FulfilRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FulfilRequisitionResponseObject); ok {
+		if err := validResponse.VisitFulfilRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RejectRequisition operation middleware
+func (sh *strictHandler) RejectRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectRequisitionParams) {
+	var request RejectRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RejectRequisitionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RejectRequisition(ctx, request.(RejectRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RejectRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RejectRequisitionResponseObject); ok {
+		if err := validResponse.VisitRejectRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitRequisition operation middleware
+func (sh *strictHandler) SubmitRequisition(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitRequisitionParams) {
+	var request SubmitRequisitionRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitRequisition(ctx, request.(SubmitRequisitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitRequisition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitRequisitionResponseObject); ok {
+		if err := validResponse.VisitSubmitRequisitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListSegments operation middleware
 func (sh *strictHandler) ListSegments(w http.ResponseWriter, r *http.Request) {
 	var request ListSegmentsRequestObject
@@ -25561,6 +31421,40 @@ func (sh *strictHandler) UpdateStockCount(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ApproveStockCount operation middleware
+func (sh *strictHandler) ApproveStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveStockCountParams) {
+	var request ApproveStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ApproveStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveStockCount(ctx, request.(ApproveStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveStockCountResponseObject); ok {
+		if err := validResponse.VisitApproveStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CompleteStockCount operation middleware
 func (sh *strictHandler) CompleteStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params CompleteStockCountParams) {
 	var request CompleteStockCountRequestObject
@@ -25591,6 +31485,135 @@ func (sh *strictHandler) CompleteStockCount(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CompleteStockCountResponseObject); ok {
 		if err := validResponse.VisitCompleteStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportStockCount operation middleware
+func (sh *strictHandler) ExportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ExportStockCountParams) {
+	var request ExportStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportStockCount(ctx, request.(ExportStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportStockCountResponseObject); ok {
+		if err := validResponse.VisitExportStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ImportStockCount operation middleware
+func (sh *strictHandler) ImportStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ImportStockCountParams) {
+	var request ImportStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ImportStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ImportStockCount(ctx, request.(ImportStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ImportStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ImportStockCountResponseObject); ok {
+		if err := validResponse.VisitImportStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RejectStockCount operation middleware
+func (sh *strictHandler) RejectStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectStockCountParams) {
+	var request RejectStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RejectStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RejectStockCount(ctx, request.(RejectStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RejectStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RejectStockCountResponseObject); ok {
+		if err := validResponse.VisitRejectStockCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitStockCount operation middleware
+func (sh *strictHandler) SubmitStockCount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params SubmitStockCountParams) {
+	var request SubmitStockCountRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body SubmitStockCountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitStockCount(ctx, request.(SubmitStockCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitStockCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitStockCountResponseObject); ok {
+		if err := validResponse.VisitSubmitStockCountResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -26747,441 +32770,544 @@ func (sh *strictHandler) HealthLivez(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"7L3rchw30ij4KgjuRpgd003Ssj3rEcNxlqIkD8eSyCEp+/MZeWl0VXY3hlVAGUB1sz3hiPNrH2DjvMP3",
-	"Ht+jfE+ygVvdGnXrGymN/sxYbBSQSGQmMhN5+ddBwOKEUaBSHDz/10GCOY5BAtf/uogTxuVFCHHCJNBg",
-	"+QMs1d9DEAEniSSMHjw/uIbfUsIhRIsZUBTy5XVKv5vgSAA6nAIFjiWEiNEAUAIcJRzmBBZDxCEV+gfE",
-	"QfLl4OhgeEDUhDPAIfCD4QHFMRw8PygAMFIQDA9EMIMYK1DkMlFDhOSETg/++GN48IbERKqf9Fy/pcCX",
-	"+VSR/rE4QQgTnEby4Pk3J8ODGD+QOI0Pnj87Uf8i1Pzry6Fbh1AJU+B6oUseAn+JJbzAgohVvPwqcAS/",
-	"okO7wgCNWUpDgUIs4TVn8bH6j1umECBngNRoNE4FoSDUoOUR+pXDJKXhr+5LOYPYDv9AzW+lLxROZcqp",
-	"QIxGS2RGQIg4WwiEaYiYAtnOM84HnEl0SGEBQqIJ4UIOjj7QNzDFwRJNFKCSIcwBpRRPJhBICI/Q1ycn",
-	"aMI4wnSJmJwBR3McpXD0gbpTrGA+zBDlxf6B2v7B8ACoQvg/3D8NhAe/DD0HrfF/hZcxUPkW5IyFr0kk",
-	"ga+exFssgxmEKMACRoQKoIJIModoifBEAkeSkzgmdIoWMyJBJDiAo5p9JMUFW0hRQ3gDmAezVaBu0rEZ",
-	"imIFnjpXfTyIpvEY+FBBOyPq3ziGIQpSIVmc/ZNxFBF6rzblfkhmjMKx+rkO9t86wSuxTEWOSt9EQo8p",
-	"zeYOTsmTCCSE2enp/wwwDSCKoO4sUxmB/Kth/BVUnQXqtBDTgxCbA+ckBHSIw5hQTesaIXEqpEWmZPdA",
-	"7Qf1guU/Rmbd0UX5JCeMx1gRZZoS9UsdvH/XWFkFV4E10iwID0lEAiId7CJgCZyiDwc4ij4caA4KOBNi",
-	"ZH6vOzjz60UbvV3hKdQdWaJ+87Lel62S7qeLFy+t0Frd7QUNolSo84nYAriRVUOE0c8///zz6O3b0cuX",
-	"JSGFDpW0U/9BjOAzm/tCIEli+J1ROEUYiRmZqL8pOSCQxPdghKT9M0uAKtZRUmVgpJG+fVKaYC4Aj6Na",
-	"JnDi13/i6lfviVsc3LImDKRJ8pFg4Jb13T8nEtpUgUv9Hzg6QpcUkOIefeWr2ZFIxzGRK9f+qb38YkD3",
-	"sEQLImf5X8YsVLdUEuGlMH+VTGkaHETCqIChGY9RSCYT4ECl+8Rcg1+f/KVwI/XRK2L88AboVM6sLlBF",
-	"yB9Kuhkg9NX/mvExCUOg6h8BoxKoVkJwogQAVmg5/qdg+ud8lf+Tw+Tg+cH/cZxrYcfmV3H8inPGzUpl",
-	"JBMq0smEBERtl7MIjhPgMRFCrWFI6eCPoVXezhmdRCSQWwOrPO21xYEXTj3yTkil2ByGWGIUzDCdQogE",
-	"UdqgOlCrDQ6U/Cb5edwFdgF06EhjWDjkCYlgkG/yGv6p1ZItb9JN27RJBYmCnbMFAnVi4hRRJmdamcAC",
-	"aRggNCzPQU2LhKLmxWxZ2oH638sftr4D87/18GfauAOUg0gjqe9Tw3iITRCmCDCPlDYSsFip0H8MD94x",
-	"+VpJut1TPGUSTfRSfwwP3lOcyhnj5HfYw9KpXg2oVPNCqEWh/UjNeRb+MxXyihEqxQVNUg1GwlkCXBIj",
-	"GRL9Y+HCzm5WJUKwBXNV4HJrVimlys6RfZDrUGysaFTNVQQlO/EVaBQbrv51jCOln51NrM7n0QGK4JSG",
-	"r8JSGa2X9EKcJDcgJaFTsQoSjiK2eAdTrFS/G8mC+wJgY8YiwFRNglPJLhOgN+pe9A8JWZDGzsJtooKX",
-	"dmAG1R/Dsr6vZyAS4tapSnaJkpZkqmazwGHO8dIQQAAkkW2zXZthRbj0l3M4SxKuFOJrFoHHBtV/RosZ",
-	"E4BSoWy/GC8Vr6uPEEZXlzdIckzFBBS/6ym12uD2WKFL7w5IAuIVVRpH6D8ArniX0OlZzFLDqbm+wdKx",
-	"tvRoGkVqioPnkqeQrWOModIkSRItb9ktflAT1XzmWfwl4RAYtOTWyiRiTGkEAZBIAQGYg5CKWmsmzhHh",
-	"5u2081v9S76uXejum5OTfNm7L0/MPxkFj5k0PJD4oXE1iR+ulf6W/+jQV2HJwkT5V6tbqsC/wgw5/Vb5",
-	"cOjj3xYZ0C60mlikKEy6S6BUzl56JSIOAhB+DuAw4SBm3t8Uj7VB+l54TsSul89u56qDekNkuX13xtSL",
-	"//j+ZyvGVm+PdHnFWZgG8qIiIVulxzhd/j3FVBK59N+QU5AviQiU3PiBGF3D8VACPAAqjV07IQ9e30Jp",
-	"hh9xlIJf/KyImynIdTc1Bdm8qRg/nOWqiuhy4xbwVF5gFUWeLXtPNKVh5KGfgIPSdM7kil04UubpgQfF",
-	"pTvnX+2ik4QdvCzDAxLjKbznUbc5hfES+SVjdnidLm+DmgsJse94jfXooYOEk6AbeVVOV29fT+sgdZMV",
-	"9jUsnEz9edbzqPr1qjOEnYh0eCAiJvvi9SZichWvFZSYiYcluOt3rY9qVfPusdvE8XrNyepf39Wd/G+N",
-	"7D7HnGAqb8jv0EHVzwApL1ueprCkI5V67LwhQrbfFz1OsPX06q+RnAI8x6V3+wMse8rbJuz7savXKHzo",
-	"A/Ucc+mnq9DK1nMWQguoNWIrA52IXAx7pJa4hgXmNdre/sg74SxmSgq0XoVt+21mFK53e85oSMxqNfqX",
-	"GnWVw+QdJdKxZBJHHRG0Ex51MrzAqxlYfpITs9cRW3jU0QbLaWUv9uHIIKb14rSj3eG3j99YP1hXH8he",
-	"QboM1n7yjiiQ1jprPnW9TuElRhqbyB5NeZdtl7U76S2K5ox4PBIyhnab4C30sQfcatfwW6os5s0oto1A",
-	"tn+YTYfn36+EKTOvfZVD2o3yW6tlCsalfqhtWK3u+ssVzaY91jgy2w5pJxC3ArtVDrJnvLZ6cx4xAdoD",
-	"UssXQcQEoVPFP13FuSJRCF8sbcyBYq7Q3JA4uipN3mG2GvzX+G6L0Ho3rKWcPtzCjiuBDsDnxrvI4iSV",
-	"IBCOIhQzCstjIVlwfxyxJY7kEh0mEabov/7zL4NTFET6fUtHlQgdfpJwNifCvS+a9/Q/ZVESAYtBR6vo",
-	"Z6W//XR7hG5ngCpvfMi8ASIikNumeSD0Ca8rXOHVhjOyQRhd71w7vPOlG8KcBNBxdqefvuCA70O2oJ05",
-	"4GWm2dqfuuh0RXW4F3xb0J/dVG/wGKJei1c9sn5vUufpGlxLrZ7tfs4JzWzKMDFi2uegYNLgtRV6HXD0",
-	"Pu14JZVDn1b4PNCuh5RDiOxIFOuhiITocMIBRiYQQD/+xmTKtWcBnZycfDPwrldW8Vt3s00zhUkIb+vt",
-	"h/bXCvtiQ3EiZsba9Qtt830Zk1dcXYchspOgw/kQcZj8CFyJv6GRnWhCIArFEEWEghgcoXesHCSGmI0J",
-	"OzpoFftDHXAnYtwV1254ZwnWR4UTKQ9mmE9hfa6q3GM5oRc8bCVyrr/d3ovS5bbiC0givKw1nSHGpExD",
-	"5i89zZt22sdCLBgvf5z9UUd4uXiWb32fZxEkPX0vnEUlMapD8tR6mOKpDraxF7Q/7q94Rg4xBaiL2LVr",
-	"ec9JzF28Q53WJearAovjBTq/+RFJeJDo8P3t69G3XjlkQpr9Thh4SHSMyE0ax9iYB+1hGW7wH0MdP1JL",
-	"POrHmxl+9s2fV4EvBM+gGRaz00yhWY3DPmhDvUJPtk8vhrVguWZbejDY1AZak1wb3O7FGVuN9wwZNZbS",
-	"juH2gNwM5jZtpJwQ1reS7C3lcRpQSubAheWkalRiqxQcEy5nIV7v4zXoOJPu27L6Iyzkj0SQehhaV6ol",
-	"vu5qodYa/ATcEMwkYBq7QKwoupwcPP9HF1oCfmM//GNF4dYxDdPuuvEt7qTeaQ/sTQKd/VPK7pTnzqHV",
-	"2cniMDnMA7gKS5em7SZzgNdInArjNDJGPRWvQUudaadGhs3KsS6rG9667DInugcPqV1ts0iNHOa+697k",
-	"7Fi5r1nE+CZ++BqqaGADs6QP2peYRMsbZUxcm3ePSkA5BR1aq8PqiyH0coal0nsQNolTjCNs85mOTMj8",
-	"sU12whyQkCSKRllqik6I+kDHS3Rz9uaVmu8UTTkTQgNyrP/zMv86++5P5Yyq8dKsrb83P4ljN8R8/4Gq",
-	"Cexv6oPrV6/fv3tpPqEg9YLou8LqaOSG+xxTYTm8qxDlksNcE0iTrdDVUWih6zicNaxdxknTmK6ric6Q",
-	"rbKNToPR32dQl9BTRmYO2co+CjjyknbFL1blwtB/kgGLx4Sa66tLfOMaasuG3soyi/6VRaH1OByhS5N3",
-	"KFNOIUSSoQBHkeIjnadhjMK7zE8jThEeC6DSJcJcXd6gJI0iZMI+0OHZVyeDoy5aD9DwpeWNrYUfNUYU",
-	"xYReaTeFWNftlwDPLzmbs9r2OtLfKSYk5rIzamQnr6gn7BFPoVY/sr/32OS8c6Ce79LRrJW9z5q5SjD2",
-	"iKoqMvELLINZjQLWm2vrkVUg5Y+GJmFCHtpCR/xvg0Xy9DgCJxOSJWL5kLUJwe6DICtEaI69jdBqaWxb",
-	"V0Y/+f8xEuQmVPfUacov37KTaKOuLVpUJRVnbX9QcRaTsbZFsGwK3KZxMUoWdfLwrq6deXurIa7270Oz",
-	"OQtNNwRd+4LEauVDxg6dX2s4hBAnDYG/HGJMqBrdidZtwQB/ysQOdIfvydyk4nbhrQ74Lrj3V95/JKFB",
-	"/pbtuaKYxNF1G0L1qB/7iIQGsN3r/WZRWfc24aKVWiL3+r7yy3xbD3hmiSxgy8sl1ey91d2HIQch3hDa",
-	"0RE65piGnZkmYlPWNV2BJoukny+2ZaSXINLkHNOQOK/Bxu828KDJfVr04Hf1uHV1LsFindnrXda56Mnv",
-	"c53TpiUun4J9aIyJEHXlSVZMDOfXzQqh5Mgsb8GDs19aTmqb93ORALbu9Wy6sQoLb+YALW+hq0rxiifn",
-	"WOKITa/SKKpTKjgIlvIAuj8wVOc13/tQu0p2xco4CeaSYCXQJpiYVEtxT5IEwruIBfdd6DAjvXwXXTBh",
-	"IfZEd2KlPmJZSi4tmqU6Rd5rA0iIdQJ9zdUWW71k9QFb/aIdPzylKBUQmmog3DzjQ2gG6PdsIpGQTGEI",
-	"jWHCtFdVsGhO6BTpkl5ZSm8aRbriR8BBXQcayziVzKu0J3gKtSpOjis3uYnRENoOoETMILybMhYK79w8",
-	"bbA/+hCHNxeYxWMhGa07rjQRwGsPc4El8Bjz+3XfGSvEmOHKnrbbfEFCGkwXACvtYVgiwBJNOdIrQt2J",
-	"0jeQOl750Uf6XKZyzB60Wiu8zFZzMCFEZA687txmENX84i61GlJOIrysm1TUf1pNfMluTg1I/mkR8MJy",
-	"Q7PTRhy9BGmfH7u9Gmcf2vzMKm6BJ8Wzb4q6aw2KS/AyYjjc1jx5LE9vZe6XVZRtTOEl/Pcnbn9yHJZS",
-	"GTo1MnWt5CFLWGcbBEW4EiAdk4dmLAqvs9os23pQuK8ksJdrHA4PXCGOO5bK4j91QF32L1NJr1x7QZd+",
-	"ydyLwwNbHEyJTE4k3LHJxHuJRFjIV+5e72DmCflXKZOb7PZqt8YjZvKHOyLeDa9GZ9uyVuoK4DBjqfAX",
-	"yKDwIM8MAfYhMXXh1khVzGWDb4LDpOPGOEzeGcu2m/tlcutPY2q2Z9aUygVnTBL240+fcVRgNkv0lYMt",
-	"kUW+W4dPeyBF7Bf0iEzAVI+7bITlO2kVYlsSpOY+6i1Gm829INMgOsFgFY4/hv3sxOqduhtDceh2U4OP",
-	"a4jwss5WCyJMYqjVmtbUp0IiGurp1GtbtYW71E8RYAHhOpoYB8lJrZpmzJ8i56fFWmhDxbC2COHwgGMJ",
-	"d7rcsf5pnIZTkO1WZYaQYYbxWilipY0D2h5DAQPt57wx6xVppg/v3SxpYIO6q+pj1+vQWYCb6CXEbx86",
-	"i7nBpm00Ztvv5aJx638e66elrd5KPKVWB9nQtm3fTNHWXScjdtV6zTFQOud2Kza7pgwdNVOfqHVMpbSX",
-	"T8pRs0dyZzZzrwl/yizttlc9DWppmdY9b8jyFeT14fqfim6P8uL9VeHXaRQpWDbhfzXPdUo3naJVIy9e",
-	"Tw2Mv0O3UD71CvaKaCjtp2ig+E/UnleNCG/JN2qe9wUHHAY8jcc+I9eLvrp3sGqtN7NNNbZ29Tds6itK",
-	"17nKAE4Smy7Y8aHLbbaPmChjqUPgvUnqPm91AuymCEmPFOqeFn3rfDEIYYuzN+b9tWfs6sGdnyS35cBq",
-	"kBmp6BxIpIZ2BN13TeeXtMVmW/Ce46SzIICkWMjZW+4xqfWWM2/t2WqKqZJs2TxN4Og4wtpUxX7Z4G7O",
-	"mmTwKhr1lE2w1eWXfJY864iRLcqHp8Py1XfIKlc2kdcW37aza3Iv2TzfMxYKW4a5hkf6MW5pwrZqDh2z",
-	"5nUJd76GdK0VC34o60r3dfSF/lZX/y2lRJ4zsW6F6LVruFUqK9YUBLwI+5ZV76RFrN5061dUr2nO0BHc",
-	"oOJ1KDZwOFA60Wp7hnaHkp7UB2svLX3YtufXJIILIdJ+mTZRGvudeE3yWMAcuK1h6FCVv1Bz7fRoj95w",
-	"k2TpCk3i0zZi297+IlKKlioGazTsnJuoU98L8jooKYQHtpiRbHFgYR6uhbmVTh5r+R6KPTV6ULB1gdeb",
-	"m6V5V1Uv05jjzG9yhmB8vLy2gISmmu73UpWdPDdSuSyFJyXALVgO+FHntjRNUnQzOksYQxRgHdaDJfrG",
-	"FMDvAWgtkNXHVpfzIPKanUK7VKccQgLlZ4kSyXu2orvkKWhNIqhu9XVoHjd0xig84EAO+u3kmi2ude8V",
-	"b5mV+lCiNQuPmKhku7sWJ6l9w8tprUQDxbmGhaj2AvFlRGER2sYF2+TTfndnfgoNNlBGU9qcyB4bbRCf",
-	"h9cLFgEsewrkpqcmvzxukp52EwaQejTUxrvbLXeKECz8RGFhqyuSunA7jbqaULawdk13u7SjoeWw8qmq",
-	"0HqxlIkND4pcGc31Kjm5z3dbkFf3/nu/mb69lTzaLZQrEfep3zNFiexXp0B/YSbskSOaE4PpwVRnH2bD",
-	"LjqHwv+9ZCoVy8t1axxVWjObsbGPVL6b+pq3j1DyaTtlb7sfZUsx3P0Wu10Fa4uOFM+Br53Kl8+1dYdJ",
-	"zdRP1nXSBu/m8uG3GuGwkRulWYDU+kbyYTW5y5tdilu6sPZ0E7U/hHS6mcqXUmN+b47/nQiGveYO5cte",
-	"zoHPCSzOIYo8L/b9Qkv93FJNMyzGJbYTuwOwHuFuwj5ybg5UMr50k7+xU/jLby7WkaAZ3L606BqUNBtv",
-	"3qlXpQBE0SbwakLwoKG36Mw/qC2+WadVZl1FvHK3t0pWgSRjd7PM0KKsGee6vV4WprxSmMQEX+35ub2r",
-	"cbCmDpBvuS5k1dFta81AG1hfZLNt1FCMMKWQFc7oXY2yPQavyxTVSHEDlCa7u4SzKTdNB4sRei2d+uv0",
-	"6izwLcN7d127cJh+7WHds8w0w0c/UP/Vnu2rM368OTe2Q0TDNgqtVmwT7QA6DSd95en2BHA+5H13Q75N",
-	"ulYm7Yr3nWhVBbH9OPpVDsCGDlfvlvrbjPnXN3gOW7YaK5PX241rWHh1czdxqrcNxMU6L8bmu6xRTBdY",
-	"d0PLXdTJrmTg1R+3ZAb2dsTV9n1ssMD7O+dK+l+78eEuO5+xra7wHgmM2Z2/95hMIdfRz0IiAg4JpsFy",
-	"+2ma6woYB2ht39iu3ijbh32jw7Bz8DcgJfCZzY9q2khhpM0J3+hruZHmmsWe9aWMVZ035Fg3JCf0TufQ",
-	"EtlD4dW9SLD8G44wfce6ldDENMS3wEmMu35h92GGd1ByCh8UFO8sEE9zVTkbsssl5tB5rvFRc4F1fXjo",
-	"9MCQraghrW87J9fW+7fBy1twL69FznbdunBLe8p9Traune0nYxHkstM+nLXuRkmqv3fxDK5jXeTTdz+f",
-	"3T4ObOrdz2h0F/ZQptA8jjXklr82JFQnjtZTPTaUQw6mrVottZN7ba7OhQ5KDNhCf850KX7VFejtWKw5",
-	"0fU3VN4LPG0ob2bDitc5dz3zj+b71rPO1ukArZuzLoS7VvauE1ztaYrtB1ECz6OrNg41sJ+8WK4Xf+O+",
-	"7hyA0/lGzLZZ50T0uifXKtwuIYLEBHql9J8pnWLdTAKE/v8ASywx7ejhtYWGq/C3+3ez8bWX2gpGajGw",
-	"rx3rX1u2s9XbL6f9/V57lVdG/xvrGCK2uMK8W13xni+yuvlvh8i90qOs+ajTlt4UXg3WSMxYjSHuWoWo",
-	"e38cG1nbEPhT2dPH8tJcBXt7D82emTd+Z/bxggcH/dKc2m7Urg/MpdrWa2Y41V/IXV6ay26g5prK3VuH",
-	"9i2ubKijFp2PXX3ZR8oW3yUceRFsGqCfM2oSNv3B53N4iZdeJBcjrVsSYXU6SaBGXDn62LBZsk1QyeIP",
-	"2uu1BDhOMJnSVz2a9rhvbnr1s9lh4EJb4wsSp/FNAjRc85Wi9tGBwwLzcFunZ2ar1tsTIO+ynoVxGkmS",
-	"RMv8L1ac3JmP/Ykz+qfuBe2HB5KT6bQmkamq7OFogZfizkQZWMroF69glVq3aAkRZeh7RIJX+bghm74T",
-	"M2/OvCt58Kus143VPloG+Hcm+E1ovQt9b9EQWrkC135ItjNdmebYlkzqbIDub729vTllOLo6c4oyqtGx",
-	"U56+vvP5auGLzg3/alIO+zkzdTJE4ztKpvD2boSUw5m39TezdcHYNuk2m1TLhy3Rrp3NE0Xi7pewJvHb",
-	"/l6rLGcZsOtt0zFV2z6LgFbBKgDRjokGtyUJuspb0clsEsYqMhM3QFbfZgZoQ01Rc6VcAb+dsVRgGtbk",
-	"d7l2Qdfl+7dwexDgr+pXqpZRoK6sZ/E7Hzgri3fAwWbO+CpCO3PLW+BTcH1VRI2yNSEQheczRoLMYPUU",
-	"xclv2nuARF+SYZr43TttlXPMDOuEcmVf+nfrK9oRuc5YvuLVU2hoNtXB8+ZcA4mptmXW8sLG5rowqc0b",
-	"3pJsrc66aRO3nj5Sz/Ie98c/UyHVqIYy4UHKuYtrq+nOzFgoLmhN+bFE6QMvyWRSc85bdUu5Jsd1Wdpp",
-	"TdpjXalkF6xStzv3+2Uq9+j0Mim+pYPJT8Fup4CL0jbKMA9XaKB0Yj7CupxMIkLhnFGJjWpaLi9xA3wO",
-	"fCTIlEKIEs7YBLGJbo0jleSRXwgUYSGRSIMAhJikEWJUTYkCMyc6PDv5ZnCEsEREIKHnQ5LEgA6vX5+j",
-	"r7766i9DdA+JRHPgYyxJPDhFgkzRmNBQICKRZHo9U+4MkfAInSGjS6IAU8okigmVCKMIS+Bu3aOVjuW4",
-	"TxFhMu1YPVON9GK2IbK1axU/77wJ0JsZmchaPbtnlTad3kHo9ByL2Tqqb+l7L8QuB9nXAPAKk7Cj0uS6",
-	"7js/QJlSb2dQ7stvyVT3xScUESmQwcwXAv3OKKBDjIRC5BfCtOlHEt+bHlDuz7Z5BVKkMjhCl4m5rdEY",
-	"ApwK0yR8nJIoFChiAY6Q3ioyWxdHpg5687NqgMWM1No39tdaCRnMMJ12VTr33569PZnW9ok869MM0n30",
-	"ggO+D9mCrtGN1bWl7OCWDCvN8ztv6o2rwdv5C+cK6vzBj2s3tczn+GmlbknBRqgMeuwQ53PMZVNQc7f8",
-	"Kaa4NO+B0lgGt12JwUt1374FOWPhqlgKGJ2QacrV7WlGolgPRSREhxMOMFJLIEFoACgmU66fa9DJyck3",
-	"A280XcokNJ5ZcUR+YGWw9Ji7mIgYy2CGDmPGlejDFF0nXyI2sbLT3tZK9x4gxpH5jNA5jhT4KU11jwbz",
-	"9yESkqmNvnv/5s2gS4CL/iy8dSZARaCrP2swrBREYsYWEJ6ihINQiNTFriaMI4w44MhAgQ6VbLeQLIic",
-	"6V91xQMkKE7EjMnBEEEkAFHTzGAN5jHq2IvKjdQ7tdJM04OrzAf6/u8ok53iuFkIv5njxbLXkj0Cl/QF",
-	"HGPacVNuePf5e2CsuSViQRFvCddXqnwjo4p03N3hqOP/gxnmU2i6LdvDjN0snS+b7ItNbhuJH3pd8lJn",
-	"fTSirzSkBw+t7eTVF0Dx8ihcFUVNrqy35f7g7LxXFJ8ifoYFX0fxahkWNeZM9fM2/q3VwpsCa8WLlIZR",
-	"zSMaEbkH2ONJ7OH6LLkIersEfksxlaSuaq95Pzpv8Ulnj3amE31tNcNezLkT14DBa2HXBbBqz3iLL2HG",
-	"cttLVWu91GbOWwtt5xVNCF1dGFE3g6erTbBOh3Oe1JkcHHB4SaNl7XLAk5sona717VaiTnqFQNU+DXUM",
-	"eRoeKBz+bgeXtUhzysgNQIc/XbwYop8ubs/0/w6O0EsISKisf48DgUjrGzgqtHU+EwQf/w3fY66dtvqf",
-	"b/E9FgJz9++/4SVOUo77RYIUojuyHbXKdb3Bc21mbCVPvTThFrI8/POtst0cE3vIPoLqZ5PV30fbLd1e",
-	"uP7LkjvfTRtKtiWq9ZT2cdLMvP7br5ms7qBy+VgrDx9VWvSRDtajd4TOxtqkvAdIjCiwDnnrKqSwsN5D",
-	"gWzqP5IMFUXB4AidK53MtIFHFJTpzEG3vV2RLhKUeIEHIqQav2MZUxUv9We+TeXB3K8bEuEV5nWdHjB/",
-	"A/NGD9vaL1Nb6d9Qv6kym+5UFJYfA3z9hnshcX25KuqfHNcVuYW9rTyq2Xe0Fjk8By4gis6C+7qrsxLT",
-	"14rvGOvOteLg+bOTEx18aP/5ZX3Wdowf3gCdytnB82/UR20Kg2jbTN92Gzi4p2wRQTj1P7ZW372Kw9dv",
-	"EeIALvnxy4A11SivizqvTXKYMS4nOOqW0NAvyl7BmWlxBrjigk27v0yAdix8VHnmcx92OLF87ObHdQ0B",
-	"84WCFajiXddcwSIlbeKgLM7Tw+tYenxrZe0uj3HUiNIslndJA+3t4eDtULMakNEuhIttv3qnlK6ZbqZJ",
-	"2UTepJSDYNEcwjvLMplT9M7z2y917y9d76+2txr1e950dLO3nLbLcqvRLW2uLMVlPTsf507u3oTRIh27",
-	"lhMWLOrZrJkF92cT2a1IuR3/AiaMQ7cPeukWuYP3wuPqLVDasFYN6eras+mWRc9edgK5KGnyKltUl0il",
-	"WW77u/r0U+rLl8BGrsHOHWPcolnPmGoEStbopS2OrjrTikGo7+5jfdTiOLs1UcCUMWfaBqmTOzJvojfu",
-	"yIbIJNJkf9BthTjo5cL8ryKNzaulmuQ7J1VN655DTFEuQJElF0QEokwiTBE8SI5RRiaDIzRe2vDn4/Hy",
-	"3D6S6meFAqiIUKR3hcap1ABkMyC9qzIoCrqjD3Q1eKq8P7+UyKDoTU+5DuhLz1wWUie2N22DEtmoW1lR",
-	"IOoEd+XQG+JeG8dUEzmtVmnXXplhuHJEPliKWysitnh2Psa5Kj5F1dmtNXksRLjQsjKvvWUUlmjKQCBC",
-	"bZCfEnEo5HgB3PlkjpWQR99lbpfxUodOqJFDJFOKyeCo/oYrvWG9agqH79gyW98RZmxxSi/SGLFVXepK",
-	"ioxxhGkA2QXoCdjdoOjItsuGNOhtfWNu2tOdTb5bSx+q3sVIAHNq8wogzgJmMw22XxmSLCevdIxtDvsq",
-	"VWzR5bZCcPuMUb9i4qU2Ta5hSoQEXhug2mTBtDQwdF92BGC9rqNlMWXbpYyMK8uFIUs8RVhamRVFwK17",
-	"+Dk6Oxuisxfo6OgI/c//OURnZ2fqvw/W7E7a1TqvTS7UtQ1qgkuLjVC2VEQ1R1wH7gSefM9ZmvwAy3Wf",
-	"Od8Qem8kes3o4gXQ8WUzxlPo+hyhB2+Y+N78OELEazxnKSeyfgBgmfK6i63eIwZR5mZuvz57Z51aklwn",
-	"3dQQbYlECwCUtlxGUI8MeZe17Xf8rs02FR5opK7P1LQzaupMSA1PYnbJbV7QddmquwipsYttFlSTQdxz",
-	"1RscgfDmqe02AGwOtGPVg84xWQUfjZu/YeO1+cFjzGufx8dYwJV7XCurH0bDkDhiU6SGIf0Id2r+D8V4",
-	"icaAMLXqhzbpOQkBLWZAC38nyshCImBac+0Q0Lb9EKL2u7Qgudpv8609XXbNzm5IOexYPk6Uw/rcI6Wa",
-	"toaiYvY9x5VUl5rgnpY3796clrQESGa/NxTq7F6BpNVP24Cd2hbB/R1HPpTXeaTM7rc9tXbrXDQU4lG/",
-	"XzY4oPSA7sVfalFrAn41wFpJbymIutrxPY2iqx5cV/Au9H4FemxKb76VNB98T+ZAzxZ4uVuGKJzaVhz+",
-	"flLYj99/lcPX9/yX+HVXBe30RK85i//KUt7xAVx9csu6f7Cbonl6Rqu6/ADLbU+pqHjDOcc6OyF3PeMo",
-	"upwcPP9HMwm9KH71xy/VZdS8D9Nl71n/4/ufm+ZUep5RXqra3E9KK9MbRDMShkDRhLNYu5GuLm9QgilE",
-	"p4gDDmY6sU4/Fs0JRhhF2tOBXOYIUosU3EoFzShg8ZjQ7rZYPv4nImebHdM+vEY9ajVuq4Tilc6BErDt",
-	"AnLuGXlD5hC9SlFKAhzCvkR/W/zKS/ZVZ3sCPABq40Ym5EF7a8ZsytT/pcu7h7spyLvlgYPowHG5N2pk",
-	"3kelaam1OO9bTjHPFtp2HcWVO6P1jtjCnbCFO2AbMv+zjH+SMn6lAkKLSxMaKng+dcnaKEn/3SVni9Bs",
-	"FJTb9Zpa3X3tZAL7iFdfKQ+nkl1x0lg3usROCWmsNlEQ+RPGJPBbePDbyTPAYcPPYsYWhagaTxa5GpDV",
-	"gWkHXY/vVqil5qurlry8ymeu6kr3Ly47BQtUPropJOx2++IWP3Sow1Q4n9JZ5nOUD6mW/OZwliSczXH0",
-	"hgX20bJSrpFz5r/iZ5iH+VeVJCZ1f2CKcBgTiszLPwoiwFwgjNSXKGLBvf8e4SD5Ugcu3EDAaCh8D+Ax",
-	"JroOkmATOVJz6XzKU3SCGK0uYcstHzw/Gba5Q812fTCUNtyKUF91qZCIJMLLWo9NKtari2i/G5YW6ADh",
-	"FsVhde+bCEWSeKCxMek/Ahe1LVS23GfMgJJ3iHpDKGxW5IebGdcDXguScybkOQ5mEG6WSto158yguyHs",
-	"cL7RgdivS6096zgzh7z4XQXGpo6P3vP0BNwIeaYbVa9bw+pxujA3K7X1Hf5xDPl2VzVW+ldM82pIK2A2",
-	"tXiunba90bP9NDORf9MvnYVJS2ZyEcj6g9/szdnKpZ5y7Bp00acaAx0eEggkhOeby7Y/akFo6BW/xfXX",
-	"k62uHfwmUrVzzn9lyV31EB0eCMZlVl+yRah5WowWJ6jfx49OGorWDos97c06sduEVUs621Uo8nmzp5bN",
-	"tIrKbFttprjtuObuSsWW9IIeNzGpXsHNfsprW1CuJvI2j5yu5hzHhLp/fzlcv6P2NcSEesu9huvWyAvx",
-	"UrynktQkUqyZ0TgmXM5CrEQAppQoDCs6/WUbFSca/M/mkyz9y+Ig32ITTrfK8faY9hkgfg0mhQ6msZqs",
-	"5qLUYyDcTJAWJvFDkjAua5PAzp79X89tSWDMAXEI2JQSAaEyd+UM0M3Zm1elWkFDZPIHhBtx/er1+3cv",
-	"S2OOPlCTsqMmPi6EcRyPl6X0mmM8n+pfdBDHsWSJdesL9B0SkkTRKCtIaFLHxktT5tisMuVMCLOK/k+z",
-	"CvoOZV/9yRUxXP3cJLYZMSKO3bhsCveHD9R9af5ivqVg4v7QdygHAo1Kc6JDG7NGYYqVUnmK3l3eohw1",
-	"lfEDt6MXZSypFdJEmIUy/NcMcqczXurTuby++P7i3dmbSknWow/UFNP7Lsevbj9h67fYrQoSwinKij8a",
-	"HCpCMSVfYkZBHYNJb9I9H8zPvxoh9RyZm+JXJJjZqUB4zOaAnv0/z75GQuIlggddOX0SMSy/eoY4M6cl",
-	"ZxArfPw64Sz+9fhXyX5FEMyYeUJQIEYwxcESEbURKlGCOY5BAhenutipiQqUMyz1Llxy4ZTMgap5lTx6",
-	"beZW/3nr5q/WxhLIttqrnTalYwO0N5mwSOBdq3+XT7apf0aX8pJVkRBiEi01/XWvJp19UtMOwmFzzWtP",
-	"4X+tTye+NTvXUvAx27axXZBLNV0oMvHRcQkneroGmxXKAnSuZ3vZmPbpkz/bxptk659r4R7pG6/eROTd",
-	"4hGtMO+67+wyWOfVqvB1GbwKLCsHW6CiYUVGrcqfMkJLAqREvmVir2GvWvpp1V429bQUFaEeJp4A+V4A",
-	"v8JCLBivNzgSO6B0jtkfh0Uz5Mtn35bMkG/bzJBsGj+IWchiQ9ey+louO+vWus8k2k3aU/qMmGrbtJX5",
-	"i9Uz2gzV7Hy2atfkp762A8MaKD6yiWqe59Ygl8lb8/rY4f34LaHdRm4n2s0CtoZjI7aQbrXFamc88c54",
-	"6uU1LFjvhgCK3/cIIbNkVWP21tPWTgilQAHtb+WfPEX4w17MkTQc5RYFl5M5Gwgt6cIzbvG0zrki8XSz",
-	"a8BOUAOBfZm+IrShCSzgjkEdCal6KssKwtdrvdTo3hmeVKHW5lK+plDexlJdGkVpKHo2iuJhHwsnwGJm",
-	"Nd36HlutTKhm6bvqBu2sIiY2KwSoZmjsZda+Y5ZS/cqwFQuutUNnV60xAdpPv9ig8F173x5OehnnPKfD",
-	"feG1d1c7X98XhfUDR5bet4EnYP3mPSDXtphJ2LWVSdZsJCPICqqHPczvXLgUxVt1P0Vy+6VOoG/zKtYX",
-	"xF4y9G0fxzawu0UZW7hXw4s7QyNZcJ+FH1XVU+sQ30g4b/Dm6w8u30WPuRwNteEStQE+3VvQNUjn9tpY",
-	"EaYUuidBaQbd7OhWZaMFQllA9C7hbKqbAgxLvbKaG2QtMIcZSwWsG4VTZ6ZlQso1XsqpqNVIyw7/3O5j",
-	"Kz01VmmqOaPrj2bQ9BZ2BNgOiL0vvW6VMGixB1fzkftjlXAgUxz9XS672ZxjLCAiFOwHZTviDZnr3oTB",
-	"vXsyI0JX5/xC2MKdCyyQwPPsZS2lkkTIKqVHyPZjDnCiS/Q0FD4s1hA0X5/JulyleiiyFYXEcWIWXE+C",
-	"hGQyAQ7UV+PEBFgF8NxtFMWEpubR1cLl0IoOJ5z9DvTvculQCNw+ZGaDBjmiWJykakIs3fM3YbQb2rKF",
-	"PG2xi0cIFmlWzJ4WW2fa9XUfa0xDRKaUcRAI2w7WI911RGfWFOLzt1bDo7FgSVZ1spZGsRphmm9np6dp",
-	"w77+VrDqkO4KEndDc6Wkcy0w/0yFRGM9btcg7bDPe05UzbJomwptrtftR6vN1tvscaoId/+13ychfqTb",
-	"u8/duKpYVdSpogq1jrtrSYMXWAYz/+UGdA4RM0kgjShY0uCVG6s1b4gTJoEGyx9qenQkeBkx3GDomz2U",
-	"+f0K+EjNhMYsXB6h14wjZw3eceNdRIdnJ98OlEANMOc6NseOuAiHSB/oUGfQckgwDZamM6iWvtjmX+kH",
-	"ogvdf5nFyGiEt3aSSqrW4DRv5uTWwyghdKhnLIj6TLTTpV0I+HudLYQO1TD3N3VXqX9PFRBfiMEROqMa",
-	"bN2tmKUSYWTbKushajyHSSqUcBNowvjYZBWr9XX1ZMkQhzmBReEKKcQMVHJLmX24sBVvbduAO+vrMP/Q",
-	"Hg9rod9NIrY4yJu73xl8Fex0dzLt1XNtJmmFenJa+aWJgmt9yj25ucQRqy171mxzVwBzI6FXmCaN+ki+",
-	"yoe+unsBCOHv8KMWUZ/1Q6NCm4PTl0rNgvsb+M3vTi9Vzf1C2Eve6H88z5jngMOCHqJBQxxTdHj25Tfo",
-	"aoYFoBeDgstdccW7y1vkZOUpwqa123dKQxRkSnFU0mIJlX/+2qt72bDrkg1SN3pVKbDIzjGbT1h3fq8K",
-	"0riMsXOj8GttG5EQdLUpZJVyF9Z4dXmT66Tq6E0reaUdBSyOiVSKsC20zlI5Zg9Kln49OEK3uRjDUnIy",
-	"Tl3POi2Y9DfEPXMcp0JJMSqkOhtmWsVPolTMDHjc8CkyibNiaI9vDpxMlrY7Hp5iNYH+FKdypjYUKLvc",
-	"0sXRasxgkvyYn4fnacFYRL2cS4xKbIrDNTYTmEyUUXFuR+cfmmrTPrPK/IICnSt7GIuBqxUdYaH71itL",
-	"xs7SkRiLRbNX3UkGxLeiDpRRDFgo/OjMXWTHZ6BZ7HlBaUroLTuymhrSNCTgrmYqru7CcQYy4CHLSafo",
-	"S3edmioa5s8ohAmhRttvy3Qse77z9F6H7hJp1TFuQRB2rCr+FgczQmGk5JupApLKgMUwRAkHLa90DHBk",
-	"rVyjJqq9fjBp0x8OjtC5NiEFipVlJNWtjDCKiRCKyRhHKb2nbEF1FRGlOig0JRxGivA4DpQ1NcNzwlKu",
-	"m4+wKARuxcAQwdH0yHIuRpxF0RgH90PEYiKVNTs4QjiQjN/FRMTq2kHfZfLiC+EIyggEp2SikIQ63th8",
-	"UMf7TihZIr2Dh0SdVmEBI9LssaDYWISYoi+foVnhspAKsepu8XCdWuQbo9yt6lBOVeLwT520Z9jCqF0H",
-	"Wru/mzCjPAWMTiKiO2go0QGS0KnRhxL1t3tY3hWGjFOx1B5TCZxi27SjgMSDjJXdrr2e0/o6AR308qY6",
-	"izoT3xWVqWjmHckSHU5wJLRHRucqIPXV4EgXxNF3sJwp8iyZ7Eo1RxGWumGq5Etd1lakQQAQokOFtCFy",
-	"OBucIrPAd0Xl2ynIGYVoZ4tS3CEUq9pxsRDE6qvfveL/VJcz0nquQfcvde2ralUcW3q3rNloX4+5TnXS",
-	"hXEZqH2WFRqHby3XJkxx4YSDmKFDi3R2P0D6LPMrO7vdx5rBDDt9IZASAgaYU4RRtrWh4mxtBQx1fyG1",
-	"TSU3lCzwTIzV2WUqW2YN0XLIQ1X/6ni9aST9hDlVmPXGpUlMQ3wLnMTYZM61Rzxb+6Ttgnemn+dRoWKn",
-	"WGKpuwau0igy1ag8buQkKVafaYLnrDA0q4rVXTO3EHg0clsFnfSY7NwWTvdOZy1Cq3UkHLQY91v2Z9EC",
-	"L4XOp1miw7OvTgZH6AdIJBLM3jwmSEbv1YqOBHOhU230E7RAE0JDlK2q1F6dT6eLZ0WM3aeJi4HSMTXd",
-	"Nmi/8CZw2Mo15yzskxdS+Mrbd4otcSSX5y6YtvvMbypfNszeldbeVIZnKt25VVs6PmV2jh0xw29rW3Ln",
-	"gvMLkbXtP0W6Bi+asVQbFDp40SYi0dB43o9Bp6FJm7UHStBqrYLZFw6tjWedvg+L6o4YoBgwFaWG3lvs",
-	"x515hsU2WgVk9YjFNkpo6VIpxYIyHiOixLyC0ADQ2cm36PC+xMAe5h0coWxaZYSCsey/f3WLjsWSBsd2",
-	"7RHORqkDpQxdXbxDMyxmWpGYkcQ+Pm2nQs5aNzcWztiNmc4adNaG0mWUHj9EL169vrx+ZRVtm7O5AG7c",
-	"GM+NwqLnJJYmDcpMf0Fhu/YFupgXShN16To4d+PhUOZOdyJ6L/y43MBP0uYRUTfq5g61wr3cy592rfXG",
-	"mmdho7xeUvPC5NdZnI1y2SfdrPxR92bG2ho8XyMTgXBhi4X3zXhpNTaU5fXKWSutW1Cj1wFkm01+2YK2",
-	"1sWrjH6fuTLaQyG6PYqsUCO3WHlRX9FMdw5NdXZO1/bbrtnoJpFBbo4eZTmMOdZZwTDDr/s3/WuLGKoo",
-	"93UtfV23P3t0q5y2ykIrpLxygsMVAdIuhLb5JlyWbhvW8+/Tir5YJWLY2Ji+uP26XgY+Abs9ybgq4ArJ",
-	"CMXHohqB1yYutigeihzVykGtbTIf841whS8t/61yXdurYZF0tvh4WKLI1ffDmFD7zy83ekwsQ7+pClSZ",
-	"rffToud7T3UhcxWshU13ebWmIGWrtIGazehpVNyquFAmG67ZeT85snpH9mSBwqIrs1lYO2BjDrVc4La7",
-	"SVmoPmBsi5xzqulDzIWHxJXE8PVeBNVybzElE4vdXtK7iy2av5Ab69AZpSWv8dA8lxPzAixwDNpDD9pa",
-	"xcIZrA225HNnSxp3yIeDzKL8cFB2mSDG0c3P787vbm4vz3+4u3n19+/YZDIY2liZk1PtXMYROtEWPFC5",
-	"+1d392nlPFrIYHNqdPTUmQhv8XTH6eVdS9/VRo4WU6R75s/6Uqabw+5v8bR3XvROQG9N/b3F0y2q4YoO",
-	"1k75vSW+OnvVQneeVgI+/2RMaLGAeqcGZWt2FSgulVXCM7PVbbPYc6GS0Uz6eLA0ylpznPWUXlAKD0pV",
-	"O8SGae45Pyq0902X5603LMBOw1qJj9xqN6VeKrUDr6k4bdeK38rC2NCboefgb0BK4DMwtljjA0o+UjdB",
-	"1pUa1/9abpSlxVIewDr0sPoKHnI8kSa7S9twRPZK7hIpx/JvOMK062Pt2s+7pTqqTelhhQ8KSWIWaZaX",
-	"ilzYlDXkkNiYi7UOd5qpNuKibIq1WWk9QrLrVns0VvDbjlO/w72cQNSl428hc6ZVZrVl0jjh0jkPTPHy",
-	"3+s6gtbl5ewm8cRC0obyGiLuh8ff6pugrrm18mZ+a9nINpWzLCxkj0VyV4Szx3mxVsFjY0YeFLIr+xQ7",
-	"ruzCKm0k7LSHuiScHW5kLXgrqR/eN79i/kgn8N3Ddq1kKeeKdJrTxAaK7opiBR3VfRRnXAGosoUeCPTL",
-	"8eaMxoqcbQ4+3pJMKa7ZY3u1zrQ1TrQxuturrHd4rFj1JdnAVHQPtlywjrlcybAy4YM2JymKUCp0GF/1",
-	"8aPRObiuAuOjIV8MTHtxqFqFcZ2+T4VvPflLrtDACusoMHuR1CauqDo51t2jUJ6gTqtdz3bchBoatNrO",
-	"byq1U26o8VQk1hOQUtugoe5EYxJtFcXXCsS2ZmybVUMBrnMequFwra0+kxmT7P31m27OBRaVXkh1sz0t",
-	"Eyme6rfSYKX/X1Ne7vskYji8IdP6UnkT7W7v2Py/ON8m55/Pg2XKoQ8ZlD/03Iqk7rEtiFga1lJHLR6G",
-	"B6K4nKdbaww6RW6dt4T84+IyQ7eNItBedAivm3AND18L70CMSdlla/6yQYXiT54bVzxDDmVFZNtVyltq",
-	"e8hQx75FE7Qu4nL7RRuM/N5Icog+t8ZPmfG2KijCUBc/6BT02DWIbHdPaM3VlCM2Ze951AnG9kZD69fE",
-	"6lymODuYs/CfqagrV0xhUavv9FWfai2aLSlOFtZhU9+qbNd1/f13QZNPl3KqRNOIsi3Ku1wqrP0qmk2h",
-	"q7ZsGy4zqa8TxprwsYWvaQJ/A3OIHsPP3Vgxasv2TaPTWq+3ikDtWQ9STuTyRh2Ord4MmAM/S+Us/9dr",
-	"h4q//XSrJtSjFYvpX3PczKRM9A6DGYRppJtQc/Ak9b+6vrq7Of/rq5fv37y6vru9/OHVOyRmmEOIhP5E",
-	"p2meK7UQ3bjJ0KFLXEWvrq8QZ7qyAqPRcqDTWdTEplCCk9XPD/5jlH0+ssDk1GbUzz/+0H1rJ2wVzBc4",
-	"uAcaamDeYhriiNxjdHV5c4RuCJ1GJgVa53//9//63+h7hl7eXgp0yHBCRkp2TYEOsuI2t8sEbvTstmIZ",
-	"OmQJUDVWQWQWHuiMqylQ4DrjylbvIAJNSASn6PwCTTCJdHe0kJOJPHIhSwgeEiZA6ERw9CcTvwQ0TBih",
-	"UgGlddGRCFgC4UAPSBiXAuHplOsGYoyiPyGdx4LOr9+/PEI/cSJBHOsQ1pF80GlGKNL5wNQue26aUkki",
-	"FWMdlLCEzq4uCqU6nh+cHD07OnFRzjghB88Pvjr68uhEB6DKmaa/Y5yQ4/mXx1oPPQaeHAdY4ohNR0ka",
-	"GUeybU9cqSOHY0A8pS47P6NBQyhH6KVpcIxiFoJJuf4f+j+JsIFaz9EkjaIjdKYxDCFiHCWYS4IjPXGW",
-	"hv3s5MTUIbKFBtQvNlBszMLl4BRhRRi297fOHUYcZMqpQOJe51/dRboh+xH65uQrA4xiiYt3t6++vz67",
-	"vbh8d/fq3dmLN69eqrnZZGKwnBUiURLq4BVPzg1qrtIoOrN6e96nTJe51VzxWwp8mTOF2rZjY1zU/dX+",
-	"NScFXAe6mbT6VDKf7v+LDp/UV4I+uGcnJy7uz7b80GH55t3i+J9WM8kXbbokylvLbh7NquVjVwfDs/jh",
-	"r7cKA2fct6SrBRHbpNSvT76qmytD0PHrrOjBH8ODb/YBJqETjoXkaaDMbU3T6v9t2T9Ml4iDeVBGHFuw",
-	"vto9WEp06xvPltQJiS7QFZr7yPWRPLhWnKy5Aln+R4r/EWULdKhlg5H8SvbgqdA6eqzl2cEvaqZVMWLK",
-	"9Ci4p+ZKKnOTUr1e8eTSjFrhI99e8yHHV3iqaKF13BsSE6kH+hgzD6RYYc0EaKj4bngwgyg0T9H2DyFE",
-	"ZA7cFkhSRjeYsis49Nrs/rXtu97qygJHUMxfyJ44WCqL/9TSJ/uXCWlxvlZdwANrK+jAFlG1GStmCwt1",
-	"0dyxyeQRBI058ZLm7SFbW+SJs4UYIgoLEBLpVKW9iR1C5zgioSsUwjhSR6bUAmm9BTn3qN1o3rFghyxI",
-	"dadYXRgPJaYKrZpGn4WwLFXkJuMHauSl43+R8I9ahvoemvhJk6C69HMKJIaAnYJrlPQcaW2PTHshk5cg",
-	"MYm6Ecr+KCN03Ucx0sjRC3+9+4XVkqZ6T5n8Lin4qM8QH5EC2XSjTDXW+rxF6ga0eKxL3hR1xDJJXquf",
-	"Pz2itCWz6nUkGP2WQmr66/5bUaVa8S+7X5GzhdqrvaOVaHa3c0WpsQeBMAp1kQN1lw9RdoGrL90Nrnki",
-	"45yePMEhwk18kNJXPLnWg3ZLoHqNSuKdl0IjvLR6PDp0KuF3utBVVobRDDL20MCjLrKy1DHDEyxEQWns",
-	"jEFxn45inCSETo+VYW0yZqc+Z4aSdooCEuCuVAWyHpghsu3TdYEd+5uSLGpDFAnyOwyNVAxYlMZUuA/v",
-	"SDh0HwztOHGfDtEMizvt0BmiMeYBC2GIJtO77D9ElE6HCHhyp/t1393D8sgN0OLWjtFuhoTDhOjG21lp",
-	"LLu+QDjigMMligi9z6thvbq+OkUBRJFArleNgf879Cc0Qv+38V6kmIcQmh8wigBrtsCKGDlLZnCErgGH",
-	"I7Wo17DV+L65T9+aA2inUQkP8jgQ8zJtVoXxCtmd3/yo3Sro8P3t69G3Q1tnU53mYB3LrnoJmpp9iiZv",
-	"fniPLDkhMQPQOWRq+fVsmSJ1mqENjhGQQtEO+i4nFEUfmgq+y+jh0N3FjkxLNGS4UDc3H2g6ARzMNNXr",
-	"Qx4zOfNR2anp6J6PMWVvFJFYR8gRemHI2FQfIr9Dof+7SdALj5B27oR8aRw8NLRFWHP3W1aS0cBucHKK",
-	"cBSNGB/ZSnk+WruIV2itn+VnJrgohzGZe18HI7xg4XJrEvVczM16LtLhj7JTWDcp8nNLMxG7WdX/Xv5Q",
-	"0BH8Ngh3y6/j/bBXcheAzl29R/XZl3vwTriCu2MWLpEuMa7I6tkJekteoABr7/bXz551R6iteqk/24Mm",
-	"IhfMEn8uwXlKdZdFVyjJFlQ+tQUixYxxGS335gAap2KJDiNTDsoc72CYFbO0pTyGBriKSFUCsypNzW6H",
-	"mXRg3AmHNUXrkgYjnpqYiyZPkc6dTnUgQ0VilPcbWr/zs5MhivED+vLkxL1WVFwwkXYOFc2LGD+YmN0v",
-	"bZCo/Zcn5GbHlobbbYsvtuIcySv7J7pziPU3LrAEHmN+L/buPYmsA26zu/0NlmA9LCXvpMKA3nK+w35k",
-	"mMrZccSmJiLXr7y/0T+vf79UulZ0j3lqa0Df/Frppm1oNd/5LtsKqZylctZEzZLdAxX2RWxvdBrjSOFW",
-	"WQzqYPWyX7YT6nuqSIdx8ru9bB7vsvwW/VC8K/+yqkVwLMEwonP722fog+f/+KXIZq8UzRw7ikGaMdB/",
-	"/7//H/rbT7cIB+oW0++Yuppv0bJL5czPWCyVjZxlfNrbYS0HV5eoU0v7q6RecS7e740Q/Yf75Z/d6aJD",
-	"jMrEqp9BdeeW0JYSJYWHz2cnJ4PGw76GObsHd5pIs1/7mZrYC+89/RZ26dwoRfl58Odef3Pp0ZuNy7pP",
-	"cb5WtBRor84V6phmD8RerjlkBn4W/+3if6i02ToG3ICo6jiQSSWZSxw4RESIVBnkCytxuxDflAjbEK+O",
-	"+uyIHZnJOiyzmEfRibi+3J9wMHGj61/vmyivOlJEO980bSt7cE4EYdpIPKQMJek4IoEuVpQmRZ3V1Lgt",
-	"HXihonqtsfTCjtkhN5sl2h5xHbCex9JxBqPbrFXsy9sNsJiNJhFbNO/4HIvZaz2qrzvJVF/8qwlj6xBQ",
-	"sKXAA9td5qk8bTn8tR2oOg5kjsNzpvmv1ei3wjEL0w1d2TdeUWVkiQNo5+epQ+725U20m3okIXkRdhaR",
-	"HiOigKPRD7BEHHTXEvvm4CpcSOeq1FcpzjxO2g+vbruVF7pAWRrY0A6hxyyVKGZzHQ7noZqSaCh2hGgQ",
-	"DdmwnTKQ6TXRzkAZNF4GKsC6KhfbWMa2u9gV8ZrpXaWUp0i6ZQVe/9XhdIkOX+Dgnk0mJIBB+7XjDiKL",
-	"uQkhAlOCpoz8l/rvJeTviMYu7xvjYO4LD/7Niso7Jl97okjMTnogbD/xHDappYx1k7n79Ej+4zltg8E1",
-	"2UPXSh5x1qaJmg4112zH2mi+TKv81SORgdwngYu/ryriLRI4A2NXBJkt8JSl8IbmkpPb+Ul4Ykk8llGR",
-	"KLtK7fKBfeRyuxPCHl9mP0km+fjk9nrsYSuOtghsNepxIvJ/K5nEHUPpBeNyne8knlZs8K4LwlTZJy0f",
-	"/7LzG6+SsF9736kj3PgJNr8eDXlkGkL2t2734+68kHb6j85CsXDXqmAFBPsY+ni8HGXJ0nWpARljv1he",
-	"6bGdMtcSO7T+MnjiRF/C9+uVHoy6I6ztxHgYpskomEFw3wv5+itMQ6L79zUK15dpcp6P7HQAnTKUYuBT",
-	"k4JEREx06/bueUiJKa+dz2/jZ/xRLzWTrEbSZLM8+2bPwTNFLLe7Y7LjqOhUrtHsKONO04kGmYDyAqsO",
-	"kSndcpfRxAb005riU9zdx55QUdxLp1PypL2EqweVDd/tKR1bbqt/dXtpBnxKR9as3ebyp8JN5u/FBs57",
-	"OyUtHOvP6K36+VFOaPsKkN5LdtE/QevHXlQVLYjRCeFxiTj0QC9hCNvttxddtIXsh3x5nVKT/qJ7v4oh",
-	"0uGLpiUvDVESYSoQnmJCtRpsYkNCLDEiVJAQTMsYk2NhqpLiQOdbq69dTI7JqlGwHCG7pmkIb3q9q5+r",
-	"zyw2QyKJUhdxr6+hL0x9ipsZfvbNn/Ua8JDo0Ocbg9gh4jAyUKdUN0SnCIdzIhhfIh0MrFvX6+hfUYnb",
-	"R4dfP3tmXnZyiG1zW9sCnxMpgZosBZ3azhZohkXWi/0UfX3ylzyVSCPKZhfYJryFzQyOUHbfGmVMFFMW",
-	"XF8eQz31SQXr266fcwo+5xR8zinYX05Bpqo1JBM0KQLeWO5c3HOIiZJ5zdbYdTaqkyW2IDTU8Qgrtm+r",
-	"dWS7QPZ2M62YZuubY3u1wBxm26yvNAlYrAhmTLichXgpjjGlZA5cYM8T+fvq8MLoJcoOfW03Sp83A+vE",
-	"+hReDLo5noatnqWDPXh+unh91r3Q1kfn95B7Rusdo0/h2eUp+V4/0ieXDfy02h7VNfWMbdB8P10UB+6B",
-	"fj6xS6iAvrZ7qHAkKGLTlUQAp6yUh3WTmk3vIQUQP2KvQ2EXH83Ly1moYw59J7s15j7+F+mkUOyZCob+",
-	"SXfjc6xm5poGfNvRXnZxfqZ2Z6NYvlJDbnMHz2fZ3J9lqzhsE9C2pGoE4XSl9FomnkuDtkEGx7aAXq3v",
-	"2JQZvzI0sx8qeELR7MXdP4raVwSgiXrMMe49tP0tpimOHFkaIExtqW25tW0JtgXm4WjKcZvkutYjvzcD",
-	"P/J3qMJe2oSHQRCyCKoTHqaQzag0uHxSN1ej8+u3o2/7H5EZ/S+/eXaTW9C3atzHqwhWdtJXJqxabX+0",
-	"IjokQhfU1MW/R7YucWMIhv3gnIVgPOVt5UQuaBClQreWSwWhIAQK8RId/vzzzz+P3r4dvXw5tE8cS1eU",
-	"2uQ+fSGQJDH8zigMjtDXJyfmOSSl+oUJjyM4qqlLoqzN15zFbT7DJwHoLft3cm166Mcjci5/WH0Az+kU",
-	"cVAXjtZWuaNBR+gJZzEzemU9pYvONL7TsPviQm1S2MGPDPye2MLKiBqUNFvURYh25OkqLvGxRRqWUFyn",
-	"InejwGPdaLNeN149jxf6g75Ps/vUaFegfRS1tg9XGSyHjqn2qt9+b3tmIGybrrJJhYc3pLBu7zErLP9x",
-	"v8n0Z9FHf1p4ukL3o3ti2EhA68CbUcSmbaX0OONv2PSxUjyyHo1bcICZ+nbrKKCTDvq19y2fPVrOhzu4",
-	"tktB0wHSdOBRs/Jfbd7QKQo4E2JkzmWIEjwlVN0qQ9vrQFkAvjrOzarY+mRWLuGwo7vegafv+f6RWFuF",
-	"4SwIIJEQNnsxAqaLPB9iiWImpDbgdNFH9M2JbnhugubuIZGn6Fds5/wVCbwUaMYWKMZ0iRbAAQnJOIQr",
-	"Nb1NnJ/tlaXpRKBD3YPKNrMRQ8RTqozF44QTKge6DdfYKnYNtRoInXII1byjjmUbLrIv9lPAYWW91lIO",
-	"ERGy7KPoWKhhdamDXb3MVRfqa7DU2xaN+eHe4+6oz3mx81i+ymafVPG869WjR9zQEyOpPij1U5OuxD8y",
-	"PXQ6ig/dq/LcfNEt5+2jDXhY3fIeZFi+2M6lWL7U/uVYkfJak7RqsPNRv7j49tREWhphpt3VZojWwLgb",
-	"o4Ym7YgnhvetiTqDB4FNv2X/MxKeP+7298P4ZpuPdOPYY5CYNwQF3KifPyVCdC0Gu164t9n4dTOc1zXh",
-	"u/TG72jXbzJVxIIf6po7GiP7YHiwyNqF/9Jn4ouXB//WMZ1VImsP7XRfoJyON1N43NI7V3fcQg6Afas8",
-	"GcJ66DsF5Hwi2o7bUU8q2wDTx7aXa726o39/RKTvhertJvd411eOQXfSnUNTVW094BM/iGyXj3cSAmjY",
-	"oHEBDZ+UBNpk6121rCfgzFirhNd+hHZ3tcD7RkJKaF5fVdi5irA9pWAlVoQUd9GVeNubI3ZsLFjJED5C",
-	"+Z6R8SwQYcsCSJYGMwiPaqoCNLLM57oAn+sCfK4L8GTqAhT06PbKAITOgUpmSp0EJAGBYham5bdqb6WA",
-	"osDq+yj1yTxGfRI66j6VUquLpgJPoZsx/F4Y7esTsYT1dhrrOej9ltn6qtygW6DFjAnIOJaDjj3U9YCI",
-	"KAqAPvXIdf4fxZFuKGpHjJI0iuoVkbc4mBEKI8lGsflPJDmZToFreaV7LqvrYZxBcYTOUjkDKnWdIt1h",
-	"XA0QM8whRAICDtIF1v/H6EbpJGkEfHRjfrGFnA5fXV/d3Zz/9dXL929eXd/dXv7w6t1QCUshsTJ8SAxK",
-	"0CWYg5Gcah2MxoC51nXugR6hl7bFacxC26/9f+j/JALhsQAqnyNCA66baODoCJ3pAA4leRPMJcGRbplv",
-	"qivdKWkNoRayRNgmcs9OTtChzRAIWKxntltTt+cACYbOI5aGKNsnChkIDbCW7iMhGY9PTRypq5cV4EKD",
-	"uvL6R+ibk6/yglF6o2rVlAqQClyFt4t3t6++vz67vbh8d/fq3dmLN69e2v703rbmPDk3tHCVRlEGaDfD",
-	"KTbBjKse3Ikiq+FBAb8HwwOcSuZz5O64SWxhey19Yl2iwb76qqX0nrIF1RRa6Lq142ZuRAilZzCOFpzR",
-	"qYcN96as5T03ETwEAKFRFL/ZT+/dCcdC8jSQKQcXvIXGMGEcTLk21xmYY7o35VBkogJoqNMiUUgEHkcQ",
-	"WgbXidxTw8LZb9UWev/KJ7Jn+vwfv/xR7mNa7RNsRbuW6lW5dbhKJR00yMKFwyHCywYvYUpf8eRaDXLr",
-	"hAe7lQt6MWPwNccURnjpyvsdOnybMoiZJDaDjJQdPB4r58QjHouRIUSHX504+1igBDiKCU0lDB6Bh6zC",
-	"oS5cZWqRacrX4pVrZVxR0OzHUjlmD/bIEywEOqxwy6nVd0aiqNUoRQX97adbX5RwiWusxdYxs/4NM8jT",
-	"b+jdru178/Bar0pv5SH2k8rj/8khwCD9CadX7C21yWACYWozZNHlNcroxPofJUNYd2n9LcVUErnsabE4",
-	"VpgyFoqRfmtKZFs+neOI79VH1/abz4yxG8YoIvkzV2TPnUhTrFLVWB2HrMcJhfe/bvdD4b3nE70pdu5A",
-	"W0/me91oBfE5FixKpZOUAeMcTHEmpX/nNKOUu4xm+rw3eSimlxhdJZxPVKDunH7WlJGdHyOdzCm4YauS",
-	"p0hFa5FOZGnAxHp2c+1+0gJnPxHk7cHjfLXP9CUdzTANi45iM1ZLFpSwaBkznsxIgNyxul7UJUJZ71pi",
-	"c+BzAotuNHLpRu8Fp261jnFqbisoxpKThxW2c60MVhBtxiOsk0YRjqIM0WLNe9+1ex5l69dj960da7sc",
-	"fFq6b109n4ubS6SjztHh+9vzQU0xHhsO3QGClpjmMhivHopgAA0bgdBh1JuD8G/RqKpCy42NU+xQ5Fik",
-	"8sgGPLvFXCkzVP1mTe60jfwTzJtKmJmc7Svc8XXlaao12SaeqLVXOvMbMCngCfCRfVxFEVsYJQYdXp1d",
-	"D5CccRAzFoUVxXtNSuh0+9nR+7n8Kos1IrDjhecqAW73tovYEkdyOQoYDUl77e83Zvh5PnqHaKwu1po0",
-	"asajwl48MZSeUWuV9KpCt6OYyuoyH1tprxV0dy4zWldOZpVkOwZLeU/s467KtCXsPnqppqfPTB9dyabt",
-	"Mx7jrb2LLnm4Tp+zcmWdYcfxf9e6W4fh26kPJWZksqXyUC6KvP9sZWJ5A1McLNHh1eXNQClZwNFYUcQQ",
-	"YZSXV9UNABEWCKP3t+coxMsj9Bawjs9Nqe1+d4oSHfOGXJHXo2ZzrkcB2BKUJLMe0yTRy1VKwVoQB20w",
-	"3rKjJluvEb62x5yLFy9dqdvuw29ZJ9JVHHKjc4tf6ypWnT9Sa7zAgojOX1zhpTK03oKcsbDnajeAeTA7",
-	"2G3TVt6hGZeVOm3ZAVrmMY5M2ratEObT/8x8zvk2EgFLTACirS428FSMatYE9TY2l3malE3cQk7LlRez",
-	"/i3Pd5APkm+6V0bIl9ulm5bGzIySAEe2opg59FYaKozqnV9i8jN2G2STVWFkHEnQ3VO5TfZAh4xGhAJS",
-	"tuIpCrCYmSSLibINGUcZn9g5qkXWzmcQ3LNURwozCuiKCTnlIJB80MXUBPA56FyHJJU6pYHC8lgbo04j",
-	"HyLiqFUiRpvaxh4mEabov/7zmyH6r//8y8BEyTbUaTNM25rvvQ1O3LnAaxV222j7pieqCLkaybZzzd9/",
-	"jsccJqlNn92H8VGTKa1g2BrZbF/YGgCfqpw1R9hPviL9H0onFcomkZzEsbqAvxx9c3KCghnmOJC6r+om",
-	"iX6VTisuK83Ce2rDE011pvBUAWSSK1IaIixN0od9dak65NQU6E+Ig75b7OvTIc6ns/s0khgjAcoEs2sj",
-	"onNLUuFnxyKr6NVbzC07ZpciSy/RqqRZQHz6VgZj33zlS/fqtTuf+sfmTVvDT27xn92dj+zpeVqH+tF5",
-	"ddYhgDlwAVE0MqV6xTEO7ilb6H5kDZFs+aBLO8G1+X5XZ2dXOQvuH+cA8/WbTpKm8VgJ9wlS6rZAFBbR",
-	"EhVQGqJDe92MAqVTmyQSlsoRmxhFzH6J1eVhcs0Ge8t/clfxWB3dGhdspZMYv0eOvOyuvhBpiGcoJAHc",
-	"f4EOc4tgkPsc1Y15F9jac452TbqHqKXd1hZKOZl+bp/0WO2TvDX0u8ZRmAfO9T62L8035Pe1qu4re5ms",
-	"+GM7fnxfV1RPG+AmOiSlHASL5hDeWVC1GFUq4Z3nt+7RPZ4yhVnUUALKrC7Kph4Tf6y1+CpioKYL1p7F",
-	"rXNHbihw9d5YFCJlL1iBe3gj2T16S2gqBjZnbojmBBZ3TqL2k7HHimxMYdFGV4v96jIBmldZ3vGZZos1",
-	"3dDueDfA83uaXd3l280K2ABHEfAvBDL3+eEYh1MY9EN7wsRxCHMSgIJoSoQikIaSbmbEFRMv9UdP012R",
-	"gefgfaQOFh446glGnSihQuIo+kKYDjdlF0BRjdHZlebcdJ0oM2JQ6/swQy9CVMgcpUwijN6/v3ipM1xy",
-	"inLrEe0nyIcV0lubCfo9xamcMU5+d21lv1oFqbDeDKtlMk9HZqLUfmABzGoqwANxJZk8fpc+ZXdQhFdf",
-	"bM6EIFOKDrXDSKacDlw9DndcNrNiZPXy/PQKXJqFzza4W6z20dJj2w3a9QN3zxfrnfbENntubYXtUONx",
-	"ASU52vr6gOzqO7I57exP2Qu0gQ90t6rNzQ/vs2pfOotP14NxEZ9sgrDi87yFsd+h5YKCCw6NUzRO40Qg",
-	"Cz5SNzBhtNXP4aistdbfW+BT0EGVz22pPhM3JhDO4GE824qS8mbYghM1StuvQ0RiPAUxRBM8Z6n5hXEd",
-	"9mqFJJ5jEuExiYhc6p+4ujQOMRLkd0AclL6MOIzuYWmKC2phqiRjYRK7mPlWgZJnpnG2EIMjtG7pQk9l",
-	"GlNAbm0p97ks4eeyhJ/LEu6vLKETVu01CZ1sbC0gkwnRbiG1xev543Gs7+mGPDPCG8L8lnv55VeDIcLo",
-	"d+Cs8HedAG8eEmdESMaX6NAqtkNkcs51xowyFmwZaWOQDpDJn3h1fTWKCC2tFQIOJJnrmrlSa8yAw4HN",
-	"qS/RnFpM8qXpp+iNM/Zc04Maba7OYbAHUrFLdFBTtxFikWQb8iq1j/vM9tT05s/yoEZjLivJljud3HAq",
-	"aICprrjotEYbQRGzOYRGqPhfCzuzbd0N4LLsTCWnJn+gJQlj6J6b4TsPSzDrtAcm2EpUm3L9VUUtP9Za",
-	"+XFJz7eJWTbtu7vYfBryYuX4dvVGb5b4JF/qb0CuGHA+SulJIl4Wzd7MdFcQkoBLuRyRUDSx67Ue/aMZ",
-	"fBGKTtWAiy90T7OUQ3VbTSfthCsJhatAZHBYOc8fC+NSHXSbn5qcYYlmeA75x+ucnStCfPyvuQPdHWjT",
-	"IVrIrt3C+zrBoXfuDPQnTh2NbjdbENjg3rmeah3jlLmRS+jbr/QGz+GTPcBdBMIqHPVss9hUzqfmycIe",
-	"eWYbtVdi78vRx3aJ5qcGK8nc0M/M3VH0G4S1vVa4UzZSnoDY4TEf/8v+10Vz8kJpA5/IgdfM7fDxEd8U",
-	"jIL11eg8I0dQh9wVbBjsiaSObSB6U+yAHvCZvp7QRWbPJLvLOt1d9qRtLi+FRVlB2dZtFrMRhwXm4WjK",
-	"MW1/Eo/ZtR7+vRn9OfDy4wu8NPn+jxC3+bFGGVbJvjnasNp5JlZ2g/oWTckc8KJQ7d6wXJdyDIW/tzKo",
-	"9CuRTyYxMgOyQ5iJ240/0MT+mqU+zhhVInOwXpGfDK7dOdIt631kiUgZDuscV+1U2/2JsXAEH3e5nn5Y",
-	"ewpO4SdH/R9dxtbanGKjho/bqo+aq6e28OiOS+94S70UStGYUE0q0WFW+WVwhK7WrDWzXqlQC5UpOFOB",
-	"Ch68UHWuLtMVoo+y5MxTLyBTIv3Gus04AoHGS5M4UdTnhzYxW/9qc7SLv5+atwHKTIWZbJemBxGmUzDd",
-	"4DRZOb9i/zo1GyYs3OjqHCM8nXKY6i6AZsdZidXaQhDe3AQB07i15/eNG7TDA7ZrtFZ+1EHoRdPWxjq2",
-	"a3h2hR3dcHb27VWg923Qc3DHHExJhrrSuNfm99IZ7sLXUVplu11RWzDQTbvMj/9pds8t03G9qrbvfTwF",
-	"VtmARkzRw2OcJE0e+bMkubFDdynkCss0CTmcJMhBXk2TKfyEBKHTCCQrlVRy37WQUXXH2z/m4gpPu5C1",
-	"1d+LaK9T4Qvo9ZGZrY/VRGq2Muk+yK2yVJeKyjVk96by80ak58PAzirAflwkWD2GnmQ4I5M2Vc4MeWJZ",
-	"bbu0mnZplWhstqms5lTQoTOBj43Vac1T08CbTOQXomiNSBgiIgViCeg0Bt/Tg3526GaG1BfJdNB1qR/n",
-	"Va4vE6AaD08zTzkDr5A8tEtPq12rgfUToMpq0yirOzz9axZCrMs7VOoDJEARNrNkneJ1FgB0SoI1x35s",
-	"o6BqRca5+X1r57tLPuwS7WXwxTiiaRRV/d12jMJ2AbElpGouxvprRCaIag7sgui2epYfPYYL9LxZsoXB",
-	"/JOrZ1k4x+MgYgIet5zluQLhCYvdHL5GubtPEaAgyuRumfPVT5k0PTQFcHURNRqQCEIkmcSROC1UvW3j",
-	"esmCe1NapUUfUwPPzbh/o1ID+bZbtSfbwFNjyKe/FH7fQIuxLsIMrKfJVTl8rovop1TOwPf6XDjeyume",
-	"ogkH+B0Eyi53NbYHY7Zfylslh52zUkc22solXXssj3VVN/tMPxq+NvB+cumWFf+macWsqx5FEVtAmKXp",
-	"m8eyYZYtaUjMlvnJGgzqukAo4WzKQQidStk1zdk6WhoI+Ajd6E6XHEZOwkw4+x2o67NPzF9iFCnDQM90",
-	"WoaHSIiFLguNUutbDGSKo7/LJWKTvPqHLQ9KQxTgRKYczDazaU1BDyz1wC8EGmMB6j9PURJhqsxIe/Fx",
-	"SCIcuM+p+h8hj9A1JIBdN3WuDZ8A0wAihUGMKBuxpLUi/4rIPHb1rx9ZBbZQbI25n1bv/8JdbzfaEEK8",
-	"7+skq4C+PaFgeNEWQytxUy1ra8av9p3goDOubZ5fSCYTsIlezg4pqRl2IyWB8N//638jHIYCAQ5m5m8Q",
-	"Oh50MwaADt1PMaFpzp0DJFmRiW2fDfkwRILZ5/oYh4DCVNG4Kdlj5BwHdA+6FIQOTogTW9CnXCAp6ydt",
-	"mHJwhOw2dC2RQnn6DKeW140wMfXVBCLyCF1oSRXjZVdp1S4uljQYcZgTWIy0HGy2f5Y0uNaDNSS9OXhL",
-	"Db9aS6u6uq09yqp6A7XXbCNm8HnOwnIIdYwf3gCdytnB869P9ps3Uz64NivOwG/uxY1Ng7/qxBv9JqLv",
-	"OUWkUgkERdr5OuhQt0y12dk1fZ9wGBPaQsDH/7qHpc6+USTQmH2jBpQx0+md/r6l31PhnJ+dnOzvoT7b",
-	"id3aI9X49MDRRGqCRakJw1Syc0K4IhEKJjcjbxBiGHrt5iPrG1C6mDou0iqaYRpGEJaqqLdT6fEYy2BW",
-	"T5AKby/0kKdp9TjwHpGs7PpN5GS8gMRYHln387WIZh/F3DRNmCpuz05OnCnC0bfoLXlxioKIgLEYJF8a",
-	"4hub/69Q6esoFTPz4DiZmIZjqRyzh1OjFekvC8Vysz5fg3b14DiL1jmOGLtPi6E55c3cLhiKWQhiiIIZ",
-	"E0AVsKWKr1mtQxwEIAQ6PPvqZHCE3ukyjgEOZhAefaAf6LkbxzVRC3SomcqW4aGMjmxleKM52mpqGaAD",
-	"NAWJJmkUZSt+oGz8TwikeI5+TWaMwq+ZZlUswmhLTmjNSw9Dh5jqmiAxlqe2yK1Ai5kxcj/Qq8sbJICG",
-	"Qum3ygheEAHo199+VcPUzOMsJACpiwDPAIfoUNeYZNyuIdKxuR0GR+gnImcfKAWiJhtaG1FovRDiRC6f",
-	"GyCAhgkjVNoSmMW9LGYsKpSV1JetxuqrOfClWg8iAUNryWo0CoSjBV4qY1gYmGwdTt0xXsM4ZabOtsXe",
-	"B3oYmfBtR6MKC4jospa//vbrYGisAx7jiPyuhOWf/vzs+M/P0IRFoVA698kQhWSqn81ptBx+oMpyBiwk",
-	"+tb+MNAgxopFIETwgAMZLY+QtqzMEWXVmJMIp4KMIwvtB+oQgqlBm0EiplkFZ2sNHKEziWImJPpKF+4c",
-	"IhaFIKS5iYYoBj6FcIQXePmB5lSiw9NDUwQwTAMI0YSA2tghCYdIne7QQDJE+pjE0DxL3CRA5fADnRNB",
-	"pDbchsg6Yc/kENkoyVNEGYIYk2iIxoTLmQ6IxpQSZVNgvtTFCE1hU8W9g6MP9FpHpCjFGUJdDDsVwJ+j",
-	"r070P5TNI02h0q9PzJ900uTXz/5iKP5aSZjR2UQCH/hKkL7RrH+eBe61ZJNeaZqxxZ8JRYqJAhbHjFpe",
-	"Qoc5mWmhMaiJ69fD+mWI3mZ8JuFBosOgIk0Gp8jSriFtoglq4tjRwGRklqiB6rd1ITLdx8hUZ79py7mM",
-	"hpr1Hjmt0p17m+WQB3buq5poAX3mdkLjNFTSHx4CAN1TboGJLNK37fymjta0vdToKgzwRHiYL1BKJYls",
-	"TeAZToXUvgsasoVSUU07tYYj+qMSFkJHIcRaDDsKtXs4tHK5dD0vaeC5nYlJcRi5ApSN5aUuzODbbOzj",
-	"vpQkXEEoifk6xFL/NfNDNBGE24IiNItnzDk25VhzrfQfZtbcD2C0AH9PEINDIrNingKpq4BQJd5LDQG+",
-	"qOlCeLHOHOhQKTTjiAX3pgauiTVLWBR1Uc9sFOIoMSZKvYFhYyyv7LidBnLaRR7JVqgCUS+wnHJh0r4F",
-	"OkyYUHrE0mgN1feIVxGZGi3DJNff2XTxCQfQ7gcUA02FrSEXYC7Rn3Lmdr2A7UkNjtq52z52dGJuw5sN",
-	"vN3oTKv3ZzjnWu5GHh6Yh4nI72L7pMSC5dGsvq8tBFzjmQ6PM8wUJAChcxbNM+9xlf0JDVisfv2T+tOU",
-	"KUOgnTSSNIpqyUFZy1dqwBN+CrcgNrHnOKVhVC3891rZdTolVPv1BcWJmDEb/ydZTAL99hghscBJburi",
-	"LsJUV3eewwgnCdc9htqKganRZ9ngp4vtCqhtihw4QZchwr3RXF28Q8I1pend+qb8uiv0vDOmnzTsSgjn",
-	"vGZPo6ZxDDo8O/lWm0oKphkWsw5cU33rqHMO6wTWDZ879uaXc+7W9dou7AiMxvAWrhRz59VFutOGfqTX",
-	"vg3/49+teTTQHcBGhCI2QQnm9/ryzt8RTkuuED2xsbuMCyZ7GWoXBY4KR2WZgKMGujFxUO4SKvEcjp4m",
-	"/dQA+0itzWuhqacmXZkHxcrKCh+xX+v6XcB2C6nAMZheIep+TOk9ZQs6RIQ6ET9ElI2UBNVdbDijU/Mv",
-	"K/izVmiZVLYONGPNFPqxZ+8sO+4f4uDIOsPvrVJ8aWlCkbX1LIpI1vVMyR20wKJUVn7bLpEKi7zRpen9",
-	"2YKmZWIqEdb+D64DjcCetro9xSkSACUnyaH1eQwRHgudaUERRjNl7agJjW9WO7gVCzS5UhodInvq6KKj",
-	"UrQjSJLYIsPStbIExljoehHjVCxPs0Yv6gTnwMmk0A3PYLC4w7W3XvEFadNQSEhGaXKEflTrLhGmGSNq",
-	"LYeZrDIT9G7c44RKhG2K5ygVgIxAVOzJKGQkqZSlDvqRq1zYZFjU1qrsG8BV8Rlf3rgOjiQ8tQ/AyMjZ",
-	"NCWG2pw0VcY1J7o3mCBTE1xHJQ70Rr8Z1Fbys20fD55KRdMCPjsUxu3RO7KcXlbbMGElWElRAVrgKBqi",
-	"rpaT+anBTrrFu02dvsXTHZYiucW76rlwi6d7K0Gifu5YfMNs+OMuvLHPPTw2YaxdcKPdrai5d02PYu+i",
-	"o2uXFdtiPTDv4xsLfqjrJZ+l72b9H3sEHUYsuHi5jYjDj7VcqyOtNumdE6onqSz3s3bp59PBbj/YraX9",
-	"9LPBfLldGIUcTwqO8D6dcbIjOnZZISMdbd30nJHRhv1Cx7p3E0H3hlvbnzQ24l7ydOvk/+S2o5HWnmrG",
-	"2aLKWpd0NFP2RT7AvmplBCBYygM41tEyWbLPelTRlttX4swdy6IucmjToFK3FgpBYhJ9BI3Inqps/Hjq",
-	"zr4KidyWFDWJXfql8ZHTujQMBeLo5xGoT9H66NMme2Y62dBWlzhlswBl9e3T4LsohTcgIPuw8bgUZN2Y",
-	"e5IvdrVPUsBcu9fSrRCHABo+LmXcQB6p9lmy7FqyKGyvSzppEjEcimNBprQhwYVM6Xs9ckdMbiZXy+yp",
-	"jE1xwQYVm0wplimH/5+6q9lpHAbCr2L1RKWysFqthLonFg574IDgwAFxMPVAsg1xZTtUheXdV55x/ANt",
-	"00LTtMe6ju2Z8Uzimc8zUf36D9luKpGXXM0cNL18yB8rBWJ+Omnn8D4LT5EAMGajMOEDn2kXJDjUuQDv",
-	"yz1pzktY6SaHEOI22r782aauWgKaXA7Ehq/efkQHBQ7lrrDE/KcpmrwSdrEtKUyYoKNwP029tfw0luFL",
-	"5PBeCVZ0l3sBJUyaU5aUhhEbKlrSQMziiv/z13u8NaHaFW4irU0jAzo+MreouGGCjuBejTLGBYoN1Wr5",
-	"jN56KOckLxem278mbXBfzpd5udeJ2k2go8VtkaKz5TgKGtxLWQAn49sMrE5DVCsL87CQo7GszDLDfFYA",
-	"V6lkL9xTnQQ257wMHBWajexaO4CuoVLl4qvotfWv4bdLHpKVQMN+boOrHkUErkeashK4S/pbg3l4KeoD",
-	"WgA6I/DObwz5wDhJyR7tZGXYKOPlY32NwPZ9D+ppUiIN5nDCtZ5KJZamxiC7eFl33V+r+IGWtSzjHL2t",
-	"2UcX/lCOGjSW/2UKnuV4i6o8BT5mfkH/WIxKjX52pumfeuef2tc802DqYrqeQIo/ITWkPpbbCPTOlRfC",
-	"cm3wcb7lJ9yb0G0bUbqms2i06jnHy2m82HVj3n4NLX2p+vH3Ld7tubqWJyzIYsXDY8r/PfRNtmvhTin+",
-	"DCKWx/n3H31yar6Aksl/6ASlkLW7qMcOHAJWDxgXfyttsA7VIM1FLFWAkfTZgQCET9p9kBssSghc9J0n",
-	"ddXkle6cvsZG6vzIuovWYO8qi27Echw14mNSjEdvJ9AkgXRa/hcZepMORyiUndAiK7gMeGGyl4Uy+oP/",
-	"91aDa6JtEfCouLAGLYOScjxegaCUQ0JOS+yTa2tsxMJggj+J2CeIoTCqVG5mveHtXWqgYMKICnZw/pvV",
-	"/PjlZqUalCAGTOLgvOh/Y/aDWj2DYPczikCwq6oc2K8ydlTkz/Biv8cUxPnQKpO5vY4dGhh2gX12l2vX",
-	"/AmYiFjHNav3woBxzEbETRaYw4QEujKliHdzeJPO99q7B65Andp/h7d31mpTNIc2dKWK3rCXGTMZHiGi",
-	"rsikNsOT45NjDJy40V/r3Y6zvA3871pX4qYoc4tvjKu6h9b8iUqTRk10KSBu8IW8QlsdUXkNeTLdQHdv",
-	"/wMAAP//",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
