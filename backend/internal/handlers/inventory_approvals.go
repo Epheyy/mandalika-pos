@@ -330,5 +330,5 @@ func (h *Handlers) ListInventoryApprovals(w http.ResponseWriter, r *http.Request
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, api.ApprovalQueueResponse{Data: items, PendingCount: total})
+	writeJSON(w, http.StatusOK, api.ApprovalQueueResponse{Data: items, PendingCount: total, Meta: meta(total, p, l)})
 }
