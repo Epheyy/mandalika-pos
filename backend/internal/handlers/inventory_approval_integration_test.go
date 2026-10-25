@@ -621,7 +621,11 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 			_, err := wr.ApproveAdjustmentRequestTx(ctx, tx, adj, proofOf(mgrA), "")
 			return err
 		})
-		call("POST", "/inventory/adjustment-requests/"+adj+"/cancel", tokMgrA, nextKey(), nil)
+		code, _, body = call("POST", "/inventory/adjustment-requests/"+adj+"/cancel", tokMgrA, nextKey(), nil)
+		mustCode("cancel the probe request", 200, code, body)
+		if status("stock_adjustment_requests", adj) != "cancelled" {
+			t.Fatal("the probe request was left pending")
+		}
 		code, _, body = call("POST", "/stock-counts/"+c1+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
 		mustCode("a third person approves", 200, code, body)
 		clearLocks()

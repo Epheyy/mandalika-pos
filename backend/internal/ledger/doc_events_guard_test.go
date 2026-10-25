@@ -126,8 +126,13 @@ const (
 	docEventWidenMigration  = "internal/db/migrations/0072_inventory_approvals.sql"
 )
 
+// docTypeCheckDDL is the whole allowance of migration 0072: the DROP of the doc_type CHECK
+// immediately followed by the ADD of the same-named CHECK with exactly this IN-list. A lone DROP,
+// or a CHECK with any other body, does not match and so stays a violation.
 var docTypeCheckDDL = regexp.MustCompile(
-	`(?is)ALTER\s+TABLE\s+inventory_doc_events\s+(DROP\s+CONSTRAINT\s+inventory_doc_events_doc_type_check|ADD\s+CONSTRAINT\s+inventory_doc_events_doc_type_check\s+CHECK\s*\([^;]*\))\s*;`)
+	`(?is)ALTER\s+TABLE\s+inventory_doc_events\s+DROP\s+CONSTRAINT\s+inventory_doc_events_doc_type_check\s*;\s*` +
+		`ALTER\s+TABLE\s+inventory_doc_events\s+ADD\s+CONSTRAINT\s+inventory_doc_events_doc_type_check\s+` +
+		`CHECK\s*\(\s*doc_type\s+IN\s*\(\s*'stock_count'\s*,\s*'adjustment_request'\s*,\s*'requisition'\s*,\s*'outlet_giveaway'\s*,\s*'app_setting'\s*\)\s*\)\s*;`)
 
 // docEventFileViolation applies the per-file DDL allowance, then the append-only rules.
 func docEventFileViolation(name, src string) string {
@@ -143,7 +148,7 @@ func docEventFileViolation(name, src string) string {
 func TestDocEventsDDLAllowanceOfMigration0072IsExact(t *testing.T) {
 	widen := `ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_doc_type_check;
 ALTER TABLE inventory_doc_events ADD CONSTRAINT inventory_doc_events_doc_type_check
-  CHECK (doc_type IN ('stock_count','app_setting'));`
+  CHECK (doc_type IN ('stock_count','adjustment_request','requisition','outlet_giveaway','app_setting'));`
 	cases := []struct {
 		name, src string
 		bad       bool
@@ -151,7 +156,9 @@ ALTER TABLE inventory_doc_events ADD CONSTRAINT inventory_doc_events_doc_type_ch
 		{"the exact drop/add pair is allowed", widen, false},
 		{"another column added", widen + "\nALTER TABLE inventory_doc_events ADD COLUMN x int;", true},
 		{"another constraint dropped", "ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_action_check;", true},
-		{"drop of the doc_type check without the matching text is still the allowed one", "ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_doc_type_check;", false},
+		{"a lone drop of the doc_type check", "ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_doc_type_check;", true},
+		{"the add with a different CHECK body", "ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_doc_type_check;\nALTER TABLE inventory_doc_events ADD CONSTRAINT inventory_doc_events_doc_type_check CHECK (doc_type IN ('stock_count','anything'));", true},
+		{"the add alone, without the drop", "ALTER TABLE inventory_doc_events ADD CONSTRAINT inventory_doc_events_doc_type_check CHECK (doc_type IN ('stock_count','adjustment_request','requisition','outlet_giveaway','app_setting'));", true},
 		{"drop table", widen + "\nDROP TABLE inventory_doc_events;", true},
 		{"delete rows", widen + "\nDELETE FROM inventory_doc_events;", true},
 		{"update rows", widen + "\nUPDATE inventory_doc_events SET note='x';", true},
