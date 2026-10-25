@@ -33,9 +33,16 @@ Never touched by the pull: price, images, barcode of an existing variant, bundle
   "Dune" body mist) share the name product until a size collides, and only later FGs go to the tie product.
   Rename such lines in the ERP if they must stay apart.
 - The product's name and category follow its **owner FG**: among its linked FGs, active ones first, then
-  the smallest `code` (byte order). A discontinued or deleted owner hands over to the next live sibling.
-  Siblings that disagree never flip them, so a rerun full pull bumps no content version. A non-owner only
-  fills a missing category.
+  the smallest `code` (byte order). Every FG's own name (minus size) and category are stored on its variant
+  (`product_variants.erp_name` / `erp_category`, migration 0068), so when the owner is discontinued, deleted
+  or reconciled away, the product takes the next size's values **in the same pull**. A missing value is
+  taken from the next size in the same order. Siblings that disagree never flip the product, so a rerun
+  full pull bumps no content version.
+- The first full pull after migration 0068 is deployed stores those values for every linked variant (each
+  goes through the slower item path once) and may rename or re-categorise some products once (one content
+  version bump), where the old last-writer rule had left another size's name. Until a product's owner row
+  is stored, the pull keeps the product's name and category as they are. Run `mode=full` once right after
+  the deploy so every product settles at once.
 - Existing keys and labels are never rewritten. Products created by a pull before this rule was deployed
   keep `pos:<category>|<name>` keys and any `"<n>pcs"` labels (the stand-in demo on the test environment
   has some), and a new sibling FG of such a product creates a new product. List them first:

@@ -286,10 +286,10 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "updated_since", last.URL.Query().Get("updated_since"), w0.Add(-5*time.Minute).Format(time.RFC3339))
 		// The live sibling a50 owns the product now, so the discontinued a30's rename and
 		// recategorisation do not reach it (owner rule; a live owner's rename is covered in
-		// one-fragrance-across-categories). The new category is still created.
+		// one-fragrance-across-categories). The unused new category is not created.
 		erWant(t, "product name", erStr(t, ctx, pool, `SELECT name FROM products`), "Alpha")
 		erWant(t, "category", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "EDP")
-		erWantInt(t, "new category created", erCount(t, ctx, pool, `SELECT count(*) FROM categories WHERE name='Parfum'`), 1)
+		erWantInt(t, "unused category not created", erCount(t, ctx, pool, `SELECT count(*) FROM categories WHERE name='Parfum'`), 0)
 		erWantInt(t, "a30 inactive", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE erp_slug='a30' AND NOT is_active AND size='30ml'`), 1)
 		erWantInt(t, "a50 still active", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE erp_slug='a50' AND is_active`), 1)
 		erWantInt(t, "product active (a50 is)", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE is_active`), 1)
@@ -323,6 +323,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 	// ERP categories with stock unit Pcs became one product per category, sized "110pcs".
 	t.Run("one-fragrance-across-categories", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "") // content_versions has one row per outlet
 		// Slugs page SN110 first, so the owner (lowest code) is not the FG that created the product.
 		e.fg("b-sn030", "SN030", "Santal Noir 30ml", "EDP 30", 30, "ACTIVE", `,"unit":"Pcs"`)
 		e.fg("a-sn110", "SN110", "Santal Noir 110ml", "EDP 110", 110, "ACTIVE", `,"unit":"Pcs"`)
@@ -333,6 +334,9 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "category of the lowest FG code", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "EDP 30")
 
 		before := erVersion(t, ctx, pool)
+		if before == "" {
+			t.Fatal("no content version to compare")
+		}
 		for i := 0; i < 2; i++ {
 			e.clock.Advance(time.Hour)
 			e.mustComplete(erp.ModeFull)
@@ -346,15 +350,70 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "a non-owner sibling does not rename the product", erStr(t, ctx, pool, `SELECT name FROM products`), "Santal Noir")
 		erWant(t, "version unchanged by the non-owner", erVersion(t, ctx, pool), before)
 
-		// A discontinued owner hands over to the next live sibling.
+		erWant(t, "each size stores what the ERP said", erStr(t, ctx, pool,
+			`SELECT string_agg(erp_name||'/'||erp_category, ',' ORDER BY sku) FROM product_variants`), "Santal Noir/EDP 30,Santal Noir Intense/EDP 110")
+
+		// A discontinued owner hands over to the next live size in the same pull, although
+		// that size is not in this incremental page.
 		e.clock.Advance(time.Hour)
 		e.fg("b-sn030", "SN030", "Santal Noir 30ml", "EDP 30", 30, "DISCONTINUE", `,"unit":"Pcs"`)
 		e.mustComplete(erp.ModeIncremental)
+		erWant(t, "live size owns the name at once", erStr(t, ctx, pool, `SELECT name FROM products`), "Santal Noir Intense")
+		erWant(t, "live size owns the category at once", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "EDP 110")
+		if after := erVersion(t, ctx, pool); after == before {
+			t.Fatal("the hand-over must bump the content version")
+		}
+	})
+
+	// A full run that no longer lists the owner deactivates it (reconcile) and hands the
+	// product over to the next size in the same transaction.
+	t.Run("reconcile-hands-over-owner", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", "")
+		e.fg("h2", "H2", "Eta 50ml", "Cat B", 50, "ACTIVE", "")
+		e.mustComplete(erp.ModeFull)
+		erWant(t, "owner category", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat A")
+		before := erVersion(t, ctx, pool)
+
 		e.clock.Advance(time.Hour)
-		e.fg("a-sn110", "SN110", "Santal Noir Intense 110ml", "EDP 110", 110, "ACTIVE", `,"unit":"Pcs"`)
+		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", `,"deleted_at":"2026-06-01T00:30:00Z"`)
+		rep := e.mustComplete(erp.ModeFull)
+		if r := e.resource(rep, erp.ResourceFinishedGoods); r.Deactivated != 1 {
+			t.Fatalf("deactivated = %d", r.Deactivated)
+		}
+		erWant(t, "category handed over by reconcile", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat B")
+		erWantInt(t, "product still active", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE is_active`), 1)
+		if erVersion(t, ctx, pool) == before {
+			t.Fatal("the reconcile hand-over must bump the content version")
+		}
+	})
+
+	// Rows created before migration 0068 have no stored values. Until the owner's row is
+	// stored, an incremental pull of a lower-ranked size must not rename the product.
+	t.Run("legacy-rows-keep-product-until-owner-stored", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		e.fg("l1", "L1", "Lambda 30ml", "Cat A", 30, "ACTIVE", "")
+		e.fg("l2", "L2", "Lambda 50ml", "Cat B", 50, "ACTIVE", "")
+		e.mustComplete(erp.ModeFull)
+		if _, err := pool.Exec(ctx, `UPDATE product_variants SET erp_name=NULL, erp_category=NULL`); err != nil {
+			t.Fatal(err)
+		}
+		before := erVersion(t, ctx, pool)
+
+		e.clock.Advance(time.Hour)
+		e.fg("l2", "L2", "Lambda Noir 50ml", "Cat B", 50, "ACTIVE", "")
 		e.mustComplete(erp.ModeIncremental)
-		erWant(t, "live sibling owns the name", erStr(t, ctx, pool, `SELECT name FROM products`), "Santal Noir Intense")
-		erWant(t, "live sibling owns the category", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "EDP 110")
+		erWant(t, "name kept while the owner is unstored", erStr(t, ctx, pool, `SELECT name FROM products`), "Lambda")
+		erWant(t, "category kept while the owner is unstored", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat A")
+		erWant(t, "no version bump", erVersion(t, ctx, pool), before)
+		erWant(t, "the pulled size is stored", erStr(t, ctx, pool, `SELECT erp_name FROM product_variants WHERE sku='L2'`), "Lambda Noir")
+
+		e.clock.Advance(time.Hour)
+		e.mustComplete(erp.ModeFull)
+		erWant(t, "owner stored by the full pull", erStr(t, ctx, pool, `SELECT erp_name||'/'||erp_category FROM product_variants WHERE sku='L1'`), "Lambda/Cat A")
+		erWant(t, "product follows the owner", erStr(t, ctx, pool, `SELECT name FROM products`), "Lambda")
 	})
 
 	// Category is only a tie-breaker: one name in two product lines that share a size.

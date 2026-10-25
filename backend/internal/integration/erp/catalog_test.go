@@ -554,39 +554,53 @@ func TestOverCapAllowsSmallGapsAndTwentyPercent(t *testing.T) {
 }
 
 func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
-	cat := "edp"
-	base := fgSnap{sku: "A", productName: "a", active: true, productActive: true, hasActive: true, category: &cat, owner: true}
+	sp := func(v string) *string { return &v }
+	base := fgSnap{sku: "A", productName: "a", active: true, productActive: true, hasActive: true,
+		category: sp("edp"), erpName: sp("a"), erpCategory: sp("EDP"), srcName: sp("a"), srcCategory: sp("edp")}
 	f := fg("a")
-	f.Code, f.Name = "A", "a"
+	f.Code, f.Name, f.Category = "A", "a", sp("EDP")
 	if !unchangedFG(f, base) {
 		t.Fatal("identical state must be skipped")
 	}
-	c := "EDP"
-	f.Category = &c
+	f.Category = sp("  EDP ")
 	if !unchangedFG(f, base) {
-		t.Fatal("category compares case-insensitively")
+		t.Fatal("the stored category is compared with spaces collapsed")
 	}
-	d := "Parfum"
-	f.Category = &d
+	f.Category = sp("Parfum")
 	if unchangedFG(f, base) {
-		t.Fatal("category change must not be skipped")
+		t.Fatal("a changed FG category must be stored, not skipped")
 	}
-	sibling := base
-	sibling.owner = false
-	if !unchangedFG(f, sibling) {
-		t.Fatal("a non-owner sibling never writes category, so its category change is skipped")
-	}
+	f.Category = sp("EDP")
 	f.Name = "a prime"
-	if !unchangedFG(f, sibling) || unchangedFG(f, base) {
-		t.Fatal("a name change matters for the owner only")
-	}
-	uncategorised := sibling
-	uncategorised.category = nil
-	if unchangedFG(f, uncategorised) {
-		t.Fatal("a non-owner fills a missing product category, so it must not be skipped")
+	if unchangedFG(f, base) {
+		t.Fatal("a changed FG name must be stored, not skipped")
 	}
 	f.Name = "a"
-	f.Category = nil
+	legacy := base
+	legacy.erpName, legacy.erpCategory = nil, nil
+	if unchangedFG(f, legacy) {
+		t.Fatal("a row without stored source values (before migration 0068) must be written once")
+	}
+	drift := base
+	drift.srcName = sp("a prime")
+	if unchangedFG(f, drift) {
+		t.Fatal("a product not showing its source name must be re-synced")
+	}
+	drift = base
+	drift.srcCategory = sp("parfum")
+	if unchangedFG(f, drift) {
+		t.Fatal("a product not showing its source category must be re-synced")
+	}
+	drift = base
+	drift.category = nil
+	if unchangedFG(f, drift) {
+		t.Fatal("a product without a category must take its source category")
+	}
+	noSrc := base // a higher-ranked size was never stored: the product keeps what it has
+	noSrc.srcName, noSrc.srcCategory, noSrc.productName, noSrc.category = nil, nil, "legacy", nil
+	if !unchangedFG(f, noSrc) {
+		t.Fatal("no source values: the product keeps what it has")
+	}
 	f.Status = erpapi.DISCONTINUE
 	if unchangedFG(f, base) {
 		t.Fatal("status change must not be skipped")
@@ -596,14 +610,6 @@ func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	stale.hasActive = false
 	if unchangedFG(f, stale) {
 		t.Fatal("an active product without an active variant must be cleared, not skipped")
-	}
-	stale.owner = false
-	if unchangedFG(f, stale) {
-		t.Fatal("a non-owner still clears an active product without an active variant")
-	}
-	sibling.active = false
-	if unchangedFG(f, sibling) {
-		t.Fatal("a non-owner's own variant status change must not be skipped")
 	}
 	f.Name = ""
 	if unchangedFG(f, base) {

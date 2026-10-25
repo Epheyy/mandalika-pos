@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -225,14 +226,22 @@ func reconcileVariants(ctx context.Context, tx pgx.Tx, seen []string) (int, stri
 	if err := rows.Err(); err != nil || len(products) == 0 {
 		return 0, "", err
 	}
-	// Second statement: a data-modifying CTE would not see its own variant update.
-	// R2: only ever clears products.is_active (an admin owns turning it back on).
-	if _, err := tx.Exec(ctx,
-		`UPDATE products SET is_active=false
-		  WHERE id::text = ANY($1::text[]) AND is_active
-		    AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=products.id AND v.is_active)`,
-		products); err != nil {
-		return 0, "", err
+	// After the variant update (a data-modifying CTE would not see it): re-derive each
+	// product's name and category, so a deactivated owner hands over to the next size now,
+	// and clear products.is_active when no variant is left active (R2: clear only).
+	slices.Sort(products)
+	catCreated := false
+	for _, pid := range slices.Compact(products) {
+		_, created, err := syncProduct(ctx, tx, pid)
+		if err != nil {
+			return 0, "", err
+		}
+		catCreated = catCreated || created
+	}
+	if catCreated {
+		if err := bumpVersion(ctx, tx, "categories"); err != nil {
+			return 0, "", err
+		}
 	}
 	return len(products), "", bumpVersion(ctx, tx, "products")
 }
@@ -368,13 +377,14 @@ type fgSnap struct {
 	sku, productID, productName string
 	active, productActive       bool
 	hasActive                   bool    // the product has at least one active variant
-	category                    *string // lower(category name), nil when none
-	owner                       bool    // this FG writes the product's name and category
+	category                    *string // lower(product category name), nil when none
+	erpName, erpCategory        *string // what this FG said last (migration 0068)
+	srcName, srcCategory        *string // the product's source values; srcCategory lower-cased
 }
 
 // unchangedFG reports whether applying fg would write nothing. It mirrors applyFGItem:
-// sku, variant is_active, the clear-only product is_active and, for the owner FG only,
-// product name and category.
+// sku, variant is_active, the FG's stored name and category, the clear-only product
+// is_active, and the product already showing its source name and category.
 func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return false // let the item path report the error
@@ -382,28 +392,23 @@ func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 	if sn.sku != fg.Code || sn.active != FGActive(fg) {
 		return false
 	}
+	if sn.erpName == nil || *sn.erpName != ProductNameFromFG(fg.Name, fg.Size) || !sameCategory(sn.erpCategory, fgCategory(fg)) {
+		return false
+	}
 	if sn.productActive && !sn.hasActive {
 		return false
 	}
-	if !sn.owner { // a non-owner only fills a missing category
-		return sn.category != nil || fg.Category == nil || strings.TrimSpace(*fg.Category) == ""
-	}
-	if sn.productName != ProductNameFromFG(fg.Name, fg.Size) {
+	if sn.srcName != nil && sn.productName != *sn.srcName {
 		return false
 	}
-	if fg.Category != nil {
-		if c := strings.ToLower(collapseSpaces(*fg.Category)); c != "" && (sn.category == nil || *sn.category != c) {
-			return false
-		}
-	}
-	return true
+	return sn.srcCategory == nil || sn.category != nil && *sn.category == *sn.srcCategory
 }
 
 // skipUnchangedFG is the R7 prefetch: one query for the page's linked variants, then items
 // that would write nothing are skipped (no savepoint); their erp_synced_at is bulk-updated by
 // the returned after step, which applyPage runs after the item loop (lock order).
 // An item is never skipped when an earlier written item of the page touches the same product
-// (a written sibling can change which FG owns the product's name and category).
+// (a written sibling can change the product's source name and category).
 func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG) ([]erpapi.IntegrationFG, []itemOutcome, func(context.Context, pgx.Tx) error, error) {
 	slugs := make([]string, 0, len(items))
 	for _, it := range items {
@@ -412,7 +417,8 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	rows, err := q.Query(ctx, `
 		SELECT v.erp_slug, v.sku, v.is_active, p.id::text, p.name, p.is_active,
 		       EXISTS (SELECT 1 FROM product_variants v2 WHERE v2.product_id=p.id AND v2.is_active),
-		       lower(c.name), `+ownerSQL("p.id", "v.erp_slug", "v.sku", "v.is_active")+`
+		       lower(c.name), v.erp_name, v.erp_category,
+		       `+sourceName("p.id")+`, lower(`+sourceCategory("p.id")+`)
 		  FROM product_variants v
 		  JOIN products p ON p.id=v.product_id
 		  LEFT JOIN categories c ON c.id=p.category_id
@@ -424,7 +430,8 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	for rows.Next() {
 		var slug string
 		var sn fgSnap
-		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productName, &sn.productActive, &sn.hasActive, &sn.category, &sn.owner); err != nil {
+		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productName, &sn.productActive, &sn.hasActive, &sn.category,
+			&sn.erpName, &sn.erpCategory, &sn.srcName, &sn.srcCategory); err != nil {
 			rows.Close()
 			return nil, nil, nil, err
 		}
@@ -484,43 +491,6 @@ func upsertCategory(ctx context.Context, q pgx.Tx, name *string) (id *string, cr
 	return &cid, true, nil
 }
 
-// syncProduct writes the owner FG's name and category onto the product (a nil category
-// never clears one; a non-owner only fills a missing one) and CLEARS is_active once no variant is active (R2: products.is_active
-// is admin-owned; the pull never sets it true). Only the owner
-// writes name and category, so siblings that disagree cannot flip them on every pull.
-func syncProduct(ctx context.Context, q pgx.Tx, productID, name string, categoryID *string, owner bool) (bool, error) {
-	ct, err := q.Exec(ctx, `
-		UPDATE products SET name = CASE WHEN $4 THEN $2 ELSE name END,
-		       category_id = CASE WHEN $4 THEN COALESCE($3::text::uuid, category_id) ELSE COALESCE(category_id, $3::text::uuid) END,
-		       is_active = is_active AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=products.id AND v.is_active)
-		 WHERE id=$1
-		   AND (($4 AND (name IS DISTINCT FROM $2
-		              OR category_id IS DISTINCT FROM COALESCE($3::text::uuid, category_id)))
-		     OR (NOT $4 AND category_id IS NULL AND $3::text IS NOT NULL)
-		     OR (is_active AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=products.id AND v.is_active)))`,
-		productID, name, categoryID, owner)
-	return ct.RowsAffected() > 0, err
-}
-
-// ownerSQL is the boolean "this linked FG owns the product's name and category": no other
-// ERP-linked variant of the product ranks before it, where active variants rank before
-// inactive ones and then the smaller FG code (byte order) wins. Deterministic, so siblings
-// in different categories or with different stripped names settle on one value, and a
-// discontinued or deleted owner hands over to the next live sibling.
-func ownerSQL(productID, slug, sku, active string) string {
-	return `NOT EXISTS (SELECT 1 FROM product_variants o WHERE o.product_id=` + productID +
-		` AND o.erp_slug IS NOT NULL AND o.erp_slug<>` + slug +
-		` AND ((o.is_active AND NOT ` + active + `) OR (o.is_active = ` + active +
-		` AND o.sku COLLATE "C" < ` + sku + ` COLLATE "C")))`
-}
-
-func isOwner(ctx context.Context, q pgx.Tx, productID, slug, code string, active bool) (bool, error) {
-	var owner bool
-	err := q.QueryRow(ctx, `SELECT `+ownerSQL("$1::text::uuid", "$2::text", "$3::text", "$4::boolean"),
-		productID, slug, code, active).Scan(&owner)
-	return owner, err
-}
-
 func lockProduct(ctx context.Context, q pgx.Tx, productID string) error {
 	var id string
 	return q.QueryRow(ctx, `SELECT id::text FROM products WHERE id=$1 FOR UPDATE`, productID).Scan(&id)
@@ -574,11 +544,7 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		}
 	}
 
-	catID, catCreated, err := upsertCategory(ctx, q, fg.Category)
-	if err != nil {
-		return out, err
-	}
-	changed := false
+	changed, catCreated := false, false
 
 	if known {
 		ct, err := q.Exec(ctx, `UPDATE product_variants SET is_active=$2, sku=$3
@@ -587,13 +553,24 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 			return out, err
 		}
 		changed = ct.RowsAffected() > 0
-		// erp_synced_at is bookkeeping only: it must not count as a change (no version bump).
+		// erp_synced_at and the stored source values are bookkeeping only: they must not
+		// count as a change (no version bump); syncProduct decides whether the product changed.
 		if _, err := q.Exec(ctx, `UPDATE product_variants SET erp_synced_at=now() WHERE id=$1`, variantID); err != nil {
 			return out, err
 		}
+		if err := storeSource(ctx, q, variantID, name, fgCategory(fg)); err != nil {
+			return out, err
+		}
 	} else {
+		// The FG's own category only matters for grouping a new variant; a known one is
+		// re-derived from the stored values by syncProduct.
+		catID, created, err := upsertCategory(ctx, q, fg.Category)
+		if err != nil {
+			return out, err
+		}
+		catCreated = created
 		label := SizeLabel(fg.Size, fg.Unit)
-		var created, clash bool
+		var clash bool
 		if productID, created, err = groupProduct(ctx, q, fg, name, label, catID, active); err != nil {
 			return out, err
 		}
@@ -606,25 +583,22 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		}
 		// price 0 and no stock rows: priced later by the owner; the tablet read hides Rp0 ERP variants.
 		if _, err := q.Exec(ctx, `
-			INSERT INTO product_variants (product_id, size, price, sku, barcode, erp_slug, erp_synced_at, is_active)
-			VALUES ($1,$2,0,$3,$3,$4,now(),$5)`, productID, label, fg.Code, fg.Slug, active); err != nil {
+			INSERT INTO product_variants (product_id, size, price, sku, barcode, erp_slug, erp_synced_at, is_active,
+			                              erp_name, erp_category)
+			VALUES ($1,$2,0,$3,$3,$4,now(),$5,$6,$7)`, productID, label, fg.Code, fg.Slug, active, name, fgCategory(fg)); err != nil {
 			return out, err
 		}
 		changed = true
 	}
 
-	owner, err := isOwner(ctx, q, productID, fg.Slug, fg.Code, active)
-	if err != nil {
-		return out, err
-	}
-	pchanged, err := syncProduct(ctx, q, productID, name, catID, owner)
+	pchanged, pcatCreated, err := syncProduct(ctx, q, productID)
 	if err != nil {
 		return out, err
 	}
 	if changed || pchanged {
 		out.bump = append(out.bump, "products")
 	}
-	if catCreated {
+	if catCreated || pcatCreated {
 		out.bump = append(out.bump, "categories")
 	}
 	return out, nil
@@ -632,8 +606,9 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 
 // groupProduct finds (locking) or creates the product a new FG joins: the GroupKey product
 // (name minus size). Category only breaks a tie: when that product is filed under another
-// category (or none, or the FG has none), the FG goes to its CategoryGroupKey product if one exists, or to a new one if
-// the GroupKey product already holds the FG's size label. created reports a new row.
+// category (or none, or the FG has none), the FG goes to its CategoryGroupKey product if one
+// exists, or to a new one if the GroupKey product already holds the FG's size label.
+// created reports a new row.
 func groupProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name, label string, catID *string, active bool) (string, bool, error) {
 	key := GroupKey(fg.Name, fg.Size)
 	id, cat, found, err := productByGroupKey(ctx, q, key)
