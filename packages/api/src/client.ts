@@ -137,6 +137,8 @@ export type StockMovementSummary = S['StockMovementSummary']
 export type StockMovementPage = S['StockMovementPage']
 export type MovementLedgerSummaryRow = S['MovementLedgerSummaryRow']
 export type MovementLedgerSummaryResponse = S['MovementLedgerSummaryResponse']
+export type MovementSku = S['MovementSku']
+export type MovementSkuResponse = S['MovementSkuResponse']
 export type InventoryDocEvent = S['InventoryDocEvent']
 export type InventoryReasonCode = S['InventoryReasonCode']
 export type OutletGiveaway = S['OutletGiveaway']
@@ -163,6 +165,7 @@ export type StockRequisitionFulfilResult = S['StockRequisitionFulfilResult']
 export type StockMovementParams = Query<'listStockMovements'>
 export type StockMovementExportParams = Query<'exportStockMovements'>
 export type MovementLedgerSummaryParams = Query<'getMovementLedgerSummary'>
+export type MovementSkuParams = Query<'listMovementSkus'>
 export type ListAdjustmentRequestsParams = Query<'listAdjustmentRequests'>
 export type ListRequisitionsParams = Query<'listRequisitions'>
 export interface OversellReportParams {
@@ -391,6 +394,8 @@ export interface Api {
   /** The kartu stok as CSV text, same filters as the list. */
   exportStockMovements: (params: StockMovementExportParams) => Promise<string>
   getMovementLedgerSummary: (params: MovementLedgerSummaryParams) => Promise<MovementLedgerSummaryResponse>
+  /** The kartu stok SKU picker: variants matching q that have a ledger row at the location. */
+  listMovementSkus: (params: MovementSkuParams) => Promise<MovementSkuResponse>
   getOutletGiveaway: (outletId: string) => Promise<OutletGiveaway>
   setOutletGiveaway: (outletId: string, input: OutletGiveawayInput, idempotencyKey: string) => Promise<OutletGiveaway>
   listAdjustmentRequests: (params?: ListAdjustmentRequestsParams) => Promise<ListResult<AdjustmentRequest>>
@@ -914,6 +919,8 @@ export function createClient(opts: ClientOptions): Api {
     exportStockMovements: (params) => requestCsv(`${API}/inventory/movements/export${qsMulti(params)}`),
     getMovementLedgerSummary: (params) =>
       request<MovementLedgerSummaryResponse>('GET', `${API}/inventory/movements/summary${qsMulti(params)}`),
+    listMovementSkus: (params) =>
+      request<MovementSkuResponse>('GET', `${API}/inventory/movements/skus${qsMulti(params)}`),
     getOutletGiveaway: (outletId) => data<OutletGiveaway>('GET', `${API}/outlets/${outletId}/giveaway`),
     setOutletGiveaway: (outletId, input, idempotencyKey) =>
       data<OutletGiveaway>('PUT', `${API}/outlets/${outletId}/giveaway`, input, idemRequired(idempotencyKey)),

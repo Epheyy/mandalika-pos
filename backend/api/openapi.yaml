@@ -2763,6 +2763,20 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/MovementLedgerSummaryRow' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    MovementSku:
+      type: object
+      required: [productId, productName, variantSize, sku]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        barcode: { type: string }
+    MovementSkuResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/MovementSku' } }
     OutletGiveaway:
       type: object
       required: [outletId, configured, enabled]
@@ -6015,8 +6029,8 @@ paths:
       summary: Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
       description: >
         Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown
-        but never used for ordering. from/to filter occurredAt (RFC 3339, or a date read in the
-        outlet timezone). `summary` is returned only when one SKU (productId and variantSize) is filtered.
+        but never used for ordering. from/to select by recordedAt (RFC 3339, or a date read in the
+        outlet timezone), so a sale rung offline and synced late belongs to the day it was recorded; occurredAt is still returned. `summary` is returned only when one SKU (productId and variantSize) is filtered.
       parameters:
         - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
         - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
@@ -6032,8 +6046,8 @@ paths:
             items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all.", schema: { type: boolean } }
-        - { name: from, in: query, required: false, schema: { type: string } }
-        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
+        - { name: to, in: query, required: false, description: "Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it.", schema: { type: string } }
         - { name: cursor, in: query, required: false, description: "Opaque; the nextCursor of the previous page.", schema: { type: string } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:
@@ -6067,8 +6081,8 @@ paths:
             items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, schema: { type: boolean } }
-        - { name: from, in: query, required: false, schema: { type: string } }
-        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
+        - { name: to, in: query, required: false, description: "Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it.", schema: { type: string } }
       responses:
         '200':
           description: CSV file (UTF-8, header row)
@@ -6086,8 +6100,8 @@ paths:
       parameters:
         - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
         - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: from, in: query, required: false, schema: { type: string } }
-        - { name: to, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
+        - { name: to, in: query, required: false, description: "Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it.", schema: { type: string } }
         - { name: q, in: query, required: false, description: "Substring match on product name, SKU or barcode.", schema: { type: string } }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
@@ -6097,6 +6111,26 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MovementLedgerSummaryResponse' }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/inventory/movements/skus:
+    get:
+      operationId: listMovementSkus
+      tags: [catalog]
+      summary: SKU picker of the kartu stok. Variants with a ledger row at the location matching a search (manage_inventory)
+      description: >
+        Up to 8 variants whose product name, SKU or barcode contains q and that have at least one
+        stock ledger row at the location. An empty q returns an empty list.
+      parameters:
+        - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, required: true, description: "Substring match on product name, SKU or barcode.", schema: { type: string } }
+      responses:
+        '200':
+          description: matching variants
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovementSkuResponse' }
         '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/outlets/{id}/giveaway:

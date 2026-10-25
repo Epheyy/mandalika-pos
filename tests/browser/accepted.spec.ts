@@ -3,6 +3,7 @@ import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCust
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
+import { stockCardFlow } from './backoffice-stockcard-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
@@ -92,6 +93,12 @@ test('BO-REVIEW-RESOLVE head office resolves a parked tablet item and the badge 
 test('BO-CSV-IMPORT preview errors block apply, a clean preview applies with an idempotency key', async ({ page }, info) => {
   const result = await csvImportFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-STOCK-CARD summary row opens the kartu stok, rows page, Hadiah chip filters, CSV downloads', async ({ page }, info) => {
+  const result = await stockCardFlow(page as ScenarioPage)
+  expect(result).toHaveLength(7)
   await evidence(info, result)
 })
 

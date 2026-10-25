@@ -56,14 +56,22 @@ func healthHandler(database pinger, c *cache.Cache) http.HandlerFunc {
 	}
 }
 
+// useRequestObservers installs the outermost middleware, in the order that matters: request id and
+// client IP first, then the access log, then the panic recoverer. The logger sits outside the
+// recoverer so an aborted response (http.ErrAbortHandler, which the recoverer re-panics) is
+// still logged.
+func useRequestObservers(r chi.Router, cfg *config.Config, sentry *observability.Sentry, sink errorLogSink) {
+	r.Use(chimw.RequestID)
+	r.Use(mw.ClientIP(cfg.TrustedProxyHops))
+	r.Use(mw.RequestLogger)
+	r.Use(sentryRecoverer(sentry, sink))
+}
+
 func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
 	// Built early: the panic recoverer persists backend errors to error_logs.
 	wr := write.New(database.Pool)
-	r.Use(chimw.RequestID)
-	r.Use(mw.ClientIP(cfg.TrustedProxyHops))
-	r.Use(mw.RequestLogger)
-	r.Use(sentryRecoverer(sentry, wr))
+	useRequestObservers(r, cfg, sentry, wr)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -275,6 +283,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/inventory/overview", h.InventoryOverview)
 				r.Get("/inventory/ingredient-overview", h.IngredientOverview)
 				r.Get("/inventory/movement-summary", h.MovementSummary)
+				// kartu stok: ledger reads (S1)
+				r.Get("/inventory/movements", h.ListStockMovements)
+				r.Get("/inventory/movements/export", h.ExportStockMovements)
+				r.Get("/inventory/movements/summary", h.LedgerMovementSummary)
+				r.Get("/inventory/movements/skus", h.MovementSkus)
 				// transfers (mesh; static path registered before /{id})
 				r.Get("/transfers", h.Transfers)
 				r.Get("/transfers/location-stock", h.TransferLocationStock)
@@ -402,7 +415,14 @@ func sentryRecoverer(s *observability.Sentry, wr errorLogSink) func(http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				if rec := recover(); rec != nil && rec != http.ErrAbortHandler {
+				rec := recover()
+				// A deliberate abort (a stream that failed after its headers went out, like the kartu
+				// stok export) must reach net/http, which then drops the connection. Swallowing it
+				// would end the chunked body cleanly and hand the client a silently truncated 200.
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				if rec != nil {
 					err, ok := rec.(error)
 					if !ok {
 						err = fmt.Errorf("panic: %v", rec)

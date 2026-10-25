@@ -2366,7 +2366,7 @@ export interface paths {
         };
         /**
          * Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
-         * @description Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown but never used for ordering. from/to filter occurredAt (RFC 3339, or a date read in the outlet timezone). `summary` is returned only when one SKU (productId and variantSize) is filtered.
+         * @description Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown but never used for ordering. from/to select by recordedAt (RFC 3339, or a date read in the outlet timezone), so a sale rung offline and synced late belongs to the day it was recorded; occurredAt is still returned. `summary` is returned only when one SKU (productId and variantSize) is filtered.
          */
         get: operations["listStockMovements"];
         put?: never;
@@ -2406,6 +2406,26 @@ export interface paths {
         };
         /** Per-SKU ledger summary of one location, with opening and closing saldo (manage_inventory) */
         get: operations["getMovementLedgerSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/movements/skus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SKU picker of the kartu stok. Variants with a ledger row at the location matching a search (manage_inventory)
+         * @description Up to 8 variants whose product name, SKU or barcode contains q and that have at least one stock ledger row at the location. An empty q returns an empty list.
+         */
+        get: operations["listMovementSkus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5200,6 +5220,17 @@ export interface components {
         MovementLedgerSummaryResponse: {
             data: components["schemas"]["MovementLedgerSummaryRow"][];
             meta: components["schemas"]["Meta"];
+        };
+        MovementSku: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku: string;
+            barcode?: string;
+        };
+        MovementSkuResponse: {
+            data: components["schemas"]["MovementSku"][];
         };
         /** @description The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row. */
         OutletGiveaway: {
@@ -10703,7 +10734,9 @@ export interface operations {
                 flag?: "shortage";
                 /** @description true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all. */
                 giveaway?: boolean;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
                 /** @description Opaque; the nextCursor of the previous page. */
                 cursor?: string;
@@ -10746,7 +10779,9 @@ export interface operations {
                 kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
                 flag?: "shortage";
                 giveaway?: boolean;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
             };
             header?: never;
@@ -10790,7 +10825,9 @@ export interface operations {
             query: {
                 locationType: components["schemas"]["InventoryLocationType"];
                 locationId: string;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
                 /** @description Substring match on product name, SKU or barcode. */
                 q?: string;
@@ -10810,6 +10847,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MovementLedgerSummaryResponse"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listMovementSkus: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                /** @description Substring match on product name, SKU or barcode. */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description matching variants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementSkuResponse"];
                 };
             };
             /** @description invalid filter */

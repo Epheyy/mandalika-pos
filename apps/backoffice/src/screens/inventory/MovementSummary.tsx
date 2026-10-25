@@ -1,138 +1,114 @@
-import { useEffect, useState } from 'react'
-import type { Outlet, Warehouse, MovementSummaryResponse } from '@mandalika/api'
+import { useState } from 'react'
+import type { MovementLedgerSummaryResponse, MovementLedgerSummaryRow } from '@mandalika/api'
 import { BarChart2 } from 'lucide-react'
 import { api } from '../../api'
-import { DEFAULT_TIMEZONE, dayEndIso, dayStartIso, localDay } from '../../lib/businessDay'
+import { localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
+import { MOVEMENT_KIND_LABEL, daysAgoDay, type MovementKind } from './stockCardFormat'
+import type { StockCardTarget } from './StockCard'
+import { useLocations } from './useLocations'
 
-// The picked days are calendar days in the LOCATION's zone: an outlet uses its own timezone,
-// a warehouse stays on Asia/Jakarta (A28).
-function todayDate(): string {
-  return localDay()
+// The ledger summary scans a location's history: refresh it slowly (the inputs refetch at once).
+const SUMMARY_REFRESH_MS = 60_000
+
+const HEADERS = ['Produk', 'Ukuran', 'SKU', 'Saldo Awal', 'Masuk', 'Keluar', 'Saldo Akhir']
+
+/** "Penjualan 3 · Penerimaan 5" for the per-kind quantities of a summary row. */
+function kindBreakdown(byKind: Record<string, number>): string {
+  return Object.entries(byKind)
+    .filter(([, qty]) => qty > 0)
+    .map(([kind, qty]) => `${MOVEMENT_KIND_LABEL[kind as MovementKind] ?? kind} ${qty}`)
+    .join(' · ')
 }
 
-function daysAgoDate(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return localDay(d)
+const sum = (byKind: Record<string, number>): number => Object.values(byKind).reduce((a, b) => a + b, 0)
+
+interface MovementSummaryProps {
+  /** Open the kartu stok of a SKU (a row click). */
+  onOpenCard: (target: StockCardTarget) => void
 }
 
-function parseLocationKey(key: string): { kind: 'outlet' | 'warehouse'; id: string } | null {
-  const idx = key.indexOf(':')
-  if (idx < 0) return null
-  return { kind: key.slice(0, idx) as 'outlet' | 'warehouse', id: key.slice(idx + 1) }
-}
-
-const HEADERS = [
-  'Produk',
-  'Ukuran',
-  'SKU',
-  'Stok Saat Ini',
-  'Stok Masuk',
-  'Terjual',
-  'Refund/Batal',
-  'Transfer Masuk',
-  'Transfer Keluar',
-  'Koreksi',
-  'Selisih Opname',
-]
-
-export function MovementSummary() {
-  const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
-  const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
-  const outlets = ouq.data ?? []
-  const warehouses = wq.data ?? []
-
-  // Pick the first active outlet as default, then first outlet, then first warehouse.
-  const defaultLocationKey = (() => {
-    const active = outlets.find((o) => o.isActive)
-    if (active) return `outlet:${active.id}`
-    if (outlets.length) return `outlet:${outlets[0].id}`
-    if (warehouses.length) return `warehouse:${warehouses[0].id}`
-    return ''
-  })()
-
-  const [locationKey, setLocationKey] = useState('')
-  const [fromDate, setFromDate] = useState(() => daysAgoDate(30))
-  const [toDate, setToDate] = useState(() => todayDate())
+/** Ringkasan pergerakan per SKU, built on the stock ledger (saldo awal, masuk, keluar, saldo akhir). */
+export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
+  const loc = useLocations()
+  const [fromDay, setFromDay] = useState(() => daysAgoDay(30))
+  const [toDay, setToDay] = useState(() => localDay())
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  // Once outlets/warehouses load, set the default location if not yet chosen.
-  useEffect(() => {
-    if (!locationKey && defaultLocationKey) {
-      setLocationKey(defaultLocationKey)
-    }
-  }, [defaultLocationKey, locationKey])
-
-  const parsed = parseLocationKey(locationKey)
-  const kind = parsed?.kind ?? 'outlet'
-  const locationId = parsed?.id ?? ''
-
-  const locationZone = kind === 'outlet' ? (outlets.find((o) => o.id === locationId)?.timezone ?? DEFAULT_TIMEZONE) : DEFAULT_TIMEZONE
-  const fromIso = dayStartIso(fromDate, locationZone)
-  const toIso = dayEndIso(toDate, locationZone)
-
-  const q = usePolledQuery<MovementSummaryResponse>(
+  const where = loc.location
+  const q = usePolledQuery<MovementLedgerSummaryResponse>(
     () =>
-      locationId
-        ? api.getMovementSummary({ kind, id: locationId, from: fromIso, to: toIso, page, limit: pageSize })
+      where
+        ? api.getMovementLedgerSummary({
+            locationType: where.type,
+            locationId: where.id,
+            from: fromDay,
+            to: toDay,
+            q: search.trim() || undefined,
+            page,
+            limit: pageSize,
+          })
         : Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: pageSize } }),
-    [kind, locationId, fromIso, toIso, page, pageSize],
+    [where?.type, where?.id, fromDay, toDay, search, page, pageSize],
+    SUMMARY_REFRESH_MS,
   )
 
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  const isWarehouse = kind === 'warehouse'
-
+  const open = (r: MovementLedgerSummaryRow) =>
+    onOpenCard({
+      locationKey: loc.locationKey,
+      productId: r.productId,
+      variantSize: r.variantSize,
+      label: `${r.productName} · ${r.variantSize}${r.sku ? ` (${r.sku})` : ''}`,
+      fromDay,
+      toDay,
+    })
 
   return (
     <div className="space-y-5">
-      {/* Filter row */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[220px]">
           <Select
             label="Lokasi"
-            value={locationKey}
+            value={loc.locationKey}
             onChange={(e) => {
-              setLocationKey(e.target.value)
+              loc.setLocationKey(e.target.value)
               setPage(1)
             }}
           >
             <option value="">Pilih lokasi...</option>
             <optgroup label="Outlet">
-              {outlets.map((o) => (
-                <option key={o.id} value={`outlet:${o.id}`}>
-                  {o.name}
-                </option>
+              {loc.outlets.map((o) => (
+                <option key={o.id} value={`outlet:${o.id}`}>{o.name}</option>
               ))}
             </optgroup>
             <optgroup label="Gudang">
-              {warehouses.map((w) => (
-                <option key={w.id} value={`warehouse:${w.id}`}>
-                  {w.name}
-                </option>
+              {loc.warehouses.map((w) => (
+                <option key={w.id} value={`warehouse:${w.id}`}>{w.name}</option>
               ))}
             </optgroup>
           </Select>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="movement-summary-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <label htmlFor="movement-summary-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal tercatat dari</label>
           <input
             id="movement-summary-from-date"
             type="date"
-            value={fromDate}
-            max={toDate}
+            value={fromDay}
+            max={toDay}
             onChange={(e) => {
-              setFromDate(e.target.value)
+              setFromDay(e.target.value)
               setPage(1)
             }}
             className={fieldClass}
@@ -140,14 +116,28 @@ export function MovementSummary() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="movement-summary-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <label htmlFor="movement-summary-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal tercatat sampai</label>
           <input
             id="movement-summary-to-date"
             type="date"
-            value={toDate}
-            min={fromDate}
+            value={toDay}
+            min={fromDay}
             onChange={(e) => {
-              setToDate(e.target.value)
+              setToDay(e.target.value)
+              setPage(1)
+            }}
+            className={fieldClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1 min-w-[220px]">
+          <label htmlFor="movement-summary-q" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cari</label>
+          <input
+            id="movement-summary-q"
+            value={search}
+            placeholder="Nama, SKU, atau barcode"
+            onChange={(e) => {
+              setSearch(e.target.value)
               setPage(1)
             }}
             className={fieldClass}
@@ -155,67 +145,41 @@ export function MovementSummary() {
         </div>
       </div>
 
-      {/* Table */}
+      {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
+
       <Card className="overflow-hidden">
         {q.loading && rows.length === 0 ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState
-            icon={<BarChart2 />}
-            title="Tidak ada pergerakan stok dalam rentang waktu ini"
-          />
+          q.error ? null : <EmptyState icon={<BarChart2 />} title="Tidak ada pergerakan stok dalam rentang waktu ini" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   {HEADERS.map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
+                    <th key={h} className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {rows.map((r) => {
-                  const diffColor =
-                    r.opnameDiff > 0
-                      ? 'text-green-700'
-                      : r.opnameDiff < 0
-                        ? 'text-red-600'
-                        : 'text-gray-500'
-
-                  return (
-                    <tr key={`${r.productId}|${r.variantSize}`} className="hover:bg-gray-50">
-                      <td className="px-5 py-3 font-bold text-gray-900 text-sm whitespace-nowrap">
-                        {r.productName}
-                      </td>
-                      <td className="px-5 py-3 text-sm text-gray-500">{r.variantSize}</td>
-                      <td className="px-5 py-3 text-sm text-gray-500 font-mono">
-                        {r.sku || '—'}
-                      </td>
-                      <td className="px-5 py-3 text-sm font-black text-gray-900">
-                        {r.currentStock}
-                      </td>
-                      <td className="px-5 py-3 text-sm text-gray-700">{r.goodsIn}</td>
-                      <td className="px-5 py-3 text-sm text-gray-700">
-                        {isWarehouse ? '—' : r.sold}
-                      </td>
-                      <td className="px-5 py-3 text-sm text-gray-700">
-                        {isWarehouse ? '—' : r.refunded}
-                      </td>
-                      <td className="px-5 py-3 text-sm text-gray-700">{r.transferIn}</td>
-                      <td className="px-5 py-3 text-sm text-gray-700">{r.transferOut}</td>
-                      <td className="px-5 py-3 text-sm text-gray-700">{r.adjustmentCount}</td>
-                      <td className={`px-5 py-3 text-sm font-bold ${diffColor}`}>
-                        {r.opnameDiff > 0 ? `+${r.opnameDiff}` : r.opnameDiff}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {rows.map((r) => (
+                  <tr
+                    key={`${r.productId}|${r.variantSize}`}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    tabIndex={0}
+                    onClick={() => open(r)}
+                    onKeyDown={(e) => e.key === 'Enter' && open(r)}
+                  >
+                    <td className="px-5 py-3 font-bold text-gray-900 text-sm whitespace-nowrap">{r.productName}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{r.variantSize}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500 font-mono">{r.sku || '—'}</td>
+                    <td className="px-5 py-3 text-sm text-gray-700">{r.opening}</td>
+                    <td className="px-5 py-3 text-sm text-green-700" title={kindBreakdown(r.inByKind)}>{sum(r.inByKind)}</td>
+                    <td className="px-5 py-3 text-sm text-red-600" title={kindBreakdown(r.outByKind)}>{sum(r.outByKind)}</td>
+                    <td className="px-5 py-3 text-sm font-black text-gray-900">{r.closing}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
