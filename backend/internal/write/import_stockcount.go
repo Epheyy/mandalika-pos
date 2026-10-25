@@ -106,8 +106,8 @@ func loadCountCatalog(ctx context.Context, q pgx.Tx, countID string, loc countLo
 // applyStockCountSaves stores the counted quantities only: no stock change, no per-line
 // baseline kept: a CSV save that changes a line's value clears that line's manual baseline, so the
 // delta stays against the count-start snapshot (the preview flags such lines, baseline_replaced). The upload is a line save, so
-// saveCountLines writes the importer's 'updated' event (as for PUT /stock-counts/{id}); the strict four-eyes
-// rule then keeps them from approving the count.
+// saveCountLinesAs writes the importer's 'imported' event (data: importRunId, lines), so the history tells scanner
+// imports from manual saves; touchedBy counts it, so the strict four-eyes rule still keeps them from approving.
 func applyStockCountSaves(ctx context.Context, tx pgx.Tx, req ImportRequest, loc countLoc, saves []csvimport.StockCountSave) error {
 	if len(saves) == 0 {
 		return nil
@@ -117,5 +117,5 @@ func applyStockCountSaves(ctx context.Context, tx pgx.Tx, req ImportRequest, loc
 		qty := s.Qty
 		items[i] = StockCountItem{ProductID: s.ProductID, VariantSize: s.VariantSize, ActualQty: &qty}
 	}
-	return saveCountLines(ctx, tx, req.TargetID, loc, items, false, req.UserID)
+	return saveCountLinesAs(ctx, tx, req.TargetID, loc, items, false, req.UserID, "imported", map[string]any{"importRunId": req.RunID})
 }

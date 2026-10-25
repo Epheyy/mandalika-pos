@@ -321,6 +321,13 @@ func refreezeCount(ctx context.Context, t pgx.Tx, id string, loc countLoc) error
 // first set at completion get no baseline and fall back to frozen_qty. Callers pass the saving actor; the
 // 'updated' event is written here so no save path can skip it.
 func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, items []StockCountItem, captureBaseline bool, actor string) error {
+	return saveCountLinesAs(ctx, t, id, loc, items, captureBaseline, actor, "updated", nil)
+}
+
+// saveCountLinesAs is saveCountLines recording the save as the given doc event action ('updated' for a
+// manual save, 'imported' for a scanner CSV import) with extra event data. Either action counts for
+// the strict four-eyes check (touchedBy); exactly one event per save.
+func saveCountLinesAs(ctx context.Context, t pgx.Tx, id string, loc countLoc, items []StockCountItem, captureBaseline bool, actor, action string, extra map[string]any) error {
 	_, _, lid := loc.stock()
 	q := `UPDATE stock_count_items SET
 		baseline_qty = CASE WHEN $4::int IS NULL THEN NULL
@@ -343,7 +350,11 @@ func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, item
 	}
 	// The lines store no actor: every save records who made it, for the strict four-eyes check
 	// (touchedBy). Exactly one 'updated' row per save; actor "" (legacy unattributed path) is NULL.
-	return insertDocEvent(ctx, t, docTypeStockCount, id, "updated", actor, "", map[string]any{"lines": len(items)})
+	data := map[string]any{"lines": len(items)}
+	for k, v := range extra {
+		data[k] = v
+	}
+	return insertDocEvent(ctx, t, docTypeStockCount, id, action, actor, "", data)
 }
 
 // UpdateStockCount handles start, cancel, notes and line edits, all against the

@@ -299,8 +299,12 @@ func TestStockCountCsvPostgres(t *testing.T) {
 		if stockSnapshot() != stockBefore || movements() != movBefore {
 			t.Fatal("import changed stock or the ledger")
 		}
-		if n := num(`SELECT count(*) FROM inventory_doc_events WHERE doc_type='stock_count' AND doc_id=$1 AND action='updated' AND actor_id=$2`, count1, mgrImp); n != 1 {
-			t.Fatalf("importer 'updated' events = %d, want exactly 1", n)
+		if n := num(`SELECT count(*) FROM inventory_doc_events WHERE doc_type='stock_count' AND doc_id=$1 AND action='imported' AND actor_id=$2
+		               AND data->>'importRunId'=$3`, count1, mgrImp, committed.Data.RunID); n != 1 {
+			t.Fatalf("importer 'imported' events (with the run id) = %d, want exactly 1", n)
+		}
+		if n := num(`SELECT count(*) FROM inventory_doc_events WHERE doc_type='stock_count' AND doc_id=$1 AND actor_id=$2 AND action='updated'`, count1, mgrImp); n != 0 {
+			t.Fatalf("an import must not also write an 'updated' event (%d)", n)
 		}
 		if str(`SELECT target_id::text FROM import_runs WHERE id=$1`, committed.Data.RunID) != count1 {
 			t.Fatal("run has no target_id")

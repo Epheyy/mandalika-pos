@@ -171,9 +171,9 @@ func readDocLocation(ctx context.Context, t pgx.Tx, ref DocRef) (docLocation, er
 
 // touchedBy reports whether the user took part in the document: created it, saved counted lines
 // on it, or submitted it (the document's own columns, plus every 'created', 'submitted' and
-// 'updated' event, so a submission that was rejected and resubmitted by someone else still
-// counts). Strict four-eyes: such a user can never approve it. A line save is recorded as an
-// 'updated' event because the count lines themselves store no actor.
+// 'updated' or 'imported' event, so a submission that was rejected and resubmitted by someone else
+// still counts). Strict four-eyes: such a user can never approve it. A line save is recorded as an
+// 'updated' (manual) or 'imported' (scanner CSV) event because the count lines store no actor.
 func touchedBy(ctx context.Context, t pgx.Tx, ref DocRef, userID string) (bool, error) {
 	var touched bool
 	err := t.QueryRow(ctx, `
@@ -181,7 +181,7 @@ func touchedBy(ctx context.Context, t pgx.Tx, ref DocRef, userID string) (bool, 
 		    OR EXISTS (SELECT 1 FROM stock_adjustment_requests WHERE id=$1 AND requested_by=$2::uuid)
 		    OR EXISTS (SELECT 1 FROM inventory_doc_events
 		                WHERE doc_type=$3 AND doc_id=$1 AND actor_id=$2::uuid
-		                  AND action IN ('created','submitted','updated'))`,
+		                  AND action IN ('created','submitted','updated','imported'))`,
 		ref.ID, userID, ref.Type).Scan(&touched)
 	return touched, err
 }
