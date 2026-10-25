@@ -205,7 +205,7 @@ func giveawayLine(ctx context.Context, tx pgx.Tx, orderID, outletID string) (*le
 		  RETURNING stock`,
 		outletID, pid, size).Scan(&after)
 	if errors.Is(err, pgx.ErrNoRows) {
-		slog.Warn("giveaway skipped: item has no stock row (variant removed?)",
+		slog.Warn("giveaway skipped: item has no stock row or its variant was removed",
 			"outlet", outletID, "product", pid, "size", size, "order", orderID)
 		return nil, nil
 	}

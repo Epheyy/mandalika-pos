@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Product } from '@mandalika/api'
+import { ApiError, type Product } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
@@ -19,12 +19,15 @@ interface Draft {
 export function OutletGiveawaySection({ outletId }: { outletId: string }) {
   const q = usePolledQuery(
     async () => {
-      // The stock read needs manage_inventory; a manage_outlets-only user still configures the
-      // giveaway and just sees "—" for the stock.
+      // The stock read needs manage_inventory: a 403 leaves a manage_outlets-only user able to
+      // configure the giveaway, with "—" for the stock.
       const [giveaway, products, stock] = await Promise.all([
         api.getOutletGiveaway(outletId),
         api.listProducts(1, 200),
-        api.getTransferLocationStock('outlet', outletId).catch(() => null),
+        api.getTransferLocationStock('outlet', outletId).catch((e: unknown) => {
+          if (e instanceof ApiError && e.status === 403) return null // no manage_inventory: stock shows "—"
+          throw e // anything else is a real load error
+        }),
       ])
       return { giveaway, products: products.data, stock }
     },
