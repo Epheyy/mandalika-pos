@@ -436,8 +436,8 @@ func writeImportedVariants(ctx context.Context, tx pgx.Tx, ps []csvimport.Planne
 			  UNION ALL
 			  SELECT si.product_id, si.variant_size FROM stock_count_items si
 			    JOIN stock_counts c ON c.id = si.stock_count_id WHERE c.status IN ('planned','in_progress','pending_approval')
-		  UNION ALL
-		  SELECT ar.product_id, ar.variant_size FROM stock_adjustment_requests ar WHERE ar.status = 'pending_approval') d
+			  UNION ALL
+			  SELECT ar.product_id, ar.variant_size FROM stock_adjustment_requests ar WHERE ar.status = 'pending_approval') d
 			  JOIN unnest($1::uuid[],$2::text[]) AS r(pid,from_size)
 			    ON d.product_id = r.pid AND d.variant_size = r.from_size`, rPID, rFrom).Scan(&open); err != nil {
 			return err

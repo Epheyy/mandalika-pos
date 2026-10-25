@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
@@ -596,6 +598,30 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		if !strings.Contains(events("stock_count", c1), "updated") {
 			t.Fatalf("line saves are not recorded: %s", events("stock_count", c1))
 		}
+		// The in-transaction recheck stands on its own: with a proof for a user who took part, the
+		// write refuses before it touches anything (the pre-PIN check above cannot be what catches it).
+		direct := func(label string, fn func(tx pgx.Tx) error) {
+			t.Helper()
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback(ctx)
+			if err := fn(tx); !errors.Is(err, write.ErrApprovalSelf) {
+				t.Fatalf("%s: err=%v want ErrApprovalSelf", label, err)
+			}
+		}
+		proofOf := func(user string) write.ApprovalProof {
+			return write.ApprovalProof{ApproverID: user, PinSetAt: time.Now()}
+		}
+		direct("count: counter and creator", func(tx pgx.Tx) error { return wr.ApproveStockCountTx(ctx, tx, c1, proofOf(mgrA), "") })
+		direct("count: submitter", func(tx pgx.Tx) error { return wr.ApproveStockCountTx(ctx, tx, c1, proofOf(mgrA2), "") })
+		adj := newReq(tokMgrA, "outlet", outA, "S", stockA("S")+1)
+		direct("adjustment: requester", func(tx pgx.Tx) error {
+			_, err := wr.ApproveAdjustmentRequestTx(ctx, tx, adj, proofOf(mgrA), "")
+			return err
+		})
+		call("POST", "/inventory/adjustment-requests/"+adj+"/cancel", tokMgrA, nextKey(), nil)
 		code, _, body = call("POST", "/stock-counts/"+c1+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
 		mustCode("a third person approves", 200, code, body)
 		clearLocks()

@@ -92,12 +92,14 @@ func ApproverCovers(role, approverOutlet, docOutlet string, approverRoles []stri
 	return strings.EqualFold(approverOutlet, docOutlet)
 }
 
-// approvalRequiredOn reads the setting (no row = off).
+// approvalRequiredOn reads the setting (no row = off). FOR SHARE: a direct adjust / complete holds the
+// share lock until it commits, so turning the switch on (an UPDATE of the row) waits for any direct
+// write already in flight instead of letting it commit after the switch.
 func approvalRequiredOn(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }) (bool, error) {
 	var on bool
-	err := q.QueryRow(ctx, `SELECT inventory_approval_required FROM app_settings WHERE id=1`).Scan(&on)
+	err := q.QueryRow(ctx, `SELECT inventory_approval_required FROM app_settings WHERE id=1 FOR SHARE`).Scan(&on)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return false, err
 	}
