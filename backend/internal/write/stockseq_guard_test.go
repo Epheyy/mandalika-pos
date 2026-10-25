@@ -42,7 +42,8 @@ var stockSeqAllowlist = map[string]bool{
 	// ledger reads (post-read / backfill lock); never writes stock (plan §2.5, D2b)
 	"internal/ledger/ledger.go":   false,
 	"internal/ledger/backfill.go": false,
-	// reads stock to choose the restocked refund lines; never writes it (D2b)
+	// reads stock to choose the restocked refund lines (D2b); since S2 it also decrements the
+	// per-sale giveaway row, but the sale bumps the stock seq itself (order.go, after the hook)
 	"internal/service/ledger_hooks.go": false,
 	// read-only plan §2.4 invariant query of the ERP demo rehearsal (default_transaction_read_only)
 	"cmd/erp-rehearsal/steps_check.go": false,
@@ -320,10 +321,13 @@ var stockWriteSQL = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)
 var stockSQLPins = map[string][2]int{
 	"internal/service/order.go":     {2, 0}, // lazy row, decrement
 	"internal/service/refund.go":    {1, 0}, // refund restock
-	"internal/service/lockorder.go": {1, 0}, // lazy zero row (no bump)
-	"internal/write/transfer.go":    {2, 0}, // addStockDelta, deductStockGuarded
-	"internal/write/warehouse.go":   {3, 1}, // goods receipt (dynamic), adjust lazy zero row before the locked pre-read (ledger before/after; no qty change), adjust, par
-	"internal/write/stockcount.go":  {0, 1}, // countLoc.stock()
+	"internal/service/lockorder.go": {1, 0}, // lazy zero row (no bump); S2 adds the giveaway key to that same statement
+	// S2: the per-sale giveaway decrement (giveawayLine). A non-bumper: the sale bumps once at
+	// order.go after recordSaleMovements, and the row is already locked by lockStockRowsSorted
+	"internal/service/ledger_hooks.go": {1, 0},
+	"internal/write/transfer.go":       {2, 0}, // addStockDelta, deductStockGuarded
+	"internal/write/warehouse.go":      {3, 1}, // goods receipt (dynamic), adjust lazy zero row before the locked pre-read (ledger before/after; no qty change), adjust, par
+	"internal/write/stockcount.go":     {0, 1}, // countLoc.stock()
 	// seed, rename (D13: guarded zero-stock move, RETURNING check), delete variant (D13:
 	// guarded zero-stock delete), availability, cleanup (D13: only stock = 0 rows of sizes
 	// without a variant), DeleteProduct (D13: guarded zero-stock delete before the cascade)

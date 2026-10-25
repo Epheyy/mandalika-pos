@@ -216,3 +216,39 @@ func TestBuildDocumentErrors(t *testing.T) {
 		t.Errorf("err = %v, want ErrUnknownKind", err)
 	}
 }
+
+func TestBuildDocumentGiveawayLineIsZeroPricedSaleLineWithoutFlag(t *testing.T) {
+	sold := movement("a", -1)
+	give := movement("b", -1)
+	give.RefLine = ""
+	give.DedupeKey = "giveaway:ord1"
+	in := input("sale", sold, give)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 150000, LinePrice: map[string]int64{"item-a": 150000}}
+	doc := mustBuild(t, in)
+	if doc.Lines[0].UnitPrice == nil || *doc.Lines[0].UnitPrice != 150000 {
+		t.Errorf("sold line price = %v", doc.Lines[0].UnitPrice)
+	}
+	g := doc.Lines[1]
+	if g.UnitPrice == nil || *g.UnitPrice != 0 {
+		t.Errorf("giveaway unit_price = %v, want 0", g.UnitPrice)
+	}
+	if g.Reason != "sale" || len(g.Flags) != 0 {
+		t.Errorf("giveaway reason=%q flags=%v, want sale and no flags", g.Reason, g.Flags)
+	}
+	// still Rp0 when the order row is gone, and a shortage flag is kept as stored
+	give.Flags = []string{"shortage"}
+	doc = mustBuild(t, input("sale", give))
+	if doc.Lines[0].UnitPrice == nil || *doc.Lines[0].UnitPrice != 0 || fmt.Sprint(doc.Lines[0].Flags) != "[shortage]" {
+		t.Errorf("no-order giveaway line = %+v", doc.Lines[0])
+	}
+}
+
+func TestBuildDocumentGiveawayKeyOnlyAffectsSaleKind(t *testing.T) {
+	m := movement("a", -1)
+	m.DedupeKey = "giveaway:ord1"
+	in := input("refund", m)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 1, LinePrice: map[string]int64{"item-a": 5}}
+	if p := mustBuild(t, in).Lines[0].UnitPrice; p == nil || *p != 5 {
+		t.Errorf("refund price = %v, want the order price", p)
+	}
+}

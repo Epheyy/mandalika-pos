@@ -262,6 +262,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_outlets"))
 				r.Post("/outlets", h.CreateOutlet)
 				r.Put("/outlets/{id}", h.UpdateOutlet)
+				r.Get("/outlets/{id}/giveaway", h.GetOutletGiveaway)
+				r.Put("/outlets/{id}/giveaway", h.SetOutletGiveaway)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_inventory"))
