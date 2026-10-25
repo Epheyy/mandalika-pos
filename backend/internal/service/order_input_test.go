@@ -55,6 +55,11 @@ func (tx *inputTestTx) QueryRow(_ context.Context, sql string, args ...any) pgx.
 				*d[4].(*[]byte) = tx.paymentMethods
 			}
 			return nil
+		case strings.Contains(sql, "FROM outlet_giveaways"):
+			return pgx.ErrNoRows // S2 lock phase: the outlet has no giveaway setting
+		case strings.Contains(sql, "pos.giveaway"):
+			*d[0].(*string) = "" // S2 giveaway hook: no recorded key = no giveaway
+			return nil
 		case strings.Contains(sql, "FROM outlets"):
 			return pgx.ErrNoRows // outletZone: unknown outlet = Asia/Jakarta
 		case strings.Contains(sql, "FROM loyalty_settings"):
@@ -104,6 +109,10 @@ func (inputTestNoRows) Close()     {}
 func (inputTestNoRows) Err() error { return nil }
 
 func (tx *inputTestTx) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, "set_config('pos.giveaway'") {
+		tx.queries = append(tx.queries, sql) // S2 bookkeeping, never a stock write
+		return pgconn.NewCommandTag("SELECT 1"), nil
+	}
 	tx.writes++
 	if tx.allowWrites {
 		if strings.Contains(sql, "UPDATE outlet_variant_stock") {
@@ -376,7 +385,7 @@ func (tx *inputTestTx) Rollback(context.Context) error { return nil }
 func (tx *inputTestTx) Commit(context.Context) error   { tx.commits++; return nil }
 
 func ordinaryInput() CreateOrderInput {
-	return CreateOrderInput{OutletID: "synthetic-outlet", IdempotencyKey: "original-key", PaymentMethod: "cash", AmountPaid: 100000,
+	return CreateOrderInput{OutletID: "00000000-0000-4000-8000-0000000000a0", IdempotencyKey: "original-key", PaymentMethod: "cash", AmountPaid: 100000,
 		Items: []OrderItem{{ProductID: "synthetic-product", ProductName: "Synthetic", VariantSize: "110ml", Price: 100000, Quantity: 1, Subtotal: 100000}}}
 }
 

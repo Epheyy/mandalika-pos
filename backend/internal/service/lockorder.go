@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -105,6 +106,17 @@ func lockStockRowsSorted(ctx context.Context, tx pgx.Tx, outletID string, items 
 			sizes = append(sizes, it.VariantSize)
 		}
 	}
+	// The outlet's giveaway row joins the sorted set: the hook decrements it after the
+	// sale lines, and locking it only then could deadlock with a sale that sells that
+	// same item in another cart order. FOR SHARE (in giveawayKey) keeps the setting
+	// stable until commit, so the hook re-reads the same row.
+	if gpid, gsize, ok, err := giveawayKey(ctx, tx, outletID); err != nil {
+		return err
+	} else if ok && !seen[key{gpid, gsize}] {
+		seen[key{gpid, gsize}] = true
+		pids = append(pids, gpid)
+		sizes = append(sizes, gsize)
+	}
 	if len(pids) < 2 {
 		return nil // one row cannot deadlock with itself
 	}
@@ -127,4 +139,38 @@ func lockStockRowsSorted(ctx context.Context, tx pgx.Tx, outletID string, items 
 		return fmt.Errorf("lock stock rows: %w", err)
 	}
 	return nil
+}
+
+// giveawayKey returns the (product_id, variant_size) of the outlet's giveaway item
+// (ok only when it is enabled) and takes a FOR SHARE lock on the setting row, so a
+// concurrent setting change waits until this sale commits. ok is false with no enabled
+// setting (or an outlet id that is not a uuid, which the sale path rejects later exactly
+// as before). Only the setting row is locked, never a stock row, so the sorted stock
+// lock order is unchanged.
+func giveawayKey(ctx context.Context, tx pgx.Tx, outletID string) (pid, size string, ok bool, err error) {
+	if _, perr := uuid.Parse(outletID); perr != nil {
+		return "", "", false, nil
+	}
+	var enabled bool
+	err = tx.QueryRow(ctx,
+		`SELECT product_id::text, variant_size, enabled FROM outlet_giveaways
+		  WHERE outlet_id=$1 FOR SHARE`, outletID).Scan(&pid, &size, &enabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		pid, size, enabled, err = "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, fmt.Errorf("lock giveaway setting: %w", err)
+	}
+	// A disabled row is share-locked too, so it cannot be re-enabled mid-sale. A row that
+	// does not exist yet cannot be locked, so the locked key is also recorded tx-locally and
+	// the hook decrements only that key (empty = no giveaway): a setting committed after
+	// this point is ignored by this sale instead of being decremented outside the lock set.
+	locked := ""
+	if enabled {
+		locked = pid + "|" + size
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('pos.giveaway', $1, true)`, locked); err != nil {
+		return "", "", false, fmt.Errorf("record giveaway key: %w", err)
+	}
+	return pid, size, enabled, nil
 }

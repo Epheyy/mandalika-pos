@@ -21,6 +21,8 @@ var ErrUnknownKind = errors.New("erp: unknown document kind")
 const (
 	maxHeldVariants = 5
 	sentFlagPrefix  = "sent:"
+	// giveawayKeyPrefix starts the ledger dedupe key of the per-sale giveaway line.
+	giveawayKeyPrefix = "giveaway:"
 )
 
 var knownKinds = map[string]bool{
@@ -47,6 +49,7 @@ type MovementRow struct {
 	Flags                      []string
 	RefundOfMovementID         string
 	RefLine                    string
+	DedupeKey                  string // ledger dedupe key; "giveaway:<order id>" marks the per-sale giveaway
 	OccurredAt                 time.Time
 	Actor, DeviceID            string
 	FgCode                     string // "" = variant not mapped
@@ -171,7 +174,13 @@ func buildLine(kind string, m MovementRow, order *OrderInfo) StockLine {
 		}
 		line.ExpectedQty = &expected
 	}
-	if (kind == "sale" || kind == "refund") && order != nil {
+	switch {
+	case kind == "sale" && strings.HasPrefix(m.DedupeKey, giveawayKeyPrefix):
+		// The per-sale giveaway is no order item, so it has no order price: it goes out as
+		// a plain Rp0 sale line (no giveaway flag; the ERP contract is unchanged).
+		var zero int64
+		line.UnitPrice = &zero
+	case (kind == "sale" || kind == "refund") && order != nil:
 		if p, ok := order.LinePrice[m.RefLine]; ok {
 			line.UnitPrice = &p
 		}
@@ -209,7 +218,7 @@ const (
 	movementsSQL = `
 SELECT m.id::text, m.product_id::text, m.variant_size, m.qty, m.qty_before, m.qty_after, m.flags,
   COALESCE(m.refund_of_movement_id::text,''), COALESCE(m.ref_line,''), m.occurred_at,
-  COALESCE(m.actor,''), COALESCE(m.device_id,''),
+  COALESCE(m.actor,''), COALESCE(m.device_id,''), m.dedupe_key,
   COALESCE((SELECT v.sku FROM product_variants v WHERE v.product_id=m.product_id AND v.size=m.variant_size
             AND to_jsonb(v)->>'erp_slug' IS NOT NULL AND v.sku <> '' ORDER BY v.id LIMIT 1), '')
 FROM stock_movements m WHERE m.document_id=$1 ORDER BY m.seq`
@@ -256,7 +265,7 @@ func loadMovements(ctx context.Context, q Querier, documentID string) ([]Movemen
 	for rows.Next() {
 		var m MovementRow
 		if err := rows.Scan(&m.ID, &m.ProductID, &m.VariantSize, &m.Qty, &m.QtyBefore, &m.QtyAfter, &m.Flags,
-			&m.RefundOfMovementID, &m.RefLine, &m.OccurredAt, &m.Actor, &m.DeviceID, &m.FgCode); err != nil {
+			&m.RefundOfMovementID, &m.RefLine, &m.OccurredAt, &m.Actor, &m.DeviceID, &m.DedupeKey, &m.FgCode); err != nil {
 			return nil, fmt.Errorf("erp: scan movement: %w", err)
 		}
 		out = append(out, m)

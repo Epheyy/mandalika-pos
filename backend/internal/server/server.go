@@ -104,6 +104,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	// ERP outbox relay (plan step 5)
 	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(cfg), cfg.IsProd())
 	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
+	h.SetErpIntegrationEnabled(cfg.ERPIntegrationEnabled)
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -270,6 +271,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_outlets"))
 				r.Post("/outlets", h.CreateOutlet)
 				r.Put("/outlets/{id}", h.UpdateOutlet)
+				r.Get("/outlets/{id}/giveaway", h.GetOutletGiveaway)
+				r.Put("/outlets/{id}/giveaway", h.SetOutletGiveaway)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_inventory"))

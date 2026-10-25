@@ -48,6 +48,9 @@ const (
 // SetErpCatalogRunner installs the pull job (nil disables the endpoints).
 func (h *Handlers) SetErpCatalogRunner(r ErpCatalogRunner) { h.erpPull = r }
 
+// SetErpIntegrationEnabled records the configured ERP_INTEGRATION_ENABLED flag.
+func (h *Handlers) SetErpIntegrationEnabled(on bool) { h.erpEnabled = on }
+
 // erpDBErrorText replaces relayed or stored error text that carries database output.
 const erpDBErrorText = "database error (see server log)"
 

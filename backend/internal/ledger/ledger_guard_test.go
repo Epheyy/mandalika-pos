@@ -158,6 +158,9 @@ func hasStockWrite(src string) bool {
 // ledgerHookFiles: stock-writer file -> name of the helper (in another file) it must
 // call to record, for writers whose recording lives in a hook file (e.g. the sale and
 // refund hooks in service/ledger_hooks.go).
+// S2: service/ledger_hooks.go itself now writes a stock table (the per-sale giveaway decrement)
+// and calls ledger.Record directly, so the classifier counts it as a recording writer on its
+// own; it is deliberately in neither ledgerHookFiles nor ledgerNonMovers.
 var ledgerHookFiles = map[string]string{
 	"internal/write/transfer.go": "recordTransferMovements", // write/transfer_ledger.go
 	"internal/service/refund.go": "recordRefundMovements",   // service/ledger_hooks.go

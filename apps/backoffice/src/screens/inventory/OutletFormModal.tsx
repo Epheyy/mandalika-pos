@@ -9,6 +9,7 @@ import { Input, Textarea, Field, Select } from '../../ui/Field'
 import { DEFAULT_TIMEZONE, OUTLET_TIMEZONES, type OutletTimezone } from '../../lib/businessDay'
 import { outletFormBody, type OutletFormValues } from './outletBody'
 import { Modal } from '../../ui/Modal'
+import { OutletGiveawaySection } from './OutletGiveawaySection'
 
 const EMPTY_FORM: OutletFormValues = {
   name: '',
@@ -238,6 +239,7 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
           />
           <span className="text-sm font-bold text-gray-700">Outlet Aktif</span>
         </label>
+        {editing && <OutletGiveawaySection outletId={editing.id} />}
         {err && <p className="text-sm text-red-600">{err}</p>}
       </div>
     </Modal>

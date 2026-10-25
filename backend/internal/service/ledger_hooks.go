@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -122,9 +125,6 @@ func recordSaleMovements(ctx context.Context, tx pgx.Tx, orderID, orderNumber st
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("record sale movements: %w", err)
 	}
-	if len(ms) == 0 {
-		return nil
-	}
 	sort.Slice(ms, func(a, b int) bool { return ms[a].idx < ms[b].idx })
 	cur := make(map[key]int, len(ms))
 	for _, m := range ms {
@@ -147,6 +147,19 @@ func recordSaleMovements(ctx context.Context, tx pgx.Tx, orderID, orderNumber st
 		}
 		lines[i] = l
 	}
+	// The giveaway line goes LAST so a sold or reward line on the same (product, size)
+	// chains before it (Record keeps caller order within a key). It must come after the
+	// sale-line read above: that read already includes the core loop's decrement.
+	gl, err := giveawayLine(ctx, tx, orderID, in.OutletID)
+	if err != nil {
+		return fmt.Errorf("record sale movements: %w", err)
+	}
+	if gl != nil {
+		lines = append(lines, *gl)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
 	at := pickSaleTime(nil, in.ClientCreated)
 	if at.IsZero() {
 		at = time.Now() // a sale that succeeds today must not fail the ledger's occurred_at check
@@ -162,4 +175,50 @@ func recordSaleMovements(ctx context.Context, tx pgx.Tx, orderID, orderNumber st
 		return fmt.Errorf("record sale movements: %w", err)
 	}
 	return nil
+}
+
+// giveawayLine decrements the outlet's per-sale giveaway item by one (the row is already
+// locked: lockStockRowsSorted took the setting FOR SHARE and the stock row FOR UPDATE, and
+// recorded the key it locked in the transaction-local setting pos.giveaway, which this reads
+// instead of the table: a setting created after the lock phase is not seen, so the decrement
+// never touches a stock row outside the sorted lock set)
+// and returns its ledger line, or nil when this sale gives nothing away. One unit per
+// completed order, whatever the cart holds. The sale is never blocked or failed by the
+// giveaway: no setting, a disabled setting or a vanished variant (no stock row) skip it.
+// Not restored on refund: the line is not an order item. The marker is the dedupe key
+// "giveaway:<order id>"; no flag besides shortage, because flags reach the ERP.
+func giveawayLine(ctx context.Context, tx pgx.Tx, orderID, outletID string) (*ledger.Line, error) {
+	var locked string
+	if err := tx.QueryRow(ctx, `SELECT coalesce(current_setting('pos.giveaway', true), '')`).Scan(&locked); err != nil {
+		return nil, err
+	}
+	pid, size, ok := strings.Cut(locked, "|")
+	if !ok {
+		return nil, nil // no enabled setting: the normal inert state, no log (a Warn per sale would flood it)
+	}
+	var after int
+	// The variant must still exist: a stock row without one would hold every ERP sale document.
+	err := tx.QueryRow(ctx,
+		`UPDATE outlet_variant_stock SET stock=stock-1
+		  WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3
+		    AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id=$2 AND pv.size=$3)
+		  RETURNING stock`,
+		outletID, pid, size).Scan(&after)
+	if errors.Is(err, pgx.ErrNoRows) {
+		slog.Warn("giveaway skipped: item has no stock row or its variant was removed",
+			"outlet", outletID, "product", pid, "size", size, "order", orderID)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	l := ledger.Line{
+		ProductID: pid, VariantSize: size, Qty: -1,
+		QtyBefore: after + 1, QtyAfter: after,
+		DedupeKey: "giveaway:" + orderID,
+	}
+	if after < 0 {
+		l.Flags = []string{"shortage"}
+	}
+	return &l, nil
 }
