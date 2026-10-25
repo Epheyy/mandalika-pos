@@ -13,8 +13,12 @@ Last updated: 2026-10-23 by Claude (Opus 5.5) - ERP stand-in LIVE (backend `0012
 > common Go + archtest, codegen gate (docker 1.26.10), all 36 Postgres gates (docker), quality:ci, browser:ci; every slice and
 > the merge Opus-reviewed. NOT pushed or deployed (Nov 2 ERP demo; owner go-ahead needed; all features inert until configured).
 > F1–F3 (approver + ADJ no. on Kartu Stok, scanner imports logged as 'imported', PB no. on transfer rows; mig 0075 index)
-> also on `inv-integration` (398c15b), Opus-reviewed, all gates green. S6 (cashier PB on the POS tablet) planned in
-> `docs/plans/2026-10-26-s6-pos-requisitions-plan.md`, waiting on owner Q1–Q4; ships as OTA 2.1.6 after the backend deploy.
+> also on `inv-integration`, Opus-reviewed. S6 (cashier Permintaan Barang screen on the POS tablet; owner took the plan's
+> defaults) DONE on `inv-integration` (a86683d): online-only, persisted create key under `mandalika.pos.` (survives an Android
+> restart), never a duplicate PB, no approve/fulfil on the tablet, server re-checks sizes at create/update/submit/fulfil.
+> Final tip gates: gen-check, vet, go test, all 36 Postgres gates, quality:ci, browser:ci (33 scenarios) — all green.
+> Release (owner go-ahead, after the Nov 2 demo): backend deploy with 0069–0075 → hosted smoke → grant request_stock to the
+> pilot terminal account → OTA 2.1.6 (no APK) → on-device check. Nothing pushed or deployed yet.
 >
 > 2026-10-22: A29 parent SERVER half + ERP developer review R-1/E-1/D-1/S-1 LIVE (backend `00126-seh`, commit a2fddd7).
 > A29 stays Parent-open for the CLIENT half only (POS: honour Retry-After, default deadline on non-batch calls; OTA).
