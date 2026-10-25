@@ -117,6 +117,24 @@ func requisitionLines(ctx context.Context, tx pgx.Tx, id string) ([]reqLine, err
 	return out, rows.Err()
 }
 
+// checkVariantsExist refuses a line whose (product, size) is not an existing product_variants
+// row (there is a product FK on the line but no variant FK, so a stale tablet catalog could
+// otherwise request a size that no longer exists and carry it into the transfer draft).
+func checkVariantsExist(ctx context.Context, tx pgx.Tx, items []RequisitionItemInput) error {
+	for _, it := range items {
+		var ok bool
+		if e := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM product_variants WHERE product_id=$1 AND size=$2)`,
+			it.ProductID, it.VariantSize).Scan(&ok); e != nil {
+			return e
+		}
+		if !ok {
+			return errRequisitionRejected("ukuran %q tidak ada untuk produk ini", it.VariantSize)
+		}
+	}
+	return nil
+}
+
 func insertRequisitionItems(ctx context.Context, tx pgx.Tx, id string, items []RequisitionItemInput) error {
 	for _, it := range items {
 		if _, e := tx.Exec(ctx,
@@ -150,6 +168,9 @@ func (r *Repo) CreateRequisitionTx(ctx context.Context, tx pgx.Tx, outletID, act
 	if e := validateRequisitionInput(in); e != nil {
 		return "", e
 	}
+	if e := checkVariantsExist(ctx, tx, in.Items); e != nil {
+		return "", e
+	}
 	no, e := nextDocNo(ctx, tx, "PB", time.Now().Year())
 	if e != nil {
 		return "", e
@@ -178,6 +199,9 @@ func (r *Repo) UpdateRequisitionTx(ctx context.Context, tx pgx.Tx, id, outletID,
 	}
 	if q.status != "draft" {
 		return errRequisitionDenied(q.status)
+	}
+	if e := checkVariantsExist(ctx, tx, in.Items); e != nil {
+		return e
 	}
 	if _, e := tx.Exec(ctx,
 		`UPDATE stock_requisitions SET note=$2, needed_by=$3, updated_at=now() WHERE id=$1`,

@@ -279,6 +279,7 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("create-and-visibility", f.createAndVisibility)
 	t.Run("outlet-scope-and-spoofing", f.outletScope)
 	t.Run("validation", f.validation)
+	t.Run("unknown-variant-is-400", f.unknownVariant)
 	t.Run("state-machine", f.stateMachine)
 	t.Run("approve-rules", f.approveRules)
 	t.Run("reject", f.reject)
@@ -439,6 +440,27 @@ func (f *rqFixture) validation(t *testing.T) {
 	f.want(t, code, body, 200, "update draft")
 	if pb := f.get(t, "staffA", id); len(pb.Data.Items) != 1 || pb.Data.Items[0].RequestedQty != 4 {
 		t.Fatalf("update not applied: %+v", pb.Data.Items)
+	}
+}
+
+// unknownVariant: a (product, size) that is not a product_variants row is refused on create and
+// update with the size named, and a refused update leaves the draft's lines untouched.
+func (f *rqFixture) unknownVariant(t *testing.T) {
+	p := f.product(t)
+	bad := map[string]any{"productId": p, "variantSize": "XXL", "requestedQty": 1}
+	code, body := f.call("staffA", "POST", "/requisitions", rqLines(bad), f.key())
+	f.want(t, code, body, 400, "create with an unknown size")
+	if !strings.Contains(body, "XXL") || !strings.Contains(body, "tidak ada untuk produk ini") {
+		t.Fatalf("error should name the size: %s", body)
+	}
+	code, body = f.call("staffA", "POST", "/requisitions", rqLines(rqLine(p, 1), bad), f.key())
+	f.want(t, code, body, 400, "create with one good and one unknown line")
+	id := f.create(t, "staffA", rqLine(p, 1))
+	code, body = f.call("staffA", "PUT", "/requisitions/"+id, rqLines(bad), f.key())
+	f.want(t, code, body, 400, "update with an unknown size")
+	pb := f.get(t, "staffA", id)
+	if len(pb.Data.Items) != 1 || pb.Data.Items[0].RequestedQty != 1 {
+		t.Fatalf("a refused update changed the lines: %+v", pb.Data.Items)
 	}
 }
 
