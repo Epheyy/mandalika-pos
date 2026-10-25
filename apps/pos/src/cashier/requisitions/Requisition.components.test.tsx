@@ -42,6 +42,12 @@ describe('RequisitionList', () => {
     expect(html).toContain('TR-9')
   })
 
+  it('shows a notice above the list (a requisition that may already be saved)', () => {
+    const html = renderToStaticMarkup(createElement(RequisitionList, { ...listProps, notice: 'Permintaan mungkin sudah tersimpan — cek daftar permintaan.' }))
+    expect(html).toContain('mungkin sudah tersimpan')
+    expect(renderToStaticMarkup(createElement(RequisitionList, listProps))).not.toContain('role="status"')
+  })
+
   it('shows an error with Coba Lagi instead of the list', () => {
     const html = renderToStaticMarkup(createElement(RequisitionList, { ...listProps, error: 'Permintaan Barang butuh koneksi internet.' }))
     expect(html).toContain('butuh koneksi internet')

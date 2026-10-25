@@ -19,6 +19,8 @@ interface Props {
   loading: boolean
   /** A user-facing failure (offline, forbidden, feature off, retry). */
   error: string | null
+  /** A notice from an earlier action (e.g. a requisition that may already be saved). */
+  notice?: string | null
   filter: RequisitionStatus | ''
   onFilter: (f: RequisitionStatus | '') => void
   onOpen: (id: string) => void
@@ -26,7 +28,7 @@ interface Props {
   onReload: () => void
 }
 
-export function RequisitionList({ rows, loading, error, filter, onFilter, onOpen, onNew, onReload }: Props) {
+export function RequisitionList({ rows, loading, error, notice, filter, onFilter, onOpen, onNew, onReload }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 py-2 border-b flex gap-2 overflow-x-auto">
@@ -39,6 +41,7 @@ export function RequisitionList({ rows, loading, error, filter, onFilter, onOpen
           </button>
         ))}
       </div>
+      {notice && <p role="status" className="px-4 py-2 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">{notice}</p>}
       <div className="px-4 py-2 flex gap-2 border-b">
         <button type="button" onClick={onNew} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold">Buat Permintaan</button>
         <button type="button" onClick={onReload} disabled={loading} className="px-3 text-sm text-indigo-600 font-bold disabled:text-gray-300">Muat ulang</button>

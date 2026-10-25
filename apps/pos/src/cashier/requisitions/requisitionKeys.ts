@@ -39,6 +39,8 @@ export interface RequisitionKeys {
   markCreateUnsent(): Promise<void>
   /** The create is resolved (success, a definitive refusal, or discarded). */
   clearPendingCreate(): Promise<void>
+  /** The last local write or removal of the pending record failed: it may not survive an app restart. */
+  storageFailed(): boolean
 }
 
 export function newKey(): string {
@@ -49,18 +51,28 @@ export function newKey(): string {
 
 export const pendingCreateStorageKey = (s: KeyScope): string => `pos.requisition.pendingCreate.${s.userId}.${s.outletId}`
 
-export function createRequisitionKeys(kv: KV, scope: KeyScope): RequisitionKeys {
+/** A resolved record whose removal failed is overwritten with this, so it is never resurrected after a restart. */
+const RESOLVED_MARKER = JSON.stringify({ resolved: true })
+
+export function createRequisitionKeys(kv: KV, scope: KeyScope, onWarn?: (what: string, err: unknown) => void): RequisitionKeys {
   const mem = new Map<string, { sig: string; key: string }>()
   const storageKey = pendingCreateStorageKey(scope)
   // `current` is the truth once this store has touched the record; the KV only seeds it after a restart.
   let current: PendingCreate | null = null
   let touched = false
+  let failed = false
+  const warn = (what: string, err: unknown): void => { failed = true; try { onWarn?.(what, err) } catch { /* reporting must not break a save */ } }
 
   const read = (): PendingCreate | null => {
     const raw = kv.get(storageKey)
     if (!raw) return null
     try {
-      const v = JSON.parse(raw) as Partial<PendingCreate>
+      const v = JSON.parse(raw) as Partial<PendingCreate> & { resolved?: boolean }
+      if (v.resolved === true) {
+        // A tombstone from a failed removal: retry the removal now and treat the record as gone.
+        void kv.removeDurable(storageKey).catch(() => undefined)
+        return null
+      }
       if (typeof v.sig !== 'string' || typeof v.key !== 'string' || !v.input) return null
       return { sig: v.sig, key: v.key, input: v.input, form: v.form, sent: v.sent === true }
     } catch {
@@ -74,8 +86,9 @@ export function createRequisitionKeys(kv: KV, scope: KeyScope): RequisitionKeys 
   const persist = async (p: PendingCreate): Promise<void> => {
     current = p
     touched = true
-    // Best effort: a failed write must not block the request; the record is still held in memory.
-    try { await kv.setDurable(storageKey, JSON.stringify(p)) } catch { /* ignore */ }
+    // A failed write must not block the request (the record is still held in memory) but it is reported:
+    // the panel tells the cashier not to close the app until the request is confirmed.
+    try { await kv.setDurable(storageKey, JSON.stringify(p)); failed = false } catch (e) { warn('pendingCreate write failed', e) }
   }
 
   return {
@@ -102,7 +115,15 @@ export function createRequisitionKeys(kv: KV, scope: KeyScope): RequisitionKeys 
     async clearPendingCreate() {
       current = null
       touched = true
-      try { await kv.removeDurable(storageKey) } catch { /* ignore */ }
+      try {
+        await kv.removeDurable(storageKey)
+        failed = false
+      } catch (e) {
+        // Could not delete the resolved record: overwrite it with a marker so a restart cannot resurrect it.
+        try { await kv.setDurable(storageKey, RESOLVED_MARKER) } catch (e2) { warn('pendingCreate removal failed', e2) }
+        void e
+      }
     },
+    storageFailed: () => failed,
   }
 }

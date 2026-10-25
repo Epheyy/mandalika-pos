@@ -95,3 +95,43 @@ describe('requisitionKeys: update / submit / cancel', () => {
     expect(createRequisitionKeys(kv, scope).keyFor('submit', 'r1', 's')).not.toBe(a)
   })
 })
+
+describe('requisitionKeys: local storage failures (L-a)', () => {
+  it('a failed durable write is reported and flagged, and a later good write clears the flag', async () => {
+    const { kv, ctl } = controllableKV()
+    const warnings: string[] = []
+    const keys = createRequisitionKeys(kv, scope, (what) => { warnings.push(what) })
+    expect(keys.storageFailed()).toBe(false)
+    ctl.mode = 'reject'
+    await keys.beginCreate('s', input(1), form)
+    expect(keys.storageFailed()).toBe(true)
+    expect(warnings).toHaveLength(1)
+    ctl.mode = 'ok'
+    await keys.beginCreate('s2', input(2), form)
+    expect(keys.storageFailed()).toBe(false)
+  })
+
+  it('a failed removal overwrites the record with a marker: a restart never resurrects a resolved create', async () => {
+    const { kv } = controllableKV()
+    const failingRemove = { ...kv, removeDurable: () => Promise.reject(new Error('disk')) }
+    const keys = createRequisitionKeys(failingRemove, scope)
+    await keys.beginCreate('s', input(1), form)
+    await keys.clearPendingCreate()
+    expect(keys.loadPendingCreate()).toBeNull()
+    expect(kv.get(pendingCreateStorageKey(scope))).toContain('resolved')
+    const restarted = createRequisitionKeys(kv, scope)
+    expect(restarted.loadPendingCreate()).toBeNull()
+  })
+
+  it('when both the removal and the marker fail it is reported', async () => {
+    const { kv } = controllableKV()
+    const warnings: string[] = []
+    const broken = { ...kv, removeDurable: () => Promise.reject(new Error('disk')) }
+    const keys = createRequisitionKeys(broken, scope, (w) => { warnings.push(w) })
+    await keys.beginCreate('s', input(1), form)
+    broken.setDurable = () => Promise.reject(new Error('disk'))
+    await keys.clearPendingCreate()
+    expect(keys.storageFailed()).toBe(true)
+    expect(warnings.some((w) => w.includes('removal'))).toBe(true)
+  })
+})

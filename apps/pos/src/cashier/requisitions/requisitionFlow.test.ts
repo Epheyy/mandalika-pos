@@ -86,7 +86,7 @@ describe('requisitionFlow outcomes', () => {
   })
 
   it('400 shows the server Indonesian text', async () => {
-    const { d } = deps({ createRequisition: fail(400, 'qty harus lebih dari 0') })
+    const { d } = deps({ createRequisition: vi.fn().mockRejectedValue(new ApiError(400, 'qty harus lebih dari 0', 'http', { error: 'qty harus lebih dari 0' })) })
     expect(await createDraft(d, input, 'k')).toEqual({ kind: 'invalid', message: 'qty harus lebih dari 0' })
   })
 
@@ -166,5 +166,19 @@ describe("input length caps (L8)", () => {
     expect(buildInput({ ...EMPTY_FORM, lines: [line], requestedBy: "x".repeat(MAX_REQUESTED_BY + 1) })).toEqual({ ok: false, message: MSG_TOO_LONG })
     expect(buildInput({ ...EMPTY_FORM, lines: [line], note: "x".repeat(MAX_NOTE + 1) })).toEqual({ ok: false, message: MSG_TOO_LONG })
     expect(buildInput({ ...EMPTY_FORM, lines: [line], requestedBy: "x".repeat(MAX_REQUESTED_BY), note: "y".repeat(MAX_NOTE) }).ok).toBe(true)
+  })
+})
+
+describe("what counts as a proven refusal (M1)", () => {
+  const err = (status: number, message: string, body?: unknown) => vi.fn().mockRejectedValue(new ApiError(status, message, "http", body))
+  it("only a JSON 400/422 body is invalid; 401 is unauthorized; every other 4xx is unconfirmed", async () => {
+    const run = async (e: ReturnType<typeof err>) => (await createDraft(deps({ createRequisition: e }).d, input, "k")).kind
+    expect(await run(err(400, "x", { error: "x" }))).toBe("invalid")
+    expect(await run(err(422, "x", { error: "x" }))).toBe("invalid")
+    expect(await run(err(400, "request failed (400)"))).toBe("unconfirmed") // proxy page / truncated body
+    expect(await run(err(400, "x", { nope: 1 }))).toBe("unconfirmed")
+    expect(await run(err(401, "unauthorized"))).toBe("unauthorized")
+    expect(await run(err(408, "timeout"))).toBe("unconfirmed")
+    expect(await run(err(413, "too large"))).toBe("unconfirmed")
   })
 })

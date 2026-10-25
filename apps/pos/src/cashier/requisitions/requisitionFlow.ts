@@ -15,9 +15,15 @@ export const NO_OUTLET_MESSAGE = 'Outlet belum dipilih di tablet ini.'
 export const NOT_FOUND_MESSAGE = 'Permintaan tidak ditemukan.'
 export const FEATURE_OFF_MESSAGE = 'Fitur Permintaan Barang belum aktif di server.'
 export const STALE_MESSAGE = 'Status permintaan sudah berubah. Menampilkan data terbaru.'
+export const UNAUTHORIZED_MESSAGE = 'Sesi habis. Masuk lagi, lalu simpan ulang; isian tidak hilang.'
 export const KEY_CONFLICT_MESSAGE = 'Permintaan ini berubah saat dikirim. Simpan lagi.'
 
-export type FlowKind = 'offline' | 'retry' | 'stale' | 'gone' | 'forbidden' | 'invalid' | 'keyConflict'
+/**
+ * `invalid` means ONLY a JSON 400/422 domain refusal from the server: the keyed claim rolled back, so nothing was
+ * created. `unauthorized` (401) and `unconfirmed` (any other 4xx: 408, 413, a non-JSON 4xx ...) prove nothing about
+ * whether an earlier request committed, so callers must not clear a pending create on them.
+ */
+export type FlowKind = 'offline' | 'retry' | 'stale' | 'gone' | 'forbidden' | 'invalid' | 'keyConflict' | 'unauthorized' | 'unconfirmed'
 export type FlowResult<T> = { kind: 'ok'; value: T } | { kind: FlowKind; message: string }
 
 export type RequisitionApi = Pick<
@@ -49,7 +55,14 @@ export function mapFailure(e: unknown, op: Op): { kind: FlowKind; message: strin
   }
   if (e.status === 404) return { kind: 'gone', message: op === 'list' ? FEATURE_OFF_MESSAGE : NOT_FOUND_MESSAGE }
   if (e.status === 403) return { kind: 'forbidden', message: FORBIDDEN_MESSAGE }
-  return { kind: 'invalid', message: e.message }
+  if (e.status === 401) return { kind: 'unauthorized', message: UNAUTHORIZED_MESSAGE }
+  if ((e.status === 400 || e.status === 422) && isDomainRefusal(e.body)) return { kind: 'invalid', message: e.message }
+  return { kind: 'unconfirmed', message: e.message }
+}
+
+/** A parsed JSON error body from the server (`{error: string}`), as opposed to a proxy page or a truncated body. */
+function isDomainRefusal(body: unknown): boolean {
+  return typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string'
 }
 
 async function run<T>(deps: FlowDeps, op: Op, call: () => Promise<T>): Promise<FlowResult<T>> {
