@@ -165,6 +165,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/shifts/{id}", h.Shift)
 			r.Get("/stock-counts", h.StockCounts)
 			r.Get("/stock-counts/{id}", h.StockCount)
+			// Permintaan Barang reads: request_stock (own outlet) or manage_inventory, checked in the handler.
+			r.Get("/requisitions", h.Requisitions)
+			r.Get("/requisitions/{id}", h.Requisition)
 			r.Get("/cash-flows", h.CashFlows)
 
 			// ── Sales writes (POS; cashier authenticated, outlet from JWT) ──
@@ -332,6 +335,21 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/loyalty-conditions/{id}", h.UpdateLoyaltyCondition)
 				r.Delete("/loyalty-conditions/{id}", h.DeleteLoyaltyCondition)
 				r.Post("/ota/publish", h.OtaPublish)
+			})
+			// Permintaan Barang, outlet side (request_stock; own outlet from the request context).
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("request_stock"))
+				r.Post("/requisitions", h.CreateRequisition)
+				r.Put("/requisitions/{id}", h.UpdateRequisition)
+				r.Post("/requisitions/{id}/submit", h.SubmitRequisition)
+				r.Post("/requisitions/{id}/cancel", h.CancelRequisition)
+			})
+			// Permintaan Barang, warehouse side (manage_inventory).
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_inventory"))
+				r.Post("/requisitions/{id}/approve", h.ApproveRequisition)
+				r.Post("/requisitions/{id}/reject", h.RejectRequisition)
+				r.Post("/requisitions/{id}/fulfil", h.FulfilRequisition)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_stock_count"))
