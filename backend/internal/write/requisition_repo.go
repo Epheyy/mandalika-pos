@@ -29,6 +29,7 @@ func (r *Repo) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 type reqRow struct {
 	status, number, outletID string
 	submitted                bool // ever submitted (a draft cancelled before submit never was)
+	requestedBy, submittedBy *string
 	warehouseID, transferID  *string
 }
 
@@ -36,9 +37,9 @@ type reqRow struct {
 func lockRequisition(ctx context.Context, tx pgx.Tx, id string) (reqRow, error) {
 	var q reqRow
 	e := tx.QueryRow(ctx,
-		`SELECT status, number, outlet_id, warehouse_id, transfer_id, submitted_at IS NOT NULL
+		`SELECT status, number, outlet_id, warehouse_id, transfer_id, submitted_at IS NOT NULL, requested_by, submitted_by
 		   FROM stock_requisitions WHERE id=$1 FOR UPDATE`, id).Scan(
-		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID, &q.submitted)
+		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID, &q.submitted, &q.requestedBy, &q.submittedBy)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return q, ErrNotFound
 	}
@@ -68,6 +69,21 @@ func lockVisibleRequisition(ctx context.Context, tx pgx.Tx, id, viewerOutlet str
 		return q, ErrNotFound
 	}
 	return q, nil
+}
+
+// errFourEyes refuses the person who created or submitted a PB from deciding on or fulfilling it,
+// whatever else they hold (manage_inventory, admin).
+var errFourEyes = apperr.New(apperr.Conflict,
+	"pembuat atau pengaju permintaan tidak boleh menyetujui, menolak, atau membuat transfer untuk permintaannya sendiri")
+
+// checkFourEyes applies the rule to the acting user; an unknown actor ("") cannot match.
+func (q reqRow) checkFourEyes(actor string) error {
+	for _, p := range []*string{q.requestedBy, q.submittedBy} {
+		if p != nil && actor != "" && sameUUID(*p, actor) {
+			return errFourEyes
+		}
+	}
+	return nil
 }
 
 func sameUUID(a, b string) bool { return strings.EqualFold(a, b) }
@@ -179,7 +195,7 @@ func (r *Repo) SubmitRequisitionTx(ctx context.Context, tx pgx.Tx, id, outletID,
 		return e
 	}
 	if _, e := tx.Exec(ctx,
-		`UPDATE stock_requisitions SET status=$2, submitted_at=now(), updated_at=now() WHERE id=$1`, id, to); e != nil {
+		`UPDATE stock_requisitions SET status=$2, submitted_at=now(), submitted_by=$3, updated_at=now() WHERE id=$1`, id, to, nullUUID(actor)); e != nil {
 		return e
 	}
 	return insertRequisitionEvent(ctx, tx, id, "submitted", actor, "", nil)
@@ -206,6 +222,9 @@ func (r *Repo) CancelRequisitionTx(ctx context.Context, tx pgx.Tx, id, outletID,
 func (r *Repo) ApproveRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOutlet, actor string, ap RequisitionApproval) error {
 	q, e := lockVisibleRequisition(ctx, tx, id, viewerOutlet)
 	if e != nil {
+		return e
+	}
+	if e := q.checkFourEyes(actor); e != nil {
 		return e
 	}
 	to, e := requisitionTransition(q.status, "approve")
@@ -251,6 +270,9 @@ func (r *Repo) RejectRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 	if e != nil {
 		return e
 	}
+	if e := q.checkFourEyes(actor); e != nil {
+		return e
+	}
 	to, e := requisitionTransition(q.status, "reject")
 	if e != nil {
 		return e
@@ -272,6 +294,9 @@ func (r *Repo) RejectRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 func (r *Repo) FulfilRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOutlet, actor string) (string, string, error) {
 	q, e := lockVisibleRequisition(ctx, tx, id, viewerOutlet)
 	if e != nil {
+		return "", "", e
+	}
+	if e := q.checkFourEyes(actor); e != nil {
 		return "", "", e
 	}
 	if _, e := requisitionTransition(q.status, "fulfil"); e != nil {

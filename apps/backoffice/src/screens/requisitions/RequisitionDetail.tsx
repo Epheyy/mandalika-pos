@@ -112,7 +112,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
     void act('reject', (key) => api.rejectRequisition(pb.id, { note: note.trim() }, key))
   }
 
-  const deciding = canWarehouse && pb.status === 'submitted'
+  const deciding = canWarehouse && pb.status === 'submitted' && pb.requestedBy !== user?.id
   const s = REQUISITION_STATUS[pb.status]
 
   return (

@@ -13,7 +13,7 @@ CREATE TABLE stock_requisitions (
   outlet_id     uuid NOT NULL REFERENCES outlets(id),     -- requester / destination
   warehouse_id  uuid REFERENCES warehouses(id),           -- source; required from 'approved'
   needed_by     date, note text,
-  requested_by  uuid NOT NULL, submitted_at timestamptz,
+  requested_by  uuid NOT NULL, submitted_at timestamptz, submitted_by uuid,
   decided_by    uuid, decided_at timestamptz, decision_note text,
   fulfilled_by  uuid, fulfilled_at timestamptz,
   transfer_id   uuid REFERENCES transfers(id),            -- latest linked transfer draft

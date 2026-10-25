@@ -283,6 +283,7 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("fulfil-concurrent", f.fulfilConcurrent)
 	t.Run("transfer-qty", f.transferQty)
 	t.Run("delete-guards-and-inactive-warehouse", f.deletesAndInactive)
+	t.Run("four-eyes", f.fourEyes)
 	t.Run("history", f.history)
 }
 
@@ -748,4 +749,43 @@ func (f *rqFixture) history(t *testing.T) {
 	if f.count(t, `SELECT count(*) FROM inventory_doc_events WHERE doc_type='requisition' AND doc_id=$1 AND action='rejected'`, r) != 1 {
 		t.Error("no 'rejected' event")
 	}
+}
+
+// The user who created or submitted a PB may not approve, reject or fulfil it, even as admin.
+func (f *rqFixture) fourEyes(t *testing.T) {
+	p := f.product(t)
+	hdr := []string{"X-Outlet-Id", rqOutletA}
+	// Creator: admin creates and submits a PB for outlet A, then tries to decide on it.
+	code, body := f.call("admin", "POST", "/requisitions", rqLines(rqLine(p, 2)), f.key(), hdr...)
+	f.want(t, code, body, 201, "admin creates")
+	id := f.decode(t, body).Data.ID
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/submit", nil, f.key(), hdr...)
+	f.want(t, code, body, 200, "admin submits")
+	pb := f.get(t, "wh", id)
+	approval := map[string]any{"warehouseId": rqWarehouse, "items": []map[string]any{{"itemId": pb.Data.Items[0].ID, "approvedQty": 2}}}
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 409, "creator approves")
+	if !strings.Contains(body, "tidak boleh") {
+		t.Errorf("four-eyes message missing: %s", body)
+	}
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/reject", map[string]any{"note": "x"}, f.key())
+	f.want(t, code, body, 409, "creator rejects")
+	if st := f.get(t, "wh", id).Data.Status; st != "submitted" {
+		t.Fatalf("a refused four-eyes action changed the PB to %s", st)
+	}
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 200, "another user approves")
+	code, body = f.call("admin", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 409, "creator fulfils")
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 201, "another user fulfils")
+
+	// Submitter: staff A creates, an admin (acting for outlet A) submits, so the admin may not decide.
+	sid := f.create(t, "staffA", rqLine(p, 1))
+	code, body = f.call("admin", "POST", "/requisitions/"+sid+"/submit", nil, f.key(), hdr...)
+	f.want(t, code, body, 200, "admin submits staff A's draft")
+	code, body = f.call("admin", "POST", "/requisitions/"+sid+"/reject", map[string]any{"note": "x"}, f.key())
+	f.want(t, code, body, 409, "submitter rejects")
+	code, body = f.call("wh", "POST", "/requisitions/"+sid+"/reject", map[string]any{"note": "x"}, f.key())
+	f.want(t, code, body, 200, "another user rejects")
 }
