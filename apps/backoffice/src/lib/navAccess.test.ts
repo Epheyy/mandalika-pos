@@ -22,4 +22,12 @@ describe('canSeeNav', () => {
     expect(canSeeNav('reports', 'view_reports', { role: 'manager', permissions: ['view_transactions'] })).toBe(true)
     expect(canSeeNav('products', 'manage_products', { role: 'manager', permissions: [] })).toBe(false)
   })
+
+  it('shows Permintaan Barang to outlet requesters and the warehouse, not to others', () => {
+    expect(canSeeNav('requisitions', 'request_stock', { role: 'cashier', permissions: ['request_stock'] })).toBe(true)
+    expect(canSeeNav('requisitions', 'request_stock', { role: 'manager', permissions: ['manage_inventory'] })).toBe(true)
+    expect(canSeeNav('requisitions', 'request_stock', { role: 'manager', permissions: ['manage_stock_count'] })).toBe(false)
+    expect(canSeeNav('requisitions', 'request_stock', { role: 'admin', permissions: [] })).toBe(true)
+    expect(canSeeNav('requisitions', 'request_stock', null)).toBe(false)
+  })
 })

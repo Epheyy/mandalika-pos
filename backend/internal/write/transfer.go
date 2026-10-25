@@ -223,21 +223,32 @@ func (r *Repo) CreateTransfer(ctx context.Context, createdBy string, t TransferC
 	if e := validateItems(t.Items); e != nil {
 		return "", e
 	}
+	var id string
+	err := r.noBumpTx(ctx, func(tx pgx.Tx) error {
+		var e error
+		id, e = createTransferTx(ctx, tx, createdBy, t)
+		return e
+	})
+	return id, err
+}
+
+// createTransferTx inserts a draft transfer and its lines inside the caller's
+// transaction (no stock movement, no version bump). Callers validate first.
+// A requisition fulfil creates its draft through it so the PB link, the event and
+// the transfer commit together.
+func createTransferTx(ctx context.Context, tx pgx.Tx, createdBy string, t TransferCreate) (string, error) {
 	so, sw := locCols(t.Source)
 	do, dw := locCols(t.Dest)
 	var id string
-	err := r.noBumpTx(ctx, func(tx pgx.Tx) error {
-		if e := tx.QueryRow(ctx,
-			`INSERT INTO transfers (status, source_outlet_id, source_warehouse_id,
-			   dest_outlet_id, dest_warehouse_id, note, created_by)
-			 VALUES ('draft',$1,$2,$3,$4,$5,$6) RETURNING id`,
-			nullUUID(so), nullUUID(sw), nullUUID(do), nullUUID(dw),
-			nullStr(t.Note), nullUUID(createdBy)).Scan(&id); e != nil {
-			return e
-		}
-		return insertTransferItems(ctx, tx, id, t.Items)
-	})
-	return id, err
+	if e := tx.QueryRow(ctx,
+		`INSERT INTO transfers (status, source_outlet_id, source_warehouse_id,
+		   dest_outlet_id, dest_warehouse_id, note, created_by)
+		 VALUES ('draft',$1,$2,$3,$4,$5,$6) RETURNING id`,
+		nullUUID(so), nullUUID(sw), nullUUID(do), nullUUID(dw),
+		nullStr(t.Note), nullUUID(createdBy)).Scan(&id); e != nil {
+		return "", e
+	}
+	return id, insertTransferItems(ctx, tx, id, t.Items)
 }
 
 // UpdateTransferDraft replaces a draft's note + items. Source/dest are fixed at

@@ -11,6 +11,7 @@ export function canSeeNav(id: string, perm: string, user: NavUser | null): boole
   if (id === 'errors' || id === 'erpOutbox') return false
   const perms = user.permissions || []
   if (id === 'warehouses' || id === 'approvals') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
+  if (id === 'requisitions') return perms.includes('request_stock') || perms.includes('manage_inventory')
   if (id === 'reports') return perms.includes('view_reports') || perms.includes('view_transactions')
   return perms.includes(perm)
 }

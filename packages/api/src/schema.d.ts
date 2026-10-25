@@ -5475,6 +5475,8 @@ export interface components {
             sku?: string;
             requestedQty: number;
             approvedQty?: number;
+            /** @description Qty on this line in the linked transfer draft (editable there), absent without a link. */
+            transferQty?: number;
             note?: string;
         };
         StockRequisitionTransferLink: {
@@ -5507,6 +5509,11 @@ export interface components {
             requestedByName?: string;
             /** Format: date-time */
             submittedAt?: string;
+            /**
+             * Format: uuid
+             * @description Who submitted the requisition; with the creator, barred from approving, rejecting or fulfilling it.
+             */
+            submittedBy?: string;
             /** Format: uuid */
             decidedBy?: string;
             decidedByName?: string;
