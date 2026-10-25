@@ -371,7 +371,8 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
      - add that key to the sorted set for the lazy zero row (`:110-118`) and the sorted lock (`:119-126`);
      - include it in the `< 2 keys` early return (`:107-109`).
    - `FOR SHARE` keeps the setting stable until commit, so the hook re-reads the same row. A setting PUT updates only that row and takes no stock lock, so no cycle.
-   - This edits a non-frozen helper. `createOrderCore`'s call at `order.go:499` is unchanged.
+   - This edits a non-frozen helper (the reorg plan lists `lockorder.go` as non-frozen, `docs/plans/2026-10-22-reorg-and-erp-demo-plan.md:173`; no guard test pins `lockStockRowsSorted`, grep). `createOrderCore`'s call at `order.go:499` is unchanged.
+   - The lazy zero row is created only when the variant exists in `product_variants` (`lockorder.go:111-118`, `WHERE EXISTS`). So a missing bag variant gets no row and the hook skips it (step 2).
 2. **Decrement and record**, inside `recordSaleMovements` (`backend/internal/service/ledger_hooks.go:88-165`), the D10 seam called once at `order.go:632`:
    - Read the sale lines first, as today (`:99-106`).
    - Then run `UPDATE outlet_variant_stock SET stock=stock-1 … RETURNING stock` for the giveaway key. The row is already locked.
@@ -379,7 +380,7 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
    - Pass it in the **same** `ledger.Record` call (`:154-160`).
    - Appending last keeps the per-key chain correct when a sold or reward bag shares the key: `Record` keeps caller order within a key (`ledger.go:253-264`).
    - The `len(ms)==0` early return (`:125-127`) must no longer skip the giveaway.
-   - No setting row, disabled, or no stock row (variant gone): no giveaway, a `slog.Warn`, and **the sale never fails**.
+   - No setting row, disabled, or no stock row (variant no longer in `product_variants`, so step 1 created none): no giveaway, a `slog.Warn`, and **the sale never fails**. If the variant exists, step 1 guarantees the row.
 3. **Guard files to update, each with a comment, Opus-reviewed:**
    - `backend/internal/write/stockseq_guard_test.go`: `ledger_hooks.go` stays a non-bumper (`:46`), because the sale bumps at `order.go:763`; add `{1,0}` to `stockSQLPins` (`:320-331`) and fix the comment.
    - `backend/internal/ledger/ledger_guard_test.go`: `ledger_hooks.go` now writes stock and calls `ledger.Record` directly, so it classifies as a recording writer (`:179-200`).
@@ -532,7 +533,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 | R8 | Replay / double bag | `processed_keys` guard + full rollback on race (§4.2 Q3); GW asserts it. |
 | R9 | Zero or negative bag stock | Never blocks; `shortage` flag; visible on kartu stok, not "Stok Minus" (Q5). |
 | R10 | Variant rename/delete or ERP tombstone orphans the setting | Hook skips with a warn; setting screen shows "tidak valid"; event row on change. |
-| R11 | Approval stalls | Only the admin has a PIN today; admins-only approve by owner decision (`HANDOFF.md:241`). A single admin cannot satisfy four-eyes (Q2). |
+| R11 | Approval stalls | Migration 0063 wiped every receive PIN and admins must set new ones (`HANDOFF.md:270`). Who holds a PIN today is unverified (likely only the admin). A single PIN holder cannot satisfy four-eyes (Q2). |
 | R12 | Absolute adjustment applied late overwrites sales | Delta apply + drift shown (Q3). |
 | R13 | Two open counts at one location double-apply | Wider unique index (0071); `runningCountConflict` updated. |
 | R14 | CSV SKU ambiguity until 0067 ships | Barcode first; ambiguous SKU = row error. |
