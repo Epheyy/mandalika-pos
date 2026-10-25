@@ -5183,7 +5183,12 @@ export interface components {
             actorName?: string;
             reasonCode?: components["schemas"]["InventoryReasonCode"];
             reasonText?: string;
+            /** @description Display name of the approver of the adjustment request or stock count behind this row; absent for rows without an approval. */
             approvedBy?: string;
+            /** @description Number (ADJ) of the approved adjustment request behind this row. */
+            docNumber?: string;
+            /** @description Number (PB) of the Permintaan Barang the transfer of this row was created from. */
+            requisitionNumber?: string;
             /** @description Status of the ERP outbox document that carries this movement, when there is one. */
             erpStatus?: string;
         };
