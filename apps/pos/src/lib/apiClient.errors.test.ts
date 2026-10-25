@@ -200,3 +200,76 @@ describe('401 goes through the refresh path', () => {
     expect(onTokens).not.toHaveBeenCalled()
   })
 })
+
+describe('requestCsv (exportStockCount / exportStockMovements)', () => {
+  const csv = (status: number, body: string, type = 'text/csv; charset=utf-8') =>
+    new Response(body, { status, headers: { 'Content-Type': type } })
+
+  it('returns the CSV body verbatim and asks for text/csv', async () => {
+    vi.mocked(fetch).mockResolvedValue(csv(200, 'a,b\n1,2\n'))
+    expect(await client().api.exportStockCount('c1')).toBe('a,b\n1,2\n')
+    expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({ Accept: 'text/csv', Authorization: 'Bearer old' })
+  })
+
+  it('a fetch TypeError is kind=network, status 0', async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'))
+    expect(await failure(client().api.exportStockCount('c1'))).toMatchObject({ kind: 'network', status: 0 })
+  })
+
+  it('a failure while reading the body is kind=network, status 0', async () => {
+    const res = csv(200, 'x')
+    vi.spyOn(res, 'text').mockRejectedValue(new TypeError('body stream broke'))
+    vi.mocked(fetch).mockResolvedValue(res)
+    expect(await failure(client().api.exportStockCount('c1'))).toMatchObject({ kind: 'network', status: 0 })
+  })
+
+  it('401 refreshes once and retries with the new token', async () => {
+    let token = 'old'
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'expired' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'new', refresh: 'r2' } }))
+      .mockResolvedValueOnce(csv(200, 'ok\n'))
+    const { api } = client({ getToken: () => token, onTokens: (t: { access: string }) => { token = t.access } })
+    expect(await api.exportStockCount('c1')).toBe('ok\n')
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(fetch).mock.calls[2][1]?.headers).toMatchObject({ Authorization: 'Bearer new' })
+  })
+
+  it('a 200 that is not CSV is kind=invalid_response', async () => {
+    vi.mocked(fetch).mockResolvedValue(json(200, { data: 'oops' }))
+    expect(await failure(client().api.exportStockCount('c1'))).toMatchObject({ kind: 'invalid_response', status: 200 })
+  })
+
+  it('application/octet-stream is accepted as CSV', async () => {
+    vi.mocked(fetch).mockResolvedValue(csv(200, 'a\n', 'application/octet-stream'))
+    expect(await client().api.exportStockCount('c1')).toBe('a\n')
+  })
+
+  it('a non-JSON 502 is kind=invalid_response and a JSON 403 keeps its message and body', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('<html>bad gateway</html>', { status: 502, headers: { 'Content-Type': 'text/html' } }))
+    expect(await failure(client().api.exportStockCount('c1'))).toMatchObject({ kind: 'invalid_response', status: 502 })
+    vi.mocked(fetch).mockResolvedValueOnce(json(403, { error: 'dilarang' }))
+    expect(await failure(client().api.exportStockCount('c1'))).toMatchObject({ kind: 'http', status: 403, message: 'dilarang', body: { error: 'dilarang' } })
+  })
+})
+
+describe('qsMulti query encoding', () => {
+  const url = async (params: Parameters<ReturnType<typeof client>['api']['listStockMovements']>[0]) => {
+    vi.mocked(fetch).mockResolvedValue(json(200, { data: [] }))
+    await client().api.listStockMovements(params)
+    return String(vi.mocked(fetch).mock.calls[0][0])
+  }
+
+  it('repeats array keys, keeps giveaway=false and drops undefined, null and empty strings', async () => {
+    const u = await url({
+      locationType: 'outlet',
+      locationId: 'L1',
+      kind: ['sale', 'refund'],
+      giveaway: false,
+      productId: undefined,
+      variantSize: '',
+      flag: null,
+    } as never)
+    expect(u).toBe('http://x/api/v1/inventory/movements?locationType=outlet&locationId=L1&kind=sale&kind=refund&giveaway=false')
+  })
+})

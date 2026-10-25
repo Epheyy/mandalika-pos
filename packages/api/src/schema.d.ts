@@ -2484,7 +2484,7 @@ export interface paths {
         put?: never;
         /**
          * Approve with the approver's PIN; applies the requested delta (manage_inventory and the approver rule)
-         * @description The approver must be an admin or a receive approver role user, never the requester. The applied change is the requested delta (requestedNewQty minus qtyAtRequest), not the absolute value.
+         * @description The approver must be an admin or a receive approver role user, never the requester. The applied change is the requested delta (requestedNewQty minus qtyAtRequest), not the absolute value. The PIN is verified and the attempt/lockout counters are committed in their own transaction before the keyed effect runs (as mintReceiveApproval does, receive_approval.go:287-292), so a refused claim never rolls back a wrong-PIN attempt. `pin` is excluded from the idempotency fingerprint.
          */
         post: operations["approveAdjustmentRequest"];
         delete?: never;
@@ -2578,7 +2578,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule) */
+        /**
+         * Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+         * @description The PIN is verified and the attempt/lockout counters are committed in their own transaction before the keyed effect runs (as mintReceiveApproval does, receive_approval.go:287-292), so a refused claim never rolls back a wrong-PIN attempt. `pin` is excluded from the idempotency fingerprint.
+         */
         post: operations["approveStockCount"];
         delete?: never;
         options?: never;
@@ -2659,7 +2662,10 @@ export interface paths {
         /** List Permintaan Barang (request_stock for the own outlet, or manage_inventory) */
         get: operations["listRequisitions"];
         put?: never;
-        /** Create a draft Permintaan Barang for the active outlet (request_stock) */
+        /**
+         * Create a draft Permintaan Barang for the active outlet (request_stock)
+         * @description The outlet comes from the authenticated scope (token outlet, or X-Outlet-Id for an admin), never from a body or query field. 400 when the request resolves to no single outlet (an admin without X-Outlet-Id).
+         */
         post: operations["createRequisition"];
         delete?: never;
         options?: never;
@@ -2678,7 +2684,10 @@ export interface paths {
         };
         /** Get a Permintaan Barang with items, history and the linked transfer (request_stock for the own outlet, or manage_inventory) */
         get: operations["getRequisition"];
-        /** Replace a draft Permintaan Barang (request_stock; drafts only) */
+        /**
+         * Replace a draft Permintaan Barang (request_stock; drafts only)
+         * @description The outlet comes from the authenticated scope, never from a body or query field; the draft must belong to it. 400 when the request resolves to no single outlet (an admin without X-Outlet-Id).
+         */
         put: operations["updateRequisition"];
         post?: never;
         delete?: never;
@@ -5325,13 +5334,13 @@ export interface components {
             /** @description Number of pending items, for the nav badge. */
             pendingCount: number;
         };
+        /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse); other 409s may omit data. */
         InventoryConflictError: {
             error: string;
-            /**
-             * @description Present when inventoryApprovalRequired is on and the direct endpoint was used.
-             * @enum {string}
-             */
-            code?: "approval_required";
+            data: {
+                /** @enum {string} */
+                code: "approval_required";
+            };
         };
         StockCountSubmitLineInput: {
             /** Format: uuid */
@@ -5369,13 +5378,38 @@ export interface components {
             difference?: number;
             warnings: components["schemas"]["StockCountImportWarning"][];
         };
+        /** @description Counters of one count import. All are exact (not capped like rows). The commit's expectedSummary is this object from the preview; the server recomputes it and answers 409 import_stale when any counter differs (stock moved, lines were counted, or the count changed since the preview). */
+        StockCountImportSummary: {
+            /** @description Distinct scanned codes matched to exactly one line of the count. */
+            matched: number;
+            /** @description Distinct scanned codes that match no barcode or SKU. */
+            unknown: number;
+            /** @description Distinct scanned codes that match more than one SKU; nothing is stored for them. */
+            ambiguous: number;
+            /** @description Distinct scanned codes that resolve to a SKU that is not a line of this count. */
+            notOnCount: number;
+            /** @description Count lines absent from the file; they stay uncounted. */
+            uncounted: number;
+            /** @description Matched lines whose counted value this upload would overwrite with a different value. */
+            changed: number;
+        };
+        /** @description Same shape as CsvImportRequest, with the count-specific expectedSummary. */
+        StockCountImportRequest: {
+            /** @description raw CSV text (UTF-8) */
+            csv: string;
+            fileName?: string;
+            dryRun: boolean;
+            /** @description the preview hash; required when dryRun=false */
+            fileSha256?: string;
+            expectedSummary?: components["schemas"]["StockCountImportSummary"];
+        };
         StockCountImportReport: {
             /** @enum {string} */
             kind: "stock_count";
             delimiter: string;
             fileSha256: string;
             totalRows: number;
-            summary: components["schemas"]["ImportSummary"];
+            summary: components["schemas"]["StockCountImportSummary"];
             fileIssues: components["schemas"]["ImportFileIssue"][];
             /** @description every error and warning, capped at 5000 */
             issues: components["schemas"]["ImportIssue"][];
@@ -5578,6 +5612,8 @@ export interface components {
         ImportIdempotencyKey: string;
         /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
         WriteIdempotencyKey: string;
+        /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+        RequiredWriteIdempotencyKey: string;
         Page: number;
         Limit: number;
         /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
@@ -10665,7 +10701,7 @@ export interface operations {
                 variantSize?: string;
                 kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
                 flag?: "shortage";
-                /** @description true returns only giveaway movements (derived from the ledger key). */
+                /** @description true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all. */
                 giveaway?: boolean;
                 from?: string;
                 to?: string;
@@ -10809,15 +10845,23 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+            /** @description outlet not found (an outlet with no giveaway setting returns 200 with configured false) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     setOutletGiveaway: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -10891,9 +10935,9 @@ export interface operations {
     createAdjustmentRequest: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -10961,9 +11005,9 @@ export interface operations {
     approveAdjustmentRequest: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11038,9 +11082,9 @@ export interface operations {
     rejectAdjustmentRequest: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11087,9 +11131,9 @@ export interface operations {
     cancelAdjustmentRequest: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11150,11 +11194,11 @@ export interface operations {
     submitStockCount: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11201,11 +11245,11 @@ export interface operations {
     approveStockCount: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11280,11 +11324,11 @@ export interface operations {
     rejectStockCount: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11371,7 +11415,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CsvImportRequest"];
+                "application/json": components["schemas"]["StockCountImportRequest"];
             };
         };
         responses: {
@@ -11464,11 +11508,11 @@ export interface operations {
     createRequisition: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -11488,7 +11532,7 @@ export interface operations {
                     "application/json": components["schemas"]["StockRequisitionResponse"];
                 };
             };
-            /** @description invalid body */
+            /** @description invalid body, or no active outlet (the request resolves to no single outlet) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11539,11 +11583,11 @@ export interface operations {
     updateRequisition: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11565,7 +11609,7 @@ export interface operations {
                     "application/json": components["schemas"]["StockRequisitionResponse"];
                 };
             };
-            /** @description invalid body */
+            /** @description invalid body, or no active outlet (the request resolves to no single outlet) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11590,11 +11634,11 @@ export interface operations {
     submitRequisition: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11628,11 +11672,11 @@ export interface operations {
     cancelRequisition: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11666,9 +11710,9 @@ export interface operations {
     approveRequisition: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11715,9 +11759,9 @@ export interface operations {
     rejectRequisition: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;
@@ -11764,9 +11808,9 @@ export interface operations {
     fulfilRequisition: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
-                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
             };
             path: {
                 id: string;

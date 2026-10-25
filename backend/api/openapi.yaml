@@ -92,6 +92,15 @@ components:
         Optional. One uuid per form submit, reused on retry; the same key with the
         same body replays the stored response, with a different body returns 409.
       schema: { type: string, maxLength: 200 }
+    RequiredWriteIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        One uuid per form submit, reused on retry; the same key with the same body replays the
+        stored response, with a different body returns 409. Required because a double-submit
+        would create or apply a second document.
+      schema: { type: string, minLength: 1, maxLength: 200 }
     Page:
       name: page
       in: query
@@ -2887,10 +2896,17 @@ components:
         pendingCount: { type: integer, description: "Number of pending items, for the nav badge." }
     InventoryConflictError:
       type: object
-      required: [error]
+      description: >
+        409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is
+        approval_required (same machine-code convention as ImportConflictResponse); other 409s may omit data.
+      required: [error, data]
       properties:
         error: { type: string }
-        code: { type: string, enum: [approval_required], description: "Present when inventoryApprovalRequired is on and the direct endpoint was used." }
+        data:
+          type: object
+          required: [code]
+          properties:
+            code: { type: string, enum: [approval_required] }
     StockCountSubmitLineInput:
       type: object
       required: [productId, variantSize]
@@ -2930,6 +2946,30 @@ components:
         previous: { type: integer, description: "The counted value this upload overwrites, when the line was already counted." }
         difference: { type: integer, description: Counted minus expected. }
         warnings: { type: array, items: { $ref: '#/components/schemas/StockCountImportWarning' } }
+    StockCountImportSummary:
+      type: object
+      description: >
+        Counters of one count import. All are exact (not capped like rows). The commit's
+        expectedSummary is this object from the preview; the server recomputes it and answers 409
+        import_stale when any counter differs (stock moved, lines were counted, or the count changed since the preview).
+      required: [matched, unknown, ambiguous, notOnCount, uncounted, changed]
+      properties:
+        matched: { type: integer, description: "Distinct scanned codes matched to exactly one line of the count." }
+        unknown: { type: integer, description: "Distinct scanned codes that match no barcode or SKU." }
+        ambiguous: { type: integer, description: "Distinct scanned codes that match more than one SKU; nothing is stored for them." }
+        notOnCount: { type: integer, description: "Distinct scanned codes that resolve to a SKU that is not a line of this count." }
+        uncounted: { type: integer, description: "Count lines absent from the file; they stay uncounted." }
+        changed: { type: integer, description: "Matched lines whose counted value this upload would overwrite with a different value." }
+    StockCountImportRequest:
+      type: object
+      description: Same shape as CsvImportRequest, with the count-specific expectedSummary.
+      required: [csv, dryRun]
+      properties:
+        csv: { type: string, description: 'raw CSV text (UTF-8)' }
+        fileName: { type: string }
+        dryRun: { type: boolean }
+        fileSha256: { type: string, description: 'the preview hash; required when dryRun=false' }
+        expectedSummary: { $ref: '#/components/schemas/StockCountImportSummary' }
     StockCountImportReport:
       type: object
       required: [kind, delimiter, fileSha256, totalRows, summary, fileIssues, issues, rows, uncounted]
@@ -2938,7 +2978,7 @@ components:
         delimiter: { type: string }
         fileSha256: { type: string }
         totalRows: { type: integer }
-        summary: { $ref: '#/components/schemas/ImportSummary' }
+        summary: { $ref: '#/components/schemas/StockCountImportSummary' }
         fileIssues: { type: array, items: { $ref: '#/components/schemas/ImportFileIssue' } }
         issues: { type: array, description: 'every error and warning, capped at 5000', items: { $ref: '#/components/schemas/ImportIssue' } }
         rows: { type: array, description: 'first 500 rows only (counts are exact)', items: { $ref: '#/components/schemas/StockCountImportRow' } }
@@ -5990,7 +6030,7 @@ paths:
             type: array
             items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
-        - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key).", schema: { type: boolean } }
+        - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all.", schema: { type: boolean } }
         - { name: from, in: query, required: false, schema: { type: string } }
         - { name: to, in: query, required: false, schema: { type: string } }
         - { name: cursor, in: query, required: false, description: "Opaque; the nextCursor of the previous page.", schema: { type: string } }
@@ -6072,13 +6112,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OutletGiveawayResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404': { description: "outlet not found (an outlet with no giveaway setting returns 200 with configured false)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
       operationId: setOutletGiveaway
       tags: [catalog]
       summary: Set the per-sale giveaway item of an outlet (manage_outlets)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6117,7 +6157,7 @@ paths:
       tags: [catalog]
       summary: Request a stock adjustment to a new quantity; it waits for approval (manage_inventory)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6157,8 +6197,9 @@ paths:
       description: >
         The approver must be an admin or a receive approver role user, never the requester. The
         applied change is the requested delta (requestedNewQty minus qtyAtRequest), not the absolute value.
+        The PIN is verified and the attempt/lockout counters are committed in their own transaction before the keyed effect runs (as mintReceiveApproval does, receive_approval.go:287-292), so a refused claim never rolls back a wrong-PIN attempt. `pin` is excluded from the idempotency fingerprint.
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6192,7 +6233,7 @@ paths:
       tags: [catalog]
       summary: Reject a pending adjustment request with a note (manage_inventory)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6216,7 +6257,7 @@ paths:
       tags: [catalog]
       summary: Cancel a pending adjustment request (the requester; manage_inventory)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: false
         content:
@@ -6254,7 +6295,7 @@ paths:
       summary: Submit a finished count for approval; status becomes pending_approval (manage_stock_count)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6277,9 +6318,11 @@ paths:
       operationId: approveStockCount
       tags: [sales]
       summary: Approve a submitted count with the approver's PIN; applies the deltas (manage_stock_count and the approver rule)
+      description: >
+        The PIN is verified and the attempt/lockout counters are committed in their own transaction before the keyed effect runs (as mintReceiveApproval does, receive_approval.go:287-292), so a refused claim never rolls back a wrong-PIN attempt. `pin` is excluded from the idempotency fingerprint.
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6314,7 +6357,7 @@ paths:
       summary: Reject a submitted count with a note; it returns to in_progress for a recount (manage_stock_count and the approver rule)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6369,7 +6412,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/CsvImportRequest' }
+            schema: { $ref: '#/components/schemas/StockCountImportRequest' }
       responses:
         '200':
           description: preview, applied result, or replay of an earlier commit
@@ -6410,9 +6453,13 @@ paths:
       operationId: createRequisition
       tags: [sales]
       summary: Create a draft Permintaan Barang for the active outlet (request_stock)
+      description: >
+        The outlet comes from the authenticated scope (token outlet, or X-Outlet-Id for an admin),
+        never from a body or query field. 400 when the request resolves to no single outlet
+        (an admin without X-Outlet-Id).
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6424,7 +6471,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
-        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '400': { description: "invalid body, or no active outlet (the request resolves to no single outlet)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { description: "Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/requisitions/{id}:
@@ -6448,9 +6495,12 @@ paths:
       operationId: updateRequisition
       tags: [sales]
       summary: Replace a draft Permintaan Barang (request_stock; drafts only)
+      description: >
+        The outlet comes from the authenticated scope, never from a body or query field; the draft
+        must belong to it. 400 when the request resolves to no single outlet (an admin without X-Outlet-Id).
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6462,7 +6512,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockRequisitionResponse' }
-        '400': { description: invalid body, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '400': { description: "invalid body, or no active outlet (the request resolves to no single outlet)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "requisition is not a draft, or Idempotency-Key reused with a different request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -6475,7 +6525,7 @@ paths:
       summary: Submit a draft Permintaan Barang to the warehouse (request_stock)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       responses:
         '200':
           description: submitted
@@ -6494,7 +6544,7 @@ paths:
       summary: Cancel a draft or submitted Permintaan Barang (request_stock)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       responses:
         '200':
           description: cancelled
@@ -6512,7 +6562,7 @@ paths:
       tags: [sales]
       summary: Approve a submitted Permintaan Barang with per-line approved quantities and a source gudang (manage_inventory)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6536,7 +6586,7 @@ paths:
       tags: [sales]
       summary: Reject a submitted Permintaan Barang with a note (manage_inventory)
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -6561,7 +6611,7 @@ paths:
       summary: Create the gudang to toko transfer draft for an approved Permintaan Barang (manage_inventory)
       description: Allowed again only when the linked transfer is cancelled; the requisition then gets a new link.
       parameters:
-        - $ref: '#/components/parameters/WriteIdempotencyKey'
+        - $ref: '#/components/parameters/RequiredWriteIdempotencyKey'
       responses:
         '201':
           description: transfer draft created and linked

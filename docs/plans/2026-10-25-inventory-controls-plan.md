@@ -519,6 +519,18 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 | S4 | Export a count CSV, scan with a phone app, upload, review the diff, apply, then submit for approval |
 | S5 | Outlet raises PB → warehouse approves partial → "Buat Transfer" → send → outlet receives (A08) → PB shows the full chain |
 
+
+### S0 review carry-overs
+
+Must-dos found while reviewing the S0 contract; the slice named on each line owes them.
+
+- **S3, PIN and counters.** The approver PIN is checked, and the attempt/lockout counters are committed, in a separate committed transaction before `keyedMutated` runs (as `mintReceiveApproval` does, `receive_approval.go:287-292`), so a refused claim never rolls back a wrong-PIN attempt. `pin` is excluded from the idempotency fingerprint.
+- **S3, one pending request per SKU.** Refuse a second pending adjustment request for the same location and SKU with 409, in addition to the idempotency keys.
+- **S3, count status in the UI.** `StockCount.tsx` `label()`, `tone()` and the CSV export, and `StockCountStatus` in `packages/types`, gain `PENDING_APPROVAL`.
+- **S3, approvals queue.** Page the queue, and filter its items by the caller's permissions (a `manage_stock_count`-only user does not see adjustment requests).
+- **S1 and S3, location scope.** Scope-check a body or query `locationId` explicitly: outlet users reach only their own outlet.
+- **S5, outlet source.** Read the outlet from the request context via `scope(r)`, never from the raw `X-Outlet-Id` header or `?outletId`.
+
 ---
 
 ## 7. Risks

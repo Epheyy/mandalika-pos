@@ -151,6 +151,8 @@ export type ApprovalQueueItem = S['ApprovalQueueItem']
 export type ApprovalQueueResponse = S['ApprovalQueueResponse']
 export type StockCountSubmitInput = S['StockCountSubmitInput']
 export type StockCountImportReport = S['StockCountImportReport']
+export type StockCountImportRequest = S['StockCountImportRequest']
+export type StockCountImportSummary = S['StockCountImportSummary']
 export type StockCountImportRow = S['StockCountImportRow']
 export type StockRequisition = S['StockRequisition']
 export type StockRequisitionItem = S['StockRequisitionItem']
@@ -362,14 +364,14 @@ export interface Api {
   updateStockCount: (id: string, input: Partial<StockCount>) => Promise<StockCount>
   completeStockCount: (id: string, items?: StockCountItem[]) => Promise<StockCount>
   // approval flow (inventoryApprovalRequired): submit, then an approver approves with their PIN or rejects
-  submitStockCount: (id: string, input: StockCountSubmitInput, idempotencyKey?: string) => Promise<StockCount>
-  approveStockCount: (id: string, input: InventoryApproveInput, idempotencyKey?: string) => Promise<StockCount>
-  rejectStockCount: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<StockCount>
+  submitStockCount: (id: string, input: StockCountSubmitInput, idempotencyKey: string) => Promise<StockCount>
+  approveStockCount: (id: string, input: InventoryApproveInput, idempotencyKey: string) => Promise<StockCount>
+  rejectStockCount: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<StockCount>
   /** The count sheet as CSV text (sku, barcode, product, size, expected_qty, counted_qty). */
   exportStockCount: (id: string) => Promise<string>
   // scanner CSV upload: dryRun previews, dryRun=false stores counted quantities (needs idempotencyKey).
   // A 422 (row errors) or 409 (stale / key conflict) throws an ApiError whose body carries the report.
-  importStockCount: (id: string, input: CsvImportRequest, idempotencyKey?: string) => Promise<StockCountImportReport>
+  importStockCount: (id: string, input: StockCountImportRequest, idempotencyKey?: string) => Promise<StockCountImportReport>
 
   // warehouses / inventory
   listWarehouses: () => Promise<Warehouse[]>
@@ -390,23 +392,23 @@ export interface Api {
   exportStockMovements: (params: StockMovementExportParams) => Promise<string>
   getMovementLedgerSummary: (params: MovementLedgerSummaryParams) => Promise<MovementLedgerSummaryResponse>
   getOutletGiveaway: (outletId: string) => Promise<OutletGiveaway>
-  setOutletGiveaway: (outletId: string, input: OutletGiveawayInput, idempotencyKey?: string) => Promise<OutletGiveaway>
+  setOutletGiveaway: (outletId: string, input: OutletGiveawayInput, idempotencyKey: string) => Promise<OutletGiveaway>
   listAdjustmentRequests: (params?: ListAdjustmentRequestsParams) => Promise<ListResult<AdjustmentRequest>>
-  createAdjustmentRequest: (input: AdjustmentRequestCreateInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
+  createAdjustmentRequest: (input: AdjustmentRequestCreateInput, idempotencyKey: string) => Promise<AdjustmentRequest>
   getAdjustmentRequest: (id: string) => Promise<AdjustmentRequest>
-  approveAdjustmentRequest: (id: string, input: InventoryApproveInput, idempotencyKey?: string) => Promise<AdjustmentRequestApproveResult>
-  rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
-  cancelAdjustmentRequest: (id: string, input?: InventoryCancelInput, idempotencyKey?: string) => Promise<AdjustmentRequest>
+  approveAdjustmentRequest: (id: string, input: InventoryApproveInput, idempotencyKey: string) => Promise<AdjustmentRequestApproveResult>
+  rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<AdjustmentRequest>
+  cancelAdjustmentRequest: (id: string, idempotencyKey: string, input?: InventoryCancelInput) => Promise<AdjustmentRequest>
   listInventoryApprovals: () => Promise<ApprovalQueueResponse>
   listRequisitions: (params?: ListRequisitionsParams) => Promise<ListResult<StockRequisition>>
   getRequisition: (id: string) => Promise<StockRequisition>
-  createRequisition: (input: StockRequisitionInput, idempotencyKey?: string) => Promise<StockRequisition>
-  updateRequisition: (id: string, input: StockRequisitionInput, idempotencyKey?: string) => Promise<StockRequisition>
-  submitRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisition>
-  cancelRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisition>
-  approveRequisition: (id: string, input: StockRequisitionApproveInput, idempotencyKey?: string) => Promise<StockRequisition>
-  rejectRequisition: (id: string, input: InventoryRejectInput, idempotencyKey?: string) => Promise<StockRequisition>
-  fulfilRequisition: (id: string, idempotencyKey?: string) => Promise<StockRequisitionFulfilResult>
+  createRequisition: (input: StockRequisitionInput, idempotencyKey: string) => Promise<StockRequisition>
+  updateRequisition: (id: string, input: StockRequisitionInput, idempotencyKey: string) => Promise<StockRequisition>
+  submitRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisition>
+  cancelRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisition>
+  approveRequisition: (id: string, input: StockRequisitionApproveInput, idempotencyKey: string) => Promise<StockRequisition>
+  rejectRequisition: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<StockRequisition>
+  fulfilRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisitionFulfilResult>
 
   // transfers (SP2)
   listTransfers: (opts?: { status?: string; from?: string; to?: string; locKind?: 'outlet' | 'warehouse'; locId?: string; page?: number; limit?: number }) => Promise<ListResult<Transfer>>
@@ -542,11 +544,23 @@ export function createClient(opts: ClientOptions): Api {
     return refreshing
   }
 
-  async function request<T>(
+  function request<T>(
     method: string,
     path: string,
     body?: unknown,
     reqOpts?: RequestOptions,
+  ): Promise<T> {
+    return execute<T>(method, path, body, reqOpts, false)
+  }
+
+  /** The one request core: auth, outlet header, timeout, one silent refresh, typed errors.
+   *  `csv` only changes the Accept header and how a 2xx body is read (verbatim text, content-type checked). */
+  async function execute<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    reqOpts: RequestOptions | undefined,
+    csv: boolean,
   ): Promise<T> {
     const controller = reqOpts?.timeoutMs ? new AbortController() : null
     let timedOut = false
@@ -554,7 +568,7 @@ export function createClient(opts: ClientOptions): Api {
       ? setTimeout(() => { timedOut = true; controller.abort() }, reqOpts?.timeoutMs)
       : null
     const send = async (): Promise<Response> => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const headers: Record<string, string> = csv ? { Accept: 'text/csv' } : { 'Content-Type': 'application/json' }
       const token = opts.getToken()
       if (token) headers.Authorization = `Bearer ${token}`
       const outlet = opts.getOutletId?.()
@@ -606,6 +620,14 @@ export function createClient(opts: ClientOptions): Api {
       } catch (e) {
         throw transportError(e)
       }
+      if (csv && res.ok) {
+        // A 200 that is not a CSV (a proxy page, a JSON envelope) must not be handed to a download as data.
+        const ct = (res.headers.get('content-type') ?? '').toLowerCase()
+        if (!ct.includes('text/csv') && !ct.includes('application/octet-stream')) {
+          throw new ApiError(res.status, `respons server tidak valid (${res.status})`, 'invalid_response')
+        }
+        return text as T
+      }
       let json: { error?: string } | null = null
       try {
         json = text ? JSON.parse(text) : null
@@ -651,12 +673,14 @@ export function createClient(opts: ClientOptions): Api {
   /** Idempotency-Key request option for the optional key of a write. */
   const idem = (key?: string): RequestOptions | undefined =>
     key ? { headers: { 'Idempotency-Key': key } } : undefined
+  /** Idempotency-Key request option for a write whose double-submit would create or apply a second document. */
+  const idemRequired = (key: string): RequestOptions => ({ headers: { 'Idempotency-Key': key } })
 
-  /** Query string that allows an array value (repeated key) next to scalars; undefined and null are dropped. */
+  /** Query string that allows an array value (repeated key) next to scalars; undefined, null and empty strings are dropped (false is kept: giveaway=false excludes giveaway rows). */
   const qsMulti = (params: object): string => {
     const p = new URLSearchParams()
     for (const [k, v] of Object.entries(params)) {
-      if (v === undefined || v === null) continue
+      if (v === undefined || v === null || v === '') continue
       if (Array.isArray(v)) for (const x of v) p.append(k, String(x))
       else p.set(k, String(v))
     }
@@ -664,45 +688,9 @@ export function createClient(opts: ClientOptions): Api {
     return s ? `?${s}` : ''
   }
 
-  /** GET a text/csv body. Same auth, outlet header and one silent refresh as request(); the body is returned verbatim. */
-  async function requestCsv(path: string): Promise<string> {
-    const send = (): Promise<Response> => {
-      const headers: Record<string, string> = { Accept: 'text/csv' }
-      const token = opts.getToken()
-      if (token) headers.Authorization = `Bearer ${token}`
-      const outlet = opts.getOutletId?.()
-      if (outlet) headers['X-Outlet-Id'] = outlet
-      return fetch(opts.baseUrl + path, { method: 'GET', headers })
-    }
-    const sendTyped = async (): Promise<Response> => {
-      try {
-        return await send()
-      } catch (e) {
-        throw new ApiError(0, e instanceof Error ? e.message : 'network error', 'network')
-      }
-    }
-    let res = await sendTyped()
-    if (res.status === 401) {
-      const refreshed = await trySilentRefresh()
-      if (refreshed === 'ok') res = await sendTyped()
-      else if (refreshed !== 'rejected') throw refreshed
-    }
-    if (res.status === 401) {
-      opts.onUnauthorized?.()
-      throw new ApiError(401, 'unauthorized')
-    }
-    const text = await res.text()
-    if (!res.ok) {
-      let json: { error?: string } | null = null
-      try {
-        json = text ? JSON.parse(text) : null
-      } catch {
-        json = null
-      }
-      throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`, 'http', json)
-    }
-    return text
-  }
+  /** GET a text/csv body. Same auth, outlet header, timeout, one silent refresh and error mapping as request(); the body is returned verbatim. */
+  const requestCsv = (path: string, reqOpts?: RequestOptions): Promise<string> =>
+    execute<string>('GET', path, undefined, reqOpts, true)
 
   return {
     request,
@@ -885,11 +873,11 @@ export function createClient(opts: ClientOptions): Api {
     completeStockCount: (id, items) =>
       data<StockCount>('POST', `${API}/stock-counts/${id}/complete`, { items }),
     submitStockCount: (id, input, idempotencyKey) =>
-      data<StockCount>('POST', `${API}/stock-counts/${id}/submit`, input, idem(idempotencyKey)),
+      data<StockCount>('POST', `${API}/stock-counts/${id}/submit`, input, idemRequired(idempotencyKey)),
     approveStockCount: (id, input, idempotencyKey) =>
-      data<StockCount>('POST', `${API}/stock-counts/${id}/approve`, input, idem(idempotencyKey)),
+      data<StockCount>('POST', `${API}/stock-counts/${id}/approve`, input, idemRequired(idempotencyKey)),
     rejectStockCount: (id, input, idempotencyKey) =>
-      data<StockCount>('POST', `${API}/stock-counts/${id}/reject`, input, idem(idempotencyKey)),
+      data<StockCount>('POST', `${API}/stock-counts/${id}/reject`, input, idemRequired(idempotencyKey)),
     exportStockCount: (id) => requestCsv(`${API}/stock-counts/${id}/export`),
     importStockCount: (id, input, idempotencyKey) =>
       data<StockCountImportReport>('POST', `${API}/stock-counts/${id}/import`, input, idem(idempotencyKey)),
@@ -926,37 +914,37 @@ export function createClient(opts: ClientOptions): Api {
       request<MovementLedgerSummaryResponse>('GET', `${API}/inventory/movements/summary${qsMulti(params)}`),
     getOutletGiveaway: (outletId) => data<OutletGiveaway>('GET', `${API}/outlets/${outletId}/giveaway`),
     setOutletGiveaway: (outletId, input, idempotencyKey) =>
-      data<OutletGiveaway>('PUT', `${API}/outlets/${outletId}/giveaway`, input, idem(idempotencyKey)),
+      data<OutletGiveaway>('PUT', `${API}/outlets/${outletId}/giveaway`, input, idemRequired(idempotencyKey)),
     listAdjustmentRequests: (params) =>
       request<ListResult<AdjustmentRequest>>('GET', `${API}/inventory/adjustment-requests${qsMulti(params ?? {})}`),
     createAdjustmentRequest: (input, idempotencyKey) =>
-      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests`, input, idem(idempotencyKey)),
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests`, input, idemRequired(idempotencyKey)),
     getAdjustmentRequest: (id) => data<AdjustmentRequest>('GET', `${API}/inventory/adjustment-requests/${id}`),
     approveAdjustmentRequest: (id, input, idempotencyKey) =>
-      data<AdjustmentRequestApproveResult>('POST', `${API}/inventory/adjustment-requests/${id}/approve`, input, idem(idempotencyKey)),
+      data<AdjustmentRequestApproveResult>('POST', `${API}/inventory/adjustment-requests/${id}/approve`, input, idemRequired(idempotencyKey)),
     rejectAdjustmentRequest: (id, input, idempotencyKey) =>
-      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/reject`, input, idem(idempotencyKey)),
-    cancelAdjustmentRequest: (id, input, idempotencyKey) =>
-      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idem(idempotencyKey)),
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/reject`, input, idemRequired(idempotencyKey)),
+    cancelAdjustmentRequest: (id, idempotencyKey, input) =>
+      data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idemRequired(idempotencyKey)),
     listInventoryApprovals: () =>
       request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending`),
     listRequisitions: (params) =>
       request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`),
     getRequisition: (id) => data<StockRequisition>('GET', `${API}/requisitions/${id}`),
     createRequisition: (input, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions`, input, idem(idempotencyKey)),
+      data<StockRequisition>('POST', `${API}/requisitions`, input, idemRequired(idempotencyKey)),
     updateRequisition: (id, input, idempotencyKey) =>
-      data<StockRequisition>('PUT', `${API}/requisitions/${id}`, input, idem(idempotencyKey)),
+      data<StockRequisition>('PUT', `${API}/requisitions/${id}`, input, idemRequired(idempotencyKey)),
     submitRequisition: (id, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/submit`, undefined, idem(idempotencyKey)),
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/submit`, undefined, idemRequired(idempotencyKey)),
     cancelRequisition: (id, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/cancel`, undefined, idem(idempotencyKey)),
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/cancel`, undefined, idemRequired(idempotencyKey)),
     approveRequisition: (id, input, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/approve`, input, idem(idempotencyKey)),
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/approve`, input, idemRequired(idempotencyKey)),
     rejectRequisition: (id, input, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/reject`, input, idem(idempotencyKey)),
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/reject`, input, idemRequired(idempotencyKey)),
     fulfilRequisition: (id, idempotencyKey) =>
-      data<StockRequisitionFulfilResult>('POST', `${API}/requisitions/${id}/fulfil`, undefined, idem(idempotencyKey)),
+      data<StockRequisitionFulfilResult>('POST', `${API}/requisitions/${id}/fulfil`, undefined, idemRequired(idempotencyKey)),
     listTransfers: (opts) => {
       const { status, from, to, locKind, locId, page = 1, limit = 50 } = opts ?? {}
       const params: Record<string, string | number> = { page, limit }
