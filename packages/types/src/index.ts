@@ -78,6 +78,13 @@ export function canRefund(user: { role: string; permissions?: readonly string[] 
   return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.PROCESS_REFUND)
 }
 
+/** UI-only gate for the POS "Permintaan Barang" screen, read from the cached signed-in user. The server decides
+ *  (`request_stock`, admin bypass); a refresh after a grant or revoke updates this within one access-token TTL. */
+export function canRequestStock(user: { role: string; permissions?: readonly string[] | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.REQUEST_STOCK)
+}
+
 export interface CustomRole {
   id?: string
   name: string
