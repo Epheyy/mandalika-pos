@@ -726,9 +726,24 @@ func TestCsvImportPostgres(t *testing.T) {
 		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
 			t.Fatalf("an open stock count must block the rename: %+v", rep.Issues)
 		}
+		// S3: a count waiting for approval still applies deltas by size text, so it blocks too
+		exec(`UPDATE stock_counts SET status='pending_approval' WHERE id=$1`, sc)
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
+			t.Fatalf("a count pending approval must block the rename: %+v", rep.Issues)
+		}
 		exec(`UPDATE stock_counts SET status='completed' WHERE id=$1`, sc)
 		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
 			t.Fatalf("a completed count must not block: %+v", rep.Issues)
+		}
+		// S3: so does a pending stock adjustment request for the size
+		ar := text(`INSERT INTO stock_adjustment_requests(number,outlet_id,product_id,variant_size,qty_at_request,requested_new_qty,reason_code,requested_by)
+			VALUES('ADJ-IM-1',$1,$2,'100 ml',1,0,'damaged',gen_random_uuid()) RETURNING id::text`, outlet, melatiID)
+		if rep := preview("/products/import", rename); !hasCode(rep, "size_in_flight") {
+			t.Fatalf("a pending adjustment request must block the rename: %+v", rep.Issues)
+		}
+		exec(`UPDATE stock_adjustment_requests SET status='cancelled' WHERE id=$1`, ar)
+		if rep := preview("/products/import", rename); hasCode(rep, "size_in_flight") || rep.HasErrors() {
+			t.Fatalf("a cancelled request must not block: %+v", rep.Issues)
 		}
 	})
 

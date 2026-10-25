@@ -520,6 +520,9 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		key := nextKey()
 		code, _, first := call("POST", "/stock-counts/"+diff+"/approve", tokAdmin, key, map[string]any{"pin": pin, "note": "ok"})
 		mustCode("approve", 200, code, first)
+		if !strings.Contains(first, `"approvedByName":"AP admin`) || !strings.Contains(first, `"submittedByName":"AP manager`) {
+			t.Fatalf("count answer carries no names: %s", first)
+		}
 		if status("stock_counts", diff) != "completed" || stockA("M") != 14 {
 			t.Fatalf("count not applied: %s M=%d", status("stock_counts", diff), stockA("M"))
 		}

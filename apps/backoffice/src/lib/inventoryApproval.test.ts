@@ -7,6 +7,7 @@ import {
   buildSubmitLines,
   varianceLines,
   composeReason,
+  countDetailRows,
   countStatusLabel,
   countStatusTone,
   isApprovalRequired,
@@ -76,5 +77,16 @@ describe('inventoryApproval helpers', () => {
     const out = buildSubmitLines(lines, { 'p|b': { code: 'other', text: ' x ' } })
     expect(out).toEqual([{ productId: 'p', variantSize: 'b', reasonCode: 'other', reasonText: 'x' }])
     expect(buildSubmitLines(lines, {})).toEqual([])
+  })
+
+  it('a pending count (difference still null) shows its counted-vs-baseline lines', () => {
+    const base = { productId: 'p', productName: 'P', sku: '', difference: null }
+    const rows = countDetailRows([
+      { ...base, variantSize: 'a', frozenQty: 10, baselineQty: 12, actualQty: 15 },
+      { ...base, variantSize: 'b', frozenQty: 10, baselineQty: null, actualQty: 7 },
+      { ...base, variantSize: 'c', frozenQty: 10, baselineQty: 10, actualQty: 10 },
+      { ...base, variantSize: 'd', frozenQty: 10, baselineQty: null, actualQty: null },
+    ])
+    expect(rows.map((r) => [r.item.variantSize, r.reference, r.diff])).toEqual([['a', 12, 3], ['b', 10, -3]])
   })
 })

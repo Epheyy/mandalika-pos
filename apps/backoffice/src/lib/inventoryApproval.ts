@@ -147,3 +147,18 @@ export function buildSubmitLines(lines: VarianceLine[], reasons: Record<string, 
     return [{ productId: item.productId, variantSize: item.variantSize, reasonCode: r.code, reasonText: r.text.trim() || undefined }]
   })
 }
+
+export interface CountDetailRow {
+  item: StockCountItem
+  /** What the count is measured against: the line's baseline, or the frozen qty when it has none. */
+  reference: number
+  diff: number
+}
+
+/**
+ * Rows of the approval detail table. `difference` stays null on the server until the count is
+ * applied, so a pending count is measured here, exactly as applyCountDeltas will measure it.
+ */
+export function countDetailRows(items: StockCountItem[]): CountDetailRow[] {
+  return varianceLines(items).map(({ item, diff }) => ({ item, diff, reference: item.baselineQty ?? item.frozenQty }))
+}

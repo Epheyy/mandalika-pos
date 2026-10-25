@@ -7,6 +7,7 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import {
   adjustmentDelta,
   adjustmentDrift,
+  countDetailRows,
   newIdempotencyKey,
   reasonLabel,
   signed,
@@ -66,7 +67,7 @@ function AdjustmentBody({ r }: { r: AdjustmentRequest }) {
 }
 
 function CountBody({ c }: { c: StockCount }) {
-  const lines = c.items.filter((i) => (i.difference ?? 0) !== 0)
+  const lines = countDetailRows(c.items)
   return (
     <div className="space-y-2">
       <Row k="Alasan opname" v={reasonLabel(c.reasonCode)} />
@@ -75,18 +76,18 @@ function CountBody({ c }: { c: StockCount }) {
       <div className="overflow-x-auto max-h-72 overflow-y-auto">
         <table className="w-full">
           <thead className="bg-gray-50 sticky top-0">
-            <tr>{['Produk', 'Varian', 'Beku', 'Aktual', 'Selisih', 'Alasan'].map((h) => (
+            <tr>{['Produk', 'Varian', 'Acuan', 'Aktual', 'Selisih', 'Alasan'].map((h) => (
               <th key={h} className="text-left px-3 py-1.5 text-xs font-black text-gray-400 uppercase">{h}</th>
             ))}</tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {lines.map((i) => (
+            {lines.map(({ item: i, diff, reference }) => (
               <tr key={`${i.productId}|${i.variantSize}`}>
                 <td className="px-3 py-1.5 text-sm font-bold text-gray-900">{i.productName}</td>
                 <td className="px-3 py-1.5 text-xs text-gray-600">{i.variantSize}</td>
-                <td className="px-3 py-1.5 text-sm">{i.frozenQty}</td>
+                <td className="px-3 py-1.5 text-sm">{reference}</td>
                 <td className="px-3 py-1.5 text-sm">{i.actualQty ?? '-'}</td>
-                <td className="px-3 py-1.5 text-sm font-black">{signed(i.difference ?? 0)}</td>
+                <td className="px-3 py-1.5 text-sm font-black">{signed(diff)}</td>
                 <td className="px-3 py-1.5 text-xs text-gray-600">
                   {i.reasonCode ? reasonLabel(i.reasonCode) : '-'}{i.reasonText ? `: ${i.reasonText}` : ''}
                 </td>

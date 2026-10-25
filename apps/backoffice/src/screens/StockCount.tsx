@@ -379,12 +379,12 @@ export default function StockCount() {
                 )}
                 {sc.status === 'pending_approval' && (
                   <p className="mx-5 mb-3 text-xs text-amber-700">
-                    Diajukan {sc.submittedAt ? format(parseISO(sc.submittedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.submittedBy?.slice(0, 8) ?? '-'}. Menunggu persetujuan, tidak bisa diubah.
+                    Diajukan {sc.submittedAt ? format(parseISO(sc.submittedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.submittedByName ?? sc.submittedBy?.slice(0, 8) ?? '-'}. Menunggu persetujuan, tidak bisa diubah.
                   </p>
                 )}
                 {sc.status === 'completed' && sc.approvedBy && (
                   <p className="mx-5 mb-3 text-xs text-gray-500">
-                    Disetujui {sc.approvedAt ? format(parseISO(sc.approvedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.approvedBy.slice(0, 8)}.
+                    Disetujui {sc.approvedAt ? format(parseISO(sc.approvedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.approvedByName ?? sc.approvedBy.slice(0, 8)}.
                   </p>
                 )}
                 {expanded === sc.id && (
