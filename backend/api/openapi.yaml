@@ -3036,6 +3036,7 @@ components:
         requestedBy: { type: string, format: uuid }
         requestedByName: { type: string }
         submittedAt: { type: string, format: date-time }
+        submittedBy: { type: string, format: uuid, description: "Who submitted the requisition; with the creator, barred from approving, rejecting or fulfilling it." }
         decidedBy: { type: string, format: uuid }
         decidedByName: { type: string }
         decidedAt: { type: string, format: date-time }

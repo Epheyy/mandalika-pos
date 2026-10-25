@@ -5473,6 +5473,11 @@ export interface components {
             requestedByName?: string;
             /** Format: date-time */
             submittedAt?: string;
+            /**
+             * Format: uuid
+             * @description Who submitted the requisition; with the creator, barred from approving, rejecting or fulfilling it.
+             */
+            submittedBy?: string;
             /** Format: uuid */
             decidedBy?: string;
             decidedByName?: string;
