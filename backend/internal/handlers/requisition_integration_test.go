@@ -280,6 +280,8 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("outlet-scope-and-spoofing", f.outletScope)
 	t.Run("validation", f.validation)
 	t.Run("unknown-variant-is-400", f.unknownVariant)
+	t.Run("variant-gone-at-submit-and-fulfil", f.variantGoneAtSubmitAndFulfil)
+	t.Run("note-too-long-is-400", f.noteTooLong)
 	t.Run("state-machine", f.stateMachine)
 	t.Run("approve-rules", f.approveRules)
 	t.Run("reject", f.reject)
@@ -462,6 +464,48 @@ func (f *rqFixture) unknownVariant(t *testing.T) {
 	if len(pb.Data.Items) != 1 || pb.Data.Items[0].RequestedQty != 1 {
 		t.Fatalf("a refused update changed the lines: %+v", pb.Data.Items)
 	}
+}
+
+// variantGoneAtSubmitAndFulfil: a size deleted after the line was saved is refused at SUBMIT (the
+// cashier can still fix the draft) and at FULFIL over the approved lines, naming the size (400).
+func (f *rqFixture) variantGoneAtSubmitAndFulfil(t *testing.T) {
+	p := f.product(t)
+	id := f.create(t, "staffA", rqLine(p, 2))
+	f.exec(t, `DELETE FROM product_variants WHERE product_id=$1 AND size='M'`, p)
+	code, body := f.call("staffA", "POST", "/requisitions/"+id+"/submit", nil, f.key())
+	f.want(t, code, body, 400, "submit with a deleted size")
+	if !strings.Contains(body, `ukuran \"M\"`) || !strings.Contains(body, "tidak ada untuk produk ini") {
+		t.Fatalf("submit error should name the size: %s", body)
+	}
+	if st := f.get(t, "staffA", id).Data.Status; st != "draft" {
+		t.Fatalf("a refused submit changed the status to %s", st)
+	}
+
+	q := f.product(t)
+	id2 := f.create(t, "staffA", rqLine(q, 2))
+	f.submit(t, id2)
+	code, body = f.approve(t, id2, 2)
+	f.want(t, code, body, 200, "approve")
+	f.exec(t, `DELETE FROM product_variants WHERE product_id=$1 AND size='M'`, q)
+	before := f.transfers(t)
+	code, body = f.call("wh", "POST", "/requisitions/"+id2+"/fulfil", nil, f.key())
+	f.want(t, code, body, 400, "fulfil with a deleted size")
+	if !strings.Contains(body, `ukuran \"M\"`) || f.transfers(t) != before {
+		t.Fatalf("fulfil must name the size and create no transfer: %s", body)
+	}
+}
+
+// noteTooLong: a note over the server cap is a 400 on create and on update; at the cap it is accepted.
+func (f *rqFixture) noteTooLong(t *testing.T) {
+	p := f.product(t)
+	long := strings.Repeat("a", 1001)
+	code, body := f.call("staffA", "POST", "/requisitions", map[string]any{"note": long, "items": []any{rqLine(p, 1)}}, f.key())
+	f.want(t, code, body, 400, "create with a 1001-char note")
+	id := f.create(t, "staffA", rqLine(p, 1))
+	code, body = f.call("staffA", "PUT", "/requisitions/"+id, map[string]any{"note": long, "items": []any{rqLine(p, 1)}}, f.key())
+	f.want(t, code, body, 400, "update with a 1001-char note")
+	code, body = f.call("staffA", "PUT", "/requisitions/"+id, map[string]any{"note": strings.Repeat("é", 1000), "items": []any{rqLine(p, 1)}}, f.key())
+	f.want(t, code, body, 200, "update with a 1000-rune note")
 }
 
 func (f *rqFixture) stateMachine(t *testing.T) {

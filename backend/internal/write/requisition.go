@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -94,6 +95,9 @@ func requisitionTransition(from, action string) (string, error) {
 // transfer was cancelled.
 func canRefulfil(transferStatus string) bool { return transferStatus == "cancelled" }
 
+// MaxRequisitionNoteRunes caps a PB note (the tablet caps its own input lower).
+const MaxRequisitionNoteRunes = 1000
+
 // validateRequisitionInput checks a draft's lines and needed-by date. A duplicate
 // (product, size) is refused exactly like a transfer line.
 func validateRequisitionInput(in RequisitionInput) error {
@@ -109,6 +113,9 @@ func validateRequisitionInput(in RequisitionInput) error {
 	}
 	if err := validateItems(items); err != nil {
 		return apperr.Wrap(apperr.Rejected, err)
+	}
+	if utf8.RuneCountInString(in.Note) > MaxRequisitionNoteRunes {
+		return errRequisitionRejected("catatan terlalu panjang (maksimal %d karakter)", MaxRequisitionNoteRunes)
 	}
 	if in.NeededBy != "" {
 		if _, err := time.Parse("2006-01-02", in.NeededBy); err != nil {

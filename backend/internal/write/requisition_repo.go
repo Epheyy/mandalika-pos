@@ -117,22 +117,43 @@ func requisitionLines(ctx context.Context, tx pgx.Tx, id string) ([]reqLine, err
 	return out, rows.Err()
 }
 
+// variantRef is one (product, size) a requisition line points at.
+type variantRef struct{ pid, size string }
+
+func itemRefs(items []RequisitionItemInput) []variantRef {
+	out := make([]variantRef, len(items))
+	for i, it := range items {
+		out[i] = variantRef{it.ProductID, it.VariantSize}
+	}
+	return out
+}
+
 // checkVariantsExist refuses a line whose (product, size) is not an existing product_variants
 // row (there is a product FK on the line but no variant FK, so a stale tablet catalog could
-// otherwise request a size that no longer exists and carry it into the transfer draft).
-func checkVariantsExist(ctx context.Context, tx pgx.Tx, items []RequisitionItemInput) error {
-	for _, it := range items {
-		var ok bool
-		if e := tx.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM product_variants WHERE product_id=$1 AND size=$2)`,
-			it.ProductID, it.VariantSize).Scan(&ok); e != nil {
-			return e
-		}
-		if !ok {
-			return errRequisitionRejected("ukuran %q tidak ada untuk produk ini", it.VariantSize)
-		}
+// otherwise request a size that no longer exists and carry it into the transfer draft). One
+// anti-join query returns the first missing size in line order. Policy: product_variants has no
+// is_active column and an inactive product's variant still exists, so activity is not checked.
+// Run on create, update, submit (the cashier can still fix the draft) and fulfil (approved lines).
+func checkVariantsExist(ctx context.Context, tx pgx.Tx, refs []variantRef) error {
+	if len(refs) == 0 {
+		return nil
 	}
-	return nil
+	pids, sizes := make([]string, len(refs)), make([]string, len(refs))
+	for i, r := range refs {
+		pids[i], sizes[i] = r.pid, r.size
+	}
+	var missing string
+	e := tx.QueryRow(ctx,
+		`SELECT i.size FROM unnest($1::uuid[], $2::text[]) WITH ORDINALITY AS i(pid, size, ord)
+		  WHERE NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=i.pid AND v.size=i.size)
+		  ORDER BY i.ord LIMIT 1`, pids, sizes).Scan(&missing)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	return errRequisitionRejected("ukuran %q tidak ada untuk produk ini", missing)
 }
 
 func insertRequisitionItems(ctx context.Context, tx pgx.Tx, id string, items []RequisitionItemInput) error {
@@ -168,7 +189,7 @@ func (r *Repo) CreateRequisitionTx(ctx context.Context, tx pgx.Tx, outletID, act
 	if e := validateRequisitionInput(in); e != nil {
 		return "", e
 	}
-	if e := checkVariantsExist(ctx, tx, in.Items); e != nil {
+	if e := checkVariantsExist(ctx, tx, itemRefs(in.Items)); e != nil {
 		return "", e
 	}
 	no, e := nextDocNo(ctx, tx, "PB", time.Now().Year())
@@ -200,7 +221,7 @@ func (r *Repo) UpdateRequisitionTx(ctx context.Context, tx pgx.Tx, id, outletID,
 	if q.status != "draft" {
 		return errRequisitionDenied(q.status)
 	}
-	if e := checkVariantsExist(ctx, tx, in.Items); e != nil {
+	if e := checkVariantsExist(ctx, tx, itemRefs(in.Items)); e != nil {
 		return e
 	}
 	if _, e := tx.Exec(ctx,
@@ -225,6 +246,17 @@ func (r *Repo) SubmitRequisitionTx(ctx context.Context, tx pgx.Tx, id, outletID,
 	}
 	to, e := requisitionTransition(q.status, "submit")
 	if e != nil {
+		return e
+	}
+	lines, e := requisitionLines(ctx, tx, id)
+	if e != nil {
+		return e
+	}
+	refs := make([]variantRef, len(lines))
+	for i, l := range lines {
+		refs[i] = variantRef{l.pid, l.size}
+	}
+	if e := checkVariantsExist(ctx, tx, refs); e != nil {
 		return e
 	}
 	if _, e := tx.Exec(ctx,
@@ -357,6 +389,13 @@ func (r *Repo) FulfilRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 	items := approvedTransferItems(lines)
 	if len(items) == 0 {
 		return "", "", apperr.Wrap(apperr.Conflict, errors.New("tidak ada qty disetujui untuk ditransfer")) // 409: nothing left
+	}
+	approvedRefs := make([]variantRef, len(items))
+	for i, it := range items {
+		approvedRefs[i] = variantRef{it.ProductID, it.VariantSize}
+	}
+	if e := checkVariantsExist(ctx, tx, approvedRefs); e != nil {
+		return "", "", e
 	}
 	if q.warehouseID == nil {
 		return "", "", errRequisitionDenied(q.status)
