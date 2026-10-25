@@ -95,6 +95,23 @@ describe('RequisitionForm and variant picker', () => {
     expect(html).toContain('value="5"')
   })
 
+  it("disables every input while a request is in flight (H1) and caps the free-text fields (L8)", () => {
+    const busy = renderToStaticMarkup(createElement(RequisitionForm, { ...formProps, busy: true }))
+    expect(busy).toMatch(/<fieldset disabled=""/)
+    const idle = renderToStaticMarkup(createElement(RequisitionForm, formProps))
+    expect(idle).not.toMatch(/<fieldset disabled/)
+    expect(idle).toContain("maxLength=\"60\"")
+    expect(idle).toContain("maxLength=\"500\"")
+  })
+
+  it("shows a real Coba Lagi button only when a retry action is set (L6)", () => {
+    const msg = "Server belum menjawab."
+    expect(renderToStaticMarkup(createElement(RequisitionForm, { ...formProps, message: msg }))).not.toContain("Coba Lagi")
+    expect(renderToStaticMarkup(createElement(RequisitionForm, { ...formProps, message: msg, onRetry: noop }))).toContain("Coba Lagi")
+    expect(renderToStaticMarkup(createElement(RequisitionDetail, { ...detailProps, pb: pb(), message: msg }))).not.toContain("Coba Lagi")
+    expect(renderToStaticMarkup(createElement(RequisitionDetail, { ...detailProps, pb: pb(), message: msg, onRetry: noop }))).toContain("Coba Lagi")
+  })
+
   it('shows a validation message', () => {
     expect(renderToStaticMarkup(createElement(RequisitionForm, { ...formProps, message: 'Tambahkan minimal satu barang.' }))).toContain('Tambahkan minimal satu barang.')
   })

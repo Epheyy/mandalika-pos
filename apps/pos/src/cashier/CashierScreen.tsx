@@ -192,6 +192,7 @@ export default function CashierScreen() {
   const [showReceive, setShowReceive] = useState(false)
   const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [showRequisitions, setShowRequisitions] = useState(false)
+  const requisitionBackRef = useRef<(() => boolean) | null>(null)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -950,7 +951,7 @@ export default function CashierScreen() {
       if (showHistory) { setShowHistory(false); return true }
       if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
-      if (showRequisitions) { setShowRequisitions(false); return true }
+      if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
       if (showRecap) { setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -1254,7 +1255,7 @@ export default function CashierScreen() {
 
       {showRequisitions && (
         <RequisitionPanel
-          onClose={() => setShowRequisitions(false)}
+          onClose={() => setShowRequisitions(false)} backRef={requisitionBackRef}
           onOpenReceive={() => { setShowRequisitions(false); setShowReceive(true) }}
           isOnline={offlineData.isOnline} products={displayProducts} userId={user.id} outletId={authStore.outletId ?? ''} />
       )}

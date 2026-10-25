@@ -1,74 +1,82 @@
 import { describe, expect, it } from 'vitest'
+import type { StockRequisitionInput } from '@mandalika/api'
 import { controllableKV } from '../../../../../packages/sync/src/testFixtures/controllableKV'
 import { createRequisitionKeys, pendingCreateStorageKey } from './requisitionKeys'
 
 const scope = { userId: 'u1', outletId: 'o1' }
 const form = { lines: [{ productId: 'p' }], note: 'n' }
+const input = (qty: number): StockRequisitionInput => ({ items: [{ productId: 'p', variantSize: 'M', requestedQty: qty }] })
 
-describe('requisitionKeys', () => {
-  it('create: same signature gives the same key across a new store on the same KV (an app restart)', async () => {
+describe('requisitionKeys: pending create', () => {
+  it('same signature gives the same key across a new store on the same KV (an app restart), and the record is unconfirmed', async () => {
     const { kv } = controllableKV()
-    const k1 = await createRequisitionKeys(kv, scope).createKey('sig-a', form)
+    const k1 = await createRequisitionKeys(kv, scope).beginCreate('sig-a', input(1), form)
     const restarted = createRequisitionKeys(kv, scope)
-    expect(await restarted.createKey('sig-a', form)).toBe(k1)
-    expect(restarted.loadPendingCreate()).toEqual({ sig: 'sig-a', key: k1, form })
+    expect(restarted.loadPendingCreate()).toEqual({ sig: 'sig-a', key: k1, input: input(1), form, sent: true })
+    expect(await restarted.beginCreate('sig-a', input(1), form)).toBe(k1)
   })
 
-  it('create: changed content mints a new key', async () => {
+  it('changed content mints a new key and replaces the record', async () => {
     const { kv } = controllableKV()
     const keys = createRequisitionKeys(kv, scope)
-    const a = await keys.createKey('sig-a', form)
-    const b = await keys.createKey('sig-b', form)
+    const a = await keys.beginCreate('sig-a', input(1), form)
+    const b = await keys.beginCreate('sig-b', input(2), form)
     expect(b).not.toBe(a)
-    expect(createRequisitionKeys(kv, scope).loadPendingCreate()?.sig).toBe('sig-b')
+    expect(createRequisitionKeys(kv, scope).loadPendingCreate()).toMatchObject({ sig: 'sig-b', input: input(2) })
   })
 
-  it('create: cleared on success, so the next create is a new document with a new key', async () => {
+  it('cleared on success: nothing survives a restart and the next create gets a new key', async () => {
     const { kv } = controllableKV()
     const keys = createRequisitionKeys(kv, scope)
-    const a = await keys.createKey('sig-a', form)
+    const a = await keys.beginCreate('sig-a', input(1), form)
     await keys.clearPendingCreate()
     expect(kv.get(pendingCreateStorageKey(scope))).toBeNull()
+    expect(keys.loadPendingCreate()).toBeNull()
     expect(createRequisitionKeys(kv, scope).loadPendingCreate()).toBeNull()
-    expect(await keys.createKey('sig-a', form)).not.toBe(a)
+    expect(await keys.beginCreate('sig-a', input(1), form)).not.toBe(a)
   })
 
-  it('create: scoped by user and outlet', async () => {
+  it('markCreateUnsent keeps the form and key but drops the "may exist" flag, also across a restart', async () => {
     const { kv } = controllableKV()
-    const a = await createRequisitionKeys(kv, scope).createKey('sig', form)
+    const keys = createRequisitionKeys(kv, scope)
+    const a = await keys.beginCreate('sig-a', input(1), form)
+    await keys.markCreateUnsent()
+    expect(keys.loadPendingCreate()).toMatchObject({ key: a, sent: false, form })
+    expect(createRequisitionKeys(kv, scope).loadPendingCreate()).toMatchObject({ key: a, sent: false })
+  })
+
+  it('scoped by user and outlet', async () => {
+    const { kv } = controllableKV()
+    const a = await createRequisitionKeys(kv, scope).beginCreate('sig', input(1), form)
     const otherUser = createRequisitionKeys(kv, { userId: 'u2', outletId: 'o1' })
     const otherOutlet = createRequisitionKeys(kv, { userId: 'u1', outletId: 'o2' })
     expect(otherUser.loadPendingCreate()).toBeNull()
     expect(otherOutlet.loadPendingCreate()).toBeNull()
-    expect(await otherUser.createKey('sig', form)).not.toBe(a)
-    expect(await otherOutlet.createKey('sig', form)).not.toBe(a)
+    expect(await otherUser.beginCreate('sig', input(1), form)).not.toBe(a)
+    expect(await otherOutlet.beginCreate('sig', input(1), form)).not.toBe(a)
   })
 
-  it('create: a corrupt persisted value is ignored', async () => {
-    const { kv } = controllableKV({ [pendingCreateStorageKey(scope)]: '{not json' })
-    const keys = createRequisitionKeys(kv, scope)
-    expect(keys.loadPendingCreate()).toBeNull()
-    expect(await keys.createKey('s', form)).toBeTruthy()
+  it('a corrupt or old-shape persisted value is ignored', async () => {
+    for (const raw of ['{not json', JSON.stringify({ sig: 's', key: 'k' })]) {
+      const { kv } = controllableKV({ [pendingCreateStorageKey(scope)]: raw })
+      const keys = createRequisitionKeys(kv, scope)
+      expect(keys.loadPendingCreate()).toBeNull()
+      expect(await keys.beginCreate('s', input(1), form)).toBeTruthy()
+    }
   })
 
-  it('create: renewCreateKey replaces the key for the same signature (409 key conflict)', async () => {
-    const { kv } = controllableKV()
-    const keys = createRequisitionKeys(kv, scope)
-    const a = await keys.createKey('s', form)
-    const b = await keys.renewCreateKey('s', form)
-    expect(b).not.toBe(a)
-    expect(await createRequisitionKeys(kv, scope).createKey('s', form)).toBe(b)
-  })
-
-  it('create: a failing durable write does not block; the key is still reused in memory', async () => {
+  it('a failing durable write does not block; the record and key are still held in memory', async () => {
     const { kv, ctl } = controllableKV()
     ctl.mode = 'reject'
     const keys = createRequisitionKeys(kv, scope)
-    const a = await keys.createKey('s', form)
-    expect(await keys.createKey('s', form)).toBe(a)
+    const a = await keys.beginCreate('s', input(1), form)
+    expect(keys.loadPendingCreate()).toMatchObject({ key: a, sent: true })
+    expect(await keys.beginCreate('s', input(1), form)).toBe(a)
   })
+})
 
-  it('update/submit/cancel: stable per (op, doc, signature), new on edit, new after forget, separate per op and doc', () => {
+describe('requisitionKeys: update / submit / cancel', () => {
+  it('stable per (op, doc, signature), new on edit, new after forget, separate per op and doc', () => {
     const { kv } = controllableKV()
     const keys = createRequisitionKeys(kv, scope)
     const a = keys.keyFor('submit', 'r1', 's')
@@ -81,7 +89,7 @@ describe('requisitionKeys', () => {
     expect(keys.keyFor('update', 'r1', 'x')).not.toBe(b)
   })
 
-  it('update/submit/cancel keys are not persisted (a restart mints fresh ones)', () => {
+  it('are not persisted (a restart mints fresh ones)', () => {
     const { kv } = controllableKV()
     const a = createRequisitionKeys(kv, scope).keyFor('submit', 'r1', 's')
     expect(createRequisitionKeys(kv, scope).keyFor('submit', 'r1', 's')).not.toBe(a)

@@ -28,7 +28,10 @@ export interface FlowDeps { isOnline: () => boolean; api: RequisitionApi }
 
 type Op = 'list' | 'get' | 'write'
 
-const KEY_CONFLICT_PREFIX = 'kunci idempotensi'
+/** Start of the server text for a reused idempotency key; pinned by backend client_contract_prefix_test.go. */
+export const KEY_CONFLICT_PREFIX = 'kunci idempotensi'
+/** Start of the server text for a lock conflict (nothing applied, safe to retry); pinned by the same Go test. */
+export const BUSY_PREFIX = 'sedang diproses permintaan lain'
 
 /** Map a thrown failure to an outcome. 409 splits on the server text: key reuse vs. a state refusal. */
 export function mapFailure(e: unknown, op: Op): { kind: FlowKind; message: string } {
@@ -38,7 +41,9 @@ export function mapFailure(e: unknown, op: Op): { kind: FlowKind; message: strin
   }
   if (e.status >= 500 || e.status === 429) return { kind: 'retry', message: RETRY_MESSAGE }
   if (e.status === 409) {
-    return e.message.toLowerCase().startsWith(KEY_CONFLICT_PREFIX)
+    const text = e.message.toLowerCase()
+    if (text.startsWith(BUSY_PREFIX)) return { kind: 'retry', message: RETRY_MESSAGE }
+    return text.startsWith(KEY_CONFLICT_PREFIX)
       ? { kind: 'keyConflict', message: KEY_CONFLICT_MESSAGE }
       : { kind: 'stale', message: STALE_MESSAGE }
   }
@@ -93,6 +98,9 @@ export const lineKey = (l: { productId: string; variantSize: string }): string =
 
 export const MSG_NO_LINES = 'Tambahkan minimal satu barang.'
 export const MSG_BAD_QTY = 'Qty harus bilangan bulat lebih dari 0.'
+export const MAX_REQUESTED_BY = 60
+export const MAX_NOTE = 500
+export const MSG_TOO_LONG = `Nama peminta maksimal ${MAX_REQUESTED_BY} karakter dan catatan maksimal ${MAX_NOTE} karakter.`
 export const MSG_DUPLICATE = 'Barang ini sudah ada di daftar; ubah qty-nya saja.'
 
 /** Optional "Diminta oleh" name goes at the start of the note (no schema change; the terminal account is the requester). */
@@ -107,6 +115,7 @@ export type BuildResult = { ok: true; input: StockRequisitionInput } | { ok: fal
 
 export function buildInput(form: RequisitionFormState): BuildResult {
   if (form.lines.length === 0) return { ok: false, message: MSG_NO_LINES }
+  if (form.requestedBy.trim().length > MAX_REQUESTED_BY || form.note.trim().length > MAX_NOTE) return { ok: false, message: MSG_TOO_LONG }
   const seen = new Set<string>()
   for (const l of form.lines) {
     const k = lineKey(l)

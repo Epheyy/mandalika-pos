@@ -19,7 +19,7 @@ describe('isSafeToAutoPull', () => {
     for (const k of ['cartCount', 'isCheckoutOpen', 'isProcessing', 'isSuccessOpen', 'hasRefundOrder', 'hasRefundSale',
       'isRefunding', 'showReceive', 'hasPendingReceive', 'hasPendingTT', 'hasPendingFulfillment', 'isAddingCustomer',
       'hasActiveAdjustment', 'hasSelectedCustomer', 'hasSelectedSalesman', 'appliedPromotionCount', 'appliedPromoCodeCount',
-      'pointsToRedeem']) expect(Object.keys(AUTO_PULL_IDLE)).toContain(k)
+      'pointsToRedeem', 'showRequisitions']) expect(Object.keys(AUTO_PULL_IDLE)).toContain(k)
   })
 })
 

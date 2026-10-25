@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@mandalika/api'
 import type { StockRequisition } from '@mandalika/api'
 import {
-  EMPTY_FORM, FEATURE_OFF_MESSAGE, formFromRequisition, splitNote, FORBIDDEN_MESSAGE, MSG_BAD_QTY, MSG_DUPLICATE, MSG_NO_LINES, NOT_FOUND_MESSAGE,
+  BUSY_PREFIX, EMPTY_FORM, FEATURE_OFF_MESSAGE, KEY_CONFLICT_PREFIX, MAX_NOTE, MAX_REQUESTED_BY, MSG_TOO_LONG, formFromRequisition, splitNote, FORBIDDEN_MESSAGE, MSG_BAD_QTY, MSG_DUPLICATE, MSG_NO_LINES, NOT_FOUND_MESSAGE,
   OFFLINE_MESSAGE, REQUEST_TIMEOUT_MS, RETRY_MESSAGE, buildInput, cancelRequisition, composeNote, createDraft,
   loadRequisition, loadRequisitions, submitDraft, updateDraft,
   type FlowDeps, type RequisitionApi,
@@ -142,5 +142,29 @@ describe('splitNote / formFromRequisition', () => {
       items: [{ id: 'i1', productId: 'p1', productName: 'A', variantSize: 'M', sku: 'S1', requestedQty: 3 }],
     })
     expect(f).toEqual({ requestedBy: 'Sari', note: 'event', neededBy: '2026-11-03', lines: [{ productId: 'p1', productName: 'A', variantSize: 'M', sku: 'S1', qty: '3' }] })
+  })
+})
+
+describe("server text contract (L1/L2)", () => {
+  // The same literals are asserted against the real Go errors in backend/internal/handlers/client_contract_prefix_test.go.
+  it("pins the two prefixes the client matches", () => {
+    expect(KEY_CONFLICT_PREFIX).toBe("kunci idempotensi")
+    expect(BUSY_PREFIX).toBe("sedang diproses permintaan lain")
+  })
+
+  it("a lock-conflict 409 is retry, not stale; the real texts map as the server sends them", async () => {
+    const busy = deps({ submitRequisition: fail(409, "sedang diproses permintaan lain, silakan coba lagi") })
+    expect(await submitDraft(busy.d, "r1", "k")).toEqual({ kind: "retry", message: RETRY_MESSAGE })
+    const key = deps({ submitRequisition: fail(409, "kunci idempotensi sudah dipakai untuk operasi lain") })
+    expect(await submitDraft(key.d, "r1", "k")).toMatchObject({ kind: "keyConflict" })
+  })
+})
+
+describe("input length caps (L8)", () => {
+  const line = { productId: "p1", productName: "A", variantSize: "M", qty: "1" }
+  it("refuses a name or note over the cap and accepts exactly the cap", () => {
+    expect(buildInput({ ...EMPTY_FORM, lines: [line], requestedBy: "x".repeat(MAX_REQUESTED_BY + 1) })).toEqual({ ok: false, message: MSG_TOO_LONG })
+    expect(buildInput({ ...EMPTY_FORM, lines: [line], note: "x".repeat(MAX_NOTE + 1) })).toEqual({ ok: false, message: MSG_TOO_LONG })
+    expect(buildInput({ ...EMPTY_FORM, lines: [line], requestedBy: "x".repeat(MAX_REQUESTED_BY), note: "y".repeat(MAX_NOTE) }).ok).toBe(true)
   })
 })

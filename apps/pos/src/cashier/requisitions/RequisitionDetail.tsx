@@ -15,13 +15,15 @@ interface Props {
   busy: boolean
   /** A user-facing failure or notice for the last action. */
   message: string | null
+  /** Set when the last failure was "server belum menjawab": re-sends the same action (same key). */
+  onRetry?: (() => void) | null
   onEdit: () => void
   onSubmit: () => void
   onCancel: () => void
   onOpenReceive: () => void
 }
 
-export function RequisitionDetail({ pb, busy, message, onEdit, onSubmit, onCancel, onOpenReceive }: Props) {
+export function RequisitionDetail({ pb, busy, message, onRetry, onEdit, onSubmit, onCancel, onOpenReceive }: Props) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const chain = buildChain(pb)
   const can = allowedActions(pb)
@@ -69,6 +71,9 @@ export function RequisitionDetail({ pb, busy, message, onEdit, onSubmit, onCance
       </div>
 
       {message && <p className="text-sm text-red-600">{message}</p>}
+      {message && onRetry && (
+        <button type="button" disabled={busy} onClick={onRetry} className="border border-indigo-600 text-indigo-600 rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">Coba Lagi</button>
+      )}
 
       {confirmCancel ? (
         <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">

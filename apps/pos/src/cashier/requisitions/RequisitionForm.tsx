@@ -1,6 +1,6 @@
 import type { Product } from '@mandalika/api'
 import { VariantPicker } from './VariantPicker'
-import { MSG_DUPLICATE, lineKey, type RequisitionFormState } from './requisitionFlow'
+import { MAX_NOTE, MAX_REQUESTED_BY, MSG_DUPLICATE, lineKey, type RequisitionFormState } from './requisitionFlow'
 
 interface Props {
   form: RequisitionFormState
@@ -10,13 +10,15 @@ interface Props {
   /** A user-facing validation or server message; the form keeps its content. */
   message: string | null
   onMessage: (m: string | null) => void
+  /** Set when the last failure was "server belum menjawab": re-sends the same save (same key). */
+  onRetry?: (() => void) | null
   /** True when editing an existing draft (no "Simpan & Ajukan" needed to create). */
   isEdit: boolean
   onSave: (andSubmit: boolean) => void
   onDiscard: () => void
 }
 
-export function RequisitionForm({ form, onChange, products, busy, message, onMessage, isEdit, onSave, onDiscard }: Props) {
+export function RequisitionForm({ form, onChange, products, busy, message, onMessage, onRetry, isEdit, onSave, onDiscard }: Props) {
   const taken = new Set(form.lines.map(lineKey))
   const add = (o: { productId: string; productName: string; variantSize: string; sku: string }) => {
     if (taken.has(lineKey(o))) { onMessage(MSG_DUPLICATE); return }
@@ -28,7 +30,8 @@ export function RequisitionForm({ form, onChange, products, busy, message, onMes
   const remove = (i: number) => onChange({ ...form, lines: form.lines.filter((_, j) => j !== i) })
 
   return (
-    <div className="p-4 space-y-4">
+    // While a request is in flight nothing can be edited: an edit would change the content under a pending key.
+    <fieldset disabled={busy} className="p-4 space-y-4 border-0 m-0 min-w-0">
       <VariantPicker products={products} taken={taken} onPick={add} />
 
       <div>
@@ -52,14 +55,17 @@ export function RequisitionForm({ form, onChange, products, busy, message, onMes
       </label>
       <label className="block text-sm">
         <span className="text-xs font-bold text-gray-500">Diminta oleh (opsional)</span>
-        <input value={form.requestedBy} onChange={(e) => onChange({ ...form, requestedBy: e.target.value })} placeholder="Nama peminta" className="mt-1 w-full border rounded-lg px-3 py-2" />
+        <input value={form.requestedBy} maxLength={MAX_REQUESTED_BY} onChange={(e) => onChange({ ...form, requestedBy: e.target.value })} placeholder="Nama peminta" className="mt-1 w-full border rounded-lg px-3 py-2" />
       </label>
       <label className="block text-sm">
         <span className="text-xs font-bold text-gray-500">Catatan (opsional)</span>
-        <textarea value={form.note} onChange={(e) => onChange({ ...form, note: e.target.value })} rows={2} className="mt-1 w-full border rounded-lg px-3 py-2" />
+        <textarea value={form.note} maxLength={MAX_NOTE} onChange={(e) => onChange({ ...form, note: e.target.value })} rows={2} className="mt-1 w-full border rounded-lg px-3 py-2" />
       </label>
 
       {message && <p className="text-sm text-red-600">{message}</p>}
+      {message && onRetry && (
+        <button type="button" onClick={onRetry} className="w-full border border-indigo-600 text-indigo-600 rounded-lg py-2 text-sm font-bold">Coba Lagi</button>
+      )}
 
       <div className="flex gap-2">
         <button type="button" disabled={busy} onClick={() => onSave(false)} className="flex-1 border rounded-lg py-2.5 text-sm font-bold text-gray-700 disabled:opacity-50">Simpan Draf</button>
@@ -68,6 +74,6 @@ export function RequisitionForm({ form, onChange, products, busy, message, onMes
       {!isEdit && form.lines.length > 0 && (
         <button type="button" disabled={busy} onClick={onDiscard} className="w-full text-xs text-gray-400">Buang isian</button>
       )}
-    </div>
+    </fieldset>
   )
 }

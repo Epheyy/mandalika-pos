@@ -26,6 +26,12 @@ describe('Permintaan Barang wiring (S6)', () => {
     }
   })
 
+  it('no POS source builds a requisitions approve / reject / fulfil path', () => {
+    for (const f of files) {
+      expect(f.text, f.p).not.toMatch(/requisitions[^\n]*\/(approve|reject|fulfil)\b/)
+    }
+  })
+
   it('every list call passes outletId (a manager or admin on the tablet must not see other outlets)', () => {
     const calls = files.flatMap((f) => [...f.text.matchAll(/\blistRequisitions\(([^)]*)\)/g)].map((m) => ({ f: f.p, args: m[1] })))
     expect(calls.length).toBeGreaterThan(0)
@@ -45,8 +51,13 @@ describe('Permintaan Barang wiring (S6)', () => {
   })
 
   it('Android Back closes the panel and the auto-pull gate sees it open', () => {
-    expect(screen).toContain('if (showRequisitions) { setShowRequisitions(false); return true }')
-    expect(screen).toMatch(/useAutoPullGate\(engine, \{[\s\S]*showRequisitions[\s\S]*\}\)/)
+    expect(screen).toContain('if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }')
+    expect(screen).toContain('backRef={requisitionBackRef}')
+    const start = screen.indexOf('useAutoPullGate(engine, {')
+    const end = screen.indexOf('\n  })', start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    expect(screen.slice(start, end)).toContain('showRequisitions') // inside the hook call, not just anywhere in the file
   })
 
   it('"Buka Terima Transfer" closes the panel and opens the existing receive panel', () => {
