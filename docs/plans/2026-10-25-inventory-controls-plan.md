@@ -431,7 +431,7 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 | Slice | POS / APK / OTA |
 |---|---|
 | S1, S3, S4, S5 | None. Counts, adjustments and requisitions are backoffice-only (§1.2). The outlet *receive* of a PB transfer is the existing A08 flow. |
-| S2 | No POS code. The sale already bumps the outlet stock counter last (`order.go:763`), so tablets pull the bag stock including the giveaway on their next stock pull. **Recommendation: do not show a bag count on the tablet in v1.** The server never blocks, the tablet cannot predict the giveaway, and a later OTA can add an optional "Tas kanvas tersisa N" hint if the owner wants it. Until the pull, the tablet's own bag count reads high by the number of unsynced sales. That is acceptable: the server is authoritative. |
+| S2 | No POS code. The sale already bumps the outlet stock counter last (`order.go:763`), so tablets pull the bag stock including the giveaway on their next stock pull. **Recommendation: do not show a bag count on the tablet in v1.** The server never blocks, the tablet cannot predict the giveaway, and a later OTA can add an optional "Tas kanvas tersisa N" hint if the owner wants it. The selling tablet treats its own sale's stock bump as already applied, so it does not pull for it; its bag count drifts until another device's change or the periodic housekeeping pull (S2 review). Other tablets pull normally. That is acceptable: the server is authoritative and the tablet shows no bag count. |
 
 ---
 
@@ -578,3 +578,11 @@ All five questions are answered; nothing is open.
    - at zero stock, still decrement (negative + `shortage` flag) rather than skip;
    - the bag shortage shows on the kartu stok and a giveaway low-stock badge, not in "Stok Minus";
    - no tablet bag counter in v1.
+
+### Owner answers after the slice reviews (2026-10-25)
+
+6. **Kartu Stok range = time recorded.** The from/to range selects movements by `recorded_at`, through a contiguous seq window, so opening + in − out = closing always holds. `occurredAt` stays a column; a row whose sale date is earlier than its recorded date gets a "Tercatat terlambat" badge. Applies to the list, the summary and the CSV (S1).
+7. **Negative stock on approval: apply and warn.** An approved adjustment applies its delta even if live stock goes below zero; the approval card warns first. Same as count approval and A44 (S3).
+8. **Strict four-eyes, switch logged.** The approver may not be anyone who created, counted or submitted the document; the same applies to adjustment requests and to Permintaan Barang (creator/submitter can't approve, reject or fulfil). Every change of `inventoryApprovalRequired` writes an `inventory_doc_events` row (doc_type `app_setting`, added to the 0069 CHECK by 0072) (S3, S5).
+9. **Cashiers raise PBs on the POS tablet.** A new slice **S6** adds a Permintaan Barang screen to the POS app (create, submit, cancel, track status) for outlet staff with `request_stock`, using the S5 endpoints. It needs a POS release (OTA if web-only, APK if native) and is planned after S1–S5 merge.
+
