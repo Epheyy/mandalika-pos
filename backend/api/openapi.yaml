@@ -3011,6 +3011,7 @@ components:
         sku: { type: string }
         requestedQty: { type: integer, minimum: 1 }
         approvedQty: { type: integer, minimum: 0 }
+        transferQty: { type: integer, minimum: 0, description: "Qty on this line in the linked transfer draft (editable there), absent without a link." }
         note: { type: string }
     StockRequisitionTransferLink:
       type: object

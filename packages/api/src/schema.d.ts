@@ -5439,6 +5439,8 @@ export interface components {
             sku?: string;
             requestedQty: number;
             approvedQty?: number;
+            /** @description Qty on this line in the linked transfer draft (editable there), absent without a link. */
+            transferQty?: number;
             note?: string;
         };
         StockRequisitionTransferLink: {
