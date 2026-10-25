@@ -56,14 +56,22 @@ func healthHandler(database pinger, c *cache.Cache) http.HandlerFunc {
 	}
 }
 
+// useRequestObservers installs the outermost middleware, in the order that matters: request id and
+// client IP first, then the access log, then the panic recoverer. The logger sits outside the
+// recoverer so an aborted response (http.ErrAbortHandler, which the recoverer re-panics) is
+// still logged.
+func useRequestObservers(r chi.Router, cfg *config.Config, sentry *observability.Sentry, sink errorLogSink) {
+	r.Use(chimw.RequestID)
+	r.Use(mw.ClientIP(cfg.TrustedProxyHops))
+	r.Use(mw.RequestLogger)
+	r.Use(sentryRecoverer(sentry, sink))
+}
+
 func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
 	// Built early: the panic recoverer persists backend errors to error_logs.
 	wr := write.New(database.Pool)
-	r.Use(chimw.RequestID)
-	r.Use(mw.ClientIP(cfg.TrustedProxyHops))
-	r.Use(mw.RequestLogger)
-	r.Use(sentryRecoverer(sentry, wr))
+	useRequestObservers(r, cfg, sentry, wr)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},

@@ -334,6 +334,28 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("the first morning pair after an empty midnight slice stays in its day", func(t *testing.T) {
+		tt := "locationType=outlet&locationId=" + mvOutletA + "&productId=" + mvProductP + "&variantSize=T"
+		day7 := list(t, tt+"&from=2026-01-07&to=2026-01-07&limit=200")
+		day8 := list(t, tt+"&from=2026-01-08&to=2026-01-08&limit=200")
+		if len(day7.Data) != 0 || day7.Summary.Opening != 6 || day7.Summary.Closing != 6 {
+			t.Fatalf("Jan 7 = %d rows / %+v, want none and the carried balance 6", len(day7.Data), day7.Summary)
+		}
+		if len(day8.Data) != 2 || day8.Summary.Opening != 6 || day8.Summary.Closing != 4 || day8.Summary.TotalOut != 2 {
+			t.Fatalf("Jan 8 = %d rows / %+v, want both rows, 6 -> 4 (the pair must not split across the boundary)", len(day8.Data), day8.Summary)
+		}
+		// instants resolve through the same boundary: an inverted instant range is empty, not an overlap
+		inv := list(t, tt+"&from=2026-01-08T10:00:00Z&to=2026-01-08T01:00:00Z&limit=200")
+		if len(inv.Data) != 0 || inv.Summary.Opening+inv.Summary.TotalIn-inv.Summary.TotalOut != inv.Summary.Closing {
+			t.Fatalf("inverted instants = %d rows / %+v, want an empty window", len(inv.Data), inv.Summary)
+		}
+		// an instant exactly between the two rows of the pair still keeps them together
+		mid := list(t, tt+"&from=2026-01-08T01:00:00.005Z&to=2026-01-09T00:00:00Z&limit=200")
+		if len(mid.Data) != 2 {
+			t.Fatalf("from between X and Y = %d rows, want 2 (b is the lowest seq of the first slice)", len(mid.Data))
+		}
+	})
+
 	t.Run("csv export equals the JSON rows", func(t *testing.T) {
 		q := "from=2026-01-01&to=2026-02-01&" + sku
 		w := admin("/inventory/movements/export?" + q)
@@ -423,13 +445,13 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			return w.Code, out
 		}
 		base := "locationType=outlet&locationId=" + mvOutletA
-		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 4 {
-			t.Fatalf("q=mv-p: %d %+v (want sizes M, L, XL and S)", code, r.Data)
+		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 5 {
+			t.Fatalf("q=mv-p: %d %+v (want sizes M, L, XL, S and T)", code, r.Data)
 		}
 		if _, r := call("admin", "", base+"&q=8990001"); len(r.Data) != 1 || r.Data[0].VariantSize != "M" {
 			t.Fatalf("barcode search = %+v", r.Data)
 		}
-		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 4 {
+		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 5 {
 			t.Fatalf("name search = %+v", r.Data)
 		}
 		// outlet B only has product P/M in its ledger
@@ -464,14 +486,26 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			sql  string
 			args []any
 		}{
+			"first": {read.BoundaryFirstSQL, []any{"outlet", mvBigOutlet, mid}},
 			"slice": {read.BoundarySliceSQL, []any{"outlet", mvBigOutlet, mid, mid.Add(read.WindowSkew)}},
-			"next":  {read.BoundaryNextSQL, []any{"outlet", mvBigOutlet, mid.Add(read.WindowSkew)}},
 			"end":   {read.BoundaryEndSQL, []any{"outlet", mvBigOutlet}},
 		} {
 			plan := explain(t, ctx, pool, probe.sql, probe.args...)
 			t.Logf("EXPLAIN %s probe:\n%s", name, plan)
 			if strings.Contains(plan, "Seq Scan") {
 				t.Fatalf("%s probe walks the table:\n%s", name, plan)
+			}
+			if name == "end" {
+				continue
+			}
+			// both recorded_at probes must be bounded range lookups on the recorded index, with the
+			// recorded_at bound in the index condition (not a filter over a seq walk)
+			if !strings.Contains(plan, "stock_movements_loc_recorded") || !strings.Contains(plan, "Index Cond") ||
+				!strings.Contains(plan, "recorded_at >=") {
+				t.Fatalf("%s probe is not a recorded_at index range lookup:\n%s", name, plan)
+			}
+			if name == "slice" && !strings.Contains(plan, "recorded_at <") {
+				t.Fatalf("slice probe has no upper recorded_at bound:\n%s", plan)
 			}
 		}
 		started := time.Now()
@@ -515,8 +549,8 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		if m.Opening+sumMap(m.InByKind)-sumMap(m.OutByKind) != m.Closing {
 			t.Fatalf("summary M does not reconcile: %+v", m)
 		}
-		if resp.Meta.Total != 5 {
-			t.Fatalf("total SKUs = %d, want 5", resp.Meta.Total)
+		if resp.Meta.Total != 6 {
+			t.Fatalf("total SKUs = %d, want 6", resp.Meta.Total)
 		}
 		// a range with no movement still lists the SKU with its carried balance
 		w = admin("/inventory/movements/summary?locationType=outlet&locationId=" + mvOutletA + "&from=2026-01-04&to=2026-01-04&q=MV-P-M")
@@ -613,7 +647,7 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	exec(`INSERT INTO warehouses(id,name) VALUES($1,'MV gudang')`, mvWarehouse)
 	exec(`INSERT INTO products(id,name) VALUES($1,'MV kartu P'),($2,'=SUM(A1)')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES
-	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($1,'XL',100000,'MV-P-XL','8990004'),($1,'S',100000,'MV-P-S','8990005'),
+	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($1,'XL',100000,'MV-P-XL','8990004'),($1,'S',100000,'MV-P-S','8990005'),($1,'T',100000,'MV-P-T','8990006'),
 	      ($2,'M',100000,'MV-Q-M','8990003')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role) VALUES($1,'mv@example.test','x','MV Petugas','manager')`, mvUser)
 	exec(`INSERT INTO warehouse_stock_adjustments(id,outlet_id,product_id,variant_size,new_qty,reason) VALUES($1,$2,$3,'M',12,'rusak kena air')`,
@@ -677,6 +711,7 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	add(mvOutletA, "outlet", mvProductP, "L", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletA, "outlet", mvProductP, "XL", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletA, "outlet", mvProductP, "S", "opening", 5, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvOutletA, "outlet", mvProductP, "T", "opening", 6, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletB, "outlet", mvProductP, "M", "opening", 9, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvWarehouse, "warehouse", mvProductP, "M", "opening", 50, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	rec("receipt", 5, "2026-01-02T02:00:00Z", mvOpts{refType: "goods_receipt", actor: mvUser})
@@ -695,6 +730,12 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	for i := 0; i < 24; i++ {
 		rec("receipt", 1, fmt.Sprintf("2026-01-05T%02d:00:00Z", i), mvOpts{refType: "goods_receipt"})
 	}
+	// P/T: the outlet is closed over midnight into Jan 8 (WIB), so no row is recorded near the day
+	// boundary. The first morning pair is inverted: X started at 08:00:00.000 and Y at 08:00:00.010,
+	// but Y took its seq first. Both belong to Jan 8 (the first row recorded in the new day is X,
+	// whose seq is higher than Y's).
+	add(mvOutletA, "outlet", mvProductP, "T", "sale", -1, "2026-01-08T01:00:00.010Z", mvOpts{recorded: "2026-01-08T01:00:00.010Z", dedupe: "sale:mv-morning-y"})
+	add(mvOutletA, "outlet", mvProductP, "T", "sale", -1, "2026-01-08T01:00:00Z", mvOpts{recorded: "2026-01-08T01:00:00Z", dedupe: "sale:mv-morning-x"})
 	exec(`INSERT INTO erp_outbox(document_id,doc_key,kind,location_type,location_id,ref_type,ref_id,status)
 	      VALUES($1,'sale:mv-1','sale','outlet',$2,'order',$1,'delivered')`, mvSaleDoc, mvOutletA)
 	return seqs

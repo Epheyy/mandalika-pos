@@ -17,16 +17,19 @@ func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+		// Logged in a defer so a request that ends in a deliberate abort (panic(http.ErrAbortHandler),
+		// e.g. a failed streaming export) still gets its access line; the panic keeps propagating.
+		defer func() {
+			slog.Info("http_request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", ww.Status(),
+				"bytes", ww.BytesWritten(),
+				"duration_ms", time.Since(start).Milliseconds(),
+				"request_id", chimw.GetReqID(r.Context()),
+				"ip", clientip.ClientIP(r),
+			)
+		}()
 		next.ServeHTTP(ww, r)
-
-		slog.Info("http_request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", ww.Status(),
-			"bytes", ww.BytesWritten(),
-			"duration_ms", time.Since(start).Milliseconds(),
-			"request_id", chimw.GetReqID(r.Context()),
-			"ip", clientip.ClientIP(r),
-		)
 	})
 }

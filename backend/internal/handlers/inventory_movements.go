@@ -253,6 +253,14 @@ func movementCSVRow(m api.StockMovementRow, zone *time.Location) []string {
 // ExportStockMovements is the kartu stok as CSV: same filters as the list, from and to required,
 // at most 93 days and 100000 rows (413 above).
 func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) {
+	// The route is exempt from the deadline middleware (a big export outlives the 25 s default and
+	// the server's 30 s write timeout): the whole handler, lookups included, runs under its own
+	// context, and the write deadline is extended slightly beyond it (best effort, ignored where
+	// unsupported).
+	ctx, cancel := context.WithTimeout(r.Context(), movementExportTimeout)
+	defer cancel()
+	r = r.WithContext(ctx)
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(movementExportWriteDeadline))
 	f, zone, ok := h.movementFilter(w, r)
 	if !ok {
 		return
@@ -265,7 +273,7 @@ func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) 
 		httpx.Err(w, http.StatusRequestEntityTooLarge, "rentang ekspor maksimal 93 hari")
 		return
 	}
-	n, err := h.Repo.CountMovements(r.Context(), f, movementExportMaxRows)
+	n, err := h.Repo.CountMovements(ctx, f, movementExportMaxRows)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
@@ -274,12 +282,6 @@ func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) 
 		httpx.Err(w, http.StatusRequestEntityTooLarge, "ekspor melebihi 100000 baris; persempit filter")
 		return
 	}
-	// A big export outlives the server's 30 s write timeout and the default request deadline (the
-	// route is exempt from the deadline middleware): bound it here with its own context and extend
-	// the write deadline slightly beyond it (best effort, ignored where unsupported).
-	ctx, cancel := context.WithTimeout(r.Context(), movementExportTimeout)
-	defer cancel()
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(movementExportWriteDeadline))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="kartu-stok.csv"`)
 	cw := csv.NewWriter(w)

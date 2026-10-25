@@ -22,8 +22,8 @@ const windowSkew = 10 * time.Minute
 // selects, in seq order. The range is on TIME RECORDED (recorded_at, the transaction start), not on
 // occurred_at: an offline sale rung days ago and synced today belongs to the day it reached the
 // books. recorded_at can be slightly out of seq order (lock waits), so the period is defined by
-// ONE boundary function over the location, b(t) = the lowest seq recorded at or after t, and the
-// window is [b(from), b(to)). Because the same b is used for both ends, consecutive periods
+// ONE boundary function over the location, b(t) = the lowest seq recorded at or after t (see
+// boundary for the skew assumption), and the window is [b(from), b(to)). Because the same b is used for both ends, consecutive periods
 // partition the ledger: the end of one is exactly the start of the next, no row is counted twice
 // and none is lost. A transaction that starts just before a boundary but commits after it lands in
 // the earlier period (it takes its seq late, and seq decides), so a closed period never moves
@@ -63,14 +63,16 @@ func (r *Repo) ResolveWindow(ctx context.Context, f *MovementFilter) error {
 	return nil
 }
 
-// The three boundary lookups (args $1 location type, $2 location id, $3 t, $4 t + windowSkew where
-// used). Exported so the MV gate can EXPLAIN exactly what runs.
+// The three boundary lookups (args $1 location type, $2 location id, $3 t or r0, $4 r0 + windowSkew
+// where used). Exported so the MV gate can EXPLAIN exactly what runs. The slice probe sums
+// m.seq+0 so min() cannot be rewritten into an ordered walk of stock_movements_loc_seq that filters
+// on recorded_at.
 const (
-	BoundarySliceSQL = `SELECT min(m.seq) FROM stock_movements m
-WHERE m.location_type=$1 AND m.location_id=$2 AND m.recorded_at >= $3 AND m.recorded_at < $4`
-	BoundaryNextSQL = `SELECT m.seq FROM stock_movements m
+	BoundaryFirstSQL = `SELECT m.recorded_at FROM stock_movements m
 WHERE m.location_type=$1 AND m.location_id=$2 AND m.recorded_at >= $3
-ORDER BY m.recorded_at, m.seq LIMIT 1`
+ORDER BY m.recorded_at LIMIT 1`
+	BoundarySliceSQL = `SELECT min(m.seq+0) FROM stock_movements m
+WHERE m.location_type=$1 AND m.location_id=$2 AND m.recorded_at >= $3 AND m.recorded_at < $4`
 	BoundaryEndSQL = `SELECT COALESCE((SELECT m.seq FROM stock_movements m
 WHERE m.location_type=$1 AND m.location_id=$2 ORDER BY m.seq DESC LIMIT 1), 0) + 1`
 )
@@ -79,34 +81,36 @@ WHERE m.location_type=$1 AND m.location_id=$2 ORDER BY m.seq DESC LIMIT 1), 0) +
 const WindowSkew = windowSkew
 
 // boundary is b(t): the lowest seq among the location's rows recorded at or after t, or one past
-// the highest seq when there is none. Each step is a bounded lookup on
-// stock_movements_loc_recorded (location, recorded_at, seq) or stock_movements_loc_seq:
-//  1. the lowest seq among rows recorded in [t, t+windowSkew), which is the answer under the skew
-//     assumption of windowSkew (rows recorded later cannot have a lower seq);
-//  2. else the first row recorded after t+windowSkew, in (recorded_at, seq) order;
-//  3. else one past the location's highest seq (an ordered probe of stock_movements_loc_seq).
+// the highest seq when there is none. It is computed with two bounded index probes on
+// stock_movements_loc_recorded (location, recorded_at, seq) instead of a walk of the location:
+//  1. r0 = the first recorded_at at or after t (the time of the first row of the new period);
+//  2. b = the lowest seq among rows recorded in [r0, r0+windowSkew).
+//
+// This equals the exact definition while a row's insert lags its transaction start by less than
+// windowSkew: every row recorded at or after r0+windowSkew then has a higher seq than some row in
+// the slice. Beyond that bound a row can land in the adjacent period; it is never counted twice
+// and never lost, because every period uses this same function for its start and its end. If there
+// is no row at or after t, b is one past the location's highest seq (an ordered probe of
+// stock_movements_loc_seq). b is non-decreasing in t under the same assumption, so an instant
+// range with from > to, or an inverted pair, resolves to an empty window rather than an overlap.
 func (r *Repo) boundary(ctx context.Context, locType, locID string, t time.Time) (int64, error) {
-	var seq *int64
-	err := r.Pool.QueryRow(ctx, BoundarySliceSQL, locType, locID, t, t.Add(windowSkew)).Scan(&seq)
+	var r0 time.Time
+	err := r.Pool.QueryRow(ctx, BoundaryFirstSQL, locType, locID, t).Scan(&r0)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var past int64
+		if err = r.Pool.QueryRow(ctx, BoundaryEndSQL, locType, locID).Scan(&past); err != nil {
+			return 0, fmt.Errorf("window boundary end: %w", err)
+		}
+		return past, nil
+	}
 	if err != nil {
-		return 0, fmt.Errorf("window boundary: %w", err)
+		return 0, fmt.Errorf("window boundary first row: %w", err)
 	}
-	if seq != nil {
-		return *seq, nil
+	var seq int64
+	if err = r.Pool.QueryRow(ctx, BoundarySliceSQL, locType, locID, r0, r0.Add(windowSkew)).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("window boundary slice: %w", err)
 	}
-	var first int64
-	err = r.Pool.QueryRow(ctx, BoundaryNextSQL, locType, locID, t.Add(windowSkew)).Scan(&first)
-	if err == nil {
-		return first, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, fmt.Errorf("window boundary next row: %w", err)
-	}
-	var past int64
-	if err = r.Pool.QueryRow(ctx, BoundaryEndSQL, locType, locID).Scan(&past); err != nil {
-		return 0, fmt.Errorf("window boundary end: %w", err)
-	}
-	return past, nil
+	return seq, nil
 }
 
 // windowSQL appends the window predicate on m.seq to where, numbering its args after args.
